@@ -9,7 +9,7 @@ Private Const UI_NS As String = "urn:excelprototype:profiles"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutItemControlRenderer.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_LayoutItemControlRenderer.fn_Module_Dispose"
 #End If
 End Sub
 ' //

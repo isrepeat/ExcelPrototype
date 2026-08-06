@@ -14,7 +14,7 @@ Private g_NamespaceCaches As Object
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_CacheRuntime.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_CacheRuntime.fn_Module_Dispose"
 #End If
     On Error Resume Next
     Set g_NamespaceCaches = Nothing

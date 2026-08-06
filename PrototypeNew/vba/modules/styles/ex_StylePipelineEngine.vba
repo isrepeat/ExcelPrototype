@@ -27,7 +27,7 @@ Private m_RuleDeclarationsCache As Object
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_StylePipelineEngine.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_StylePipelineEngine.fn_Module_Dispose"
 #End If
     Set m_LayoutBounds = Nothing
     Set m_DeferredRowAutoFitState = Nothing

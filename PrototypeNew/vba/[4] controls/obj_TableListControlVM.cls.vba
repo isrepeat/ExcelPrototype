@@ -32,13 +32,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -51,7 +51,7 @@ End Sub
 ' //
 Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Initialize"
 #End If
     m_IsDisposed = False
     m_IsConfigured = False
@@ -61,7 +61,7 @@ End Function
 
 Private Sub obj_IControl_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -152,8 +152,6 @@ Private Sub obj_IControl_Render()
     Dim valueBlock As Variant
     Dim targetRange As Range
     Dim styleSegments As Collection
-    Dim renderStart As Single
-    Dim stageStart As Single
     Dim rowCount As Long
     Dim columnCount As Long
     Dim page As obj_PageBase
@@ -189,66 +187,38 @@ Private Sub obj_IControl_Render()
         Exit Sub
     End If
 
-    renderStart = VBA.Timer
-
     ' Сначала собираем таблицы в памяти: valueBlock содержит значения,
     ' а styleSegments размечает строки/ячейки по смыслу внутри этой матрицы.
-    stageStart = VBA.Timer
     If Not private_TryBuildRenderBuffer(valueBlock, styleSegments) Then Exit Sub
     If IsEmpty(valueBlock) Then Exit Sub
     rowCount = UBound(valueBlock, 1)
     columnCount = UBound(valueBlock, 2)
-    private_LogRenderStep "build-buffer", stageStart, _
-        "rows=" & VBA.CStr(rowCount) & _
-        " columns=" & VBA.CStr(columnCount) & _
-        " styleSegments=" & private_CollectionCountText(styleSegments)
 
     Set targetRange = ws.Range( _
         ws.Cells(m_RowStart, m_ColStart), _
         ws.Cells(m_RowStart + rowCount - 1, m_ColStart + columnCount - 1))
 
     If m_RenderAsListObject Then
-        stageStart = VBA.Timer
         If Not private_TryDeleteIntersectingTables(ws, ws.Range(ws.Cells(m_RowStart, m_ColStart), ws.Cells(m_RowEnd, m_ColEnd))) Then Exit Sub
-        private_LogRenderStep "delete-intersecting-tables", stageStart
     End If
-
-    stageStart = VBA.Timer
     ' При повторном partial render section предыдущего результата уже может
     ' быть объединён. Сначала возвращаем прямоугольную сетку, иначе Excel не
     ' позволит записать новый двумерный valueBlock в targetRange.
     If m_MergeSectionCells Then targetRange.UnMerge
     targetRange.Value2 = valueBlock
-    private_LogRenderStep "write-values", stageStart, _
-        "rows=" & VBA.CStr(rowCount) & _
-        " columns=" & VBA.CStr(columnCount)
 
     If m_RenderAsListObject Then
-        stageStart = VBA.Timer
         If Not private_TryCreateRenderedListObject(ws, styleSegments) Then Exit Sub
-        private_LogRenderStep "create-list-object", stageStart
     End If
-
-    stageStart = VBA.Timer
     If Not private_TryRegisterControlColumnAliasSegments(ws, valueBlock, rowCount, columnCount, styleSegments) Then Exit Sub
-    private_LogRenderStep "register-column-aliases", stageStart
-
-    stageStart = VBA.Timer
     If Not private_TryRegisterControlSourceAliasSegments(ws, rowCount, styleSegments) Then Exit Sub
-    private_LogRenderStep "register-source-aliases", stageStart
 
     ' Размеченным ранее смысловым частям назначаются реальные диапазоны
     ' ячеек листа, затем эти Range публикуются как controlPart для XML style pipeline.
-    stageStart = VBA.Timer
     If Not private_TryRegisterControlPartSegments(ws, styleSegments) Then Exit Sub
-    private_LogRenderStep "register-control-parts", stageStart, _
-        "styleSegments=" & private_CollectionCountText(styleSegments)
 
 #If ENALBE_STYLES Then
-    stageStart = VBA.Timer
     private_ApplyStyleSegments ws, styleSegments
-    private_LogRenderStep "apply-styles", stageStart, _
-        "styleSegments=" & private_CollectionCountText(styleSegments)
 #End If
 
     If m_MergeSectionCells Then
@@ -257,10 +227,6 @@ Private Sub obj_IControl_Render()
         ' длинного заголовка и не меняет координаты следующих строк.
         private_MergeSectionRanges ws, styleSegments
     End If
-
-    private_LogRenderStep "total", renderStart, _
-        "rows=" & VBA.CStr(rowCount) & _
-        " columns=" & VBA.CStr(columnCount)
 End Sub
 
 Private Function obj_IControl_Measure( _
@@ -353,39 +319,7 @@ End Function
 ' //
 ' // Internal
 ' //
-Private Sub private_LogRenderStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Single, _
-    Optional ByVal details As String = "" _
-)
-#If LOGGING_DEBUG_ENABLED Then
-    Dim messageText As String
 
-    messageText = "tablelist:render control='" & private_LogSafeText(m_ControlName) & _
-        "' step='" & private_LogSafeText(stepName) & _
-        "' ms=" & VBA.Format$(private_ElapsedMs(startedAt, VBA.Timer), "0")
-    details = VBA.Trim$(VBA.CStr(details))
-    If VBA.Len(details) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-#End If
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Single, ByVal finishedAt As Single) As Double
-    If finishedAt < startedAt Then finishedAt = finishedAt + 86400!
-    private_ElapsedMs = (CDbl(finishedAt) - CDbl(startedAt)) * 1000#
-End Function
-
-Private Function private_LogSafeText(ByVal valueText As String) As String
-    private_LogSafeText = VBA.Replace$(VBA.CStr(valueText), "'", "''")
-End Function
-
-Private Function private_CollectionCountText(ByVal items As Collection) As String
-    If items Is Nothing Then
-        private_CollectionCountText = "<none>"
-    Else
-        private_CollectionCountText = VBA.CStr(items.Count)
-    End If
-End Function
 
 Private Function private_TryMeasureNode( _
     ByVal controlNode As Object, _

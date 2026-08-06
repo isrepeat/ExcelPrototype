@@ -6,7 +6,6 @@ Attribute VB_Name = "obj_PageComparingCtrl"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
-#Const LOGGING_PERFORMACE = True
 #Const COMPARING_FULL_VIEW_ENABLED = False
 
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageComparing.Controller"
@@ -33,14 +32,14 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     m_StatusText = "Comparing config is not loaded yet."
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -202,8 +201,6 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
     Dim diffRows As Collection
     Dim statusText As String
     Dim visibleRowCount As Long
-    Dim totalStart As Single
-    Dim stageStart As Single
 
     If m_Page Is Nothing Then Exit Function
     If m_CfgParser Is Nothing Then
@@ -214,16 +211,8 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
         rt_Messaging.fn_ShowStatusBarWarning "Comparing config is not ready.", 4
         Exit Function
     End If
-
-#If LOGGING_PERFORMACE Then
-    totalStart = VBA.Timer
-#End If
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "comparing:pipeline start notifyChange=" & VBA.CStr(notifyChange)
-#End If
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
 #End If
     If Not m_CfgParser.TryGetCompareSettings( _
         leftTableRef, _
@@ -233,13 +222,6 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
         compareColumnFormats, _
         ignoreCase, _
         trimText) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "settings", stageStart, _
-        "left='" & leftTableRef & _
-        "' right='" & rightTableRef & "'"
-
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildOutputColumns(compareColumns, outputColumns) Then Exit Function
     If Not private_TryBuildLoadColumns(compareColumns, keyColumns, loadColumns) Then Exit Function
     If Not m_CfgParser.TryBuildTableSqlParams( _
@@ -253,15 +235,6 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
 
     leftRowOffset = private_ResolveSqlRangeRowOffset(leftSqlParams)
     rightRowOffset = private_ResolveSqlRangeRowOffset(rightSqlParams)
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-sql-params", stageStart, _
-        "outputColumns=" & VBA.CStr(outputColumns.Count) & _
-        " loadColumns=" & VBA.CStr(loadColumns.Count) & _
-        " leftRowOffset=" & VBA.CStr(leftRowOffset) & _
-        " rightRowOffset=" & VBA.CStr(rightRowOffset)
-
-    stageStart = VBA.Timer
-#End If
     ' Для Comparing читаем внешние Excel-таблицы сразу в легкий obj_TableData.
     ' Он хранит только 2D Variant-массив, без тысяч obj_Row/obj_Cell, поэтому
     ' сравнение больших таблиц не платит за создание и последующее разрушение
@@ -269,28 +242,12 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequestData( _
         leftSqlParams, _
         leftData) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "read-left", stageStart, _
-        "rows=" & VBA.CStr(leftData.RowCount) & _
-        " columns=" & VBA.CStr(leftData.ColumnCount)
-
-    stageStart = VBA.Timer
-#End If
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequestData( _
         rightSqlParams, _
         rightData) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "read-right", stageStart, _
-        "rows=" & VBA.CStr(rightData.RowCount) & _
-        " columns=" & VBA.CStr(rightData.ColumnCount)
-#End If
 
     Set m_LastOutputColumns = outputColumns
     Set m_LastOutputColumnFormats = compareColumnFormats
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildDiffRowsFromData( _
         leftData, _
         rightData, _
@@ -305,36 +262,15 @@ Public Function RunPipeline(Optional ByVal notifyChange As Boolean = True) As Bo
         rightRowOffset, _
         diffRows, _
         statusText) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff", stageStart, "rows=" & VBA.CStr(diffRows.Count)
-#End If
     m_StatusText = statusText
     Set m_LastDiffRows = diffRows
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
-#End If
     If Not private_TryRefreshDiffTableItemsSource(visibleRowCount) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "set-result-source", stageStart, _
-        "visibleRows=" & VBA.CStr(visibleRowCount) & _
-        " mode='" & private_GetDiffViewModeName() & "'"
-#End If
 
     If notifyChange Then
-#If LOGGING_PERFORMACE Then
-        stageStart = VBA.Timer
-#End If
         If Not rt_PageManager.fn_RenderPage(m_Page, "comparing:run-pipeline") Then Exit Function
-#If LOGGING_PERFORMACE Then
-        private_LogPipelineStep "page-rerender", stageStart
-#End If
     End If
 
     rt_Messaging.fn_ShowStatusBarNotice m_StatusText, 4
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "total", totalStart, m_StatusText
-#End If
     RunPipeline = True
 End Function
 
@@ -481,8 +417,6 @@ Private Function private_TryBuildDiffRowsFromData( _
     Dim modifiedCount As Long
     Dim movedCount As Long
     Dim unchangedCount As Long
-    Dim stageStart As Single
-    Dim eventStageStart As Single
     Dim rowType As String
     Dim oldKey As String
     Dim newKey As String
@@ -516,10 +450,6 @@ Private Function private_TryBuildDiffRowsFromData( _
     ReDim eventTypes(1 To maxEvents)
     ReDim eventLeftRows(1 To maxEvents)
     ReDim eventRightRows(1 To maxEvents)
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildKeyIndexFromData( _
         leftData, _
         loadColumns, _
@@ -532,11 +462,6 @@ Private Function private_TryBuildDiffRowsFromData( _
         leftDuplicateIndices, _
         leftDuplicateCount, _
         "left") Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:left-key-index", stageStart, "rows=" & VBA.CStr(leftData.RowCount) & " duplicates=" & VBA.CStr(leftDuplicateCount)
-
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildKeyIndexFromData( _
         rightData, _
         loadColumns, _
@@ -549,18 +474,7 @@ Private Function private_TryBuildDiffRowsFromData( _
         rightDuplicateIndices, _
         rightDuplicateCount, _
         "right") Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:right-key-index", stageStart, "rows=" & VBA.CStr(rightData.RowCount) & " duplicates=" & VBA.CStr(rightDuplicateCount)
-
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildLcsKeys(leftKeys, rightKeys, lcsKeys) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:lcs-keys", stageStart, "matches=" & VBA.CStr(lcsKeys.Count)
-
-    stageStart = VBA.Timer
-#End If
-    eventStageStart = stageStart
     oldPos = 1
     newPos = 1
     For Each matchKey In lcsKeys
@@ -751,17 +665,6 @@ ContinueOldTail:
         newPos = newPos + 1
 ContinueNewTail:
     Loop
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:events", eventStageStart, _
-        "events=" & VBA.CStr(eventCount) & _
-        " added=" & VBA.CStr(addedCount) & _
-        " deleted=" & VBA.CStr(deletedCount) & _
-        " modified=" & VBA.CStr(modifiedCount) & _
-        " moved=" & VBA.CStr(movedCount) & _
-        " unchanged=" & VBA.CStr(unchangedCount)
-
-    stageStart = VBA.Timer
-#End If
 #If COMPARING_FULL_VIEW_ENABLED Then
     materializeCondensedView = m_IsCondensedDiffView
 #Else
@@ -791,12 +694,6 @@ ContinueNewTail:
         ", unchanged=" & VBA.CStr(unchangedCount) & _
         ", duplicate-left=" & VBA.CStr(leftDuplicateCount) & _
         ", duplicate-right=" & VBA.CStr(rightDuplicateCount) & "."
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:materialize-rows", stageStart, _
-        "events=" & VBA.CStr(eventCount) & _
-        " rows=" & VBA.CStr(outDiffRows.Count) & _
-        " mode='" & private_GetDiffViewModeName() & "'"
-#End If
     private_TryBuildDiffRowsFromData = True
 End Function
 
@@ -831,8 +728,6 @@ Private Function private_TryBuildDiffRows( _
     Dim deletedCount As Long
     Dim modifiedCount As Long
     Dim unchangedCount As Long
-    Dim stageStart As Single
-    Dim eventStageStart As Single
     Dim rowType As String
     Dim materializeCondensedView As Boolean
 
@@ -849,10 +744,6 @@ Private Function private_TryBuildDiffRows( _
     ReDim eventTypes(1 To maxEvents)
     ReDim eventLeftRows(1 To maxEvents)
     ReDim eventRightRows(1 To maxEvents)
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildKeyIndex( _
         leftTable, _
         keyColumns, _
@@ -861,11 +752,6 @@ Private Function private_TryBuildDiffRows( _
         leftKeys, _
         leftKeyIndex, _
         "left") Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:left-key-index", stageStart, "rows=" & VBA.CStr(leftTable.RowCount)
-
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildKeyIndex( _
         rightTable, _
         keyColumns, _
@@ -874,24 +760,11 @@ Private Function private_TryBuildDiffRows( _
         rightKeys, _
         rightKeyIndex, _
         "right") Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:right-key-index", stageStart, "rows=" & VBA.CStr(rightTable.RowCount)
-
-    stageStart = VBA.Timer
-#End If
     If Not private_TryBuildLcsKeys(leftKeys, rightKeys, lcsKeys) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:lcs-keys", stageStart, "matches=" & VBA.CStr(lcsKeys.Count)
-#End If
     If Not private_TryBuildCompareColumnIndexSet( _
         outputColumns, _
         compareColumns, _
         compareColumnIndexes) Then Exit Function
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
-#End If
-    eventStageStart = stageStart
     oldPos = 1
     newPos = 1
     For Each matchKey In lcsKeys
@@ -975,16 +848,6 @@ Private Function private_TryBuildDiffRows( _
         addedCount = addedCount + 1
         newPos = newPos + 1
     Loop
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:events", eventStageStart, _
-        "events=" & VBA.CStr(eventCount) & _
-        " added=" & VBA.CStr(addedCount) & _
-        " deleted=" & VBA.CStr(deletedCount) & _
-        " modified=" & VBA.CStr(modifiedCount) & _
-        " unchanged=" & VBA.CStr(unchangedCount)
-
-    stageStart = VBA.Timer
-#End If
 #If COMPARING_FULL_VIEW_ENABLED Then
     materializeCondensedView = m_IsCondensedDiffView
 #Else
@@ -1008,12 +871,6 @@ Private Function private_TryBuildDiffRows( _
         ", deleted=" & VBA.CStr(deletedCount) & _
         ", modified=" & VBA.CStr(modifiedCount) & _
         ", unchanged=" & VBA.CStr(unchangedCount) & "."
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "build-diff:materialize-rows", stageStart, _
-        "events=" & VBA.CStr(eventCount) & _
-        " rows=" & VBA.CStr(outDiffRows.Count) & _
-        " mode='" & private_GetDiffViewModeName() & "'"
-#End If
     private_TryBuildDiffRows = True
 End Function
 
@@ -1975,43 +1832,21 @@ End Function
 Private Function private_TryRefreshDiffTableItemsSource(ByRef outVisibleRowCount As Long) As Boolean
     Dim visibleDiffRows As Collection
     Dim diffTableItems As Collection
-    Dim stageStart As Single
 
     outVisibleRowCount = 0
     If m_LastOutputColumns Is Nothing Then Exit Function
     If m_LastDiffRows Is Nothing Then Exit Function
-
-#If LOGGING_PERFORMACE Then
-    stageStart = VBA.Timer
-#End If
     
     Set visibleDiffRows = m_LastDiffRows
     If Not visibleDiffRows Is Nothing Then outVisibleRowCount = visibleDiffRows.Count
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "refresh-diff-source:visible-rows", stageStart, _
-        "sourceRows=" & VBA.CStr(m_LastDiffRows.Count) & _
-        " visibleRows=" & VBA.CStr(outVisibleRowCount) & _
-        " mode='" & private_GetDiffViewModeName() & "'"
-    stageStart = VBA.Timer
-#End If
 
     If Not private_TryBuildDiffTableItems( _
         m_LastOutputColumns, _
         m_LastOutputColumnFormats, _
         visibleDiffRows, _
         diffTableItems) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "refresh-diff-source:build-table-items", stageStart, _
-        "visibleRows=" & VBA.CStr(outVisibleRowCount) & _
-        " columns=" & VBA.CStr(m_LastOutputColumns.Count + 2)
-    stageStart = VBA.Timer
-#End If
     
     If Not private_TrySetDiffTableItemsSource(diffTableItems) Then Exit Function
-#If LOGGING_PERFORMACE Then
-    private_LogPipelineStep "refresh-diff-source:set-items-source", stageStart, _
-        "tables=" & VBA.CStr(diffTableItems.Count)
-#End If
 
     private_TryRefreshDiffTableItemsSource = True
 End Function
@@ -2377,31 +2212,6 @@ Private Function private_ArrayLength(ByRef values() As String) As Long
     Exit Function
 EH:
     private_ArrayLength = 0
-End Function
-
-Private Sub private_LogPipelineStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Single, _
-    Optional ByVal details As String = "" _
-)
-#If LOGGING_DEBUG_ENABLED And LOGGING_PERFORMACE Then
-    Dim messageText As String
-
-    messageText = "comparing:pipeline step='" & private_LogSafeText(stepName) & _
-        "' ms=" & VBA.Format$(private_ElapsedMs(startedAt, VBA.Timer), "0")
-    details = VBA.Trim$(VBA.CStr(details))
-    If VBA.Len(details) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-#End If
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Single, ByVal finishedAt As Single) As Double
-    If finishedAt < startedAt Then finishedAt = finishedAt + 86400!
-    private_ElapsedMs = (CDbl(finishedAt) - CDbl(startedAt)) * 1000#
-End Function
-
-Private Function private_LogSafeText(ByVal valueText As String) As String
-    private_LogSafeText = VBA.Replace$(VBA.CStr(valueText), "'", "''")
 End Function
 
 Private Sub private_ShowCompareError(ByVal messageText As String)

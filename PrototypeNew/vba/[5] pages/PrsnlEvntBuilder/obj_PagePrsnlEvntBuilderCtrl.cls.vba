@@ -143,13 +143,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -1431,24 +1431,13 @@ End Function
 Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
     Dim newProfile As String
     Dim previousEnableEvents As Boolean
-    Dim perfStart As Double
-    Dim perfLast As Double
-
-    perfStart = VBA.Timer
-    perfLast = perfStart
     newProfile = VBA.Trim$(VBA.CStr(profileId))
     If VBA.Len(newProfile) = 0 Then Exit Function
     If VBA.StrComp(private_NormalizeText(newProfile), private_NormalizeText(m_SelectedProfile), vbTextCompare) = 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_LogPerfStep "profile-click:no-op", perfStart, perfLast, "profile='" & private_EscapeForLog(newProfile) & "'"
-#End If
         OnProfileButtonClick = True
         Exit Function
     End If
 
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profile-click:start", perfStart, perfLast, "from='" & private_EscapeForLog(m_SelectedProfile) & "' to='" & private_EscapeForLog(newProfile) & "'"
-#End If
 
     If private_IsMainProfile(newProfile) Then
         If VBA.Len(VBA.Trim$(m_SelectedMainProfile)) = 0 Then
@@ -1477,33 +1466,18 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
     If Not m_LookupFeature Is Nothing Then
         If Not m_LookupFeature.ClearLookupCandidates(False) Then Exit Function
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profile-click:profiles-registered", perfStart, perfLast, "profile='" & private_EscapeForLog(m_SelectedProfile) & "'"
-#End If
 
     previousEnableEvents = Application.EnableEvents
     Application.EnableEvents = False
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profile-click:events-disabled", perfStart, perfLast, "previousEnableEvents=" & VBA.LCase$(VBA.CStr(previousEnableEvents))
-#End If
     On Error GoTo EH
 
     OnProfileButtonClick = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:profile-changed")
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profile-click:render-returned", perfStart, perfLast, "ok=" & VBA.LCase$(VBA.CStr(OnProfileButtonClick))
-#End If
 
 Cleanup:
     Application.EnableEvents = previousEnableEvents
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profile-click:done", perfStart, perfLast, "ok=" & VBA.LCase$(VBA.CStr(OnProfileButtonClick))
-#End If
     Exit Function
 
 EH:
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profile-click:error", perfStart, perfLast, "err='" & private_EscapeForLog(Err.Description) & "'"
-#End If
     Resume Cleanup
 End Function
 
@@ -1968,11 +1942,6 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     Dim runtimeSources As obj_PageRuntimeSources
     Dim profiles As Collection
     Dim profileOptions As Collection
-    Dim perfStart As Double
-    Dim perfLast As Double
-
-    perfStart = VBA.Timer
-    perfLast = perfStart
 
     If m_Page Is Nothing Then Exit Function
     If m_Data Is Nothing Then Exit Function
@@ -1980,19 +1949,10 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
     If pageBase Is Nothing Then Exit Function
     Set runtimeSources = pageBase.RuntimeSources
     If runtimeSources Is Nothing Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profiles:runtime-ready", perfStart, perfLast, "notifyChange=" & VBA.LCase$(VBA.CStr(notifyChange))
-#End If
 
     Set profiles = m_Data.PrimaryProfileNames
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profiles:data-provider-ready", perfStart, perfLast
-#End If
     If profiles Is Nothing Then Exit Function
     If profiles.Count = 0 Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profiles:options-loaded", perfStart, perfLast, "count=" & VBA.CStr(profiles.Count)
-#End If
     If VBA.Len(VBA.Trim$(m_SelectedProfile)) = 0 Then m_SelectedProfile = VBA.Trim$(VBA.CStr(profiles.Item(1)))
     If VBA.Len(VBA.Trim$(m_SelectedMainProfile)) = 0 Then m_SelectedMainProfile = VBA.Trim$(m_SelectedProfile)
     If Not private_TryBuildOptionButtonRows( _
@@ -2003,18 +1963,9 @@ Private Function private_RegisterProfileOptions(ByVal notifyChange As Boolean) A
         True, _
         2, _
         profileOptions) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profiles:button-options-built", perfStart, perfLast, "rows=" & VBA.CStr(profileOptions.Count)
-#End If
 
     If Not runtimeSources.RemoveItemsSource(VBA.LCase$(PROFILES_RUNTIME_KEY)) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profiles:runtime-source-removed", perfStart, perfLast
-#End If
     If Not runtimeSources.SetItemsSource(VBA.LCase$(PROFILES_RUNTIME_KEY), profileOptions, notifyChange) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "profiles:runtime-source-set", perfStart, perfLast
-#End If
 
     private_RegisterProfileOptions = True
 End Function
@@ -2253,33 +2204,7 @@ ContinueProfile:
 End Function
 
 #If LOGGING_DEBUG_ENABLED Then
-Private Sub private_LogPerfStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Double, _
-    ByRef lastAt As Double, _
-    Optional ByVal details As String = "" _
-)
-    Dim nowAt As Double
-    Dim stepMs As Double
-    Dim totalMs As Double
-    Dim messageText As String
 
-    nowAt = VBA.Timer
-    stepMs = private_ElapsedMs(lastAt, nowAt)
-    totalMs = private_ElapsedMs(startedAt, nowAt)
-    lastAt = nowAt
-
-    messageText = "perf:prsnlevntbuilder:" & stepName & _
-        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
-        " totalMs=" & VBA.Format$(totalMs, "0.0")
-    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
-    If endedAt < startedAt Then endedAt = endedAt + 86400#
-    private_ElapsedMs = (endedAt - startedAt) * 1000#
-End Function
 
 Private Function private_EscapeForLog(ByVal valueText As String) As String
     private_EscapeForLog = VBA.Replace$(VBA.Trim$(VBA.CStr(valueText)), "'", "''")

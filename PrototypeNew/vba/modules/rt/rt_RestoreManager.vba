@@ -15,7 +15,7 @@ Private Const MODULE_NAME_PAGE_MANAGER As String = "rt_PageManager"
 ' Callstack[1]: ex_Core.private_Dev_TryPrepareRuntimeForHotUpdate -> private_Dev_TryRunModuleDisposers -> Application.Run(rt_RestoreManager.fn_Module_Dispose)
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_RestoreManager.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_RestoreManager.fn_Module_Dispose"
 #End If
 End Sub
 

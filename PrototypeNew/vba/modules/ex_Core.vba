@@ -40,6 +40,8 @@ Private Const SETTINGS_FLAG_IS_LOGGING_ENABLED As String = "IsLoggingEnabled"
 Private Const SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT As Boolean = True
 Private Const SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY As String = "IsLoggingMainPageOnly"
 Private Const SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT As Boolean = True
+Private Const SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED As String = "IsLoggingVerboseEnabled"
+Private Const SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT As Boolean = False
 Private Const MAIN_PAGE_WORKSHEET_NAME As String = "Main"
 
 Private g_QueuedBridgeUpdateAt As Date
@@ -65,7 +67,7 @@ Private g_LastImportHadComponentStillPresent As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Core.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_Core.fn_Module_Dispose"
 #End If
     Call fn_CancelDeferredTasks
 
@@ -237,6 +239,32 @@ Public Sub fn_Dev_ToggleMainPageLogging()
             VBA.vbExclamation, "PrototypeNew / Logging"
     End If
 End Sub
+
+
+Public Sub fn_Dev_ToggleVerboseLogging()
+    Dim isVerboseEnabled As Boolean
+
+    If Not fn_Settings_TryToggleFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED, _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT, _
+        isVerboseEnabled, _
+        True) Then
+        private_ShowStatusError "Failed to update IsLoggingVerboseEnabled in Settings.xml.", True, 6
+        Exit Sub
+    End If
+
+    If isVerboseEnabled Then
+        private_ShowStatusSuccess "Verbose logging is enabled (Settings.xml).", True, 3
+    Else
+        private_ShowStatusWarning "Verbose logging is disabled (Settings.xml).", True, 3
+    End If
+
+    If Not ex_ControlRefreshRuntime.fn_TryRefreshStaticControl("ToggleVerboseLogging") Then
+        VBA.MsgBox "PrototypeNew: verbose logging state was changed, but the 'ToggleVerboseLogging' button could not be refreshed.", _
+            VBA.vbExclamation, "PrototypeNew / Logging"
+    End If
+End Sub
+
 
 Public Sub fn_Dev_ClearLogs()
     private_Diagnostic_ClearCoreLogFile
@@ -605,6 +633,23 @@ Public Sub fn_Diagnostic_LogWarning(ByVal messageText As String)
     If VBA.Len(messageText) = 0 Then Exit Sub
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreEvent "warning: " & messageText
+#End If
+End Sub
+
+
+Public Sub fn_Diagnostic_LogVerbose(ByVal messageText As String)
+    Dim isVerboseEnabled As Boolean
+
+    If Not fn_Settings_TryGetFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED, _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT, _
+        isVerboseEnabled, _
+        False) Then Exit Sub
+    If Not isVerboseEnabled Then Exit Sub
+
+#If LOGGING_DEBUG_ENABLED Then
+    ' Verbose использует ту же page-policy, что Info/Error/Warning.
+    private_Diagnostic_LogCoreEvent "verbose: " & VBA.CStr(messageText)
 #End If
 End Sub
 
@@ -1005,6 +1050,14 @@ Private Function private_Settings_TryEnsureSettingsStructure( _
         outIsChanged, _
         showErrorUi) Then Exit Function
 
+    If Not private_Settings_TryEnsureDefaultFlagNode( _
+        settingsDom, _
+        flagsNode, _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED, _
+        fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT), _
+        outIsChanged, _
+        showErrorUi) Then Exit Function
+
     private_Settings_TryEnsureSettingsStructure = True
 End Function
 
@@ -1240,6 +1293,7 @@ Private Function private_Settings_BuildTemplateXml() As String
         "  <Flags>" & VBA.vbCrLf & _
     "    <" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & VBA.vbCrLf & _
     "    <" & SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY & ">" & VBA.vbCrLf & _
+    "    <" & SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED & ">" & VBA.vbCrLf & _
         "  </Flags>" & VBA.vbCrLf & _
         "</Settings>"
 End Function

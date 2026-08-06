@@ -17,13 +17,13 @@ Private m_OnSelectMacro As String
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -152,7 +152,7 @@ Public Function Initialize( _
     ByVal onSelectMacro As String _
 ) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Initialize"
 #End If
     providerKey = VBA.LCase$(VBA.Trim$(providerKey))
     modesRootRelativePath = VBA.Trim$(modesRootRelativePath)
@@ -179,7 +179,7 @@ End Function
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
