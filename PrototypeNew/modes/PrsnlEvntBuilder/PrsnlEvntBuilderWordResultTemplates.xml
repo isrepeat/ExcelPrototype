@@ -709,8 +709,8 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував на лікуванні, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
-#_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
+#_      який перебував на лікуванні{#if [HospitalDative]}{#space}у {[HospitalDative]|lowerFirstLetter}{#endif}, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
+#_      {#if [ToHospitalAccusative]}{#space}у {[ToHospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^

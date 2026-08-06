@@ -57,6 +57,8 @@ Private Const MAX_EXPORT_HOTKEYS As Long = 9
 Private Const LOOKUP_CANDIDATES_CONTROL_NAME As String = "LookupCandidatesTable"
 Private Const FIO_LOOKUP_KEY As String = "op_FIO"
 Private Const COMMANDER_LOOKUP_KEY As String = "op_Commander"
+Private Const HOSPITAL_LOOKUP_KEY As String = "op_Hospital"
+Private Const TO_HOSPITAL_LOOKUP_KEY As String = "op_ToHospital"
 Private Const WORD_EXPORT_PANEL_CONTAINER_NAME As String = "WordExportPanel"
 Private Const WORD_EXPORT_ACTIONS_CONTAINER_NAME As String = "WordExportActions"
 Private Const WORD_EXPORT_PREVIEW_CONTROL_NAME As String = "WordExportPreview"
@@ -92,6 +94,8 @@ Private Const DRAFT_ALIAS_IPN As String = "_IPN"
 Private Const DRAFT_ALIAS_POSITION_CODE As String = "_PositionCode"
 Private Const DRAFT_ALIAS_POSITION_NAME As String = "_PositionName"
 Private Const DRAFT_ALIAS_DESTINATION As String = "_Destination"
+Private Const DRAFT_ALIAS_HOSPITAL_SHORT As String = "_HospitalShort"
+Private Const DRAFT_ALIAS_TO_HOSPITAL_SHORT As String = "_ToHospitalShort"
 Private Const DRAFT_ALIAS_REPORT_RANK As String = "_ReportRank"
 Private Const DRAFT_ALIAS_REPORT_PERSON As String = "_ReportPerson"
 Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
@@ -557,6 +561,12 @@ Public Function ClearDependentDraftFields(ByVal lookupKey As String) As Boolean
     End If
 
     Select Case VBA.LCase$(VBA.Trim$(lookupKey))
+        Case VBA.LCase$(HOSPITAL_LOOKUP_KEY)
+            dependentAliases(DRAFT_ALIAS_HOSPITAL_SHORT) = True
+
+        Case VBA.LCase$(TO_HOSPITAL_LOOKUP_KEY)
+            dependentAliases(DRAFT_ALIAS_TO_HOSPITAL_SHORT) = True
+
         Case "op_fio"
             ' Правила намеренно выбираются по основной секции. Если сейчас открыт
             ' meta-профиль, m_SelectedMainProfile всё равно указывает на событие,

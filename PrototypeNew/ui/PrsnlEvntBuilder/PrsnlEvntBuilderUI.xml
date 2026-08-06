@@ -249,6 +249,7 @@
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -264,11 +265,28 @@
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
             text="Лікарня скорочена назва"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ToHospitalHeader"
+            tags="profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            text="Куди Лікарня"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ToHospitalShortHeader"
+            tags="profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            text="Куди Лікарня скорочена назва"
             style="tableHeaderCell"
             />
           <control
@@ -360,6 +378,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
@@ -384,6 +403,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
@@ -408,6 +428,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
@@ -446,6 +467,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
@@ -464,6 +486,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
@@ -482,6 +505,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
@@ -518,6 +542,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferMedicalCompanyToTreatment"
             text="З"
@@ -608,6 +633,7 @@
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
@@ -628,10 +654,34 @@
                   profile.toTreatment;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Input"
+            name="ToHospitalLookupInput"
+            tags="_ToHospital;
+                  profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.op_ToHospital}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="op_ToHospital"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="ToHospitalShortCell"
+            tags="_ToHospitalShort;
+                  profile.allFields;
+                  profile.transferTreatmentToVlk;"
             text=""
             style="tableDataCell"
             />
@@ -741,6 +791,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
@@ -767,6 +818,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
@@ -796,6 +848,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment"
@@ -840,6 +893,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
@@ -862,6 +916,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
@@ -882,6 +937,7 @@
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatment;
                   profile.transferMedicalCompanyToTreatment;
                   profile.metaDocument"
@@ -922,6 +978,7 @@
                   profile.transferTreatmentVacationToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
                   profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
                   profile.transferVlkToTreatmentVacation;
                   profile.transferMedicalCompanyToTreatment"
             text=""
