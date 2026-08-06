@@ -43,9 +43,11 @@
 
     <item attr="#" key="Main table columns" value=""/>
     <item key="EntityLookup.ProfilesProviderClass" value="obj_PrsnlEvntBuilderData"/>
-    <item key="EntityLookup.Table.Columns" value="_Hospital; _HospitalShort; _Destination; _Rank; _FIO; _IPN; _PositionCode; _PositionName; _ReportRank; _ReportPerson; _ReportPositionCode; _IncomingNo; _IncomingDate; _DocumentNote; _DocNo; _DocDate; _DurationDays; _DateFrom; _DateTo; _VacationTicketNo; _VacationTicketDate; _VlkNo; _VlkDate"/>
+    <item key="EntityLookup.Table.Columns" value="_Hospital; _HospitalShort; _ToHospital; _ToHospitalShort; _Destination; _Rank; _FIO; _IPN; _PositionCode; _PositionName; _ReportRank; _ReportPerson; _ReportPositionCode; _IncomingNo; _IncomingDate; _DocumentNote; _DocNo; _DocDate; _DurationDays; _DateFrom; _DateTo; _VacationTicketNo; _VacationTicketDate; _VlkNo; _VlkDate"/>
     <item key="EntityLookup.Table.Column[_Hospital].Caption" value="Лікарня"/>
     <item key="EntityLookup.Table.Column[_HospitalShort].Caption" value="Лікарня скорочена назва"/>
+    <item key="EntityLookup.Table.Column[_ToHospital].Caption" value="Куди Лікарня"/>
+    <item key="EntityLookup.Table.Column[_ToHospitalShort].Caption" value="Куди Лікарня скорочена назва"/>
     <item key="EntityLookup.Table.Column[_Destination].Caption" value="Куди"/>
     <item key="EntityLookup.Table.Column[_Rank].Caption" value="Звання"/>
     <item key="EntityLookup.Table.Column[_FIO].Caption" value="ПІБ"/>
@@ -69,12 +71,18 @@
     <item key="EntityLookup.Table.Column[_VlkDate].Caption" value="ВЛК дата"/>
 
     <item attr="#" key="Lookup bindings" value=""/>
-    <item key="EntityLookup.Lookups" value="op_Hospital; op_FIO; op_Commander; op_DocumentNote"/>
+    <item key="EntityLookup.Lookups" value="op_Hospital; op_ToHospital; op_FIO; op_Commander; op_DocumentNote"/>
     <item key="EntityLookup.Lookup[op_Hospital].TargetColumn" value="EntityLookup.Table.Column[_Hospital]"/>
     <item key="EntityLookup.Lookup[op_Hospital].CandidatesSectionCaption" value="Hospital candidates"/>
     <item key="EntityLookup.Lookup[op_Hospital].SearchColumnAlias" value="Hospitals.Sheet[Dictionary].Column[HospitalName]"/>
     <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[Hospitals.Sheet[Dictionary].Column[HospitalName]]" value="EntityLookup.Table.Column[_Hospital]"/>
     <item key="EntityLookup.Lookup[op_Hospital].ResultColumnsAliases[Hospitals.Sheet[Dictionary].Column[HospitalShort]]" value="EntityLookup.Table.Column[_HospitalShort]"/>
+
+    <item key="EntityLookup.Lookup[op_ToHospital].TargetColumn" value="EntityLookup.Table.Column[_ToHospital]"/>
+    <item key="EntityLookup.Lookup[op_ToHospital].CandidatesSectionCaption" value="Destination hospital candidates"/>
+    <item key="EntityLookup.Lookup[op_ToHospital].SearchColumnAlias" value="Hospitals.Sheet[Dictionary].Column[HospitalName]"/>
+    <item key="EntityLookup.Lookup[op_ToHospital].ResultColumnsAliases[Hospitals.Sheet[Dictionary].Column[HospitalName]]" value="EntityLookup.Table.Column[_ToHospital]"/>
+    <item key="EntityLookup.Lookup[op_ToHospital].ResultColumnsAliases[Hospitals.Sheet[Dictionary].Column[HospitalShort]]" value="EntityLookup.Table.Column[_ToHospitalShort]"/>
 
     <item key="EntityLookup.Lookup[op_FIO].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>
     <item key="EntityLookup.Lookup[op_FIO].CandidatesSectionCaption" value="Candidates"/>

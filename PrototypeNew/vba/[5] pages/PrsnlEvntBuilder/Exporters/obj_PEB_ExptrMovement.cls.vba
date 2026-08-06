@@ -999,6 +999,13 @@ Private Function private_ResolveMovementDestinationValue( _
     ByVal sourceRow As obj_Row, _
     ByVal sectionTypeText As String _
 ) As Variant
+    If private_NormalizeText(sectionTypeText) = _
+       private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk) Then
+        private_ResolveMovementDestinationValue = _
+            private_GetOptionalSourceText(sourceTable, sourceRow, "Куди Лікарня скорочена назва")
+        Exit Function
+    End If
+
     If m_Data.UsesMovementVacationDestination(sectionTypeText) Then
         private_ResolveMovementDestinationValue = private_GetOptionalSourceText(sourceTable, sourceRow, "Куди")
         Exit Function

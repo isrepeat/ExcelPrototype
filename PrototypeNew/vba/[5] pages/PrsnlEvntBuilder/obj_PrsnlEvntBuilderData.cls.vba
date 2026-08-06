@@ -89,6 +89,7 @@ Private Const PROFILE_TAG_TO_FAMILY_VACATION As String = "profile.toFamilyVacati
 Private Const PROFILE_TAG_TO_TREATMENT_VACATION As String = "profile.toTreatmentVacation"
 Private Const PROFILE_TAG_TO_AMBULATORY_VLK As String = "profile.toAmbulatoryVlk"
 Private Const PROFILE_TAG_TRANSFER_TREATMENT_TO_TREATMENT_VACATION As String = "profile.transferTreatmentToTreatmentVacation"
+Private Const PROFILE_TAG_TRANSFER_TREATMENT_TO_VLK As String = "profile.transferTreatmentToVlk"
 Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION As String = "profile.transferTreatmentVacationToTreatmentVacation"
 Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT As String = "profile.transferTreatmentVacationToTreatment"
 Private Const PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK As String = "profile.transferTreatmentVacationToVlk"
@@ -704,7 +705,7 @@ Private Function private_BuildProfileTagMap() As Object
     tagMap(private_NormalizeText(SECTION_TYPE_TO_AMBULATORY_VLK)) = PROFILE_TAG_TO_AMBULATORY_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION
-    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_STATIONARY_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_VLK
+    tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_STATIONARY_VLK)) = PROFILE_TAG_TRANSFER_TREATMENT_TO_VLK
     tagMap(private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT)) = PROFILE_TAG_TRANSFER_TREATMENT_VACATION_TO_TREATMENT
     ' Обе секции перехода из отпуска на лечение используют одинаковые поля
     ' формы, но сохраняют независимые идентификаторы Movement и WORD-шаблонов.

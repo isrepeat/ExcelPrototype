@@ -30,6 +30,7 @@ Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const SOURCE_ALIAS_POSITION_NAME As String = "PositionName"
 Private Const SOURCE_ALIAS_HOSPITAL_SHORT As String = "HospitalShort"
+Private Const SOURCE_ALIAS_TO_HOSPITAL_SHORT As String = "ToHospitalShort"
 Private Const SOURCE_ALIAS_DESTINATION As String = "Destination"
 Private Const SOURCE_ALIAS_REPORT_RANK As String = "ReportRank"
 Private Const SOURCE_ALIAS_REPORT_PERSON As String = "ReportPerson"
@@ -55,6 +56,7 @@ Private Const WORD_ALIAS_POSITION_DATIVE As String = "PositionDative"
 Private Const WORD_ALIAS_HOSPITAL_GENITIVE As String = "HospitalGenitive"
 Private Const WORD_ALIAS_HOSPITAL_ACCUSATIVE As String = "HospitalAccusative"
 Private Const WORD_ALIAS_HOSPITAL_DATIVE As String = "HospitalDative"
+Private Const WORD_ALIAS_TO_HOSPITAL_ACCUSATIVE As String = "ToHospitalAccusative"
 Private Const WORD_ALIAS_REPORT_RANK_GENITIVE As String = "ReportRankGenitive"
 Private Const WORD_ALIAS_REPORT_PERSON_GENITIVE As String = "ReportPersonGenitive"
 Private Const WORD_ALIAS_REPORT_PERSON_INITIALS_GENITIVE As String = "ReportPersonInitialsGenitive"
@@ -1341,7 +1343,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim positionCodeText As String
     Dim positionText As String
     Dim hospitalShortText As String
+    Dim toHospitalShortText As String
     Dim destinationText As String
+    Dim movementDestinationText As String
     Dim reportRankText As String
     Dim reportPersonText As String
     Dim reportPositionCodeText As String
@@ -1370,6 +1374,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim hospitalGenitive As String
     Dim hospitalAccusative As String
     Dim hospitalDative As String
+    Dim toHospitalAccusative As String
+    Dim usesDestinationHospital As Boolean
     Dim reportRankGenitive As String
     Dim reportRankGenitiveFound As Boolean
     Dim reportRankGenitiveCellTag As String
@@ -1405,6 +1411,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_CODE, positionCodeText) Then positionCodeText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_POSITION_NAME, positionText) Then positionText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_HOSPITAL_SHORT, hospitalShortText) Then hospitalShortText = VBA.vbNullString
+    If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_TO_HOSPITAL_SHORT, toHospitalShortText) Then toHospitalShortText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_DESTINATION, destinationText) Then destinationText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_RANK, reportRankText) Then reportRankText = VBA.vbNullString
     If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_REPORT_PERSON, reportPersonText) Then reportPersonText = VBA.vbNullString
@@ -1495,7 +1502,21 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalGenitive(hospitalShortText, hospitalGenitive) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative(hospitalShortText, hospitalAccusative) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalDative(hospitalShortText, hospitalDative) Then Exit Function
-    If VBA.Len(VBA.Trim$(destinationText)) > 0 Then
+    sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
+    If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
+    Set builderData = New obj_PrsnlEvntBuilderData
+    usesDestinationHospital = (VBA.StrComp( _
+        VBA.Trim$(sectionTypeText), _
+        VBA.Trim$(builderData.SectionTypeTransferTreatmentToStationaryVlk), _
+        VBA.vbTextCompare) = 0)
+    If usesDestinationHospital Then
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative( _
+            toHospitalShortText, toHospitalAccusative) Then Exit Function
+        movementDestinationText = toHospitalShortText
+    Else
+        movementDestinationText = destinationText
+    End If
+    If Not usesDestinationHospital And VBA.Len(VBA.Trim$(destinationText)) > 0 Then
         Set uaLocationInflector = New obj_UaLocationInflector
         If Not uaLocationInflector.TryInflect( _
             destinationText, "genitive", inflectedDestinationText) Then
@@ -1586,6 +1607,11 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(hospitalDative)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_HOSPITAL_DATIVE, hospitalDative) Then Exit Function
     End If
+    If VBA.Len(VBA.Trim$(toHospitalAccusative)) > 0 Then
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, WORD_ALIAS_TO_HOSPITAL_ACCUSATIVE, _
+            toHospitalAccusative) Then Exit Function
+    End If
     If VBA.Len(VBA.Trim$(destinationText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, SOURCE_ALIAS_DESTINATION, destinationText) Then Exit Function
     End If
@@ -1653,9 +1679,8 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' Для всех секций выбытия или перевода в отпуск вычисляем дату окончания
     ' включительно: DateFrom + VacationTotalDays - 1. Окончательное отображение
     ' даты (месяц словами, "року", NBSP) по-прежнему задаёт XML-шаблон.
-    Set builderData = New obj_PrsnlEvntBuilderData
     private_ResolveFoodSupportChange _
-        sectionTypeText, hospitalShortText, destinationText, builderData, _
+        sectionTypeText, hospitalShortText, movementDestinationText, builderData, _
         requiresFoodSupportEnroll, requiresFoodSupportRemove
     requiresFoodSupportChange = requiresFoodSupportEnroll Or requiresFoodSupportRemove
     If Not private_TryUpsertMainTableValue( _
@@ -2574,7 +2599,8 @@ Private Function private_ApplyGeneratedAliasWordTypography( _
 
         Case VBA.LCase$(WORD_ALIAS_HOSPITAL_GENITIVE), _
              VBA.LCase$(WORD_ALIAS_HOSPITAL_ACCUSATIVE), _
-             VBA.LCase$(WORD_ALIAS_HOSPITAL_DATIVE)
+             VBA.LCase$(WORD_ALIAS_HOSPITAL_DATIVE), _
+             VBA.LCase$(WORD_ALIAS_TO_HOSPITAL_ACCUSATIVE)
             valueText = private_NormalizeHospitalWordTypography(valueText)
 
         Case VBA.LCase$(SOURCE_ALIAS_DESTINATION)
