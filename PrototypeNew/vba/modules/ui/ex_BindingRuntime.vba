@@ -9,7 +9,7 @@ Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMembe
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_BindingRuntime.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_BindingRuntime.fn_Module_Dispose"
 #End If
 End Sub
 ' //

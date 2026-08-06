@@ -41,7 +41,7 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_PageBase = New obj_PageBase
     Set m_Controller = Nothing
@@ -50,7 +50,7 @@ End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -167,8 +167,6 @@ Private Function obj_IPage_Render() As Boolean
     Dim prevScreenUpdating As Boolean
     Dim hasPrevScreenUpdating As Boolean
     Dim renderOk As Boolean
-    Dim perfStart As Double
-    Dim perfLast As Double
 
     On Error GoTo EH
 
@@ -194,22 +192,10 @@ Private Function obj_IPage_Render() As Boolean
     Err.Clear
     On Error GoTo EH
 
-    perfStart = VBA.Timer
-    perfLast = perfStart
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:start", perfStart, perfLast
-#End If
-
     If Not private_TryCaptureActiveDraftFieldTag(activeDraftFieldTag) Then GoTo Cleanup
     If Not private_TryCaptureTaggedDraftValues(draftValuesByTag) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:capture-tagged-draft-values", perfStart, perfLast
-#End If
 
     hasOrderNoValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues)
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:capture-order-no-values", perfStart, perfLast, "hasValues=" & VBA.CStr(hasOrderNoValues)
-#End If
     ' Лимит истории не является частью draft-формы и не имеет field tag.
     ' Сохраняем его отдельным snapshot контейнера на время полного render.
     hasMovementHistoryLimitValues = private_TryCaptureLayoutContainerValues( _
@@ -217,21 +203,12 @@ Private Function obj_IPage_Render() As Boolean
         movementHistoryLimitValues)
 
     If Not m_PageBase.Render() Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:pagebase-render-returned", perfStart, perfLast
-#End If
 
     If Not private_TryRestoreTaggedDraftValues(draftValuesByTag) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:restore-tagged-draft-values", perfStart, perfLast
-#End If
 
     If hasOrderNoValues Then
         If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues) Then GoTo Cleanup
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:restore-order-no-values", perfStart, perfLast, "hasValues=" & VBA.CStr(hasOrderNoValues)
-#End If
     If hasMovementHistoryLimitValues Then
         ' При выключенном checkbox контейнер collapsed и не имеет диапазона.
         ' Это штатное состояние: сохранённое значение понадобится только пока
@@ -242,9 +219,6 @@ Private Function obj_IPage_Render() As Boolean
     End If
 
     If Not private_TryRestorePendingControlSnapshots() Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:restore-pending-control-snapshots", perfStart, perfLast
-#End If
 
     If Not m_Controller.ApplyDraftVisualState() Then GoTo Cleanup
 
@@ -252,17 +226,11 @@ Private Function obj_IPage_Render() As Boolean
     ' HotkeysControl рендерится из RuntimeItems. После render повторно применяем
     ' его текущую таблицу, чтобы restored/default строки стали активными OnKey-привязками.
     If Not private_TryRegisterRenderedHotkeys() Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "prsnlevnt:render:register-rendered-hotkeys", perfStart, perfLast
-#End If
 #End If
     If Not private_TryRestoreActiveDraftField(activeDraftFieldTag) Then GoTo Cleanup
     renderOk = True
 
 Cleanup:
-#If LOGGING_DEBUG_ENABLED Then
-    If perfStart > 0 Then private_LogRenderPerfStep "prsnlevnt:render:complete", perfStart, perfLast, "ok=" & VBA.CStr(renderOk)
-#End If
     If hasPrevCursor Then
         On Error Resume Next
         app.Cursor = prevCursor
@@ -956,10 +924,7 @@ Private Function private_TryRunLookupSearch( _
 End Function
 
 Private Function private_TryReflowLookupCandidates(ByVal reason As String) As Boolean
-    Dim startedAt As Single
-
     If m_PageBase Is Nothing Then Exit Function
-    startedAt = VBA.Timer
     If Not m_PageBase.TryReflowControl(LOOKUP_CANDIDATES_CONTROL_NAME) Then
         VBA.MsgBox _
             "PrototypeNew: partial reflow of '" & LOOKUP_CANDIDATES_CONTROL_NAME & _
@@ -969,12 +934,6 @@ Private Function private_TryReflowLookupCandidates(ByVal reason As String) As Bo
         Exit Function
     End If
 
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "perf:prsnlevntbuilder:partial-reflow control='" & _
-        LOOKUP_CANDIDATES_CONTROL_NAME & "' reason='" & _
-        VBA.Replace$(VBA.Trim$(reason), "'", "''") & "' ms=" & _
-        VBA.Format$((VBA.Timer - startedAt) * 1000!, "0")
-#End If
     private_TryReflowLookupCandidates = True
 End Function
 
@@ -1462,33 +1421,7 @@ Private Sub private_SetLookupQueryValue(ByVal lookupKey As String, ByVal queryTe
 End Sub
 
 #If LOGGING_DEBUG_ENABLED Then
-Private Sub private_LogRenderPerfStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Double, _
-    ByRef lastAt As Double, _
-    Optional ByVal details As String = "" _
-)
-    Dim nowAt As Double
-    Dim stepMs As Double
-    Dim totalMs As Double
-    Dim messageText As String
 
-    nowAt = VBA.Timer
-    stepMs = private_ElapsedMs(lastAt, nowAt)
-    totalMs = private_ElapsedMs(startedAt, nowAt)
-    lastAt = nowAt
-
-    messageText = "perf:render:" & stepName & _
-        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
-        " totalMs=" & VBA.Format$(totalMs, "0.0")
-    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
-    If endedAt < startedAt Then endedAt = endedAt + 86400#
-    private_ElapsedMs = (endedAt - startedAt) * 1000#
-End Function
 #End If
 
 Private Function private_NormalizeReasonToken(ByVal valueText As String) As String

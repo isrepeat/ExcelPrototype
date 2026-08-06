@@ -16,7 +16,7 @@ Private m_ResolvedHeadersByKey As Object
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
 #End If
     fn_ResetRuntimeCache
 End Sub

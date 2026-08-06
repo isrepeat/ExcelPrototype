@@ -187,6 +187,16 @@
           />
         <control
           type="Button"
+          name="ToggleVerboseLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingVerboseEnabled;TrueAs=Verbose: [[[ok]]On[[/ok]]];FalseAs=Verbose: [[[color=#FF0000]]Off[[/color]]]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleVerboseLogging}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
           name="ClearLogs"
           caption="Clear Logs"
           style="actionWarning"

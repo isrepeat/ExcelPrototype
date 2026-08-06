@@ -42,13 +42,13 @@ Private Const INLINE_TARGET_SHAPE As String = "shape"
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -101,7 +101,7 @@ Public Function Initialize( _
     Dim clearRange As Range
 
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     If Not private_EnsureNotDisposed("Initialize") Then Exit Function
 
@@ -143,7 +143,7 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim worksheetName As String
 
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
 
@@ -237,15 +237,11 @@ Public Function Render() As Boolean
     Dim errSource As String
     Dim errDescription As String
     Dim layoutRenderContext As obj_LayoutRenderContext
-    Dim perfStart As Double
-    Dim perfLast As Double
 
     If Not private_EnsureNotDisposed("Render") Then Exit Function
     If Not Me.IsReady() Then Exit Function
 
     If m_IsRendering Then Exit Function
-    perfStart = VBA.Timer
-    perfLast = perfStart
 
     Set ws = m_Worksheet
     Set wb = ws.Parent
@@ -267,9 +263,6 @@ Public Function Render() As Boolean
 #End If
         Exit Function
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:resolve-ui-path", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' uiPath='" & private_EscapeForLog(resolvedUiPath) & "'"
-#End If
 
     ' Загружаем и сохраняем DOM, чтобы стили и снапшоты работали с одним деревом.
     Set m_UiDom = ex_XmlCore.fn_LoadDomByRelativePath( _
@@ -279,9 +272,6 @@ Public Function Render() As Boolean
         "PrototypeNew: failed to parse page UI file: ", _
         UI_NS)
     If m_UiDom Is Nothing Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:load-ui-dom", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
 
     Set pageNode = m_UiDom.selectSingleNode("/p:page")
     If pageNode Is Nothing Then
@@ -296,9 +286,6 @@ Public Function Render() As Boolean
     m_IsRendering = True
     Set app = Application
     private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:enter-fast-render-mode", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' retainShapes=" & VBA.LCase$(VBA.CStr(retainGeneratedShapes))
-#End If
     On Error GoTo EH_RENDER
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
@@ -309,72 +296,33 @@ Public Function Render() As Boolean
     ex_ControlRefreshRuntime.fn_ResetRegisteredControlsByWorksheet ws.Name
     ex_StylePipelineEngine.fn_ResetLayoutBounds
     ex_LayoutControlFallbackRndr.fn_ResetControlFallbacks
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:reset-runtime-registries", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
 
     If Not Me.ResetControlActions(True) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:reset-control-actions", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:clear-page-runtime", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' clearShapes=" & VBA.LCase$(VBA.CStr(Not retainGeneratedShapes))
-#End If
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
     Set layoutRenderContext = New obj_LayoutRenderContext
     If Not layoutRenderContext.Initialize(m_Page) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:init-layout-context", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:layout-render-node", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     ' Layout уже собрал bounds всех контролов. Применяем текстовый формат одним
     ' batch COM-вызовом до общего style pass вместо одного вызова на control.
     If Not ex_StylePipelineEngine.fn_ApplyTextNumberFormatToControlBounds(ws) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:batch-control-number-format", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:apply-page-styles", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     ex_LayoutControlFallbackRndr.fn_ApplyPendingControlFallbacks ws
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:apply-control-fallbacks", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:apply-inline-runs", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
 
     ' В retained-режиме глобально shape не удаляем до рендера.
     ' После рендера чистим только orphan-shape (контролы, которые больше не присутствуют в текущем layout).
     If retainGeneratedShapes Then
         Call private_DeleteOrphanRuntimeShapesByControlRegistry(ws)
-#If LOGGING_DEBUG_ENABLED Then
-        private_LogRenderPerfStep "pagebase:delete-orphan-shapes", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
     End If
 
     private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " shapeRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape)) & " cellRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:log-runtime-info", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
 
     Render = True
     m_LastRenderedUiPath = resolvedUiPath
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:render-success", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "'"
-#End If
 
 Cleanup:
     private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:leave-fast-render-mode", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' ok=" & VBA.LCase$(VBA.CStr(Render))
-#End If
     m_IsRendering = False
     Exit Function
 
@@ -387,7 +335,6 @@ EH_RENDER:
     m_IsRendering = False
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
-    private_LogRenderPerfStep "pagebase:render-exception", perfStart, perfLast, "sheet='" & private_EscapeForLog(ws.Name) & "' err='" & private_EscapeForLog(errDescription) & "'"
 #End If
 End Function
 
@@ -422,8 +369,6 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevStatusBar As Variant
     Dim escapedName As String
-    Dim perfStart As Double
-    Dim perfLast As Double
     Dim oldVisualScope As Range
     Dim selectionAreas As Collection
 
@@ -431,8 +376,6 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     If m_IsRendering Then Exit Function
     controlName = VBA.Trim$(controlName)
     If VBA.Len(controlName) = 0 Then Exit Function
-    perfStart = VBA.Timer
-    perfLast = perfStart
     Set ws = m_Worksheet
     If ws Is Nothing Or m_UiDom Is Nothing Then Exit Function
 
@@ -458,12 +401,6 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     newRowEnd = oldRowStart + newSpanRows - 1
     newColEnd = oldColStart + newSpanCols - 1
     rowDelta = newRowEnd - oldRowEnd
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:partial-reflow-measure", perfStart, perfLast, _
-        "control='" & private_EscapeForLog(controlName) & "' oldRows=" & _
-        VBA.CStr(oldRowEnd - oldRowStart + 1) & " newRows=" & VBA.CStr(newSpanRows) & _
-        " delta=" & VBA.CStr(rowDelta)
-#End If
 
     If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutReflowPlan( _
         ws.Name, controlName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
@@ -492,10 +429,6 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
 
     If Not reflowPatches Is Nothing Then
         If Not private_TryApplyLayoutReflowPatches(ws, reflowPatches) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-        private_LogRenderPerfStep "pagebase:partial-reflow-translate-subtree", perfStart, perfLast, _
-            "control='" & private_EscapeForLog(controlName) & "' patches=" & VBA.CStr(reflowPatches.Count)
-#End If
     End If
 
     ' Translate переносит содержимое subtree, но итоговая геометрия retained
@@ -509,10 +442,6 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
 
     If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
         renderCtx, controlNode, oldRowStart, oldColStart, newRowEnd, newColEnd) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:partial-reflow-render-control", perfStart, perfLast, _
-        "control='" & private_EscapeForLog(controlName) & "'"
-#End If
     If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
         ws, m_UiDom, controlName) Then GoTo Cleanup
     If Not ex_ControlRefreshRuntime.fn_CommitLayoutReflowPlan( _
@@ -520,10 +449,6 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     If Not private_CommitRuntimeAncestorUpdates(ancestorUpdates) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_CommitAncestorLayoutBounds( _
         ws.Name, ancestorUpdates) Then GoTo Cleanup
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogRenderPerfStep "pagebase:partial-reflow-local-styles", perfStart, perfLast, _
-        "control='" & private_EscapeForLog(controlName) & "'"
-#End If
 
     private_RestoreSelectionAreas ws, selectionAreas
     TryReflowControl = True
@@ -3566,33 +3491,7 @@ Private Function private_EscapeForLog(ByVal valueText As String) As String
 End Function
 
 #If LOGGING_DEBUG_ENABLED Then
-Private Sub private_LogRenderPerfStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Double, _
-    ByRef lastAt As Double, _
-    Optional ByVal details As String = "" _
-)
-    Dim nowAt As Double
-    Dim stepMs As Double
-    Dim totalMs As Double
-    Dim messageText As String
 
-    nowAt = VBA.Timer
-    stepMs = private_ElapsedMs(lastAt, nowAt)
-    totalMs = private_ElapsedMs(startedAt, nowAt)
-    lastAt = nowAt
-
-    messageText = "perf:render:" & stepName & _
-        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
-        " totalMs=" & VBA.Format$(totalMs, "0.0")
-    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
-    If endedAt < startedAt Then endedAt = endedAt + 86400#
-    private_ElapsedMs = (endedAt - startedAt) * 1000#
-End Function
 #End If
 
 Private Sub private_LogRuntimeInfo(ByVal messageText As String)

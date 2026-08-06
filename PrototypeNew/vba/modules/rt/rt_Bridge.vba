@@ -12,7 +12,7 @@ Private g_IsDispatchingHotkey As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Bridge.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_Bridge.fn_Module_Dispose"
 #End If
     g_IsDispatchingClick = False
     g_IsDispatchingSheetChange = False

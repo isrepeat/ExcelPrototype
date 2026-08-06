@@ -9,7 +9,7 @@ Private Const UI_NS As String = "urn:excelprototype:profiles"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutListRenderer.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_LayoutListRenderer.fn_Module_Dispose"
 #End If
 End Sub
 ' //
@@ -37,8 +37,6 @@ Public Function fn_Render( _
     Dim itemIndex As Long
     Dim listName As String
     Dim templateName As String
-    Dim perfStart As Double
-    Dim perfLast As Double
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -60,14 +58,8 @@ Public Function fn_Render( _
 #End If
         Exit Function
     End If
-
-    perfStart = VBA.Timer
-    perfLast = perfStart
     listName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "name"))
     templateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "itemsSourceTemplate"))
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "layout-list:start", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "' template='" & private_EscapeForLog(templateName) & "' bounds='" & VBA.CStr(rowStart) & "," & VBA.CStr(colStart) & ":" & VBA.CStr(rowEnd) & "," & VBA.CStr(colEnd) & "'"
-#End If
 
     ' itemsSource резолвится единым resolver-ом:
     ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
@@ -84,30 +76,18 @@ Public Function fn_Render( _
 #End If
         Exit Function
     End If
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "layout-list:items-resolved", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "' count=" & VBA.CStr(items.Count)
-#End If
     If items.Count = 0 Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_LogPerfStep "layout-list:empty", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "'"
-#End If
         fn_Render = True
         Exit Function
     End If
 
     If Not private_TryResolveListTemplateRoot(layoutNode, templateRoot) Then Exit Function
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "layout-list:template-resolved", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "' template='" & private_EscapeForLog(templateName) & "'"
-#End If
 
     listOrientation = private_GetListOrientation(layoutNode)
     If VBA.Len(listOrientation) = 0 Then Exit Function
 
     Set tempDoc = ex_XmlCore.fn_CreateDom(UI_NS)
     private_CopyTemplatesToTempListDoc tempDoc, layoutNode.OwnerDocument
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "layout-list:temp-doc-ready", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "'"
-#End If
 
     Set syntheticRoot = tempDoc.createNode(1, "stackPanel", UI_NS)
     syntheticRoot.setAttribute "orientation", listOrientation
@@ -131,9 +111,6 @@ Public Function fn_Render( _
         private_ApplyListItemValueToTemplate clonedNode, itemValue
         syntheticRoot.appendChild clonedNode
     Next itemValue
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "layout-list:items-expanded", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "' count=" & VBA.CStr(itemIndex) & " orientation='" & private_EscapeForLog(listOrientation) & "'"
-#End If
 
     fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
         renderCtx:=renderCtx, _
@@ -142,9 +119,6 @@ Public Function fn_Render( _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
         layoutColEnd:=colEnd)
-#If LOGGING_DEBUG_ENABLED Then
-    private_LogPerfStep "layout-list:container-rendered", perfStart, perfLast, "list='" & private_EscapeForLog(listName) & "' ok=" & VBA.LCase$(VBA.CStr(fn_Render))
-#End If
 End Function
 
 
@@ -211,39 +185,6 @@ End Function
 ' //
 ' // Internal
 ' //
-#If LOGGING_DEBUG_ENABLED Then
-Private Sub private_LogPerfStep( _
-    ByVal stepName As String, _
-    ByVal startedAt As Double, _
-    ByRef lastAt As Double, _
-    Optional ByVal details As String = "" _
-)
-    Dim nowAt As Double
-    Dim stepMs As Double
-    Dim totalMs As Double
-    Dim messageText As String
-
-    nowAt = VBA.Timer
-    stepMs = private_ElapsedMs(lastAt, nowAt)
-    totalMs = private_ElapsedMs(startedAt, nowAt)
-    lastAt = nowAt
-
-    messageText = "perf:render:" & stepName & _
-        " stepMs=" & VBA.Format$(stepMs, "0.0") & _
-        " totalMs=" & VBA.Format$(totalMs, "0.0")
-    If VBA.Len(VBA.Trim$(details)) > 0 Then messageText = messageText & " " & details
-    ex_Core.fn_Diagnostic_LogInfo messageText
-End Sub
-
-Private Function private_ElapsedMs(ByVal startedAt As Double, ByVal endedAt As Double) As Double
-    If endedAt < startedAt Then endedAt = endedAt + 86400#
-    private_ElapsedMs = (endedAt - startedAt) * 1000#
-End Function
-
-Private Function private_EscapeForLog(ByVal valueText As String) As String
-    private_EscapeForLog = VBA.Replace$(VBA.Trim$(VBA.CStr(valueText)), "'", "''")
-End Function
-#End If
 
 Private Sub private_CopyTemplatesToTempListDoc(ByVal targetDoc As Object, ByVal sourceDoc As Object)
     Dim targetRoot As Object

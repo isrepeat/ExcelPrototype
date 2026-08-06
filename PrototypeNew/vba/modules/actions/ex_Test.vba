@@ -13,7 +13,7 @@ Private g_DemoConfigVariant As String
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Test.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_Test.fn_Module_Dispose"
 #End If
 End Sub
 ' //
@@ -114,34 +114,17 @@ End Sub
 Public Sub fn_TEST_ProfileDevTableListUI()
     Dim ws As Worksheet
     Dim tables As Collection
-    Dim t0 As Double
-    Dim t1 As Double
-    Dim t2 As Double
-    Dim t3 As Double
 
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    t0 = VBA.Timer
     Set tables = fn_TEST_BuildDemoTableItems()
-    t1 = VBA.Timer
 
     If tables Is Nothing Then Exit Sub
 
     If Not private_TryClearTestRuntimeSources() Then Exit Sub
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
-    t2 = VBA.Timer
-
     private_RenderWorksheetPage ws, "ui\Dev\DevProfileTableUI.xml"
-    t3 = VBA.Timer
-
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "Profile (ms):" & VBA.vbCrLf & _
-           "Build data: " & VBA.Format$((t1 - t0) * 1000#, "0") & VBA.vbCrLf & _
-           "Register source: " & VBA.Format$((t2 - t1) * 1000#, "0") & VBA.vbCrLf & _
-           "Render UI: " & VBA.Format$((t3 - t2) * 1000#, "0") & VBA.vbCrLf & _
-           "Total: " & VBA.Format$((t3 - t0) * 1000#, "0")
-#End If
 End Sub
 
 

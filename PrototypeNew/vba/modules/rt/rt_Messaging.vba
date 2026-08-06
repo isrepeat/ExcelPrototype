@@ -10,7 +10,7 @@ Private g_StatusBarMessage As String
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Messaging.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_Messaging.fn_Module_Dispose"
 #End If
     ' При hot-update обязательно снимаем отложенный hide,
     ' чтобы OnTime не стрелял в момент remove/import модулей.
