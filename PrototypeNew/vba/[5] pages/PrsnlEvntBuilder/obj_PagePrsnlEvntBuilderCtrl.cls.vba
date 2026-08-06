@@ -94,6 +94,7 @@ Private Const DRAFT_ALIAS_IPN As String = "_IPN"
 Private Const DRAFT_ALIAS_POSITION_CODE As String = "_PositionCode"
 Private Const DRAFT_ALIAS_POSITION_NAME As String = "_PositionName"
 Private Const DRAFT_ALIAS_DESTINATION As String = "_Destination"
+Private Const DRAFT_ALIAS_HOSPITAL As String = "_Hospital"
 Private Const DRAFT_ALIAS_HOSPITAL_SHORT As String = "_HospitalShort"
 Private Const DRAFT_ALIAS_TO_HOSPITAL_SHORT As String = "_ToHospitalShort"
 Private Const DRAFT_ALIAS_REPORT_RANK As String = "_ReportRank"
@@ -582,6 +583,9 @@ Public Function ClearDependentDraftFields(ByVal lookupKey As String) As Boolean
     End Select
 
     If Not private_ClearVisibleDraftFieldsByAlias(dependentAliases) Then Exit Function
+    If VBA.StrComp(VBA.Trim$(lookupKey), FIO_LOOKUP_KEY, VBA.vbTextCompare) = 0 Then
+        If Not private_TryApplyMovementEnrichedFieldsAppearance() Then Exit Function
+    End If
     ClearDependentDraftFields = True
 End Function
 
@@ -619,8 +623,12 @@ Private Function private_AppendFioDependentAliases( _
         ' Сейчас все основные события получают персональные данные из одного
         ' op_FIO. Отдельный Select Case оставляет правила секционными: когда для
         ' конкретного события набор изменится, его следует вынести в отдельный Case.
-        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment)
+            private_AddStandardFioDependentAliases dependentAliases
+            dependentAliases(DRAFT_ALIAS_HOSPITAL) = True
+            dependentAliases(DRAFT_ALIAS_HOSPITAL_SHORT) = True
+
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
@@ -1162,6 +1170,58 @@ EH:
         Err.Description, VBA.vbExclamation, "PrsnlEventBuilder / ТВО"
 End Function
 
+Private Function private_TryApplyMovementEnrichedFieldsAppearance() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim fieldAliases As Collection
+    Dim fieldAliasObj As Variant
+    Dim fieldRange As Range
+    Dim fieldValue As String
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set fieldAliases = New Collection
+
+    If private_IsHospitalReturnProfile() Then
+        fieldAliases.Add DRAFT_ALIAS_HOSPITAL
+        fieldAliases.Add DRAFT_ALIAS_HOSPITAL_SHORT
+    ElseIf private_IsVacationReturnProfile() Then
+        fieldAliases.Add DRAFT_ALIAS_VACATION_TICKET_NO
+        fieldAliases.Add DRAFT_ALIAS_VACATION_TICKET_DATE
+    Else
+        private_TryApplyMovementEnrichedFieldsAppearance = True
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    For Each fieldAliasObj In fieldAliases
+        Set fieldRange = Nothing
+        If Not pageBase.TryGetFirstLayoutTagRange( _
+            VBA.CStr(fieldAliasObj), fieldRange, "visible") Then GoTo MissingField
+        If fieldRange Is Nothing Then GoTo MissingField
+        fieldValue = VBA.Trim$(VBA.CStr(fieldRange.Cells(1, 1).Value2))
+        If VBA.Len(fieldValue) > 0 Then
+            fieldRange.Font.Color = VBA.RGB(255, 235, 59)
+        Else
+            fieldRange.Font.Color = VBA.RGB(240, 240, 240)
+        End If
+    Next fieldAliasObj
+
+    private_TryApplyMovementEnrichedFieldsAppearance = True
+    Exit Function
+
+MissingField:
+    VBA.MsgBox "Не знайдено поле форми для підсвічування Movement enrichment: " & _
+        VBA.CStr(fieldAliasObj), VBA.vbExclamation, _
+        "PrsnlEventBuilder / Movement enrichment"
+    Exit Function
+
+EH:
+    VBA.MsgBox "Не вдалося оновити колір полів Movement enrichment: " & _
+        Err.Description, VBA.vbExclamation, _
+        "PrsnlEventBuilder / Movement enrichment"
+End Function
+
 Private Function private_TryApplyReporterTvoCandidatesAppearance( _
     ByVal ws As Worksheet _
 ) As Boolean
@@ -1692,6 +1752,44 @@ Public Function SearchCandidates( _
     m_IsReporterTvoCandidatesActive = False
     If m_LookupFeature Is Nothing Then Exit Function
     If Not private_UpdateLookupActiveFormColumns() Then Exit Function
+    If VBA.StrComp(VBA.Trim$(lookupKey), FIO_LOOKUP_KEY, VBA.vbTextCompare) = 0 And _
+       private_IsVacationReturnProfile() Then
+        If Not m_LookupFeature.SearchCandidates( _
+            lookupKey, queryText, outCandidateCount, False) Then Exit Function
+        If Not private_TryApplyMovementVacationTicketDefaults() Then
+            If notifyChange Then
+                If Not rt_PageManager.fn_RenderPage( _
+                    m_Page, "prsnlevntbuilder:movement-ticket-enrichment-failed") Then Exit Function
+            End If
+            SearchCandidates = True
+            Exit Function
+        End If
+        If notifyChange Then
+            If Not rt_PageManager.fn_RenderPage( _
+                m_Page, "prsnlevntbuilder:movement-vacation-ticket-defaults") Then Exit Function
+        End If
+        SearchCandidates = True
+        Exit Function
+    End If
+    If VBA.StrComp(VBA.Trim$(lookupKey), FIO_LOOKUP_KEY, VBA.vbTextCompare) = 0 And _
+       private_IsHospitalReturnProfile() Then
+        If Not m_LookupFeature.SearchCandidates( _
+            lookupKey, queryText, outCandidateCount, False) Then Exit Function
+        If Not private_TryApplyMovementHospitalDefaults() Then
+            If notifyChange Then
+                If Not rt_PageManager.fn_RenderPage( _
+                    m_Page, "prsnlevntbuilder:movement-hospital-enrichment-failed") Then Exit Function
+            End If
+            SearchCandidates = True
+            Exit Function
+        End If
+        If notifyChange Then
+            If Not rt_PageManager.fn_RenderPage( _
+                m_Page, "prsnlevntbuilder:movement-hospital-defaults") Then Exit Function
+        End If
+        SearchCandidates = True
+        Exit Function
+    End If
     ' Расширение из нескольких источников включено только на этой странице.
     ' Универсальный EntityLookup не зависит от источников PrsnlEvntBuilder.
     If VBA.StrComp(VBA.Trim$(lookupKey), "op_FIO", VBA.vbTextCompare) = 0 Then
@@ -1722,6 +1820,169 @@ Public Function SearchCandidates( _
     Else
         SearchCandidates = m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, notifyChange)
     End If
+End Function
+
+Private Function private_IsHospitalReturnProfile() As Boolean
+    Dim sectionText As String
+
+    If m_Data Is Nothing Then Exit Function
+    sectionText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
+    private_IsHospitalReturnProfile = ( _
+        private_NormalizeText(sectionText) = _
+        private_NormalizeText(m_Data.SectionTypeCloseFromTreatment))
+End Function
+
+Private Function private_TryApplyMovementHospitalDefaults() As Boolean
+    Dim entityLookupCfgParser As obj_EntityLookupCfgParser
+    Dim candidateTable As obj_TableDynamic
+    Dim candidateRow As obj_Row
+    Dim lookupKey As String
+    Dim searchColumnAlias As String
+    Dim ipnColumnIndex As Long
+    Dim hospitalColumnIndex As Long
+    Dim hospitalShortColumnIndex As Long
+    Dim ipnText As String
+    Dim hospitalFound As Boolean
+    Dim hospitalShortText As String
+    Dim hospitalName As String
+    Dim hospitalNameFound As Boolean
+    Dim rowIndex As Long
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetActiveCandidatesContext( _
+        entityLookupCfgParser, lookupKey, candidateTable, searchColumnAlias) Then Exit Function
+    If candidateTable Is Nothing Then Exit Function
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_IPN, ipnColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_IPN'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_HOSPITAL, hospitalColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_Hospital'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_HOSPITAL_SHORT, hospitalShortColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_HospitalShort'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+
+    For rowIndex = 1 To candidateTable.RowCount
+        Set candidateRow = candidateTable.Rows.Item(rowIndex)
+        If candidateRow Is Nothing Then Exit Function
+        ipnText = VBA.Trim$(VBA.CStr(candidateRow.GetCellValue(ipnColumnIndex)))
+        If VBA.Len(ipnText) = 0 Then GoTo ContinueRow
+        If Not m_ExporterCfgDataProvider.TryGetLatestMovementDestination( _
+            ipnText, hospitalFound, hospitalShortText) Then
+            VBA.MsgBox "Не вдалося прочитати останнє місце призначення з " & _
+                "Movement для ІПН '" & ipnText & "'.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / Movement enrichment"
+            Exit Function
+        End If
+        If Not hospitalFound Then GoTo ContinueRow
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalName( _
+            hospitalShortText, hospitalName, True, hospitalNameFound) Then Exit Function
+        If Not hospitalNameFound Then GoTo ContinueRow
+        If Not candidateRow.SetCellRaw( _
+            hospitalColumnIndex, hospitalName) Then Exit Function
+        If Not candidateRow.SetCellRaw( _
+            hospitalShortColumnIndex, hospitalShortText) Then Exit Function
+ContinueRow:
+    Next rowIndex
+
+    private_TryApplyMovementHospitalDefaults = True
+End Function
+
+Private Function private_IsVacationReturnProfile() As Boolean
+    Dim sectionText As String
+    Dim sectionKey As String
+
+    If m_Data Is Nothing Then Exit Function
+    sectionText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
+    sectionKey = private_NormalizeText(sectionText)
+
+    Select Case sectionKey
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation)
+            private_IsVacationReturnProfile = True
+    End Select
+End Function
+
+Private Function private_TryApplyMovementVacationTicketDefaults() As Boolean
+    Dim entityLookupCfgParser As obj_EntityLookupCfgParser
+    Dim candidateTable As obj_TableDynamic
+    Dim candidateRow As obj_Row
+    Dim lookupKey As String
+    Dim searchColumnAlias As String
+    Dim ipnColumnIndex As Long
+    Dim ticketNoColumnIndex As Long
+    Dim ticketDateColumnIndex As Long
+    Dim ipnText As String
+    Dim ticketFound As Boolean
+    Dim ticketNoText As String
+    Dim departureOrderText As String
+    Dim departureOrderDate As Date
+    Dim departureOrderDateFound As Boolean
+    Dim rowIndex As Long
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
+    If m_ExporterCfgDataProvider.CommonData Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetActiveCandidatesContext( _
+        entityLookupCfgParser, lookupKey, candidateTable, searchColumnAlias) Then Exit Function
+    If candidateTable Is Nothing Then Exit Function
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_IPN, ipnColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_IPN'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_VACATION_TICKET_NO, ticketNoColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_VacationTicketNo'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_VACATION_TICKET_DATE, ticketDateColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_VacationTicketDate'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+
+    For rowIndex = 1 To candidateTable.RowCount
+        Set candidateRow = candidateTable.Rows.Item(rowIndex)
+        If candidateRow Is Nothing Then Exit Function
+        ipnText = VBA.Trim$(VBA.CStr(candidateRow.GetCellValue(ipnColumnIndex)))
+        If VBA.Len(ipnText) = 0 Then GoTo ContinueRow
+        If Not m_ExporterCfgDataProvider.TryGetLatestMovementVacationTicket( _
+            ipnText, ticketFound, ticketNoText, departureOrderText) Then
+            VBA.MsgBox "Не вдалося прочитати відпускний квиток з Movement " & _
+                "для ІПН '" & ipnText & "'.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / Movement enrichment"
+            Exit Function
+        End If
+        If Not ticketFound Then GoTo ContinueRow
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveOrderDateByNumber( _
+            departureOrderText, departureOrderDate, True, _
+            departureOrderDateFound) Then Exit Function
+        If Not departureOrderDateFound Then GoTo ContinueRow
+        If Not candidateRow.SetCellRaw(ticketNoColumnIndex, ticketNoText) Then Exit Function
+        If Not candidateRow.SetCellRaw( _
+            ticketDateColumnIndex, VBA.Format$(departureOrderDate, "dd.mm")) Then Exit Function
+ContinueRow:
+    Next rowIndex
+
+    private_TryApplyMovementVacationTicketDefaults = True
 End Function
 
 Private Function private_ShouldExtendAbsenceCandidates() As Boolean
@@ -2236,6 +2497,7 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     Dim primaryCandidateLastCol As Long
     Dim previousEnableEvents As Boolean
     Dim isReporterTvoCandidate As Boolean
+    Dim isFioCandidate As Boolean
 
     If targetCell Is Nothing Then Exit Function
     If m_Page Is Nothing Then Exit Function
@@ -2246,6 +2508,7 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
     If ws Is Nothing Then Exit Function
     If Not (targetCell.Worksheet Is ws) Then Exit Function
     isReporterTvoCandidate = private_IsReporterTvoCandidatesContext()
+    isFioCandidate = private_IsFioCandidatesContext()
 
     ' TableList already registers rendered data rows as controlPart=rows.
     ' This keeps the hotkey independent from hard-coded row/column numbers.
@@ -2307,6 +2570,9 @@ Private Function private_TryAcceptCandidateRowFromSelection(ByVal targetCell As 
 
     If Not private_RefreshDraftReporterTvoFlag() Then Exit Function
     If Not private_TryApplyReporterPositionCodeAppearance() Then Exit Function
+    If isFioCandidate Then
+        If Not private_TryApplyMovementEnrichedFieldsAppearance() Then Exit Function
+    End If
 
     candidateRowRange.Select
     ' Range.Select по умолчанию делает активной крайнюю левую ячейку.

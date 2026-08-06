@@ -39,6 +39,7 @@ Private Const MOVEMENT_TVO_FIO_HEADER As String = "ТВО.ПІБ"
 Private Const MOVEMENT_TVO_IPN_HEADER As String = "ТВО.ІПН"
 Private Const MOVEMENT_TVO_POSITION_HEADER As String = "ТВО.Посада"
 Private Const MOVEMENT_ESCORT_DOCUMENT_HEADER As String = "Супровідний документ"
+Private Const MOVEMENT_DESTINATION_HEADER As String = "Куди"
 Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
 Private Const PERSONNEL_UNIT_HEADER As String = "#"
 Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
@@ -298,6 +299,63 @@ ContinueRow:
     Next rowIndex
 
     TryGetLatestMovementVacationTicket = True
+End Function
+
+Public Function TryGetLatestMovementDestination( _
+    ByVal ipnText As String, _
+    ByRef outFound As Boolean, _
+    ByRef outDestinationText As String _
+) As Boolean
+    Dim resolvedPath As String
+    Dim snapshotPath As String
+    Dim movementTableRef As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
+    Dim destinationText As String
+    Dim rowIndex As Long
+
+    outFound = False
+    outDestinationText = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+
+    ipnText = private_NormalizeLookupKey(ipnText)
+    If VBA.Len(ipnText) = 0 Then Exit Function
+    If Not private_TryResolveMovementQueryContext( _
+        resolvedPath, movementTableRef) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+    If Not private_TryGetMovementSnapshotPath( _
+        resolvedPath, snapshotPath) Then Exit Function
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = snapshotPath
+    query.TableRef = movementTableRef
+    query.ReverseOrder = True
+    If Not query.AddCondition( _
+        MOVEMENT_IPN_HEADER, _
+        en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
+        ipnText, _
+        True) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DESTINATION_HEADER) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then Exit Function
+
+    For rowIndex = 1 To resultTable.RowCount
+        Set resultRow = resultTable.Rows.Item(rowIndex)
+        If resultRow Is Nothing Then GoTo ContinueRow
+        destinationText = VBA.vbNullString
+        If Not resultRow.TryGetCellValueByColumn( _
+            MOVEMENT_DESTINATION_HEADER, destinationText) Then Exit Function
+        destinationText = VBA.Trim$(destinationText)
+        If VBA.Len(destinationText) > 0 Then
+            outDestinationText = destinationText
+            outFound = True
+            Exit For
+        End If
+ContinueRow:
+    Next rowIndex
+
+    TryGetLatestMovementDestination = True
 End Function
 
 ' Совместимый узкий API для callers, которым данные ТВО не нужны.
