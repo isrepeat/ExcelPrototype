@@ -49,6 +49,7 @@ Private Const ALF_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const ALF_DATIVE_HEADER As String = "Давальний"
 Private Const ALF_INITIALS_GENITIVE_HEADER As String = "ПІП (Родовий)"
 Private Const INSTITUTIONS_KEY_HEADER As String = "Позначення"
+Private Const INSTITUTIONS_NAME_HEADER As String = "Назва"
 Private Const INSTITUTIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const INSTITUTIONS_ACCUSATIVE_HEADER As String = "Знахідний"
 Private Const INSTITUTIONS_DATIVE_HEADER As String = "Давальний"
@@ -285,7 +286,9 @@ End Function
 
 Public Function TryResolveOrderDateByNumber( _
     ByVal orderNo As Variant, _
-    ByRef outOrderDate As Date _
+    ByRef outOrderDate As Date, _
+    Optional ByVal allowMissing As Boolean = False, _
+    Optional ByRef outFound As Boolean = False _
 ) As Boolean
     Dim orderNoToken As String
     Dim orderMapPath As String
@@ -294,6 +297,7 @@ Public Function TryResolveOrderDateByNumber( _
     Dim currentYear As Long
 
     If m_IsDisposed Then Exit Function
+    outFound = False
     orderNoToken = private_NormalizeOrderNumberToken(orderNo)
     If VBA.Len(orderNoToken) = 0 Then Exit Function
     If Not private_TryResolveOrderMapWorkbookPath(orderMapPath) Then Exit Function
@@ -328,7 +332,9 @@ Public Function TryResolveOrderDateByNumber( _
         ORDER_DATE_COLUMN_NAME, _
         orderNoToken, _
         "Накази / " & VBA.CStr(currentYear), _
-        outOrderDate)
+        outOrderDate, _
+        allowMissing, _
+        outFound)
 End Function
 
 Public Function TryResolveFioGenitive( _
@@ -655,6 +661,37 @@ Public Function TryResolveHospitalGenitive( _
         hospitalShortText, _
         "Установи", _
         outHospitalGenitive)
+End Function
+
+Public Function TryResolveHospitalName( _
+    ByVal hospitalShortText As String, _
+    ByRef outHospitalName As String, _
+    Optional ByVal allowMissing As Boolean = False, _
+    Optional ByRef outFound As Boolean = False _
+) As Boolean
+    If m_IsDisposed Then Exit Function
+    hospitalShortText = private_NormalizeLookupKey(hospitalShortText)
+    outHospitalName = VBA.vbNullString
+    outFound = False
+    If VBA.Len(hospitalShortText) = 0 Then
+        TryResolveHospitalName = True
+        Exit Function
+    End If
+
+    TryResolveHospitalName = private_TryLookupWorkbookValue( _
+        DEFAULT_INSTITUTIONS_REL_PATH, _
+        private_BuildAdoRangeRef( _
+            INSTITUTIONS_SHEET_NAME, _
+            INSTITUTIONS_RANGE_START, _
+            INSTITUTIONS_RANGE_END_COLUMN & VBA.CStr(INSTITUTIONS_RANGE_END_ROW)), _
+        INSTITUTIONS_KEY_HEADER, _
+        INSTITUTIONS_NAME_HEADER, _
+        hospitalShortText, _
+        "Установи", _
+        outHospitalName, _
+        allowMissingRow:=allowMissing, _
+        outFound:=outFound, _
+        logMissingRow:=Not allowMissing)
 End Function
 
 Public Function TryResolveHospitalAccusative( _
@@ -1552,7 +1589,9 @@ Private Function private_TryLookupWorkbookDate( _
     ByVal valueHeader As String, _
     ByVal lookupKey As String, _
     ByVal sourceLabel As String, _
-    ByRef outDate As Date _
+    ByRef outDate As Date, _
+    Optional ByVal allowMissing As Boolean = False, _
+    Optional ByRef outFound As Boolean = False _
 ) As Boolean
     Dim resolvedPath As String
     Dim query As obj_ExtWorkbookQuery
@@ -1560,6 +1599,7 @@ Private Function private_TryLookupWorkbookDate( _
     Dim resultRow As obj_Row
 
     outDate = 0
+    outFound = False
     resolvedPath = private_ResolveWorkbookPath(workbookPath)
     If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
         VBA.MsgBox "PrototypeNew: order map workbook was not found." & _
@@ -1576,13 +1616,17 @@ Private Function private_TryLookupWorkbookDate( _
     If Not query.AddSelectColumn(valueHeader) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
     If resultTable Is Nothing Then Exit Function
-    If resultTable.RowCount = 0 Then Exit Function
+    If resultTable.RowCount = 0 Then
+        If allowMissing Then private_TryLookupWorkbookDate = True
+        Exit Function
+    End If
     Set resultRow = resultTable.Rows.Item(1)
     If resultRow Is Nothing Then Exit Function
     private_TryLookupWorkbookDate = ex_Helpers.fn_TryResolveDateWithContext( _
         resultRow.GetCellValue(1), _
         VBA.DateSerial(1900, 1, 1), _
         outDate)
+    outFound = private_TryLookupWorkbookDate
 End Function
 
 Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As String
