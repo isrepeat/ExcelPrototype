@@ -8,6 +8,8 @@ Private g_ScheduledUpdateAt As Date
 Private g_ScheduledUpdateMacro As String
 Private g_PendingUpdateMacroRef As String
 Private g_IsRunningScheduledUpdate As Boolean
+Private Const LAST_CODE_UPDATE_NAME As String = _
+    "__PrototypeLastCodeUpdateAt"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
@@ -47,6 +49,14 @@ Public Sub fn_RerenderLastPageAfterUpdate()
 #End If
 
     On Error GoTo EH_RERENDER
+    ' Timestamp хранится в workbook Name, поскольку hot-import сбрасывает
+    ' статические поля VBA до того, как Main будет создан заново.
+    If Not private_TrySaveLastCodeUpdateAt(VBA.Now) Then
+        ex_HelpersSheet.fn_SetBusyCursor False
+        rt_Messaging.fn_ShowStatusBarError _
+            "Failed to save code update timestamp.", 6
+        Exit Sub
+    End If
 #If RUNTIME_SNAPSHOTS_ENABLED Then
     If Not rt_RestoreManager.fn_RestoreRuntimeState("after-update", restoredPagesCount) Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -84,6 +94,57 @@ EH_RERENDER:
 #End If
     rt_Messaging.fn_ShowStatusBarError "Failed to restore runtime state after update: " & Err.Description, 6
 End Sub
+
+Public Function fn_GetLastCodeUpdateCaption() As String
+    Dim updateName As Name
+    Dim rawValue As String
+
+    On Error Resume Next
+    Set updateName = ThisWorkbook.Names(LAST_CODE_UPDATE_NAME)
+    On Error GoTo 0
+    If updateName Is Nothing Then
+        fn_GetLastCodeUpdateCaption = "Код ещё не обновлялся"
+        Exit Function
+    End If
+
+    rawValue = VBA.CStr(updateName.RefersTo)
+    If VBA.Left$(rawValue, 2) = "=""" And _
+        VBA.Right$(rawValue, 1) = """" Then
+        rawValue = VBA.Mid$(rawValue, 3, VBA.Len(rawValue) - 3)
+        rawValue = VBA.Replace$(rawValue, """""", """")
+    End If
+    rawValue = VBA.Trim$(rawValue)
+    If VBA.Len(rawValue) = 0 Then
+        fn_GetLastCodeUpdateCaption = "Код ещё не обновлялся"
+    Else
+        fn_GetLastCodeUpdateCaption = "Код обновлён: " & rawValue
+    End If
+End Function
+
+Private Function private_TrySaveLastCodeUpdateAt( _
+    ByVal updatedAt As Date _
+) As Boolean
+    Dim timestampText As String
+    Dim refersToText As String
+
+    On Error GoTo EH
+    timestampText = VBA.Format$(updatedAt, "dd.mm.yyyy HH:nn:ss")
+    refersToText = "=""" & _
+        VBA.Replace$(timestampText, """", """""") & """"
+    ThisWorkbook.Names.Add _
+        Name:=LAST_CODE_UPDATE_NAME, _
+        RefersTo:=refersToText, _
+        Visible:=False
+    private_TrySaveLastCodeUpdateAt = True
+    Exit Function
+
+EH:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "core-actions:last-update-save-failed err='" & _
+        VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
+End Function
 
 
 Public Sub fn_RunScheduledUpdateAndRerender()

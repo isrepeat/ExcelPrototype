@@ -23,7 +23,7 @@
             spanRows="1"/>
         </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="3">
           <control
             type="Button"
             name="RunTextSearch"
@@ -42,9 +42,19 @@
             onChange="{Binding Method=OnSearchTextChanged}"
             spanColls="1"
             spanRows="1"/>
+
+          <control
+            type="Button"
+            name="CancelTextSearch"
+            caption="Скасувати пошук"
+            style="cancelAction"
+            dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+            onClick="{Binding Method=CancelSearch}"
+            spanColls="1"
+            spanRows="1"/>
         </stackPanel>
 
-        <stackPanel orientation="vertical" spanColls="4" spanRows="2">
+        <stackPanel orientation="vertical" spanColls="4" spanRows="4">
           <stackPanel orientation="horizontal" spanColls="4" spanRows="1">
             <control
               type="Label"
@@ -110,6 +120,40 @@
               spanColls="1"
               spanRows="1"/>
           </stackPanel>
+
+          <stackPanel orientation="horizontal" spanColls="4" spanRows="1">
+            <control
+              type="Label"
+              name="ContextBeforeHeader"
+              text="Строк выше"
+              spanColls="2"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="ContextLinesBeforeInput"
+              value="{Binding Path=ContextLinesBefore}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnContextLinesBeforeChanged}"
+              spanColls="2"
+              spanRows="1"/>
+          </stackPanel>
+
+          <stackPanel orientation="horizontal" spanColls="4" spanRows="1">
+            <control
+              type="Label"
+              name="ContextAfterHeader"
+              text="Строк ниже"
+              spanColls="2"
+              spanRows="1"/>
+            <control
+              type="Input"
+              name="ContextLinesAfterInput"
+              value="{Binding Path=ContextLinesAfter}"
+              dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+              onChange="{Binding Method=OnContextLinesAfterChanged}"
+              spanColls="2"
+              spanRows="1"/>
+          </stackPanel>
         </stackPanel>
 
         <control
@@ -144,10 +188,42 @@
 
       <stackPanel spanColls="40" spanRows="1"/>
 
-      <control
-        type="TableList"
-        name="SearchResultTables"
-        itemsSource="{PageRuntimeSource='RuntimeItems.WordDataExtractor.Tables'}"/>
+      <stackPanel orientation="horizontal" spanColls="12" spanRows="18">
+        <stackPanel
+          name="SearchResultsPanel"
+          orientation="vertical"
+          spanColls="4"
+          spanRows="18">
+          <control
+            type="TableList"
+            name="SearchResultTables"
+            itemsSource="{PageRuntimeSource='RuntimeItems.WordDataExtractor.Tables'}"
+            spanColls="4"
+            spanRows="18"/>
+        </stackPanel>
+
+        <stackPanel
+          name="SearchPreviewPanel"
+          orientation="vertical"
+          spanColls="8"
+          spanRows="18">
+          <control
+            type="Label"
+            name="SearchPreviewHeader"
+            text="Просмотр контекста"
+            mergeCells="true"
+            spanColls="8"
+            spanRows="1"/>
+          <control
+            type="Label"
+            name="SearchPreviewText"
+            text="{Binding Path=SelectedPreviewText}"
+            mergeCells="true"
+            dataContext="{PageRuntimeSource='RuntimeObjects.WordDataExtractor.Controller'}"
+            spanColls="8"
+            spanRows="17"/>
+        </stackPanel>
+      </stackPanel>
     </stackPanel>
   </grid>
 
@@ -164,6 +240,14 @@
       backColor="#176B8A"
       textColor="#EAF6FF"
       borderColor="#0E4F69"
+      horizontal="left"
+      fontBold="true"/>
+
+    <controlStyle
+      name="cancelAction"
+      backColor="#991B1B"
+      textColor="#FFFFFF"
+      borderColor="#7F1D1D"
       fontBold="true"/>
 
     <stylePipelineStage name="default">
@@ -317,6 +401,54 @@
             rowHeight:40;
             cellType:text;
           }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=label;name=ContextBeforeHeader;part=cell"
+          styles="{
+            backColor:#263445;
+            fontColor:#CBD5E1;
+            fontBold:true;
+            horizontal:center;
+            vertical:center;
+            rowHeight:32;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=label;name=ContextAfterHeader;part=cell"
+          styles="{
+            backColor:#263445;
+            fontColor:#CBD5E1;
+            fontBold:true;
+            horizontal:center;
+            vertical:center;
+            rowHeight:32;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=ContextLinesBeforeInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:center;
+            vertical:center;
+            rowHeight:32;
+            cellType:text;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=input;name=ContextLinesAfterInput;part=cell"
+          styles="{
+            backColor:#3A3F46;
+            fontColor:#F8FAFC;
+            horizontal:center;
+            vertical:center;
+            rowHeight:32;
+            cellType:text;
+          }"/>
       </layer>
 
       <layer name="tables">
@@ -349,21 +481,48 @@
             fontColor:#F0F0F0;
             fontSize:8;
             overflow:wrap;
-            rowHeight:auto;
           }"/>
 
         <rule
           target="controlPart"
           selector="type=tablelist;name=SearchResultTables;part=rows;columnAlias=context"
           styles="{
-            width:100;
+            width:55;
+            rowHeight:75;
           }"/>
 
         <rule
           target="controlPart"
           selector="type=tablelist;name=SearchResultTables;part=header;columnAlias=context"
           styles="{
-            width:100;
+            width:55;
+          }"/>
+
+        <rule
+          target="controlPart"
+          selector="type=label;name=SearchPreviewHeader;part=cell"
+          styles="{
+            backColor:#173A5E;
+            fontColor:#EAF6FF;
+            borderColor:#2B4A6B;
+            fontBold:true;
+            horizontal:left;
+            vertical:center;
+            rowHeight:28;
+          }"/>
+
+        <!-- Не задаём rowHeight для объединённого превью: Excel применяет высоту
+             ко всей строке листа и иначе растягивает заголовки таблицы слева. -->
+        <rule
+          target="controlPart"
+          selector="type=label;name=SearchPreviewText;part=cell"
+          styles="{
+            backColor:#30343A;
+            fontColor:#F8FAFC;
+            borderColor:#4B5563;
+            horizontal:left;
+            vertical:top;
+            overflow:wrap;
           }"/>
 
         <rule

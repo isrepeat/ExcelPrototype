@@ -49,6 +49,29 @@ Public Sub fn_ShowStatusBarError(ByVal messageText As String, Optional ByVal tim
     fn_ShowStatusBar "Error: " & VBA.CStr(messageText), timeoutSeconds
 End Sub
 
+Public Sub fn_ShowStatusBarProgress( _
+    ByVal processCaption As String, _
+    ByVal processedCount As Long, _
+    ByVal totalCount As Long _
+)
+    Dim progressPercent As Long
+
+    If totalCount <= 0 Then
+        progressPercent = 0
+    Else
+        progressPercent = VBA.CLng( _
+            (VBA.CDbl(processedCount) / VBA.CDbl(totalCount)) * 100#)
+    End If
+    If progressPercent < 0 Then progressPercent = 0
+    If progressPercent > 100 Then progressPercent = 100
+
+    private_TryCancelScheduledHide
+    g_StatusBarMessage = VBA.Trim$(processCaption) & ": " & _
+        VBA.CStr(progressPercent) & "%"
+    private_ApplyNativeStatusBar
+    private_LogStatusBarMessage "progress", g_StatusBarMessage, 0
+End Sub
+
 
 Public Sub fn_ShowStatusBar(ByVal messageText As String, Optional ByVal timeoutSeconds As Long = 3)
     Dim hideMacroRef As String

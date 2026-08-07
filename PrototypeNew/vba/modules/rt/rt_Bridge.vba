@@ -8,6 +8,7 @@ Option Explicit
 
 Private g_IsDispatchingClick As Boolean
 Private g_IsDispatchingSheetChange As Boolean
+Private g_IsDispatchingSelectionChange As Boolean
 Private g_IsDispatchingHotkey As Boolean
 
 Public Sub fn_Module_Dispose()
@@ -16,6 +17,7 @@ Public Sub fn_Module_Dispose()
 #End If
     g_IsDispatchingClick = False
     g_IsDispatchingSheetChange = False
+    g_IsDispatchingSelectionChange = False
     g_IsDispatchingHotkey = False
 End Sub
 
@@ -98,6 +100,43 @@ End Function
 Public Function fn_IsDispatchingSheetChange() As Boolean
     fn_IsDispatchingSheetChange = g_IsDispatchingSheetChange
 End Function
+
+Public Sub fn_OnSheetSelectionChange( _
+    ByVal Sh As Object, _
+    ByVal Target As Range _
+)
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+
+    On Error GoTo EH_SELECTION
+    If g_IsDispatchingSelectionChange Then Exit Sub
+    If Sh Is Nothing Or Target Is Nothing Then Exit Sub
+    If Not TypeOf Sh Is Worksheet Then Exit Sub
+    Set ws = Sh
+    ex_Core.fn_Diagnostic_LogInfo _
+        "bridge:selection-change sheet='" & _
+        private_EscapeForLog(ws.Name) & "' target='" & _
+        private_EscapeForLog(Target.Address(False, False)) & "'"
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then Exit Sub
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
+
+    g_IsDispatchingSelectionChange = True
+    Call pageBase.DispatchSelectionChange(Target)
+    ex_Core.fn_Diagnostic_LogInfo _
+        "bridge:selection-change-done sheet='" & _
+        private_EscapeForLog(ws.Name) & "'"
+    g_IsDispatchingSelectionChange = False
+    Exit Sub
+
+EH_SELECTION:
+    g_IsDispatchingSelectionChange = False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "rt_Bridge: sheet selection dispatch failed: " & Err.Description
+#End If
+End Sub
 
 Public Function fn_IsDispatchingHotkey() As Boolean
     fn_IsDispatchingHotkey = g_IsDispatchingHotkey
