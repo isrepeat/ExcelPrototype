@@ -10,7 +10,11 @@ Implements obj_IPageCtrl
 Private Const OBJECT_KEY As String = "RuntimeObjects.WordDataExtractor.Controller"
 Private Const TABLES_KEY As String = "RuntimeItems.WordDataExtractor.Tables"
 Private Const SOURCES_KEY As String = "RuntimeItems.WordDataExtractor.Sources"
-Private Const CONTEXT_LINE_RADIUS As Long = 5
+Private Const DEFAULT_CONTEXT_LINES_BEFORE As Long = 10
+Private Const DEFAULT_CONTEXT_LINES_AFTER As Long = 5
+Private Const MAX_CONTEXT_LINE_COUNT As Long = 100
+Private Const RESULTS_CONTAINER_NAME As String = "SearchResultsPanel"
+Private Const PREVIEW_CONTAINER_NAME As String = "SearchPreviewText"
 
 Private m_Page As obj_IPage
 Private m_DocumentPath As String
@@ -35,6 +39,11 @@ Private m_IsRegexMode As Boolean
 Private m_AllTables As Collection
 Private m_ShowEmptyTables As Boolean
 Private m_IsReady As Boolean
+Private m_IsSearchRunning As Boolean
+Private m_IsCancelRequested As Boolean
+Private m_SelectedPreviewText As String
+Private m_ContextLinesBefore As Long
+Private m_ContextLinesAfter As Long
 
 Private Function obj_IPageCtrl_Initialize( _
     ByVal page As obj_IPage _
@@ -48,9 +57,14 @@ Private Function obj_IPageCtrl_Initialize( _
     If pageBase Is Nothing Then Exit Function
     If Not pageBase.RuntimeSources.SetObjectSource( _
         OBJECT_KEY, Me) Then Exit Function
+    If Not pageBase.RegisterSelectionHandler( _
+        Me, "OnResultSelectionChanged") Then Exit Function
     Set items = New Collection
     Set m_AllTables = New Collection
     m_ShowEmptyTables = False
+    m_SelectedPreviewText = "Выберите строку результата"
+    m_ContextLinesBefore = DEFAULT_CONTEXT_LINES_BEFORE
+    m_ContextLinesAfter = DEFAULT_CONTEXT_LINES_AFTER
     If Not pageBase.RuntimeSources.SetItemsSource( _
         TABLES_KEY, items, False) Then Exit Function
     Set m_SourceOptions = New Collection
@@ -137,6 +151,13 @@ Private Function obj_IPageCtrl_UpdateData( _
 End Function
 
 Private Sub obj_IPageCtrl_Dispose()
+    Dim pageBase As obj_PageBase
+
+    If Not m_Page Is Nothing Then
+        Set pageBase = m_Page.GetPageBase()
+        If Not pageBase Is Nothing Then _
+            pageBase.ClearSelectionHandler Me
+    End If
     Set m_AllTables = Nothing
     Set m_DocumentPaths = Nothing
     Set m_SourceOptions = Nothing
@@ -157,6 +178,18 @@ End Property
 
 Public Property Get IsRegexMode() As Boolean
     IsRegexMode = m_IsRegexMode
+End Property
+
+Public Property Get SelectedPreviewText() As String
+    SelectedPreviewText = m_SelectedPreviewText
+End Property
+
+Public Property Get ContextLinesBefore() As Long
+    ContextLinesBefore = m_ContextLinesBefore
+End Property
+
+Public Property Get ContextLinesAfter() As Long
+    ContextLinesAfter = m_ContextLinesAfter
 End Property
 
 Public Property Get DateFromDay() As String
@@ -207,6 +240,64 @@ Public Function OnSearchTextChanged(Optional ByVal arg As Variant) As Boolean
     OnSearchTextChanged = True
 End Function
 
+Public Function OnContextLinesBeforeChanged( _
+    Optional ByVal arg As Variant _
+) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnContextLinesBeforeChanged = private_TryUpdateContextLineCount( _
+        arg, "выше совпадения", m_ContextLinesBefore)
+End Function
+
+Public Function OnContextLinesAfterChanged( _
+    Optional ByVal arg As Variant _
+) As Boolean
+    If VBA.IsMissing(arg) Then Exit Function
+    OnContextLinesAfterChanged = private_TryUpdateContextLineCount( _
+        arg, "ниже совпадения", m_ContextLinesAfter)
+End Function
+
+Private Function private_TryUpdateContextLineCount( _
+    ByVal arg As Variant, _
+    ByVal fieldCaption As String, _
+    ByRef outLineCount As Long _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim changedCell As Range
+    Dim rawValue As String
+    Dim numericValue As Double
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    On Error Resume Next
+    Set changedCell = ws.Range(VBA.Trim$(VBA.CStr(arg)))
+    On Error GoTo 0
+    If changedCell Is Nothing Then Exit Function
+
+    rawValue = VBA.Trim$(VBA.CStr(changedCell.Value2))
+    If VBA.Len(rawValue) = 0 Or Not VBA.IsNumeric(rawValue) Then
+        private_Error "Количество строк " & fieldCaption & _
+            " должно быть целым числом от 0 до " & _
+            VBA.CStr(MAX_CONTEXT_LINE_COUNT) & "."
+        changedCell.Value2 = outLineCount
+        Exit Function
+    End If
+    numericValue = VBA.CDbl(rawValue)
+    If numericValue <> VBA.Fix(numericValue) Or numericValue < 0# Or _
+        numericValue > MAX_CONTEXT_LINE_COUNT Then
+        private_Error "Количество строк " & fieldCaption & _
+            " должно быть целым числом от 0 до " & _
+            VBA.CStr(MAX_CONTEXT_LINE_COUNT) & "."
+        changedCell.Value2 = outLineCount
+        Exit Function
+    End If
+
+    outLineCount = VBA.CLng(numericValue)
+    private_TryUpdateContextLineCount = True
+End Function
 Public Function OnDateFromDayChanged(Optional ByVal arg As Variant) As Boolean
     If VBA.IsMissing(arg) Then Exit Function
     OnDateFromDayChanged = private_TryReadChangedCellText( _
@@ -250,6 +341,13 @@ Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
     Dim documentTable As obj_TableDynamic
     Dim searchRegex As Object
     Dim documentIndex As Long
+    Dim documentError As String
+    Dim failedDocumentCount As Long
+
+    If m_IsSearchRunning Then
+        private_Error "Поиск уже выполняется."
+        Exit Function
+    End If
 
     If Not m_IsReady Then
         private_Error "Конфигурация поиска не готова. " & _
@@ -271,28 +369,176 @@ Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
     End If
     If Not private_TryCreateSearchRegex(searchRegex) Then Exit Function
 
+    m_IsSearchRunning = True
+    m_IsCancelRequested = False
+    m_SelectedPreviewText = "Выберите строку результата"
+    rt_Messaging.fn_ShowStatusBarProgress _
+        "WORD search", 0, m_DocumentPaths.Count
     Set resultTables = New Collection
+    Set m_AllTables = resultTables
     For Each documentPathItem In m_DocumentPaths
+        ' Поиск остаётся кооперативным: Excel обрабатывает нажатие кнопки
+        ' отмены только между синхронными COM-вызовами Word.
+        VBA.DoEvents
+        If m_IsCancelRequested Then Exit For
         documentIndex = documentIndex + 1
+        Set documentTable = Nothing
         If Not private_ReadWordDocument( _
-            VBA.CStr(documentPathItem), documentText) Then Exit Function
-        If Not private_BuildSearchResultTable( _
             VBA.CStr(documentPathItem), documentText, _
-            documentIndex, searchRegex, _
-            documentTable) Then Exit Function
+            documentError) Then
+            ' Ошибка одного файла не должна прерывать пакетный поиск.
+            ' Диагностическая строка сохраняет имя проблемного документа
+            ' в результатах и позволяет обработать остальные файлы.
+            failedDocumentCount = failedDocumentCount + 1
+            If Not private_BuildDocumentErrorTable( _
+                VBA.CStr(documentPathItem), documentError, _
+                documentIndex, documentTable) Then GoTo SearchFailed
+        Else
+            If Not private_BuildSearchResultTable( _
+                VBA.CStr(documentPathItem), documentText, _
+                documentIndex, searchRegex, _
+                documentTable) Then GoTo SearchFailed
+        End If
         resultTables.Add documentTable
+        ' Публикуем накопленный результат сразу после появления новой
+        ' видимой таблицы, не дожидаясь завершения всего списка файлов.
+        If documentTable.RowCount > 0 Or m_ShowEmptyTables Then
+            If Not private_PublishVisibleTables() Then GoTo SearchFailed
+            If Not rt_PageManager.fn_RenderPage( _
+                m_Page, "word-text-search:progress") Then GoTo SearchFailed
+        End If
+        rt_Messaging.fn_ShowStatusBarProgress _
+            "WORD search", documentIndex, m_DocumentPaths.Count
     Next documentPathItem
 
-    Set m_AllTables = resultTables
-    If Not private_PublishVisibleTables() Then Exit Function
+    If Not private_PublishVisibleTables() Then GoTo SearchFailed
     If Not rt_PageManager.fn_RenderPage( _
-        m_Page, "word-text-search:search") Then Exit Function
-    rt_Messaging.fn_ShowStatusBarSuccess _
-        "WORD search: '" & m_SearchText & _
-        "', обработано документов: " & _
-        VBA.CStr(m_DocumentPaths.Count) & ", найдено записей: " & _
-        VBA.CStr(private_CountTableRows(resultTables)) & ".", 4
+        m_Page, "word-text-search:search") Then GoTo SearchFailed
+    If m_IsCancelRequested Then
+        rt_Messaging.fn_ShowStatusBarNotice _
+            "WORD search отменён. Обработано документов: " & _
+            VBA.CStr(documentIndex) & " из " & _
+            VBA.CStr(m_DocumentPaths.Count) & ".", 4
+    Else
+        rt_Messaging.fn_ShowStatusBarSuccess _
+            "WORD search: '" & m_SearchText & _
+            "', обработано документов: " & _
+            VBA.CStr(documentIndex) & ", строк результата: " & _
+            VBA.CStr(private_CountTableRows(resultTables)) & _
+            ", ошибок чтения: " & VBA.CStr(failedDocumentCount) & ".", 4
+    End If
+    m_IsSearchRunning = False
     SearchAndRender = True
+    Exit Function
+
+SearchFailed:
+    m_IsSearchRunning = False
+End Function
+
+Public Function CancelSearch(Optional ByVal arg As Variant) As Boolean
+    If Not m_IsSearchRunning Then
+        rt_Messaging.fn_ShowStatusBarNotice _
+            "WORD search сейчас не выполняется.", 3
+        CancelSearch = True
+        Exit Function
+    End If
+    m_IsCancelRequested = True
+    rt_Messaging.fn_ShowStatusBarNotice _
+        "Запрошена отмена WORD search...", 3
+    CancelSearch = True
+End Function
+
+Public Function OnResultSelectionChanged( _
+    Optional ByVal arg As Variant _
+) As Boolean
+    Dim selectedCell As Range
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim resultsRange As Range
+    Dim markerCell As Range
+    Dim selectedContextCell As Range
+    Dim previewRange As Range
+    Dim previewColumns As Range
+
+    OnResultSelectionChanged = True
+    If VBA.IsMissing(arg) Then Exit Function
+    If Not VBA.IsObject(arg) Then Exit Function
+    If Not TypeOf arg Is Range Then Exit Function
+    Set selectedCell = arg.Cells(1, 1)
+    ex_Core.fn_Diagnostic_LogInfo _
+        "word-text-search:preview-selection target='" & _
+        selectedCell.Address(False, False) & "'"
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    If Not selectedCell.Worksheet Is ws Then Exit Function
+
+    If Not pageBase.TryGetLayoutContainerRange( _
+        RESULTS_CONTAINER_NAME, resultsRange) Then
+        ex_Core.fn_Diagnostic_LogError _
+            "word-text-search:preview-skip reason='results-range-missing'"
+        Exit Function
+    End If
+    If resultsRange Is Nothing Then Exit Function
+    If Application.Intersect(selectedCell, resultsRange) Is Nothing Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "word-text-search:preview-skip reason='outside-results'"
+        Exit Function
+    End If
+
+    ' Схема результата принадлежит этому mode-specific контроллеру:
+    ' первая колонка содержит номер/Ошибка, вторая — полный context.
+    If selectedCell.Column = resultsRange.Column Then
+        Set markerCell = selectedCell
+        Set selectedContextCell = selectedCell.Offset(0, 1)
+    ElseIf selectedCell.Column = resultsRange.Column + 1 Then
+        Set markerCell = selectedCell.Offset(0, -1)
+        Set selectedContextCell = selectedCell
+    Else
+        ex_Core.fn_Diagnostic_LogInfo _
+            "word-text-search:preview-skip reason='outside-result-columns'"
+        Exit Function
+    End If
+    If Not private_IsSearchResultMarker(markerCell.Value2) Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "word-text-search:preview-skip reason='not-data-row'"
+        Exit Function
+    End If
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, "label", PREVIEW_CONTAINER_NAME, "cell", _
+        previewRange, previewColumns) Then Exit Function
+    If previewRange Is Nothing Then
+        ex_Core.fn_Diagnostic_LogError _
+            "word-text-search:preview-skip reason='preview-range-empty'"
+        Exit Function
+    End If
+
+    ' Preview обновляется адресно, без полного render страницы: выделение
+    ' остаётся на строке результата, а длинный текст не раздувает таблицу.
+    m_SelectedPreviewText = _
+        VBA.CStr(selectedContextCell.Cells(1, 1).Value2)
+    previewRange.Cells(1, 1).Value2 = m_SelectedPreviewText
+    ex_Core.fn_Diagnostic_LogInfo _
+        "word-text-search:preview-updated target='" & _
+        selectedCell.Address(False, False) & "' textLength=" & _
+        VBA.CStr(VBA.Len(m_SelectedPreviewText))
+End Function
+
+Private Function private_IsSearchResultMarker( _
+    ByVal markerValue As Variant _
+) As Boolean
+    Dim markerText As String
+
+    markerText = VBA.Trim$(VBA.CStr(markerValue))
+    If VBA.Len(markerText) = 0 Then Exit Function
+    If VBA.IsNumeric(markerValue) Then
+        private_IsSearchResultMarker = True
+        Exit Function
+    End If
+    private_IsSearchResultMarker = ( _
+        VBA.StrComp(markerText, "Ошибка", VBA.vbTextCompare) = 0)
 End Function
 
 Public Function ToggleRegexMode(Optional ByVal arg As Variant) As Boolean
@@ -926,6 +1172,32 @@ Private Function private_BuildSearchResultTable( _
     private_BuildSearchResultTable = True
 End Function
 
+Private Function private_BuildDocumentErrorTable( _
+    ByVal documentPath As String, _
+    ByVal errorText As String, _
+    ByVal documentIndex As Long, _
+    ByRef outTable As obj_TableDynamic _
+) As Boolean
+    Dim rowObj As obj_Row
+    Dim fso As Object
+
+    Set outTable = New obj_TableDynamic
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
+    outTable.SectionTitle = fso.GetFileName(documentPath)
+    outTable.SourceAlias = "text-search-" & VBA.CStr(documentIndex)
+    outTable.SourceAliasTemplate = "WordDataExtractorTextSearch"
+    If Not private_AddSearchColumn(outTable, _
+        "№ запису", "matchIndex") Then Exit Function
+    If Not private_AddSearchColumn(outTable, _
+        "Контекст", "context") Then Exit Function
+
+    Set rowObj = New obj_Row
+    rowObj.PushCellRaw "Ошибка"
+    rowObj.PushCellRaw "Документ пропущен: " & errorText
+    If Not outTable.PushRow(rowObj) Then Exit Function
+    private_BuildDocumentErrorTable = True
+End Function
+
 Private Function private_TryCreateSearchRegex( _
     ByRef outRegex As Object _
 ) As Boolean
@@ -996,7 +1268,7 @@ Private Function private_CollectLines( _
     For Each rawLine In rawLines
         lineText = VBA.Trim$(VBA.CStr(rawLine))
         ' Пустая строка является частью исходного контекста Word. Она также
-        ' учитывается в радиусе ±5 строк и сохраняет разрывы между блоками.
+        ' учитывается в заданных границах контекста и сохраняет разрывы между блоками.
         result.Add lineText
     Next rawLine
     Set private_CollectLines = result
@@ -1012,9 +1284,9 @@ Private Function private_BuildLineContext( _
     Dim currentLineIndex As Long
 
     If textLines Is Nothing Then Exit Function
-    firstLineIndex = lineIndex - CONTEXT_LINE_RADIUS
+    firstLineIndex = lineIndex - m_ContextLinesBefore
     If firstLineIndex < 1 Then firstLineIndex = 1
-    lastLineIndex = lineIndex + CONTEXT_LINE_RADIUS
+    lastLineIndex = lineIndex + m_ContextLinesAfter
     If lastLineIndex > textLines.Count Then
         lastLineIndex = textLines.Count
     End If
@@ -1045,29 +1317,48 @@ End Function
 
 Private Function private_ReadWordDocument( _
     ByVal filePath As String, _
-    ByRef outText As String _
+    ByRef outText As String, _
+    ByRef outErrorText As String _
 ) As Boolean
     Dim fso As Object
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim errDescription As String
 
+    outText = VBA.vbNullString
+    outErrorText = VBA.vbNullString
     Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso.FileExists(filePath) Then
-        private_Error "WORD-документ не найден: " & filePath
+        outErrorText = "WORD-документ не найден: " & filePath
+        ex_Core.fn_Diagnostic_LogError _
+            "WordTextSearch: " & outErrorText
         Exit Function
     End If
+
     On Error GoTo EH
+    ex_Core.fn_Diagnostic_LogInfo _
+        "word-text-search:document-read-start path='" & _
+        VBA.Replace$(filePath, "'", "''") & "'"
     If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp( _
-        wordApp) Then Exit Function
+        wordApp) Then
+        outErrorText = "Не удалось запустить Microsoft Word."
+        ex_Core.fn_Diagnostic_LogError _
+            "WordTextSearch: " & outErrorText
+        Exit Function
+    End If
+
+    wordApp.DisplayAlerts = 0
     Set wordDoc = wordApp.Documents.Open(filePath, False, True, False)
     If Not private_TryBuildDocumentText(wordDoc, outText) Then
         VBA.Err.Raise VBA.vbObjectError + 2102, _
             "WordTextSearch", _
-            "Не удалось собрать текст из абзацев WORD-документа."
+            "Не удалось собрать текст из WORD-документа."
     End If
     wordDoc.Close False
     Set wordDoc = Nothing
+    ex_Core.fn_Diagnostic_LogInfo _
+        "word-text-search:document-read-done path='" & _
+        VBA.Replace$(filePath, "'", "''") & "'"
     private_ReadWordDocument = True
     Exit Function
 
@@ -1076,8 +1367,10 @@ EH:
     On Error Resume Next
     If Not wordDoc Is Nothing Then wordDoc.Close False
     On Error GoTo 0
-    private_Error "Не удалось прочитать WORD-документ: " & _
+    outErrorText = "Не удалось прочитать WORD-документ: " & _
         errDescription
+    ex_Core.fn_Diagnostic_LogError _
+        "WordTextSearch: " & outErrorText & "; путь: " & filePath
 End Function
 
 Private Function private_TryBuildDocumentText( _
@@ -1101,7 +1394,6 @@ EH:
         "WordTextSearch: ошибка сборки текста документа: " & _
         Err.Description
 End Function
-
 Private Function private_NormalizeWordWhitespace( _
     ByVal sourceText As String _
 ) As String

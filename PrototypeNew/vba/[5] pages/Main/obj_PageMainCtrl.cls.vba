@@ -656,6 +656,11 @@ Public Function OnUpdateCodeFullCommand(Optional ByVal arg As Variant) As Boolea
     OnUpdateCodeFullCommand = True
 End Function
 
+Public Property Get LastCodeUpdateCaption() As String
+    LastCodeUpdateCaption = _
+        rt_CoreActions.fn_GetLastCodeUpdateCaption()
+End Property
+
 Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenEntityLookupPageCommand"

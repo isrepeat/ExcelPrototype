@@ -223,6 +223,15 @@
           spanColls="5"
           spanRows="2"
           />
+        <control
+          type="Label"
+          name="LastCodeUpdate"
+          text="{Binding Path=LastCodeUpdateCaption}"
+          mergeCells="true"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          spanColls="5"
+          spanRows="1"
+          />
       </stackPanel>
   </grid>
 
@@ -309,6 +318,23 @@
                 rowHeight:16;
                 cellType:text;
               }"/>
+      </layer>
+
+      <layer name="update-meta">
+        <rule
+          target="controlPart"
+          selector="type=label;name=LastCodeUpdate;part=cell"
+          styles="{
+            backColor:#20242A;
+            fontColor:#9CA3AF;
+            borderColor:#20242A;
+            fontName:Calibri;
+            fontSize:9;
+            fontBold:false;
+            horizontal:center;
+            vertical:center;
+            rowHeight:18;
+          }"/>
       </layer>
 
       <layer name="config-parts">

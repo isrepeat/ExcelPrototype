@@ -46,7 +46,7 @@
     <item key="WordDataExtractor.DocumentSource[orders-a4085].DocumentFilename" value="№*{dd}.{mm}.{yyyy}.doc*"/>
     <item key="WordDataExtractor.DocumentSource[orders-a4085].Enabled" value="false"/>
     <item key="WordDataExtractor.DocumentSource[orders-a4603].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А4603\2025"/>
-    <item key="WordDataExtractor.DocumentSource[orders-a4603].DocumentFilename" value="№ * {dd}.{mm}.{yyyy}*.doc*"/>
+    <item key="WordDataExtractor.DocumentSource[orders-a4603].DocumentFilename" value="№*{dd}.{mm}.{yyyy}*.doc*"/>
     <item key="WordDataExtractor.DocumentSource[orders-a4603].Enabled" value="false"/>
     <item key="WordDataExtractor.DocumentSource[orders-a7401].DocumentDir" value="C:\WORK Alexandr Bondarenko\НАКАЗИ\А7401\2025"/>
     <item key="WordDataExtractor.DocumentSource[orders-a7401].DocumentFilename" value="НАКАЗ №* від {dd} {monthUa} {yyyy}*.doc*"/>

@@ -29,6 +29,13 @@ EH:
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    Dim previousEnableEvents As Boolean
+    Dim enableEventsCaptured As Boolean
+    Dim closeErrorNumber As Long
+    Dim closeErrorDescription As String
+
+    On Error GoTo EH_BEFORE_CLOSE
+
     ' Application.OnKey глобален для всего Excel. Снимаем callbacks до любых
     ' snapshot/dispose операций, чтобы они не ссылались на выгружаемый VBA-проект.
     Call rt_HotkeyRuntime.fn_BeginShutdown
@@ -49,9 +56,47 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ' Workbook_BeforeClose остаётся строго немодифицирующим.
     Call rt_RestoreManager.fn_SaveRuntimeState
 #End If
+
+    ' PageManager хранит корневые ссылки на страницы, а страницы через PageBase,
+    ' RuntimeSources и controller ссылаются обратно друг на друга. Если оставить
+    ' этот граф до выгрузки VBA-проекта, повторное открытие книги в той же сессии
+    ' Excel может получить stale controller как общий Object вместо mode-класса.
+    ' Явный Dispose разрывает цикл до сохранения/выгрузки книги.
+    previousEnableEvents = Application.EnableEvents
+    enableEventsCaptured = True
+    Application.EnableEvents = False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "shutdown:pages-dispose-start"
+#End If
+    rt_PageManager.fn_DisposeAllPages
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "shutdown:pages-dispose-done"
+#End If
+    Application.EnableEvents = previousEnableEvents
+
     Call rt_UndoManager.fn_Module_Dispose
     ' Идемпотентный module dispose остаётся последней страховкой lifecycle.
     Call ex_ExternalExcelSqlEngine.fn_Module_Dispose
+    Exit Sub
+
+EH_BEFORE_CLOSE:
+    closeErrorNumber = Err.Number
+    closeErrorDescription = Err.Description
+    On Error Resume Next
+    If enableEventsCaptured Then Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+
+    ' При неполном cleanup не разрешаем Excel закрыть книгу: иначе stale runtime
+    ' останется скрытым и проявится уже при следующем Workbook_Open.
+    Cancel = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_BeforeClose cleanup failed: [" & _
+        VBA.CStr(closeErrorNumber) & "] " & closeErrorDescription
+#End If
+    VBA.MsgBox "Не удалось безопасно завершить runtime PrototypeNew: [" & _
+        VBA.CStr(closeErrorNumber) & "] " & closeErrorDescription & VBA.vbCrLf & _
+        "Закрытие книги отменено.", VBA.vbExclamation, _
+        "PrototypeNew / закрытие книги"
 End Sub
 
 Private Sub Workbook_Activate()
@@ -86,6 +131,22 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
 EH_SHEET_CHANGE:
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_SheetChange failed: " & Err.Description
+#End If
+End Sub
+
+Private Sub Workbook_SheetSelectionChange( _
+    ByVal Sh As Object, _
+    ByVal Target As Range _
+)
+    On Error GoTo EH_SHEET_SELECTION_CHANGE
+    rt_Bridge.fn_OnSheetSelectionChange Sh, Target
+    Exit Sub
+
+EH_SHEET_SELECTION_CHANGE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "PrototypeNew: Workbook_SheetSelectionChange failed: " & _
+        Err.Description
 #End If
 End Sub
 
@@ -141,6 +202,11 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Dim tmpSheetName As String
     Dim createdPage As obj_IPage
     Dim isPageCreated As Boolean
+    Dim previousDisplayAlerts As Boolean
+    Dim previousEnableEvents As Boolean
+    Dim applicationStateCaptured As Boolean
+    Dim resetErrorDescription As String
+    Dim createErrorDescription As String
 
     Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
@@ -148,15 +214,27 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     rt_PageManager.fn_DisposeAllPages
 
     On Error GoTo EH_RESET
+    previousDisplayAlerts = Application.DisplayAlerts
+    previousEnableEvents = Application.EnableEvents
+    applicationStateCaptured = True
     Application.DisplayAlerts = False
+    ' После DisposeAllPages сохранённые листы уже не зарегистрированы. Поэтому
+    ' их удаление не должно повторно входить в Workbook_SheetBeforeDelete и
+    ' обращаться к очищенному PageManager.
+    Application.EnableEvents = False
 
     Set tmpWs = wb.Worksheets.Add(Before:=wb.Worksheets(1))
     tmpSheetName = private_BuildUniqueWorksheetName(wb, "__startup_tmp__")
     If VBA.Len(tmpSheetName) = 0 Then
-        Application.DisplayAlerts = True
+        Application.DisplayAlerts = previousDisplayAlerts
+        Application.EnableEvents = previousEnableEvents
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to prepare temporary worksheet name."
 #End If
+        If showErrorUi Then
+            VBA.MsgBox "Не удалось подобрать имя временного листа для запуска PrototypeNew.", _
+                VBA.vbExclamation, "PrototypeNew / запуск"
+        End If
         Exit Function
     End If
     tmpWs.Name = tmpSheetName
@@ -169,18 +247,24 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
         End If
     Loop
 
-    Application.DisplayAlerts = True
+    Application.DisplayAlerts = previousDisplayAlerts
+    Application.EnableEvents = previousEnableEvents
     On Error GoTo EH_CREATE
 
     Set createdPage = New obj_PageMain
-    If createdPage Is Nothing Then Exit Function
+    If createdPage Is Nothing Then GoTo EH_CREATE
 
     If Not rt_PageManager.fn_CreatePage(createdPage, "ui\MainUI.xml", "Main") Then GoTo EH_CREATE
     isPageCreated = True
 
+    ' Имя временного листа обычно распознаётся обработчиком BeforeDelete, но при
+    ' восстановлении после прошлого сбоя оно может получить числовой суффикс.
+    ' Поэтому и финальное удаление выполняем без workbook events.
+    Application.EnableEvents = False
     Application.DisplayAlerts = False
     tmpWs.Delete
-    Application.DisplayAlerts = True
+    Application.DisplayAlerts = previousDisplayAlerts
+    Application.EnableEvents = previousEnableEvents
     Set tmpWs = Nothing
 
     If Not rt_PageManager.fn_RenderPage(createdPage, renderReason) Then GoTo EH_CREATE
@@ -189,30 +273,51 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Exit Function
 
 EH_RESET:
-    Application.DisplayAlerts = True
-    If showErrorUi Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to reset workbook sheets: " & Err.Description
-#End If
-    End If
-    Exit Function
-
-EH_CREATE:
-    Application.DisplayAlerts = True
+    resetErrorDescription = Err.Description
     On Error Resume Next
-    If Not createdPage Is Nothing And isPageCreated Then
-        Call rt_PageManager.fn_RemovePage(createdPage, True)
-    End If
-    If Not tmpWs Is Nothing Then
-        Application.DisplayAlerts = False
-        tmpWs.Delete
-        Application.DisplayAlerts = True
+    If applicationStateCaptured Then
+        Application.DisplayAlerts = previousDisplayAlerts
+        Application.EnableEvents = previousEnableEvents
     End If
     On Error GoTo 0
     If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & Err.Description
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to reset workbook sheets: " & resetErrorDescription
 #End If
+        VBA.MsgBox "Не удалось очистить листы PrototypeNew: " & _
+            resetErrorDescription, VBA.vbExclamation, _
+            "PrototypeNew / запуск"
+    End If
+    Exit Function
+
+EH_CREATE:
+    createErrorDescription = Err.Description
+    If VBA.Len(VBA.Trim$(createErrorDescription)) = 0 Then
+        createErrorDescription = "Операция создания или рендера Main вернула False без VBA-ошибки."
+    End If
+    On Error Resume Next
+    ' Cleanup не должен генерировать SheetBeforeDelete для страницы, которая уже
+    ' удаляется из runtime-реестра в этой же ветке обработки ошибки.
+    Application.EnableEvents = False
+    Application.DisplayAlerts = False
+    If Not createdPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(createdPage, True)
+    End If
+    If Not tmpWs Is Nothing Then
+        tmpWs.Delete
+    End If
+    If applicationStateCaptured Then
+        Application.DisplayAlerts = previousDisplayAlerts
+        Application.EnableEvents = previousEnableEvents
+    End If
+    On Error GoTo 0
+    If showErrorUi Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & createErrorDescription
+#End If
+        VBA.MsgBox "Не удалось создать страницу Main: " & _
+            createErrorDescription, VBA.vbExclamation, _
+            "PrototypeNew / запуск"
     End If
 End Function
 

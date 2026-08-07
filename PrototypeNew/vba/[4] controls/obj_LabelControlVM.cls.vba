@@ -15,6 +15,7 @@ Private m_TextRaw As String
 Private m_TextResolved As String
 Private m_ControlLayout As obj_ControlLayout
 Private m_IsConfigured As Boolean
+Private m_MergeCells As Boolean
 Private m_Page As obj_IPage
 
 Private Sub Class_Initialize()
@@ -42,6 +43,7 @@ Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
 #End If
     m_IsDisposed = False
     m_IsConfigured = False
+    m_MergeCells = False
     Set m_Page = page
     obj_IControl_Initialize = True
 End Function
@@ -82,6 +84,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set dataContext = m_ControlBase.DataContext
     If dataContext Is Nothing Then Set dataContext = m_Page
     If Not ex_BindingRuntime.fn_TryResolveTextBinding(m_TextRaw, dataContext, m_TextResolved) Then Exit Sub
+    If Not private_TryReadMergeCells(controlNode, m_MergeCells) Then Exit Sub
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Label", m_ControlName, "style") Then Exit Sub
@@ -93,6 +96,7 @@ Private Sub obj_IControl_Render()
     Dim ws As Worksheet
     Dim targetRange As Range
     Dim pageBase As obj_PageBase
+    Dim previousDisplayAlerts As Boolean
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -100,6 +104,7 @@ Private Sub obj_IControl_Render()
 #End If
         Exit Sub
     End If
+    previousDisplayAlerts = Application.DisplayAlerts
 
     Set pageBase = Nothing
     If Not m_ControlBase Is Nothing Then Set pageBase = m_ControlBase.PageBase
@@ -122,7 +127,13 @@ Private Sub obj_IControl_Render()
     Set targetRange = ws.Range(ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColEnd))
     On Error GoTo 0
 
-    targetRange.Value2 = m_TextResolved
+    If m_MergeCells And targetRange.Cells.CountLarge > 1 Then
+        Application.DisplayAlerts = False
+        targetRange.ClearContents
+        targetRange.Merge
+        Application.DisplayAlerts = previousDisplayAlerts
+    End If
+    targetRange.Cells(1, 1).Value2 = m_TextResolved
     targetRange.HorizontalAlignment = xlHAlignLeft
     targetRange.VerticalAlignment = xlVAlignCenter
     targetRange.WrapText = False
@@ -131,6 +142,9 @@ Private Sub obj_IControl_Render()
     Exit Sub
 
 EH_RANGE:
+    On Error Resume Next
+    Application.DisplayAlerts = previousDisplayAlerts
+    On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "Label: failed to resolve target range for control '" & m_ControlName & "'."
 #End If
@@ -149,9 +163,34 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "text", "caption"
+        Case "text", "caption", "mergecells"
             obj_IControl_SupportsAttribute = True
     End Select
+End Function
+
+Private Function private_TryReadMergeCells( _
+    ByVal controlNode As Object, _
+    ByRef outValue As Boolean _
+) As Boolean
+    Dim rawValue As String
+
+    outValue = False
+    rawValue = VBA.LCase$(VBA.Trim$(VBA.CStr( _
+        ex_XmlCore.fn_NodeAttrText(controlNode, "mergeCells"))))
+    If VBA.Len(rawValue) = 0 Or rawValue = "false" Or rawValue = "0" Then
+        private_TryReadMergeCells = True
+        Exit Function
+    End If
+    If rawValue = "true" Or rawValue = "1" Then
+        outValue = True
+        private_TryReadMergeCells = True
+        Exit Function
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "Label: mergeCells must be true or false for control '" & _
+        m_ControlName & "'."
+#End If
 End Function
 
 Private Function obj_IControl_IsConfigured() As Boolean

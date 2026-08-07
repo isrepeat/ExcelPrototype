@@ -22,6 +22,8 @@ Private m_LayoutTagEntriesByTag As Object
 Private m_RouteByShape As Object
 Private m_RouteByCell As Object
 Private m_RouteByHotkey As Object
+Private m_SelectionHandlerContext As Object
+Private m_SelectionHandlerMethod As String
 Private m_PageRuntimeSources As obj_PageRuntimeSources
 Private m_InlineRunEntries As Collection
 ' Кэш inline-профилей на уровне страницы: ключ = partName (banner/button/...).
@@ -132,6 +134,8 @@ Public Function Initialize( _
     On Error GoTo 0
 
     Set m_InlineRunEntries = Nothing
+    Set m_SelectionHandlerContext = Nothing
+    m_SelectionHandlerMethod = VBA.vbNullString
     ' Реестр профилей стартует пустым и заполняется лениво по мере рендера.
     Set m_InlineProfileByPart = Nothing
     Call Me.ResetControlActions
@@ -165,6 +169,8 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Set m_UiDom = Nothing
     Set m_PageRuntimeSources = Nothing
     Set m_InlineRunEntries = Nothing
+    Set m_SelectionHandlerContext = Nothing
+    m_SelectionHandlerMethod = VBA.vbNullString
     ' Сбрасываем профильный кэш вместе со страницей (единый lifecycle PageBase).
     Set m_InlineProfileByPart = Nothing
     m_IsRendering = False
@@ -1744,6 +1750,41 @@ Public Function DispatchShapeClick(ByVal shapeName As String) As Boolean
 
     private_LogRuntimeInfo "dispatch-click done shape='" & private_EscapeForLog(shapeName) & "' control='" & private_EscapeForLog(controlKey) & "' method='" & private_EscapeForLog(methodName) & "'"
     DispatchShapeClick = True
+End Function
+
+Public Function RegisterSelectionHandler( _
+    ByVal callbackContext As Object, _
+    ByVal methodName As String _
+) As Boolean
+    methodName = VBA.Trim$(methodName)
+    If callbackContext Is Nothing Then Exit Function
+    If VBA.Len(methodName) = 0 Then Exit Function
+    Set m_SelectionHandlerContext = callbackContext
+    m_SelectionHandlerMethod = methodName
+    RegisterSelectionHandler = True
+End Function
+
+Public Sub ClearSelectionHandler(ByVal callbackContext As Object)
+    If callbackContext Is Nothing Then Exit Sub
+    If m_SelectionHandlerContext Is Nothing Then Exit Sub
+    If Not m_SelectionHandlerContext Is callbackContext Then Exit Sub
+    Set m_SelectionHandlerContext = Nothing
+    m_SelectionHandlerMethod = VBA.vbNullString
+End Sub
+
+Public Function DispatchSelectionChange(ByVal target As Range) As Boolean
+    If Not private_EnsureNotDisposed("DispatchSelectionChange") Then Exit Function
+    If target Is Nothing Then
+        DispatchSelectionChange = True
+        Exit Function
+    End If
+    If m_SelectionHandlerContext Is Nothing Or _
+        VBA.Len(m_SelectionHandlerMethod) = 0 Then
+        DispatchSelectionChange = True
+        Exit Function
+    End If
+    DispatchSelectionChange = rt_Bridge.fn_RunCallback( _
+        m_SelectionHandlerMethod, m_SelectionHandlerContext, target)
 End Function
 
 Public Function DispatchSheetChange(ByVal target As Range) As Boolean
