@@ -438,9 +438,7 @@ Private Sub private_UnassignActivePhysicalHotkeys()
     If g_ActiveHotkeyByKey Is Nothing Then Exit Sub
 
     For Each hotkeyKey In g_ActiveHotkeyByKey.Keys
-        On Error Resume Next
         Application.OnKey VBA.CStr(hotkeyKey)
-        On Error GoTo 0
     Next hotkeyKey
 
     Set g_ActiveHotkeyByKey = VBA.CreateObject("Scripting.Dictionary")
@@ -456,9 +454,7 @@ Private Sub private_UnregisterHotkey(ByVal hotkeyKey As String)
 
     If Not g_ActiveHotkeyByKey Is Nothing Then
         If g_ActiveHotkeyByKey.Exists(hotkeyKey) Then
-            On Error Resume Next
             Application.OnKey hotkeyKey
-            On Error GoTo 0
             g_ActiveHotkeyByKey.Remove hotkeyKey
         End If
     End If

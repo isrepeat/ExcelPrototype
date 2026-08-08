@@ -5,10 +5,15 @@ Option Explicit
 Private Sub Workbook_Open()
     Dim restoredPagesCount As Long
     Dim restoredOk As Boolean
+    Dim openErrorNumber As Long
+    Dim openErrorDescription As String
+    Dim startupCleanupError As String
 
     On Error GoTo EH
 
-    rt_HotkeyRuntime.fn_BeginSession
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "startup:workbook-open-enter"
+#End If
 
 #If RUNTIME_SNAPSHOTS_ENABLED Then
     restoredOk = rt_RestoreManager.fn_RestoreRuntimeState( _
@@ -16,67 +21,115 @@ Private Sub Workbook_Open()
     If restoredOk And restoredPagesCount > 0 Then Exit Sub
 #End If
 
-    If Not m_ResetWorkbookAndCreateMainPage("ThisWorkbook.Workbook_Open:main-create") Then Exit Sub
-    ' При cold start Main уже может быть активным и SheetActivate повторно не
-    ' сработает, поэтому начальное состояние runtime-фильтра задаём явно.
-    Call ex_Core.fn_Diagnostic_ApplyLoggingPagePolicy("Main")
+    If Not rt_Lifecycle.fn_InitializeRuntime( _
+        "ThisWorkbook.Workbook_Open:main-create") Then
+        If Not private_TryCleanupFailedStartup(startupCleanupError) Then
+            VBA.MsgBox _
+                "Инициализация PrototypeNew остановлена. Дополнительно не удалось " & _
+                "очистить частично созданный runtime: " & startupCleanupError, _
+                VBA.vbExclamation, "PrototypeNew / запуск"
+        End If
+        Exit Sub
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "startup:workbook-open-done"
+#End If
 
     Exit Sub
 EH:
+    openErrorNumber = Err.Number
+    openErrorDescription = Err.Description
+    If Not private_TryCleanupFailedStartup(startupCleanupError) Then
+        openErrorDescription = openErrorDescription & VBA.vbCrLf & _
+            "Ошибка cleanup частично созданного runtime: " & _
+            startupCleanupError
+    End If
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_Open failed: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_Open failed: [" & _
+        VBA.CStr(openErrorNumber) & "] " & openErrorDescription
 #End If
+    VBA.MsgBox "Не удалось инициализировать PrototypeNew: [" & _
+        VBA.CStr(openErrorNumber) & "] " & openErrorDescription, _
+        VBA.vbExclamation, "PrototypeNew / запуск"
 End Sub
+
+
+Private Function private_TryCleanupFailedStartup( _
+    ByRef outErrorDescription As String _
+) As Boolean
+    outErrorDescription = VBA.vbNullString
+    On Error GoTo EH_CLEANUP
+
+    rt_Lifecycle.fn_DisposeRuntime True, "workbook-open-failed"
+    private_TryCleanupFailedStartup = True
+    Exit Function
+
+EH_CLEANUP:
+    outErrorDescription = "[" & VBA.CStr(Err.Number) & "] " & _
+        Err.Description
+End Function
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Dim previousEnableEvents As Boolean
     Dim enableEventsCaptured As Boolean
     Dim closeErrorNumber As Long
     Dim closeErrorDescription As String
+    Dim discardedUnsavedChanges As Boolean
+    Dim closeTeardownCommitted As Boolean
 
     On Error GoTo EH_BEFORE_CLOSE
 
-    ' Application.OnKey глобален для всего Excel. Снимаем callbacks до любых
-    ' snapshot/dispose операций, чтобы они не ссылались на выгружаемый VBA-проект.
-    Call rt_HotkeyRuntime.fn_BeginShutdown
-
-    ' Сначала отменяем все Application.OnTime-задачи, которые ссылаются на эту
-    ' книгу. Если другой workbook оставляет Excel запущенным, незакрытый таймер
-    ' может повторно открыть PrototypeNew для выполнения отложенного макроса.
-    Call rt_Messaging.fn_Module_Dispose
-    Call rt_CoreActions.fn_Module_Dispose
-    Call ex_Core.fn_CancelDeferredTasks
-
-    ' Внешние ADO-соединения освобождаем до snapshot/hotkey/undo cleanup:
-    ' если последующий shutdown-шаг завершится ошибкой, файлы-источники всё
-    ' равно не должны остаться заблокированными после закрытия книги.
-    Call ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
-#If RUNTIME_SNAPSHOTS_ENABLED Then
-    ' Snapshot меняет CustomXMLParts книги, поэтому при выключенном feature flag
-    ' Workbook_BeforeClose остаётся строго немодифицирующим.
-    Call rt_RestoreManager.fn_SaveRuntimeState
+#If LOGGING_DEBUG_ENABLED Then
+    ' Первый checkpoint должен появиться до любого обращения к OnKey/OnTime/COM.
+    ' Если его нет, Workbook_BeforeClose вообще не был вызван.
+    ex_Core.fn_Diagnostic_LogInfo "shutdown:before-close-enter"
 #End If
 
-    ' PageManager хранит корневые ссылки на страницы, а страницы через PageBase,
-    ' RuntimeSources и controller ссылаются обратно друг на друга. Если оставить
-    ' этот граф до выгрузки VBA-проекта, повторное открытие книги в той же сессии
-    ' Excel может получить stale controller как общий Object вместо mode-класса.
-    ' Явный Dispose разрывает цикл до сохранения/выгрузки книги.
+    ' DoEvents нужен длительным операциям (например WORD search) для кнопки
+    ' отмены. Но он также позволяет пользователю закрыть книгу внутри активного
+    ' метода controller. Уничтожать этот controller из его же call stack нельзя:
+    ' Excel/VBE может аварийно завершить весь общий процесс Excel.
+    If rt_Bridge.fn_IsDispatchingAny() Then
+        Cancel = True
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "shutdown:close-cancelled reason='runtime-dispatch-active'"
+#End If
+        VBA.MsgBox _
+            "Сейчас выполняется операция PrototypeNew. Дождитесь её завершения " & _
+            "или отмените поиск кнопкой «Скасувати пошук», затем закройте книгу.", _
+            VBA.vbExclamation, "PrototypeNew / закрытие книги"
+        Exit Sub
+    End If
+
+    ' BeforeClose вызывается до стандартного Excel prompt. Сначала фиксируем
+    ' решение пользователя; только после этого начинается необратимый dispose.
+    ' Иначе выбор Cancel в штатном prompt оставил бы открытую книгу без runtime.
+    If Not private_TryCommitCloseDecision( _
+        Cancel, discardedUnsavedChanges) Then Exit Sub
+
     previousEnableEvents = Application.EnableEvents
     enableEventsCaptured = True
     Application.EnableEvents = False
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "shutdown:pages-dispose-start"
+    ex_Core.fn_Diagnostic_LogInfo "shutdown:events-disabled"
 #End If
-    rt_PageManager.fn_DisposeAllPages
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "shutdown:pages-dispose-done"
-#End If
-    Application.EnableEvents = previousEnableEvents
 
-    Call rt_UndoManager.fn_Module_Dispose
-    ' Идемпотентный module dispose остаётся последней страховкой lifecycle.
-    Call ex_ExternalExcelSqlEngine.fn_Module_Dispose
+    ' Фаза prepare только отменяет внешние callbacks. До её завершения runtime
+    ' не разрушается, поэтому ошибка ещё может безопасно отменить закрытие.
+    rt_Lifecycle.fn_PrepareRuntimeDispose True, "workbook-before-close"
+    closeTeardownCommitted = True
+
+    ' После prepare закрытие необратимо: оставлять книгу открытой с частично
+    ' освобождённым graph опаснее, чем завершить unload с явной диагностикой.
+    rt_Lifecycle.fn_DisposePreparedRuntime True, "workbook-before-close"
+
+    Application.EnableEvents = previousEnableEvents
+#If LOGGING_DEBUG_ENABLED Then
+    ' Этот checkpoint отделяет VBA-cleanup от последующей native save/unload
+    ' фазы Excel. Если падение случится позже, cleanup уже был завершён.
+    ex_Core.fn_Diagnostic_LogInfo "shutdown:before-close-done"
+#End If
     Exit Sub
 
 EH_BEFORE_CLOSE:
@@ -84,20 +137,89 @@ EH_BEFORE_CLOSE:
     closeErrorDescription = Err.Description
     On Error Resume Next
     If enableEventsCaptured Then Application.EnableEvents = previousEnableEvents
+    If Not closeTeardownCommitted And discardedUnsavedChanges Then _
+        ThisWorkbook.Saved = False
     On Error GoTo 0
 
-    ' При неполном cleanup не разрешаем Excel закрыть книгу: иначе stale runtime
-    ' останется скрытым и проявится уже при следующем Workbook_Open.
-    Cancel = True
+    ' До commit runtime цел, поэтому закрытие можно отменить. После commit книгу
+    ' обязательно выгружаем, чтобы не оставить пользователю полуживую сессию.
+    Cancel = Not closeTeardownCommitted
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: Workbook_BeforeClose cleanup failed: [" & _
         VBA.CStr(closeErrorNumber) & "] " & closeErrorDescription
 #End If
-    VBA.MsgBox "Не удалось безопасно завершить runtime PrototypeNew: [" & _
-        VBA.CStr(closeErrorNumber) & "] " & closeErrorDescription & VBA.vbCrLf & _
-        "Закрытие книги отменено.", VBA.vbExclamation, _
-        "PrototypeNew / закрытие книги"
+    If closeTeardownCommitted Then
+        VBA.MsgBox "При завершении runtime PrototypeNew возникла ошибка: [" & _
+            VBA.CStr(closeErrorNumber) & "] " & closeErrorDescription & VBA.vbCrLf & _
+            "Книга будет закрыта, чтобы не оставлять повреждённую runtime-сессию.", _
+            VBA.vbExclamation, "PrototypeNew / закрытие книги"
+    Else
+        VBA.MsgBox "Не удалось подготовить безопасное закрытие PrototypeNew: [" & _
+            VBA.CStr(closeErrorNumber) & "] " & closeErrorDescription & VBA.vbCrLf & _
+            "Закрытие книги отменено; runtime не уничтожался.", _
+            VBA.vbExclamation, "PrototypeNew / закрытие книги"
+    End If
 End Sub
+
+
+Private Function private_TryCommitCloseDecision( _
+    ByRef Cancel As Boolean, _
+    ByRef outDiscardedUnsavedChanges As Boolean _
+) As Boolean
+    Dim userChoice As VbMsgBoxResult
+    Dim saveErrorNumber As Long
+    Dim saveErrorDescription As String
+
+    outDiscardedUnsavedChanges = False
+    If ThisWorkbook.Saved Then
+        private_TryCommitCloseDecision = True
+        Exit Function
+    End If
+
+    userChoice = VBA.MsgBox( _
+        "Сохранить изменения в книге «" & ThisWorkbook.Name & "»?", _
+        VBA.vbYesNoCancel Or VBA.vbQuestion, _
+        "PrototypeNew / закрытие книги")
+
+    Select Case userChoice
+        Case VBA.vbCancel
+            Cancel = True
+            Exit Function
+
+        Case VBA.vbYes
+            On Error GoTo EH_SAVE
+            ThisWorkbook.Save
+            If Not ThisWorkbook.Saved Then
+                Err.Raise VBA.vbObjectError + 9211, _
+                    "ThisWorkbook.private_TryCommitCloseDecision", _
+                    "Excel не подтвердил сохранение книги."
+            End If
+
+        Case VBA.vbNo
+            ' Подавляем последующий стандартный prompt Excel. Если cleanup
+            ' завершится ошибкой, BeforeClose вернёт Saved=False обратно.
+            outDiscardedUnsavedChanges = True
+            ThisWorkbook.Saved = True
+
+        Case Else
+            Cancel = True
+            Exit Function
+    End Select
+
+    private_TryCommitCloseDecision = True
+    Exit Function
+
+EH_SAVE:
+    saveErrorNumber = Err.Number
+    saveErrorDescription = Err.Description
+    Cancel = True
+    On Error Resume Next
+    VBA.MsgBox _
+        "Не удалось сохранить книгу перед закрытием: [" & _
+        VBA.CStr(saveErrorNumber) & "] " & saveErrorDescription, _
+        VBA.vbExclamation, "PrototypeNew / закрытие книги"
+    On Error GoTo 0
+End Function
 
 Private Sub Workbook_Activate()
     On Error GoTo EH_WORKBOOK_ACTIVATE
@@ -198,96 +320,93 @@ Private Function private_ResetWorkbookAndCreateMainPage( _
     Optional ByVal showErrorUi As Boolean = True _
 ) As Boolean
     Dim wb As Workbook
-    Dim tmpWs As Worksheet
-    Dim tmpSheetName As String
+    Dim previousMainWs As Worksheet
+    Dim createdMainWs As Worksheet
+    Dim cleanupWs As Worksheet
+    Dim previousMainBackupName As String
     Dim createdPage As obj_IPage
+    Dim createdPageBase As obj_PageBase
     Dim isPageCreated As Boolean
+    Dim isMainRendered As Boolean
     Dim previousDisplayAlerts As Boolean
     Dim previousEnableEvents As Boolean
     Dim applicationStateCaptured As Boolean
-    Dim resetErrorDescription As String
     Dim createErrorDescription As String
+    Dim cleanupErrorDescription As String
+    Dim worksheetIndex As Long
 
     Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
-    rt_PageManager.fn_DisposeAllPages
+    On Error GoTo EH_CREATE
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "startup:main-reset-enter"
+#End If
 
-    On Error GoTo EH_RESET
     previousDisplayAlerts = Application.DisplayAlerts
     previousEnableEvents = Application.EnableEvents
     applicationStateCaptured = True
     Application.DisplayAlerts = False
-    ' После DisposeAllPages сохранённые листы уже не зарегистрированы. Поэтому
-    ' их удаление не должно повторно входить в Workbook_SheetBeforeDelete и
-    ' обращаться к очищенному PageManager.
     Application.EnableEvents = False
 
-    Set tmpWs = wb.Worksheets.Add(Before:=wb.Worksheets(1))
-    tmpSheetName = private_BuildUniqueWorksheetName(wb, "__startup_tmp__")
-    If VBA.Len(tmpSheetName) = 0 Then
-        Application.DisplayAlerts = previousDisplayAlerts
-        Application.EnableEvents = previousEnableEvents
+    ' Старый runtime отделяем от сохранённых листов, но сами листы пока не
+    ' удаляем. Они являются rollback-копией до успешного render нового Main.
+    rt_PageManager.fn_DisposeAllPages
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to prepare temporary worksheet name."
+    ex_Core.fn_Diagnostic_LogInfo "startup:old-runtime-disposed"
 #End If
-        If showErrorUi Then
-            VBA.MsgBox "Не удалось подобрать имя временного листа для запуска PrototypeNew.", _
-                VBA.vbExclamation, "PrototypeNew / запуск"
-        End If
-        Exit Function
-    End If
-    tmpWs.Name = tmpSheetName
 
-    Do While wb.Worksheets.Count > 1
-        If wb.Worksheets(1) Is tmpWs Then
-            wb.Worksheets(2).Delete
-        Else
-            wb.Worksheets(1).Delete
-        End If
-    Loop
-
-    Application.DisplayAlerts = previousDisplayAlerts
-    Application.EnableEvents = previousEnableEvents
+    ' Чтобы новый page сразу получил окончательное имя Main (включая все
+    ' runtime registry keys), старый Main лишь временно переименовываем.
+    On Error Resume Next
+    Set previousMainWs = wb.Worksheets("Main")
+    Err.Clear
     On Error GoTo EH_CREATE
+    If Not previousMainWs Is Nothing Then
+        previousMainBackupName = private_BuildUniqueWorksheetName( _
+            wb, "__startup_old_main__")
+        If VBA.Len(previousMainBackupName) = 0 Then
+            Err.Raise VBA.vbObjectError + 9201, _
+                "ThisWorkbook.private_ResetWorkbookAndCreateMainPage", _
+                "Не удалось подобрать rollback-имя для существующего листа Main."
+        End If
+        previousMainWs.Name = previousMainBackupName
+    End If
 
     Set createdPage = New obj_PageMain
-    If createdPage Is Nothing Then GoTo EH_CREATE
+    If createdPage Is Nothing Then
+        Err.Raise VBA.vbObjectError + 9202, _
+            "ThisWorkbook.private_ResetWorkbookAndCreateMainPage", _
+            "Не удалось создать объект страницы Main."
+    End If
 
-    If Not rt_PageManager.fn_CreatePage(createdPage, "ui\MainUI.xml", "Main") Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_CreatePage( _
+        createdPage, "ui\MainUI.xml", "Main") Then GoTo EH_CREATE
     isPageCreated = True
-
-    ' Имя временного листа обычно распознаётся обработчиком BeforeDelete, но при
-    ' восстановлении после прошлого сбоя оно может получить числовой суффикс.
-    ' Поэтому и финальное удаление выполняем без workbook events.
-    Application.EnableEvents = False
-    Application.DisplayAlerts = False
-    tmpWs.Delete
-    Application.DisplayAlerts = previousDisplayAlerts
-    Application.EnableEvents = previousEnableEvents
-    Set tmpWs = Nothing
+    Set createdPageBase = createdPage.GetPageBase()
+    If createdPageBase Is Nothing Then GoTo EH_CREATE
+    Set createdMainWs = createdPageBase.Worksheet
+    If createdMainWs Is Nothing Then GoTo EH_CREATE
 
     If Not rt_PageManager.fn_RenderPage(createdPage, renderReason) Then GoTo EH_CREATE
-
-    private_ResetWorkbookAndCreateMainPage = True
-    Exit Function
-
-EH_RESET:
-    resetErrorDescription = Err.Description
-    On Error Resume Next
-    If applicationStateCaptured Then
-        Application.DisplayAlerts = previousDisplayAlerts
-        Application.EnableEvents = previousEnableEvents
-    End If
-    On Error GoTo 0
-    If showErrorUi Then
+    isMainRendered = True
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to reset workbook sheets: " & resetErrorDescription
+    ex_Core.fn_Diagnostic_LogInfo "startup:new-main-rendered"
 #End If
-        VBA.MsgBox "Не удалось очистить листы PrototypeNew: " & _
-            resetErrorDescription, VBA.vbExclamation, _
-            "PrototypeNew / запуск"
-    End If
+
+    ' Только успешный render является commit-point. До него ни один исходный
+    ' лист не удалялся, поэтому binding/config ошибка не разрушает workbook.
+    For worksheetIndex = wb.Worksheets.Count To 1 Step -1
+        Set cleanupWs = wb.Worksheets(worksheetIndex)
+        If Not cleanupWs Is createdMainWs Then cleanupWs.Delete
+    Next worksheetIndex
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "startup:old-worksheets-removed"
+#End If
+
+    Application.DisplayAlerts = previousDisplayAlerts
+    Application.EnableEvents = previousEnableEvents
+    private_ResetWorkbookAndCreateMainPage = True
     Exit Function
 
 EH_CREATE:
@@ -296,21 +415,47 @@ EH_CREATE:
         createErrorDescription = "Операция создания или рендера Main вернула False без VBA-ошибки."
     End If
     On Error Resume Next
-    ' Cleanup не должен генерировать SheetBeforeDelete для страницы, которая уже
-    ' удаляется из runtime-реестра в этой же ветке обработки ошибки.
     Application.EnableEvents = False
     Application.DisplayAlerts = False
-    If Not createdPage Is Nothing And isPageCreated Then
+
+    ' До commit-point новый Main можно безопасно удалить: сохранённые листы
+    ' всё ещё существуют, поэтому Excel никогда не остаётся без worksheet.
+    If Not isMainRendered And _
+        Not createdPage Is Nothing And isPageCreated Then
         Call rt_PageManager.fn_RemovePage(createdPage, True)
     End If
-    If Not tmpWs Is Nothing Then
-        tmpWs.Delete
+
+    ' Возвращаем исходному Main его имя, если transaction не дошла до render.
+    If Not isMainRendered And Not previousMainWs Is Nothing Then
+        If Not private_WorksheetNameExists(wb, "Main") Then
+            previousMainWs.Name = "Main"
+        End If
     End If
+
     If applicationStateCaptured Then
         Application.DisplayAlerts = previousDisplayAlerts
         Application.EnableEvents = previousEnableEvents
     End If
     On Error GoTo 0
+
+    If isMainRendered Then
+        ' Новый Main уже полностью работоспособен. Ошибка могла возникнуть лишь
+        ' при удалении одного из старых листов; не разбираем успешный runtime.
+        cleanupErrorDescription = createErrorDescription
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PrototypeNew: Main rendered, but old worksheets cleanup failed: " & _
+            cleanupErrorDescription
+#End If
+        If showErrorUi Then
+            VBA.MsgBox "Страница Main создана, но не удалось удалить один из старых листов: " & _
+                cleanupErrorDescription, VBA.vbExclamation, _
+                "PrototypeNew / запуск"
+        End If
+        private_ResetWorkbookAndCreateMainPage = True
+        Exit Function
+    End If
+
     If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create default main page: " & createErrorDescription

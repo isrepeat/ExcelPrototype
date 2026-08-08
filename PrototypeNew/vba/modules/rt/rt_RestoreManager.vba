@@ -12,7 +12,6 @@ Private Const RUNTIME_GLOBALS_MODULE_SNAPSHOT_NODE As String = "snapshot"
 Private Const RUNTIME_GLOBALS_ACTIVE_SHEET_ATTR As String = "activeSheetName"
 Private Const MODULE_NAME_PAGE_MANAGER As String = "rt_PageManager"
 
-' Callstack[1]: ex_Core.private_Dev_TryPrepareRuntimeForHotUpdate -> private_Dev_TryRunModuleDisposers -> Application.Run(rt_RestoreManager.fn_Module_Dispose)
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_RestoreManager.fn_Module_Dispose"
@@ -23,7 +22,6 @@ End Sub
 ' // API
 ' //
 ' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.fn_SaveRuntimeState
-' Callstack[2]: rt_CoreActions.private_ScheduleUpdateAndRerender -> rt_RestoreManager.fn_SaveRuntimeState
 ' Callstack[3]: ex_Core.private_Dev_TryRunSafeUpdateByMode -> private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager","fn_SaveRuntimeState")
 ' Callstack[4]: rt_RestoreManager.private_TryFallbackRestoreByResettingMainPage -> rt_RestoreManager.fn_SaveRuntimeState
 Public Function fn_SaveRuntimeState() As Boolean
@@ -112,6 +110,7 @@ End Function
 Public Sub fn_RunDeferredRuntimeStateRestore()
     Dim restoredPagesCount As Long
 
+    ex_Core.fn_Dev_MarkRuntimeStateRestoreStarted
 #If RUNTIME_SNAPSHOTS_ENABLED Then
     Call fn_RestoreRuntimeState("deferred:on-time", restoredPagesCount)
 #End If

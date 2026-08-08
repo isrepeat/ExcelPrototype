@@ -19,10 +19,8 @@ Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_ControlRefreshRuntime.fn_Module_Dispose"
 #End If
-    On Error Resume Next
     Set g_ControlRegistry = Nothing
     Set g_LayoutRegistry = Nothing
-    On Error GoTo 0
 End Sub
 ' //
 ' // API

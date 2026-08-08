@@ -652,7 +652,7 @@ Public Function OnUpdateCodeFullCommand(Optional ByVal arg As Variant) As Boolea
     ' страниц. Сначала выполняем тот же lifecycle, что и кнопка Clear Pages,
     ' затем ex_Core безопасно перенесёт update за пределы bridge-dispatch.
     If Not Me.OnClearWorkbookPagesExceptMainCommand(False) Then Exit Function
-    ex_Core.fn_Dev_UpdateAllModules
+    rt_CoreActions.fn_UpdateCodeFullAndRerender
     OnUpdateCodeFullCommand = True
 End Function
 

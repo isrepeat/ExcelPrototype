@@ -32,6 +32,7 @@ Public Sub fn_OnShapeClick()
     Dim dispatchOk As Boolean
     Dim wsName As String
     Dim wsCodeName As String
+    Dim wasDispatchingClick As Boolean
 
     ' Почему нужен bridge:
     ' - Excel Shape.OnAction принимает только имя макроса (строку),
@@ -39,6 +40,10 @@ Public Sub fn_OnShapeClick()
     ' - Поэтому все shape клики сходятся в один модульный entrypoint,
     '   а дальше мы сами маршрутизируем к нужной странице/контролу.
     On Error GoTo EH_CLICK
+    ' Вложенный click допустим из DoEvents: так кнопка Cancel попадает в
+    ' выполняющийся поиск. После него внешний dispatch всё ещё активен, поэтому
+    ' восстанавливаем предыдущее состояние вместо безусловного False.
+    wasDispatchingClick = g_IsDispatchingClick
     g_IsDispatchingClick = True
 
     ' 1) Получаем имя shape, по которому кликнули (Application.Caller).
@@ -81,11 +86,11 @@ Public Sub fn_OnShapeClick()
     private_LogBridgeInfo "click-done shape='" & private_EscapeForLog(callerShapeName) & "' sheet='" & private_EscapeForLog(wsName) & "'"
 
 CleanExit:
-    g_IsDispatchingClick = False
+    g_IsDispatchingClick = wasDispatchingClick
     Exit Sub
 
 EH_CLICK:
-    g_IsDispatchingClick = False
+    g_IsDispatchingClick = wasDispatchingClick
     private_LogBridgeError "click-exception err='" & private_EscapeForLog(Err.Description) & "'"
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "rt_Bridge: shape click dispatch failed: " & Err.Description
@@ -99,6 +104,14 @@ End Function
 
 Public Function fn_IsDispatchingSheetChange() As Boolean
     fn_IsDispatchingSheetChange = g_IsDispatchingSheetChange
+End Function
+
+Public Function fn_IsDispatchingAny() As Boolean
+    fn_IsDispatchingAny = _
+        g_IsDispatchingClick Or _
+        g_IsDispatchingSheetChange Or _
+        g_IsDispatchingSelectionChange Or _
+        g_IsDispatchingHotkey
 End Function
 
 Public Sub fn_OnSheetSelectionChange( _

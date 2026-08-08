@@ -536,7 +536,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         End If
     End If
 
-    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
         targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
 
     If Not private_TryFindWordText(wordDoc.Content, beginMarker, beginRange) Then
@@ -843,7 +843,7 @@ Public Function RemoveResultDocumentAnchors( _
         Exit Function
     End If
 
-    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
         targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
 
     documentText = VBA.CStr(wordDoc.Content.Text)

@@ -17,12 +17,9 @@ Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_PageManager.fn_Module_Dispose"
 #End If
-    On Error Resume Next
     fn_DisposeAllPages
-    Err.Clear
     Set g_PageById = Nothing
     g_LastRenderedPageId = VBA.vbNullString
-    On Error GoTo 0
 End Sub
 
 ' //
@@ -1111,6 +1108,7 @@ Private Function private_CreatePageInternal( _
     Dim pageBase As obj_PageBase
     Dim isPageInitialized As Boolean
     Dim errDescription As String
+    Dim previousDisplayAlerts As Boolean
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -1168,15 +1166,15 @@ EH_FAIL:
         page.Dispose False
     End If
     If Not ws Is Nothing Then
+        previousDisplayAlerts = Application.DisplayAlerts
         Application.DisplayAlerts = False
         ws.Delete
-        Application.DisplayAlerts = True
+        Application.DisplayAlerts = previousDisplayAlerts
     End If
     On Error GoTo 0
     Exit Function
 
 EH_CREATE:
-    Application.DisplayAlerts = True
     errDescription = Err.Description
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PageManager: exception during page create for page id '" & VBA.Replace$(pageId, "'", "''") & "': " & VBA.Replace$(errDescription, "'", "''")

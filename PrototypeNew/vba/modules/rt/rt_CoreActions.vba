@@ -4,45 +4,80 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 #Const RUNTIME_SNAPSHOTS_ENABLED = False
 
-Private g_ScheduledUpdateAt As Date
-Private g_ScheduledUpdateMacro As String
-Private g_PendingUpdateMacroRef As String
-Private g_IsRunningScheduledUpdate As Boolean
 Private Const LAST_CODE_UPDATE_NAME As String = _
     "__PrototypeLastCodeUpdateAt"
+
+Private g_ScheduledUpdateAt As Date
+Private g_ScheduledUpdateMacro As String
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_CoreActions.fn_Module_Dispose"
 #End If
-    private_TryCancelScheduledTask g_ScheduledUpdateAt, g_ScheduledUpdateMacro
-    g_ScheduledUpdateAt = 0#
-    g_ScheduledUpdateMacro = VBA.vbNullString
-    g_PendingUpdateMacroRef = VBA.vbNullString
-    g_IsRunningScheduledUpdate = False
+    fn_DisposeForLifecycle True
+End Sub
+
+
+Public Sub fn_DisposeForLifecycle(ByVal isWorkbookClosing As Boolean)
+    Dim cancelErrorNumber As Long
+    Dim cancelErrorDescription As String
+
+    If g_ScheduledUpdateAt <= 0# Or _
+        VBA.Len(VBA.Trim$(g_ScheduledUpdateMacro)) = 0 Then
+        private_ClearScheduledUpdate
+        Exit Sub
+    End If
+
+    ' Во время Update Code этот callback уже исполняется: Excel удалил его из
+    ' очереди OnTime, поэтому отменять его нельзя. На закрытии такого допущения
+    ' нет — любой сохранённый callback обязан быть явно снят.
+    If Not isWorkbookClosing And g_ScheduledUpdateAt <= VBA.Now Then
+        private_ClearScheduledUpdate
+        Exit Sub
+    End If
+
+    On Error GoTo EH_CANCEL
+    Application.OnTime _
+        EarliestTime:=g_ScheduledUpdateAt, _
+        Procedure:=g_ScheduledUpdateMacro, _
+        Schedule:=False
+    private_ClearScheduledUpdate
+    Exit Sub
+
+EH_CANCEL:
+    cancelErrorNumber = Err.Number
+    cancelErrorDescription = Err.Description
+    Err.Raise cancelErrorNumber, _
+        "rt_CoreActions.fn_DisposeForLifecycle", _
+        "Не удалось отменить отложенный Update Code '" & _
+        g_ScheduledUpdateMacro & "': " & cancelErrorDescription
 End Sub
 
 ' //
 ' // API
 ' //
 Public Sub fn_UpdateCodeFullAndRerender()
-    private_QueueSafeCoreUpdate "ex_Core.fn_Dev_UpdateAllModules", "full"
+    private_QueueSafeCoreUpdate _
+        "ex_Core.fn_Dev_UpdateAllModules", "full"
 End Sub
 
 
 Public Sub fn_UpdateCodeDateAndRerender()
-    private_QueueSafeCoreUpdate "ex_Core.fn_Dev_UpdateCodeByDate", "date"
+    private_QueueSafeCoreUpdate _
+        "ex_Core.fn_Dev_UpdateCodeByDate", "date"
 End Sub
 
 
 Public Sub fn_UpdateCodeSizeAndRerender()
-    private_QueueSafeCoreUpdate "ex_Core.fn_Dev_UpdateCodeBySize", "size"
+    private_QueueSafeCoreUpdate _
+        "ex_Core.fn_Dev_UpdateCodeBySize", "size"
 End Sub
 
 
 Public Sub fn_RerenderLastPageAfterUpdate()
     Dim restoredPagesCount As Long
 
+    ex_Core.fn_Dev_MarkRuntimeStateRestoreStarted
     ex_HelpersSheet.fn_SetBusyCursor True
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "core-actions:rerender-after-update start"
@@ -67,11 +102,12 @@ Public Sub fn_RerenderLastPageAfterUpdate()
         Exit Sub
     End If
 #Else
-    ' Module disposers, вызванные перед hot-import, очищают runtime routes.
-    ' Начинаем новую runtime-сессию перед созданием Main, как в Workbook_Open.
-    rt_HotkeyRuntime.fn_BeginSession
-    If Not ThisWorkbook.m_ResetWorkbookAndCreateMainPage( _
+    ' Cold open и восстановление после hot-import используют один initialization
+    ' pipeline, поэтому routes, hotkeys и logging policy не расходятся.
+    If Not rt_Lifecycle.fn_InitializeRuntime( _
         "rt_CoreActions.fn_RerenderLastPageAfterUpdate") Then
+        rt_Lifecycle.fn_DisposeRuntime False, _
+            "rerender-after-update:initialize-failed"
         ex_HelpersSheet.fn_SetBusyCursor False
         rt_Messaging.fn_ShowStatusBarError _
             "Failed to create Main page after update.", 6
@@ -147,115 +183,9 @@ EH:
 End Function
 
 
-Public Sub fn_RunScheduledUpdateAndRerender()
-    Dim updateMacroRef As String
-
-    If g_IsRunningScheduledUpdate Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "core-actions:run-scheduled reentry-blocked"
-#End If
-        Exit Sub
-    End If
-
-    g_ScheduledUpdateAt = 0#
-    g_ScheduledUpdateMacro = VBA.vbNullString
-
-    updateMacroRef = VBA.Trim$(g_PendingUpdateMacroRef)
-    g_PendingUpdateMacroRef = VBA.vbNullString
-
-    If VBA.Len(updateMacroRef) = 0 Then
-        ex_HelpersSheet.fn_SetBusyCursor False
-        rt_Messaging.fn_ShowStatusBarWarning "Scheduled update method was not found.", 5
-        Exit Sub
-    End If
-
-    g_IsRunningScheduledUpdate = True
-    On Error GoTo EH_RUN
-    Application.Run updateMacroRef
-    fn_RerenderLastPageAfterUpdate
-    g_IsRunningScheduledUpdate = False
-    Exit Sub
-
-EH_RUN:
-    g_IsRunningScheduledUpdate = False
-    ex_HelpersSheet.fn_SetBusyCursor False
-    rt_Messaging.fn_ShowStatusBarError "Failed to run update: " & Err.Description, 6
-End Sub
-
 ' //
 ' // Internal
 ' //
-Private Sub private_ScheduleUpdateAndRerender(ByVal devToolsMethod As String)
-    Dim updateMacroRef As String
-    Dim wbMacroPrefix As String
-    Dim updateAt As Date
-    Dim updateMethod As String
-
-    ' Snapshot-сценарий:
-    ' 1) сериализуем страницы (включая runtime контролов внутри payload страницы) в CustomXMLPart;
-    ' 2) запускаем update;
-    ' 3) после update восстанавливаем страницы и их runtime-состояние.
-
-    updateMethod = VBA.Trim$(devToolsMethod)
-    If VBA.Len(updateMethod) = 0 Then
-        rt_Messaging.fn_ShowStatusBarWarning "Update method is not specified.", 5
-        Exit Sub
-    End If
-    If g_IsRunningScheduledUpdate Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update skipped reason='update-is-running' method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
-#End If
-        Exit Sub
-    End If
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "core-actions:schedule-update start method='" & VBA.Replace$(updateMethod, "'", "''") & "'"
-#End If
-
-    ex_HelpersSheet.fn_SetBusyCursor True
-
-#If RUNTIME_SNAPSHOTS_ENABLED Then
-    If Not rt_RestoreManager.fn_SaveRuntimeState() Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update save-runtime-state-failed"
-#End If
-        ex_HelpersSheet.fn_SetBusyCursor False
-        Exit Sub
-    End If
-#End If
-
-    wbMacroPrefix = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!"
-    If VBA.InStr(1, updateMethod, "!", VBA.vbBinaryCompare) > 0 Then
-        g_PendingUpdateMacroRef = updateMethod
-    Else
-        g_PendingUpdateMacroRef = wbMacroPrefix & updateMethod
-    End If
-    updateMacroRef = wbMacroPrefix & "rt_CoreActions.fn_RunScheduledUpdateAndRerender"
-
-    ' Если пользователь часто кликает подряд, отменяем отложенные старые задачи.
-    private_TryCancelScheduledTask g_ScheduledUpdateAt, g_ScheduledUpdateMacro
-
-    updateAt = private_GetNextOnTimeTick()
-
-    On Error GoTo EH_SCHEDULE
-    Application.OnTime updateAt, updateMacroRef
-    g_ScheduledUpdateAt = updateAt
-    g_ScheduledUpdateMacro = updateMacroRef
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "core-actions:schedule-update queued macro='" & VBA.Replace$(updateMacroRef, "'", "''") & "'"
-#End If
-    rt_Messaging.fn_ShowStatusBarNotice "Update start: task has been queued.", 1
-    Exit Sub
-
-EH_SCHEDULE:
-    ex_HelpersSheet.fn_SetBusyCursor False
-    g_PendingUpdateMacroRef = VBA.vbNullString
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "core-actions:schedule-update ontime-failed err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
-#End If
-    rt_Messaging.fn_ShowStatusBarError "Failed to schedule update: " & Err.Description, 6
-End Sub
-
-
 Private Function private_GetNextOnTimeTick() As Date
     Dim nowValue As Date
 
@@ -267,21 +197,13 @@ Private Function private_GetNextOnTimeTick() As Date
 End Function
 
 
-Private Sub private_TryCancelScheduledTask(ByVal scheduledAt As Date, ByVal macroRef As String)
-    If VBA.Len(VBA.Trim$(macroRef)) = 0 Then Exit Sub
-    If scheduledAt <= 0# Then Exit Sub
-
-    On Error Resume Next
-    Application.OnTime EarliestTime:=scheduledAt, Procedure:=macroRef, Schedule:=False
-    Err.Clear
-    On Error GoTo 0
-End Sub
-
-
 Private Sub private_QueueSafeCoreUpdate(ByVal coreMethod As String, ByVal updateKind As String)
     Dim updateMethod As String
     Dim macroRef As String
     Dim scheduleAt As Date
+    Dim scheduleErrorNumber As Long
+    Dim scheduleErrorDescription As String
+    Dim queueStage As String
 
     updateMethod = VBA.Trim$(coreMethod)
     If VBA.Len(updateMethod) = 0 Then
@@ -297,10 +219,12 @@ Private Sub private_QueueSafeCoreUpdate(ByVal coreMethod As String, ByVal update
     updateKind = VBA.LCase$(VBA.Trim$(updateKind))
     If VBA.Len(updateKind) = 0 Then updateKind = "unknown"
 
-    private_TryCancelScheduledTask g_ScheduledUpdateAt, g_ScheduledUpdateMacro
     scheduleAt = private_GetNextOnTimeTick()
 
     On Error GoTo EH_QUEUE
+    queueStage = "cancel-existing"
+    private_CancelPendingUpdate
+    queueStage = "schedule"
     Application.OnTime EarliestTime:=scheduleAt, Procedure:=macroRef
     g_ScheduledUpdateAt = scheduleAt
     g_ScheduledUpdateMacro = macroRef
@@ -311,8 +235,37 @@ Private Sub private_QueueSafeCoreUpdate(ByVal coreMethod As String, ByVal update
     Exit Sub
 
 EH_QUEUE:
+    scheduleErrorNumber = Err.Number
+    scheduleErrorDescription = Err.Description
+    If VBA.StrComp(queueStage, "schedule", VBA.vbBinaryCompare) = 0 Then
+        private_ClearScheduledUpdate
+    End If
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "core-actions:redirect-safe-update ontime-failed kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='" & VBA.Replace$(Err.Description, "'", "''") & "'"
+    ex_Core.fn_Diagnostic_LogError "core-actions:redirect-safe-update ontime-failed kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='" & VBA.Replace$(scheduleErrorDescription, "'", "''") & "'"
 #End If
-    rt_Messaging.fn_ShowStatusBarError "Failed to schedule safe update: " & Err.Description, 6
+    rt_Messaging.fn_ShowStatusBarError _
+        "Failed to schedule safe update: [" & _
+        VBA.CStr(scheduleErrorNumber) & "] " & _
+        scheduleErrorDescription, 6
+End Sub
+
+
+Private Sub private_CancelPendingUpdate()
+    If g_ScheduledUpdateAt <= 0# Or _
+        VBA.Len(VBA.Trim$(g_ScheduledUpdateMacro)) = 0 Then
+        private_ClearScheduledUpdate
+        Exit Sub
+    End If
+
+    Application.OnTime _
+        EarliestTime:=g_ScheduledUpdateAt, _
+        Procedure:=g_ScheduledUpdateMacro, _
+        Schedule:=False
+    private_ClearScheduledUpdate
+End Sub
+
+
+Private Sub private_ClearScheduledUpdate()
+    g_ScheduledUpdateAt = 0#
+    g_ScheduledUpdateMacro = VBA.vbNullString
 End Sub
