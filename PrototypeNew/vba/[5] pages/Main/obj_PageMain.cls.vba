@@ -50,14 +50,51 @@ Private Function obj_IPage_Initialize( _
     Optional ByVal pageId As String = VBA.vbNullString, _
     Optional ByVal Context As Object = Nothing _
 ) As Boolean
-    If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then Exit Function
+    Dim activeStep As String
 
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-enter method='obj_PageMain.Initialize' pageId='" & _
+        VBA.Replace$(pageId, "'", "''") & "'"
+#End If
+
+    activeStep = "obj_PageBase.Initialize"
+    If Not m_PageBase.Initialize(ws, Me, uiPath, pageId) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-exit method='obj_PageMain.Initialize' " & _
+            "result='false' step='" & activeStep & "'"
+#End If
+        Exit Function
+    End If
+
+    activeStep = "obj_PageMainCtrl.Initialize"
     Set m_PageMainController = New obj_PageMainCtrl
-    If Not m_PageMainController.Initialize(Me) Then Exit Function
+    If Not m_PageMainController.Initialize(Me) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-exit method='obj_PageMain.Initialize' " & _
+            "result='false' step='" & activeStep & "'"
+#End If
+        Exit Function
+    End If
 
-    If Not private_TryPrepareRuntimeByUiPath(m_PageBase.UiPath, False) Then Exit Function
+    activeStep = "obj_PageMain.private_TryPrepareRuntimeByUiPath"
+    If Not private_TryPrepareRuntimeByUiPath( _
+        m_PageBase.UiPath, False) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-exit method='obj_PageMain.Initialize' " & _
+            "result='false' step='" & activeStep & "'"
+#End If
+        Exit Function
+    End If
 
     obj_IPage_Initialize = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-exit method='obj_PageMain.Initialize' result='true'"
+#End If
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_DisposeAllPages -> page.Dispose(False) -> obj_PageMain.obj_IPage_Dispose
@@ -191,20 +228,56 @@ End Function
 ' // Internal
 ' //
 Private Sub private_Dispose(Optional ByVal deleteWorksheet As Boolean = True)
-    If m_IsDisposed Then Exit Sub
+    Dim activeStep As String
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter method='obj_PageMain.private_Dispose' " & _
+        "deleteWorksheet='" & VBA.LCase$(VBA.CStr(deleteWorksheet)) & "'"
+#End If
+    If m_IsDisposed Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='obj_PageMain.private_Dispose' " & _
+            "result='true' reason='already-disposed'"
+#End If
+        Exit Sub
+    End If
     m_IsDisposed = True
 
-    On Error Resume Next
+    On Error GoTo EH_DISPOSE
+    activeStep = "obj_PageMainCtrl.Dispose"
     If Not m_PageMainController Is Nothing Then
         m_PageMainController.Dispose
     End If
     Set m_PageMainController = Nothing
     Set m_PendingControlSnapshots = Nothing
+    activeStep = "obj_PageBase.Dispose"
     If Not m_PageBase Is Nothing Then
         m_PageBase.Dispose deleteWorksheet
     End If
     Set m_PageBase = Nothing
-    On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-exit method='obj_PageMain.private_Dispose' " & _
+        "result='true'"
+#End If
+    Exit Sub
+
+EH_DISPOSE:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "lifecycle:method-error method='obj_PageMain.private_Dispose' " & _
+        "step='" & VBA.Replace$(activeStep, "'", "''") & _
+        "' errNumber='" & VBA.CStr(errorNumber) & "' err='" & _
+        VBA.Replace$(errorDescription, "'", "''") & "'"
+#End If
+    Err.Raise errorNumber, "obj_PageMain.private_Dispose", _
+        errorDescription
 End Sub
 
 Private Function private_TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
@@ -298,18 +371,65 @@ Private Function private_TryPrepareRuntimeByUiPath( _
 ) As Boolean
     Dim normalizedUiPath As String
 
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-enter " & _
+        "method='obj_PageMain.private_TryPrepareRuntimeByUiPath' uiPath='" & _
+        VBA.Replace$(uiPath, "'", "''") & "'"
+#End If
     normalizedUiPath = VBA.LCase$(VBA.Trim$(uiPath))
     If VBA.Len(normalizedUiPath) = 0 Then
         private_TryPrepareRuntimeByUiPath = True
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-exit " & _
+            "method='obj_PageMain.private_TryPrepareRuntimeByUiPath' " & _
+            "result='true' reason='ui-path-empty'"
+#End If
         Exit Function
     End If
 
     If VBA.StrComp(normalizedUiPath, SUPPORTED_UI_PATH, VBA.vbTextCompare) <> 0 Then
         private_TryPrepareRuntimeByUiPath = True
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-exit " & _
+            "method='obj_PageMain.private_TryPrepareRuntimeByUiPath' " & _
+            "result='true' reason='ui-path-not-supported'"
+#End If
         Exit Function
     End If
 
-    If Not m_PageMainController.OnConfigModeChanged(notifyChange) Then Exit Function
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-enter " & _
+        "caller='obj_PageMain.private_TryPrepareRuntimeByUiPath' " & _
+        "callee='obj_PageMainCtrl.OnConfigModeChanged'"
+#End If
+    If Not m_PageMainController.OnConfigModeChanged(notifyChange) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:call-failed " & _
+            "caller='obj_PageMain.private_TryPrepareRuntimeByUiPath' " & _
+            "callee='obj_PageMainCtrl.OnConfigModeChanged' result='false'"
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-exit " & _
+            "method='obj_PageMain.private_TryPrepareRuntimeByUiPath' " & _
+            "result='false'"
+#End If
+        Exit Function
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-exit " & _
+        "caller='obj_PageMain.private_TryPrepareRuntimeByUiPath' " & _
+        "callee='obj_PageMainCtrl.OnConfigModeChanged'"
+#End If
 
     private_TryPrepareRuntimeByUiPath = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-exit " & _
+        "method='obj_PageMain.private_TryPrepareRuntimeByUiPath' result='true'"
+#End If
 End Function

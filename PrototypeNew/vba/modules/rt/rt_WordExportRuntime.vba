@@ -1,5 +1,6 @@
 Attribute VB_Name = "rt_WordExportRuntime"
 Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
 
 ' Word.Application is deliberately cached at module scope. Exporter class
 ' instances are short-lived, while this runtime survives between exports.
@@ -191,13 +192,37 @@ Private Function private_WordOwnerFileExists(ByVal documentPath As String) As Bo
 End Function
 
 Public Sub fn_Dispose(Optional ByVal quitWord As Boolean = True)
+    Dim disposeErrorNumber As Long
+    Dim disposeErrorDescription As String
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter method='rt_WordExportRuntime.fn_Dispose' " & _
+        "quitWord='" & VBA.LCase$(VBA.CStr(quitWord)) & "'"
+#End If
     On Error Resume Next
     If quitWord And g_OwnsWordApp And private_IsWordAppAlive(g_WordApp) Then
         g_WordApp.Quit
     End If
+    disposeErrorNumber = Err.Number
+    disposeErrorDescription = Err.Description
+    Err.Clear
     Set g_WordApp = Nothing
     g_OwnsWordApp = False
     On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+    If disposeErrorNumber <> 0 Then
+        ex_Core.fn_Diagnostic_LogError _
+            "lifecycle:method-error method='rt_WordExportRuntime.fn_Dispose' " & _
+            "callee='Word.Application.Quit' errNumber='" & _
+            VBA.CStr(disposeErrorNumber) & "' err='" & _
+            VBA.Replace$(disposeErrorDescription, "'", "''") & "'"
+    Else
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='rt_WordExportRuntime.fn_Dispose' " & _
+            "result='true'"
+    End If
+#End If
 End Sub
 
 Private Function private_IsWordAppAlive(ByVal wordApp As Object) As Boolean

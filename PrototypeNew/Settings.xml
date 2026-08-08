@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Settings>
   <Flags>
-    <IsLoggingEnabled>false</IsLoggingEnabled>
+    <IsLoggingEnabled>true</IsLoggingEnabled>
     <IsLoggingMainPageOnly>false</IsLoggingMainPageOnly>
     <IsLoggingVerboseEnabled>false</IsLoggingVerboseEnabled>
   </Flags>

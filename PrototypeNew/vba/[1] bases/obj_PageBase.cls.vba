@@ -105,6 +105,11 @@ Public Function Initialize( _
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-enter method='obj_PageBase.Initialize' pageId='" & _
+        VBA.Replace$(pageId, "'", "''") & "'"
+#End If
     If Not private_EnsureNotDisposed("Initialize") Then Exit Function
 
     normalizedPageId = VBA.LCase$(VBA.Trim$(pageId))
@@ -123,7 +128,14 @@ Public Function Initialize( _
     Set m_UiDom = Nothing
     m_IsRendering = False
     Set m_PageRuntimeSources = New obj_PageRuntimeSources
-    If Not m_PageRuntimeSources.Initialize(m_Page) Then Exit Function
+    If Not m_PageRuntimeSources.Initialize(m_Page) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-exit method='obj_PageBase.Initialize' " & _
+            "result='false' step='obj_PageRuntimeSources.Initialize'"
+#End If
+        Exit Function
+    End If
 
     ' Ранний дефолт: при инициализации страницы фиксируем текстовый формат текущего used-range.
     ' Это защитный baseline; основной повтор формата выполняется в runtime-clear перед каждым Render.
@@ -140,6 +152,11 @@ Public Function Initialize( _
     Set m_InlineProfileByPart = Nothing
     Call Me.ResetControlActions
     Initialize = Me.IsReady()
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-exit method='obj_PageBase.Initialize' result='" & _
+        VBA.LCase$(VBA.CStr(Initialize)) & "'"
+#End If
 End Function
 
 Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
@@ -147,11 +164,26 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim worksheetName As String
     Dim previousDisplayAlerts As Boolean
     Dim displayAlertsCaptured As Boolean
+    Dim deleteErrorNumber As Long
+    Dim deleteErrorDescription As String
 
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
-    If m_IsDisposed Then Exit Sub
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter method='obj_PageBase.Dispose' pageId='" & _
+        VBA.Replace$(m_PageId, "'", "''") & "' deleteWorksheet='" & _
+        VBA.LCase$(VBA.CStr(deleteWorksheet)) & "'"
+#End If
+    If m_IsDisposed Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='obj_PageBase.Dispose' " & _
+            "result='true' reason='already-disposed'"
+#End If
+        Exit Sub
+    End If
 
     Call Me.ResetControlActions
     Set ws = m_Worksheet
@@ -183,8 +215,21 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     m_IsRendering = False
     m_IsDisposed = True
 
-    If Not deleteWorksheet Then Exit Sub
-    If ws Is Nothing Then Exit Sub
+    If Not deleteWorksheet Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='obj_PageBase.Dispose' result='true'"
+#End If
+        Exit Sub
+    End If
+    If ws Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='obj_PageBase.Dispose' " & _
+            "result='true' reason='worksheet-missing'"
+#End If
+        Exit Sub
+    End If
 
     On Error GoTo EH_DELETE
     previousDisplayAlerts = Application.DisplayAlerts
@@ -192,13 +237,24 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Application.DisplayAlerts = False
     ws.Delete
     Application.DisplayAlerts = previousDisplayAlerts
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-exit method='obj_PageBase.Dispose' result='true'"
+#End If
     Exit Sub
 
 EH_DELETE:
+    deleteErrorNumber = Err.Number
+    deleteErrorDescription = Err.Description
     If displayAlertsCaptured Then Application.DisplayAlerts = previousDisplayAlerts
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "PageBase: failed to delete worksheet during dispose: " & Err.Description
+    ex_Core.fn_Diagnostic_LogError _
+        "lifecycle:method-error method='obj_PageBase.Dispose' " & _
+        "step='Worksheet.Delete' err='" & _
+        VBA.Replace$(deleteErrorDescription, "'", "''") & "'"
 #End If
+    Err.Raise deleteErrorNumber, "obj_PageBase.Dispose", _
+        deleteErrorDescription
 End Sub
 
 Public Function IsReady() As Boolean
@@ -245,9 +301,9 @@ Public Function Render() As Boolean
     Dim pageNode As Object
     Dim prevScreenUpdating As Boolean
     Dim prevEnableEvents As Boolean
-    Dim prevDisplayAlerts As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevStatusBar As Variant
+    Dim applicationStateCaptured As Boolean
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -256,7 +312,14 @@ Public Function Render() As Boolean
     If Not private_EnsureNotDisposed("Render") Then Exit Function
     If Not Me.IsReady() Then Exit Function
 
-    If m_IsRendering Then Exit Function
+    If m_IsRendering Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PageBase: render skipped because another render is active " & _
+            "pageId='" & private_EscapeForLog(m_PageId) & "'."
+#End If
+        Exit Function
+    End If
 
     Set ws = m_Worksheet
     Set wb = ws.Parent
@@ -298,10 +361,11 @@ Public Function Render() As Boolean
 
     m_UiPath = resolvedUiPath
     retainGeneratedShapes = private_ShouldRetainGeneratedShapes(previousUiPath, resolvedUiPath)
+    On Error GoTo EH_RENDER
     m_IsRendering = True
     Set app = Application
-    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
-    On Error GoTo EH_RENDER
+    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, _
+        prevCalculation, prevStatusBar, applicationStateCaptured
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
     ex_ControlPartsRuntime.fn_ResetControlParts
@@ -337,7 +401,9 @@ Public Function Render() As Boolean
     m_LastRenderedUiPath = resolvedUiPath
 
 Cleanup:
-    private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    If applicationStateCaptured Then _
+        private_LeaveFastRenderMode app, prevScreenUpdating, _
+            prevEnableEvents, prevCalculation, prevStatusBar
     m_IsRendering = False
     Exit Function
 
@@ -346,7 +412,9 @@ EH_RENDER:
     errSource = Err.Source
     errDescription = Err.Description
 
-    private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    If applicationStateCaptured Then _
+        private_LeaveFastRenderMode app, prevScreenUpdating, _
+            prevEnableEvents, prevCalculation, prevStatusBar
     m_IsRendering = False
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: render failed: [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
@@ -380,15 +448,22 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim app As Application
     Dim prevScreenUpdating As Boolean
     Dim prevEnableEvents As Boolean
-    Dim prevDisplayAlerts As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevStatusBar As Variant
+    Dim applicationStateCaptured As Boolean
     Dim escapedName As String
     Dim oldVisualScope As Range
     Dim selectionAreas As Collection
 
     If Not private_EnsureNotDisposed("TryReflowControl") Then Exit Function
-    If m_IsRendering Then Exit Function
+    If m_IsRendering Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PageBase: control reflow skipped because another render is active " & _
+            "pageId='" & private_EscapeForLog(m_PageId) & "'."
+#End If
+        Exit Function
+    End If
     controlName = VBA.Trim$(controlName)
     If VBA.Len(controlName) = 0 Then Exit Function
     Set ws = m_Worksheet
@@ -423,9 +498,10 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     private_TranslateSelectionAreasByPatches selectionAreas, reflowPatches
 
     Set app = Application
-    m_IsRendering = True
-    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
     On Error GoTo EH_REFLOW
+    m_IsRendering = True
+    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, _
+        prevCalculation, prevStatusBar, applicationStateCaptured
 
     ' Исправляет уже созданные старой Copy-реализацией дубликаты одиночных
     ' кнопок. Выполняем даже при rowDelta = 0, чтобы обычный локальный refresh
@@ -469,7 +545,9 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     TryReflowControl = True
 
 Cleanup:
-    private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    If applicationStateCaptured Then _
+        private_LeaveFastRenderMode app, prevScreenUpdating, _
+            prevEnableEvents, prevCalculation, prevStatusBar
     m_IsRendering = False
     Exit Function
 
@@ -508,14 +586,21 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     Dim app As Application
     Dim prevScreenUpdating As Boolean
     Dim prevEnableEvents As Boolean
-    Dim prevDisplayAlerts As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevStatusBar As Variant
+    Dim applicationStateCaptured As Boolean
     Dim escapedName As String
     Dim selectionAreas As Collection
 
     If Not private_EnsureNotDisposed("TryReflowLayoutContainer") Then Exit Function
-    If m_IsRendering Then Exit Function
+    If m_IsRendering Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PageBase: container reflow skipped because another render is active " & _
+            "pageId='" & private_EscapeForLog(m_PageId) & "'."
+#End If
+        Exit Function
+    End If
     containerName = VBA.Trim$(containerName)
     If VBA.Len(containerName) = 0 Then Exit Function
     Set ws = m_Worksheet
@@ -552,9 +637,10 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     private_TranslateSelectionAreasByPatches selectionAreas, reflowPatches
 
     Set app = Application
-    m_IsRendering = True
-    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
     On Error GoTo EH_CONTAINER_REFLOW
+    m_IsRendering = True
+    private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, _
+        prevCalculation, prevStatusBar, applicationStateCaptured
 
     ' Удаляем только runtime metadata дочерних контролов. Shape-кнопки не
     ' удаляются: дочерний render переиспользует их по стабильным именам.
@@ -614,7 +700,9 @@ ContinueStyleControl:
     TryReflowLayoutContainer = True
 
 CleanupContainer:
-    private_LeaveFastRenderMode app, prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation, prevStatusBar
+    If applicationStateCaptured Then _
+        private_LeaveFastRenderMode app, prevScreenUpdating, _
+            prevEnableEvents, prevCalculation, prevStatusBar
     m_IsRendering = False
     Exit Function
 
@@ -1770,6 +1858,11 @@ Public Function RegisterSelectionHandler( _
     If VBA.Len(methodName) = 0 Then Exit Function
     Set m_SelectionHandlerContext = callbackContext
     m_SelectionHandlerMethod = methodName
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:selection-handler-registered pageId='" & _
+        private_EscapeForLog(m_PageId) & "' sheet='" & _
+        private_EscapeForLog(m_Worksheet.Name) & "' method='" & _
+        private_EscapeForLog(methodName) & "'"
     RegisterSelectionHandler = True
 End Function
 
@@ -1789,11 +1882,22 @@ Public Function DispatchSelectionChange(ByVal target As Range) As Boolean
     End If
     If m_SelectionHandlerContext Is Nothing Or _
         VBA.Len(m_SelectionHandlerMethod) = 0 Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-dispatch-skip pageId='" & _
+            private_EscapeForLog(m_PageId) & _
+            "' reason='handler-not-registered'"
         DispatchSelectionChange = True
         Exit Function
     End If
     DispatchSelectionChange = rt_Bridge.fn_RunCallback( _
         m_SelectionHandlerMethod, m_SelectionHandlerContext, target)
+    If Not DispatchSelectionChange Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-dispatch-failed pageId='" & _
+            private_EscapeForLog(m_PageId) & "' method='" & _
+            private_EscapeForLog(m_SelectionHandlerMethod) & _
+            "' reason='callback-returned-false'"
+    End If
 End Function
 
 Public Function DispatchSheetChange(ByVal target As Range) As Boolean
@@ -2416,42 +2520,95 @@ Private Sub private_EnterFastRenderMode( _
     ByVal app As Application, _
     ByRef prevScreenUpdating As Boolean, _
     ByRef prevEnableEvents As Boolean, _
-    ByRef prevDisplayAlerts As Boolean, _
     ByRef prevCalculation As XlCalculation, _
-    ByRef prevStatusBar As Variant _
+    ByRef prevStatusBar As Variant, _
+    ByRef outApplicationStateCaptured As Boolean _
 )
+    Dim activeStep As String
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    outApplicationStateCaptured = False
     If app Is Nothing Then Exit Sub
+    On Error GoTo EH_ENTER_FAST_RENDER
 
+    activeStep = "capture-ScreenUpdating"
     prevScreenUpdating = app.ScreenUpdating
+    activeStep = "capture-EnableEvents"
     prevEnableEvents = app.EnableEvents
-    prevDisplayAlerts = app.DisplayAlerts
+    activeStep = "capture-Calculation"
     prevCalculation = app.Calculation
+    activeStep = "capture-StatusBar"
     prevStatusBar = app.StatusBar
+    outApplicationStateCaptured = True
 
+    activeStep = "disable-ScreenUpdating"
     app.ScreenUpdating = False
+    activeStep = "disable-EnableEvents"
     app.EnableEvents = False
-    app.DisplayAlerts = False
+    activeStep = "set-CalculationManual"
     app.Calculation = xlCalculationManual
+    activeStep = "set-StatusBar"
     app.StatusBar = "PrototypeNew: rendering UI..."
+    Exit Sub
+
+EH_ENTER_FAST_RENDER:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+    Err.Raise errorNumber, _
+        "obj_PageBase.private_EnterFastRenderMode", _
+        "step='" & activeStep & "': " & errorDescription
 End Sub
 
 Private Sub private_LeaveFastRenderMode( _
     ByVal app As Application, _
     ByVal prevScreenUpdating As Boolean, _
     ByVal prevEnableEvents As Boolean, _
-    ByVal prevDisplayAlerts As Boolean, _
     ByVal prevCalculation As XlCalculation, _
     ByVal prevStatusBar As Variant _
 )
+    Dim cleanupErrors As String
+
     If app Is Nothing Then Exit Sub
 
     On Error Resume Next
     app.ScreenUpdating = prevScreenUpdating
+    private_AppendFastRenderCleanupError _
+        cleanupErrors, "ScreenUpdating", Err.Number, Err.Description
+    Err.Clear
     app.EnableEvents = prevEnableEvents
-    app.DisplayAlerts = prevDisplayAlerts
+    private_AppendFastRenderCleanupError _
+        cleanupErrors, "EnableEvents", Err.Number, Err.Description
+    Err.Clear
     app.Calculation = prevCalculation
+    private_AppendFastRenderCleanupError _
+        cleanupErrors, "Calculation", Err.Number, Err.Description
+    Err.Clear
     app.StatusBar = prevStatusBar
+    private_AppendFastRenderCleanupError _
+        cleanupErrors, "StatusBar", Err.Number, Err.Description
+    Err.Clear
     On Error GoTo 0
+
+#If LOGGING_DEBUG_ENABLED Then
+    If VBA.Len(cleanupErrors) > 0 Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PageBase: fast render cleanup failed: " & cleanupErrors
+    End If
+#End If
+End Sub
+
+
+Private Sub private_AppendFastRenderCleanupError( _
+    ByRef cleanupErrors As String, _
+    ByVal propertyName As String, _
+    ByVal errorNumber As Long, _
+    ByVal errorDescription As String _
+)
+    If errorNumber = 0 Then Exit Sub
+    If VBA.Len(cleanupErrors) > 0 Then cleanupErrors = cleanupErrors & "; "
+    cleanupErrors = cleanupErrors & propertyName & " [" & _
+        VBA.CStr(errorNumber) & "] " & errorDescription
 End Sub
 
 Private Function private_BuildPageKey() As String
