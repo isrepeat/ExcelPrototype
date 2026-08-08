@@ -1,10 +1,17 @@
-Attribute VB_Name = "rt_PEB_WordExportRuntime"
+Attribute VB_Name = "rt_WordExportRuntime"
 Option Explicit
 
 ' Word.Application is deliberately cached at module scope. Exporter class
 ' instances are short-lived, while this runtime survives between exports.
 Private g_WordApp As Object
 Private g_OwnsWordApp As Boolean
+
+Public Sub fn_Module_Dispose()
+    ' Общий lifecycle-disposer ищет единое имя fn_Module_Dispose. Без этого
+    ' module-level COM proxy Word.Application переживал закрытие страниц и
+    ' освобождался уже при выгрузке VBA-проекта в неопределённом порядке.
+    fn_Dispose True
+End Sub
 
 Public Function fn_GetOrCreateWordApp(ByRef outWordApp As Object) As Boolean
     Set outWordApp = Nothing

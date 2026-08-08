@@ -640,7 +640,7 @@ Private Function private_ReadWordDocument(ByVal filePath As String, ByRef outTex
         Exit Function
     End If
     On Error GoTo EH
-    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
+    If Not rt_WordExportRuntime.fn_GetOrCreateWordApp(wordApp) Then Exit Function
     Set wordDoc = wordApp.Documents.Open(filePath, False, True, False)
     ' Rules определяют секции по текстовым заголовкам и не зависят от
     ' отображаемой нумерации Word, поэтому документ читается одним COM-вызовом.

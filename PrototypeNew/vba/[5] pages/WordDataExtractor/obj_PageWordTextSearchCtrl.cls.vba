@@ -354,6 +354,11 @@ Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
             "Повторно откройте режим с главной страницы."
         Exit Function
     End If
+    ' Shape-click не всегда сопровождается SheetChange для input-ячейки:
+    ' например после частичного render или если Excel завершил edit mode прямо
+    ' кликом по Shape. Перед запуском считаем фактическое значение из UI, чтобы
+    ' controller не расходился с текстом, который видит пользователь.
+    If Not private_TrySyncSearchTextFromUi() Then Exit Function
     If VBA.Len(VBA.Trim$(m_SearchText)) = 0 Then
         private_Error "Введите часть текста для поиска в WORD-документах."
         Exit Function
@@ -433,6 +438,32 @@ Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
 
 SearchFailed:
     m_IsSearchRunning = False
+End Function
+
+Private Function private_TrySyncSearchTextFromUi() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim inputRange As Range
+    Dim inputColumns As Range
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+        ws, "input", "SearchText", "cell", _
+        inputRange, inputColumns) Then Exit Function
+    If inputRange Is Nothing Then
+        private_Error _
+            "Не удалось определить ячейку поля текста для поиска. " & _
+            "Повторно откройте режим с главной страницы."
+        Exit Function
+    End If
+
+    m_SearchText = VBA.Trim$(VBA.CStr(inputRange.Cells(1, 1).Value2))
+    private_TrySyncSearchTextFromUi = True
 End Function
 
 Public Function CancelSearch(Optional ByVal arg As Variant) As Boolean
@@ -1339,7 +1370,7 @@ Private Function private_ReadWordDocument( _
     ex_Core.fn_Diagnostic_LogInfo _
         "word-text-search:document-read-start path='" & _
         VBA.Replace$(filePath, "'", "''") & "'"
-    If Not rt_PEB_WordExportRuntime.fn_GetOrCreateWordApp( _
+    If Not rt_WordExportRuntime.fn_GetOrCreateWordApp( _
         wordApp) Then
         outErrorText = "Не удалось запустить Microsoft Word."
         ex_Core.fn_Diagnostic_LogError _

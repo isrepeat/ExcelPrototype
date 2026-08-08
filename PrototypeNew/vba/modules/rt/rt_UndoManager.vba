@@ -10,12 +10,17 @@ Private g_IsReplaying As Boolean
 Private g_IsRecordingSuspended As Boolean
 
 Public Sub fn_Module_Dispose()
-    private_ClearExcelUndoHotkeys
+    fn_CancelGlobalCallbacks
     Set g_UndoStack = Nothing
     Set g_RedoStack = Nothing
     g_MaxDepth = 0
     g_IsReplaying = False
     g_IsRecordingSuspended = False
+End Sub
+
+
+Public Sub fn_CancelGlobalCallbacks()
+    private_ClearExcelUndoHotkeys
 End Sub
 
 ' //
@@ -276,11 +281,9 @@ Private Sub private_RegisterExcelUndoRedo()
 End Sub
 
 Private Sub private_ClearExcelUndoHotkeys()
-    On Error Resume Next
     Application.OnKey "^z"
     Application.OnKey "^y"
     Application.OnKey "^+z"
-    On Error GoTo 0
 End Sub
 
 Private Function private_GetActionDebugLabel(ByVal action As obj_IUndoAction) As String

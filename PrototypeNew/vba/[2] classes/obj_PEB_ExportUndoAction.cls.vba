@@ -334,7 +334,7 @@ Private Function private_ApplyWord(ByVal isUndo As Boolean, ByRef outErrorText A
         outErrorText = "WORD result document is unavailable: " & m_WordDocumentPath
         Exit Function
     End If
-    If Not rt_PEB_WordExportRuntime.fn_TryAcquireWordDocument( _
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
         m_WordDocumentPath, wordApp, wordDoc, documentOpened) Then
         outErrorText = "WORD application is unavailable."
         Exit Function

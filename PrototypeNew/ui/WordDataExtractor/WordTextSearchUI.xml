@@ -188,18 +188,18 @@
 
       <stackPanel spanColls="40" spanRows="1"/>
 
-      <stackPanel orientation="horizontal" spanColls="12" spanRows="18">
+      <!-- Высота общей области и списка результатов измеряется по фактическому
+           числу таблиц: фиксированный spanRows обрезал результат после 18 строк. -->
+      <stackPanel orientation="horizontal" spanColls="12">
         <stackPanel
           name="SearchResultsPanel"
           orientation="vertical"
-          spanColls="4"
-          spanRows="18">
+          spanColls="4">
           <control
             type="TableList"
             name="SearchResultTables"
             itemsSource="{PageRuntimeSource='RuntimeItems.WordDataExtractor.Tables'}"
-            spanColls="4"
-            spanRows="18"/>
+            spanColls="4"/>
         </stackPanel>
 
         <stackPanel
