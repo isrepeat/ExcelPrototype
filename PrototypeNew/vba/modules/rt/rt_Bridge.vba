@@ -121,33 +121,70 @@ Public Sub fn_OnSheetSelectionChange( _
     Dim ws As Worksheet
     Dim page As obj_IPage
     Dim pageBase As obj_PageBase
+    Dim dispatchOk As Boolean
 
     On Error GoTo EH_SELECTION
-    If g_IsDispatchingSelectionChange Then Exit Sub
-    If Sh Is Nothing Or Target Is Nothing Then Exit Sub
-    If Not TypeOf Sh Is Worksheet Then Exit Sub
+    If g_IsDispatchingSelectionChange Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-skip method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='dispatch-already-active'"
+        Exit Sub
+    End If
+    If Sh Is Nothing Or Target Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-skip method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='event-argument-missing'"
+        Exit Sub
+    End If
+    If Not TypeOf Sh Is Worksheet Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-skip method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='sheet-not-worksheet'"
+        Exit Sub
+    End If
     Set ws = Sh
-    ex_Core.fn_Diagnostic_LogInfo _
-        "bridge:selection-change sheet='" & _
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:method-enter method='rt_Bridge.fn_OnSheetSelectionChange' sheet='" & _
         private_EscapeForLog(ws.Name) & "' target='" & _
         private_EscapeForLog(Target.Address(False, False)) & "'"
-    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then Exit Sub
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-failed method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='page-not-found' sheet='" & _
+            private_EscapeForLog(ws.Name) & "'"
+        Exit Sub
+    End If
     Set pageBase = page.GetPageBase()
-    If pageBase Is Nothing Then Exit Sub
+    If pageBase Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-failed method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='page-base-missing' sheet='" & _
+            private_EscapeForLog(ws.Name) & "'"
+        Exit Sub
+    End If
 
     g_IsDispatchingSelectionChange = True
-    Call pageBase.DispatchSelectionChange(Target)
-    ex_Core.fn_Diagnostic_LogInfo _
-        "bridge:selection-change-done sheet='" & _
-        private_EscapeForLog(ws.Name) & "'"
+    dispatchOk = pageBase.DispatchSelectionChange(Target)
     g_IsDispatchingSelectionChange = False
+    If Not dispatchOk Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-failed method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='page-dispatch-returned-false' sheet='" & _
+            private_EscapeForLog(ws.Name) & "'"
+        Exit Sub
+    End If
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:method-exit method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+        "result='true' sheet='" & private_EscapeForLog(ws.Name) & "'"
     Exit Sub
 
 EH_SELECTION:
     g_IsDispatchingSelectionChange = False
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError _
-        "rt_Bridge: sheet selection dispatch failed: " & Err.Description
+    ex_Core.fn_Diagnostic_LogEventError _
+        "event:method-error method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+        "errNumber='" & VBA.CStr(Err.Number) & "' err='" & _
+        private_EscapeForLog(Err.Description) & "'"
 #End If
 End Sub
 
@@ -341,7 +378,13 @@ Public Function fn_RunCallback( _
 
 EH_RUN:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "' hasArg=" & VBA.CStr(hasCallbackArg) & "): " & Err.Description
+    ex_Core.fn_Diagnostic_LogEventError _
+        "event:callback-error method='rt_Bridge.fn_RunCallback' callback='" & _
+        private_EscapeForLog(callbackRef) & "' context='" & _
+        private_EscapeForLog(VBA.TypeName(callbackContext)) & _
+        "' hasArg='" & VBA.LCase$(VBA.CStr(hasCallbackArg)) & _
+        "' errNumber='" & VBA.CStr(Err.Number) & "' err='" & _
+        private_EscapeForLog(Err.Description) & "'"
 #End If
 End Function
 

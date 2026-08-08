@@ -602,6 +602,24 @@ Public Sub fn_Diagnostic_LogError(ByVal messageText As String)
 End Sub
 
 
+' Событийная трассировка должна быть доступна и на generated-страницах даже
+' при IsLoggingMainPageOnly=true. Master switch IsLoggingEnabled сохраняется.
+Public Sub fn_Diagnostic_LogEventInfo(ByVal messageText As String)
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreEvent VBA.CStr(messageText), True
+#End If
+End Sub
+
+
+Public Sub fn_Diagnostic_LogEventError(ByVal messageText As String)
+    messageText = VBA.Trim$(VBA.CStr(messageText))
+    If VBA.Len(messageText) = 0 Then Exit Sub
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreEvent "error: " & messageText, True
+#End If
+End Sub
+
+
 Public Sub fn_Diagnostic_LogWarning(ByVal messageText As String)
     messageText = VBA.Trim$(VBA.CStr(messageText))
     If VBA.Len(messageText) = 0 Then Exit Sub
@@ -625,6 +643,15 @@ Public Sub fn_Diagnostic_LogVerbose(ByVal messageText As String)
     ' Verbose использует ту же page-policy, что Info/Error/Warning.
     private_Diagnostic_LogCoreEvent "verbose: " & VBA.CStr(messageText)
 #End If
+End Sub
+
+
+' Startup/shutdown диагностика не должна зависеть от активного листа: падение
+' часто происходит после удаления или деактивации страницы, когда page-policy
+' уже не соответствует фактическому lifecycle-контексту.
+Public Sub fn_Diagnostic_BeginLifecycleLogging()
+    g_IsLoggingRuntimeActive = True
+    g_IsLoggingRuntimeStateInitialized = True
 End Sub
 
 
@@ -3358,7 +3385,10 @@ Private Sub private_Diagnostic_LogCoreSelfEvent(ByVal messageText As String)
 End Sub
 
 
-Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
+Private Sub private_Diagnostic_LogCoreEvent( _
+    ByVal messageText As String, _
+    Optional ByVal ignoreRuntimePagePolicy As Boolean = False _
+)
     Dim enableLogging As Boolean
     Dim logPath As String
     Dim folderPath As String
@@ -3366,7 +3396,8 @@ Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
     Dim stream As Object
     Dim lineText As String
 
-    If g_IsLoggingRuntimeStateInitialized Then
+    If Not ignoreRuntimePagePolicy And _
+        g_IsLoggingRuntimeStateInitialized Then
         If Not g_IsLoggingRuntimeActive Then Exit Sub
     End If
     If Not fn_Settings_TryGetFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, enableLogging, False) Then Exit Sub

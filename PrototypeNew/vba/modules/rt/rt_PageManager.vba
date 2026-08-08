@@ -6,6 +6,7 @@ Option Explicit
 
 Private g_PageById As Object
 Private g_LastRenderedPageId As String
+Private g_PageRemovalDepth As Long
 Private g_PageIdSeed As Long
 
 Private Const MODULE_SNAPSHOT_ROOT As String = "pageManagerState"
@@ -14,12 +15,19 @@ Private Const MODULE_SNAPSHOT_PAGE_NODE As String = "page"
 Private Const MODULE_SNAPSHOT_PAYLOAD_NODE As String = "payload"
 
 Public Sub fn_Module_Dispose()
-#If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_PageManager.fn_Module_Dispose"
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter method='rt_PageManager.fn_Module_Dispose'"
 #End If
     fn_DisposeAllPages
     Set g_PageById = Nothing
     g_LastRenderedPageId = VBA.vbNullString
+    g_PageRemovalDepth = 0
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-exit method='rt_PageManager.fn_Module_Dispose' " & _
+        "result='true'"
+#End If
 End Sub
 
 ' //
@@ -653,6 +661,7 @@ End Function
 Public Function fn_RemovePage(ByVal page As obj_IPage, Optional ByVal deleteWorksheet As Boolean = False) As Boolean
     Dim pageBase As obj_PageBase
     Dim pageId As String
+    Dim errorDescription As String
 
     If page Is Nothing Then
         fn_RemovePage = True
@@ -676,8 +685,30 @@ Public Function fn_RemovePage(ByVal page As obj_IPage, Optional ByVal deleteWork
         End If
     End If
 
+    On Error GoTo EH_REMOVE
+    g_PageRemovalDepth = g_PageRemovalDepth + 1
     page.Dispose deleteWorksheet
+    g_PageRemovalDepth = g_PageRemovalDepth - 1
     fn_RemovePage = True
+    Exit Function
+
+EH_REMOVE:
+    errorDescription = Err.Description
+    If g_PageRemovalDepth > 0 Then _
+        g_PageRemovalDepth = g_PageRemovalDepth - 1
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "page-manager:remove-page exception pageId='" & _
+        VBA.Replace$(pageId, "'", "''") & "' err='" & _
+        VBA.Replace$(errorDescription, "'", "''") & "'"
+#End If
+End Function
+
+' SheetBeforeDelete не должен повторно удалять страницу, worksheet которой
+' уже удаляется через fn_RemovePage. Такой reentrant-вход способен затронуть
+' соседнюю страницу в момент изменения Excel worksheet collection.
+Public Function fn_IsPageRemovalInProgress() As Boolean
+    fn_IsPageRemovalInProgress = (g_PageRemovalDepth > 0)
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> ThisWorkbook.m_ResetWorkbookAndCreateMainPage -> private_ResetWorkbookAndCreateMainPage -> rt_PageManager.fn_DisposeAllPages
@@ -685,19 +716,43 @@ End Function
 Public Sub fn_DisposeAllPages()
     Dim pageId As Variant
     Dim page As obj_IPage
+    Dim pageType As String
 
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter method='rt_PageManager.fn_DisposeAllPages'"
+#End If
     private_EnsureStorage
 
     For Each pageId In g_PageById.Keys
         Set page = g_PageById(pageId)
         If Not page Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+            pageType = VBA.TypeName(page)
+            ex_Core.fn_Diagnostic_LogInfo _
+                "lifecycle:call-enter caller='rt_PageManager.fn_DisposeAllPages' " & _
+                "callee='page.Dispose' pageId='" & _
+                VBA.Replace$(VBA.CStr(pageId), "'", "''") & _
+                "' pageType='" & VBA.Replace$(pageType, "'", "''") & "'"
+#End If
             page.Dispose False
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogInfo _
+                "lifecycle:call-exit caller='rt_PageManager.fn_DisposeAllPages' " & _
+                "callee='page.Dispose' pageId='" & _
+                VBA.Replace$(VBA.CStr(pageId), "'", "''") & "'"
+#End If
         End If
         Set g_PageById(pageId) = Nothing
     Next pageId
 
     Set g_PageById = Nothing
     g_LastRenderedPageId = VBA.vbNullString
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-exit method='rt_PageManager.fn_DisposeAllPages' " & _
+        "result='true'"
+#End If
 End Sub
 
 ' Callstack[1]: rt_PageManager.fn_TrySerializeModuleSnapshot -> rt_PageManager.fn_TryGetLastRenderedWorksheetName
@@ -1109,6 +1164,14 @@ Private Function private_CreatePageInternal( _
     Dim isPageInitialized As Boolean
     Dim errDescription As String
     Dim previousDisplayAlerts As Boolean
+    Dim activeStep As String
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-enter method='rt_PageManager.private_CreatePageInternal' " & _
+        "pageId='" & VBA.Replace$(pageId, "'", "''") & _
+        "' sheet='" & VBA.Replace$(sheetName, "'", "''") & "'"
+#End If
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -1136,20 +1199,54 @@ Private Function private_CreatePageInternal( _
     End If
 
     On Error GoTo EH_CREATE
+    activeStep = "Worksheets.Add"
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-enter caller='rt_PageManager.private_CreatePageInternal' " & _
+        "callee='Worksheets.Add'"
+#End If
     Set ws = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
     If VBA.Len(sheetName) > 0 Then ws.Name = sheetName
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-exit caller='rt_PageManager.private_CreatePageInternal' " & _
+        "callee='Worksheets.Add' sheet='" & _
+        VBA.Replace$(ws.Name, "'", "''") & "'"
+#End If
 
+    activeStep = "page.Initialize"
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-enter caller='rt_PageManager.private_CreatePageInternal' " & _
+        "callee='page.Initialize' pageType='" & _
+        VBA.Replace$(VBA.TypeName(page), "'", "''") & "'"
+#End If
     If Not page.Initialize(ws, uiPath, pageId, pageContext) Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PageManager: page initialize failed for page id '" & VBA.Replace$(pageId, "'", "''") & "'."
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:call-failed caller='rt_PageManager.private_CreatePageInternal' " & _
+            "callee='page.Initialize' pageId='" & _
+            VBA.Replace$(pageId, "'", "''") & "' result='false'"
 #End If
         GoTo EH_FAIL
     End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-exit caller='rt_PageManager.private_CreatePageInternal' " & _
+        "callee='page.Initialize'"
+#End If
     isPageInitialized = True
 
+    activeStep = "page.GetPageBase"
     Set pageBase = page.GetPageBase()
-    If pageBase Is Nothing Then GoTo EH_FAIL
-    If pageBase.Worksheet Is Nothing Then GoTo EH_FAIL
+    If pageBase Is Nothing Then
+        errDescription = "page.GetPageBase returned Nothing."
+        GoTo EH_FAIL
+    End If
+    If pageBase.Worksheet Is Nothing Then
+        errDescription = "PageBase.Worksheet returned Nothing."
+        GoTo EH_FAIL
+    End If
     If VBA.StrComp(VBA.LCase$(VBA.Trim$(pageBase.PageId)), pageId, VBA.vbTextCompare) <> 0 Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PageManager: page initialize did not assign expected page id '" & VBA.Replace$(pageId, "'", "''") & "'."
@@ -1157,10 +1254,38 @@ Private Function private_CreatePageInternal( _
         GoTo EH_FAIL
     End If
 
+    activeStep = "private_RegisterPage"
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-enter caller='rt_PageManager.private_CreatePageInternal' " & _
+        "callee='rt_PageManager.private_RegisterPage'"
+#End If
     private_CreatePageInternal = private_RegisterPage(pageId, page)
+    If Not private_CreatePageInternal Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:call-failed caller='rt_PageManager.private_CreatePageInternal' " & _
+            "callee='rt_PageManager.private_RegisterPage' result='false'"
+#End If
+        GoTo EH_FAIL
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:call-exit caller='rt_PageManager.private_CreatePageInternal' " & _
+        "callee='rt_PageManager.private_RegisterPage'"
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-exit method='rt_PageManager.private_CreatePageInternal' " & _
+        "result='true' pageId='" & VBA.Replace$(pageId, "'", "''") & "'"
+#End If
     Exit Function
 
 EH_FAIL:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "startup:method-exit method='rt_PageManager.private_CreatePageInternal' " & _
+        "result='false' step='" & VBA.Replace$(activeStep, "'", "''") & _
+        "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
     On Error Resume Next
     If isPageInitialized Then
         page.Dispose False
@@ -1177,7 +1302,11 @@ EH_FAIL:
 EH_CREATE:
     errDescription = Err.Description
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "PageManager: exception during page create for page id '" & VBA.Replace$(pageId, "'", "''") & "': " & VBA.Replace$(errDescription, "'", "''")
+    ex_Core.fn_Diagnostic_LogError _
+        "startup:method-error method='rt_PageManager.private_CreatePageInternal' " & _
+        "step='" & VBA.Replace$(activeStep, "'", "''") & "' pageId='" & _
+        VBA.Replace$(pageId, "'", "''") & "' err='" & _
+        VBA.Replace$(errDescription, "'", "''") & "'"
 #End If
     Resume EH_FAIL
 End Function

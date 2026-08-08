@@ -22,9 +22,22 @@ Public Sub fn_DisposeForLifecycle(ByVal isWorkbookClosing As Boolean)
     Dim cancelErrorNumber As Long
     Dim cancelErrorDescription As String
 
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter " & _
+        "method='rt_CoreActions.fn_DisposeForLifecycle' " & _
+        "isWorkbookClosing='" & _
+        VBA.LCase$(VBA.CStr(isWorkbookClosing)) & "'"
+#End If
     If g_ScheduledUpdateAt <= 0# Or _
         VBA.Len(VBA.Trim$(g_ScheduledUpdateMacro)) = 0 Then
         private_ClearScheduledUpdate
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit " & _
+            "method='rt_CoreActions.fn_DisposeForLifecycle' " & _
+            "result='true' reason='no-scheduled-update'"
+#End If
         Exit Sub
     End If
 
@@ -33,20 +46,52 @@ Public Sub fn_DisposeForLifecycle(ByVal isWorkbookClosing As Boolean)
     ' нет — любой сохранённый callback обязан быть явно снят.
     If Not isWorkbookClosing And g_ScheduledUpdateAt <= VBA.Now Then
         private_ClearScheduledUpdate
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit " & _
+            "method='rt_CoreActions.fn_DisposeForLifecycle' " & _
+            "result='true' reason='callback-already-running'"
+#End If
         Exit Sub
     End If
 
     On Error GoTo EH_CANCEL
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:call-enter " & _
+        "caller='rt_CoreActions.fn_DisposeForLifecycle' " & _
+        "callee='Application.OnTime:cancel' macro='" & _
+        VBA.Replace$(g_ScheduledUpdateMacro, "'", "''") & "'"
+#End If
     Application.OnTime _
         EarliestTime:=g_ScheduledUpdateAt, _
         Procedure:=g_ScheduledUpdateMacro, _
         Schedule:=False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:call-exit " & _
+        "caller='rt_CoreActions.fn_DisposeForLifecycle' " & _
+        "callee='Application.OnTime:cancel'"
+#End If
     private_ClearScheduledUpdate
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-exit " & _
+        "method='rt_CoreActions.fn_DisposeForLifecycle' result='true'"
+#End If
     Exit Sub
 
 EH_CANCEL:
     cancelErrorNumber = Err.Number
     cancelErrorDescription = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "lifecycle:method-error " & _
+        "method='rt_CoreActions.fn_DisposeForLifecycle' " & _
+        "callee='Application.OnTime:cancel' errNumber='" & _
+        VBA.CStr(cancelErrorNumber) & "' err='" & _
+        VBA.Replace$(cancelErrorDescription, "'", "''") & "'"
+#End If
     Err.Raise cancelErrorNumber, _
         "rt_CoreActions.fn_DisposeForLifecycle", _
         "Не удалось отменить отложенный Update Code '" & _

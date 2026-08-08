@@ -55,13 +55,16 @@ End Sub
 ' //
 Public Function Initialize(ByVal page As obj_IPage) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.Initialize"
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-enter method='obj_PageMainCtrl.Initialize'"
     #End If
     Dim pageBase As obj_PageBase
 
     If page Is Nothing Then
         #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: PageMainController initialization failed because page is not specified."
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+                "result='false' reason='page-not-specified'"
         #End If
         VBA.MsgBox "PrototypeNew: PageMainController initialization failed because page is not specified.", vbExclamation, "PrototypeNew / Config runtime"
         Exit Function
@@ -71,21 +74,50 @@ Public Function Initialize(ByVal page As obj_IPage) As Boolean
     Set m_Page = page
     Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
     Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+                "result='false' reason='page-base-missing'"
+        #End If
+        Exit Function
+    End If
 
     ' Привязку objectSource для контроллера создаем один раз при инициализации.
     ' Дальнейшие runtime-обновления должны делать точечную очистку и не очищать этот ключ.
-    If Not pageBase.RuntimeSources.SetObjectSource(CONTROLLER_RUNTIME_OBJECT_KEY, Me) Then Exit Function
+    If Not pageBase.RuntimeSources.SetObjectSource( _
+        CONTROLLER_RUNTIME_OBJECT_KEY, Me) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+                "result='false' step='SetObjectSource'"
+        #End If
+        Exit Function
+    End If
     Initialize = True
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+            "result='true'"
+    #End If
 End Function
 
 Public Sub Dispose()
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.Dispose"
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-enter method='obj_PageMainCtrl.Dispose'"
     #End If
     Dim pageBase As obj_PageBase
     Dim runtimeSources As obj_PageRuntimeSources
 
-    If m_IsDisposed Then Exit Sub
+    If m_IsDisposed Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogInfo _
+                "lifecycle:method-exit method='obj_PageMainCtrl.Dispose' " & _
+                "result='true' reason='already-disposed'"
+        #End If
+        Exit Sub
+    End If
     m_IsDisposed = True
     On Error Resume Next
     Set pageBase = m_Page.GetPageBase()
@@ -103,6 +135,11 @@ Public Sub Dispose()
     m_SelectItemsProvidersReady = False
     Set m_Page = Nothing
     On Error GoTo 0
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='obj_PageMainCtrl.Dispose' " & _
+            "result='true'"
+    #End If
 End Sub
 
 Public Property Get RuntimeObjectSourceKey() As String
@@ -514,11 +551,24 @@ Public Function OnConfigModeChanged( _
     Optional ByVal notifyChange As Boolean = True _
 ) As Boolean
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigModeChanged"
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-enter method='obj_PageMainCtrl.OnConfigModeChanged'"
     #End If
     ' После смены режима нужно пересобрать runtime-источники.
-    If Not private_TryPrepareModeProfileConfigRuntime(notifyChange) Then Exit Function
+    If Not private_TryPrepareModeProfileConfigRuntime(notifyChange) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit " & _
+                "method='obj_PageMainCtrl.OnConfigModeChanged' result='false'"
+        #End If
+        Exit Function
+    End If
     OnConfigModeChanged = True
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-exit " & _
+            "method='obj_PageMainCtrl.OnConfigModeChanged' result='true'"
+    #End If
 End Function
 
 Public Function OnConfigProfileChanged( _
@@ -557,6 +607,7 @@ Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Vari
     Dim deletedSheetsCount As Long
     Dim prevDisplayAlerts As Boolean
     Dim notifyStatus As Boolean
+    Dim registeredMainPage As obj_IPage
 
     If m_Page Is Nothing Then Exit Function
     notifyStatus = True
@@ -619,6 +670,24 @@ ContinuePages:
     Next wsIndex
 
     Application.DisplayAlerts = prevDisplayAlerts
+
+    ' Успешная очистка не имеет права оставлять живой лист Main без runtime
+    ' page. Проверяем инвариант до положительного status-сообщения.
+    If Not rt_PageManager.fn_TryGetPageByWorksheetName( _
+        mainSheetName, registeredMainPage) Then
+        VBA.MsgBox _
+            "Очистка страниц остановлена: лист '" & mainSheetName & _
+            "' остался без зарегистрированной runtime-страницы.", _
+            VBA.vbExclamation, "PrototypeNew / очистка страниц"
+        Exit Function
+    End If
+    If Not (registeredMainPage Is m_Page) Then
+        VBA.MsgBox _
+            "Очистка страниц остановлена: runtime-регистрация листа '" & _
+            mainSheetName & "' указывает не на текущую страницу Main.", _
+            VBA.vbExclamation, "PrototypeNew / очистка страниц"
+        Exit Function
+    End If
 
     If notifyStatus Then
         rt_Messaging.fn_ShowStatusBarSuccess "Pages cleared. Kept only '" & mainSheetName & "' (removed pages=" & VBA.CStr(removedCount) & ", deleted sheets=" & VBA.CStr(deletedSheetsCount) & ").", 3
@@ -1122,9 +1191,6 @@ End Function
 Private Function private_TryPrepareModeProfileConfigRuntime( _
     Optional ByVal notifyChange As Boolean = False _
 ) As Boolean
-    #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime"
-    #End If
     Dim ws As Worksheet
     Dim modeOptions As Collection
     Dim profileOptions As Collection
@@ -1132,37 +1198,86 @@ Private Function private_TryPrepareModeProfileConfigRuntime( _
     Dim selectedProfileId As String
     Dim profileFilePath As String
     Dim pageBase As obj_PageBase
+    Dim activeStep As String
 
     On Error GoTo EH_PREPARE_RUNTIME
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-enter " & _
+        "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime'"
+#End If
 
+    activeStep = "m_Page.GetPageBase"
     Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then GoTo PREPARE_FAILED
     Set ws = pageBase.Worksheet
+    If ws Is Nothing Then GoTo PREPARE_FAILED
 
     ' 2) Формируем источник для списка режимов.
-    If Not private_TryBuildModeSelectOptions(modeOptions) Then Exit Function
-    If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False) Then Exit Function
+    activeStep = "private_TryBuildModeSelectOptions"
+    If Not private_TryBuildModeSelectOptions(modeOptions) Then GoTo PREPARE_FAILED
+    activeStep = "private_TrySetItemsSource:modes"
+    If Not private_TrySetItemsSource( _
+        MODES_RUNTIME_KEY, modeOptions, False) Then GoTo PREPARE_FAILED
 
     ' 3) Для выбранного режима собираем список профилей.
-    If Not private_TryResolveSelectedIdForControl(ws, MODE_PICKER_CONTROL_NAME, modeOptions, selectedModeId) Then Exit Function
-    If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
-    If Not private_TrySetItemsSource(PROFILES_RUNTIME_KEY, profileOptions, False) Then Exit Function
+    activeStep = "private_TryResolveSelectedIdForControl:mode"
+    If Not private_TryResolveSelectedIdForControl( _
+        ws, MODE_PICKER_CONTROL_NAME, modeOptions, _
+        selectedModeId) Then GoTo PREPARE_FAILED
+    activeStep = "private_TryBuildProfileSelectOptionsByMode"
+    If Not private_TryBuildProfileSelectOptionsByMode( _
+        selectedModeId, profileOptions, _
+        profileFilePath) Then GoTo PREPARE_FAILED
+    activeStep = "private_TrySetItemsSource:profiles"
+    If Not private_TrySetItemsSource( _
+        PROFILES_RUNTIME_KEY, profileOptions, False) Then GoTo PREPARE_FAILED
 
     ' 4) Загружаем config из выбранного профиля.
-    If Not private_TryResolveSelectedIdForControl(ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, selectedProfileId) Then Exit Function
-    If Not private_TryRegisterConfigFromXmlProfile(profileFilePath, selectedProfileId, False) Then Exit Function
+    activeStep = "private_TryResolveSelectedIdForControl:profile"
+    If Not private_TryResolveSelectedIdForControl( _
+        ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, _
+        selectedProfileId) Then GoTo PREPARE_FAILED
+    activeStep = "private_TryRegisterConfigFromXmlProfile"
+    If Not private_TryRegisterConfigFromXmlProfile( _
+        profileFilePath, selectedProfileId, _
+        False) Then GoTo PREPARE_FAILED
 
     ' 5) По флагу обновляем UI.
     If notifyChange Then
-        If Not rt_PageManager.fn_RenderPage(m_Page, "config:mode-profile-runtime") Then Exit Function
+        activeStep = "rt_PageManager.fn_RenderPage"
+        If Not rt_PageManager.fn_RenderPage( _
+            m_Page, "config:mode-profile-runtime") Then GoTo PREPARE_FAILED
     End If
 
     private_TryPrepareModeProfileConfigRuntime = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-exit " & _
+        "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime' " & _
+        "result='true'"
+#End If
     On Error GoTo 0
+    Exit Function
+
+PREPARE_FAILED:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "startup:method-exit " & _
+        "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime' " & _
+        "result='false' step='" & _
+        VBA.Replace$(activeStep, "'", "''") & "'"
+#End If
     Exit Function
 
 EH_PREPARE_RUNTIME:
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-error " & _
+            "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime' " & _
+            "step='" & VBA.Replace$(activeStep, "'", "''") & _
+            "' errNumber='" & VBA.CStr(Err.Number) & "' err='" & _
+            VBA.Replace$(Err.Description, "'", "''") & "'"
     #End If
     VBA.MsgBox "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
 End Function

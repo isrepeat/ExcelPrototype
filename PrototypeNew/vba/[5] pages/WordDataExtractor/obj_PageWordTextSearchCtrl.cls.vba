@@ -354,11 +354,10 @@ Public Function SearchAndRender(Optional ByVal arg As Variant) As Boolean
             "Повторно откройте режим с главной страницы."
         Exit Function
     End If
-    ' Shape-click не всегда сопровождается SheetChange для input-ячейки:
-    ' например после частичного render или если Excel завершил edit mode прямо
-    ' кликом по Shape. Перед запуском считаем фактическое значение из UI, чтобы
-    ' controller не расходился с текстом, который видит пользователь.
-    If Not private_TrySyncSearchTextFromUi() Then Exit Function
+    ' Shape-click не всегда сопровождается SheetChange для input-ячеек.
+    ' Перед запуском атомарно считываем текст и диапазон дат, чтобы resolver
+    ' использовал именно значения, которые пользователь видит на листе.
+    If Not private_TrySyncSearchInputsFromUi() Then Exit Function
     If VBA.Len(VBA.Trim$(m_SearchText)) = 0 Then
         private_Error "Введите часть текста для поиска в WORD-документах."
         Exit Function
@@ -440,7 +439,36 @@ SearchFailed:
     m_IsSearchRunning = False
 End Function
 
-Private Function private_TrySyncSearchTextFromUi() As Boolean
+Private Function private_TrySyncSearchInputsFromUi() As Boolean
+    If Not private_TryReadInputText( _
+        "SearchText", "текста поиска", m_SearchText) Then Exit Function
+    If Not private_TryReadInputText( _
+        "DateFromDayInput", "дня dateFrom", _
+        m_DateFromDay) Then Exit Function
+    If Not private_TryReadInputText( _
+        "DateFromMonthInput", "месяца dateFrom", _
+        m_DateFromMonth) Then Exit Function
+    If Not private_TryReadInputText( _
+        "DateFromYearInput", "года dateFrom", _
+        m_DateFromYear) Then Exit Function
+    If Not private_TryReadInputText( _
+        "DateToDayInput", "дня dateTo", _
+        m_DateToDay) Then Exit Function
+    If Not private_TryReadInputText( _
+        "DateToMonthInput", "месяца dateTo", _
+        m_DateToMonth) Then Exit Function
+    If Not private_TryReadInputText( _
+        "DateToYearInput", "года dateTo", _
+        m_DateToYear) Then Exit Function
+
+    private_TrySyncSearchInputsFromUi = True
+End Function
+
+Private Function private_TryReadInputText( _
+    ByVal controlName As String, _
+    ByVal fieldCaption As String, _
+    ByRef outValue As String _
+) As Boolean
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
     Dim inputRange As Range
@@ -453,17 +481,17 @@ Private Function private_TrySyncSearchTextFromUi() As Boolean
     If ws Is Nothing Then Exit Function
 
     If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
-        ws, "input", "SearchText", "cell", _
+        ws, "input", controlName, "cell", _
         inputRange, inputColumns) Then Exit Function
     If inputRange Is Nothing Then
         private_Error _
-            "Не удалось определить ячейку поля текста для поиска. " & _
+            "Не удалось определить ячейку поля " & fieldCaption & ". " & _
             "Повторно откройте режим с главной страницы."
         Exit Function
     End If
 
-    m_SearchText = VBA.Trim$(VBA.CStr(inputRange.Cells(1, 1).Value2))
-    private_TrySyncSearchTextFromUi = True
+    outValue = VBA.Trim$(VBA.CStr(inputRange.Cells(1, 1).Value2))
+    private_TryReadInputText = True
 End Function
 
 Public Function CancelSearch(Optional ByVal arg As Variant) As Boolean
@@ -492,30 +520,75 @@ Public Function OnResultSelectionChanged( _
     Dim previewColumns As Range
 
     OnResultSelectionChanged = True
-    If VBA.IsMissing(arg) Then Exit Function
-    If Not VBA.IsObject(arg) Then Exit Function
-    If Not TypeOf arg Is Range Then Exit Function
+    If VBA.IsMissing(arg) Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='argument-missing'"
+        Exit Function
+    End If
+    If Not VBA.IsObject(arg) Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='argument-not-object' type='" & _
+            VBA.Replace$(VBA.TypeName(arg), "'", "''") & "'"
+        Exit Function
+    End If
+    If Not TypeOf arg Is Range Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='argument-not-range' type='" & _
+            VBA.Replace$(VBA.TypeName(arg), "'", "''") & "'"
+        Exit Function
+    End If
     Set selectedCell = arg.Cells(1, 1)
-    ex_Core.fn_Diagnostic_LogInfo _
-        "word-text-search:preview-selection target='" & _
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:method-enter method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' target='" & _
         selectedCell.Address(False, False) & "'"
-    If m_Page Is Nothing Then Exit Function
+    If m_Page Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='page-missing'"
+        Exit Function
+    End If
     Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
+    If pageBase Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='page-base-missing'"
+        Exit Function
+    End If
     Set ws = pageBase.Worksheet
-    If ws Is Nothing Then Exit Function
-    If Not selectedCell.Worksheet Is ws Then Exit Function
+    If ws Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='worksheet-missing'"
+        Exit Function
+    End If
+    If Not selectedCell.Worksheet Is ws Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:preview-skip method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='different-worksheet'"
+        Exit Function
+    End If
 
     If Not pageBase.TryGetLayoutContainerRange( _
         RESULTS_CONTAINER_NAME, resultsRange) Then
-        ex_Core.fn_Diagnostic_LogError _
-            "word-text-search:preview-skip reason='results-range-missing'"
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='results-range-missing'"
         Exit Function
     End If
-    If resultsRange Is Nothing Then Exit Function
+    If resultsRange Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='results-range-empty'"
+        Exit Function
+    End If
     If Application.Intersect(selectedCell, resultsRange) Is Nothing Then
-        ex_Core.fn_Diagnostic_LogInfo _
-            "word-text-search:preview-skip reason='outside-results'"
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:preview-skip method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='outside-results' resultsRange='" & _
+            resultsRange.Address(False, False) & "'"
         Exit Function
     End If
 
@@ -528,21 +601,30 @@ Public Function OnResultSelectionChanged( _
         Set markerCell = selectedCell.Offset(0, -1)
         Set selectedContextCell = selectedCell
     Else
-        ex_Core.fn_Diagnostic_LogInfo _
-            "word-text-search:preview-skip reason='outside-result-columns'"
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:preview-skip method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='outside-result-columns'"
         Exit Function
     End If
     If Not private_IsSearchResultMarker(markerCell.Value2) Then
-        ex_Core.fn_Diagnostic_LogInfo _
-            "word-text-search:preview-skip reason='not-data-row'"
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:preview-skip method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='not-data-row' marker='" & _
+            VBA.Replace$(VBA.CStr(markerCell.Value2), "'", "''") & "'"
         Exit Function
     End If
     If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
         ws, "label", PREVIEW_CONTAINER_NAME, "cell", _
-        previewRange, previewColumns) Then Exit Function
+        previewRange, previewColumns) Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='preview-control-part-missing'"
+        Exit Function
+    End If
     If previewRange Is Nothing Then
-        ex_Core.fn_Diagnostic_LogError _
-            "word-text-search:preview-skip reason='preview-range-empty'"
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:preview-failed method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+            "reason='preview-range-empty'"
         Exit Function
     End If
 
@@ -551,10 +633,10 @@ Public Function OnResultSelectionChanged( _
     m_SelectedPreviewText = _
         VBA.CStr(selectedContextCell.Cells(1, 1).Value2)
     previewRange.Cells(1, 1).Value2 = m_SelectedPreviewText
-    ex_Core.fn_Diagnostic_LogInfo _
-        "word-text-search:preview-updated target='" & _
-        selectedCell.Address(False, False) & "' textLength=" & _
-        VBA.CStr(VBA.Len(m_SelectedPreviewText))
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:method-exit method='obj_PageWordTextSearchCtrl.OnResultSelectionChanged' " & _
+        "result='true' target='" & selectedCell.Address(False, False) & _
+        "' textLength='" & VBA.CStr(VBA.Len(m_SelectedPreviewText)) & "'"
 End Function
 
 Private Function private_IsSearchResultMarker( _
@@ -971,10 +1053,21 @@ Private Function private_ResolveDocuments() As Boolean
                 If VBA.CBool(m_SourceEnabled(sourceId)) Then
                     selectedCount = selectedCount + 1
                     sourcePattern = VBA.CStr(m_SourcePatterns(sourceId))
+                    ex_Core.fn_Diagnostic_LogInfo _
+                        "word-text-search:source-resolve-start source='" & _
+                        VBA.Replace$(VBA.CStr(sourceId), "'", "''") & _
+                        "' pattern='" & _
+                        VBA.Replace$(sourcePattern, "'", "''") & _
+                        "' args='" & _
+                        VBA.Replace$(sourceResolverArgs, "'", "''") & "'"
                     On Error GoTo EH
                     Set resolvedPaths = ex_SourceResolver.fn_ResolveAllByDmyPattern( _
                         sourcePattern, sourceResolverArgs)
                     On Error GoTo 0
+                    ex_Core.fn_Diagnostic_LogInfo _
+                        "word-text-search:source-resolve-done source='" & _
+                        VBA.Replace$(VBA.CStr(sourceId), "'", "''") & _
+                        "' files=" & VBA.CStr(resolvedPaths.Count)
                     For Each resolvedPath In resolvedPaths
                         normalizedPath = VBA.Trim$(VBA.CStr(resolvedPath))
                         If seenPaths.Exists(normalizedPath) Then

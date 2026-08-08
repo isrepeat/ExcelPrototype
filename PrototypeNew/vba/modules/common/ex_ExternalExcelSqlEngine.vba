@@ -25,12 +25,44 @@ End Sub
 ' Модуль остаётся готовым к работе: следующий SQL-запрос лениво пересоздаст
 ' словари и соединения через private_EnsureSqlCaches.
 Public Sub fn_ResetRuntimeCache()
+    Dim cleanupErrorNumber As Long
+    Dim cleanupErrorDescription As String
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter " & _
+        "method='ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache'"
+#End If
     On Error Resume Next
     private_CloseAllCachedConnections
+    If Err.Number <> 0 Then
+        cleanupErrorNumber = Err.Number
+        cleanupErrorDescription = Err.Description
+        Err.Clear
+    End If
     Set m_ConnectionsByPath = Nothing
     Set m_ResolvedHeadersByKey = Nothing
     Call ex_CacheRuntime.fn_ClearNamespace(RANGE_REF_CACHE_NAMESPACE)
+    If Err.Number <> 0 And cleanupErrorNumber = 0 Then
+        cleanupErrorNumber = Err.Number
+        cleanupErrorDescription = Err.Description
+        Err.Clear
+    End If
     On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+    If cleanupErrorNumber <> 0 Then
+        ex_Core.fn_Diagnostic_LogError _
+            "lifecycle:method-error " & _
+            "method='ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache' " & _
+            "errNumber='" & VBA.CStr(cleanupErrorNumber) & "' err='" & _
+            VBA.Replace$(cleanupErrorDescription, "'", "''") & "'"
+    Else
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit " & _
+            "method='ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache' " & _
+            "result='true'"
+    End If
+#End If
 End Sub
 
 Public Function fn_TrySqlRequest( _
