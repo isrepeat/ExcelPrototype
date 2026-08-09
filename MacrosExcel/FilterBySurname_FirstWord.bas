@@ -53,3 +53,38 @@ End Function
 Sub FilterSurname()
     FilterBySurname_FirstWord
 End Sub
+
+Public Sub FilterContainsCurrentColumn()
+    Dim rngData As Range, colIndex As Long
+    Dim query As String
+    Dim ws As Worksheet
+
+    Set ws = ActiveSheet
+
+    query = NormalizeQuery(InputBox( _
+        "Введите текст для поиска." & vbCrLf & _
+        "Фильтр: содержит введённый текст.", _
+        "Фильтр содержит"))
+
+    If Len(query) = 0 Then Exit Sub
+
+    On Error Resume Next
+    If Not ActiveCell.ListObject Is Nothing Then
+        With ActiveCell.ListObject
+            colIndex = ActiveCell.Column - .Range.Columns(1).Column + 1
+            .Range.AutoFilter Field:=colIndex, Criteria1:="*" & query & "*"
+        End With
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    Set rngData = ActiveCell.currentRegion
+    If rngData.Rows.count < 2 Then Exit Sub
+
+    colIndex = ActiveCell.Column - rngData.Column + 1
+    If colIndex < 1 Or colIndex > rngData.Columns.count Then Exit Sub
+
+    If Not ws.AutoFilterMode Then rngData.AutoFilter
+    rngData.AutoFilter Field:=colIndex, Criteria1:="*" & query & "*"
+End Sub
+
