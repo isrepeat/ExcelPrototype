@@ -48,8 +48,14 @@ Public Function TryCreateDataExporter( _
     Set outExporter = Nothing
     Select Case VBA.LCase$(VBA.Trim$(className))
         Case VBA.LCase$("obj_PEB_ExptrMovement")
+            If exporterCfgDataProvider Is Nothing Then
+                VBA.MsgBox "PrsnlEvntBuilder: Movement exporter requires config data provider.", _
+                    VBA.vbExclamation, "PrsnlEvntBuilder / Factory"
+                Exit Function
+            End If
             Set movementExporter = New obj_PEB_ExptrMovement
-            If Not movementExporter.Initialize(exportConfigTable, profileConfigTable) Then Exit Function
+            If Not movementExporter.Initialize(exportConfigTable, profileConfigTable, _
+                exporterCfgDataProvider) Then Exit Function
             Set outExporter = movementExporter
         Case VBA.LCase$("obj_PEB_ExptrWord")
             If exporterCfgDataProvider Is Nothing Then
