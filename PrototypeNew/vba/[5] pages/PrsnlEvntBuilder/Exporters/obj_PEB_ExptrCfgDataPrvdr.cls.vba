@@ -29,6 +29,7 @@ Private Const CONFIG_MOVEMENT_SHEET_NAME_KEY As String = "Export.Movement.SheetN
 Private Const CONFIG_MOVEMENT_RANGE_START_KEY As String = "Export.Movement.RangeStartMarker"
 Private Const CONFIG_MOVEMENT_RANGE_END_KEY As String = "Export.Movement.RangeEndMarker"
 Private Const MOVEMENT_IPN_HEADER As String = "ІПН"
+Private Const MOVEMENT_PERSON_HEADER As String = "ПІБ"
 Private Const MOVEMENT_EVENT_HEADER As String = "Подія"
 Private Const MOVEMENT_DEPARTURE_DATE_HEADER As String = "Вибуття"
 Private Const MOVEMENT_DEPARTURE_ORDER_HEADER As String = "Вибуття.Наказ"
@@ -163,6 +164,9 @@ Public Function TryGetMovementHistoryByIpn( _
     Set query = New obj_ExtWorkbookQuery
     query.SourcePath = snapshotPath
     query.TableRef = movementTableRef
+    ' Query по умолчанию предназначен для lookup одного значения и имеет
+    ' MaxRows=1. Для списка событий лимит обязательно отключаем.
+    query.MaxRows = 0
     query.SelectAllColumns = True
     If maxRows > 0 Then
         ' Сначала читаем совпадения в естественном порядке. После запроса
@@ -183,6 +187,168 @@ Public Function TryGetMovementHistoryByIpn( _
     End If
     outTable.SectionTitle = private_BuildMovementHistorySectionTitle(resolvedPath)
     TryGetMovementHistoryByIpn = True
+End Function
+
+' Читает кандидатов событий из того же snapshot ЕЖОС, который используется
+' историей движения. Фильтр номера выполняет ACE SQL; открывать живую книгу и
+' обходить весь ListObject для построения UI-списка не требуется.
+Public Function TryGetMovementEventsByOrderNo( _
+    ByVal orderNo As String, _
+    ByRef outDepartureEvents As obj_TableDynamic, _
+    ByRef outArrivalEvents As obj_TableDynamic _
+) As Boolean
+    Dim resolvedPath As String
+    Dim snapshotPath As String
+    Dim movementTableRef As String
+
+    Set outDepartureEvents = Nothing
+    Set outArrivalEvents = Nothing
+    If m_IsDisposed Then Exit Function
+    orderNo = VBA.Trim$(orderNo)
+    If VBA.Len(orderNo) = 0 Then Exit Function
+    If Not private_TryResolveMovementQueryContext( _
+        resolvedPath, movementTableRef) Then Exit Function
+    If Not private_TryGetMovementSnapshotPath( _
+        resolvedPath, snapshotPath) Then Exit Function
+    If Not private_TryQueryMovementEvents( _
+        snapshotPath, movementTableRef, orderNo, _
+        MOVEMENT_DEPARTURE_ORDER_HEADER, MOVEMENT_DEPARTURE_DATE_HEADER, _
+        outDepartureEvents) Then Exit Function
+    If Not private_TryQueryMovementEvents( _
+        snapshotPath, movementTableRef, orderNo, _
+        MOVEMENT_ARRIVAL_ORDER_HEADER, MOVEMENT_ARRIVAL_DATE_HEADER, _
+        outArrivalEvents) Then Exit Function
+
+    TryGetMovementEventsByOrderNo = True
+End Function
+
+Private Function private_TryQueryMovementEvents( _
+    ByVal snapshotPath As String, _
+    ByVal movementTableRef As String, _
+    ByVal orderNo As String, _
+    ByVal orderHeader As String, _
+    ByVal dateHeader As String, _
+    ByRef outEvents As obj_TableDynamic _
+) As Boolean
+    Dim exactEvents As obj_TableDynamic
+    Dim containsEvents As obj_TableDynamic
+
+    Set outEvents = Nothing
+    ' ACE определяет тип смешанной колонки по выборке. Числовые номера вроде
+    ' 226 надёжно находятся через Equals, а значения с префиксом/суффиксом —
+    ' через Contains. Объединение с дедупликацией сохраняет оба варианта.
+    If Not private_TryExecuteMovementEventQuery( _
+        snapshotPath, movementTableRef, orderNo, orderHeader, dateHeader, _
+        en_ExtWorkbookQueryOp.ExtQueryOpEquals, exactEvents) Then Exit Function
+    If Not private_TryExecuteMovementEventQuery( _
+        snapshotPath, movementTableRef, orderNo, orderHeader, dateHeader, _
+        en_ExtWorkbookQueryOp.ExtQueryOpContains, containsEvents) Then Exit Function
+    If Not private_TryMergeMovementEventTables( _
+        exactEvents, containsEvents, outEvents) Then Exit Function
+    private_TryQueryMovementEvents = True
+End Function
+
+Private Function private_TryExecuteMovementEventQuery( _
+    ByVal snapshotPath As String, _
+    ByVal movementTableRef As String, _
+    ByVal orderNo As String, _
+    ByVal orderHeader As String, _
+    ByVal dateHeader As String, _
+    ByVal queryOperation As en_ExtWorkbookQueryOp, _
+    ByRef outEvents As obj_TableDynamic _
+) As Boolean
+    Dim query As obj_ExtWorkbookQuery
+
+    Set outEvents = Nothing
+    If m_QueryEngine Is Nothing Then Exit Function
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = snapshotPath
+    query.TableRef = movementTableRef
+    ' Значение по умолчанию MaxRows=1 подходит одиночным lookup-запросам,
+    ' но здесь нужен полный список совпадений номера приказа.
+    query.MaxRows = 0
+    If Not query.AddSelectColumn(MOVEMENT_PERSON_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_IPN_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_EVENT_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(dateHeader) Then Exit Function
+    If Not query.AddSelectColumn(orderHeader) Then Exit Function
+    If Not query.AddCondition( _
+        orderHeader, queryOperation, orderNo, False) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, outEvents) Then Exit Function
+    If outEvents Is Nothing Then Exit Function
+    private_TryExecuteMovementEventQuery = True
+End Function
+
+Private Function private_TryMergeMovementEventTables( _
+    ByVal firstTable As obj_TableDynamic, _
+    ByVal secondTable As obj_TableDynamic, _
+    ByRef outTable As obj_TableDynamic _
+) As Boolean
+    Dim columnIndex As Long
+    Dim tableColumn As obj_Column
+    Dim seenRows As Object
+
+    Set outTable = Nothing
+    If firstTable Is Nothing Or secondTable Is Nothing Then Exit Function
+    Set outTable = New obj_TableDynamic
+    If Not outTable.Initialize Then Exit Function
+    For columnIndex = 1 To firstTable.ColumnCount
+        Set tableColumn = firstTable.Columns.Item(columnIndex)
+        If tableColumn Is Nothing Then Exit Function
+        If Not outTable.PushColumn(tableColumn) Then Exit Function
+    Next columnIndex
+    Set seenRows = VBA.CreateObject("Scripting.Dictionary")
+    seenRows.CompareMode = VBA.vbTextCompare
+    If Not private_TryAppendUniqueMovementRows( _
+        firstTable, outTable, seenRows, False) Then Exit Function
+    If Not private_TryAppendUniqueMovementRows( _
+        secondTable, outTable, seenRows, True) Then Exit Function
+    private_TryMergeMovementEventTables = True
+End Function
+
+Private Function private_TryAppendUniqueMovementRows( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal targetTable As obj_TableDynamic, _
+    ByVal seenRows As Object, _
+    ByVal skipSeenRows As Boolean _
+) As Boolean
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim sourceRow As obj_Row
+    Dim clonedRow As obj_Row
+    Dim clonedRowObj As Object
+    Dim rowKey As String
+
+    For rowIndex = 1 To sourceTable.RowCount
+        Set sourceRow = sourceTable.Rows.Item(rowIndex)
+        If sourceRow Is Nothing Then Exit Function
+        rowKey = VBA.vbNullString
+        For columnIndex = 1 To sourceTable.ColumnCount
+            rowKey = rowKey & VBA.Chr$(30) & _
+                VBA.CStr(sourceRow.GetCellValue(columnIndex))
+        Next columnIndex
+        If skipSeenRows And seenRows.Exists(rowKey) Then
+            If VBA.CLng(seenRows(rowKey)) <= 1 Then
+                seenRows.Remove rowKey
+            Else
+                seenRows(rowKey) = VBA.CLng(seenRows(rowKey)) - 1
+            End If
+        Else
+            If Not skipSeenRows Then
+                If seenRows.Exists(rowKey) Then
+                    seenRows(rowKey) = VBA.CLng(seenRows(rowKey)) + 1
+                Else
+                    seenRows.Add rowKey, 1
+                End If
+            End If
+            Set clonedRowObj = sourceRow.Clone(sourceTable.ColumnCount)
+            If clonedRowObj Is Nothing Then Exit Function
+            If Not TypeOf clonedRowObj Is obj_Row Then Exit Function
+            Set clonedRow = clonedRowObj
+            If Not targetTable.PushRow(clonedRow) Then Exit Function
+        End If
+    Next rowIndex
+    private_TryAppendUniqueMovementRows = True
 End Function
 
 Private Function private_TryKeepLastRows( _

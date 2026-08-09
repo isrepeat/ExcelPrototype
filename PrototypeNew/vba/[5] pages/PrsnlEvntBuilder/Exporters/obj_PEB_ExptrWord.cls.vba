@@ -110,6 +110,10 @@ Private Const WD_FIND_STOP As Long = 0
 Private Const WORD_RECORD_BOOKMARK_PREFIX As String = "PEB_"
 Private Const WORD_METADATA_BOOKMARK_PREFIX As String = "PEM_"
 Private Const WORD_BOOKMARK_MAX_LENGTH As Long = 40
+Private Const WORD_BOOKMARK_MARKER_BEGIN As String = "[[PEB_BOOKMARK_BEGIN:"
+Private Const WORD_BOOKMARK_MARKER_END As String = "[[PEB_BOOKMARK_END:"
+Private Const WORD_BOOKMARK_MARKER_ROOT As String = "[[PEB_BOOKMARK_"
+Private Const WORD_BOOKMARK_MARKER_SUFFIX As String = "]]"
 Private Const REPORT_TVO_TEXT As String = "тимчасово виконуючого обов'язки"
 Private Const META_SECTION_TYPE_DOCUMENT As String = "Мета: документ"
 Private Const META_SECTION_TYPE_TVO As String = "Мета: ТВО"
@@ -122,6 +126,600 @@ Private m_Base As obj_DataExporterBase
 Private m_TemplateParser As obj_WordResultTplParser
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_OwnsExporterCfgDataProvider As Boolean
+
+Public Function ToggleSupportedBookmarks( _
+    ByRef outMarkersAreVisible As Boolean, _
+    ByRef convertedCount As Long, _
+    Optional ByVal orderNo As String = "" _
+) As Boolean
+    Dim templatePath As String
+    Dim targetPath As String
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim documentOpened As Boolean
+    Dim errorDescription As String
+    Dim previousScreenUpdating As Boolean
+    Dim screenUpdatingChanged As Boolean
+
+    On Error GoTo EH
+    outMarkersAreVisible = False
+    convertedCount = 0
+
+    templatePath = VBA.Trim$(m_Base.TargetWorkbookPath)
+    If VBA.Len(templatePath) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key 'Export.Word.FilePath' is empty.", _
+            VBA.vbExclamation, "PrototypeNew / WORD bookmarks"
+        Exit Function
+    End If
+    If Not private_IsAbsolutePath(templatePath) Then _
+        templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
+    targetPath = private_BuildResultDocumentPath(templatePath, orderNo)
+    If VBA.Len(targetPath) = 0 Or VBA.Len(VBA.Dir$(targetPath, _
+        VBA.vbNormal Or VBA.vbReadOnly Or VBA.vbHidden Or VBA.vbSystem)) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result document was not found:" & _
+            VBA.vbCrLf & targetPath, VBA.vbExclamation, _
+            "PrototypeNew / WORD bookmarks"
+        Exit Function
+    End If
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
+    On Error Resume Next
+    previousScreenUpdating = wordApp.ScreenUpdating
+    wordApp.ScreenUpdating = False
+    screenUpdatingChanged = (Err.Number = 0)
+    Err.Clear
+    On Error GoTo EH
+
+    If VBA.InStr(1, VBA.CStr(wordDoc.Content.Text), _
+        WORD_BOOKMARK_MARKER_ROOT, VBA.vbTextCompare) > 0 Then
+        If Not private_RestoreSupportedBookmarks(wordDoc, convertedCount) Then _
+            GoTo CleanFail
+        outMarkersAreVisible = False
+    Else
+        If Not private_ShowSupportedBookmarksAsMarkers(wordDoc, convertedCount) Then _
+            GoTo CleanFail
+        outMarkersAreVisible = True
+    End If
+
+    ' Переключение закладок является ручной операцией просмотра/редактирования.
+    ' Документ намеренно оставляем открытым с несохранёнными изменениями:
+    ' пользователь сам решает, сохранить преобразование или отменить его.
+    If screenUpdatingChanged Then wordApp.ScreenUpdating = previousScreenUpdating
+    wordApp.Visible = True
+    wordDoc.Activate
+    ToggleSupportedBookmarks = True
+    Exit Function
+
+CleanFail:
+    On Error Resume Next
+    If screenUpdatingChanged Then wordApp.ScreenUpdating = previousScreenUpdating
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    Exit Function
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If screenUpdatingChanged Then wordApp.ScreenUpdating = previousScreenUpdating
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось переключить WORD-закладки: " & errorDescription, _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD bookmarks"
+End Function
+
+Public Function GetRecordBookmarks( _
+    ByVal orderNo As String, _
+    ByRef outEvents As Collection _
+) As Boolean
+    Dim targetPath As String
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim documentOpened As Boolean
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim bookmarkIpn As String
+    Dim captionText As String
+    Dim optionObj As obj_SelectOption
+
+    On Error GoTo EH
+    Set outEvents = New Collection
+    If Not private_TryBuildExistingResultPath(orderNo, targetPath, False) Then
+        If VBA.Len(targetPath) = 0 Then Exit Function
+        GetRecordBookmarks = True
+        Exit Function
+    End If
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
+    If VBA.InStr(1, VBA.CStr(wordDoc.Content.Text), _
+        WORD_BOOKMARK_MARKER_ROOT, VBA.vbTextCompare) > 0 Then
+        VBA.MsgBox "Сначала восстановите WORD-закладки из видимых маркеров.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
+        GoTo CleanFail
+    End If
+
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(VBA.UCase$(bookmarkName), _
+            VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) = _
+            WORD_RECORD_BOOKMARK_PREFIX Then
+            captionText = private_BuildWordEventCaption( _
+                VBA.CStr(bookmarkObj.Range.Text))
+            bookmarkIpn = private_ExtractRecordBookmarkIpn(bookmarkName)
+            Set optionObj = New obj_SelectOption
+            optionObj.Id = bookmarkName
+            optionObj.Caption = "WORD" & VBA.vbTab & bookmarkName & _
+                VBA.vbTab & captionText & VBA.vbTab & bookmarkIpn
+            outEvents.Add optionObj
+        End If
+    Next bookmarkObj
+    If documentOpened Then wordDoc.Close False
+    GetRecordBookmarks = True
+    Exit Function
+CleanFail:
+    If documentOpened Then wordDoc.Close False
+    Exit Function
+EH:
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось прочитать события WORD: " & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
+End Function
+
+Private Function private_ExtractRecordBookmarkIpn( _
+    ByVal bookmarkName As String _
+) As String
+    Dim separatorIndex As Long
+
+    separatorIndex = VBA.InStrRev(bookmarkName, "_", -1, VBA.vbBinaryCompare)
+    If separatorIndex <= VBA.Len(WORD_RECORD_BOOKMARK_PREFIX) Then Exit Function
+    If separatorIndex >= VBA.Len(bookmarkName) Then Exit Function
+    private_ExtractRecordBookmarkIpn = VBA.Mid$(bookmarkName, separatorIndex + 1)
+End Function
+
+Public Function DeleteRecordBookmark( _
+    ByVal bookmarkName As String, _
+    ByVal orderNo As String _
+) As Boolean
+    Dim targetPath As String
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim documentOpened As Boolean
+    Dim targetRange As Object
+
+    On Error GoTo EH
+    bookmarkName = VBA.Trim$(bookmarkName)
+    If VBA.Left$(VBA.UCase$(bookmarkName), _
+        VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) <> _
+        WORD_RECORD_BOOKMARK_PREFIX Then
+        VBA.MsgBox "Некорректная WORD-закладка события: " & bookmarkName, _
+            VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
+        Exit Function
+    End If
+    If Not private_TryBuildExistingResultPath(orderNo, targetPath, True) Then Exit Function
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
+    If Not wordDoc.Bookmarks.Exists(bookmarkName) Then
+        VBA.MsgBox "WORD-событие изменилось после обновления списка. " & _
+            "Обновите список и повторите удаление.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
+        GoTo CleanFail
+    End If
+
+    Set targetRange = wordDoc.Bookmarks(bookmarkName).Range
+    wordDoc.Bookmarks(bookmarkName).Delete
+    targetRange.Delete
+    private_DeleteEmptyWordGroups wordDoc, WORD_NESTED_GROUP_BOOKMARK_PREFIX
+    private_DeleteEmptyWordGroups wordDoc, WORD_GROUP_BOOKMARK_PREFIX
+    wordDoc.Save
+    If documentOpened Then wordDoc.Close False
+    DeleteRecordBookmark = True
+    Exit Function
+CleanFail:
+    If documentOpened Then wordDoc.Close False
+    Exit Function
+EH:
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось удалить событие WORD: " & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
+End Function
+
+Private Sub private_DeleteEmptyWordGroups( _
+    ByVal wordDoc As Object, ByVal groupPrefix As String _
+)
+    Dim groupIndex As Long
+    Dim recordIndex As Long
+    Dim groupBookmark As Object
+    Dim recordBookmark As Object
+    Dim groupRange As Object
+    Dim containsRecord As Boolean
+
+    For groupIndex = wordDoc.Bookmarks.Count To 1 Step -1
+        Set groupBookmark = wordDoc.Bookmarks.Item(groupIndex)
+        If VBA.Left$(VBA.UCase$(VBA.CStr(groupBookmark.Name)), _
+            VBA.Len(groupPrefix)) <> groupPrefix Then GoTo ContinueGroup
+        Set groupRange = groupBookmark.Range
+        containsRecord = False
+        For recordIndex = 1 To wordDoc.Bookmarks.Count
+            Set recordBookmark = wordDoc.Bookmarks.Item(recordIndex)
+            If VBA.Left$(VBA.UCase$(VBA.CStr(recordBookmark.Name)), _
+                VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) = _
+                WORD_RECORD_BOOKMARK_PREFIX Then
+                If recordBookmark.Range.Start >= groupRange.Start And _
+                    recordBookmark.Range.End <= groupRange.End Then
+                    containsRecord = True
+                    Exit For
+                End If
+            End If
+        Next recordIndex
+        If Not containsRecord Then
+            groupBookmark.Delete
+            groupRange.Delete
+        End If
+ContinueGroup:
+    Next groupIndex
+End Sub
+
+Private Function private_TryBuildExistingResultPath( _
+    ByVal orderNo As String, ByRef outTargetPath As String, _
+    ByVal showMissingMessage As Boolean _
+) As Boolean
+    Dim templatePath As String
+    templatePath = VBA.Trim$(m_Base.TargetWorkbookPath)
+    If VBA.Len(templatePath) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key 'Export.Word.FilePath' is empty.", _
+            VBA.vbExclamation, "PrototypeNew / WORD events"
+        Exit Function
+    End If
+    If Not private_IsAbsolutePath(templatePath) Then _
+        templatePath = ThisWorkbook.Path & Application.PathSeparator & templatePath
+    outTargetPath = private_BuildResultDocumentPath(templatePath, orderNo)
+    If VBA.Len(outTargetPath) = 0 Then Exit Function
+    If VBA.Len(VBA.Dir$(outTargetPath, VBA.vbNormal Or VBA.vbReadOnly Or _
+        VBA.vbHidden Or VBA.vbSystem)) = 0 Then
+        If showMissingMessage Then
+            VBA.MsgBox "WORD result document was not found:" & _
+                VBA.vbCrLf & outTargetPath, VBA.vbExclamation, _
+                "PrsnlEventBuilder / WORD events"
+        End If
+        Exit Function
+    End If
+    private_TryBuildExistingResultPath = True
+End Function
+
+Private Function private_BuildWordEventCaption(ByVal valueText As String) As String
+    valueText = VBA.Replace(valueText, VBA.vbCr, " ")
+    valueText = VBA.Replace(valueText, VBA.vbLf, " ")
+    valueText = VBA.Replace(valueText, VBA.Chr$(11), " ")
+    valueText = VBA.Replace(valueText, VBA.vbTab, " ")
+    Do While VBA.InStr(1, valueText, "  ", VBA.vbBinaryCompare) > 0
+        valueText = VBA.Replace(valueText, "  ", " ")
+    Loop
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(valueText) > 180 Then valueText = VBA.Left$(valueText, 177) & "..."
+    private_BuildWordEventCaption = valueText
+End Function
+
+Private Function private_ShowSupportedBookmarksAsMarkers( _
+    ByVal wordDoc As Object, _
+    ByRef convertedCount As Long _
+) As Boolean
+    Dim bookmarkIndex As Long
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim bookmarkNames() As String
+    Dim bookmarkStarts() As Long
+    Dim bookmarkEnds() As Long
+    Dim i As Long
+    Dim j As Long
+    Dim k As Long
+    Dim positionCount As Long
+    Dim positions() As Long
+    Dim used() As Boolean
+    Dim bestIndex As Long
+    Dim insertRange As Object
+    Dim markerText As String
+
+    For bookmarkIndex = 1 To wordDoc.Bookmarks.Count
+        Set bookmarkObj = wordDoc.Bookmarks.Item(bookmarkIndex)
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If private_IsSupportedBookmarkName(bookmarkName) Then
+            convertedCount = convertedCount + 1
+            If convertedCount = 1 Then
+                ReDim bookmarkNames(1 To 1)
+                ReDim bookmarkStarts(1 To 1)
+                ReDim bookmarkEnds(1 To 1)
+            Else
+                ReDim Preserve bookmarkNames(1 To convertedCount)
+                ReDim Preserve bookmarkStarts(1 To convertedCount)
+                ReDim Preserve bookmarkEnds(1 To convertedCount)
+            End If
+            bookmarkNames(convertedCount) = bookmarkName
+            bookmarkStarts(convertedCount) = bookmarkObj.Range.Start
+            bookmarkEnds(convertedCount) = bookmarkObj.Range.End
+        End If
+    Next bookmarkIndex
+    If convertedCount = 0 Then
+        VBA.MsgBox "В документе нет поддерживаемых WORD-закладок PEB/PEM/PEG/PEN.", _
+            VBA.vbInformation, "PrsnlEventBuilder / WORD bookmarks"
+        Exit Function
+    End If
+
+    ' Собираем уникальные границы. Вставка справа налево сохраняет исходные
+    ' координаты, а единая строка для общей границы не создаёт пересечений:
+    ' сначала закрываются внутренние диапазоны, затем открываются внешние.
+    For i = 1 To convertedCount
+        For k = 1 To 2
+            If k = 1 Then j = bookmarkStarts(i) Else j = bookmarkEnds(i)
+            bestIndex = 0
+            For bestIndex = 1 To positionCount
+                If positions(bestIndex) = j Then Exit For
+            Next bestIndex
+            If bestIndex > positionCount Then bestIndex = 0
+            If bestIndex = 0 Then
+                positionCount = positionCount + 1
+                If positionCount = 1 Then
+                    ReDim positions(1 To 1)
+                Else
+                    ReDim Preserve positions(1 To positionCount)
+                End If
+                positions(positionCount) = j
+            End If
+        Next k
+    Next i
+    For i = 1 To positionCount - 1
+        For j = i + 1 To positionCount
+            If positions(j) > positions(i) Then
+                k = positions(i): positions(i) = positions(j): positions(j) = k
+            End If
+        Next j
+    Next i
+
+    For i = 1 To positionCount
+        markerText = VBA.vbNullString
+        ReDim used(1 To convertedCount)
+        For k = 1 To convertedCount
+            bestIndex = 0
+            For j = 1 To convertedCount
+                If Not used(j) And bookmarkEnds(j) = positions(i) Then
+                    If bestIndex = 0 Then
+                        bestIndex = j
+                    ElseIf bookmarkStarts(j) > bookmarkStarts(bestIndex) Then
+                        bestIndex = j
+                    ElseIf bookmarkStarts(j) = bookmarkStarts(bestIndex) Then
+                        If private_GetBookmarkNestingPriority(bookmarkNames(j)) > _
+                            private_GetBookmarkNestingPriority( _
+                                bookmarkNames(bestIndex)) Then bestIndex = j
+                    End If
+                End If
+            Next j
+            If bestIndex = 0 Then Exit For
+            used(bestIndex) = True
+            markerText = markerText & WORD_BOOKMARK_MARKER_END & _
+                bookmarkNames(bestIndex) & WORD_BOOKMARK_MARKER_SUFFIX
+        Next k
+        ReDim used(1 To convertedCount)
+        For k = 1 To convertedCount
+            bestIndex = 0
+            For j = 1 To convertedCount
+                If Not used(j) And bookmarkStarts(j) = positions(i) Then
+                    If bestIndex = 0 Then
+                        bestIndex = j
+                    ElseIf bookmarkEnds(j) > bookmarkEnds(bestIndex) Then
+                        bestIndex = j
+                    ElseIf bookmarkEnds(j) = bookmarkEnds(bestIndex) Then
+                        If private_GetBookmarkNestingPriority(bookmarkNames(j)) < _
+                            private_GetBookmarkNestingPriority( _
+                                bookmarkNames(bestIndex)) Then bestIndex = j
+                    End If
+                End If
+            Next j
+            If bestIndex = 0 Then Exit For
+            used(bestIndex) = True
+            markerText = markerText & WORD_BOOKMARK_MARKER_BEGIN & _
+                bookmarkNames(bestIndex) & WORD_BOOKMARK_MARKER_SUFFIX
+        Next k
+        Set insertRange = wordDoc.Range(positions(i), positions(i))
+        insertRange.Text = markerText
+    Next i
+    For i = 1 To convertedCount
+        If wordDoc.Bookmarks.Exists(bookmarkNames(i)) Then _
+            wordDoc.Bookmarks(bookmarkNames(i)).Delete
+    Next i
+    private_ShowSupportedBookmarksAsMarkers = True
+End Function
+
+' Чем больше значение, тем глубже закладка в иерархии WORD:
+' PEG (внешняя группа) -> PEN (вложенная группа) -> PEB (пункт) -> PEM (метаданные).
+' При общей границе внешние диапазоны открываются первыми, а закрываются последними.
+Private Function private_GetBookmarkNestingPriority( _
+    ByVal bookmarkName As String _
+) As Long
+    Select Case VBA.UCase$(VBA.Left$(bookmarkName, 4))
+        Case WORD_GROUP_BOOKMARK_PREFIX
+            private_GetBookmarkNestingPriority = 1
+        Case WORD_NESTED_GROUP_BOOKMARK_PREFIX
+            private_GetBookmarkNestingPriority = 2
+        Case WORD_RECORD_BOOKMARK_PREFIX
+            private_GetBookmarkNestingPriority = 3
+        Case WORD_METADATA_BOOKMARK_PREFIX
+            private_GetBookmarkNestingPriority = 4
+    End Select
+End Function
+
+Private Function private_RestoreSupportedBookmarks( _
+    ByVal wordDoc As Object, _
+    ByRef convertedCount As Long _
+) As Boolean
+    Dim bookmarkName As String
+    Dim contentRanges As Collection
+    Dim bookmarkNames As Collection
+    Dim beginStarts As Object
+    Dim beginEnds As Object
+    Dim endStarts As Object
+    Dim endEnds As Object
+    Dim markerRanges As Collection
+    Dim beginStart As Long
+    Dim beginEnd As Long
+    Dim endStart As Long
+    Dim endEnd As Long
+    Dim contentRange As Object
+    Dim i As Long
+
+    Set contentRanges = New Collection
+    Set bookmarkNames = New Collection
+    Set markerRanges = New Collection
+    Set beginStarts = VBA.CreateObject("Scripting.Dictionary")
+    Set beginEnds = VBA.CreateObject("Scripting.Dictionary")
+    Set endStarts = VBA.CreateObject("Scripting.Dictionary")
+    Set endEnds = VBA.CreateObject("Scripting.Dictionary")
+    beginStarts.CompareMode = VBA.vbTextCompare
+    beginEnds.CompareMode = VBA.vbTextCompare
+    endStarts.CompareMode = VBA.vbTextCompare
+    endEnds.CompareMode = VBA.vbTextCompare
+    If Not private_TryScanWordBookmarkMarkers( _
+        wordDoc, beginStarts, beginEnds, endStarts, endEnds, _
+        bookmarkNames, markerRanges) Then GoTo InvalidMarkers
+    If beginStarts.Count <> endStarts.Count Then GoTo InvalidMarkers
+
+    convertedCount = bookmarkNames.Count
+    For i = 1 To bookmarkNames.Count
+        bookmarkName = VBA.CStr(bookmarkNames(i))
+        If Not endStarts.Exists(bookmarkName) Then GoTo InvalidMarkers
+        beginStart = VBA.CLng(beginStarts(bookmarkName))
+        beginEnd = VBA.CLng(beginEnds(bookmarkName))
+        endStart = VBA.CLng(endStarts(bookmarkName))
+        endEnd = VBA.CLng(endEnds(bookmarkName))
+        If beginEnd <= endStart Then
+            Set contentRange = wordDoc.Range(beginEnd, endStart)
+        ElseIf endEnd <= beginStart Then
+            ' Схлопнутая закладка записывается как END -> BEGIN в одной позиции.
+            ' После удаления обоих маркеров этот anchor снова станет Range(Start, Start).
+            Set contentRange = wordDoc.Range(endStart, endStart)
+        Else
+            GoTo InvalidMarkers
+        End If
+        contentRanges.Add contentRange
+    Next i
+
+    If Not private_TryDeleteWordMarkerRangesRightToLeft( _
+        markerRanges) Then GoTo InvalidMarkers
+    If VBA.InStr(1, VBA.CStr(wordDoc.Content.Text), _
+        WORD_BOOKMARK_MARKER_ROOT, VBA.vbTextCompare) > 0 Then _
+        GoTo InvalidMarkers
+    For i = 1 To convertedCount
+        wordDoc.Bookmarks.Add VBA.CStr(bookmarkNames(i)), contentRanges(i)
+    Next i
+    private_RestoreSupportedBookmarks = True
+    Exit Function
+
+InvalidMarkers:
+    VBA.MsgBox _
+        "Набор WORD-маркеров повреждён: для каждой начальной метки должна " & _
+        "существовать парная конечная метка. Восстановление отменено.", _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD bookmarks"
+End Function
+
+Private Function private_TryScanWordBookmarkMarkers( _
+    ByVal wordDoc As Object, _
+    ByVal beginStarts As Object, _
+    ByVal beginEnds As Object, _
+    ByVal endStarts As Object, _
+    ByVal endEnds As Object, _
+    ByVal bookmarkNames As Collection, _
+    ByVal markerRanges As Collection _
+) As Boolean
+    Dim scanStart As Long
+    Dim markerStartRange As Object
+    Dim markerRange As Object
+    Dim markerProbeRange As Object
+    Dim markerProbeText As String
+    Dim suffixOffset As Long
+    Dim markerEnd As Long
+    Dim markerText As String
+    Dim bookmarkName As String
+    Dim isBeginMarker As Boolean
+    Dim nameStart As Long
+    Dim nameLength As Long
+
+    If wordDoc Is Nothing Then Exit Function
+    scanStart = wordDoc.Content.Start
+    Do While scanStart < wordDoc.Content.End
+        If Not private_TryFindWordText(wordDoc.Range( _
+            scanStart, wordDoc.Content.End), WORD_BOOKMARK_MARKER_ROOT, _
+            markerStartRange) Then Exit Do
+        ' Имя Word bookmark ограничено 40 символами. Читаем небольшой фрагмент
+        ' возле найденного префикса и определяем конец обычным InStr, не делая
+        ' второй COM Find для каждого из 122 маркеров.
+        markerEnd = markerStartRange.Start + 96
+        If markerEnd > wordDoc.Content.End Then markerEnd = wordDoc.Content.End
+        Set markerProbeRange = wordDoc.Range(markerStartRange.Start, markerEnd)
+        markerProbeText = VBA.CStr(markerProbeRange.Text)
+        suffixOffset = VBA.InStr(1, markerProbeText, _
+            WORD_BOOKMARK_MARKER_SUFFIX, VBA.vbBinaryCompare)
+        If suffixOffset <= 0 Then Exit Function
+        markerEnd = markerStartRange.Start + suffixOffset - 1 + _
+            VBA.Len(WORD_BOOKMARK_MARKER_SUFFIX)
+        Set markerRange = wordDoc.Range(markerStartRange.Start, markerEnd)
+        markerText = VBA.CStr(markerRange.Text)
+        If VBA.Left$(markerText, VBA.Len(WORD_BOOKMARK_MARKER_BEGIN)) = _
+            WORD_BOOKMARK_MARKER_BEGIN Then
+            isBeginMarker = True
+            nameStart = VBA.Len(WORD_BOOKMARK_MARKER_BEGIN) + 1
+        ElseIf VBA.Left$(markerText, VBA.Len(WORD_BOOKMARK_MARKER_END)) = _
+            WORD_BOOKMARK_MARKER_END Then
+            isBeginMarker = False
+            nameStart = VBA.Len(WORD_BOOKMARK_MARKER_END) + 1
+        Else
+            Exit Function
+        End If
+        nameLength = VBA.Len(markerText) - nameStart - _
+            VBA.Len(WORD_BOOKMARK_MARKER_SUFFIX) + 1
+        If nameLength <= 0 Then Exit Function
+        bookmarkName = VBA.Mid$(markerText, nameStart, nameLength)
+        If Not private_IsSupportedBookmarkName(bookmarkName) Then Exit Function
+        If isBeginMarker Then
+            If beginStarts.Exists(bookmarkName) Then Exit Function
+            beginStarts.Add bookmarkName, markerRange.Start
+            beginEnds.Add bookmarkName, markerRange.End
+            bookmarkNames.Add bookmarkName
+        Else
+            If endStarts.Exists(bookmarkName) Then Exit Function
+            endStarts.Add bookmarkName, markerRange.Start
+            endEnds.Add bookmarkName, markerRange.End
+        End If
+        markerRanges.Add markerRange.Duplicate
+        scanStart = markerRange.End
+    Loop
+    private_TryScanWordBookmarkMarkers = (markerRanges.Count > 0)
+End Function
+
+Private Function private_TryDeleteWordMarkerRangesRightToLeft( _
+    ByVal markerRanges As Collection _
+) As Boolean
+    Dim markerIndex As Long
+    Dim markerRange As Object
+
+    If markerRanges Is Nothing Then Exit Function
+    For markerIndex = markerRanges.Count To 1 Step -1
+        Set markerRange = markerRanges.Item(markerIndex)
+        If markerRange Is Nothing Then Exit Function
+        markerRange.Delete
+    Next markerIndex
+    private_TryDeleteWordMarkerRangesRightToLeft = True
+End Function
+
+Private Function private_IsSupportedBookmarkName(ByVal bookmarkName As String) As Boolean
+    Dim prefixText As String
+    prefixText = VBA.UCase$(VBA.Left$(bookmarkName, 4))
+    private_IsSupportedBookmarkName = _
+        (prefixText = WORD_RECORD_BOOKMARK_PREFIX Or _
+         prefixText = WORD_METADATA_BOOKMARK_PREFIX Or _
+         prefixText = WORD_GROUP_BOOKMARK_PREFIX Or _
+         prefixText = WORD_NESTED_GROUP_BOOKMARK_PREFIX)
+End Function
+
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then

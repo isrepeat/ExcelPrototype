@@ -154,21 +154,21 @@
 
             <control
               type="Button"
-              name="ClearWordDocument"
-              caption="Remove WORD anchors"
-              style="actionWarning"
+              name="ToggleWordBookmarks"
+              caption="{Binding Path=AreWordBookmarksShownAsMarkers;TrueAs=Restore WORD bookmarks;FalseAs=Show WORD markers}"
+              style="exportApplyButton"
               dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-              onClick="{Binding Method=OnClearWordDocumentClick}"
+              onClick="{Binding Method=OnToggleWordBookmarksClick}"
               spanColls="2"
               spanRows="2"/>
 
             <control
               type="Button"
-              name="UndoLastExport"
-              caption="Undo last export"
+              name="ClearWordDocument"
+              caption="Remove WORD anchors"
               style="actionWarning"
               dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
-              onClick="{Binding Method=OnUndoLastExportClick}"
+              onClick="{Binding Method=OnClearWordDocumentClick}"
               spanColls="2"
               spanRows="2"/>
 
@@ -1108,6 +1108,26 @@
           spanColls="50"/>
       </stackPanel>
 
+      <!-- Управление уже записанными событиями текущего номера приказа. -->
+      <stackPanel name="ExportedEventsMenu" orientation="vertical" spanColls="50">
+        <control
+          type="Button"
+          name="RefreshExportedEvents"
+          caption="Refresh exported events"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=OnRefreshExportedEventsClick}"
+          spanColls="4"
+          spanRows="1"/>
+
+        <control
+          type="TableList"
+          name="MovementEventsMenu"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MovementEvents'}"
+          spanColls="50"
+          spanRows="100"/>
+      </stackPanel>
+
     </stackPanel>
   </grid>
 
@@ -1586,6 +1606,27 @@
                 borderColor:#8A7935;
                 borderWeight:thin;
               }"/>
+      </layer>
+
+      <!-- Таблицы событий используют холодную сине-голубую палитру и тот же
+           section/header/rows ритм, что таблица lookup-кандидатов. -->
+      <layer name="exported-events-tables">
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=section"
+              styles="{ backColor:#102A43; fontColor:#E0F2FE; borderColor:#0B1623; borderWeight:thin; fontBold:true; horizontal:center; vertical:center; rowHeight:24; }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=header"
+              styles="{ backColor:#164E63; fontColor:#F0F9FF; borderColor:#0B1623; borderWeight:thin; fontBold:true; horizontal:center; vertical:center; rowHeight:28; }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=rows"
+              styles="{ backColor:#1E3A5F; fontColor:#E6F6FF; borderColor:#0B1623; borderWeight:thin; horizontal:left; vertical:center; rowHeight:34; overflow:wrap; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=movement.type" styles="{ width:12; horizontal:center; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=movement.person" styles="{ width:28; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=movement.description" styles="{ width:38; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=movement.ipn" styles="{ width:16; horizontal:center; cellType:text; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=word.source" styles="{ width:10; horizontal:center; backColor:#203F66; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=word.bookmark" styles="{ width:32; cellType:text; backColor:#203F66; }"/>
+        <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=word.description" styles="{ width:55; backColor:#203F66; }"/>
       </layer>
 
       <!-- Стили таблицы хоткеев. -->
