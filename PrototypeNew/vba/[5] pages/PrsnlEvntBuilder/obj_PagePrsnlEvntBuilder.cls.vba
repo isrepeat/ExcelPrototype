@@ -910,6 +910,12 @@ Private Function private_TryRunLookupSearch( _
     ByVal rerenderReason As String _
 ) As Boolean
     Dim countFound As Long
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim searchMs As Double
+    Dim reflowMs As Double
+
+    perfTotalStartedAt = VBA.Timer
 
     If m_Controller Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(queryText)) = 0 Then
@@ -919,8 +925,29 @@ Private Function private_TryRunLookupSearch( _
     End If
 
     If Not private_TryEnsureControllerData() Then Exit Function
+    perfStageStartedAt = VBA.Timer
     If Not m_Controller.SearchCandidates(lookupKey, queryText, countFound, False) Then Exit Function
+    searchMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
     private_TryRunLookupSearch = private_TryReflowLookupCandidates(rerenderReason)
+    reflowMs = private_PerfElapsedMs(perfStageStartedAt)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:peb-candidate-flow totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' searchMs='" & VBA.Format$(searchMs, "0") & _
+        "' reflowMs='" & VBA.Format$(reflowMs, "0") & _
+        "' rows='" & VBA.CStr(countFound) & _
+        "' lookup='" & VBA.Replace$(lookupKey, "'", "''") & _
+        "' reason='" & VBA.Replace$(rerenderReason, "'", "''") & _
+        "' result='" & VBA.LCase$(VBA.CStr(private_TryRunLookupSearch)) & "'"
+#End If
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim finishedAt As Double
+    finishedAt = VBA.Timer
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400#
+    private_PerfElapsedMs = (finishedAt - startedAt) * 1000#
 End Function
 
 Private Function private_TryReflowLookupCandidates(ByVal reason As String) As Boolean
