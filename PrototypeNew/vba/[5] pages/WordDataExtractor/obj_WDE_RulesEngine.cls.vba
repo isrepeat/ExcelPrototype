@@ -13,6 +13,8 @@ Private m_ScopeBoundaryPositions As Collection
 Private m_DatasetScopeRanges As Object
 Private m_ClaimedRanges As Collection
 Private m_StructureInputContexts As Object
+Private m_RegexFragments As Object
+Private m_ExpandedRegexFragments As Object
 
 Public Function Initialize(ByVal rulesRelPath As String) As Boolean
     m_RulesRelPath = VBA.Trim$(rulesRelPath)
@@ -27,6 +29,8 @@ Public Function Initialize(ByVal rulesRelPath As String) As Boolean
         private_ShowError "Не удалось загрузить файл rules: " & m_RulesRelPath
         Exit Function
     End If
+    If Not private_LoadRegexFragments() Then Exit Function
+    If Not private_ValidateRegexFragmentUsage() Then Exit Function
     m_IsDisposed = False
     Initialize = private_ValidateRules()
 End Function
@@ -38,6 +42,8 @@ Public Sub Dispose()
     Set m_DatasetScopeRanges = Nothing
     Set m_ClaimedRanges = Nothing
     Set m_StructureInputContexts = Nothing
+    Set m_RegexFragments = Nothing
+    Set m_ExpandedRegexFragments = Nothing
     m_RulesRelPath = VBA.vbNullString
 End Sub
 
@@ -366,14 +372,12 @@ Private Function private_FilterActiveDatasetContexts( _
     ByVal parentContexts As Collection, _
     ByRef outContexts As Collection _
 ) As Boolean
-    Dim matchNode As Object
     Dim locatorNode As Object
     Dim rx As Object
     Dim parentContext As Variant
 
     Set outContexts = New Collection
-    Set matchNode = datasetNode.selectSingleNode("p:match")
-    Set locatorNode = matchNode
+    Set locatorNode = private_RuleLocatorNode(datasetNode)
     If locatorNode Is Nothing Then
         private_ShowError "Extract-rule не содержит match: " & _
             private_AttrOrDefault(datasetNode, "id", "?")
@@ -2124,16 +2128,168 @@ End Function
 
 Private Function private_CreateRegex(ByVal patternText As String, ByVal ignoreCase As Boolean, ByVal multiline As Boolean) As Object
     Dim rx As Object
+    Dim resolving As Object
+    Dim expandedPattern As String
+
+    Set resolving = VBA.CreateObject("Scripting.Dictionary")
+    resolving.CompareMode = 1
+    If Not private_ExpandRegexText(patternText, resolving, _
+        expandedPattern) Then Exit Function
     On Error GoTo EH
     Set rx = VBA.CreateObject("VBScript.RegExp")
     rx.Global = True
     rx.IgnoreCase = ignoreCase
     rx.Multiline = multiline
-    rx.Pattern = patternText
+    rx.Pattern = expandedPattern
     Set private_CreateRegex = rx
     Exit Function
 EH:
-    private_ShowError "Некорректный regex '" & patternText & "': " & Err.Description
+    private_ShowError "Некорректный regex '" & expandedPattern & "': " & _
+        Err.Description
+End Function
+
+Private Function private_LoadRegexFragments() As Boolean
+    Dim fragmentNodes As Object
+    Dim fragmentNode As Object
+    Dim fragmentId As String
+    Dim resolving As Object
+    Dim expandedText As String
+    Dim fragmentKey As Variant
+
+    Set m_RegexFragments = VBA.CreateObject("Scripting.Dictionary")
+    m_RegexFragments.CompareMode = 1
+    Set m_ExpandedRegexFragments = VBA.CreateObject("Scripting.Dictionary")
+    m_ExpandedRegexFragments.CompareMode = 1
+    Set fragmentNodes = m_Doc.selectNodes( _
+        "/p:wordDataExtractor/p:regexFragments/p:fragment")
+    For Each fragmentNode In fragmentNodes
+        fragmentId = VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+            fragmentNode, "id"))
+        If VBA.Len(fragmentId) = 0 Then
+            private_ShowError "Regex fragment должен иметь непустой id."
+            Exit Function
+        End If
+        If Not private_IsValidRegexFragmentId(fragmentId) Then
+            private_ShowError "Некорректный id regex fragment: " & fragmentId
+            Exit Function
+        End If
+        If m_RegexFragments.Exists(fragmentId) Then
+            private_ShowError "Дублирующийся regex fragment: " & fragmentId
+            Exit Function
+        End If
+        m_RegexFragments.Add fragmentId, VBA.CStr(fragmentNode.Text)
+    Next fragmentNode
+
+    For Each fragmentKey In m_RegexFragments.Keys
+        Set resolving = VBA.CreateObject("Scripting.Dictionary")
+        resolving.CompareMode = 1
+        If Not private_ResolveRegexFragment(VBA.CStr(fragmentKey), _
+            resolving, expandedText) Then Exit Function
+    Next fragmentKey
+    private_LoadRegexFragments = True
+End Function
+
+Private Function private_IsValidRegexFragmentId( _
+    ByVal fragmentId As String _
+) As Boolean
+    Dim rx As Object
+
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Pattern = "^[A-Za-z0-9_-]+$"
+    private_IsValidRegexFragmentId = rx.Test(fragmentId)
+End Function
+
+Private Function private_ValidateRegexFragmentUsage() As Boolean
+    Dim regexNodes As Object
+    Dim regexNode As Object
+    Dim patternText As String
+    Dim expandedText As String
+    Dim resolving As Object
+
+    Set regexNodes = m_Doc.selectNodes( _
+        "//p:match | //p:field[@regex] | //p:transform[@pattern]")
+    For Each regexNode In regexNodes
+        Select Case VBA.LCase$(VBA.CStr(regexNode.nodeName))
+            Case "match"
+                patternText = VBA.CStr(regexNode.Text)
+            Case "field"
+                patternText = ex_XmlCore.fn_NodeAttrText(regexNode, "regex")
+            Case "transform"
+                patternText = ex_XmlCore.fn_NodeAttrText(regexNode, "pattern")
+        End Select
+        Set resolving = VBA.CreateObject("Scripting.Dictionary")
+        resolving.CompareMode = 1
+        If Not private_ExpandRegexText(patternText, resolving, _
+            expandedText) Then Exit Function
+    Next regexNode
+    private_ValidateRegexFragmentUsage = True
+End Function
+
+Private Function private_ResolveRegexFragment( _
+    ByVal fragmentId As String, _
+    ByVal resolving As Object, _
+    ByRef outText As String _
+) As Boolean
+    Dim expandedText As String
+
+    If m_ExpandedRegexFragments.Exists(fragmentId) Then
+        outText = VBA.CStr(m_ExpandedRegexFragments(fragmentId))
+        private_ResolveRegexFragment = True
+        Exit Function
+    End If
+    If Not m_RegexFragments.Exists(fragmentId) Then
+        private_ShowError "Не найден regex fragment: " & fragmentId
+        Exit Function
+    End If
+    If resolving.Exists(fragmentId) Then
+        private_ShowError "Циклическая ссылка regex fragment: " & fragmentId
+        Exit Function
+    End If
+    resolving.Add fragmentId, True
+    If Not private_ExpandRegexText(VBA.CStr(m_RegexFragments(fragmentId)), _
+        resolving, expandedText) Then Exit Function
+    resolving.Remove fragmentId
+    m_ExpandedRegexFragments.Add fragmentId, expandedText
+    outText = expandedText
+    private_ResolveRegexFragment = True
+End Function
+
+Private Function private_ExpandRegexText( _
+    ByVal patternText As String, _
+    ByVal resolving As Object, _
+    ByRef outText As String _
+) As Boolean
+    Dim tokenRx As Object
+    Dim matches As Object
+    Dim tokenMatch As Object
+    Dim fragmentId As String
+    Dim fragmentText As String
+    Dim resultText As String
+
+    Set tokenRx = VBA.CreateObject("VBScript.RegExp")
+    tokenRx.Global = True
+    tokenRx.Pattern = "\{\{([A-Za-z0-9_-]+)\}\}"
+    resultText = patternText
+    Do
+        Set matches = tokenRx.Execute(resultText)
+        If matches.Count = 0 Then Exit Do
+        Set tokenMatch = matches.Item(0)
+        fragmentId = VBA.CStr(tokenMatch.SubMatches(0))
+        If Not private_ResolveRegexFragment(fragmentId, resolving, _
+            fragmentText) Then Exit Function
+        resultText = VBA.Left$(resultText, tokenMatch.FirstIndex) & _
+            "(?:" & fragmentText & ")" & _
+            VBA.Mid$(resultText, tokenMatch.FirstIndex + _
+            tokenMatch.Length + 1)
+    Loop
+    If VBA.InStr(1, resultText, "{{", VBA.vbBinaryCompare) > 0 Or _
+        VBA.InStr(1, resultText, "}}", VBA.vbBinaryCompare) > 0 Then
+        private_ShowError "Некорректная ссылка regex fragment в выражении: " & _
+            patternText
+        Exit Function
+    End If
+    outText = resultText
+    private_ExpandRegexText = True
 End Function
 
 Private Function private_ValidateRules() As Boolean
