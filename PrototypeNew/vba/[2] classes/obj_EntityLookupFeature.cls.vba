@@ -271,6 +271,14 @@ Public Function ExtendCandidates( _
     Dim extensionTable As obj_TableDynamic
     Dim ignoredSearchAlias As String
     Dim ignoredResultAliases As Collection
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim sqlMs As Double
+    Dim mergeMs As Double
+    Dim projectionMs As Double
+    Dim extensionRows As Long
+
+    perfTotalStartedAt = VBA.Timer
 
     If m_CandidateDataTable Is Nothing Then
         If notifyChange Then
@@ -283,16 +291,22 @@ Public Function ExtendCandidates( _
 
     If Not m_EntityLookupCfgParser.TryBuildLookupSqlParams( _
         extensionLookupKey, queryText, sqlParams, ignoredSearchAlias, ignoredResultAliases) Then Exit Function
+    perfStageStartedAt = VBA.Timer
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, extensionTable) Then Exit Function
+    sqlMs = private_PerfElapsedMs(perfStageStartedAt)
+    If Not extensionTable Is Nothing Then extensionRows = extensionTable.RowCount
 
     ' Пустой результат дополнительного источника не является ошибкой поиска.
     ' В этом случае показываем кандидатов основного запроса без расширенных данных.
     If Not extensionTable Is Nothing Then
         If extensionTable.RowCount > 0 Then
+            perfStageStartedAt = VBA.Timer
             If Not private_MergeCandidateExtension( _
                 extensionTable, joinColumnAlias, candidateSelector) Then Exit Function
+            mergeMs = private_PerfElapsedMs(perfStageStartedAt)
         End If
     End If
+    perfStageStartedAt = VBA.Timer
     If Not private_ProjectCandidateTable(m_CandidateDataTable, m_CandidateTable) Then
         Set m_CandidateTable = Nothing
         If Not private_RegisterCandidateTables(False) Then Exit Function
@@ -301,12 +315,23 @@ Public Function ExtendCandidates( _
         End If
         Exit Function
     End If
+    projectionMs = private_PerfElapsedMs(perfStageStartedAt)
     m_CandidateTable.SectionTitle = private_GetLookupSectionCaption(m_ActiveLookupKey)
     If Not private_RegisterCandidateTables(False) Then Exit Function
     If notifyChange Then
         If Not rt_PageManager.fn_RenderPage(m_Page, private_BuildRenderReason("extend-candidates")) Then Exit Function
     End If
     ExtendCandidates = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:lookup-extend totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' sqlMs='" & VBA.Format$(sqlMs, "0") & _
+        "' mergeMs='" & VBA.Format$(mergeMs, "0") & _
+        "' projectionMs='" & VBA.Format$(projectionMs, "0") & _
+        "' extensionRows='" & VBA.CStr(extensionRows) & _
+        "' resultRows='" & VBA.CStr(private_GetTableRowCount(m_CandidateTable)) & _
+        "' lookup='" & VBA.Replace$(extensionLookupKey, "'", "''") & "'"
+#End If
 End Function
 
 Public Function TryGetActiveCandidatesContext( _
@@ -351,6 +376,13 @@ Private Function private_SearchCandidates( _
     Dim sqlTable As obj_TableDynamic
     Dim searchColumnAlias As String
     Dim resultColumnAliases As Collection
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim sqlMs As Double
+    Dim projectionMs As Double
+    Dim runtimeSourceMs As Double
+
+    perfTotalStartedAt = VBA.Timer
 
     outCandidateCount = 0
     lookupKey = VBA.Trim$(lookupKey)
@@ -376,7 +408,9 @@ Private Function private_SearchCandidates( _
     If sqlParams Is Nothing Then Exit Function
 
     Set sqlTable = Nothing
+    perfStageStartedAt = VBA.Timer
     If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, sqlTable) Then Exit Function
+    sqlMs = private_PerfElapsedMs(perfStageStartedAt)
     outCandidateCount = private_GetTableRowCount(sqlTable)
 
     Set m_CandidateTable = Nothing
@@ -387,6 +421,7 @@ Private Function private_SearchCandidates( _
         Set m_CandidateDataTable = sqlTable
         m_ActiveLookupKey = lookupKey
         m_ActiveSearchColumnAlias = searchColumnAlias
+        perfStageStartedAt = VBA.Timer
         If Not private_ProjectCandidateTable(m_CandidateDataTable, m_CandidateTable) Then
             Set m_CandidateTable = Nothing
             If Not private_RegisterCandidateTables(False) Then Exit Function
@@ -395,15 +430,35 @@ Private Function private_SearchCandidates( _
             End If
             Exit Function
         End If
+        projectionMs = private_PerfElapsedMs(perfStageStartedAt)
     End If
     If Not m_CandidateTable Is Nothing Then m_CandidateTable.SectionTitle = private_GetLookupSectionCaption(lookupKey)
+    perfStageStartedAt = VBA.Timer
     If Not private_RegisterCandidateTables(False) Then Exit Function
+    runtimeSourceMs = private_PerfElapsedMs(perfStageStartedAt)
 
     If notifyChange Then
         If Not rt_PageManager.fn_RenderPage(m_Page, private_BuildRenderReason("search-candidates")) Then Exit Function
     End If
 
     private_SearchCandidates = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:lookup-search totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' sqlMs='" & VBA.Format$(sqlMs, "0") & _
+        "' projectionMs='" & VBA.Format$(projectionMs, "0") & _
+        "' runtimeSourceMs='" & VBA.Format$(runtimeSourceMs, "0") & _
+        "' rows='" & VBA.CStr(outCandidateCount) & _
+        "' lookup='" & VBA.Replace$(lookupKey, "'", "''") & _
+        "' notify='" & VBA.LCase$(VBA.CStr(notifyChange)) & "'"
+#End If
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim finishedAt As Double
+    finishedAt = VBA.Timer
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400#
+    private_PerfElapsedMs = (finishedAt - startedAt) * 1000#
 End Function
 
 Private Function private_GetTableRowCount(ByVal tableObj As obj_TableDynamic) As Long

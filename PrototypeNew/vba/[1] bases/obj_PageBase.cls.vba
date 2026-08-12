@@ -308,6 +308,12 @@ Public Function Render() As Boolean
     Dim errSource As String
     Dim errDescription As String
     Dim layoutRenderContext As obj_LayoutRenderContext
+    Dim perfTotalStartedAt As Double, perfStageStartedAt As Double
+    Dim domMs As Double, resetMs As Double, clearMs As Double
+    Dim layoutMs As Double, numberFormatMs As Double, stylesMs As Double
+    Dim inlineMs As Double, orphanShapesMs As Double
+
+    perfTotalStartedAt = VBA.Timer
 
     If Not private_EnsureNotDisposed("Render") Then Exit Function
     If Not Me.IsReady() Then Exit Function
@@ -343,6 +349,7 @@ Public Function Render() As Boolean
     End If
 
     ' Загружаем и сохраняем DOM, чтобы стили и снапшоты работали с одним деревом.
+    perfStageStartedAt = VBA.Timer
     Set m_UiDom = ex_XmlCore.fn_LoadDomByRelativePath( _
         wb, _
         resolvedUiPath, _
@@ -350,6 +357,7 @@ Public Function Render() As Boolean
         "PrototypeNew: failed to parse page UI file: ", _
         UI_NS)
     If m_UiDom Is Nothing Then Exit Function
+    domMs = private_PerfElapsedMs(perfStageStartedAt)
 
     Set pageNode = m_UiDom.selectSingleNode("/p:page")
     If pageNode Is Nothing Then
@@ -368,6 +376,7 @@ Public Function Render() As Boolean
         prevCalculation, prevStatusBar, applicationStateCaptured
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
+    perfStageStartedAt = VBA.Timer
     ex_ControlPartsRuntime.fn_ResetControlParts
     Me.ResetInlineRuns
     ' Bounds других уже отрендеренных страниц нужны для их будущего partial
@@ -375,30 +384,58 @@ Public Function Render() As Boolean
     ex_ControlRefreshRuntime.fn_ResetRegisteredControlsByWorksheet ws.Name
     ex_StylePipelineEngine.fn_ResetLayoutBounds
     ex_LayoutControlFallbackRndr.fn_ResetControlFallbacks
+    resetMs = private_PerfElapsedMs(perfStageStartedAt)
 
+    perfStageStartedAt = VBA.Timer
     If Not Me.ResetControlActions(True) Then GoTo Cleanup
     If Not private_TryClearPageRuntime(Not retainGeneratedShapes) Then GoTo Cleanup
+    clearMs = private_PerfElapsedMs(perfStageStartedAt)
     ' Один контекст на один проход: worksheet/workbook и seed-ы runtime ключей.
     Set layoutRenderContext = New obj_LayoutRenderContext
     If Not layoutRenderContext.Initialize(m_Page) Then GoTo Cleanup
+    perfStageStartedAt = VBA.Timer
     If Not ex_XmlLayoutEngine.fn_RenderNode(layoutRenderContext, pageNode) Then GoTo Cleanup
+    layoutMs = private_PerfElapsedMs(perfStageStartedAt)
     ' Layout уже собрал bounds всех контролов. Применяем текстовый формат одним
     ' batch COM-вызовом до общего style pass вместо одного вызова на control.
+    perfStageStartedAt = VBA.Timer
     If Not ex_StylePipelineEngine.fn_ApplyTextNumberFormatToControlBounds(ws) Then GoTo Cleanup
+    numberFormatMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
     If Not ex_StylePipelineEngine.fn_ApplyPageStyles(ws, m_UiDom) Then GoTo Cleanup
+    stylesMs = private_PerfElapsedMs(perfStageStartedAt)
     ex_LayoutControlFallbackRndr.fn_ApplyPendingControlFallbacks ws
+    perfStageStartedAt = VBA.Timer
     If Not Me.ApplyInlineRuns() Then GoTo Cleanup
+    inlineMs = private_PerfElapsedMs(perfStageStartedAt)
 
     ' В retained-режиме глобально shape не удаляем до рендера.
     ' После рендера чистим только orphan-shape (контролы, которые больше не присутствуют в текущем layout).
     If retainGeneratedShapes Then
+        perfStageStartedAt = VBA.Timer
         Call private_DeleteOrphanRuntimeShapesByControlRegistry(ws)
+        orphanShapesMs = private_PerfElapsedMs(perfStageStartedAt)
     End If
 
     private_LogRuntimeInfo "render-bindings controls=" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & " shapeRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByShape)) & " cellRoutes=" & VBA.CStr(private_GetDictionaryCount(m_RouteByCell))
 
     Render = True
     m_LastRenderedUiPath = resolvedUiPath
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:page-base-render totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' domMs='" & VBA.Format$(domMs, "0") & _
+        "' resetMs='" & VBA.Format$(resetMs, "0") & _
+        "' clearMs='" & VBA.Format$(clearMs, "0") & _
+        "' layoutMs='" & VBA.Format$(layoutMs, "0") & _
+        "' numberFormatMs='" & VBA.Format$(numberFormatMs, "0") & _
+        "' stylesMs='" & VBA.Format$(stylesMs, "0") & _
+        "' inlineMs='" & VBA.Format$(inlineMs, "0") & _
+        "' orphanShapesMs='" & VBA.Format$(orphanShapesMs, "0") & _
+        "' controls='" & VBA.CStr(private_GetDictionaryCount(m_ControlByKey)) & _
+        "' shapes='" & VBA.CStr(ws.Shapes.Count) & _
+        "' retained='" & VBA.LCase$(VBA.CStr(retainGeneratedShapes)) & "'"
+#End If
 
 Cleanup:
     If applicationStateCaptured Then _
@@ -454,6 +491,15 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim escapedName As String
     Dim oldVisualScope As Range
     Dim selectionAreas As Collection
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim planMs As Double, cleanupMs As Double, patchesMs As Double
+    Dim reconcileMs As Double, baseStylesMs As Double, renderMs As Double
+    Dim controlStylesMs As Double, commitMs As Double
+    Dim shapesBefore As Long
+    Dim patchCount As Long
+
+    perfTotalStartedAt = VBA.Timer
 
     If Not private_EnsureNotDisposed("TryReflowControl") Then Exit Function
     If m_IsRendering Then
@@ -492,8 +538,12 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     newColEnd = oldColStart + newSpanCols - 1
     rowDelta = newRowEnd - oldRowEnd
 
+    perfStageStartedAt = VBA.Timer
     If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutReflowPlan( _
         ws.Name, controlName, newSpanRows, reflowPatches, ancestorUpdates) Then Exit Function
+    planMs = private_PerfElapsedMs(perfStageStartedAt)
+    If Not reflowPatches Is Nothing Then patchCount = reflowPatches.Count
+    shapesBefore = ws.Shapes.Count
     Set selectionAreas = private_CaptureSelectionAreas(ws)
     private_TranslateSelectionAreasByPatches selectionAreas, reflowPatches
 
@@ -510,6 +560,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
 
     ' Старый target очищается до переноса. При shrink переносимый хвост займет
     ' освободившуюся нижнюю часть и не будет случайно очищен после translation.
+    perfStageStartedAt = VBA.Timer
     If Not ex_ControlPartsRuntime.fn_TryGetControlVisualScope(ws, controlName, oldVisualScope) Then GoTo Cleanup
     If oldVisualScope Is Nothing Then
         Set oldVisualScope = ws.Range(ws.Cells(oldRowStart, oldColStart), ws.Cells(oldRowEnd, oldColEnd))
@@ -517,32 +568,65 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     oldVisualScope.Clear
     If Not ex_ControlPartsRuntime.fn_RemoveControlPartsByControl(ws.Name, controlName) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_RemoveLayoutBoundsByControl(ws.Name, controlName) Then GoTo Cleanup
+    cleanupMs = private_PerfElapsedMs(perfStageStartedAt)
 
+    perfStageStartedAt = VBA.Timer
     If Not reflowPatches Is Nothing Then
         If Not private_TryApplyLayoutReflowPatches(ws, reflowPatches) Then GoTo Cleanup
     End If
+    patchesMs = private_PerfElapsedMs(perfStageStartedAt)
 
     ' Translate переносит содержимое subtree, но итоговая геометрия retained
     ' Shape должна определяться декларативным layout, а не его текущей позицией
     ' на листе. Это также исправляет ручное перетаскивание кнопки пользователем.
+    perfStageStartedAt = VBA.Timer
     If Not private_TryReconcileSingleButtonRuntimeShapes(ws) Then GoTo Cleanup
+    reconcileMs = private_PerfElapsedMs(perfStageStartedAt)
 
+    perfStageStartedAt = VBA.Timer
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
         ws, m_UiDom, _
         ws.Range(ws.Cells(oldRowStart, oldColStart), ws.Cells(newRowEnd, newColEnd))) Then GoTo Cleanup
+    baseStylesMs = private_PerfElapsedMs(perfStageStartedAt)
 
+    perfStageStartedAt = VBA.Timer
     If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
         renderCtx, controlNode, oldRowStart, oldColStart, newRowEnd, newColEnd) Then GoTo Cleanup
+    renderMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
     If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
         ws, m_UiDom, controlName) Then GoTo Cleanup
+    controlStylesMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
     If Not ex_ControlRefreshRuntime.fn_CommitLayoutReflowPlan( _
         ws.Name, controlName, newRowEnd, newColEnd, ancestorUpdates) Then GoTo Cleanup
     If Not private_CommitRuntimeAncestorUpdates(ancestorUpdates) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_CommitAncestorLayoutBounds( _
         ws.Name, ancestorUpdates) Then GoTo Cleanup
+    commitMs = private_PerfElapsedMs(perfStageStartedAt)
 
     private_RestoreSelectionAreas ws, selectionAreas
     TryReflowControl = True
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:control-reflow totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' planMs='" & VBA.Format$(planMs, "0") & _
+        "' cleanupMs='" & VBA.Format$(cleanupMs, "0") & _
+        "' patchesMs='" & VBA.Format$(patchesMs, "0") & _
+        "' reconcileMs='" & VBA.Format$(reconcileMs, "0") & _
+        "' baseStylesMs='" & VBA.Format$(baseStylesMs, "0") & _
+        "' renderMs='" & VBA.Format$(renderMs, "0") & _
+        "' controlStylesMs='" & VBA.Format$(controlStylesMs, "0") & _
+        "' commitMs='" & VBA.Format$(commitMs, "0") & _
+        "' control='" & VBA.Replace$(controlName, "'", "''") & _
+        "' oldRows='" & VBA.CStr(oldRowEnd - oldRowStart + 1) & _
+        "' newRows='" & VBA.CStr(newSpanRows) & _
+        "' rowDelta='" & VBA.CStr(rowDelta) & _
+        "' patches='" & VBA.CStr(patchCount) & _
+        "' shapesBefore='" & VBA.CStr(shapesBefore) & _
+        "' shapesAfter='" & VBA.CStr(ws.Shapes.Count) & "'"
+#End If
 
 Cleanup:
     If applicationStateCaptured Then _
@@ -3273,6 +3357,12 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
     Dim shapeIndex As Long
     Dim moveRow As Long
     Dim copyErrorNumber As Long
+    Dim perfTotalStartedAt As Double, perfStageStartedAt As Double
+    Dim captureMs As Double, copyMs As Double, duplicateCleanupMs As Double
+    Dim placementRestoreMs As Double, restoreRowsAndShapesMs As Double
+    Dim shapesBefore As Long
+
+    perfTotalStartedAt = VBA.Timer
 
     If ws Is Nothing Then Exit Function
     If firstRow <= 0 Or firstCol <= 0 Or lastRow < firstRow Or lastCol < firstCol Then Exit Function
@@ -3302,6 +3392,8 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
 
     Set knownShapeNames = VBA.CreateObject("Scripting.Dictionary")
     knownShapeNames.CompareMode = 1
+    shapesBefore = ws.Shapes.Count
+    perfStageStartedAt = VBA.Timer
     For Each shp In ws.Shapes
         knownShapeNames(shp.Name) = True
     Next shp
@@ -3323,13 +3415,25 @@ Private Function private_TryTranslateWorksheetSubtreeRows( _
         info("Col") = VBA.CLng(topCell.Column)
         info("TopOffset") = VBA.CDbl(shp.Top - topCell.Top)
         info("LeftOffset") = VBA.CDbl(shp.Left - topCell.Left)
+        info("Placement") = VBA.CLng(shp.Placement)
+        info("PlacementChanged") = False
+        ' Range.Copy дублирует Shapes с xlMove/xlMoveAndSize, хотя ниже runtime
+        ' всё равно переносит оригиналы вручную. Временно отвязываем Shape от
+        ' ячеек, чтобы repeated partial reflow не фрагментировал drawing-layer.
+        On Error Resume Next
+        shp.Placement = xlFreeFloating
+        info("PlacementChanged") = (Err.Number = 0)
+        Err.Clear
+        On Error GoTo 0
         shapeInfo.Add info
 ContinueShape:
     Next shp
+    captureMs = private_PerfElapsedMs(perfStageStartedAt)
     Set sourceRange = ws.Range( _
         ws.Cells(firstRow, firstCol), _
         ws.Cells(lastRow, lastCol))
     Set destinationCell = ws.Cells(firstRow + rowDelta, firstCol)
+    perfStageStartedAt = VBA.Timer
     On Error Resume Next
     sourceRange.Copy Destination:=destinationCell
     copyErrorNumber = Err.Number
@@ -3358,13 +3462,32 @@ ContinueShape:
         End If
     End If
     Application.CutCopyMode = False
+    copyMs = private_PerfElapsedMs(perfStageStartedAt)
+
+    ' Copy завершён — сразу возвращаем исходную привязку оригинальных Shapes.
+    ' Это также ограничивает время, в течение которого UI находится во
+    ' временном xlFreeFloating-состоянии при последующей ошибке cleanup.
+    perfStageStartedAt = VBA.Timer
+    For Each info In shapeInfo
+        If VBA.CBool(info("PlacementChanged")) Then
+            Set shp = Nothing
+            On Error Resume Next
+            Set shp = ws.Shapes(VBA.CStr(info("Name")))
+            If Not shp Is Nothing Then shp.Placement = VBA.CLng(info("Placement"))
+            On Error GoTo 0
+        End If
+    Next info
+    placementRestoreMs = private_PerfElapsedMs(perfStageStartedAt)
 
     ' Оставляем только Shapes, существовавшие до блочного Copy.
+    perfStageStartedAt = VBA.Timer
     For shapeIndex = ws.Shapes.Count To 1 Step -1
         Set shp = ws.Shapes(shapeIndex)
         If Not knownShapeNames.Exists(shp.Name) Then shp.Delete
     Next shapeIndex
+    duplicateCleanupMs = private_PerfElapsedMs(perfStageStartedAt)
 
+    perfStageStartedAt = VBA.Timer
     For rowIndex = firstRow To lastRow
         ws.Rows(rowIndex + rowDelta).RowHeight = rowHeights(rowIndex)
     Next rowIndex
@@ -3380,8 +3503,25 @@ ContinueShape:
         shp.Left = newTopCell.Left + VBA.CDbl(info("LeftOffset"))
 ContinueMovedShape:
     Next info
+    restoreRowsAndShapesMs = private_PerfElapsedMs(perfStageStartedAt)
 
     private_TryTranslateWorksheetSubtreeRows = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:worksheet-subtree-translate totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' captureMs='" & VBA.Format$(captureMs, "0") & _
+        "' copyMs='" & VBA.Format$(copyMs, "0") & _
+        "' placementRestoreMs='" & VBA.Format$(placementRestoreMs, "0") & _
+        "' duplicateCleanupMs='" & VBA.Format$(duplicateCleanupMs, "0") & _
+        "' restoreMs='" & VBA.Format$(restoreRowsAndShapesMs, "0") & _
+        "' rows='" & VBA.CStr(lastRow - firstRow + 1) & _
+        "' cols='" & VBA.CStr(lastCol - firstCol + 1) & _
+        "' rowDelta='" & VBA.CStr(rowDelta) & _
+        "' movedShapes='" & VBA.CStr(shapeInfo.Count) & _
+        "' shapesBefore='" & VBA.CStr(shapesBefore) & _
+        "' shapesAfter='" & VBA.CStr(ws.Shapes.Count) & _
+        "' copyFallback='" & VBA.LCase$(VBA.CStr(copyErrorNumber <> 0)) & "'"
+#End If
 End Function
 
 Private Sub private_DeleteDuplicateSingleButtonRuntimeShapes(ByVal ws As Worksheet)
@@ -3684,6 +3824,13 @@ End Function
 
 Private Function private_EscapeForLog(ByVal valueText As String) As String
     private_EscapeForLog = VBA.Replace$(VBA.CStr(valueText), "'", "''")
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim finishedAt As Double
+    finishedAt = VBA.Timer
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400#
+    private_PerfElapsedMs = (finishedAt - startedAt) * 1000#
 End Function
 
 #If LOGGING_DEBUG_ENABLED Then

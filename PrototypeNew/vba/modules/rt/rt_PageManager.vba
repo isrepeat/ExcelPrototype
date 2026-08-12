@@ -479,6 +479,9 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
     Dim errDescription As String
     Dim pageId As String
     Dim activeSheetObj As Object
+    Dim perfStartedAt As Double
+
+    perfStartedAt = VBA.Timer
 
     If page Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -540,10 +543,18 @@ Public Function fn_RenderPage(ByVal page As obj_IPage, Optional ByVal reason As 
         End If
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogInfo "page-manager:render-done sheet='" & sheetName & "'"
+        ex_Core.fn_Diagnostic_LogInfo "perf:page-render totalMs='" & _
+            VBA.Format$(private_PerfElapsedMs(perfStartedAt), "0") & _
+            "' sheet='" & sheetName & "' reason='" & _
+            VBA.Replace$(normalizedReason, "'", "''") & "' result='true'"
 #End If
     Else
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "page-manager:render-failed sheet='" & sheetName & "'"
+        ex_Core.fn_Diagnostic_LogInfo "perf:page-render totalMs='" & _
+            VBA.Format$(private_PerfElapsedMs(perfStartedAt), "0") & _
+            "' sheet='" & sheetName & "' reason='" & _
+            VBA.Replace$(normalizedReason, "'", "''") & "' result='false'"
 #End If
     End If
     Exit Function
@@ -553,6 +564,13 @@ EH_RENDER:
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "page-manager:render-exception sheet='" & sheetName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
 #End If
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim finishedAt As Double
+    finishedAt = VBA.Timer
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400#
+    private_PerfElapsedMs = (finishedAt - startedAt) * 1000#
 End Function
 
 #If LOGGING_DEBUG_ENABLED Then

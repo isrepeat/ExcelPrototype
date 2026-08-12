@@ -95,6 +95,12 @@ Public Function fn_TrySqlRequest( _
     Dim cellText As String
     Dim recordsetData As Variant
     Dim recordIndex As Long
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim connectionMs As Double, schemaMs As Double, queryOpenMs As Double
+    Dim fetchMs As Double, materializeMs As Double
+
+    perfTotalStartedAt = VBA.Timer
 
     On Error GoTo EH_QUERY
 
@@ -170,12 +176,16 @@ Public Function fn_TrySqlRequest( _
     Set columnAliases = sqlParams.ColumnAliases
 
     ' 3) Повторно используем одно read-only ADO-соединение для каждого пути источника.
+    perfStageStartedAt = VBA.Timer
     If Not private_TryGetCachedConnection(sourcePath, conn) Then GoTo CleanupFail
+    connectionMs = private_PerfElapsedMs(perfStageStartedAt)
 
     ' 4) Определяем физические имена полей. Запрос схемы WHERE 1=0 выполняется только
     ' при промахе кэша для версии файла, ссылки таблицы и набора заголовков.
+    perfStageStartedAt = VBA.Timer
     If Not private_TryGetResolvedSourceHeaders( _
         conn, sourcePath, tableRef, sourceColumnHeaders, resolvedSourceColumnHeaders) Then GoTo CleanupFail
+    schemaMs = private_PerfElapsedMs(perfStageStartedAt)
 
     Set rowProcessor = sqlParams.RowProcessor
     hasCustomRowProcessor = Not rowProcessor Is Nothing
@@ -203,13 +213,24 @@ Public Function fn_TrySqlRequest( _
     ex_Core.fn_Diagnostic_LogInfo "sql-engine:data-sql " & sql
 #End If
     Set rsData = VBA.CreateObject("ADODB.Recordset")
+    perfStageStartedAt = VBA.Timer
     rsData.Open sql, conn, 0, 1
+    queryOpenMs = private_PerfElapsedMs(perfStageStartedAt)
 
     ' Без кастомного row processor пустой набор данных не считаем ошибкой:
     ' просто нет строк под текущий запрос.
     If rsData.EOF And Not hasCustomRowProcessor Then
         rsData.Close
         Set rsData = Nothing
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "perf:sql-request totalMs='" & _
+            VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+            "' connectionMs='" & VBA.Format$(connectionMs, "0") & _
+            "' schemaMs='" & VBA.Format$(schemaMs, "0") & _
+            "' queryOpenMs='" & VBA.Format$(queryOpenMs, "0") & _
+            "' fetchMs='0' materializeMs='0' rowsRead='0' resultRows='0'" & _
+            " source='" & VBA.Replace$(sourcePath, "'", "''") & "'"
+#End If
         fn_TrySqlRequest = True
         GoTo CleanupDone
     End If
@@ -262,10 +283,13 @@ Public Function fn_TrySqlRequest( _
     ' 7) Забираем весь Recordset одним COM-вызовом.
     ' SQL-фильтрация уже выполнена ADO; здесь только переносим результат в runtime-модель.
     rowNumber = 0
+    perfStageStartedAt = VBA.Timer
     If Not rsData.EOF Then recordsetData = rsData.GetRows
     rsData.Close
     Set rsData = Nothing
+    fetchMs = private_PerfElapsedMs(perfStageStartedAt)
 
+    perfStageStartedAt = VBA.Timer
     If Not IsEmpty(recordsetData) Then
         For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
             rowNumber = rowNumber + 1
@@ -297,6 +321,7 @@ Public Function fn_TrySqlRequest( _
             End If
         Next recordIndex
     End If
+    materializeMs = private_PerfElapsedMs(perfStageStartedAt)
 
     If hasCustomRowProcessor Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -321,6 +346,16 @@ Public Function fn_TrySqlRequest( _
 
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "sql-engine:request-done rowsRead=" & VBA.CStr(rowNumber) & "; resultRows=" & VBA.CStr(tableObj.RowCount) & "; resultColumns=" & VBA.CStr(tableObj.ColumnCount)
+    ex_Core.fn_Diagnostic_LogInfo "perf:sql-request totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' connectionMs='" & VBA.Format$(connectionMs, "0") & _
+        "' schemaMs='" & VBA.Format$(schemaMs, "0") & _
+        "' queryOpenMs='" & VBA.Format$(queryOpenMs, "0") & _
+        "' fetchMs='" & VBA.Format$(fetchMs, "0") & _
+        "' materializeMs='" & VBA.Format$(materializeMs, "0") & _
+        "' rowsRead='" & VBA.CStr(rowNumber) & _
+        "' resultRows='" & VBA.CStr(tableObj.RowCount) & _
+        "' source='" & VBA.Replace$(sourcePath, "'", "''") & "'"
 #End If
 
     ' Финализируем успешный результат.
@@ -1514,4 +1549,11 @@ Private Function private_ToSafeValue(ByVal valueIn As Variant) As Variant
 
 EH:
     private_ToSafeValue = VBA.vbNullString
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim finishedAt As Double
+    finishedAt = VBA.Timer
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400#
+    private_PerfElapsedMs = (finishedAt - startedAt) * 1000#
 End Function
