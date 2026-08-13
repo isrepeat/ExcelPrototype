@@ -8,14 +8,13 @@
         new Promise(resolve => setTimeout(resolve, ms));
 
     // ============================================================
-    //  1. CLEANUP ПРЕДЫДУЩИХ ЗАПУСКОВ
+    //  1. CLEANUP ПРЕДЫДУЩИХ ВЕРСИЙ
     // ============================================================
 
     try {
         window.__vagonModifierFix?.stop?.(true);
     } catch {}
 
-    // Старые раздельные версии, если вдруг ещё остались.
     try {
         window.__vagonCtrlHoldFix?.stop?.(true);
     } catch {}
@@ -54,9 +53,6 @@
             return;
         }
 
-        /*
-         * Сначала ищем нормальный контейнер toast.
-         */
         let toast = el.closest(
             '[role="alert"], ' +
             '[role="status"], ' +
@@ -67,10 +63,6 @@
             '[class*="message" i]'
         );
 
-        /*
-         * Fallback: ищем небольшой fixed/absolute
-         * контейнер среди родителей.
-         */
         if (!toast) {
             let parent = el;
 
@@ -163,6 +155,8 @@
                 typeof obj.sendPayload === "function" &&
                 typeof obj.processKeyDown === "function" &&
                 typeof obj.processKeyUp === "function" &&
+                typeof obj.startPendingCtrl === "function" &&
+                typeof obj.flushAsRealCtrlNow === "function" &&
                 isObject(obj.trackedModifiers)
             );
         } catch {
@@ -179,7 +173,6 @@
             }
         };
 
-        // React / Vue объекты.
         for (const el of document.querySelectorAll("*")) {
             let names;
 
@@ -217,7 +210,6 @@
             }
         }
 
-        // Подозрительные глобальные объекты.
         try {
             const descriptors =
                 Object.getOwnPropertyDescriptors(
@@ -248,7 +240,6 @@
         }));
 
         const seen = new WeakSet();
-
         let checked = 0;
 
         while (
@@ -380,7 +371,7 @@
         console.error(
             "❌ Vagon Peripherals не найден.\n" +
             '🙈 Скрытие "Clipboard synced" ' +
-            "при этом продолжает работать."
+            "продолжает работать."
         );
 
         return;
@@ -389,7 +380,7 @@
     window.__vagonPeripheral = p;
 
     // ============================================================
-    //  4. ФИЗИЧЕСКОЕ СОСТОЯНИЕ CTRL / ALT
+    //  4. СОСТОЯНИЕ ФИЗИЧЕСКИХ MODIFIER KEYS
     // ============================================================
 
     const physicalCtrls = new Set();
@@ -397,6 +388,13 @@
 
     let realCtrlUpAllowance = 0;
     let realAltUpAllowance = 0;
+
+    /*
+     * Настоящий KeyboardEvent Ctrl.
+     *
+     * Нужен для исправления 15-мс race Vagon.
+     */
+    let pendingCtrlEvent = null;
 
     function isCtrlCode(code) {
         return (
@@ -412,52 +410,8 @@
         );
     }
 
-    function onKeyDown(e) {
-        if (!e.isTrusted) {
-            return;
-        }
-
-        if (isCtrlCode(e.code)) {
-            physicalCtrls.add(e.code);
-        }
-
-        if (isAltCode(e.code)) {
-            physicalAlts.add(e.code);
-        }
-    }
-
-    function onKeyUp(e) {
-        if (isCtrlCode(e.code)) {
-            if (physicalCtrls.has(e.code)) {
-                realCtrlUpAllowance++;
-            }
-
-            physicalCtrls.delete(e.code);
-        }
-
-        if (isAltCode(e.code)) {
-            if (physicalAlts.has(e.code)) {
-                realAltUpAllowance++;
-            }
-
-            physicalAlts.delete(e.code);
-        }
-    }
-
-    window.addEventListener(
-        "keydown",
-        onKeyDown,
-        true
-    );
-
-    window.addEventListener(
-        "keyup",
-        onKeyUp,
-        true
-    );
-
     // ============================================================
-    //  5. ФИЛЬТР МОДИФИКАТОРОВ VAGON
+    //  5. ФИЛЬТР SENDPAYLOAD
     // ============================================================
 
     const originalSendPayload =
@@ -527,8 +481,8 @@
             obj.u === true
         ) {
             /*
-             * Физический Ctrl ещё зажат.
-             * Vagon не имеет права отпускать его.
+             * Физический Ctrl всё ещё зажат.
+             * Запрещаем Vagon отпускать его.
              */
             if (physicalCtrls.size > 0) {
                 console.log(
@@ -540,7 +494,7 @@
             }
 
             /*
-             * Настоящий отпуск Ctrl.
+             * Настоящий физический отпуск Ctrl.
              */
             if (realCtrlUpAllowance > 0) {
                 realCtrlUpAllowance--;
@@ -566,7 +520,7 @@
             obj.u === true
         ) {
             /*
-             * Реальный Alt ещё удерживается.
+             * Настоящий Alt всё ещё удерживается.
              */
             if (physicalAlts.size > 0) {
                 return Reflect.apply(
@@ -577,7 +531,7 @@
             }
 
             /*
-             * Настоящий отпуск Alt.
+             * Настоящий физический отпуск Alt.
              */
             if (realAltUpAllowance > 0) {
                 realAltUpAllowance--;
@@ -594,7 +548,8 @@
             }
 
             /*
-             * Ложный Alt UP во время удержания Ctrl.
+             * Vagon сам отправляет Alt UP,
+             * пока пользователь держит Ctrl.
              */
             if (physicalCtrls.size > 0) {
                 console.log(
@@ -617,16 +572,216 @@
         filteredSendPayload;
 
     // ============================================================
-    //  6. УПРАВЛЕНИЕ / CLEANUP
+    //  6. ПРЯМАЯ ОТПРАВКА KEY DOWN
+    // ============================================================
+
+    function sendKeyDownDirect(e) {
+        const fallbackKeyCode =
+            e.code === "KeyC"
+                ? 67
+                : e.code === "KeyV"
+                    ? 86
+                    : 0;
+
+        const keyCode =
+            e.keyCode ||
+            e.which ||
+            fallbackKeyCode;
+
+        const payload =
+            JSON.stringify({
+                $type: "1",
+                k: e.key,
+                kc: keyCode,
+                c: e.code,
+                u: false
+            });
+
+        /*
+         * Через наш filteredSendPayload.
+         *
+         * Для C/V down он ничего не блокирует.
+         */
+        p.sendPayload(payload);
+    }
+
+    // ============================================================
+    //  7. KEYDOWN
+    // ============================================================
+
+    function onKeyDown(e) {
+        if (!e.isTrusted) {
+            return;
+        }
+
+        // --------------------------------------------------------
+        // ФИЗИЧЕСКИЙ CTRL
+        // --------------------------------------------------------
+
+        if (isCtrlCode(e.code)) {
+            physicalCtrls.add(e.code);
+
+            /*
+             * Сохраняем настоящий Ctrl event.
+             */
+            pendingCtrlEvent = e;
+
+            return;
+        }
+
+        // --------------------------------------------------------
+        // ФИЗИЧЕСКИЙ ALT
+        // --------------------------------------------------------
+
+        if (isAltCode(e.code)) {
+            physicalAlts.add(e.code);
+            return;
+        }
+
+        // --------------------------------------------------------
+        // FIX:
+        // ПЕРВЫЙ CTRL+C / CTRL+V ТЕРЯЕТСЯ
+        // --------------------------------------------------------
+
+        const isCV =
+            e.code === "KeyC" ||
+            e.code === "KeyV";
+
+        if (
+            isCV &&
+            e.ctrlKey &&
+            physicalCtrls.size > 0 &&
+            p.ctrlMaybeAltGr === true &&
+            pendingCtrlEvent
+        ) {
+            /*
+             * Вот здесь штатный keyDownHandler Vagon
+             * сделал бы:
+             *
+             * flushAsRealCtrlNow();
+             * return;
+             *
+             * и C/V потерялась бы.
+             *
+             * Поэтому не даём событию дойти туда.
+             */
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            try {
+                /*
+                 * Убираем 15-мс ожидание AltGr.
+                 */
+                p.flushAsRealCtrlNow();
+
+                /*
+                 * Vagon ещё НЕ отправил Ctrl down.
+                 *
+                 * Отправляем сохранённый настоящий
+                 * Ctrl KeyboardEvent через его же
+                 * processKeyDown().
+                 */
+                if (
+                    p.trackedModifiers?.Control !== true
+                ) {
+                    p.processKeyDown(
+                        pendingCtrlEvent
+                    );
+                }
+
+                /*
+                 * А C/V down отправляем напрямую.
+                 *
+                 * Это особенно полезно для V:
+                 * здесь мы вообще не запускаем
+                 * navigator.clipboard.readText().
+                 */
+                sendKeyDownDirect(e);
+
+                console.log(
+                    `⚡ Early Ctrl+${e.code === "KeyC" ? "C" : "V"} recovered`
+                );
+            } catch (error) {
+                console.error(
+                    "❌ Early Ctrl combo fix error:",
+                    error
+                );
+            }
+
+            return;
+        }
+    }
+
+    // ============================================================
+    //  8. KEYUP
+    // ============================================================
+
+    function onKeyUp(e) {
+        // --------------------------------------------------------
+        // CTRL
+        // --------------------------------------------------------
+
+        if (isCtrlCode(e.code)) {
+            if (physicalCtrls.has(e.code)) {
+                realCtrlUpAllowance++;
+            }
+
+            physicalCtrls.delete(e.code);
+
+            /*
+             * Если отпущен последний Ctrl,
+             * старый event больше не нужен.
+             */
+            if (physicalCtrls.size === 0) {
+                pendingCtrlEvent = null;
+            }
+
+            return;
+        }
+
+        // --------------------------------------------------------
+        // ALT
+        // --------------------------------------------------------
+
+        if (isAltCode(e.code)) {
+            if (physicalAlts.has(e.code)) {
+                realAltUpAllowance++;
+            }
+
+            physicalAlts.delete(e.code);
+        }
+    }
+
+    /*
+     * window/capture выполняется ДО document/capture,
+     * где Vagon слушает клавиатуру.
+     */
+    window.addEventListener(
+        "keydown",
+        onKeyDown,
+        true
+    );
+
+    window.addEventListener(
+        "keyup",
+        onKeyUp,
+        true
+    );
+
+    // ============================================================
+    //  9. УПРАВЛЕНИЕ
     // ============================================================
 
     window.__vagonModifierFix = {
+        version: 3,
+
         peripheral: p,
         toastObserver,
 
         status() {
             console.log({
                 active: true,
+                version: 3,
 
                 physicalCtrls:
                     [...physicalCtrls],
@@ -636,6 +791,12 @@
 
                 realCtrlUpAllowance,
                 realAltUpAllowance,
+
+                pendingCtrlEvent:
+                    pendingCtrlEvent?.code || null,
+
+                ctrlMaybeAltGr:
+                    p.ctrlMaybeAltGr,
 
                 vagonTrackedControl:
                     p.trackedModifiers?.Control,
@@ -675,6 +836,8 @@
             physicalCtrls.clear();
             physicalAlts.clear();
 
+            pendingCtrlEvent = null;
+
             realCtrlUpAllowance = 0;
             realAltUpAllowance = 0;
 
@@ -691,7 +854,7 @@
 
             if (!silent) {
                 console.log(
-                    "🛑 Vagon Modifier Fix stopped"
+                    "🛑 Vagon Modifier Fix V3 stopped"
                 );
             }
         }
@@ -702,7 +865,7 @@
     // ============================================================
 
     console.log(
-        "✅ Vagon Modifier Fix ACTIVE"
+        "✅ Vagon Modifier Fix V3 ACTIVE"
     );
 
     console.log(
@@ -711,6 +874,10 @@
 
     console.log(
         "✅ Phantom Alt UP fix"
+    );
+
+    console.log(
+        "✅ Early Ctrl+C / Ctrl+V fix"
     );
 
     console.log(
