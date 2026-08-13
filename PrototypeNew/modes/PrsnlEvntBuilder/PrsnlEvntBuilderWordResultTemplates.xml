@@ -95,8 +95,6 @@
 #_          Тимчасове виконання обов'язків {[PositionGenitive]|lowerFirstLetter} покласти на #^
 #_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOAccusative]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
-#_        {#if [RequiresFoodSupportRemove]}{#newline}#^
-#_        {#include block.RemoveFromFoodSupport}{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -108,7 +106,6 @@
 #_          {#if #not item.__first}{#newline}{#endif}#^
 #_          {item.[RankDative]|upperFirstLetter} {item.[FIODative]} повернутись до виконання обов'язків #^
 #_          {item.[PositionGenitive]|lowerFirstLetter}.#^
-#_          {#if item.__last}{#newline}{#endif}#^
 #_        {#endfor}#^
         ]]>
       </text>
@@ -120,8 +117,7 @@
 #_        {#include block.PersonLineUpper}.#^
 #_        {#newline}#^
 #_        {#include block.ReturnToDuty}#^
-#_        {#include block.EnrollToFoodSupport}#^
-#_        {#newline}#^
+#_        {#newline}{#newline}#^
 #_        {#include block.IncomingBasis}#^
 #_        {#include block.OptionalVacationTicket}#^
 #_        .#^
@@ -237,8 +233,7 @@
 #_      {#include block.PersonLineLower}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalBusinessTripCertificate}#^
@@ -267,8 +262,7 @@
 #_      {#include block.PersonLineLower}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
@@ -333,6 +327,7 @@
 #_      {#include block.PersonLineUpper}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      .{#newline}{#newline}#^
@@ -346,8 +341,7 @@
 #_      {#include block.PersonLineUpper}.#^
 #_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
-#_      {#include block.EnrollToFoodSupport}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      .{#newline}{#newline}#^
@@ -369,7 +363,7 @@
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
@@ -383,7 +377,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      ; відпускний квиток № {[VacationTicketNo]} від {[VacationTicketDateShort]}#^
@@ -398,7 +392,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
@@ -412,7 +406,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
@@ -426,7 +420,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -439,7 +433,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}{#if [HospitalAccusative]}, у {[HospitalAccusative]|lowerFirstLetter}{#endif}.#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
