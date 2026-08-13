@@ -282,13 +282,29 @@
       </rule>
       <rule id="arrivals-section" kind="section">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу]]></match>
+          <!-- В новом формате общая дата зачисления на питание
+               указана в заголовке основного пункта и наследуется всеми
+               его подпунктами. Старый формат без фразы в заголовке
+               остаётся допустимым. -->
+          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу(?:[^\r]*Зарахувати\s+на\s+продовольче\s+забезпечення\s+з\s+({{date}})|)]]></match>
         </scope>
+        <fields>
+          <field id="foodEnrollmentDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
       </rule>
       <rule id="departures-section" kind="section">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+вибули]]></match>
+          <!-- Аналогично дата снятия из заголовка основного пункта
+               доступна всем вложенным datasets. -->
+          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+вибули(?:[^\r]*Зняти\s+з\s+продовольчого\s+забезпечення\s+з\s+({{date}})|)]]></match>
         </scope>
+        <fields>
+          <field id="foodRemovalDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
       </rule>
 
       <rule id="order-dates" caption="Дати" source="document" includeCommonColumns="false">
