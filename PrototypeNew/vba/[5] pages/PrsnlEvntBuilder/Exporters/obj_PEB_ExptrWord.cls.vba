@@ -2114,16 +2114,19 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Else
         movementDestinationText = destinationText
     End If
-    If Not usesDestinationHospital And VBA.Len(VBA.Trim$(destinationText)) > 0 Then
-        Set uaLocationInflector = New obj_UaLocationInflector
-        If Not uaLocationInflector.TryInflect( _
-            destinationText, "genitive", inflectedDestinationText) Then
-            VBA.MsgBox "Не вдалося відмінити адресу призначення: " & destinationText, _
-                VBA.vbExclamation, "PrsnlEventBuilder / WORD export"
-            Exit Function
-        End If
-        destinationText = inflectedDestinationText
-    End If
+    ' Временно сохраняем место выбытия в исходном виде. Раскрытие и склонение
+    ' сокращений (например, «р-н» -> «району», «обл.» -> «області»)
+    ' отключено, чтобы отпускной пункт получал исходную сокращённую фразу.
+    ' If Not usesDestinationHospital And VBA.Len(VBA.Trim$(destinationText)) > 0 Then
+    '     Set uaLocationInflector = New obj_UaLocationInflector
+    '     If Not uaLocationInflector.TryInflect( _
+    '         destinationText, "genitive", inflectedDestinationText) Then
+    '         VBA.MsgBox "Не вдалося відмінити адресу призначення: " & destinationText, _
+    '             VBA.vbExclamation, "PrsnlEventBuilder / WORD export"
+    '         Exit Function
+    '     End If
+    '     destinationText = inflectedDestinationText
+    ' End If
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitiveOptional( _
         reportRankText, reportRankGenitive, _
         reportRankGenitiveFound) Then Exit Function
