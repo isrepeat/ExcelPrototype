@@ -103,7 +103,7 @@
       <text>
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
-#_          {#if #not item.__first}{#newline}{#endif}#^
+#_          {#newline}#^
 #_          {item.[RankDative]|upperFirstLetter} {item.[FIODative]} повернутись до виконання обов'язків #^
 #_          {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
@@ -115,7 +115,6 @@
       <text>
         <![CDATA[#^
 #_        {#include block.PersonLineUpper}.#^
-#_        {#newline}#^
 #_        {#include block.ReturnToDuty}#^
 #_        {#newline}{#newline}#^
 #_        {#include block.IncomingBasis}#^
@@ -231,7 +230,6 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineLower}.#^
-#_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -260,7 +258,6 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineLower}.#^
-#_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -325,7 +322,6 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}.#^
-#_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -339,7 +335,6 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}.#^
-#_      {#newline}#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -447,8 +442,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував на лікуванні у {[HospitalDative]|lowerFirstLetter}, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -464,8 +459,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у відпустці для лікування, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -482,8 +477,8 @@
 #_      який перебував у відпустці для лікування, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -499,8 +494,8 @@
 #_      який перебував у щорічній основній відпустці, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -516,8 +511,8 @@
 #_      який перебував у відпустці для лікування, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
 #_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -533,8 +528,8 @@
 #_      який перебував у щорічній основній відпустці, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
 #_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -550,8 +545,8 @@
 #_      який перебував у відпустці за сімейними обставинами, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
 #_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -566,8 +561,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -583,8 +578,8 @@
 #_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -599,10 +594,9 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував на лікуванні у медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
@@ -616,9 +610,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував на лікуванні в медичній роті, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -634,10 +627,9 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у відпустці для лікування в медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -652,9 +644,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у відпустці для лікування у медичній роті, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -671,8 +662,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у щорічній основній відпустці, вважати таким, що вибув у відпустку за сімейними обставинами#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -688,8 +679,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував у відпустці за сімейними обставинами, вважати таким, що вибув у щорічну основну відпустку#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
@@ -706,8 +697,8 @@
 #_      який перебував на лікуванні{#if [HospitalDative]}{#space}у {[HospitalDative]|lowerFirstLetter}{#endif}, вважати таким, що вибув на медичний огляд військово-лікарської комісії#^
 #_      {#if [ToHospitalAccusative]}{#space}у {[ToHospitalAccusative]|lowerFirstLetter}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
@@ -722,8 +713,8 @@
 #_      який перебував у відпустці за сімейними обставинами, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
@@ -738,8 +729,8 @@
 #_      {#include block.StatusChangePersonLine}#^
 #_      який перебував на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
-#_      {#newline}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
