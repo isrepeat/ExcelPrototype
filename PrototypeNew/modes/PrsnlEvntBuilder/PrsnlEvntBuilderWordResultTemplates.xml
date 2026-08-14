@@ -474,7 +474,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував у відпустці для лікування, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      який перебував у відпустці для лікування, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -491,7 +491,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував у щорічній основній відпустці, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      який перебував у щорічній основній відпустці, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -575,7 +575,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      який перебував на медичному огляді військово-лікарської комісії, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -592,7 +592,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував на лікуванні у медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      який перебував на лікуванні у медичній роті, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
@@ -625,7 +625,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував у відпустці для лікування в медичній роті, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      який перебував у відпустці для лікування в медичній роті, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
@@ -710,7 +710,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      який перебував у відпустці за сімейними обставинами, вважати таким, що вибув на лікування у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      який перебував у відпустці за сімейними обставинами, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
