@@ -77,7 +77,7 @@
     <sharedTemplate id="block.VacationDestinationPeriod">
       <text>
         <![CDATA[#^
-#_        {#space}у {[Destination]}#^
+#_        {#space}у {[Destination]},#^
 #_        {#if [VacationDurationPhrase]}{#space}{[VacationDurationPhrase]}#^
 #_        {[AdditionalDurationPhrases]}#^
 #_        {#endif}#^
