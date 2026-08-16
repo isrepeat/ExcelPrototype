@@ -206,52 +206,14 @@ End Function
 ' // Internal
 ' //
 Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styleName As String) As Boolean
+    Dim pageBase As obj_PageBase
+
     If targetRange Is Nothing Then Exit Function
-
-    Select Case VBA.LCase$(VBA.Trim$(styleName))
-        Case VBA.vbNullString
-            ' no-op
-
-        Case "tablesection"
-            targetRange.Interior.Color = VBA.RGB(23, 58, 94)
-            targetRange.Font.Color = VBA.RGB(234, 246, 255)
-            targetRange.Font.Bold = True
-            targetRange.Borders.LineStyle = xlContinuous
-            targetRange.Borders.Color = VBA.RGB(14, 34, 57)
-            targetRange.Borders.Weight = xlThin
-
-        Case "tableheadercell"
-            targetRange.Interior.Color = VBA.RGB(43, 74, 107)
-            targetRange.Font.Color = VBA.RGB(221, 238, 255)
-            targetRange.Font.Bold = True
-            targetRange.Borders.LineStyle = xlContinuous
-            targetRange.Borders.Color = VBA.RGB(31, 54, 80)
-            targetRange.Borders.Weight = xlThin
-
-        Case "tabledatacell"
-            targetRange.Interior.Color = VBA.RGB(58, 58, 58)
-            targetRange.Font.Color = VBA.RGB(240, 240, 240)
-            targetRange.Font.Bold = False
-            targetRange.Borders.LineStyle = xlContinuous
-            targetRange.Borders.Color = VBA.RGB(42, 42, 42)
-            targetRange.Borders.Weight = xlThin
-
-        Case "tablespacer"
-            targetRange.Interior.Color = VBA.RGB(31, 31, 31)
-            targetRange.Font.Color = VBA.RGB(31, 31, 31)
-            targetRange.Font.Bold = False
-            targetRange.Borders.LineStyle = xlContinuous
-            targetRange.Borders.Color = VBA.RGB(31, 31, 31)
-            targetRange.Borders.Weight = xlHairline
-
-        Case Else
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "Label: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."
-#End If
-            Exit Function
-    End Select
-
-    private_ApplyPresetStyle = True
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    private_ApplyPresetStyle = ex_StylePipelineEngine.fn_ApplyRangeControlStyle( _
+        targetRange, pageBase.UiDom, styleName)
 End Function
 
 Private Function private_RegisterControlPart( _

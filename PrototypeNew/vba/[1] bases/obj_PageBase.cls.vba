@@ -73,6 +73,10 @@ Public Property Get UiPath() As String
     UiPath = m_UiPath
 End Property
 
+Public Property Get UiDom() As Object
+    Set UiDom = m_UiDom
+End Property
+
 Public Property Get PageId() As String
     PageId = m_PageId
 End Property
@@ -304,6 +308,7 @@ Public Function Render() As Boolean
     Dim prevCalculation As XlCalculation
     Dim prevStatusBar As Variant
     Dim applicationStateCaptured As Boolean
+    Dim styleRenderStarted As Boolean
     Dim errNumber As Long
     Dim errSource As String
     Dim errDescription As String
@@ -374,6 +379,8 @@ Public Function Render() As Boolean
     Set app = Application
     private_EnterFastRenderMode app, prevScreenUpdating, prevEnableEvents, _
         prevCalculation, prevStatusBar, applicationStateCaptured
+    If Not ex_StylePipelineEngine.fn_BeginStyleRender(m_UiDom) Then GoTo Cleanup
+    styleRenderStarted = True
 
     ' Сбрасываем runtime-реестры, чтобы не тянуть старые контролы/маршруты.
     perfStageStartedAt = VBA.Timer
@@ -438,6 +445,7 @@ Public Function Render() As Boolean
 #End If
 
 Cleanup:
+    If styleRenderStarted Then ex_StylePipelineEngine.fn_EndStyleRender
     If applicationStateCaptured Then _
         private_LeaveFastRenderMode app, prevScreenUpdating, _
             prevEnableEvents, prevCalculation, prevStatusBar
@@ -449,6 +457,7 @@ EH_RENDER:
     errSource = Err.Source
     errDescription = Err.Description
 
+    If styleRenderStarted Then ex_StylePipelineEngine.fn_EndStyleRender
     If applicationStateCaptured Then _
         private_LeaveFastRenderMode app, prevScreenUpdating, _
             prevEnableEvents, prevCalculation, prevStatusBar
@@ -490,6 +499,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim applicationStateCaptured As Boolean
     Dim escapedName As String
     Dim oldVisualScope As Range
+    Dim baseStyleRange As Range
     Dim selectionAreas As Collection
     Dim perfTotalStartedAt As Double
     Dim perfStageStartedAt As Double
@@ -584,9 +594,13 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     reconcileMs = private_PerfElapsedMs(perfStageStartedAt)
 
     perfStageStartedAt = VBA.Timer
+    If Not ex_StylePipelineEngine.fn_TryExpandRangeToSheetStyleWidth( _
+        ws, _
+        ws.Range(ws.Cells(oldRowStart, oldColStart), _
+                 ws.Cells(newRowEnd, newColEnd)), _
+        baseStyleRange) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
-        ws, m_UiDom, _
-        ws.Range(ws.Cells(oldRowStart, oldColStart), ws.Cells(newRowEnd, newColEnd))) Then GoTo Cleanup
+        ws, m_UiDom, baseStyleRange) Then GoTo Cleanup
     baseStylesMs = private_PerfElapsedMs(perfStageStartedAt)
 
     perfStageStartedAt = VBA.Timer
@@ -596,6 +610,8 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     perfStageStartedAt = VBA.Timer
     If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
         ws, m_UiDom, controlName) Then GoTo Cleanup
+    If Not private_TryRestoreControlStylesInRange( _
+        ws, baseStyleRange) Then GoTo Cleanup
     controlStylesMs = private_PerfElapsedMs(perfStageStartedAt)
     perfStageStartedAt = VBA.Timer
     If Not ex_ControlRefreshRuntime.fn_CommitLayoutReflowPlan( _
@@ -659,6 +675,7 @@ Public Function TryReflowLayoutContainer(ByVal containerName As String) As Boole
     Dim renderCtx As obj_LayoutRenderContext
     Dim oldRange As Range
     Dim clearRange As Range
+    Dim baseStyleRange As Range
     Dim rowStart As Long, colStart As Long
     Dim oldRowEnd As Long, oldColEnd As Long
     Dim newSpanRows As Long, newSpanCols As Long
@@ -756,8 +773,10 @@ ContinueCleanupControl:
         ws.Cells(rowStart, colStart), _
         ws.Cells(clearRowEnd, clearColEnd))
     clearRange.Clear
+    If Not ex_StylePipelineEngine.fn_TryExpandRangeToSheetStyleWidth( _
+        ws, clearRange, baseStyleRange) Then GoTo CleanupContainer
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
-        ws, m_UiDom, clearRange) Then GoTo CleanupContainer
+        ws, m_UiDom, baseStyleRange) Then GoTo CleanupContainer
     If Not ex_XmlLayoutEngine.fn_RenderNodeInBounds( _
         renderCtx, containerNode, rowStart, colStart, newRowEnd, newColEnd) Then GoTo CleanupContainer
 
@@ -770,6 +789,11 @@ ContinueCleanupControl:
 ContinueStyleControl:
         Next controlNode
     End If
+    ' Sheet baseline применяется на полную ширину повреждённых строк. Поэтому
+    ' восстанавливаем каскад не только дочерних controls контейнера, но и всех
+    ' соседних controls, чьи диапазоны пересекают эту горизонтальную полосу.
+    If Not private_TryRestoreControlStylesInRange( _
+        ws, baseStyleRange) Then GoTo CleanupContainer
     If Not ex_StylePipelineEngine.fn_ApplyRetainedControlStyles(ws, m_UiDom) Then GoTo CleanupContainer
     If Not Me.ApplyInlineRuns() Then GoTo CleanupContainer
 
@@ -3296,6 +3320,7 @@ Private Function private_TryApplySingleLayoutReflowPatch( _
 ) As Boolean
     Dim rowStart As Long, colStart As Long, rowEnd As Long, colEnd As Long, rowDelta As Long
     Dim vacatedRange As Range
+    Dim baseStyleRange As Range
 
     If patch Is Nothing Then Exit Function
     rowStart = VBA.CLng(patch("RowStart")): colStart = VBA.CLng(patch("ColStart"))
@@ -3321,8 +3346,13 @@ Private Function private_TryApplySingleLayoutReflowPatch( _
     ' только полосу, которая действительно освободилась после translate;
     ' пересекающуюся часть source/destination трогать нельзя.
     vacatedRange.Clear
+    ' Переносится только layout-subtree, но baseline добавленных/освобождённых
+    ' строк восстанавливается по полной ширине target=sheet. Независимые данные
+    ' слева и справа не очищаются: расширяется только style damage scope.
+    If Not ex_StylePipelineEngine.fn_TryExpandRangeToSheetStyleWidth( _
+        ws, vacatedRange, baseStyleRange) Then Exit Function
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
-        ws, m_UiDom, vacatedRange) Then Exit Function
+        ws, m_UiDom, baseStyleRange) Then Exit Function
     If Not private_TranslateRuntimeRegion(rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
     If Not ex_ControlRefreshRuntime.fn_TranslateRegisteredControlsInRegion( _
         ws.Name, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
@@ -3332,8 +3362,52 @@ Private Function private_TryApplySingleLayoutReflowPatch( _
         ws, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
     If Not ex_StylePipelineEngine.fn_TranslateLayoutBoundsInRegion( _
         ws.Name, rowStart, colStart, rowEnd, colEnd, rowDelta) Then Exit Function
+    If Not private_TryRestoreControlStylesInRange( _
+        ws, baseStyleRange) Then Exit Function
 
     private_TryApplySingleLayoutReflowPatch = True
+End Function
+
+
+Private Function private_TryRestoreControlStylesInRange( _
+    ByVal ws As Worksheet, _
+    ByVal damageRange As Range _
+) As Boolean
+    Dim controlNodes As Object
+    Dim controlNode As Object
+    Dim controlName As String
+    Dim rowStart As Long
+    Dim colStart As Long
+    Dim rowEnd As Long
+    Dim colEnd As Long
+    Dim controlRange As Range
+    Dim overlapRange As Range
+
+    If ws Is Nothing Or damageRange Is Nothing Or m_UiDom Is Nothing Then Exit Function
+    Set controlNodes = m_UiDom.selectNodes( _
+        "/p:page//p:control[@name] | " & _
+        "/p:uiDefinition/p:layout//p:control[@name]")
+    If controlNodes Is Nothing Then Exit Function
+
+    For Each controlNode In controlNodes
+        controlName = VBA.Trim$(VBA.CStr( _
+            ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
+        If VBA.Len(controlName) = 0 Then GoTo ContinueControl
+        If Not ex_ControlRefreshRuntime.fn_TryGetControlRenderBounds( _
+            controlName, ws.Name, rowStart, colStart, rowEnd, colEnd) Then _
+            GoTo ContinueControl
+        Set controlRange = ws.Range( _
+            ws.Cells(rowStart, colStart), ws.Cells(rowEnd, colEnd))
+        Set overlapRange = Application.Intersect(controlRange, damageRange)
+        If overlapRange Is Nothing Then GoTo ContinueControl
+        If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
+            ws, m_UiDom, controlName) Then Exit Function
+ContinueControl:
+        Set controlRange = Nothing
+        Set overlapRange = Nothing
+    Next controlNode
+
+    private_TryRestoreControlStylesInRange = True
 End Function
 
 Private Function private_TryTranslateWorksheetSubtreeRows( _

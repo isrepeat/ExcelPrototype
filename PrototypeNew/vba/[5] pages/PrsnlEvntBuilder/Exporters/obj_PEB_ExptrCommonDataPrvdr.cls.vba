@@ -11,6 +11,7 @@ Private m_IsDisposed As Boolean
 Private m_OrderNo As Variant
 Private m_OrderDate As Date
 Private m_HasOrderDate As Boolean
+Private m_OrderYear As Long
 Private m_WorkbookConnections As Object
 ' Все новые обращения к ШПО/справочникам описываются одинаковым query object.
 ' Engine читает закрытый источник через ADO, а открытый — из живого Worksheet,
@@ -103,6 +104,7 @@ Public Function Initialize(Optional ByVal configTable As obj_ConfigTable = Nothi
     m_OrderNo = VBA.vbNullString
     m_OrderDate = 0
     m_HasOrderDate = False
+    m_OrderYear = 0
     Set m_WorkbookConnections = VBA.CreateObject("Scripting.Dictionary")
     m_WorkbookConnections.CompareMode = 1
     Set m_QueryEngine = New obj_ExtWorkbookQueryEngine
@@ -136,6 +138,7 @@ Public Sub Dispose()
     m_OrderNo = VBA.vbNullString
     m_OrderDate = 0
     m_HasOrderDate = False
+    m_OrderYear = 0
     On Error Resume Next
     If Not m_QueryEngine Is Nothing Then m_QueryEngine.Dispose
     Set m_QueryEngine = Nothing
@@ -149,7 +152,20 @@ End Sub
 ' ШПО (АЛФ/Посади/Звання), Установи, Накази.
 ' Динамические источники вроде ежедневной ШПС держит obj_PEB_ExptrCfgDataPrvdr.
 Public Function SetOrderNo(ByVal orderNo As Variant) As Boolean
+    Dim normalizedOrderNo As String
+
     If m_IsDisposed Then Exit Function
+
+    normalizedOrderNo = private_NormalizeOrderNumberToken(orderNo)
+    ' После controller-resolve пара уже содержит правильный, возможно не
+    ' текущий год. Повторные внутренние обращения с тем же номером не должны
+    ' снова переключать lookup на системный год.
+    If m_HasOrderDate And VBA.StrComp( _
+        normalizedOrderNo, private_NormalizeOrderNumberToken(m_OrderNo), _
+        VBA.vbTextCompare) = 0 Then
+        SetOrderNo = True
+        Exit Function
+    End If
 
     ' Номер приказа задается один раз перед export/render. Если дату удалось
     ' найти в отдельной "Мапі наказів", она становится базовой датой для всех
@@ -158,11 +174,83 @@ Public Function SetOrderNo(ByVal orderNo As Variant) As Boolean
     m_OrderDate = 0
     m_HasOrderDate = False
 
-    If VBA.Len(private_NormalizeOrderNumberToken(orderNo)) > 0 Then
-        m_HasOrderDate = TryResolveOrderDateByNumber(orderNo, m_OrderDate)
-    End If
+    m_OrderYear = VBA.Year(VBA.Date)
+    If VBA.Len(normalizedOrderNo) > 0 Then _
+        m_HasOrderDate = TryResolveOrderDateByNumber(orderNo, m_OrderDate, False, , m_OrderYear)
 
     SetOrderNo = True
+End Function
+
+' Преобразует оба допустимых UI-ввода в единственный внутренний контракт:
+' канонический номер приказа и его полную дату.
+Public Function TryResolveOrderReference( _
+    ByVal numberOrDate As Variant, _
+    ByVal explicitYear As Variant, _
+    ByRef outOrderNo As String, _
+    ByRef outOrderDate As Date _
+) As Boolean
+    Dim inputText As String
+    Dim orderYear As Long
+    Dim fullDate As Date
+
+    outOrderNo = VBA.vbNullString
+    outOrderDate = 0
+    ClearOrderReference
+    inputText = VBA.Trim$(VBA.CStr(numberOrDate))
+    If VBA.Len(inputText) = 0 Then
+        VBA.MsgBox "Вкажіть номер або повну дату наказу.", VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+        Exit Function
+    End If
+
+    If private_LooksLikeDateInput(inputText) Then
+        If Not private_TryParseFullOrderDate(inputText, fullDate) Then
+            VBA.MsgBox "Дата наказу має бути повною та коректною у форматі ДД.ММ.РРРР.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+            Exit Function
+        End If
+        orderYear = VBA.Year(fullDate)
+        If Not private_TryResolveOrderNoByDate(fullDate, orderYear, outOrderNo) Then Exit Function
+        outOrderDate = fullDate
+    Else
+        If Not private_TryResolveExplicitOrderYear(explicitYear, orderYear) Then Exit Function
+        outOrderNo = private_NormalizeOrderNumberToken(inputText)
+        If VBA.Len(outOrderNo) = 0 Then Exit Function
+        If Not TryResolveOrderDateByNumber(outOrderNo, outOrderDate, True, , orderYear) Then Exit Function
+        If outOrderDate = 0 Then
+            VBA.MsgBox "Наказ № " & outOrderNo & " за " & VBA.CStr(orderYear) & _
+                " рік не знайдено у довіднику «Накази».", VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+            Exit Function
+        End If
+    End If
+
+    m_OrderNo = outOrderNo
+    m_OrderDate = outOrderDate
+    m_OrderYear = orderYear
+    m_HasOrderDate = True
+    TryResolveOrderReference = True
+End Function
+
+Public Sub ClearOrderReference()
+    m_OrderNo = VBA.vbNullString
+    m_OrderDate = 0
+    m_OrderYear = 0
+    m_HasOrderDate = False
+End Sub
+
+Public Function SetResolvedOrderPair( _
+    ByVal orderNo As Variant, _
+    ByVal orderDate As Date _
+) As Boolean
+    Dim normalizedOrderNo As String
+
+    If m_IsDisposed Then Exit Function
+    normalizedOrderNo = private_NormalizeOrderNumberToken(orderNo)
+    If VBA.Len(normalizedOrderNo) = 0 Or orderDate = 0 Then Exit Function
+    m_OrderNo = normalizedOrderNo
+    m_OrderDate = VBA.DateValue(orderDate)
+    m_OrderYear = VBA.Year(orderDate)
+    m_HasOrderDate = True
+    SetResolvedOrderPair = True
 End Function
 
 Public Property Get OrderNo() As Variant
@@ -175,6 +263,10 @@ End Property
 
 Public Property Get OrderDate() As Date
     OrderDate = m_OrderDate
+End Property
+
+Public Property Get OrderYear() As Long
+    OrderYear = m_OrderYear
 End Property
 
 Public Function FormatVacationTicketNoForExport( _
@@ -288,7 +380,8 @@ Public Function TryResolveOrderDateByNumber( _
     ByVal orderNo As Variant, _
     ByRef outOrderDate As Date, _
     Optional ByVal allowMissing As Boolean = False, _
-    Optional ByRef outFound As Boolean = False _
+    Optional ByRef outFound As Boolean = False, _
+    Optional ByVal orderYear As Long = 0 _
 ) As Boolean
     Dim orderNoToken As String
     Dim orderMapPath As String
@@ -305,22 +398,10 @@ Public Function TryResolveOrderDateByNumber( _
     ' «Накази» разложены горизонтальными блоками по годам. Номер ищем только
     ' в блоке текущего системного года: одинаковый номер прошлого года не
     ' должен ошибочно считаться текущим приказом.
-    currentYear = VBA.Year(VBA.Date)
-    Select Case currentYear
-        Case 2025
-            orderMapRangeStart = ORDER_MAP_2025_RANGE_START
-            orderMapRangeEndColumn = ORDER_MAP_2025_RANGE_END_COLUMN
-        Case 2026
-            orderMapRangeStart = ORDER_MAP_2026_RANGE_START
-            orderMapRangeEndColumn = ORDER_MAP_2026_RANGE_END_COLUMN
-        Case Else
-            VBA.MsgBox _
-                "У довіднику «Накази» не налаштовано таблицю для " & _
-                VBA.CStr(currentYear) & " року.", _
-                VBA.vbExclamation, _
-                "PrototypeNew / Накази"
-            Exit Function
-    End Select
+    currentYear = orderYear
+    If currentYear = 0 Then currentYear = VBA.Year(VBA.Date)
+    If Not private_TryGetOrderMapRange( _
+        currentYear, orderMapRangeStart, orderMapRangeEndColumn) Then Exit Function
 
     TryResolveOrderDateByNumber = private_TryLookupWorkbookDate( _
         orderMapPath, _
@@ -1580,6 +1661,153 @@ Private Function private_TryResolveOrderMapWorkbookPath(ByRef outPath As String)
 
     VBA.MsgBox "PrototypeNew: order map workbook was not found." & _
         VBA.vbCrLf & "Expected: " & DEFAULT_ORDER_MAP_REL_PATH, VBA.vbExclamation, "PrototypeNew / WORD export"
+End Function
+
+Private Function private_LooksLikeDateInput(ByVal valueText As String) As Boolean
+    private_LooksLikeDateInput = (VBA.InStr(1, valueText, ".", VBA.vbBinaryCompare) > 0 Or _
+        VBA.InStr(1, valueText, "/", VBA.vbBinaryCompare) > 0 Or _
+        VBA.InStr(1, valueText, "-", VBA.vbBinaryCompare) > 0)
+End Function
+
+Private Function private_TryParseFullOrderDate( _
+    ByVal valueText As String, _
+    ByRef outDate As Date _
+) As Boolean
+    Dim rx As Object
+    Dim matches As Object
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+    Dim parsedDate As Date
+
+    outDate = 0
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.Pattern = "^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$"
+    If Not rx.Test(VBA.Trim$(valueText)) Then Exit Function
+    Set matches = rx.Execute(VBA.Trim$(valueText))
+    dayValue = VBA.CLng(matches(0).SubMatches(0))
+    monthValue = VBA.CLng(matches(0).SubMatches(1))
+    yearValue = VBA.CLng(matches(0).SubMatches(2))
+    On Error GoTo InvalidDate
+    parsedDate = VBA.DateSerial(yearValue, monthValue, dayValue)
+    If VBA.Day(parsedDate) <> dayValue Or VBA.Month(parsedDate) <> monthValue Or _
+       VBA.Year(parsedDate) <> yearValue Then Exit Function
+    outDate = parsedDate
+    private_TryParseFullOrderDate = True
+InvalidDate:
+End Function
+
+Private Function private_TryResolveExplicitOrderYear( _
+    ByVal rawYear As Variant, _
+    ByRef outYear As Long _
+) As Boolean
+    Dim yearText As String
+
+    outYear = 0
+    yearText = VBA.Trim$(VBA.CStr(rawYear))
+    If VBA.Len(yearText) = 0 Then
+        outYear = VBA.Year(VBA.Date)
+        private_TryResolveExplicitOrderYear = True
+        Exit Function
+    End If
+    If VBA.Len(yearText) <> 4 Or Not VBA.IsNumeric(yearText) Then
+        VBA.MsgBox "Рік наказу має складатися з чотирьох цифр.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+        Exit Function
+    End If
+    outYear = VBA.CLng(yearText)
+    private_TryResolveExplicitOrderYear = True
+End Function
+
+Private Function private_TryResolveOrderNoByDate( _
+    ByVal orderDate As Date, _
+    ByVal orderYear As Long, _
+    ByRef outOrderNo As String _
+) As Boolean
+    Dim orderMapPath As String
+    Dim rangeStart As String
+    Dim rangeEndColumn As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
+    Dim rowIndex As Long
+    Dim candidateDate As Date
+    Dim candidateNo As String
+    Dim matchCount As Long
+    Dim matchedNumbers As Object
+
+    outOrderNo = VBA.vbNullString
+    Set matchedNumbers = VBA.CreateObject("Scripting.Dictionary")
+    matchedNumbers.CompareMode = 1
+    If Not private_TryResolveOrderMapWorkbookPath(orderMapPath) Then Exit Function
+    If Not private_TryGetOrderMapRange(orderYear, rangeStart, rangeEndColumn) Then Exit Function
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = orderMapPath
+    query.TableRef = private_BuildAdoRangeRef(ORDER_MAP_SHEET_NAME, rangeStart, _
+        rangeEndColumn & VBA.CStr(EXCEL_MAX_ROW))
+    query.MaxRows = 0
+    If Not query.AddSelectColumn(ORDER_NO_COLUMN_NAME) Then Exit Function
+    If Not query.AddSelectColumn(ORDER_DATE_COLUMN_NAME) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then Exit Function
+
+    For rowIndex = 1 To resultTable.RowCount
+        Set resultRow = resultTable.Rows.Item(rowIndex)
+        If Not resultRow Is Nothing Then
+            candidateDate = 0
+            If ex_Helpers.fn_TryResolveDateWithContext( _
+                resultRow.GetCellValue(2), VBA.DateSerial(1900, 1, 1), candidateDate) Then
+                If VBA.DateValue(candidateDate) = VBA.DateValue(orderDate) Then
+                    candidateNo = private_NormalizeOrderNumberToken(resultRow.GetCellValue(1))
+                    If VBA.Len(candidateNo) > 0 Then
+                        If Not matchedNumbers.Exists(candidateNo) Then
+                            matchedNumbers.Add candidateNo, True
+                            matchCount = matchCount + 1
+                            outOrderNo = candidateNo
+                        End If
+                    End If
+                End If
+            End If
+        End If
+    Next rowIndex
+
+    If matchCount = 0 Then
+        VBA.MsgBox "За датою " & VBA.Format$(orderDate, "dd.mm.yyyy") & _
+            " наказ у довіднику «Накази» не знайдено.", VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+        Exit Function
+    End If
+    If matchCount > 1 Then
+        outOrderNo = VBA.vbNullString
+        VBA.MsgBox "За датою " & VBA.Format$(orderDate, "dd.mm.yyyy") & _
+            " знайдено декілька наказів. Вкажіть номер наказу та, за потреби, рік.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+        Exit Function
+    End If
+    private_TryResolveOrderNoByDate = True
+End Function
+
+Private Function private_TryGetOrderMapRange( _
+    ByVal orderYear As Long, _
+    ByRef outRangeStart As String, _
+    ByRef outRangeEndColumn As String _
+) As Boolean
+    outRangeStart = VBA.vbNullString
+    outRangeEndColumn = VBA.vbNullString
+    Select Case orderYear
+        Case 2025
+            outRangeStart = ORDER_MAP_2025_RANGE_START
+            outRangeEndColumn = ORDER_MAP_2025_RANGE_END_COLUMN
+        Case 2026
+            outRangeStart = ORDER_MAP_2026_RANGE_START
+            outRangeEndColumn = ORDER_MAP_2026_RANGE_END_COLUMN
+        Case Else
+            VBA.MsgBox "У довіднику «Накази» не налаштовано таблицю для " & _
+                VBA.CStr(orderYear) & " року.", VBA.vbExclamation, "PrototypeNew / Накази"
+            Exit Function
+    End Select
+    private_TryGetOrderMapRange = True
 End Function
 
 Private Function private_TryLookupWorkbookDate( _

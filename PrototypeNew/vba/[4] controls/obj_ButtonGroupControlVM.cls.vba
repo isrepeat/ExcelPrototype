@@ -164,6 +164,7 @@ Private Sub obj_IControl_Render()
     Dim captionText As String
     Dim itemId As String
     Dim styleName As String
+    Dim styleRevision As String
     Dim itemTags As Collection
     Dim itemStates As Collection
     Dim tagsSignature As String
@@ -209,6 +210,8 @@ Private Sub obj_IControl_Render()
     rowsPerColumn = private_RowsPerColumn(itemCount)
     buttonSpanCols = private_ButtonSpanCols()
     styleName = m_ControlLayout.StyleName
+    styleRevision = ex_StylePipelineEngine.fn_GetStyleRevision(pageBase.UiDom)
+    If VBA.Len(styleRevision) = 0 Then Exit Sub
     itemIndex = 0
     For Each itemObj In flattenedItems
         itemIndex = itemIndex + 1
@@ -247,7 +250,8 @@ Private Sub obj_IControl_Render()
         ' через Excel COM для каждого неизменившегося элемента группы.
         tagsSignature = private_BuildTagsSignature(itemTags) & "|states=" & private_BuildTagsSignature(itemStates)
         renderSignature = private_BuildItemVisualSignature( _
-            itemIndex, rowStart, colStart, rowEnd, colEnd, captionText, styleName, tagsSignature)
+            itemIndex, rowStart, colStart, rowEnd, colEnd, captionText, _
+            styleName, styleRevision, tagsSignature)
         previousRenderSignature = ex_ShapeMetaRuntime.fn_GetShapeMetaValue( _
             shp, "pn.renderSignature", VBA.vbNullString)
         visualUnchanged = (VBA.StrComp(previousRenderSignature, renderSignature, VBA.vbBinaryCompare) = 0)
@@ -579,6 +583,7 @@ Private Function private_BuildItemVisualSignature( _
     ByVal colEnd As Long, _
     ByVal captionText As String, _
     ByVal styleName As String, _
+    ByVal styleRevision As String, _
     ByVal tagsSignature As String _
 ) As String
     ' itemIndex нужен, чтобы перестановка элементов считалась изменением даже
@@ -587,7 +592,8 @@ Private Function private_BuildItemVisualSignature( _
         VBA.CStr(itemIndex) & "|" & _
         VBA.CStr(rowStart) & ":" & VBA.CStr(colStart) & ":" & _
         VBA.CStr(rowEnd) & ":" & VBA.CStr(colEnd) & "|" & _
-        VBA.Trim$(styleName) & "|" & tagsSignature & "|" & captionText
+        VBA.Trim$(styleName) & "|styleRevision=" & styleRevision & "|" & _
+        tagsSignature & "|" & captionText
 End Function
 
 Private Function private_AssignShapeOnAction(ByVal shp As Shape, ByVal macroRef As String) As Boolean

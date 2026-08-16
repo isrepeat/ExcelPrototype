@@ -15,7 +15,6 @@ Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
 Private Const SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME As String = "SupportingDocBuilder"
 Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
 Private Const MULTI_SOURCES_VIEW_SHEET_BASE_NAME As String = "MultiSourcesView"
-Private Const MOVEMENT_VALIDATION_SHEET_BASE_NAME As String = "MovementValidation"
 Private Const WORD_DATA_EXTRACTOR_SHEET_BASE_NAME As String = "WordDataExtractor"
 Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
 Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
@@ -161,10 +160,6 @@ End Property
 
 Public Property Get IsMultiSourcesViewMode() As Boolean
     IsMultiSourcesViewMode = private_IsCurrentMode("MultiSourcesView")
-End Property
-
-Public Property Get IsMovementValidationMode() As Boolean
-    IsMovementValidationMode = private_IsCurrentMode("MovementValidation")
 End Property
 
 Public Property Get IsWordDataExtractorMode() As Boolean
@@ -370,65 +365,6 @@ EH_CREATE:
     Exit Function
 EH_OPEN:
     VBA.MsgBox "MultiSourcesView error: [" & VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
-    Resume EH_CREATE
-End Function
-
-Public Function OnOpenMovementValidationPageCommand(Optional ByVal arg As Variant) As Boolean
-    Dim sheetName As String
-    Dim existingPage As obj_IPage
-    Dim validationPage As obj_IPage
-    Dim parentPage As obj_IPage
-    Dim isPageCreated As Boolean
-
-    On Error GoTo EH_OPEN
-    If rt_PageManager.fn_TryGetPageByWorksheetName( _
-        MOVEMENT_VALIDATION_SHEET_BASE_NAME, existingPage) Then
-        If existingPage Is Nothing Then GoTo EH_CREATE
-        If Not TypeOf existingPage Is obj_PageMultiSourcesView Then
-            VBA.MsgBox "Worksheet '" & MOVEMENT_VALIDATION_SHEET_BASE_NAME & _
-                "' is bound to an unexpected page type.", VBA.vbExclamation, _
-                "PrototypeNew / MovementValidation"
-            Exit Function
-        End If
-        If Not existingPage.RunPagePipeline() Then Exit Function
-        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, _
-            "pagemain:open-movementvalidation:reuse") Then Exit Function
-        OnOpenMovementValidationPageCommand = True
-        Exit Function
-    End If
-
-    sheetName = private_BuildUniqueWorksheetName( _
-        ThisWorkbook, MOVEMENT_VALIDATION_SHEET_BASE_NAME)
-    If VBA.Len(sheetName) = 0 Then Exit Function
-    Set validationPage = New obj_PageMultiSourcesView
-    Set parentPage = m_Page
-    If Not rt_PageManager.fn_CreatePage(validationPage, _
-        "ui\MovementValidation\MovementValidationUI.xml", _
-        sheetName, parentPage) Then GoTo EH_CREATE
-    isPageCreated = True
-    If Not validationPage.RunPagePipeline() Then GoTo EH_CREATE
-    If Not rt_PageManager.fn_RenderPageAndActivate(validationPage, _
-        "pagemain:open-movementvalidation") Then GoTo EH_CREATE
-    rt_Messaging.fn_ShowStatusBarSuccess _
-        "MovementValidation page has been created.", 3
-    OnOpenMovementValidationPageCommand = True
-    Exit Function
-
-EH_CREATE:
-    On Error Resume Next
-    If Not validationPage Is Nothing And isPageCreated Then
-        Call rt_PageManager.fn_RemovePage(validationPage, True)
-    End If
-    On Error GoTo 0
-    If Not OnOpenMovementValidationPageCommand Then
-        VBA.MsgBox "Failed to create MovementValidation page.", _
-            VBA.vbExclamation, "PrototypeNew / MovementValidation"
-    End If
-    Exit Function
-EH_OPEN:
-    VBA.MsgBox "MovementValidation error: [" & VBA.CStr(Err.Number) & _
-        "] " & Err.Description, VBA.vbExclamation, _
-        "PrototypeNew / MovementValidation"
     Resume EH_CREATE
 End Function
 

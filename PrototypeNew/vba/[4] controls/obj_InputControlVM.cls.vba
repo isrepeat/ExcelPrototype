@@ -256,38 +256,14 @@ End Function
 ' // Internal
 ' //
 Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styleName As String) As Boolean
+    Dim pageBase As obj_PageBase
+
     If targetRange Is Nothing Then Exit Function
-
-    Select Case VBA.LCase$(VBA.Trim$(styleName))
-        Case VBA.vbNullString
-            ' no-op
-
-        Case "lookupinput", "inputfield"
-            targetRange.Interior.Color = VBA.RGB(255, 247, 214)
-            targetRange.Font.Color = VBA.RGB(31, 35, 41)
-            targetRange.Font.Bold = True
-            targetRange.Borders.LineStyle = xlContinuous
-            targetRange.Borders.Color = VBA.RGB(245, 158, 11)
-            targetRange.Borders.Weight = xlMedium
-
-        Case "validationinput"
-            ' Серое поле отделяет редактируемое значение от темного фона
-            ' служебной страницы и совпадает с визуальным языком фильтров.
-            targetRange.Interior.Color = VBA.RGB(89, 89, 89)
-            targetRange.Font.Color = VBA.RGB(255, 255, 255)
-            targetRange.Font.Bold = True
-            targetRange.Borders.LineStyle = xlContinuous
-            targetRange.Borders.Color = VBA.RGB(166, 166, 166)
-            targetRange.Borders.Weight = xlMedium
-
-        Case Else
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "Input: unsupported style '" & styleName & "' for control '" & m_ControlName & "'."
-#End If
-            Exit Function
-    End Select
-
-    private_ApplyPresetStyle = True
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    private_ApplyPresetStyle = ex_StylePipelineEngine.fn_ApplyRangeControlStyle( _
+        targetRange, pageBase.UiDom, styleName)
 End Function
 
 Private Function private_RegisterControlPart( _
