@@ -265,11 +265,39 @@ EH:
         VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
 End Function
 
+Public Function TryGetTemplateHashByName( _
+    ByVal templateName As String, _
+    ByRef outTemplateHash As String _
+) As Boolean
+    outTemplateHash = VBA.vbNullString
+    If m_IsDisposed Or m_TemplateParser Is Nothing Then Exit Function
+    TryGetTemplateHashByName = m_TemplateParser.TryGetTemplateHashByName( _
+        templateName, outTemplateHash)
+End Function
+
 Private Function private_ExtractRecordBookmarkIpn( _
     ByVal bookmarkName As String _
 ) As String
     Dim separatorIndex As Long
+    Dim bookmarkParts As Variant
+    Dim lastPartIndex As Long
 
+    bookmarkParts = VBA.Split(bookmarkName, "_")
+    lastPartIndex = UBound(bookmarkParts)
+    If lastPartIndex >= 2 Then
+        ' Новый формат: PEB_<HH>_<IPN>[_<Occurrence>].
+        If VBA.Len(VBA.CStr(bookmarkParts(1))) = 2 Then
+            private_ExtractRecordBookmarkIpn = VBA.CStr(bookmarkParts(2))
+            Exit Function
+        End If
+        ' Legacy duplicate: PEB_<TruncatedName>_<IPN>_<Occurrence>.
+        If lastPartIndex >= 3 And VBA.IsNumeric(bookmarkParts(lastPartIndex)) And _
+            VBA.IsNumeric(bookmarkParts(lastPartIndex - 1)) Then
+            private_ExtractRecordBookmarkIpn = _
+                VBA.CStr(bookmarkParts(lastPartIndex - 1))
+            Exit Function
+        End If
+    End If
     separatorIndex = VBA.InStrRev(bookmarkName, "_", -1, VBA.vbBinaryCompare)
     If separatorIndex <= VBA.Len(WORD_RECORD_BOOKMARK_PREFIX) Then Exit Function
     If separatorIndex >= VBA.Len(bookmarkName) Then Exit Function
@@ -278,13 +306,25 @@ End Function
 
 Public Function DeleteRecordBookmark( _
     ByVal bookmarkName As String, _
-    ByVal orderNo As String _
+    ByVal orderNo As String, _
+    ByRef outSnapshot As Object _
 ) As Boolean
     Dim targetPath As String
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim documentOpened As Boolean
     Dim targetRange As Object
+    Dim undoRange As Object
+    Dim snapshot As Object
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim acquireMs As Double
+    Dim snapshotMs As Double
+    Dim deleteMs As Double
+    Dim saveMs As Double
+
+    Set outSnapshot = Nothing
+    perfTotalStartedAt = VBA.Timer
 
     On Error GoTo EH
     bookmarkName = VBA.Trim$(bookmarkName)
@@ -296,8 +336,10 @@ Public Function DeleteRecordBookmark( _
         Exit Function
     End If
     If Not private_TryBuildExistingResultPath(orderNo, targetPath, True) Then Exit Function
+    perfStageStartedAt = VBA.Timer
     If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
         targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
+    acquireMs = private_PerfElapsedMs(perfStageStartedAt)
     If Not wordDoc.Bookmarks.Exists(bookmarkName) Then
         VBA.MsgBox "WORD-событие изменилось после обновления списка. " & _
             "Обновите список и повторите удаление.", _
@@ -305,13 +347,35 @@ Public Function DeleteRecordBookmark( _
         GoTo CleanFail
     End If
 
+    perfStageStartedAt = VBA.Timer
     Set targetRange = wordDoc.Bookmarks(bookmarkName).Range
-    wordDoc.Bookmarks(bookmarkName).Delete
-    targetRange.Delete
-    private_DeleteEmptyWordGroups wordDoc, WORD_NESTED_GROUP_BOOKMARK_PREFIX
-    private_DeleteEmptyWordGroups wordDoc, WORD_GROUP_BOOKMARK_PREFIX
+    Set undoRange = private_GetDeleteUndoRange(wordDoc, targetRange)
+    If undoRange Is Nothing Then Set undoRange = targetRange.Duplicate
+    Set snapshot = VBA.CreateObject("Scripting.Dictionary")
+    snapshot("Kind") = "Word"
+    snapshot("EventId") = bookmarkName
+    snapshot("OrderNo") = orderNo
+    snapshot("TargetPath") = targetPath
+    snapshot("RangeStart") = VBA.CLng(undoRange.Start)
+    snapshot("RangeLength") = VBA.CLng(undoRange.End) - VBA.CLng(undoRange.Start)
+    snapshot("WordOpenXml") = VBA.CStr(undoRange.WordOpenXML)
+    snapshotMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
+    If Not private_TryDeleteExportRange(wordDoc, undoRange) Then GoTo CleanFail
+    deleteMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
     wordDoc.Save
+    saveMs = private_PerfElapsedMs(perfStageStartedAt)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "perf:word-delete totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' acquireMs='" & VBA.Format$(acquireMs, "0") & _
+        "' snapshotMs='" & VBA.Format$(snapshotMs, "0") & _
+        "' deleteMs='" & VBA.Format$(deleteMs, "0") & _
+        "' saveMs='" & VBA.Format$(saveMs, "0") & "'"
+#End If
     If documentOpened Then wordDoc.Close False
+    Set outSnapshot = snapshot
     DeleteRecordBookmark = True
     Exit Function
 CleanFail:
@@ -325,41 +389,174 @@ EH:
         VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
 End Function
 
-Private Sub private_DeleteEmptyWordGroups( _
-    ByVal wordDoc As Object, ByVal groupPrefix As String _
-)
-    Dim groupIndex As Long
-    Dim recordIndex As Long
-    Dim groupBookmark As Object
-    Dim recordBookmark As Object
-    Dim groupRange As Object
-    Dim containsRecord As Boolean
+Private Function private_TryDeleteExportRange( _
+    ByVal wordDoc As Object, _
+    ByVal deleteRange As Object _
+) As Boolean
+    Dim bookmarkObj As Object
+    Dim bookmarkRange As Object
+    Dim bookmarkNames As Collection
+    Dim bookmarkNameObj As Variant
+    Dim bookmarkName As String
 
-    For groupIndex = wordDoc.Bookmarks.Count To 1 Step -1
-        Set groupBookmark = wordDoc.Bookmarks.Item(groupIndex)
-        If VBA.Left$(VBA.UCase$(VBA.CStr(groupBookmark.Name)), _
-            VBA.Len(groupPrefix)) <> groupPrefix Then GoTo ContinueGroup
-        Set groupRange = groupBookmark.Range
-        containsRecord = False
-        For recordIndex = 1 To wordDoc.Bookmarks.Count
-            Set recordBookmark = wordDoc.Bookmarks.Item(recordIndex)
-            If VBA.Left$(VBA.UCase$(VBA.CStr(recordBookmark.Name)), _
-                VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) = _
-                WORD_RECORD_BOOKMARK_PREFIX Then
-                If recordBookmark.Range.Start >= groupRange.Start And _
-                    recordBookmark.Range.End <= groupRange.End Then
-                    containsRecord = True
-                    Exit For
-                End If
-            End If
-        Next recordIndex
-        If Not containsRecord Then
-            groupBookmark.Delete
-            groupRange.Delete
+    If wordDoc Is Nothing Or deleteRange Is Nothing Then Exit Function
+    Set bookmarkNames = New Collection
+
+    ' Undo scope уже выбран как запись или самая внешняя группа, которая
+    ' опустеет после её удаления. Поэтому глобальный O(n²) поиск пустых групп
+    ' не нужен: одним проходом собираем только экспортные bookmarks внутри scope.
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.UCase$(VBA.CStr(bookmarkObj.Name))
+        If VBA.Left$(bookmarkName, VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) <> _
+            WORD_RECORD_BOOKMARK_PREFIX And _
+            VBA.Left$(bookmarkName, VBA.Len(WORD_GROUP_BOOKMARK_PREFIX)) <> _
+            WORD_GROUP_BOOKMARK_PREFIX And _
+            VBA.Left$(bookmarkName, VBA.Len(WORD_NESTED_GROUP_BOOKMARK_PREFIX)) <> _
+            WORD_NESTED_GROUP_BOOKMARK_PREFIX And _
+            VBA.Left$(bookmarkName, VBA.Len(WORD_METADATA_BOOKMARK_PREFIX)) <> _
+            WORD_METADATA_BOOKMARK_PREFIX Then GoTo ContinueBookmark
+        Set bookmarkRange = bookmarkObj.Range
+        If bookmarkRange.Start >= deleteRange.Start And _
+            bookmarkRange.End <= deleteRange.End Then _
+            bookmarkNames.Add VBA.CStr(bookmarkObj.Name)
+ContinueBookmark:
+    Next bookmarkObj
+
+    For Each bookmarkNameObj In bookmarkNames
+        bookmarkName = VBA.CStr(bookmarkNameObj)
+        If wordDoc.Bookmarks.Exists(bookmarkName) Then _
+            wordDoc.Bookmarks(bookmarkName).Delete
+    Next bookmarkNameObj
+    deleteRange.Delete
+    private_TryDeleteExportRange = True
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim elapsedSeconds As Double
+
+    elapsedSeconds = VBA.Timer - startedAt
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
+    private_PerfElapsedMs = elapsedSeconds * 1000#
+End Function
+
+Public Function RestoreDeletedRecord(ByVal snapshot As Object) As Boolean
+    Dim targetPath As String
+    Dim bookmarkName As String
+    Dim wordOpenXml As String
+    Dim insertStart As Long
+    Dim wordApp As Object
+    Dim wordDoc As Object
+    Dim insertRange As Object
+    Dim documentOpened As Boolean
+    Dim contentInserted As Boolean
+
+    On Error GoTo EH
+    If snapshot Is Nothing Then Exit Function
+    If Not snapshot.Exists("TargetPath") Or _
+        Not snapshot.Exists("RangeStart") Or _
+        Not snapshot.Exists("WordOpenXml") Or _
+        Not snapshot.Exists("EventId") Then Exit Function
+    targetPath = VBA.CStr(snapshot("TargetPath"))
+    bookmarkName = VBA.CStr(snapshot("EventId"))
+    wordOpenXml = VBA.CStr(snapshot("WordOpenXml"))
+    insertStart = VBA.CLng(snapshot("RangeStart"))
+    If Not rt_WordExportRuntime.fn_TryAcquireWordDocument( _
+        targetPath, wordApp, wordDoc, documentOpened) Then Exit Function
+    If wordDoc.Bookmarks.Exists(bookmarkName) Then GoTo StateChanged
+    If insertStart < 0 Or insertStart > wordDoc.Content.End Then GoTo StateChanged
+    Set insertRange = wordDoc.Range(insertStart, insertStart)
+    insertRange.InsertXML wordOpenXml
+    contentInserted = True
+    If Not wordDoc.Bookmarks.Exists(bookmarkName) Then GoTo StateChanged
+    wordDoc.Save
+    If documentOpened Then wordDoc.Close False
+    RestoreDeletedRecord = True
+    Exit Function
+
+StateChanged:
+    If contentInserted Then
+        On Error Resume Next
+        insertRange.Delete
+        On Error GoTo 0
+    End If
+    VBA.MsgBox "WORD-документ изменился после удаления. " & _
+        "Автоматическое восстановление в прежнюю позицию отменено.", _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD undo"
+    If documentOpened Then wordDoc.Close False
+    Exit Function
+EH:
+    On Error Resume Next
+    If documentOpened Then wordDoc.Close False
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось восстановить WORD-событие: " & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD undo"
+End Function
+
+Private Function private_GetDeleteUndoRange( _
+    ByVal wordDoc As Object, _
+    ByVal recordRange As Object _
+) As Object
+    Dim bookmarkObj As Object
+    Dim candidateRange As Object
+    Dim recordBookmark As Object
+    Dim recordRangeObj As Object
+    Dim candidateEntries As Collection
+    Dim candidateEntry As Object
+    Dim candidateItem As Variant
+    Dim bestLength As Long
+
+    If wordDoc Is Nothing Or recordRange Is Nothing Then Exit Function
+    Set private_GetDeleteUndoRange = recordRange.Duplicate
+    bestLength = VBA.CLng(recordRange.End) - VBA.CLng(recordRange.Start)
+    Set candidateEntries = New Collection
+
+    ' Сначала оставляем только группы, содержащие удаляемую запись. Обычно это
+    ' одна-две группы; Range остальных bookmarks больше не читается повторно.
+    For Each bookmarkObj In wordDoc.Bookmarks
+        If VBA.Left$(VBA.UCase$(VBA.CStr(bookmarkObj.Name)), _
+            VBA.Len(WORD_GROUP_BOOKMARK_PREFIX)) <> WORD_GROUP_BOOKMARK_PREFIX And _
+            VBA.Left$(VBA.UCase$(VBA.CStr(bookmarkObj.Name)), _
+            VBA.Len(WORD_NESTED_GROUP_BOOKMARK_PREFIX)) <> WORD_NESTED_GROUP_BOOKMARK_PREFIX Then _
+            GoTo ContinueBookmark
+        Set candidateRange = bookmarkObj.Range
+        If recordRange.Start < candidateRange.Start Or _
+            recordRange.End > candidateRange.End Then GoTo ContinueBookmark
+        Set candidateEntry = VBA.CreateObject("Scripting.Dictionary")
+        candidateEntry.Add "Range", candidateRange.Duplicate
+        candidateEntry("RecordCount") = 0&
+        candidateEntries.Add candidateEntry
+ContinueBookmark:
+    Next bookmarkObj
+
+    ' Каждый record Range читается один раз и сравнивается только с найденными
+    ' родителями. Прежний вложенный обход повторно обращался к Word COM для
+    ' полного набора bookmarks по каждой группе.
+    For Each recordBookmark In wordDoc.Bookmarks
+        If VBA.Left$(VBA.UCase$(VBA.CStr(recordBookmark.Name)), _
+            VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) = WORD_RECORD_BOOKMARK_PREFIX Then
+            Set recordRangeObj = recordBookmark.Range
+            For Each candidateItem In candidateEntries
+                Set candidateEntry = candidateItem
+                Set candidateRange = candidateEntry("Range")
+                If recordRangeObj.Start >= candidateRange.Start And _
+                    recordRangeObj.End <= candidateRange.End Then _
+                    candidateEntry("RecordCount") = _
+                        VBA.CLng(candidateEntry("RecordCount")) + 1
+            Next candidateItem
         End If
-ContinueGroup:
-    Next groupIndex
-End Sub
+    Next recordBookmark
+
+    For Each candidateItem In candidateEntries
+        Set candidateEntry = candidateItem
+        If VBA.CLng(candidateEntry("RecordCount")) = 1 Then
+            Set candidateRange = candidateEntry("Range")
+            If candidateRange.End - candidateRange.Start > bestLength Then
+                Set private_GetDeleteUndoRange = candidateRange.Duplicate
+                bestLength = candidateRange.End - candidateRange.Start
+            End If
+        End If
+    Next candidateItem
+End Function
 
 Private Function private_TryBuildExistingResultPath( _
     ByVal orderNo As String, ByRef outTargetPath As String, _
@@ -808,6 +1005,7 @@ Public Function Export( _
     Dim previewText As String
     Dim recordText As String
     Dim templateId As String
+    Dim templateHash As String
     Dim recordIpn As String
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
@@ -880,6 +1078,8 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD result template is not mapped for section: " & sectionTypeText, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    If Not m_TemplateParser.TryGetTemplateHashByName( _
+        templateId, templateHash) Then Exit Function
     previewText = private_GetContextText(context, CONTEXT_WORD_PREVIEW_TEXT)
     writeToWord = private_GetContextBoolean(context, "WriteToWord")
     usePreparedPreview = (writeToWord And _
@@ -964,7 +1164,7 @@ Public Function Export( _
             Exit Function
         End If
         If Not private_TryAppendBeforeWordEndAnchor( _
-            templateId, recordIpn, recordText, _
+            templateId, templateHash, recordIpn, recordText, _
             groupKeyText, groupOrderText, groupHeaderText, _
             nestedGroupKeyText, nestedGroupOrderText, nestedGroupHeaderText, _
             documentFilepath) Then Exit Function
@@ -1037,6 +1237,7 @@ End Function
 
 Private Function private_TryAppendBeforeWordEndAnchor( _
     ByVal templateId As String, _
+    ByVal templateHash As String, _
     ByVal recordIpn As String, _
     ByVal renderedText As String, _
     Optional ByVal groupKeyText As String = "", _
@@ -1054,7 +1255,6 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim beginRange As Object
-    Dim endSearchRange As Object
     Dim endRange As Object
     Dim insertRange As Object
     Dim insertedStart As Long
@@ -1110,14 +1310,14 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     If Not private_TryStripPreviewInlineMarkers( _
         renderedText, plainRenderedText) Then Exit Function
     plainRenderedText = private_NormalizeWordParagraphBreaks(plainRenderedText)
-    bookmarkName = private_BuildRecordBookmarkName(templateId, recordIpn)
+    bookmarkName = private_BuildRecordBookmarkName(templateHash, recordIpn)
     If VBA.Len(bookmarkName) = 0 Then
         VBA.MsgBox "PrototypeNew: failed to build a WORD bookmark for IPN '" & recordIpn & "'.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
     If VBA.Len(VBA.Trim$(groupKeyText)) > 0 Then
         groupBookmarkName = private_BuildGroupBookmarkName( _
-            templateId, groupKeyText, groupOrderText)
+            templateHash, groupKeyText, groupOrderText)
         If VBA.Len(groupBookmarkName) = 0 Then Exit Function
         If Not private_TryStripPreviewInlineMarkers( _
             groupHeaderText, plainGroupHeaderText) Then Exit Function
@@ -1215,7 +1415,7 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
             wordDoc.Bookmarks(groupBookmarkName).Delete
         Else
             If Not private_TryFindGroupInsertPosition( _
-                wordDoc, templateId, groupBookmarkName, groupOrderText, _
+                wordDoc, templateHash, groupBookmarkName, groupOrderText, _
                 beginRange.End, endRange.Start, insertedStart) Then GoTo CleanFail
             ' Нет даже внешней группы: единым блоком вставляются заголовок даты,
             ' заголовок больницы и первая запись человека.
@@ -1240,6 +1440,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
     Set insertRange = wordDoc.Range(insertedStart, insertedEnd)
     ' Do not inherit highlight from a neighbouring anchor or an older export.
     insertRange.HighlightColorIndex = 0
+    If Not private_TryTrimExpandedRecordBookmarkAtInsertion( _
+        wordDoc, insertedStart) Then GoTo CleanFail
     wordDoc.Bookmarks.Add bookmarkName, insertRange
     If VBA.Len(groupBookmarkName) > 0 Then
         If groupEnd > 0 Then
@@ -1255,18 +1457,8 @@ Private Function private_TryAppendBeforeWordEndAnchor( _
         End If
     End If
 
-    ' Word расширяет предыдущую PEB-закладку, когда новый текст вставляется
-    ' непосредственно в её End. После каждой вставки восстанавливаем непересекающиеся
-    ' границы всех пунктов секции. End-якорь ищем повторно: ранее полученный
-    ' Word Range не обязан автоматически сдвинуться после вставки.
-    Set endSearchRange = wordDoc.Range(beginRange.End, wordDoc.Content.End)
-    Set endRange = Nothing
-    If Not private_TryFindWordText(endSearchRange, endMarker, endRange) Then GoTo CleanFail
-    If Not private_TryNormalizeSectionRecordBookmarks( _
-        wordDoc, templateId, beginRange.End, endRange.Start) Then GoTo CleanFail
-
-    ' Bookmark после нормализации остаётся стабильным локатором конкретной
-    ' вставки. Undo action хранит также позицию и текст для симметричного redo,
+    ' Bookmark остаётся точным локатором конкретной вставки. Undo action
+    ' хранит также позицию и текст для симметричного redo,
     ' но не удерживает Word Document/Range после закрытия файла.
     Set undoAction = New obj_PEB_ExportUndoAction
     undoActionReady = undoAction.InitializeWord( _
@@ -1315,6 +1507,34 @@ Private Sub private_DeleteCollapsedWordBookmarkIfExists( _
         wordDoc.Bookmarks(bookmarkName).Delete
     End If
 End Sub
+
+Private Function private_TryTrimExpandedRecordBookmarkAtInsertion( _
+    ByVal wordDoc As Object, _
+    ByVal insertedStart As Long _
+) As Boolean
+    Dim bookmarkObj As Object
+    Dim bookmarkName As String
+    Dim bookmarkStart As Long
+    Dim correctedRange As Object
+
+    If wordDoc Is Nothing Then Exit Function
+    For Each bookmarkObj In wordDoc.Bookmarks
+        bookmarkName = VBA.CStr(bookmarkObj.Name)
+        If VBA.Left$(VBA.UCase$(bookmarkName), _
+            VBA.Len(WORD_RECORD_BOOKMARK_PREFIX)) = _
+            WORD_RECORD_BOOKMARK_PREFIX Then
+            bookmarkStart = bookmarkObj.Range.Start
+            If bookmarkStart < insertedStart And _
+                bookmarkObj.Range.End > insertedStart Then
+                wordDoc.Bookmarks(bookmarkName).Delete
+                Set correctedRange = wordDoc.Range(bookmarkStart, insertedStart)
+                wordDoc.Bookmarks.Add bookmarkName, correctedRange
+                Exit For
+            End If
+        End If
+    Next bookmarkObj
+    private_TryTrimExpandedRecordBookmarkAtInsertion = True
+End Function
 
 Private Function private_TryNormalizeSectionRecordBookmarks( _
     ByVal wordDoc As Object, _
@@ -1593,24 +1813,21 @@ Private Function private_NormalizeResultFileNamePart(ByVal valueText As String) 
     private_NormalizeResultFileNamePart = valueText
 End Function
 
-Private Function private_BuildRecordBookmarkName(ByVal templateId As String, ByVal recordIpn As String) As String
-    Dim safeTemplateId As String
+Private Function private_BuildRecordBookmarkName(ByVal templateHash As String, ByVal recordIpn As String) As String
+    Dim safeTemplateHash As String
     Dim safeIpn As String
-    Dim availableTemplateLength As Long
 
-    safeTemplateId = private_NormalizeBookmarkPart(templateId)
+    safeTemplateHash = VBA.UCase$(private_NormalizeBookmarkPart(templateHash))
     safeIpn = private_NormalizeBookmarkPart(recordIpn)
-    If VBA.Len(safeTemplateId) = 0 Or VBA.Len(safeIpn) = 0 Then Exit Function
+    If Not safeTemplateHash Like "[0-9A-F][0-9A-F]" Then Exit Function
+    If VBA.Len(safeIpn) = 0 Then Exit Function
 
-    availableTemplateLength = WORD_BOOKMARK_MAX_LENGTH - VBA.Len(WORD_RECORD_BOOKMARK_PREFIX) - VBA.Len(safeIpn) - 1
-    If availableTemplateLength <= 0 Then Exit Function
-    If VBA.Len(safeTemplateId) > availableTemplateLength Then safeTemplateId = VBA.Left$(safeTemplateId, availableTemplateLength)
-
-    private_BuildRecordBookmarkName = WORD_RECORD_BOOKMARK_PREFIX & safeTemplateId & "_" & safeIpn
+    private_BuildRecordBookmarkName = WORD_RECORD_BOOKMARK_PREFIX & _
+        safeTemplateHash & "_" & safeIpn
 End Function
 
 Private Function private_BuildGroupBookmarkName( _
-    ByVal templateId As String, _
+    ByVal templateHash As String, _
     ByVal groupKeyText As String, _
     ByVal groupOrderText As String _
 ) As String
@@ -1622,7 +1839,8 @@ Private Function private_BuildGroupBookmarkName( _
     Dim availableVisibleKeyLength As Long
     Dim dateParts As Variant
 
-    templatePart = private_NormalizeBookmarkPart(templateId)
+    templatePart = VBA.UCase$(private_NormalizeBookmarkPart(templateHash))
+    If Not templatePart Like "[0-9A-F][0-9A-F]" Then Exit Function
     groupKeyText = VBA.Trim$(groupKeyText)
     Select Case VBA.LCase$(VBA.Trim$(groupOrderText))
         Case "date"
@@ -1763,7 +1981,7 @@ End Function
 
 Private Function private_TryFindGroupInsertPosition( _
     ByVal wordDoc As Object, _
-    ByVal templateId As String, _
+    ByVal templateHash As String, _
     ByVal newGroupBookmarkName As String, _
     ByVal groupOrderText As String, _
     ByVal sectionStart As Long, _
@@ -1781,7 +1999,7 @@ Private Function private_TryFindGroupInsertPosition( _
         Exit Function
     End If
     prefixText = VBA.LCase$(WORD_GROUP_BOOKMARK_PREFIX & _
-        private_NormalizeBookmarkPart(templateId) & "_")
+        private_NormalizeBookmarkPart(templateHash) & "_")
     For Each bookmarkObj In wordDoc.Bookmarks
         bookmarkName = VBA.CStr(bookmarkObj.Name)
         If VBA.Left$(VBA.LCase$(bookmarkName), VBA.Len(prefixText)) <> prefixText Then _
@@ -1825,7 +2043,6 @@ Private Function private_BuildUniqueBookmarkName(ByVal wordDoc As Object, ByVal 
     Dim candidateName As String
     Dim suffixText As String
     Dim sequenceNo As Long
-    Dim baseMaxLength As Long
 
     baseName = VBA.Trim$(baseName)
     If wordDoc Is Nothing Or VBA.Len(baseName) = 0 Then Exit Function
@@ -1837,8 +2054,13 @@ Private Function private_BuildUniqueBookmarkName(ByVal wordDoc As Object, ByVal 
     sequenceNo = 2
     Do
         suffixText = "_" & VBA.CStr(sequenceNo)
-        baseMaxLength = WORD_BOOKMARK_MAX_LENGTH - VBA.Len(suffixText)
-        candidateName = VBA.Left$(baseName, baseMaxLength) & suffixText
+        candidateName = baseName & suffixText
+        If VBA.Len(candidateName) > WORD_BOOKMARK_MAX_LENGTH Then
+            VBA.MsgBox "PrototypeNew: WORD bookmark occurrence suffix exceeds " & _
+                "the name limit: " & candidateName, VBA.vbExclamation, _
+                "PrototypeNew / WORD export"
+            Exit Function
+        End If
         If Not wordDoc.Bookmarks.Exists(candidateName) Then
             private_BuildUniqueBookmarkName = candidateName
             Exit Function

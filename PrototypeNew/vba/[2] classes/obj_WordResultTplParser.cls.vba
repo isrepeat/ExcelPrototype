@@ -124,6 +124,62 @@ Public Property Get LastRenderHasTables() As Boolean
     LastRenderHasTables = m_LastRenderHasTables
 End Property
 
+Public Function TryGetTemplateHashByName( _
+    ByVal templateName As String, _
+    ByRef outTemplateHash As String _
+) As Boolean
+    Dim templateNodes As Object
+    Dim templateNode As Object
+    Dim seenNames As Object
+    Dim seenHashes As Object
+    Dim candidateName As String
+    Dim candidateHash As String
+
+    outTemplateHash = VBA.vbNullString
+    templateName = VBA.Trim$(templateName)
+    If VBA.Len(templateName) = 0 Or m_IsDisposed Then Exit Function
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
+    Set templateNodes = m_TemplateDoc.selectNodes( _
+        "/p:wordResultTemplates/p:template")
+    Set seenNames = VBA.CreateObject("Scripting.Dictionary")
+    Set seenHashes = VBA.CreateObject("Scripting.Dictionary")
+    seenNames.CompareMode = VBA.vbTextCompare
+    seenHashes.CompareMode = VBA.vbTextCompare
+    For Each templateNode In templateNodes
+        candidateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+            templateNode, "name"))
+        candidateHash = VBA.UCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+            templateNode, "hash")))
+        If VBA.Len(candidateName) = 0 Then GoTo InvalidTemplate
+        If VBA.Len(candidateHash) <> 4 Or _
+            VBA.Left$(candidateHash, 2) <> "0X" Then GoTo InvalidTemplate
+        candidateHash = VBA.Right$(candidateHash, 2)
+        If Not candidateHash Like "[0-9A-F][0-9A-F]" Then GoTo InvalidTemplate
+        If seenNames.Exists(candidateName) Or seenHashes.Exists(candidateHash) Then _
+            GoTo DuplicateTemplate
+        seenNames.Add candidateName, True
+        seenHashes.Add candidateHash, True
+        If VBA.StrComp(candidateName, templateName, VBA.vbTextCompare) = 0 Then _
+            outTemplateHash = candidateHash
+    Next templateNode
+    If VBA.Len(outTemplateHash) = 0 Then
+        VBA.MsgBox "PrototypeNew: WORD result template was not found by name: " & _
+            templateName, VBA.vbExclamation, "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    TryGetTemplateHashByName = True
+    Exit Function
+InvalidTemplate:
+    VBA.MsgBox "PrototypeNew: each WORD template requires name and hash=" & _
+        """0xNN""; template: " & candidateName, VBA.vbExclamation, _
+        "PrototypeNew / WORD export"
+    Exit Function
+DuplicateTemplate:
+    VBA.MsgBox "PrototypeNew: duplicate WORD template name or hash: " & _
+        candidateName & " / 0x" & candidateHash, VBA.vbExclamation, _
+        "PrototypeNew / WORD export"
+End Function
+
 Public Function TryGetDocumentSettings( _
     ByRef outGenerationMode As String, _
     ByRef outDocumentStylesMarkup As String, _
@@ -246,10 +302,10 @@ Public Function TryGetGroupingDefinition( _
     If m_IsDisposed Then Exit Function
     If Not private_TryReloadTemplateIfChanged() Then Exit Function
     Set templateNode = m_TemplateDoc.selectSingleNode( _
-        "/p:wordResultTemplates/p:template[@id=" & _
+        "/p:wordResultTemplates/p:template[@name=" & _
         ex_XmlCore.fn_XPathLiteral(VBA.Trim$(templateId)) & "]")
     If templateNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: WORD result template was not found by id: " & _
+        VBA.MsgBox "PrototypeNew: WORD result template was not found by name: " & _
             templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
@@ -403,7 +459,7 @@ Private Function private_TryGetTemplateTextById( _
     outTemplateText = VBA.vbNullString
     templateId = VBA.Trim$(templateId)
     If VBA.Len(templateId) = 0 Then
-        VBA.MsgBox "PrototypeNew: WORD result template id is empty.", VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: WORD result template name is empty.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
@@ -413,10 +469,10 @@ Private Function private_TryGetTemplateTextById( _
         Exit Function
     End If
 
-    xpath = "/p:wordResultTemplates/p:template[@id=" & ex_XmlCore.fn_XPathLiteral(templateId) & "]"
+    xpath = "/p:wordResultTemplates/p:template[@name=" & ex_XmlCore.fn_XPathLiteral(templateId) & "]"
     Set templateNode = doc.selectSingleNode(xpath)
     If templateNode Is Nothing Then
-        VBA.MsgBox "PrototypeNew: WORD result template was not found by id: " & templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
+        VBA.MsgBox "PrototypeNew: WORD result template was not found by name: " & templateId, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
 
@@ -516,7 +572,7 @@ Private Function private_TryGetTemplateChildTextById( _
     templateId = VBA.Trim$(templateId)
     childName = VBA.Trim$(childName)
     If VBA.Len(templateId) = 0 Or VBA.Len(childName) = 0 Then Exit Function
-    xpath = "/p:wordResultTemplates/p:template[@id=" & _
+    xpath = "/p:wordResultTemplates/p:template[@name=" & _
         ex_XmlCore.fn_XPathLiteral(templateId) & "]/p:" & childName
     Set node = m_TemplateDoc.selectSingleNode(xpath)
     If node Is Nothing Then
@@ -542,7 +598,7 @@ Private Function private_TryGetGroupHeaderTextById( _
 
     outTemplateText = VBA.vbNullString
     Set templateNode = m_TemplateDoc.selectSingleNode( _
-        "/p:wordResultTemplates/p:template[@id=" & _
+        "/p:wordResultTemplates/p:template[@name=" & _
         ex_XmlCore.fn_XPathLiteral(VBA.Trim$(templateId)) & "]")
     If templateNode Is Nothing Then Exit Function
     ' Заголовок выбирается по alias, а не по его порядку среди XML-узлов.

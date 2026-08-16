@@ -28,6 +28,7 @@ Private m_Columns As Long
 Private m_ShapePrefix As String
 Private m_FlowDirection As String
 Private m_ItemSpanRows As Long
+Private m_ItemsPerColumn As Long
 Private m_IsConfigured As Boolean
 Private m_IsDisposed As Boolean
 
@@ -56,6 +57,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Dim callbackContext As Object
     Dim onClickResolved As Variant
     Dim columnsRaw As String
+    Dim itemsPerColumnRaw As String
 
     m_IsConfigured = False
     Set m_ControlBase = Nothing
@@ -68,6 +70,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_ShapePrefix = VBA.vbNullString
     m_FlowDirection = FLOW_ROW
     m_ItemSpanRows = DEFAULT_ITEM_SPAN_ROWS
+    m_ItemsPerColumn = 0
 
     If m_Page Is Nothing Then Exit Sub
     Set pageBase = m_Page.GetPageBase()
@@ -120,9 +123,26 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_FlowDirection = private_ReadFlowDirection(controlNode)
     ' itemSpanRows задает высоту одной кнопки в layout-строках.
     m_ItemSpanRows = private_ReadPositiveLongAttr(controlNode, "itemSpanRows", DEFAULT_ITEM_SPAN_ROWS)
+    itemsPerColumnRaw = VBA.Trim$(VBA.CStr( _
+        ex_XmlCore.fn_NodeAttrText(controlNode, "itemsPerColumn")))
+    If VBA.Len(itemsPerColumnRaw) > 0 Then
+        If Not VBA.IsNumeric(itemsPerColumnRaw) Then Exit Sub
+        m_ItemsPerColumn = VBA.CLng(itemsPerColumnRaw)
+        If m_ItemsPerColumn <= 0 Then Exit Sub
+    End If
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "ButtonGroup", m_ControlName, "style") Then Exit Sub
+    If m_ItemsPerColumn > 0 Then
+        If m_ItemsPerColumn * m_ItemSpanRows > _
+            m_ControlLayout.RowEnd - m_ControlLayout.RowStart + 1 Then
+            VBA.MsgBox "ButtonGroup '" & m_ControlName & "': itemsPerColumn=" & _
+                VBA.CStr(m_ItemsPerColumn) & " with itemSpanRows=" & _
+                VBA.CStr(m_ItemSpanRows) & " does not fit into spanRows.", _
+                VBA.vbExclamation, "PrototypeNew / ButtonGroup layout"
+            Exit Sub
+        End If
+    End If
     m_RuntimeControlKey = "buttongroup|" & VBA.LCase$(VBA.Trim$(m_ControlLayout.LayoutSheetName & "|" & m_ControlName))
 
     m_IsConfigured = True
@@ -170,6 +190,14 @@ Private Sub obj_IControl_Render()
     If itemCount <= 0 Then
         If Not pageBase.RegisterControl(m_RuntimeControlKey, Me) Then Exit Sub
         private_DeleteExtraShapes ws, 1
+        Exit Sub
+    End If
+    If m_ItemsPerColumn > 0 And _
+        itemCount > m_ItemsPerColumn * m_Columns Then
+        VBA.MsgBox "ButtonGroup '" & m_ControlName & "' contains " & _
+            VBA.CStr(itemCount) & " items, but itemsPerColumn * columns allows " & _
+            VBA.CStr(m_ItemsPerColumn * m_Columns) & ".", VBA.vbExclamation, _
+            "PrototypeNew / ButtonGroup layout"
         Exit Sub
     End If
 
@@ -253,7 +281,8 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "onclick", "columns", "shapeprefix", "flow", "itemspanrows"
+        Case "itemssource", "onclick", "columns", "shapeprefix", "flow", _
+             "itemspanrows", "itemspercolumn"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -319,6 +348,8 @@ Private Function private_RowsPerColumn(ByVal itemCount As Long) As Long
         private_RowsPerColumn = availableItemRows
     ElseIf Not private_IsColumnFlow() Then
         private_RowsPerColumn = availableItemRows
+    ElseIf m_ItemsPerColumn > 0 Then
+        private_RowsPerColumn = m_ItemsPerColumn
     Else
         private_RowsPerColumn = (itemCount + m_Columns - 1) \ m_Columns
         If private_RowsPerColumn <= 0 Then private_RowsPerColumn = 1

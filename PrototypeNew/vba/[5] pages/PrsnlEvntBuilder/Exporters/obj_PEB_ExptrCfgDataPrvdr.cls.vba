@@ -35,6 +35,8 @@ Private Const MOVEMENT_DEPARTURE_DATE_HEADER As String = "Вибуття"
 Private Const MOVEMENT_DEPARTURE_ORDER_HEADER As String = "Вибуття.Наказ"
 Private Const MOVEMENT_ARRIVAL_DATE_HEADER As String = "Прибуття"
 Private Const MOVEMENT_ARRIVAL_ORDER_HEADER As String = "Прибуття.Наказ"
+Private Const MOVEMENT_DEPARTURE_REASON_HEADER As String = "Вибуття.Підстава"
+Private Const MOVEMENT_ARRIVAL_REASON_HEADER As String = "Прибуття.Підстава"
 Private Const MOVEMENT_ON_FOOD_HEADER As String = "Прибуття.Продовольче"
 Private Const MOVEMENT_TVO_FIO_HEADER As String = "ТВО.ПІБ"
 Private Const MOVEMENT_TVO_IPN_HEADER As String = "ТВО.ІПН"
@@ -272,6 +274,8 @@ Private Function private_TryExecuteMovementEventQuery( _
     If Not query.AddSelectColumn(MOVEMENT_EVENT_HEADER) Then Exit Function
     If Not query.AddSelectColumn(dateHeader) Then Exit Function
     If Not query.AddSelectColumn(orderHeader) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DEPARTURE_REASON_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_ARRIVAL_REASON_HEADER) Then Exit Function
     If Not query.AddCondition( _
         orderHeader, queryOperation, orderNo, False) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, outEvents) Then Exit Function

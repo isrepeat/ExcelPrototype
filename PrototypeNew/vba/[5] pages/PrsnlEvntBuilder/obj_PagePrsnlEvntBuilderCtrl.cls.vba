@@ -135,9 +135,11 @@ Private m_MovementEventIds As Collection
 Private m_WordEventIds As Collection
 Private m_MovementEventCaptions As Collection
 Private m_WordEventCaptions As Collection
+Private m_DeletedExportSnapshots As Object
 Private m_WordExportPreviewText As String
 Private m_IsWordPreviewExportMode As Boolean
 Private m_AreWordBookmarksShownAsMarkers As Boolean
+Private m_AreExportedEventsShown As Boolean
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
@@ -221,10 +223,13 @@ Public Function Initialize(ByVal page As Object) As Boolean
     m_IsWordValidationEnabled = False
     m_IsMovementHistoryEnabled = False
     m_AreWordBookmarksShownAsMarkers = False
+    m_AreExportedEventsShown = False
     Set m_MovementEventIds = New Collection
     Set m_WordEventIds = New Collection
     Set m_MovementEventCaptions = New Collection
     Set m_WordEventCaptions = New Collection
+    Set m_DeletedExportSnapshots = VBA.CreateObject("Scripting.Dictionary")
+    m_DeletedExportSnapshots.CompareMode = VBA.vbTextCompare
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
@@ -277,9 +282,11 @@ Public Sub Dispose()
     Set m_WordEventIds = Nothing
     Set m_MovementEventCaptions = Nothing
     Set m_WordEventCaptions = Nothing
+    Set m_DeletedExportSnapshots = Nothing
     m_WordExportPreviewText = VBA.vbNullString
     m_IsWordPreviewExportMode = False
     m_AreWordBookmarksShownAsMarkers = False
+    m_AreExportedEventsShown = False
     m_IsMovementHistoryEnabled = False
     m_DraftReportIsTvo = False
     m_ReportOwnPositionCode = VBA.vbNullString
@@ -837,6 +844,31 @@ Public Function UpdateDataFromConfigTable(ByVal configTable As obj_ConfigTable) 
     UpdateDataFromConfigTable = True
 End Function
 
+Private Function private_ClearRenderedExportedEvents() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim emptyTableItems As Collection
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+
+    Set emptyTableItems = New Collection
+    If Not runtimeSources.RemoveItemsSource( _
+        VBA.LCase$(MOVEMENT_EVENTS_RUNTIME_KEY)) Then Exit Function
+    If Not runtimeSources.SetItemsSource( _
+        VBA.LCase$(MOVEMENT_EVENTS_RUNTIME_KEY), _
+        emptyTableItems, False) Then Exit Function
+    Set m_MovementEventIds = New Collection
+    Set m_MovementEventCaptions = New Collection
+    Set m_WordEventIds = New Collection
+    Set m_WordEventCaptions = New Collection
+    m_AreExportedEventsShown = False
+    private_ClearRenderedExportedEvents = True
+End Function
+
 Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) As Boolean
     If m_LookupFeature Is Nothing Then Exit Function
     If Not m_LookupFeature.PrepareLookupRuntime(notifyChange) Then Exit Function
@@ -876,6 +908,7 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
     Dim cellValue As String
     Dim cellAddress As String
     Dim shouldRefreshMovementHistory As Boolean
+    Dim restoreHandled As Boolean
 
     On Error GoTo EH
 
@@ -955,6 +988,15 @@ Public Function RuntimeHandleHotkeyAction(ByVal actionId As Variant) As Boolean
             Exit Function
 
         Case VBA.LCase$(HOTKEY_ACCEPT_CANDIDATE_ROW)
+            If Not private_TryRestoreSelectedDeletedEvent( _
+                targetCell, restoreHandled) Then
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
+            If restoreHandled Then
+                RuntimeHandleHotkeyAction = True
+                Exit Function
+            End If
             ' Любой выбранный Lookup-кандидат меняет данные, из которых был
             ' построен WORD preview: ФИО, больницу, рапортующего или документ.
             If Not Me.ResetWordPreviewExportMode(False) Then Exit Function
@@ -1039,7 +1081,6 @@ Private Function private_TryDeleteSelectedExportedEvent( _
     Dim eventId As String
     Dim eventCaption As String
     Dim isMovementEvent As Boolean
-    Dim answer As VbMsgBoxResult
 
     If Not private_TryResolveSelectedCombinedExportedEvent( _
         targetCell, isMovementEvent, eventId, eventCaption) Then
@@ -1058,20 +1099,360 @@ Private Function private_TryDeleteSelectedExportedEvent( _
         private_TryDeleteSelectedExportedEvent = True
         Exit Function
     End If
-
-    answer = VBA.MsgBox( _
-        "Удалить выбранное событие?" & VBA.vbCrLf & VBA.vbCrLf & _
-        eventCaption, VBA.vbYesNo Or VBA.vbQuestion Or VBA.vbDefaultButton2, _
-        "PrsnlEventBuilder / Delete event")
-    If answer <> VBA.vbYes Then
+    If private_IsDeletedExportSnapshot(isMovementEvent, eventId) Then
+        rt_Messaging.fn_ShowStatusBarWarning _
+            "Событие уже удалено. Выберите его красную часть строки и нажмите Ctrl+Enter для восстановления.", 5
         private_TryDeleteSelectedExportedEvent = True
         Exit Function
     End If
+
     If isMovementEvent Then
         private_TryDeleteSelectedExportedEvent = Me.OnMovementEventClick(eventId)
     Else
         private_TryDeleteSelectedExportedEvent = Me.OnWordEventClick(eventId)
     End If
+End Function
+
+Private Function private_StoreDeletedExportSnapshot( _
+    ByVal isMovementEvent As Boolean, _
+    ByVal eventId As String, _
+    ByVal snapshot As Object _
+) As Boolean
+    Dim snapshotKey As String
+    Dim eventIds As Collection
+    Dim eventCaptions As Collection
+    Dim eventIndex As Long
+    Dim relatedSnapshot As Object
+    Dim aliasSnapshot As Object
+    Dim relatedEventId As String
+    Dim aliasKey As String
+
+    If snapshot Is Nothing Then Exit Function
+    If m_DeletedExportSnapshots Is Nothing Then
+        Set m_DeletedExportSnapshots = VBA.CreateObject("Scripting.Dictionary")
+        m_DeletedExportSnapshots.CompareMode = VBA.vbTextCompare
+    End If
+    snapshotKey = private_DeletedExportSnapshotKey(isMovementEvent, eventId)
+    If Not isMovementEvent Then
+        If Not private_TranslateWordSnapshotPositions( _
+            snapshot, False, VBA.vbNullString) Then Exit Function
+    End If
+    If isMovementEvent Then
+        Set eventIds = m_MovementEventIds
+        Set eventCaptions = m_MovementEventCaptions
+    Else
+        Set eventIds = m_WordEventIds
+        Set eventCaptions = m_WordEventCaptions
+    End If
+    If Not eventIds Is Nothing And Not eventCaptions Is Nothing Then
+        For eventIndex = 1 To eventIds.Count
+            If VBA.StrComp(VBA.CStr(eventIds.Item(eventIndex)), _
+                eventId, VBA.vbBinaryCompare) = 0 Then
+                snapshot("DisplayCaption") = VBA.CStr(eventCaptions.Item(eventIndex))
+                snapshot("OptionCaption") = private_BuildDeletedEventOptionCaption( _
+                    isMovementEvent, eventIndex)
+                If VBA.Len(VBA.CStr(snapshot("OptionCaption"))) = 0 Then _
+                    snapshot("OptionCaption") = VBA.Replace$( _
+                        VBA.CStr(eventCaptions.Item(eventIndex)), " — ", VBA.vbTab)
+                Exit For
+            End If
+        Next eventIndex
+    End If
+    If m_DeletedExportSnapshots.Exists(snapshotKey) Then _
+        m_DeletedExportSnapshots.Remove snapshotKey
+    m_DeletedExportSnapshots.Add snapshotKey, snapshot
+    If isMovementEvent And snapshot.Exists("RelatedSnapshot") Then
+        Set relatedSnapshot = snapshot("RelatedSnapshot")
+        relatedEventId = VBA.CStr(relatedSnapshot("EventId"))
+        aliasKey = private_DeletedExportSnapshotKey(True, relatedEventId)
+        Set aliasSnapshot = VBA.CreateObject("Scripting.Dictionary")
+        aliasSnapshot("Kind") = "Movement"
+        aliasSnapshot("EventId") = relatedEventId
+        aliasSnapshot("IsAlias") = True
+        aliasSnapshot.Add "RootSnapshot", snapshot
+        For eventIndex = 1 To m_MovementEventIds.Count
+            If VBA.StrComp(VBA.CStr(m_MovementEventIds.Item(eventIndex)), _
+                relatedEventId, VBA.vbBinaryCompare) = 0 Then
+                aliasSnapshot("DisplayCaption") = _
+                    VBA.CStr(m_MovementEventCaptions.Item(eventIndex))
+                aliasSnapshot("OptionCaption") = _
+                    private_BuildDeletedEventOptionCaption(True, eventIndex)
+                Exit For
+            End If
+        Next eventIndex
+        ' У объединённой строки смены статуса связанный eventId намеренно не
+        ' присутствует в UI, поэтому отдельный alias для него не требуется.
+        If aliasSnapshot.Exists("OptionCaption") Then
+            If m_DeletedExportSnapshots.Exists(aliasKey) Then _
+                m_DeletedExportSnapshots.Remove aliasKey
+            m_DeletedExportSnapshots.Add aliasKey, aliasSnapshot
+        End If
+    End If
+    private_StoreDeletedExportSnapshot = True
+End Function
+
+Private Function private_TranslateWordSnapshotPositions( _
+    ByVal changedSnapshot As Object, _
+    ByVal isRestore As Boolean, _
+    ByVal excludedSnapshotKey As String _
+) As Boolean
+    Dim snapshotKey As Variant
+    Dim existingSnapshot As Object
+    Dim changedStart As Long
+    Dim changedLength As Long
+    Dim delta As Long
+
+    If changedSnapshot Is Nothing Then Exit Function
+    If Not changedSnapshot.Exists("TargetPath") Or _
+        Not changedSnapshot.Exists("RangeStart") Or _
+        Not changedSnapshot.Exists("RangeLength") Then Exit Function
+    changedStart = VBA.CLng(changedSnapshot("RangeStart"))
+    changedLength = VBA.CLng(changedSnapshot("RangeLength"))
+    If isRestore Then
+        delta = changedLength
+    Else
+        delta = -changedLength
+    End If
+    If m_DeletedExportSnapshots Is Nothing Then
+        private_TranslateWordSnapshotPositions = True
+        Exit Function
+    End If
+    For Each snapshotKey In m_DeletedExportSnapshots.Keys
+        If VBA.StrComp(VBA.CStr(snapshotKey), excludedSnapshotKey, _
+            VBA.vbBinaryCompare) = 0 Then GoTo ContinueSnapshot
+        Set existingSnapshot = m_DeletedExportSnapshots(snapshotKey)
+        If existingSnapshot.Exists("TargetPath") And _
+            existingSnapshot.Exists("RangeStart") Then
+            If VBA.StrComp(VBA.CStr(existingSnapshot("TargetPath")), _
+                VBA.CStr(changedSnapshot("TargetPath")), VBA.vbTextCompare) = 0 Then
+                If VBA.CLng(existingSnapshot("RangeStart")) >= changedStart Then _
+                    existingSnapshot("RangeStart") = _
+                        VBA.CLng(existingSnapshot("RangeStart")) + delta
+            End If
+        End If
+ContinueSnapshot:
+    Next snapshotKey
+    private_TranslateWordSnapshotPositions = True
+End Function
+
+Private Function private_BuildDeletedEventOptionCaption( _
+    ByVal isMovementEvent As Boolean, _
+    ByVal rowIndex As Long _
+) As String
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim tableItems As Collection
+    Dim eventsTable As obj_TableDynamic
+    Dim eventRow As obj_Row
+    Dim firstColumnIndex As Long
+    Dim lastColumnIndex As Long
+    Dim columnIndex As Long
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+    If Not runtimeSources.TryGetItemsSourceByKey( _
+        VBA.LCase$(MOVEMENT_EVENTS_RUNTIME_KEY), tableItems, True) Then Exit Function
+    If tableItems Is Nothing Or tableItems.Count <> 1 Then Exit Function
+    Set eventsTable = tableItems.Item(1)
+    If eventsTable Is Nothing Then Exit Function
+    If rowIndex <= 0 Or rowIndex > eventsTable.RowCount Then Exit Function
+    Set eventRow = eventsTable.Rows.Item(rowIndex)
+    If eventRow Is Nothing Then Exit Function
+    If isMovementEvent Then
+        firstColumnIndex = 1
+        lastColumnIndex = 4
+    Else
+        firstColumnIndex = 5
+        lastColumnIndex = 7
+    End If
+    For columnIndex = firstColumnIndex To lastColumnIndex
+        If columnIndex > firstColumnIndex Then _
+            private_BuildDeletedEventOptionCaption = _
+                private_BuildDeletedEventOptionCaption & VBA.vbTab
+        private_BuildDeletedEventOptionCaption = _
+            private_BuildDeletedEventOptionCaption & _
+            VBA.CStr(eventRow.GetCellValue(columnIndex))
+    Next columnIndex
+End Function
+
+Private Function private_DeletedExportSnapshotKey( _
+    ByVal isMovementEvent As Boolean, _
+    ByVal eventId As String _
+) As String
+    If isMovementEvent Then
+        private_DeletedExportSnapshotKey = "Movement|" & eventId
+    Else
+        private_DeletedExportSnapshotKey = "Word|" & eventId
+    End If
+End Function
+
+Private Function private_TryMarkDeletedExportEvent( _
+    ByVal isMovementEvent As Boolean, _
+    ByVal eventId As String, _
+    ByVal isDeleted As Boolean, _
+    Optional ByVal renderNow As Boolean = True _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+    Dim tableItems As Collection
+    Dim eventsTable As obj_TableDynamic
+    Dim eventRow As obj_Row
+    Dim eventCell As obj_Cell
+    Dim eventIds As Collection
+    Dim rowIndex As Long
+    Dim firstColumnIndex As Long
+    Dim lastColumnIndex As Long
+    Dim columnIndex As Long
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set runtimeSources = pageBase.RuntimeSources
+    If runtimeSources Is Nothing Then Exit Function
+    If isMovementEvent Then
+        Set eventIds = m_MovementEventIds
+    Else
+        Set eventIds = m_WordEventIds
+    End If
+    If eventIds Is Nothing Then Exit Function
+    For rowIndex = 1 To eventIds.Count
+        If VBA.StrComp(VBA.CStr(eventIds.Item(rowIndex)), _
+            eventId, VBA.vbBinaryCompare) = 0 Then Exit For
+    Next rowIndex
+    ' У подтверждённой смены статуса связанное прибытие скрыто из UI: одна
+    ' строка представляет обе операции. Отсутствующий alias не является ошибкой,
+    ' но последний вызов всё равно должен применить накопленный reflow.
+    If rowIndex > eventIds.Count Then
+        If renderNow Then
+            If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then Exit Function
+        End If
+        private_TryMarkDeletedExportEvent = True
+        Exit Function
+    End If
+    If Not runtimeSources.TryGetItemsSourceByKey( _
+        VBA.LCase$(MOVEMENT_EVENTS_RUNTIME_KEY), tableItems, True) Then Exit Function
+    If tableItems Is Nothing Or tableItems.Count <> 1 Then Exit Function
+    Set eventsTable = tableItems.Item(1)
+    If eventsTable Is Nothing Then Exit Function
+    If rowIndex <= 0 Or rowIndex > eventsTable.RowCount Then Exit Function
+    Set eventRow = eventsTable.Rows.Item(rowIndex)
+    If eventRow Is Nothing Then Exit Function
+    If isMovementEvent Then
+        firstColumnIndex = 1
+        lastColumnIndex = 4
+    Else
+        firstColumnIndex = 5
+        lastColumnIndex = 7
+    End If
+    For columnIndex = firstColumnIndex To lastColumnIndex
+        Set eventCell = eventRow.Cells.Item(columnIndex)
+        If eventCell Is Nothing Then Exit Function
+        If isDeleted Then
+            eventCell.Desc = "diff:deleted"
+        Else
+            eventCell.Desc = VBA.vbNullString
+        End If
+    Next columnIndex
+    If Not renderNow Then
+        private_TryMarkDeletedExportEvent = True
+        Exit Function
+    End If
+    If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then
+        VBA.MsgBox "Не удалось частично обновить таблицу экспортированных событий. " & _
+            "Нажмите 'Update Sheet' для восстановления страницы.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / deleted events"
+        Exit Function
+    End If
+    private_TryMarkDeletedExportEvent = True
+End Function
+
+Private Function private_TryRestoreSelectedDeletedEvent( _
+    ByVal targetCell As Range, _
+    ByRef outHandled As Boolean _
+) As Boolean
+    Dim isMovementEvent As Boolean
+    Dim eventId As String
+    Dim eventCaption As String
+    Dim snapshotKey As String
+    Dim snapshot As Object
+    Dim exporter As obj_IDataExporter
+    Dim exporterClassName As String
+    Dim exportConfigTable As obj_ConfigTable
+    Dim movementExporter As obj_PEB_ExptrMovement
+    Dim wordExporter As obj_PEB_ExptrWord
+    Dim relatedSnapshot As Object
+    Dim primaryEventId As String
+    Dim relatedEventId As String
+    Dim primarySnapshotKey As String
+    Dim relatedSnapshotKey As String
+
+    outHandled = False
+    If m_DeletedExportSnapshots Is Nothing Then
+        private_TryRestoreSelectedDeletedEvent = True
+        Exit Function
+    End If
+    If Not private_TryResolveSelectedCombinedExportedEvent( _
+        targetCell, isMovementEvent, eventId, eventCaption) Then
+        private_TryRestoreSelectedDeletedEvent = True
+        Exit Function
+    End If
+    snapshotKey = private_DeletedExportSnapshotKey(isMovementEvent, eventId)
+    If Not m_DeletedExportSnapshots.Exists(snapshotKey) Then
+        private_TryRestoreSelectedDeletedEvent = True
+        Exit Function
+    End If
+    outHandled = True
+    Set snapshot = m_DeletedExportSnapshots(snapshotKey)
+    If snapshot.Exists("IsAlias") Then
+        If VBA.CBool(snapshot("IsAlias")) Then Set snapshot = snapshot("RootSnapshot")
+    End If
+    If isMovementEvent Then
+        If Not private_TryGetExportSettings( _
+            "Movement", exporterClassName, exportConfigTable) Then Exit Function
+        If Not private_TryCreateDataExporter( _
+            exporterClassName, exportConfigTable, exporter) Then Exit Function
+        Set movementExporter = exporter
+        If Not movementExporter.RestoreDeletedEvent(snapshot) Then Exit Function
+    Else
+        If Not private_TryGetExportSettings( _
+            "Word", exporterClassName, exportConfigTable) Then Exit Function
+        If Not private_TryCreateDataExporter( _
+            exporterClassName, exportConfigTable, exporter) Then Exit Function
+        Set wordExporter = exporter
+        If Not wordExporter.RestoreDeletedRecord(snapshot) Then Exit Function
+        If Not private_TranslateWordSnapshotPositions( _
+            snapshot, True, snapshotKey) Then Exit Function
+    End If
+    If isMovementEvent Then
+        primaryEventId = VBA.CStr(snapshot("EventId"))
+        primarySnapshotKey = private_DeletedExportSnapshotKey(True, primaryEventId)
+        If m_DeletedExportSnapshots.Exists(primarySnapshotKey) Then _
+            m_DeletedExportSnapshots.Remove primarySnapshotKey
+        If snapshot.Exists("RelatedSnapshot") Then
+            Set relatedSnapshot = snapshot("RelatedSnapshot")
+            relatedEventId = VBA.CStr(relatedSnapshot("EventId"))
+            relatedSnapshotKey = private_DeletedExportSnapshotKey(True, relatedEventId)
+            If m_DeletedExportSnapshots.Exists(relatedSnapshotKey) Then _
+                m_DeletedExportSnapshots.Remove relatedSnapshotKey
+        End If
+        If Not private_TryMarkDeletedExportEvent( _
+            True, primaryEventId, False, _
+            VBA.Len(relatedEventId) = 0) Then Exit Function
+        If VBA.Len(relatedEventId) > 0 Then
+            If Not private_TryMarkDeletedExportEvent( _
+                True, relatedEventId, False) Then Exit Function
+        End If
+    Else
+        m_DeletedExportSnapshots.Remove snapshotKey
+        If Not private_TryMarkDeletedExportEvent( _
+            False, eventId, False) Then Exit Function
+    End If
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "Событие восстановлено: " & eventCaption, 4
+    private_TryRestoreSelectedDeletedEvent = True
 End Function
 
 Private Function private_TryResolveSelectedCombinedExportedEvent( _
@@ -1454,21 +1835,48 @@ End Sub
 Public Function RuntimeClearExportFormAndCandidates() As Boolean
     Dim previousSuppressLookupSearch As Boolean
     Dim renderSucceeded As Boolean
+    Dim activeProfileWasMeta As Boolean
 
     If m_Page Is Nothing Then Exit Function
     previousSuppressLookupSearch = m_SuppressLookupSearch
     On Error GoTo RestoreSuppression
 
-    ' Верхняя draft-форма остаётся заполненной. Команда очищает только staging,
-    ' сформированный через Apply, его WORD preview и текущих Lookup-кандидатов.
+    ' Верхняя draft-форма остаётся заполненной. ALT+ARROWUP сворачивает всё
+    ' временное рабочее состояние страницы, но не уничтожает session undo
+    ' удалённых Movement/WORD-записей.
     private_ClearExportFormState
     m_WordExportPreviewText = VBA.vbNullString
-    If Not Me.ResetWordPreviewExportMode(False) Then Exit Function
+    m_IsWordPreviewExportMode = False
+
+    activeProfileWasMeta = private_IsMetaProfile(m_SelectedProfile)
+    If activeProfileWasMeta Then
+        If VBA.Len(VBA.Trim$(m_SelectedMainProfile)) = 0 Then
+            VBA.MsgBox "Не выбрана основная секция, к которой можно вернуться " & _
+                "после Meta-профиля.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / clear workspace"
+            Exit Function
+        End If
+        m_SelectedProfile = m_SelectedMainProfile
+    End If
 
     If Not m_LookupFeature Is Nothing Then
         If Not m_LookupFeature.ClearLookupCandidates(False) Then Exit Function
     End If
+    m_IsReporterTvoCandidatesActive = False
+    m_IsMovementHistoryEnabled = False
+    Set m_MovementHistoryTable = Nothing
+
     If Not private_RegisterExportFormTables(False) Then Exit Function
+    If Not private_RegisterMovementHistoryTable(False) Then Exit Function
+    If Not private_ClearRenderedExportedEvents() Then Exit Function
+    If Not private_RegisterProfileOptions(False) Then Exit Function
+    If Not private_RegisterAdditionalProfileOptions(False) Then Exit Function
+    If Not private_RegisterMetaProfileOptions(False) Then Exit Function
+    If activeProfileWasMeta Then
+        If Not m_Data.IsAdditionalProfileName(m_SelectedProfile) Then
+            If Not private_TryResetAdditionalProfileSelect() Then Exit Function
+        End If
+    End If
 
     ' Полный render восстанавливает draft-значения и может повторно инициировать
     ' lookup для заполненного ФИО. Команда очистки не является поиском, поэтому
@@ -1480,7 +1888,8 @@ Public Function RuntimeClearExportFormAndCandidates() As Boolean
     RuntimeClearExportFormAndCandidates = renderSucceeded
 
     If RuntimeClearExportFormAndCandidates Then
-        rt_Messaging.fn_ShowStatusBarSuccess "Export form and candidates cleared.", 3
+        rt_Messaging.fn_ShowStatusBarSuccess _
+            "Форма, preview и раскрытые таблицы очищены.", 3
     End If
     Exit Function
 
@@ -1550,6 +1959,8 @@ Public Function OnMovementEventClick(Optional ByVal eventId As Variant) As Boole
     Dim exportConfigTable As obj_ConfigTable
     Dim movementExporter As obj_PEB_ExptrMovement
     Dim orderNoText As String
+    Dim deleteSnapshot As Object
+    Dim relatedSnapshot As Object
 
     If VBA.StrComp(VBA.CStr(eventId), "NONE", VBA.vbTextCompare) = 0 Then
         OnMovementEventClick = True
@@ -1567,8 +1978,19 @@ Public Function OnMovementEventClick(Optional ByVal eventId As Variant) As Boole
         exporterClassName, exportConfigTable, exporter) Then Exit Function
     Set movementExporter = exporter
     If Not movementExporter.DeleteEventById( _
-        VBA.CStr(eventId), orderNoText) Then Exit Function
-    OnMovementEventClick = Me.OnRefreshExportedEventsClick()
+        VBA.CStr(eventId), orderNoText, deleteSnapshot) Then Exit Function
+    If Not private_StoreDeletedExportSnapshot( _
+        True, VBA.CStr(eventId), deleteSnapshot) Then Exit Function
+    If Not private_TryMarkDeletedExportEvent( _
+        True, VBA.CStr(eventId), True, _
+        Not deleteSnapshot.Exists("RelatedSnapshot")) Then Exit Function
+    If deleteSnapshot.Exists("RelatedSnapshot") Then
+        Set relatedSnapshot = deleteSnapshot("RelatedSnapshot")
+        If Not private_TryMarkDeletedExportEvent( _
+            True, VBA.CStr(relatedSnapshot("EventId")), _
+            True) Then Exit Function
+    End If
+    OnMovementEventClick = True
 End Function
 
 Public Function OnWordEventClick(Optional ByVal eventId As Variant) As Boolean
@@ -1577,6 +1999,7 @@ Public Function OnWordEventClick(Optional ByVal eventId As Variant) As Boolean
     Dim exportConfigTable As obj_ConfigTable
     Dim wordExporter As obj_PEB_ExptrWord
     Dim orderNoText As String
+    Dim deleteSnapshot As Object
 
     If VBA.StrComp(VBA.CStr(eventId), "NONE", VBA.vbTextCompare) = 0 Then
         OnWordEventClick = True
@@ -1598,8 +2021,11 @@ Public Function OnWordEventClick(Optional ByVal eventId As Variant) As Boolean
         exporterClassName, exportConfigTable, exporter) Then Exit Function
     Set wordExporter = exporter
     If Not wordExporter.DeleteRecordBookmark( _
-        VBA.CStr(eventId), orderNoText) Then Exit Function
-    OnWordEventClick = Me.OnRefreshExportedEventsClick()
+        VBA.CStr(eventId), orderNoText, deleteSnapshot) Then Exit Function
+    If Not private_StoreDeletedExportSnapshot( _
+        False, VBA.CStr(eventId), deleteSnapshot) Then Exit Function
+    OnWordEventClick = private_TryMarkDeletedExportEvent( _
+        False, VBA.CStr(eventId), True)
 End Function
 
 Public Function OnClearWordDocumentClick(Optional ByVal ignored As Variant) As Boolean
@@ -2512,6 +2938,12 @@ Private Function private_RegisterExportedEventMenus( _
     Set movementEvents = New Collection
     Set wordEvents = New Collection
 
+    If Not loadEvents And Not m_AreExportedEventsShown Then
+        If Not private_ClearRenderedExportedEvents() Then Exit Function
+        private_RegisterExportedEventMenus = True
+        Exit Function
+    End If
+
     If loadEvents Then
         If Not private_TryEnsureModeConfigCurrent() Then Exit Function
         If Not private_TryGetCurrentManualOrderNo(orderNoText) Then Exit Function
@@ -2541,6 +2973,9 @@ Private Function private_RegisterExportedEventMenus( _
         If Not wordExporter.GetRecordBookmarks( _
             orderNoText, wordEvents) Then Exit Function
 
+        If Not private_AppendDeletedExportSnapshots( _
+            movementEvents, wordEvents) Then Exit Function
+
         movementEventCount = movementEvents.Count
         wordEventCount = wordEvents.Count
     End If
@@ -2562,11 +2997,62 @@ Private Function private_RegisterExportedEventMenus( _
             existingMovementEvents, exportedEventsTableItems) Then Exit Function
     End If
     If loadEvents Then
+        m_AreExportedEventsShown = True
         rt_Messaging.fn_ShowStatusBarSuccess _
             "Exported events: Movement=" & VBA.CStr(movementEventCount) & _
             "; WORD=" & VBA.CStr(wordEventCount), 5
     End If
     private_RegisterExportedEventMenus = True
+End Function
+
+Private Function private_AppendDeletedExportSnapshots( _
+    ByVal movementEvents As Collection, _
+    ByVal wordEvents As Collection _
+) As Boolean
+    Dim snapshotKey As Variant
+    Dim snapshot As Object
+    Dim targetEvents As Collection
+    Dim optionObj As obj_SelectOption
+    Dim optionItem As Variant
+    Dim eventExists As Boolean
+
+    If movementEvents Is Nothing Or wordEvents Is Nothing Then Exit Function
+    If m_DeletedExportSnapshots Is Nothing Then
+        private_AppendDeletedExportSnapshots = True
+        Exit Function
+    End If
+    For Each snapshotKey In m_DeletedExportSnapshots.Keys
+        Set snapshot = m_DeletedExportSnapshots(snapshotKey)
+        If snapshot Is Nothing Then Exit Function
+        If Not snapshot.Exists("Kind") Or _
+            Not snapshot.Exists("EventId") Or _
+            Not snapshot.Exists("OptionCaption") Then Exit Function
+        If VBA.StrComp(VBA.CStr(snapshot("Kind")), _
+            "Movement", VBA.vbTextCompare) = 0 Then
+            Set targetEvents = movementEvents
+        ElseIf VBA.StrComp(VBA.CStr(snapshot("Kind")), _
+            "Word", VBA.vbTextCompare) = 0 Then
+            Set targetEvents = wordEvents
+        Else
+            Exit Function
+        End If
+        eventExists = False
+        For Each optionItem In targetEvents
+            Set optionObj = optionItem
+            If VBA.StrComp(optionObj.Id, VBA.CStr(snapshot("EventId")), _
+                VBA.vbBinaryCompare) = 0 Then
+                eventExists = True
+                Exit For
+            End If
+        Next optionItem
+        If Not eventExists Then
+            Set optionObj = New obj_SelectOption
+            optionObj.Id = VBA.CStr(snapshot("EventId"))
+            optionObj.Caption = VBA.CStr(snapshot("OptionCaption"))
+            targetEvents.Add optionObj
+        End If
+    Next snapshotKey
+    private_AppendDeletedExportSnapshots = True
 End Function
 
 Private Function private_BuildCombinedExportedEventsTableItems( _
@@ -2659,25 +3145,25 @@ Private Function private_TrySortExportedEventIpnGroups( _
 ) As Boolean
     Dim ipnItem As Variant
     Dim ipnKey As String
+    Dim groupSortRank As Long
+    Dim passIndex As Long
+    Dim movementItems As Collection
 
     Set outSortedIpnOrder = New Collection
     If sourceIpnOrder Is Nothing Or movementByIpn Is Nothing Then Exit Function
-    ' Сначала люди хотя бы с одним прибытием.
-    For Each ipnItem In sourceIpnOrder
-        ipnKey = VBA.CStr(ipnItem)
-        If private_IpnGroupHasMovementDirection( _
-            movementByIpn, ipnKey, "Прибуття") Then _
-            outSortedIpnOrder.Add ipnKey
-    Next ipnItem
-    ' Затем люди с Movement, но без прибытия — то есть только выбывшие.
-    For Each ipnItem In sourceIpnOrder
-        ipnKey = VBA.CStr(ipnItem)
-        If movementByIpn.Exists(ipnKey) Then
-            If Not private_IpnGroupHasMovementDirection( _
-                movementByIpn, ipnKey, "Прибуття") Then _
-                outSortedIpnOrder.Add ipnKey
-        End If
-    Next ipnItem
+    ' Приоритет Movement: прибытия, выбытия, смены статуса.
+    ' Исходный порядок людей внутри каждого класса сохраняется.
+    For passIndex = 1 To 3
+        For Each ipnItem In sourceIpnOrder
+            ipnKey = VBA.CStr(ipnItem)
+            If movementByIpn.Exists(ipnKey) Then
+                Set movementItems = movementByIpn(ipnKey)
+                If Not private_TryGetMovementGroupSortRank( _
+                    movementItems, groupSortRank) Then Exit Function
+                If groupSortRank = passIndex Then outSortedIpnOrder.Add ipnKey
+            End If
+        Next ipnItem
+    Next passIndex
     ' WORD-пункты без соответствующего Movement не теряются и идут последними.
     For Each ipnItem In sourceIpnOrder
         ipnKey = VBA.CStr(ipnItem)
@@ -2685,6 +3171,49 @@ Private Function private_TrySortExportedEventIpnGroups( _
             outSortedIpnOrder.Add ipnKey
     Next ipnItem
     private_TrySortExportedEventIpnGroups = True
+End Function
+
+Private Function private_TryGetMovementGroupSortRank( _
+    ByVal movementItems As Collection, _
+    ByRef outSortRank As Long _
+) As Boolean
+    Dim optionItem As Variant
+    Dim optionObj As obj_SelectOption
+    Dim valueParts As Variant
+    Dim itemSortRank As Long
+
+    outSortRank = 0
+    If movementItems Is Nothing Or movementItems.Count = 0 Then Exit Function
+    For Each optionItem In movementItems
+        Set optionObj = optionItem
+        valueParts = VBA.Split(optionObj.Caption, VBA.vbTab)
+        If UBound(valueParts) < 0 Then Exit Function
+        If Not private_TryGetMovementDirectionSortRank( _
+            VBA.CStr(valueParts(0)), itemSortRank) Then Exit Function
+        If outSortRank = 0 Or itemSortRank < outSortRank Then _
+            outSortRank = itemSortRank
+    Next optionItem
+    private_TryGetMovementGroupSortRank = (outSortRank > 0)
+End Function
+
+Private Function private_TryGetMovementDirectionSortRank( _
+    ByVal directionText As String, _
+    ByRef outSortRank As Long _
+) As Boolean
+    outSortRank = 0
+    Select Case VBA.LCase$(VBA.Trim$(directionText))
+        Case VBA.LCase$("Прибуття")
+            outSortRank = 1
+        Case VBA.LCase$("Вибуття")
+            outSortRank = 2
+        Case VBA.LCase$("Зміна статусу")
+            outSortRank = 3
+        Case Else
+            VBA.MsgBox "Неизвестный тип события Movement: " & directionText, _
+                VBA.vbExclamation, "PrsnlEventBuilder / exported events"
+            Exit Function
+    End Select
+    private_TryGetMovementDirectionSortRank = True
 End Function
 
 Private Function private_IpnGroupHasMovementDirection( _
@@ -2790,6 +3319,8 @@ Private Function private_AppendCombinedIpnRows( _
     Dim eventRow As obj_Row
     Dim rowIndex As Long
     Dim rowCount As Long
+    Dim wordOrder As Collection
+    Dim wordItemIndex As Long
 
     Set movementItems = New Collection
     Set wordItems = New Collection
@@ -2797,8 +3328,9 @@ Private Function private_AppendCombinedIpnRows( _
     If wordByIpn.Exists(ipnKey) Then Set wordItems = wordByIpn(ipnKey)
     If Not private_TrySortMovementGroupItems( _
         movementItems, sortedMovementItems) Then Exit Function
-    rowCount = sortedMovementItems.Count
-    If wordItems.Count > rowCount Then rowCount = wordItems.Count
+    If Not private_TryBuildAlignedWordItemOrder( _
+        sortedMovementItems, wordItems, wordOrder) Then Exit Function
+    rowCount = wordOrder.Count
     For rowIndex = 1 To rowCount
         Set eventRow = New obj_Row
         If rowIndex <= sortedMovementItems.Count Then
@@ -2810,6 +3342,8 @@ Private Function private_AppendCombinedIpnRows( _
             eventRow.PushCellRaw VBA.CStr(movementParts(3))
             movementIds.Add movementOption.Id
             movementCaptions.Add VBA.Replace(movementOption.Caption, VBA.vbTab, " — ")
+            If private_IsDeletedExportSnapshot(True, movementOption.Id) Then _
+                private_SetRowCellDesc eventRow, 1, 4, "diff:deleted"
         Else
             eventRow.PushCellRaw VBA.vbNullString
             eventRow.PushCellRaw VBA.vbNullString
@@ -2818,14 +3352,17 @@ Private Function private_AppendCombinedIpnRows( _
             movementIds.Add "NONE"
             movementCaptions.Add VBA.vbNullString
         End If
-        If rowIndex <= wordItems.Count Then
-            Set wordOption = wordItems.Item(rowIndex)
+        wordItemIndex = VBA.CLng(wordOrder.Item(rowIndex))
+        If wordItemIndex > 0 Then
+            Set wordOption = wordItems.Item(wordItemIndex)
             wordParts = VBA.Split(wordOption.Caption, VBA.vbTab)
             eventRow.PushCellRaw VBA.CStr(wordParts(0))
             eventRow.PushCellRaw VBA.CStr(wordParts(1))
             eventRow.PushCellRaw VBA.CStr(wordParts(2))
             wordIds.Add wordOption.Id
             wordCaptions.Add VBA.Replace(wordOption.Caption, VBA.vbTab, " — ")
+            If private_IsDeletedExportSnapshot(False, wordOption.Id) Then _
+                private_SetRowCellDesc eventRow, 5, 7, "diff:deleted"
         Else
             eventRow.PushCellRaw VBA.vbNullString
             eventRow.PushCellRaw VBA.vbNullString
@@ -2838,6 +3375,205 @@ Private Function private_AppendCombinedIpnRows( _
     private_AppendCombinedIpnRows = True
 End Function
 
+Private Function private_TryBuildAlignedWordItemOrder( _
+    ByVal movementItems As Collection, _
+    ByVal wordItems As Collection, _
+    ByRef outWordOrder As Collection _
+) As Boolean
+    Dim usedWordIndexes As Object
+    Dim movementItem As Variant
+    Dim movementOption As obj_SelectOption
+    Dim movementParts As Variant
+    Dim templateId As String
+    Dim wordIndex As Long
+    Dim matchedWordIndex As Long
+
+    Set outWordOrder = New Collection
+    If movementItems Is Nothing Or wordItems Is Nothing Then Exit Function
+    Set usedWordIndexes = VBA.CreateObject("Scripting.Dictionary")
+    For Each movementItem In movementItems
+        Set movementOption = movementItem
+        movementParts = VBA.Split(movementOption.Caption, VBA.vbTab)
+        If UBound(movementParts) <> 3 Then Exit Function
+        matchedWordIndex = 0
+        templateId = VBA.vbNullString
+        ' Для единственной пары одного ИПН дополнительная семантическая
+        ' развязка не нужна и не должна разносить записи по двум строкам.
+        If movementItems.Count = 1 And wordItems.Count = 1 Then
+            matchedWordIndex = 1
+            usedWordIndexes.Add "1", True
+            GoTo AddMatchedWordIndex
+        End If
+        If Not private_TryResolveWordTemplateForMovementOption( _
+            VBA.CStr(movementParts(0)), VBA.CStr(movementParts(2)), _
+            templateId) Then templateId = VBA.vbNullString
+        If VBA.Len(templateId) > 0 Then
+            For wordIndex = 1 To wordItems.Count
+                If Not usedWordIndexes.Exists(VBA.CStr(wordIndex)) Then
+                    If private_WordOptionMatchesTemplate( _
+                        wordItems.Item(wordIndex), templateId) Then
+                        matchedWordIndex = wordIndex
+                        usedWordIndexes.Add VBA.CStr(wordIndex), True
+                        Exit For
+                    End If
+                End If
+            Next wordIndex
+        End If
+AddMatchedWordIndex:
+        outWordOrder.Add matchedWordIndex
+    Next movementItem
+    ' WORD без соответствующего Movement сохраняются отдельными строками.
+    For wordIndex = 1 To wordItems.Count
+        If Not usedWordIndexes.Exists(VBA.CStr(wordIndex)) Then _
+            outWordOrder.Add wordIndex
+    Next wordIndex
+    private_TryBuildAlignedWordItemOrder = True
+End Function
+
+Private Function private_TryResolveWordTemplateForMovementOption( _
+    ByVal directionText As String, _
+    ByVal movementEventText As String, _
+    ByRef outTemplateId As String _
+) As Boolean
+    Dim sectionTypes As Collection
+    Dim sectionTypeItem As Variant
+    Dim sectionTypeText As String
+    Dim mappedEventText As String
+    Dim previousEventText As String
+    Dim movementParts As Variant
+    Dim sectionParts As Variant
+
+    outTemplateId = VBA.vbNullString
+    If m_Data Is Nothing Then Exit Function
+    Set sectionTypes = m_Data.SectionTypeNames
+    If sectionTypes Is Nothing Then Exit Function
+    For Each sectionTypeItem In sectionTypes
+        sectionTypeText = VBA.CStr(sectionTypeItem)
+        mappedEventText = VBA.vbNullString
+        previousEventText = VBA.vbNullString
+        Select Case VBA.LCase$(VBA.Trim$(directionText))
+            Case VBA.LCase$("Прибуття")
+                If m_Data.TryGetRequiredPreviousMovementEvent( _
+                    sectionTypeText, previousEventText) Then
+                    If VBA.StrComp(VBA.Trim$(previousEventText), _
+                        VBA.Trim$(movementEventText), VBA.vbTextCompare) <> 0 Then _
+                        GoTo ContinueSection
+                Else
+                    GoTo ContinueSection
+                End If
+            Case VBA.LCase$("Вибуття")
+                If m_Data.TryMapMovementSectionTypeToEventText( _
+                    sectionTypeText, mappedEventText) Then
+                    If VBA.StrComp(VBA.Trim$(mappedEventText), _
+                        VBA.Trim$(movementEventText), VBA.vbTextCompare) <> 0 Then _
+                        GoTo ContinueSection
+                Else
+                    GoTo ContinueSection
+                End If
+            Case VBA.LCase$("Зміна статусу")
+                If Not m_Data.IsMovementMirrorTransferSectionType( _
+                    sectionTypeText) Then GoTo ContinueSection
+                movementParts = VBA.Split(movementEventText, "=>")
+                sectionParts = VBA.Split(sectionTypeText, "=>")
+                If UBound(movementParts) <> 1 Or UBound(sectionParts) <> 1 Then _
+                    GoTo ContinueSection
+                If VBA.StrComp(private_NormalizeMovementStatusName( _
+                    VBA.CStr(movementParts(0))), _
+                    private_NormalizeMovementStatusName( _
+                    VBA.CStr(sectionParts(0))), VBA.vbTextCompare) <> 0 Then _
+                    GoTo ContinueSection
+                If VBA.StrComp(private_NormalizeMovementStatusName( _
+                    VBA.CStr(movementParts(1))), _
+                    private_NormalizeMovementStatusName( _
+                    VBA.CStr(sectionParts(1))), VBA.vbTextCompare) <> 0 Then _
+                    GoTo ContinueSection
+            Case Else
+                Exit Function
+        End Select
+        If m_Data.TryResolveWordTemplateId(sectionTypeText, outTemplateId) Then
+            private_TryResolveWordTemplateForMovementOption = True
+            Exit Function
+        End If
+ContinueSection:
+    Next sectionTypeItem
+End Function
+
+Private Function private_NormalizeMovementStatusName( _
+    ByVal statusText As String _
+) As String
+    statusText = VBA.LCase$(VBA.Trim$(statusText))
+    statusText = VBA.Replace(statusText, "стаціонарне лікування", "лікування")
+    Do While VBA.InStr(1, statusText, "  ", VBA.vbBinaryCompare) > 0
+        statusText = VBA.Replace(statusText, "  ", " ")
+    Loop
+    private_NormalizeMovementStatusName = VBA.Trim$(statusText)
+End Function
+
+Private Function private_WordOptionMatchesTemplate( _
+    ByVal wordOption As obj_SelectOption, _
+    ByVal expectedTemplateId As String _
+) As Boolean
+    Dim bookmarkName As String
+    Dim separatorIndex As Long
+    Dim bookmarkTemplateId As String
+    Dim expectedTemplateHash As String
+    Dim bookmarkParts As Variant
+
+    If wordOption Is Nothing Then Exit Function
+    bookmarkName = VBA.CStr(wordOption.Id)
+    bookmarkParts = VBA.Split(bookmarkName, "_")
+    If UBound(bookmarkParts) >= 2 Then
+        If VBA.StrComp(VBA.CStr(bookmarkParts(0)), "PEB", _
+            VBA.vbTextCompare) = 0 And _
+            VBA.Len(VBA.CStr(bookmarkParts(1))) = 2 Then
+            bookmarkTemplateId = VBA.CStr(bookmarkParts(1))
+            If m_CachedWordExporter Is Nothing Then Exit Function
+            If Not m_CachedWordExporter.TryGetTemplateHashByName( _
+                expectedTemplateId, expectedTemplateHash) Then Exit Function
+            private_WordOptionMatchesTemplate = (VBA.StrComp( _
+                bookmarkTemplateId, expectedTemplateHash, _
+                VBA.vbTextCompare) = 0)
+            Exit Function
+        End If
+    End If
+    separatorIndex = VBA.InStrRev(bookmarkName, "_", -1, VBA.vbBinaryCompare)
+    If separatorIndex <= 5 Then Exit Function
+    If VBA.StrComp(VBA.Left$(bookmarkName, 4), "PEB_", _
+        VBA.vbTextCompare) <> 0 Then Exit Function
+    bookmarkTemplateId = VBA.Mid$(bookmarkName, 5, separatorIndex - 5)
+    If VBA.Len(bookmarkTemplateId) = 0 Then Exit Function
+    ' Имя bookmark ограничено Word и длинный templateId обрезается перед ИПН.
+    private_WordOptionMatchesTemplate = (VBA.StrComp( _
+        VBA.Left$(expectedTemplateId, VBA.Len(bookmarkTemplateId)), _
+        bookmarkTemplateId, VBA.vbTextCompare) = 0)
+End Function
+
+Private Function private_IsDeletedExportSnapshot( _
+    ByVal isMovementEvent As Boolean, _
+    ByVal eventId As String _
+) As Boolean
+    If m_DeletedExportSnapshots Is Nothing Then Exit Function
+    private_IsDeletedExportSnapshot = m_DeletedExportSnapshots.Exists( _
+        private_DeletedExportSnapshotKey(isMovementEvent, eventId))
+End Function
+
+Private Sub private_SetRowCellDesc( _
+    ByVal eventRow As obj_Row, _
+    ByVal firstColumnIndex As Long, _
+    ByVal lastColumnIndex As Long, _
+    ByVal descText As String _
+)
+    Dim columnIndex As Long
+    Dim eventCell As obj_Cell
+
+    If eventRow Is Nothing Then Exit Sub
+    For columnIndex = firstColumnIndex To lastColumnIndex
+        Set eventCell = eventRow.Cells.Item(columnIndex)
+        If eventCell Is Nothing Then Exit Sub
+        eventCell.Desc = descText
+    Next columnIndex
+End Sub
+
 Private Function private_TrySortMovementGroupItems( _
     ByVal sourceItems As Collection, _
     ByRef outSortedItems As Collection _
@@ -2845,23 +3581,20 @@ Private Function private_TrySortMovementGroupItems( _
     Dim optionItem As Variant
     Dim optionObj As obj_SelectOption
     Dim valueParts As Variant
-    Dim isArrival As Boolean
+    Dim itemSortRank As Long
     Dim passIndex As Long
 
     Set outSortedItems = New Collection
     If sourceItems Is Nothing Then Exit Function
-    ' Первый проход добавляет прибытия, второй — все остальные направления.
-    ' Исходный порядок внутри каждого направления сохраняется.
-    For passIndex = 1 To 2
+    ' Исходный порядок внутри каждого из трёх направлений сохраняется.
+    For passIndex = 1 To 3
         For Each optionItem In sourceItems
             Set optionObj = optionItem
             valueParts = VBA.Split(optionObj.Caption, VBA.vbTab)
             If UBound(valueParts) < 0 Then Exit Function
-            isArrival = (VBA.StrComp(VBA.Trim$(VBA.CStr(valueParts(0))), _
-                "Прибуття", VBA.vbTextCompare) = 0)
-            If (passIndex = 1 And isArrival) Or _
-                (passIndex = 2 And Not isArrival) Then _
-                outSortedItems.Add optionObj
+            If Not private_TryGetMovementDirectionSortRank( _
+                VBA.CStr(valueParts(0)), itemSortRank) Then Exit Function
+            If itemSortRank = passIndex Then outSortedItems.Add optionObj
         Next optionItem
     Next passIndex
     private_TrySortMovementGroupItems = True
@@ -3756,11 +4489,32 @@ Private Function private_TryCreateDataExporter( _
         Exit Function
     End If
 
+    Select Case VBA.LCase$(exporterClassName)
+        Case VBA.LCase$("obj_PEB_ExptrMovement")
+            If Not m_CachedMovementExporter Is Nothing Then
+                Set outExporter = m_CachedMovementExporter
+                private_TryCreateDataExporter = True
+                Exit Function
+            End If
+        Case VBA.LCase$("obj_PEB_ExptrWord")
+            If Not m_CachedWordExporter Is Nothing Then
+                Set outExporter = m_CachedWordExporter
+                private_TryCreateDataExporter = True
+                Exit Function
+            End If
+    End Select
+
     If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
     Set pebFactory = New obj_PEB_Factory
     private_TryCreateDataExporter = pebFactory.TryCreateDataExporter( _
         exporterClassName, exportConfigTable, m_ProfileConfigTable, _
         m_ExporterCfgDataProvider, outExporter)
+    If Not private_TryCreateDataExporter Then Exit Function
+    If TypeOf outExporter Is obj_PEB_ExptrMovement Then
+        Set m_CachedMovementExporter = outExporter
+    ElseIf TypeOf outExporter Is obj_PEB_ExptrWord Then
+        Set m_CachedWordExporter = outExporter
+    End If
 End Function
 
 Private Function private_TryEnsureExporterCfgDataProvider() As Boolean

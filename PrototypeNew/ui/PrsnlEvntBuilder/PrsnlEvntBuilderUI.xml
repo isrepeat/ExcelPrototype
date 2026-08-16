@@ -87,9 +87,10 @@
           onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnProfileButtonClick}"
           columns="4"
           flow="column"
+          itemsPerColumn="7"
           itemSpanRows="2"
           spanColls="8"
-          spanRows="14"/>
+          spanRows="20"/>
 
         <control
           type="ButtonGroup"
@@ -1627,6 +1628,11 @@
         <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=word.source" styles="{ width:10; horizontal:center; backColor:#203F66; }"/>
         <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=word.bookmark" styles="{ width:32; cellType:text; backColor:#203F66; }"/>
         <rule target="controlPart" selector="type=tablelist;part=rows;columnAlias=word.description" styles="{ width:55; backColor:#203F66; }"/>
+        <!-- Cell-level diff part применяется после обычных rows/columnAlias
+             правил, поэтому удалённая Movement или WORD половина остаётся красной. -->
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=diffdeleted"
+              styles="{ backColor:#CC0000; fontColor:#F5F5F5; borderColor:#0A0A0A; borderWeight:thin; }"/>
       </layer>
 
       <!-- Стили таблицы хоткеев. -->

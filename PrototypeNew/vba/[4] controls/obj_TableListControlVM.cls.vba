@@ -1095,6 +1095,7 @@ ContinueSegment:
             styleKind = VBA.CStr(keyParts(0))
             If ( _
                 VBA.StrComp(styleKind, "diffchangedcell", VBA.vbTextCompare) = 0 Or _
+                VBA.StrComp(styleKind, "diffdeletedcell", VBA.vbTextCompare) = 0 Or _
                 VBA.StrComp(styleKind, "diffchangedmodifiedoldcell", VBA.vbTextCompare) = 0 Or _
                 VBA.StrComp(styleKind, "diffchangedmodifiednewcell", VBA.vbTextCompare) = 0 _
             ) <> applyChangedCellStyle Then GoTo ContinueGroup
@@ -1339,6 +1340,8 @@ Private Function private_MapStyleKindToControlPart(ByVal styleKind As String) As
             private_MapStyleKindToControlPart = "diffadded"
         Case "diffdeleted"
             private_MapStyleKindToControlPart = "diffdeleted"
+        Case "diffdeletedcell"
+            private_MapStyleKindToControlPart = "diffdeleted"
         Case "diffduplicateleft"
             private_MapStyleKindToControlPart = "diffduplicateleft"
         Case "diffduplicateright"
@@ -1433,6 +1436,10 @@ Private Sub private_AddCellMetadataStyleSegments( _
             private_AddStyleSegment styleSegments, "diffchangedmodifiednewcell", columnCount, relativeRow, relativeRow, colIndex, colIndex
         ElseIf VBA.InStr(1, cellDesc, "diff:changed", VBA.vbTextCompare) > 0 Then
             private_AddStyleSegment styleSegments, "diffchangedcell", columnCount, relativeRow, relativeRow, colIndex, colIndex
+        ElseIf VBA.InStr(1, cellDesc, "diff:deleted", VBA.vbTextCompare) > 0 Then
+            ' Session undo помечает только удалённую половину объединённой
+            ' Movement/WORD-строки, не окрашивая соседнее живое событие.
+            private_AddStyleSegment styleSegments, "diffdeletedcell", columnCount, relativeRow, relativeRow, colIndex, colIndex
         End If
 
         ' Теги модели транслируются в универсальные controlPart-сегменты.
@@ -1550,6 +1557,13 @@ Private Function private_TryResolveStylePreset( _
             fontBold = False
 
         Case "diffdeleted"
+            backColor = VBA.RGB(204, 0, 0)
+            fontColor = VBA.RGB(245, 245, 245)
+            borderColor = VBA.RGB(10, 10, 10)
+            fontSize = 10
+            fontBold = False
+
+        Case "diffdeletedcell"
             backColor = VBA.RGB(204, 0, 0)
             fontColor = VBA.RGB(245, 245, 245)
             borderColor = VBA.RGB(10, 10, 10)
@@ -1921,7 +1935,7 @@ Private Function private_TryResolveListObjectRange( _
                     bodyRowEnd = headerRowEnd
                 End If
 
-            Case "data", "diffadded", "diffdeleted", "diffduplicateleft", "diffduplicateright", "diffmodified", "diffmodifiedold", "diffmodifiednew", "diffaddedmoved", "diffdeletedmoved", "diffchangedcell", "diffchangedmodifiedoldcell", "diffchangedmodifiednewcell", "diffellipsis", "rowbanner"
+            Case "data", "diffadded", "diffdeleted", "diffdeletedcell", "diffduplicateleft", "diffduplicateright", "diffmodified", "diffmodifiedold", "diffmodifiednew", "diffaddedmoved", "diffdeletedmoved", "diffchangedcell", "diffchangedmodifiedoldcell", "diffchangedmodifiednewcell", "diffellipsis", "rowbanner"
                 If headerCount = 1 Then
                     If VBA.CLng(segment("RowEnd")) > bodyRowEnd Then bodyRowEnd = VBA.CLng(segment("RowEnd"))
                 End If
