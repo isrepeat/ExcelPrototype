@@ -22,7 +22,7 @@
     marginBottom="20mm"
     marginLeft="25mm"
     />
-  <template id="У відрядження">
+  <template name="У відрядження" hash="0x01">
     <page>
     <text><![CDATA[#^
 #_      #let __IsRozpPosition = $ex_Helpers.m_RegexIsMatch("{[PositionCode]}", "[Рр][Оо][Зз][Пп]");#^

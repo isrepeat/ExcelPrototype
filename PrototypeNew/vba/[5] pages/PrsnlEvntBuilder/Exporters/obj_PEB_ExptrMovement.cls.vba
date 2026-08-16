@@ -136,6 +136,7 @@ Public Function GetEventsByOrderNo( _
     Dim orderDate As Date
     Dim departureEvents As obj_TableDynamic
     Dim arrivalEvents As obj_TableDynamic
+    Dim pairedArrivalRows As Object
 
     On Error GoTo EH
     Set outEvents = New Collection
@@ -150,12 +151,13 @@ Public Function GetEventsByOrderNo( _
     If m_ExporterCfgDataProvider Is Nothing Then Exit Function
     If Not m_ExporterCfgDataProvider.TryGetMovementEventsByOrderNo( _
         orderNo, departureEvents, arrivalEvents) Then Exit Function
+    Set pairedArrivalRows = VBA.CreateObject("Scripting.Dictionary")
     If Not private_AppendSqlMovementEvents( _
         departureEvents, "D", "Вибуття", MOVEMENT_TARGET_DEPARTURE, _
-        VBA.Year(orderDate), outEvents) Then Exit Function
+        VBA.Year(orderDate), outEvents, arrivalEvents, pairedArrivalRows) Then Exit Function
     If Not private_AppendSqlMovementEvents( _
         arrivalEvents, "A", "Прибуття", MOVEMENT_TARGET_ARRIVAL, _
-        VBA.Year(orderDate), outEvents) Then Exit Function
+        VBA.Year(orderDate), outEvents, Nothing, pairedArrivalRows) Then Exit Function
 #If LOGGING_DEBUG_ENABLED Then
     private_LogInfo "movement-events: order='" & private_EscapeForLog(orderNo) & _
         "' year='" & VBA.CStr(VBA.Year(orderDate)) & _
@@ -176,7 +178,9 @@ Private Function private_AppendSqlMovementEvents( _
     ByVal directionText As String, _
     ByVal dateColumnName As String, _
     ByVal expectedYear As Long, _
-    ByRef targetEvents As Collection _
+    ByRef targetEvents As Collection, _
+    ByVal oppositeEvents As obj_TableDynamic, _
+    ByVal pairedArrivalRows As Object _
 ) As Boolean
     Dim sourceRow As obj_Row
     Dim rowIndex As Long
@@ -190,9 +194,17 @@ Private Function private_AppendSqlMovementEvents( _
     Dim wrongYearCount As Long
     Dim matchedCount As Long
     Dim firstDateText As String
+    Dim pairedRowIndex As Long
+    Dim pairedEventText As String
+    Dim pairedEventDateId As String
 
     If sourceTable Is Nothing Or targetEvents Is Nothing Then Exit Function
     For rowIndex = 1 To sourceTable.RowCount
+        If directionId = "A" Then
+            If Not pairedArrivalRows Is Nothing Then
+                If pairedArrivalRows.Exists(VBA.CStr(rowIndex)) Then GoTo ContinueRow
+            End If
+        End If
         Set sourceRow = sourceTable.Rows.Item(rowIndex)
         If sourceRow Is Nothing Then Exit Function
         If Not sourceRow.TryGetCellValueByColumn("ПІБ", personValue) Then Exit Function
@@ -204,7 +216,23 @@ Private Function private_AppendSqlMovementEvents( _
         If private_TryGetMovementDateYear(dateValue, eventYear) Then
             If eventYear = expectedYear Then
                 Set optionObj = private_BuildSqlMovementEventOption( _
-                    directionId, directionText, personValue, eventValue, ipnValue)
+                    directionId, directionText, personValue, eventValue, _
+                    ipnValue, dateValue)
+                If directionId = "D" And Not oppositeEvents Is Nothing Then
+                    pairedRowIndex = private_FindSqlStatusChangeArrival( _
+                        sourceRow, oppositeEvents, pairedArrivalRows, _
+                        pairedEventText, pairedEventDateId)
+                    If pairedRowIndex > 0 Then
+                        pairedArrivalRows.Add VBA.CStr(pairedRowIndex), True
+                        optionObj.Id = "S" & VBA.Mid$(optionObj.Id, 2) & _
+                            VBA.Chr$(30) & pairedEventText & _
+                            VBA.Chr$(30) & pairedEventDateId
+                        optionObj.Caption = "Зміна статусу" & VBA.vbTab & _
+                            VBA.Trim$(VBA.CStr(personValue)) & VBA.vbTab & _
+                            pairedEventText & " => " & VBA.Trim$(VBA.CStr(eventValue)) & _
+                            VBA.vbTab & VBA.Trim$(VBA.CStr(ipnValue))
+                    End If
+                End If
                 targetEvents.Add optionObj
                 matchedCount = matchedCount + 1
             Else
@@ -213,6 +241,7 @@ Private Function private_AppendSqlMovementEvents( _
         Else
             invalidDateCount = invalidDateCount + 1
         End If
+ContinueRow:
     Next rowIndex
 #If LOGGING_DEBUG_ENABLED Then
     private_LogInfo "movement-events-filter: direction='" & directionId & _
@@ -225,25 +254,80 @@ Private Function private_AppendSqlMovementEvents( _
     private_AppendSqlMovementEvents = True
 End Function
 
+Private Function private_FindSqlStatusChangeArrival( _
+    ByVal departureRow As obj_Row, _
+    ByVal arrivalEvents As obj_TableDynamic, _
+    ByVal pairedArrivalRows As Object, _
+    ByRef outArrivalEvent As String, _
+    ByRef outArrivalDateId As String _
+) As Long
+    Dim departureIpn As String
+    Dim departureReason As String
+    Dim departureDateText As String
+    Dim departureDate As Date
+    Dim arrivalRow As obj_Row
+    Dim arrivalIpn As String
+    Dim arrivalReason As String
+    Dim arrivalDateText As String
+    Dim arrivalDate As Date
+    Dim bestDate As Date
+    Dim rowIndex As Long
+
+    outArrivalEvent = VBA.vbNullString
+    outArrivalDateId = VBA.vbNullString
+    If departureRow Is Nothing Or arrivalEvents Is Nothing Then Exit Function
+    If Not departureRow.TryGetCellValueByColumn(MOVEMENT_TARGET_IPN, departureIpn) Then Exit Function
+    If Not departureRow.TryGetCellValueByColumn(MOVEMENT_TARGET_OUT_REASON, departureReason) Then Exit Function
+    If Not departureRow.TryGetCellValueByColumn(MOVEMENT_TARGET_DEPARTURE, departureDateText) Then Exit Function
+    departureReason = private_NormalizeText(departureReason)
+    If VBA.Len(departureReason) = 0 Or Not VBA.IsDate(departureDateText) Then Exit Function
+    departureDate = VBA.CDate(departureDateText)
+
+    For rowIndex = 1 To arrivalEvents.RowCount
+        If Not pairedArrivalRows Is Nothing Then
+            If pairedArrivalRows.Exists(VBA.CStr(rowIndex)) Then GoTo ContinueArrival
+        End If
+        Set arrivalRow = arrivalEvents.Rows.Item(rowIndex)
+        If arrivalRow Is Nothing Then Exit Function
+        If Not arrivalRow.TryGetCellValueByColumn(MOVEMENT_TARGET_IPN, arrivalIpn) Then Exit Function
+        If VBA.StrComp(VBA.Trim$(arrivalIpn), VBA.Trim$(departureIpn), VBA.vbTextCompare) <> 0 Then GoTo ContinueArrival
+        If Not arrivalRow.TryGetCellValueByColumn(MOVEMENT_TARGET_RETURN_REASON, arrivalReason) Then Exit Function
+        If VBA.StrComp(private_NormalizeText(arrivalReason), departureReason, VBA.vbTextCompare) <> 0 Then GoTo ContinueArrival
+        If Not arrivalRow.TryGetCellValueByColumn(MOVEMENT_TARGET_ARRIVAL, arrivalDateText) Then Exit Function
+        If Not VBA.IsDate(arrivalDateText) Then GoTo ContinueArrival
+        arrivalDate = VBA.CDate(arrivalDateText)
+        If arrivalDate > departureDate Then GoTo ContinueArrival
+        If private_FindSqlStatusChangeArrival = 0 Or arrivalDate > bestDate Then
+            private_FindSqlStatusChangeArrival = rowIndex
+            bestDate = arrivalDate
+            If Not arrivalRow.TryGetCellValueByColumn(MOVEMENT_TARGET_EVENT, outArrivalEvent) Then Exit Function
+            outArrivalDateId = private_NormalizeMovementEventDateId(arrivalDateText)
+        End If
+ContinueArrival:
+    Next rowIndex
+End Function
+
 Private Function private_BuildSqlMovementEventOption( _
     ByVal directionId As String, ByVal directionText As String, _
     ByVal personValue As Variant, ByVal eventValue As Variant, _
-    ByVal ipnValue As Variant _
+    ByVal ipnValue As Variant, ByVal eventDateValue As Variant _
 ) As obj_SelectOption
     Dim optionObj As obj_SelectOption
     Dim personText As String
     Dim eventText As String
     Dim ipnText As String
+    Dim eventDateText As String
 
     If Not VBA.IsError(personValue) Then personText = VBA.Trim$(VBA.CStr(personValue))
     If Not VBA.IsError(eventValue) Then eventText = VBA.Trim$(VBA.CStr(eventValue))
     If Not VBA.IsError(ipnValue) Then ipnText = VBA.Trim$(VBA.CStr(ipnValue))
+    If Not VBA.IsError(eventDateValue) Then _
+        eventDateText = private_NormalizeMovementEventDateId(eventDateValue)
     Set optionObj = New obj_SelectOption
-    ' Snapshot не хранит физический индекс ListRow. Поэтому идентификатор
-    ' переносит ключевые поля, а живая строка перед очисткой повторно
-    ' проверяется по номеру приказа, году, ИПН, ПІБ и событию.
+    ' SQL snapshot не хранит физический ListRow. Точная дата направления
+    ' различает повторные события одного человека с тем же приказом и названием.
     optionObj.Id = directionId & VBA.Chr$(30) & ipnText & VBA.Chr$(30) & _
-        personText & VBA.Chr$(30) & eventText
+        personText & VBA.Chr$(30) & eventText & VBA.Chr$(30) & eventDateText
     optionObj.Caption = directionText & VBA.vbTab & personText & VBA.vbTab & _
         eventText & VBA.vbTab & ipnText
     Set private_BuildSqlMovementEventOption = optionObj
@@ -251,7 +335,8 @@ End Function
 
 Public Function DeleteEventById( _
     ByVal eventId As String, _
-    ByVal expectedOrderNo As String _
+    ByVal expectedOrderNo As String, _
+    ByRef outSnapshot As Object _
 ) As Boolean
     Dim idParts() As String
     Dim directionId As String
@@ -259,6 +344,7 @@ Public Function DeleteEventById( _
     Dim expectedIpn As String
     Dim expectedPerson As String
     Dim expectedEvent As String
+    Dim expectedEventDate As String
     Dim targetWb As Workbook
     Dim targetWs As Worksheet
     Dim targetTable As ListObject
@@ -266,14 +352,45 @@ Public Function DeleteEventById( _
     Dim orderColumnName As String
     Dim eventDateColumnName As String
     Dim orderDate As Date
+    Dim clearedColumns As Variant
+    Dim relatedColumns As Variant
+    Dim relatedRowIndex As Long
+    Dim relatedSnapshot As Object
+    Dim relatedEventId As String
+    Dim deleteWholeRow As Boolean
+    Dim movementValues As Variant
+    Dim movementColumnIndexes As Object
+    Dim perfSearchStartedAt As Double
+    Dim searchMs As Double
+    Dim stableCandidateCount As Long
+    Dim isStatusChange As Boolean
+    Dim expectedArrivalEvent As String
+    Dim expectedArrivalDate As String
+    Dim relatedStableCandidateCount As Long
+    Dim failureStage As String
+    Dim errorNumber As Long
+    Dim errorDescription As String
+    Dim filterSnapshot As Collection
+
+    Set outSnapshot = Nothing
+    failureStage = "parse-event-id"
 
     On Error GoTo EH
     idParts = VBA.Split(eventId, VBA.Chr$(30))
-    If UBound(idParts) <> 3 Then GoTo InvalidId
+    If UBound(idParts) <> 4 And UBound(idParts) <> 6 Then GoTo InvalidId
     directionId = VBA.UCase$(VBA.Trim$(idParts(0)))
+    isStatusChange = (directionId = "S")
+    If isStatusChange And UBound(idParts) <> 6 Then GoTo InvalidId
+    If Not isStatusChange And UBound(idParts) <> 4 Then GoTo InvalidId
     expectedIpn = VBA.Trim$(idParts(1))
     expectedPerson = VBA.Trim$(idParts(2))
     expectedEvent = VBA.Trim$(idParts(3))
+    expectedEventDate = VBA.Trim$(idParts(4))
+    If isStatusChange Then
+        expectedArrivalEvent = VBA.Trim$(idParts(5))
+        expectedArrivalDate = VBA.Trim$(idParts(6))
+        directionId = "D"
+    End If
     If directionId <> "D" And directionId <> "A" Then GoTo InvalidId
     If Not private_TryResolveOrderDateFromCommonData( _
         expectedOrderNo, orderDate) Then
@@ -283,9 +400,14 @@ Public Function DeleteEventById( _
         Exit Function
     End If
     If Not m_Base.TryOpenTargetWorkbook(targetWb, openedHere) Then Exit Function
+    failureStage = "resolve-target-table"
     If Not m_Base.TryGetWorksheet(targetWb, _
         m_Base.ResolveTargetWorksheetName(), targetWs) Then GoTo CleanFail
     If Not m_Base.TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
+    perfSearchStartedAt = VBA.Timer
+    failureStage = "build-search-context"
+    If Not private_TryBuildMovementSearchContext( _
+        targetTable, movementValues, movementColumnIndexes) Then GoTo CleanFail
     If directionId = "D" Then
         orderColumnName = MOVEMENT_TARGET_ORDER_NO
         eventDateColumnName = MOVEMENT_TARGET_DEPARTURE
@@ -294,27 +416,105 @@ Public Function DeleteEventById( _
         eventDateColumnName = MOVEMENT_TARGET_ARRIVAL
     End If
     rowIndex = private_FindMovementEventRow( _
-        targetTable, orderColumnName, eventDateColumnName, _
+        movementValues, movementColumnIndexes, orderColumnName, eventDateColumnName, _
         expectedOrderNo, VBA.Year(orderDate), expectedIpn, _
-        expectedPerson, expectedEvent)
-    If rowIndex <= 0 Then GoTo StateChanged
-    If Not private_RowEventMatchesOrderAndYear( _
-        targetTable, rowIndex, orderColumnName, eventDateColumnName, _
-        expectedOrderNo, VBA.Year(orderDate)) Then GoTo StateChanged
+        expectedPerson, expectedEvent, expectedEventDate, stableCandidateCount)
+    If rowIndex <= 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        private_LogInfo "movement-delete:not-found direction='" & directionId & _
+            "' order='" & private_EscapeForLog(expectedOrderNo) & _
+            "' ipn='" & private_EscapeForLog(expectedIpn) & _
+            "' dateId='" & private_EscapeForLog(expectedEventDate) & _
+            "' stableCandidates='" & VBA.CStr(stableCandidateCount) & _
+            "' rows='" & VBA.CStr(targetTable.ListRows.Count) & "'"
+#End If
+        GoTo StateChanged
+    End If
 
     If directionId = "D" Then
-        If Not private_ClearMovementColumns(targetTable, rowIndex, Array( _
+        clearedColumns = Array( _
             MOVEMENT_TARGET_ORDER_NO, MOVEMENT_TARGET_FOOD_FROM, _
             MOVEMENT_TARGET_DEPARTURE, MOVEMENT_TARGET_OUT_REASON, _
             MOVEMENT_TARGET_DURATION_TERM, MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS, _
             MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS, _
             MOVEMENT_TARGET_ESCORT_DOCUMENT, MOVEMENT_TARGET_EVENT, _
             MOVEMENT_TARGET_TVO_FIO, MOVEMENT_TARGET_TVO_IPN, _
-            MOVEMENT_TARGET_TVO_POSITION)) Then GoTo CleanFail
+            MOVEMENT_TARGET_TVO_POSITION)
     Else
-        If Not private_ClearMovementColumns(targetTable, rowIndex, Array( _
+        clearedColumns = Array( _
             MOVEMENT_TARGET_ARRIVAL_ORDER_NO, MOVEMENT_TARGET_ON_FOOD, _
-            MOVEMENT_TARGET_ARRIVAL, MOVEMENT_TARGET_RETURN_REASON)) Then GoTo CleanFail
+            MOVEMENT_TARGET_ARRIVAL, MOVEMENT_TARGET_RETURN_REASON)
+    End If
+    If isStatusChange Then
+        failureStage = "find-related-arrival"
+        relatedRowIndex = private_FindMovementEventRow( _
+            movementValues, movementColumnIndexes, _
+            MOVEMENT_TARGET_ARRIVAL_ORDER_NO, MOVEMENT_TARGET_ARRIVAL, _
+            expectedOrderNo, VBA.Year(orderDate), expectedIpn, _
+            expectedPerson, expectedArrivalEvent, expectedArrivalDate, _
+            relatedStableCandidateCount)
+        If relatedRowIndex <= 0 Then GoTo StateChanged
+    Else
+        If Not private_TryFindStatusChangeRelatedRow( _
+            movementValues, movementColumnIndexes, rowIndex, directionId, _
+            expectedOrderNo, expectedIpn, relatedRowIndex) Then GoTo CleanFail
+    End If
+    searchMs = private_PerfElapsedMs(perfSearchStartedAt)
+#If LOGGING_DEBUG_ENABLED Then
+    private_LogInfo "perf:movement-delete-search rows='" & _
+        VBA.CStr(targetTable.ListRows.Count) & "' searchMs='" & _
+        VBA.Format$(searchMs, "0") & "'"
+#End If
+    ' Любое выбытие открывает отдельную строку Movement. Поэтому удаление D
+    ' всегда физически удаляет ListRow; только прибытие A очищает поля строки.
+    deleteWholeRow = (directionId = "D")
+    If deleteWholeRow Then
+        failureStage = "snapshot-whole-row"
+        If Not private_TryBuildWholeRowDeleteSnapshot( _
+            targetTable, rowIndex, eventId, expectedOrderNo, outSnapshot) Then GoTo CleanFail
+    Else
+        If Not private_TryBuildDeleteSnapshot( _
+            targetTable, rowIndex, clearedColumns, eventId, expectedOrderNo, _
+            outSnapshot) Then GoTo CleanFail
+    End If
+    If relatedRowIndex > 0 Then
+        If directionId = "D" Then
+            relatedColumns = Array( _
+                MOVEMENT_TARGET_ARRIVAL_ORDER_NO, MOVEMENT_TARGET_ON_FOOD, _
+                MOVEMENT_TARGET_ARRIVAL, MOVEMENT_TARGET_RETURN_REASON)
+        Else
+            relatedColumns = Array( _
+                MOVEMENT_TARGET_ORDER_NO, MOVEMENT_TARGET_FOOD_FROM, _
+                MOVEMENT_TARGET_DEPARTURE, MOVEMENT_TARGET_OUT_REASON, _
+                MOVEMENT_TARGET_DURATION_TERM, MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS, _
+                MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS, _
+                MOVEMENT_TARGET_ESCORT_DOCUMENT, MOVEMENT_TARGET_EVENT, _
+                MOVEMENT_TARGET_TVO_FIO, MOVEMENT_TARGET_TVO_IPN, _
+                MOVEMENT_TARGET_TVO_POSITION)
+        End If
+        relatedEventId = private_BuildLiveMovementEventId( _
+            targetTable, relatedRowIndex, IIf(directionId = "D", "A", "D"))
+        If VBA.Len(relatedEventId) = 0 Then GoTo CleanFail
+        If Not private_TryBuildDeleteSnapshot( _
+            targetTable, relatedRowIndex, relatedColumns, relatedEventId, _
+            expectedOrderNo, relatedSnapshot) Then GoTo CleanFail
+        outSnapshot.Add "RelatedSnapshot", relatedSnapshot
+        failureStage = "clear-related-arrival"
+        If Not private_ClearMovementColumns( _
+            targetTable, relatedRowIndex, relatedColumns) Then GoTo CleanFail
+    End If
+    If deleteWholeRow Then
+        If relatedRowIndex > rowIndex Then relatedSnapshot("RowIndex") = relatedRowIndex - 1
+        failureStage = "suspend-table-filters"
+        If Not private_TrySuspendMovementTableFilters( _
+            targetTable, filterSnapshot) Then GoTo CleanFail
+        failureStage = "delete-whole-row"
+        targetTable.ListRows(rowIndex).Delete
+        failureStage = "restore-table-filters"
+        If Not private_TryRestoreMovementTableFilters( _
+            targetTable, filterSnapshot) Then GoTo CleanFail
+    Else
+        If Not private_ClearMovementColumns(targetTable, rowIndex, clearedColumns) Then GoTo CleanFail
     End If
     If openedHere Then targetWb.Close SaveChanges:=True
     DeleteEventById = True
@@ -331,44 +531,641 @@ CleanFail:
     If openedHere Then targetWb.Close SaveChanges:=False
     Exit Function
 EH:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
     On Error Resume Next
     If openedHere Then targetWb.Close SaveChanges:=False
     On Error GoTo 0
-    VBA.MsgBox "Не удалось удалить событие Movement: " & Err.Description, _
+    VBA.MsgBox "Не удалось удалить событие Movement на этапе '" & _
+        failureStage & "': [" & VBA.CStr(errorNumber) & "] " & _
+        errorDescription, _
         VBA.vbExclamation, "PrsnlEventBuilder / Movement events"
 End Function
 
-Private Function private_FindMovementEventRow( _
+Private Function private_TrySuspendMovementTableFilters( _
     ByVal targetTable As ListObject, _
+    ByRef outFilterSnapshot As Collection _
+) As Boolean
+    Dim filterIndex As Long
+    Dim filterObj As Filter
+    Dim filterState As Object
+    Dim criteria2Value As Variant
+    Dim hasCriteria2 As Boolean
+
+    Set outFilterSnapshot = New Collection
+    If targetTable Is Nothing Then Exit Function
+    If targetTable.AutoFilter Is Nothing Then
+        private_TrySuspendMovementTableFilters = True
+        Exit Function
+    End If
+    For filterIndex = 1 To targetTable.AutoFilter.Filters.Count
+        Set filterObj = targetTable.AutoFilter.Filters(filterIndex)
+        If filterObj.On Then
+            Set filterState = VBA.CreateObject("Scripting.Dictionary")
+            filterState("Field") = filterIndex
+            filterState("Operator") = filterObj.Operator
+            filterState.Add "Criteria1", filterObj.Criteria1
+            hasCriteria2 = False
+            On Error Resume Next
+            Err.Clear
+            criteria2Value = filterObj.Criteria2
+            hasCriteria2 = (Err.Number = 0)
+            Err.Clear
+            On Error GoTo EH
+            filterState("HasCriteria2") = hasCriteria2
+            If hasCriteria2 Then filterState.Add "Criteria2", criteria2Value
+            outFilterSnapshot.Add filterState
+        End If
+    Next filterIndex
+    If targetTable.AutoFilter.FilterMode Then targetTable.AutoFilter.ShowAllData
+    private_TrySuspendMovementTableFilters = True
+    Exit Function
+EH:
+    VBA.MsgBox "Не удалось сохранить фильтры таблицы Movement: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, _
+        "PrsnlEventBuilder / Movement filters"
+End Function
+
+Private Function private_TryRestoreMovementTableFilters( _
+    ByVal targetTable As ListObject, _
+    ByVal filterSnapshot As Collection _
+) As Boolean
+    Dim filterStateItem As Variant
+    Dim filterState As Object
+    Dim filterOperator As Long
+
+    If targetTable Is Nothing Or filterSnapshot Is Nothing Then Exit Function
+    For Each filterStateItem In filterSnapshot
+        Set filterState = filterStateItem
+        filterOperator = VBA.CLng(filterState("Operator"))
+        If VBA.CBool(filterState("HasCriteria2")) Then
+            targetTable.Range.AutoFilter _
+                Field:=VBA.CLng(filterState("Field")), _
+                Criteria1:=filterState("Criteria1"), _
+                Operator:=filterOperator, _
+                Criteria2:=filterState("Criteria2")
+        ElseIf filterOperator <> 0 Then
+            targetTable.Range.AutoFilter _
+                Field:=VBA.CLng(filterState("Field")), _
+                Criteria1:=filterState("Criteria1"), _
+                Operator:=filterOperator
+        Else
+            targetTable.Range.AutoFilter _
+                Field:=VBA.CLng(filterState("Field")), _
+                Criteria1:=filterState("Criteria1")
+        End If
+    Next filterStateItem
+    private_TryRestoreMovementTableFilters = True
+    Exit Function
+EH:
+    VBA.MsgBox "Не удалось восстановить фильтры таблицы Movement: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, _
+        "PrsnlEventBuilder / Movement filters"
+End Function
+
+Private Function private_BuildLiveMovementEventId( _
+    ByVal targetTable As ListObject, _
+    ByVal rowIndex As Long, _
+    ByVal directionId As String _
+) As String
+    Dim dateColumnName As String
+
+    If directionId = "D" Then
+        dateColumnName = MOVEMENT_TARGET_DEPARTURE
+    ElseIf directionId = "A" Then
+        dateColumnName = MOVEMENT_TARGET_ARRIVAL
+    Else
+        Exit Function
+    End If
+    private_BuildLiveMovementEventId = directionId & VBA.Chr$(30) & _
+        VBA.Trim$(private_GetMovementNamedValue( _
+            targetTable, rowIndex, MOVEMENT_TARGET_IPN)) & VBA.Chr$(30) & _
+        VBA.Trim$(private_GetMovementRowCaptionPart( _
+            targetTable, rowIndex, 2)) & VBA.Chr$(30) & _
+        VBA.Trim$(private_GetMovementNamedValue( _
+            targetTable, rowIndex, MOVEMENT_TARGET_EVENT)) & VBA.Chr$(30) & _
+        private_NormalizeMovementEventDateId(private_GetMovementNamedValue( _
+            targetTable, rowIndex, dateColumnName))
+End Function
+
+Private Function private_TryFindStatusChangeRelatedRow( _
+    ByVal movementValues As Variant, _
+    ByVal columnIndexes As Object, _
+    ByVal sourceRowIndex As Long, _
+    ByVal directionId As String, _
+    ByVal expectedOrderNo As String, _
+    ByVal expectedIpn As String, _
+    ByRef outRelatedRowIndex As Long _
+) As Boolean
+    Dim sourceReasonColumn As String
+    Dim candidateReasonColumn As String
+    Dim candidateOrderColumn As String
+    Dim sourceDateColumn As String
+    Dim candidateDateColumn As String
+    Dim sourceReason As String
+    Dim candidateReason As String
+    Dim candidateOrder As String
+    Dim candidateIpn As String
+    Dim sourceDate As Date
+    Dim candidateDate As Date
+    Dim bestDate As Date
+    Dim rowIndex As Long
+    Dim hasSourceDate As Boolean
+    Dim hasCandidateDate As Boolean
+    Dim ipnColumnIndex As Long
+    Dim sourceReasonColumnIndex As Long
+    Dim candidateReasonColumnIndex As Long
+    Dim candidateOrderColumnIndex As Long
+    Dim sourceDateColumnIndex As Long
+    Dim candidateDateColumnIndex As Long
+
+    outRelatedRowIndex = 0
+    If columnIndexes Is Nothing Then Exit Function
+    If directionId = "D" Then
+        sourceReasonColumn = MOVEMENT_TARGET_OUT_REASON
+        candidateReasonColumn = MOVEMENT_TARGET_RETURN_REASON
+        candidateOrderColumn = MOVEMENT_TARGET_ARRIVAL_ORDER_NO
+        sourceDateColumn = MOVEMENT_TARGET_DEPARTURE
+        candidateDateColumn = MOVEMENT_TARGET_ARRIVAL
+    ElseIf directionId = "A" Then
+        sourceReasonColumn = MOVEMENT_TARGET_RETURN_REASON
+        candidateReasonColumn = MOVEMENT_TARGET_OUT_REASON
+        candidateOrderColumn = MOVEMENT_TARGET_ORDER_NO
+        sourceDateColumn = MOVEMENT_TARGET_ARRIVAL
+        candidateDateColumn = MOVEMENT_TARGET_DEPARTURE
+    Else
+        Exit Function
+    End If
+
+    ipnColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, MOVEMENT_TARGET_IPN)
+    sourceReasonColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, sourceReasonColumn)
+    candidateReasonColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, candidateReasonColumn)
+    candidateOrderColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, candidateOrderColumn)
+    sourceDateColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, sourceDateColumn)
+    candidateDateColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, candidateDateColumn)
+    sourceReason = private_NormalizeText(VBA.CStr( _
+        movementValues(sourceRowIndex, sourceReasonColumnIndex)))
+    If VBA.Len(sourceReason) = 0 Then
+        private_TryFindStatusChangeRelatedRow = True
+        Exit Function
+    End If
+    hasSourceDate = VBA.IsDate(movementValues(sourceRowIndex, sourceDateColumnIndex))
+    If hasSourceDate Then sourceDate = VBA.CDate( _
+        movementValues(sourceRowIndex, sourceDateColumnIndex))
+
+    For rowIndex = LBound(movementValues, 1) To UBound(movementValues, 1)
+        If rowIndex = sourceRowIndex Then GoTo ContinueRow
+        candidateIpn = VBA.Trim$(VBA.CStr(movementValues(rowIndex, ipnColumnIndex)))
+        If VBA.StrComp(candidateIpn, expectedIpn, VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
+        candidateOrder = private_NormalizeText(VBA.CStr( _
+            movementValues(rowIndex, candidateOrderColumnIndex)))
+        If VBA.StrComp(candidateOrder, private_NormalizeText(expectedOrderNo), _
+            VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
+        candidateReason = private_NormalizeText(VBA.CStr( _
+            movementValues(rowIndex, candidateReasonColumnIndex)))
+        If VBA.StrComp(candidateReason, sourceReason, VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
+        hasCandidateDate = VBA.IsDate( _
+            movementValues(rowIndex, candidateDateColumnIndex))
+        If Not hasCandidateDate Then GoTo ContinueRow
+        candidateDate = VBA.CDate(movementValues(rowIndex, candidateDateColumnIndex))
+        If hasSourceDate Then
+            If directionId = "D" And candidateDate > sourceDate Then GoTo ContinueRow
+            If directionId = "A" And candidateDate < sourceDate Then GoTo ContinueRow
+        End If
+        If outRelatedRowIndex = 0 Or _
+            (directionId = "D" And candidateDate > bestDate) Or _
+            (directionId = "A" And candidateDate < bestDate) Then
+            outRelatedRowIndex = rowIndex
+            bestDate = candidateDate
+        End If
+ContinueRow:
+    Next rowIndex
+    private_TryFindStatusChangeRelatedRow = True
+End Function
+
+Public Function RestoreDeletedEvent(ByVal snapshot As Object) As Boolean
+    Dim targetWb As Workbook
+    Dim targetWs As Worksheet
+    Dim targetTable As ListObject
+    Dim openedHere As Boolean
+    Dim relatedSnapshot As Object
+    Dim filterSnapshot As Collection
+
+    On Error GoTo EH
+    If snapshot Is Nothing Then Exit Function
+    If Not m_Base.TryOpenTargetWorkbook(targetWb, openedHere) Then Exit Function
+    If Not m_Base.TryGetWorksheet(targetWb, _
+        m_Base.ResolveTargetWorksheetName(), targetWs) Then GoTo CleanFail
+    If Not m_Base.TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
+    If snapshot.Exists("DeleteWholeRow") Then
+        If Not private_ValidateDeletedWholeMovementRow( _
+            targetTable, snapshot) Then GoTo StateChanged
+    Else
+        If Not private_ValidateDeletedMovementSnapshot( _
+            targetTable, snapshot) Then GoTo StateChanged
+    End If
+    If snapshot.Exists("RelatedSnapshot") Then
+        Set relatedSnapshot = snapshot("RelatedSnapshot")
+        If Not private_ValidateDeletedMovementSnapshot( _
+            targetTable, relatedSnapshot) Then GoTo StateChanged
+    End If
+    If snapshot.Exists("DeleteWholeRow") Then
+        If Not private_TrySuspendMovementTableFilters( _
+            targetTable, filterSnapshot) Then GoTo CleanFail
+    End If
+    If Not relatedSnapshot Is Nothing Then
+        If Not private_RestoreDeletedMovementSnapshotValues( _
+            targetTable, relatedSnapshot) Then GoTo CleanFail
+    End If
+    If snapshot.Exists("DeleteWholeRow") Then
+        If Not private_RestoreDeletedWholeMovementRow( _
+            targetTable, snapshot) Then GoTo CleanFail
+        If Not private_TryRestoreMovementTableFilters( _
+            targetTable, filterSnapshot) Then GoTo CleanFail
+    Else
+        If Not private_RestoreDeletedMovementSnapshotValues( _
+            targetTable, snapshot) Then GoTo CleanFail
+    End If
+    If openedHere Then targetWb.Close SaveChanges:=True
+    RestoreDeletedEvent = True
+    Exit Function
+
+StateChanged:
+    VBA.MsgBox "Строка Movement изменилась после удаления. " & _
+        "Автоматическое восстановление в прежнюю позицию отменено.", _
+        VBA.vbExclamation, "PrsnlEventBuilder / Movement undo"
+CleanFail:
+    On Error Resume Next
+    If openedHere Then targetWb.Close SaveChanges:=False
+    On Error GoTo 0
+    Exit Function
+EH:
+    On Error Resume Next
+    If openedHere Then targetWb.Close SaveChanges:=False
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось восстановить событие Movement: " & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / Movement undo"
+End Function
+
+Private Function private_ValidateDeletedWholeMovementRow( _
+    ByVal targetTable As ListObject, _
+    ByVal snapshot As Object _
+) As Boolean
+    Dim rowIndex As Long
+
+    If targetTable Is Nothing Or snapshot Is Nothing Then Exit Function
+    If Not snapshot.Exists("RowIndex") Or Not snapshot.Exists("RowCells") Then Exit Function
+    rowIndex = VBA.CLng(snapshot("RowIndex"))
+    If rowIndex <= 0 Or rowIndex > targetTable.ListRows.Count + 1 Then Exit Function
+    private_ValidateDeletedWholeMovementRow = True
+End Function
+
+Private Function private_RestoreDeletedWholeMovementRow( _
+    ByVal targetTable As ListObject, _
+    ByVal snapshot As Object _
+) As Boolean
+    Dim restoredRow As ListRow
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim rowCells As Object
+    Dim cellSnapshot As Object
+
+    If targetTable Is Nothing Or snapshot Is Nothing Then Exit Function
+    rowIndex = VBA.CLng(snapshot("RowIndex"))
+    Set restoredRow = targetTable.ListRows.Add(Position:=rowIndex)
+    Set rowCells = snapshot("RowCells")
+    For columnIndex = 1 To restoredRow.Range.Columns.Count
+        If Not rowCells.Exists(VBA.CStr(columnIndex)) Then Exit Function
+        Set cellSnapshot = rowCells(VBA.CStr(columnIndex))
+        If VBA.CBool(cellSnapshot("HasFormula")) Then
+            restoredRow.Range.Cells(1, columnIndex).Formula = _
+                cellSnapshot("Formula")
+        Else
+            restoredRow.Range.Cells(1, columnIndex).Value2 = _
+                cellSnapshot("Value2")
+        End If
+        restoredRow.Range.Cells(1, columnIndex).NumberFormat = _
+            cellSnapshot("NumberFormat")
+    Next columnIndex
+    restoredRow.Range.RowHeight = VBA.CDbl(snapshot("RowHeight"))
+    private_RestoreDeletedWholeMovementRow = True
+End Function
+
+Private Function private_TryBuildWholeRowDeleteSnapshot( _
+    ByVal targetTable As ListObject, _
+    ByVal rowIndex As Long, _
+    ByVal eventId As String, _
+    ByVal orderNo As String, _
+    ByRef outSnapshot As Object _
+) As Boolean
+    Dim snapshot As Object
+    Dim rowRange As Range
+    Dim columnIndex As Long
+    Dim rowCells As Object
+    Dim cellSnapshot As Object
+    Dim targetCell As Range
+
+    Set outSnapshot = Nothing
+    If targetTable Is Nothing Then Exit Function
+    If rowIndex <= 0 Or rowIndex > targetTable.ListRows.Count Then Exit Function
+    Set rowRange = targetTable.ListRows(rowIndex).Range
+    Set rowCells = VBA.CreateObject("Scripting.Dictionary")
+    For columnIndex = 1 To rowRange.Columns.Count
+        Set targetCell = rowRange.Cells(1, columnIndex)
+        Set cellSnapshot = VBA.CreateObject("Scripting.Dictionary")
+        cellSnapshot("HasFormula") = VBA.CBool(targetCell.HasFormula)
+        cellSnapshot("Formula") = targetCell.Formula
+        cellSnapshot("Value2") = targetCell.Value2
+        cellSnapshot("NumberFormat") = targetCell.NumberFormat
+        rowCells.Add VBA.CStr(columnIndex), cellSnapshot
+    Next columnIndex
+    Set snapshot = VBA.CreateObject("Scripting.Dictionary")
+    snapshot("Kind") = "Movement"
+    snapshot("EventId") = eventId
+    snapshot("OrderNo") = orderNo
+    snapshot("RowIndex") = rowIndex
+    snapshot("ExpectedIpn") = private_GetMovementNamedValue( _
+        targetTable, rowIndex, MOVEMENT_TARGET_IPN)
+    snapshot("DeleteWholeRow") = True
+    snapshot("RowHeight") = rowRange.RowHeight
+    snapshot.Add "RowCells", rowCells
+    Set outSnapshot = snapshot
+    private_TryBuildWholeRowDeleteSnapshot = True
+End Function
+
+Private Function private_ValidateDeletedMovementSnapshot( _
+    ByVal targetTable As ListObject, _
+    ByVal snapshot As Object _
+) As Boolean
+    Dim valuesByColumn As Object
+    Dim columnName As Variant
+    Dim columnIndex As Long
+    Dim rowIndex As Long
+
+    If targetTable Is Nothing Or snapshot Is Nothing Then Exit Function
+    If targetTable.DataBodyRange Is Nothing Then Exit Function
+    If Not snapshot.Exists("RowIndex") Or _
+        Not snapshot.Exists("Values") Or _
+        Not snapshot.Exists("ExpectedIpn") Then Exit Function
+    rowIndex = VBA.CLng(snapshot("RowIndex"))
+    If rowIndex <= 0 Or rowIndex > targetTable.DataBodyRange.Rows.Count Then Exit Function
+    If VBA.StrComp(VBA.Trim$(private_GetMovementNamedValue( _
+        targetTable, rowIndex, MOVEMENT_TARGET_IPN)), _
+        VBA.Trim$(VBA.CStr(snapshot("ExpectedIpn"))), _
+        VBA.vbTextCompare) <> 0 Then Exit Function
+    Set valuesByColumn = snapshot("Values")
+    For Each columnName In valuesByColumn.Keys
+        columnIndex = private_FindTargetColumnIndex(targetTable, VBA.CStr(columnName))
+        If columnIndex <= 0 Then Exit Function
+        If VBA.Len(VBA.Trim$(VBA.CStr( _
+            targetTable.DataBodyRange.Cells(rowIndex, columnIndex).Value2))) > 0 Then Exit Function
+    Next columnName
+    private_ValidateDeletedMovementSnapshot = True
+End Function
+
+Private Function private_RestoreDeletedMovementSnapshotValues( _
+    ByVal targetTable As ListObject, _
+    ByVal snapshot As Object _
+) As Boolean
+    Dim valuesByColumn As Object
+    Dim columnName As Variant
+    Dim columnIndex As Long
+    Dim rowIndex As Long
+    Dim cellSnapshot As Object
+
+    If targetTable Is Nothing Or snapshot Is Nothing Then Exit Function
+    rowIndex = VBA.CLng(snapshot("RowIndex"))
+    Set valuesByColumn = snapshot("Values")
+    For Each columnName In valuesByColumn.Keys
+        columnIndex = private_FindTargetColumnIndex(targetTable, VBA.CStr(columnName))
+        If columnIndex <= 0 Then Exit Function
+        Set cellSnapshot = valuesByColumn(columnName)
+        If VBA.CBool(cellSnapshot("HasFormula")) Then
+            targetTable.DataBodyRange.Cells(rowIndex, columnIndex).Formula = _
+                cellSnapshot("Formula")
+        Else
+            targetTable.DataBodyRange.Cells(rowIndex, columnIndex).Value2 = _
+                cellSnapshot("Value2")
+        End If
+    Next columnName
+    private_RestoreDeletedMovementSnapshotValues = True
+End Function
+
+Private Function private_TryBuildDeleteSnapshot( _
+    ByVal targetTable As ListObject, _
+    ByVal rowIndex As Long, _
+    ByVal columnNames As Variant, _
+    ByVal eventId As String, _
+    ByVal orderNo As String, _
+    ByRef outSnapshot As Object _
+) As Boolean
+    Dim snapshot As Object
+    Dim valuesByColumn As Object
+    Dim columnName As Variant
+    Dim columnIndex As Long
+    Dim targetCell As Range
+    Dim cellSnapshot As Object
+
+    Set snapshot = VBA.CreateObject("Scripting.Dictionary")
+    Set valuesByColumn = VBA.CreateObject("Scripting.Dictionary")
+    valuesByColumn.CompareMode = VBA.vbTextCompare
+    For Each columnName In columnNames
+        columnIndex = private_FindTargetColumnIndex(targetTable, VBA.CStr(columnName))
+        If columnIndex <= 0 Then Exit Function
+        Set targetCell = targetTable.DataBodyRange.Cells(rowIndex, columnIndex)
+        Set cellSnapshot = VBA.CreateObject("Scripting.Dictionary")
+        cellSnapshot("HasFormula") = VBA.CBool(targetCell.HasFormula)
+        cellSnapshot("Formula") = targetCell.Formula
+        cellSnapshot("Value2") = targetCell.Value2
+        valuesByColumn.Add VBA.CStr(columnName), cellSnapshot
+    Next columnName
+    snapshot("Kind") = "Movement"
+    snapshot("EventId") = eventId
+    snapshot("OrderNo") = orderNo
+    snapshot("RowIndex") = rowIndex
+    snapshot("ExpectedIpn") = private_GetMovementNamedValue( _
+        targetTable, rowIndex, MOVEMENT_TARGET_IPN)
+    snapshot.Add "Values", valuesByColumn
+    Set outSnapshot = snapshot
+    private_TryBuildDeleteSnapshot = True
+End Function
+
+Private Function private_FindMovementEventRow( _
+    ByVal movementValues As Variant, _
+    ByVal columnIndexes As Object, _
     ByVal orderColumnName As String, _
     ByVal eventDateColumnName As String, _
     ByVal expectedOrderNo As String, _
     ByVal expectedYear As Long, _
     ByVal expectedIpn As String, _
     ByVal expectedPerson As String, _
-    ByVal expectedEvent As String _
+    ByVal expectedEvent As String, _
+    ByVal expectedEventDate As String, _
+    ByRef outStableCandidateCount As Long _
 ) As Long
     Dim rowIndex As Long
+    Dim orderColumnIndex As Long
+    Dim eventDateColumnIndex As Long
+    Dim ipnColumnIndex As Long
+    Dim eventColumnIndex As Long
+    Dim personColumnIndex As Long
+    Dim eventYear As Long
+    Dim stableCandidateRow As Long
+    Dim stableCandidateCount As Long
 
-    If targetTable Is Nothing Then Exit Function
-    For rowIndex = 1 To targetTable.ListRows.Count
-        If private_RowEventMatchesOrderAndYear( _
-            targetTable, rowIndex, orderColumnName, eventDateColumnName, _
-            expectedOrderNo, expectedYear) Then
-            If VBA.StrComp(VBA.Trim$(private_GetMovementNamedValue( _
-                targetTable, rowIndex, MOVEMENT_TARGET_IPN)), _
-                expectedIpn, VBA.vbTextCompare) = 0 And _
-                VBA.StrComp(VBA.Trim$(private_GetMovementRowCaptionPart( _
-                    targetTable, rowIndex, 2)), _
+    outStableCandidateCount = 0
+    If columnIndexes Is Nothing Then Exit Function
+    orderColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, orderColumnName)
+    eventDateColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, eventDateColumnName)
+    ipnColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, MOVEMENT_TARGET_IPN)
+    eventColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, MOVEMENT_TARGET_EVENT)
+    personColumnIndex = private_GetCachedMovementColumnIndex( _
+        columnIndexes, "ПІБ")
+    For rowIndex = LBound(movementValues, 1) To UBound(movementValues, 1)
+        If VBA.StrComp(private_NormalizeText(VBA.CStr( _
+            movementValues(rowIndex, orderColumnIndex))), _
+            private_NormalizeText(expectedOrderNo), VBA.vbTextCompare) = 0 Then
+            eventYear = 0
+            If private_TryGetMovementDateYear( _
+                movementValues(rowIndex, eventDateColumnIndex), eventYear) Then
+                If eventYear <> expectedYear Then GoTo ContinueRow
+            Else
+                GoTo ContinueRow
+            End If
+            If VBA.StrComp(VBA.Trim$(VBA.CStr( _
+                movementValues(rowIndex, ipnColumnIndex))), _
+                expectedIpn, VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
+            If VBA.StrComp(private_NormalizeMovementEventDateId( _
+                movementValues(rowIndex, eventDateColumnIndex)), _
+                expectedEventDate, VBA.vbTextCompare) <> 0 Then GoTo ContinueRow
+            stableCandidateCount = stableCandidateCount + 1
+            stableCandidateRow = rowIndex
+            If _
+                VBA.StrComp(VBA.Trim$(VBA.CStr( _
+                    movementValues(rowIndex, personColumnIndex))), _
                     expectedPerson, VBA.vbTextCompare) = 0 And _
-                VBA.StrComp(VBA.Trim$(private_GetMovementNamedValue( _
-                    targetTable, rowIndex, MOVEMENT_TARGET_EVENT)), _
+                VBA.StrComp(VBA.Trim$(VBA.CStr( _
+                    movementValues(rowIndex, eventColumnIndex))), _
                     expectedEvent, VBA.vbTextCompare) = 0 Then
                 private_FindMovementEventRow = rowIndex
                 Exit Function
             End If
         End If
+ContinueRow:
     Next rowIndex
+    outStableCandidateCount = stableCandidateCount
+    ' ФИО и Подія являются отображаемыми полями и могут быть поправлены после
+    ' SQL snapshot. Устойчивый ключ принимается только при единственном матче.
+    If stableCandidateCount = 1 Then _
+        private_FindMovementEventRow = stableCandidateRow
+End Function
+
+Private Function private_GetCachedMovementColumnIndex( _
+    ByVal columnIndexes As Object, _
+    ByVal columnName As String _
+) As Long
+    Dim normalizedName As String
+
+    If columnIndexes Is Nothing Then Exit Function
+    normalizedName = private_NormalizeText(columnName)
+    If Not columnIndexes.Exists(normalizedName) Then Exit Function
+    private_GetCachedMovementColumnIndex = VBA.CLng(columnIndexes(normalizedName))
+End Function
+
+Private Function private_TryBuildMovementSearchContext( _
+    ByVal targetTable As ListObject, _
+    ByRef outMovementValues As Variant, _
+    ByRef outColumnIndexes As Object _
+) As Boolean
+    Dim columnObj As ListColumn
+    Dim normalizedName As String
+    Dim requiredColumns As Variant
+    Dim requiredColumn As Variant
+
+    Set outColumnIndexes = Nothing
+    If targetTable Is Nothing Then Exit Function
+    If targetTable.DataBodyRange Is Nothing Then Exit Function
+    Set outColumnIndexes = VBA.CreateObject("Scripting.Dictionary")
+    outColumnIndexes.CompareMode = VBA.vbTextCompare
+    For Each columnObj In targetTable.ListColumns
+        normalizedName = private_NormalizeText(VBA.CStr(columnObj.Name))
+        If VBA.Len(normalizedName) > 0 Then
+            If Not outColumnIndexes.Exists(normalizedName) Then _
+                outColumnIndexes.Add normalizedName, columnObj.Index
+        End If
+    Next columnObj
+    requiredColumns = Array( _
+        "ПІБ", MOVEMENT_TARGET_IPN, MOVEMENT_TARGET_EVENT, _
+        MOVEMENT_TARGET_ORDER_NO, MOVEMENT_TARGET_DEPARTURE, _
+        MOVEMENT_TARGET_OUT_REASON, MOVEMENT_TARGET_ARRIVAL_ORDER_NO, _
+        MOVEMENT_TARGET_ARRIVAL, MOVEMENT_TARGET_RETURN_REASON)
+    For Each requiredColumn In requiredColumns
+        If Not outColumnIndexes.Exists( _
+            private_NormalizeText(VBA.CStr(requiredColumn))) Then Exit Function
+    Next requiredColumn
+    ' Единственное чтение листа заменяет десятки тысяч обращений к Cells.
+    outMovementValues = targetTable.DataBodyRange.Value2
+    private_TryBuildMovementSearchContext = True
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim elapsedSeconds As Double
+
+    elapsedSeconds = VBA.Timer - startedAt
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
+    private_PerfElapsedMs = elapsedSeconds * 1000#
+End Function
+
+Private Function private_NormalizeMovementEventDateId( _
+    ByVal dateValue As Variant _
+) As String
+    Dim dateText As String
+    Dim dateParts As Variant
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+
+    If VBA.IsError(dateValue) Or VBA.IsEmpty(dateValue) Then Exit Function
+    If VBA.IsNumeric(dateValue) Then
+        private_NormalizeMovementEventDateId = _
+            VBA.Format$(VBA.CDate(VBA.CDbl(dateValue)), "yyyymmdd")
+        Exit Function
+    End If
+    dateText = VBA.Trim$(VBA.CStr(dateValue))
+    dateParts = VBA.Split(dateText, ".")
+    If UBound(dateParts) = 2 Then
+        If VBA.IsNumeric(dateParts(0)) And _
+            VBA.IsNumeric(dateParts(1)) And _
+            VBA.IsNumeric(dateParts(2)) Then
+            dayValue = VBA.CLng(dateParts(0))
+            monthValue = VBA.CLng(dateParts(1))
+            yearValue = VBA.CLng(dateParts(2))
+            If yearValue >= 1900 And monthValue >= 1 And monthValue <= 12 And _
+                dayValue >= 1 And dayValue <= 31 Then
+                private_NormalizeMovementEventDateId = _
+                    VBA.CStr(yearValue) & VBA.Right$("0" & _
+                    VBA.CStr(monthValue), 2) & VBA.Right$("0" & _
+                    VBA.CStr(dayValue), 2)
+                Exit Function
+            End If
+        End If
+    End If
+    If VBA.IsDate(dateText) Then
+        private_NormalizeMovementEventDateId = _
+            VBA.Format$(VBA.CDate(dateText), "yyyymmdd")
+    Else
+        private_NormalizeMovementEventDateId = private_NormalizeText(dateText)
+    End If
 End Function
 
 Private Function private_BuildMovementEventOption( _
