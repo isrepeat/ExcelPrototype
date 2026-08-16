@@ -276,6 +276,16 @@ Public Function TryGetTemplateHashByName( _
         templateName, outTemplateHash)
 End Function
 
+Public Function TryGetTemplateNameByHash( _
+    ByVal templateHash As String, _
+    ByRef outTemplateName As String _
+) As Boolean
+    outTemplateName = VBA.vbNullString
+    If m_IsDisposed Or m_TemplateParser Is Nothing Then Exit Function
+    TryGetTemplateNameByHash = m_TemplateParser.TryGetTemplateNameByHash( _
+        templateHash, outTemplateName)
+End Function
+
 Private Function private_ExtractRecordBookmarkIpn( _
     ByVal bookmarkName As String _
 ) As String
@@ -1051,7 +1061,7 @@ Public Function Export( _
     If Not m_ExporterCfgDataProvider.IsExportAllowed( _
         sourceTable, sectionTypeText, exportValidationError, _
         latestMovementTvoChain, ignoredLatestMovementRecord, _
-        validationEnabled, True, movementWasPrevalidated) Then
+        validationEnabled, False, movementWasPrevalidated) Then
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If

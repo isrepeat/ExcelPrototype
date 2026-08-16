@@ -76,6 +76,8 @@ Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
 Private Const EVENT_DRAFT_ORDER_YEAR_CONTAINER_NAME As String = "EventDraftOrderYearValue"
+Private Const EVENT_EXPORT_MAIN_CONTROL_NAME As String = "EventExportMainTable"
+Private Const EVENT_EXPORT_META_CONTROL_NAME As String = "EventExportMetaTables"
 Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType"
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_YEAR_KEY As String = "ManualOrderYear"
@@ -117,8 +119,11 @@ Private Const DRAFT_ALIAS_REPORT_PERSON As String = "_ReportPerson"
 Private Const DRAFT_ALIAS_REPORT_POSITION_CODE As String = "_ReportPositionCode"
 Private Const DRAFT_ALIAS_INCOMING_NO As String = "_IncomingNo"
 Private Const DRAFT_ALIAS_INCOMING_DATE As String = "_IncomingDate"
+Private Const DRAFT_ALIAS_DOC_NO As String = "_DocNo"
+Private Const DRAFT_ALIAS_DOC_DATE As String = "_DocDate"
 Private Const DRAFT_ALIAS_DURATION_DAYS As String = "_DurationDays"
 Private Const DRAFT_ALIAS_DATE_FROM As String = "_DateFrom"
+Private Const ABSENCE_ORDER_DATE_ALIAS As String = "_AbsenceOrderDate"
 Private Const DRAFT_ALIAS_VACATION_TICKET_NO As String = "_VacationTicketNo"
 Private Const DRAFT_ALIAS_VACATION_TICKET_DATE As String = "_VacationTicketDate"
 Private Const DRAFT_ALIAS_VLK_NO As String = "_VlkNo"
@@ -359,24 +364,27 @@ Public Property Get IsValidationWorkspaceVisible() As Boolean
         m_BottomWorkspaceMode, BOTTOM_WORKSPACE_VALIDATION, VBA.vbTextCompare) = 0)
 End Property
 
+Public Property Get IsBottomWorkspaceVisible() As Boolean
+    IsBottomWorkspaceVisible = (Me.IsExportEditingWorkspaceVisible Or _
+        Me.IsValidationWorkspaceVisible)
+End Property
+
 Public Function ShowExportEditingWorkspace( _
     Optional ByVal ignored As Variant _
 ) As Boolean
     Dim pageBase As obj_PageBase
     Dim previousWorkspaceMode As String
 
-    If Not m_HasResolvedOrderPair Then
-        VBA.MsgBox "Спочатку прийміть номер і дату наказу.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
-        Exit Function
-    End If
-    If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
-
     If Me.IsExportEditingWorkspaceVisible Then
-        If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then
-            VBA.MsgBox "Не вдалося частково оновити таблицю редагування. " & _
+        previousWorkspaceMode = m_BottomWorkspaceMode
+        m_BottomWorkspaceMode = VBA.vbNullString
+        private_DeleteBottomWorkspaceCommandShapes pageBase.Worksheet
+        If Not pageBase.TryReflowLayoutContainer( _
+            BOTTOM_WORKSPACE_CONTAINER_NAME) Then
+            m_BottomWorkspaceMode = previousWorkspaceMode
+            VBA.MsgBox "Не вдалося частково приховати таблицю редагування. " & _
                 "Натисніть 'Update Sheet' для відновлення сторінки.", _
                 VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
             Exit Function
@@ -385,8 +393,16 @@ Public Function ShowExportEditingWorkspace( _
         Exit Function
     End If
 
+    If Not m_HasResolvedOrderPair Then
+        VBA.MsgBox "Спочатку прийміть номер і дату наказу.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+        Exit Function
+    End If
+    If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
+
     previousWorkspaceMode = m_BottomWorkspaceMode
     m_BottomWorkspaceMode = BOTTOM_WORKSPACE_EDIT
+    private_DeleteBottomWorkspaceCommandShapes pageBase.Worksheet
     If Not pageBase.TryReflowLayoutContainer( _
         BOTTOM_WORKSPACE_CONTAINER_NAME) Then
         m_BottomWorkspaceMode = previousWorkspaceMode
@@ -405,6 +421,24 @@ Public Function ShowValidationWorkspace( _
     Dim pageBase As obj_PageBase
     Dim previousWorkspaceMode As String
 
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Me.IsValidationWorkspaceVisible Then
+        previousWorkspaceMode = m_BottomWorkspaceMode
+        m_BottomWorkspaceMode = VBA.vbNullString
+        private_DeleteBottomWorkspaceCommandShapes pageBase.Worksheet
+        If Not pageBase.TryReflowLayoutContainer( _
+            BOTTOM_WORKSPACE_CONTAINER_NAME) Then
+            m_BottomWorkspaceMode = previousWorkspaceMode
+            VBA.MsgBox "Не вдалося частково приховати таблицю валідації. " & _
+                "Натисніть 'Update Sheet' для відновлення сторінки.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+            Exit Function
+        End If
+        ShowValidationWorkspace = True
+        Exit Function
+    End If
+
     If Not m_HasResolvedOrderPair Then
         VBA.MsgBox "Спочатку прийміть номер і дату наказу.", _
             VBA.vbExclamation, "PrsnlEventBuilder / Валідація"
@@ -417,23 +451,10 @@ Public Function ShowValidationWorkspace( _
         m_ResolvedOrderDate, VALIDATION_RESULTS_RUNTIME_KEY) Then Exit Function
     If Not movementVldtnScen.RunEmbedded(False) Then Exit Function
     Set movementVldtnScen = Nothing
-    Set pageBase = m_Page.GetPageBase()
-    If pageBase Is Nothing Then Exit Function
-
-    If Me.IsValidationWorkspaceVisible Then
-        If Not pageBase.TryReflowControl( _
-            VALIDATION_RESULTS_CONTROL_NAME) Then
-            VBA.MsgBox "Не вдалося частково оновити таблицю валідації. " & _
-                "Натисніть 'Update Sheet' для відновлення сторінки.", _
-                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
-            Exit Function
-        End If
-        ShowValidationWorkspace = True
-        Exit Function
-    End If
 
     previousWorkspaceMode = m_BottomWorkspaceMode
     m_BottomWorkspaceMode = BOTTOM_WORKSPACE_VALIDATION
+    private_DeleteBottomWorkspaceCommandShapes pageBase.Worksheet
     If Not pageBase.TryReflowLayoutContainer( _
         BOTTOM_WORKSPACE_CONTAINER_NAME) Then
         m_BottomWorkspaceMode = previousWorkspaceMode
@@ -443,6 +464,42 @@ Public Function ShowValidationWorkspace( _
         Exit Function
     End If
     ShowValidationWorkspace = True
+End Function
+
+Public Function RefreshBottomWorkspace( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim movementVldtnScen As obj_MovementVldtnScen
+    Dim pageBase As obj_PageBase
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    If Me.IsExportEditingWorkspaceVisible Then
+        If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
+        If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then
+            VBA.MsgBox "Не вдалося частково оновити таблицю редагування.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+            Exit Function
+        End If
+        RefreshBottomWorkspace = True
+        Exit Function
+    End If
+
+    If Me.IsValidationWorkspaceVisible Then
+        If m_ProfileConfigTable Is Nothing Then Exit Function
+        Set movementVldtnScen = New obj_MovementVldtnScen
+        If Not movementVldtnScen.InitializeEmbedded( _
+            m_Page, m_ProfileConfigTable, m_ResolvedOrderNo, _
+            m_ResolvedOrderDate, VALIDATION_RESULTS_RUNTIME_KEY) Then Exit Function
+        If Not movementVldtnScen.RunEmbedded(False) Then Exit Function
+        If Not pageBase.TryReflowControl(VALIDATION_RESULTS_CONTROL_NAME) Then
+            VBA.MsgBox "Не вдалося частково оновити таблицю валідації.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+            Exit Function
+        End If
+        RefreshBottomWorkspace = True
+    End If
 End Function
 
 Public Function OnAcceptOrderReferenceClick( _
@@ -654,6 +711,17 @@ Private Sub private_DeleteGeneratedShapeIfExists( _
     On Error GoTo 0
 End Sub
 
+Private Sub private_DeleteBottomWorkspaceCommandShapes(ByVal ws As Worksheet)
+    ' У обычного и активного состояния одна и та же позиция в layout. Перед
+    ' частичным reflow удаляем старые Shapes, чтобы collapsed-вариант не
+    ' оставался под вновь созданной кнопкой.
+    private_DeleteGeneratedShapeIfExists ws, "btn_RefreshWorkspace"
+    private_DeleteGeneratedShapeIfExists ws, "btn_ShowExportEditing"
+    private_DeleteGeneratedShapeIfExists ws, "btn_ShowExportEditingActive"
+    private_DeleteGeneratedShapeIfExists ws, "btn_ShowValidation"
+    private_DeleteGeneratedShapeIfExists ws, "btn_ShowValidationActive"
+End Sub
+
 Public Property Get IsLookupEnabled() As Boolean
     IsLookupEnabled = m_IsLookupEnabled
 End Property
@@ -823,6 +891,12 @@ Private Function private_AppendFioDependentAliases( _
     If m_Data Is Nothing Then Exit Function
     sectionKey = private_NormalizeText(sectionText)
 
+    If m_Data.IsMovementMirrorTransferSectionType(sectionText) Then
+        private_AddStatusChangeFioDependentAliases dependentAliases
+        private_AppendFioDependentAliases = True
+        Exit Function
+    End If
+
     Select Case sectionKey
         ' Сейчас все основные события получают персональные данные из одного
         ' op_FIO. Отдельный Select Case оставляет правила секционными: когда для
@@ -832,11 +906,13 @@ Private Function private_AppendFioDependentAliases( _
             dependentAliases(DRAFT_ALIAS_HOSPITAL) = True
             dependentAliases(DRAFT_ALIAS_HOSPITAL_SHORT) = True
 
-        Case private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromMedicalCompany), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeToMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeToAmbulatoryVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
@@ -906,12 +982,14 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
              private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip), _
              private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeToMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
              private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
              private_NormalizeText(m_Data.SectionTypeToMaternityLeave), _
@@ -958,8 +1036,29 @@ Private Sub private_AddStandardFioDependentAliases(ByVal dependentAliases As Obj
     dependentAliases(DRAFT_ALIAS_IPN) = True
     dependentAliases(DRAFT_ALIAS_POSITION_CODE) = True
     dependentAliases(DRAFT_ALIAS_POSITION_NAME) = True
+    ' Эти реквизиты относятся к выбранному человеку. Метод очистки применяет
+    ' aliases только к видимым полям, поэтому секции без документа не меняются.
+    dependentAliases(DRAFT_ALIAS_DOC_NO) = True
+    dependentAliases(DRAFT_ALIAS_DOC_DATE) = True
     dependentAliases(DRAFT_ALIAS_VLK_NO) = True
     dependentAliases(DRAFT_ALIAS_VLK_DATE) = True
+End Sub
+
+Private Sub private_AddStatusChangeFioDependentAliases( _
+    ByVal dependentAliases As Object _
+)
+    ' Реквизиты смены статуса относятся к конкретному человеку и не должны
+    ' переживать замену ПІБ даже при совпадении профиля формы.
+    private_AddStandardFioDependentAliases dependentAliases
+    dependentAliases(DRAFT_ALIAS_HOSPITAL) = True
+    dependentAliases(DRAFT_ALIAS_HOSPITAL_SHORT) = True
+    dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
+    dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
+    dependentAliases(DRAFT_ALIAS_DOC_NO) = True
+    dependentAliases(DRAFT_ALIAS_DOC_DATE) = True
+    dependentAliases(DRAFT_ALIAS_VLK_NO) = True
+    dependentAliases(DRAFT_ALIAS_VLK_DATE) = True
+    dependentAliases(DRAFT_ALIAS_DATE_FROM) = True
 End Sub
 
 Private Sub private_AddToVacationFioDependentAliases(ByVal dependentAliases As Object)
@@ -1324,10 +1423,14 @@ Private Function private_StoreDeletedExportSnapshot( _
                 eventId, VBA.vbBinaryCompare) = 0 Then
                 snapshot("DisplayCaption") = VBA.CStr(eventCaptions.Item(eventIndex))
                 snapshot("OptionCaption") = private_BuildDeletedEventOptionCaption( _
-                    isMovementEvent, eventIndex)
-                If VBA.Len(VBA.CStr(snapshot("OptionCaption"))) = 0 Then _
-                    snapshot("OptionCaption") = VBA.Replace$( _
-                        VBA.CStr(eventCaptions.Item(eventIndex)), " — ", VBA.vbTab)
+                    isMovementEvent, eventIndex, eventId)
+                If VBA.Len(VBA.CStr(snapshot("OptionCaption"))) = 0 Then
+                    VBA.MsgBox "Не удалось сохранить структуру удаляемого " & _
+                        "события '" & eventId & "'. Удаление остановлено.", _
+                        VBA.vbExclamation, _
+                        "PrsnlEventBuilder / exported events"
+                    Exit Function
+                End If
                 Exit For
             End If
         Next eventIndex
@@ -1350,7 +1453,8 @@ Private Function private_StoreDeletedExportSnapshot( _
                 aliasSnapshot("DisplayCaption") = _
                     VBA.CStr(m_MovementEventCaptions.Item(eventIndex))
                 aliasSnapshot("OptionCaption") = _
-                    private_BuildDeletedEventOptionCaption(True, eventIndex)
+                    private_BuildDeletedEventOptionCaption( _
+                        True, eventIndex, relatedEventId)
                 Exit For
             End If
         Next eventIndex
@@ -1411,16 +1515,16 @@ End Function
 
 Private Function private_BuildDeletedEventOptionCaption( _
     ByVal isMovementEvent As Boolean, _
-    ByVal rowIndex As Long _
+    ByVal rowIndex As Long, _
+    ByVal eventId As String _
 ) As String
     Dim pageBase As obj_PageBase
     Dim runtimeSources As obj_PageRuntimeSources
     Dim tableItems As Collection
     Dim eventsTable As obj_TableDynamic
     Dim eventRow As obj_Row
-    Dim firstColumnIndex As Long
-    Dim lastColumnIndex As Long
-    Dim columnIndex As Long
+    Dim separatorIndex As Long
+    Dim ipnText As String
 
     If m_Page Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
@@ -1436,20 +1540,24 @@ Private Function private_BuildDeletedEventOptionCaption( _
     Set eventRow = eventsTable.Rows.Item(rowIndex)
     If eventRow Is Nothing Then Exit Function
     If isMovementEvent Then
-        firstColumnIndex = 1
-        lastColumnIndex = 4
-    Else
-        firstColumnIndex = 5
-        lastColumnIndex = 7
-    End If
-    For columnIndex = firstColumnIndex To lastColumnIndex
-        If columnIndex > firstColumnIndex Then _
-            private_BuildDeletedEventOptionCaption = _
-                private_BuildDeletedEventOptionCaption & VBA.vbTab
+        ' В option caption Movement сохраняется исходный контракт:
+        ' Тип, ПІБ, Подія, ІПН. В UI ПІБ и Подія показаны в обратном порядке.
         private_BuildDeletedEventOptionCaption = _
-            private_BuildDeletedEventOptionCaption & _
-            VBA.CStr(eventRow.GetCellValue(columnIndex))
-    Next columnIndex
+            VBA.CStr(eventRow.GetCellValue(1)) & VBA.vbTab & _
+            VBA.CStr(eventRow.GetCellValue(3)) & VBA.vbTab & _
+            VBA.CStr(eventRow.GetCellValue(2)) & VBA.vbTab & _
+            VBA.CStr(eventRow.GetCellValue(4))
+    Else
+        ' Подія WORD является вычисляемой UI-колонкой и в исходный caption
+        ' не входит. ИПН восстанавливается из стабильного имени bookmark.
+        separatorIndex = VBA.InStrRev(eventId, "_", -1, VBA.vbBinaryCompare)
+        If separatorIndex <= 0 Or separatorIndex >= VBA.Len(eventId) Then Exit Function
+        ipnText = VBA.Mid$(eventId, separatorIndex + 1)
+        private_BuildDeletedEventOptionCaption = _
+            VBA.CStr(eventRow.GetCellValue(5)) & VBA.vbTab & _
+            VBA.CStr(eventRow.GetCellValue(7)) & VBA.vbTab & _
+            VBA.CStr(eventRow.GetCellValue(8)) & VBA.vbTab & ipnText
+    End If
 End Function
 
 Private Function private_DeletedExportSnapshotKey( _
@@ -1519,7 +1627,7 @@ Private Function private_TryMarkDeletedExportEvent( _
         lastColumnIndex = 4
     Else
         firstColumnIndex = 5
-        lastColumnIndex = 7
+        lastColumnIndex = 8
     End If
     For columnIndex = firstColumnIndex To lastColumnIndex
         Set eventCell = eventRow.Cells.Item(columnIndex)
@@ -1665,7 +1773,7 @@ Private Function private_TryResolveSelectedCombinedExportedEvent( _
             If outIsMovementEvent Then
                 Set eventIds = m_MovementEventIds
                 Set eventCaptions = m_MovementEventCaptions
-            ElseIf columnIndex >= 5 And columnIndex <= 7 Then
+            ElseIf columnIndex >= 5 And columnIndex <= 8 Then
                 Set eventIds = m_WordEventIds
                 Set eventCaptions = m_WordEventCaptions
             Else
@@ -2015,10 +2123,12 @@ Public Function RuntimeClearExportFormAndCandidates() As Boolean
     previousSuppressLookupSearch = m_SuppressLookupSearch
     On Error GoTo RestoreSuppression
 
-    ' Верхняя draft-форма остаётся заполненной. ALT+ARROWUP сворачивает всё
-    ' временное рабочее состояние страницы, но не уничтожает session undo
-    ' удалённых Movement/WORD-записей.
+    ' ALT+ARROWUP очищает draft и применённую форму, сворачивает временное
+    ' рабочее состояние, но сохраняет session undo Movement/WORD-записей.
+    If Not private_TryClearRenderedFormValues() Then Exit Function
     private_ClearExportFormState
+    m_DraftReportIsTvo = False
+    m_ReportOwnPositionCode = VBA.vbNullString
     m_WordExportPreviewText = VBA.vbNullString
     m_IsWordPreviewExportMode = False
     m_BottomWorkspaceMode = VBA.vbNullString
@@ -2070,6 +2180,55 @@ Public Function RuntimeClearExportFormAndCandidates() As Boolean
 
 RestoreSuppression:
     m_SuppressLookupSearch = previousSuppressLookupSearch
+End Function
+
+Private Function private_TryClearRenderedFormValues() As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim draftValuesRange As Range
+    Dim rowsRange As Range
+    Dim columnScope As Range
+    Dim previousEnableEvents As Boolean
+    Dim controlNames As Variant
+    Dim controlName As Variant
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
+    If draftValuesRange Is Nothing Then Exit Function
+
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo EH
+    Application.EnableEvents = False
+    draftValuesRange.ClearContents
+
+    controlNames = VBA.Array( _
+        EVENT_EXPORT_MAIN_CONTROL_NAME, EVENT_EXPORT_META_CONTROL_NAME)
+    For Each controlName In controlNames
+        Set rowsRange = Nothing
+        Set columnScope = Nothing
+        ' У пустой таблицы part=rows может отсутствовать — это штатное состояние.
+        If ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
+            ws, "tablelist", VBA.CStr(controlName), "rows", _
+            rowsRange, columnScope) Then
+            If Not rowsRange Is Nothing Then rowsRange.ClearContents
+        End If
+    Next controlName
+
+    Application.EnableEvents = previousEnableEvents
+    private_TryClearRenderedFormValues = True
+    Exit Function
+EH:
+    On Error Resume Next
+    Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось полностью очистить форму: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, _
+        VBA.vbExclamation, "PrsnlEventBuilder / clear workspace"
 End Function
 
 Public Function OnExportToWordClick(Optional ByVal ignored As Variant) As Boolean
@@ -2392,12 +2551,16 @@ End Function
 Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
     Dim newProfile As String
     Dim previousEnableEvents As Boolean
+    Dim draftValuesByAlias As Object
     newProfile = VBA.Trim$(VBA.CStr(profileId))
     If VBA.Len(newProfile) = 0 Then Exit Function
     If VBA.StrComp(private_NormalizeText(newProfile), private_NormalizeText(m_SelectedProfile), vbTextCompare) = 0 Then
         OnProfileButtonClick = True
         Exit Function
     End If
+
+    If Not private_TryCaptureDraftValuesByAlias( _
+        draftValuesByAlias) Then Exit Function
 
 
     If private_IsMainProfile(newProfile) Then
@@ -2432,7 +2595,11 @@ Public Function OnProfileButtonClick(Optional ByVal profileId As Variant) As Boo
     Application.EnableEvents = False
     On Error GoTo EH
 
-    OnProfileButtonClick = rt_PageManager.fn_RenderPage(m_Page, "prsnlevntbuilder:profile-changed")
+    If Not rt_PageManager.fn_RenderPage( _
+        m_Page, "prsnlevntbuilder:profile-changed") Then GoTo Cleanup
+    If Not private_TryRestoreDraftValuesByAlias( _
+        draftValuesByAlias) Then GoTo Cleanup
+    OnProfileButtonClick = True
 
 Cleanup:
     Application.EnableEvents = previousEnableEvents
@@ -2440,6 +2607,71 @@ Cleanup:
 
 EH:
     Resume Cleanup
+End Function
+
+Private Function private_TryCaptureDraftValuesByAlias( _
+    ByRef outValuesByAlias As Object _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim draftValuesRange As Range
+    Dim declaredAliases As Collection
+    Dim aliasItem As Variant
+    Dim aliasText As String
+    Dim valueRange As Range
+
+    Set outValuesByAlias = VBA.CreateObject("Scripting.Dictionary")
+    outValuesByAlias.CompareMode = VBA.vbTextCompare
+    If m_Page Is Nothing Or m_LookupFeature Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
+    If draftValuesRange Is Nothing Then Exit Function
+    If Not m_LookupFeature.TryGetFormColumnKeys(declaredAliases) Then Exit Function
+    If declaredAliases Is Nothing Then Exit Function
+
+    For Each aliasItem In declaredAliases
+        aliasText = VBA.Trim$(VBA.CStr(aliasItem))
+        If VBA.Len(aliasText) = 0 Then GoTo ContinueAlias
+        Set valueRange = Nothing
+        If Not pageBase.TryGetFirstLayoutTagRange( _
+            aliasText, valueRange, "visible") Then GoTo ContinueAlias
+        If valueRange Is Nothing Then GoTo ContinueAlias
+        If Application.Intersect(valueRange, draftValuesRange) Is Nothing Then _
+            GoTo ContinueAlias
+        outValuesByAlias(aliasText) = valueRange.Cells(1, 1).Value2
+ContinueAlias:
+    Next aliasItem
+    private_TryCaptureDraftValuesByAlias = True
+End Function
+
+Private Function private_TryRestoreDraftValuesByAlias( _
+    ByVal valuesByAlias As Object _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim draftValuesRange As Range
+    Dim aliasItem As Variant
+    Dim valueRange As Range
+
+    If valuesByAlias Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
+    If draftValuesRange Is Nothing Then Exit Function
+
+    For Each aliasItem In valuesByAlias.Keys
+        Set valueRange = Nothing
+        If Not pageBase.TryGetFirstLayoutTagRange( _
+            VBA.CStr(aliasItem), valueRange, "visible") Then GoTo ContinueAlias
+        If valueRange Is Nothing Then GoTo ContinueAlias
+        If Application.Intersect(valueRange, draftValuesRange) Is Nothing Then _
+            GoTo ContinueAlias
+        valueRange.Cells(1, 1).Value2 = valuesByAlias(aliasItem)
+ContinueAlias:
+    Next aliasItem
+    private_TryRestoreDraftValuesByAlias = True
 End Function
 
 Public Function OnMetaProfileButtonClick(Optional ByVal profileId As Variant) As Boolean
@@ -2632,6 +2864,7 @@ Public Function SearchCandidates( _
 ) As Boolean
     Dim minAbsenceDepartureDate As Date
     Dim maxAbsenceDepartureDate As Date
+    Dim absenceReferenceDate As Date
     Dim absenceSelectorImpl As obj_PEB_AbsenceCnddtSlctr
     Dim absenceSelector As obj_ILookupCandidateSelector
 
@@ -2690,10 +2923,13 @@ Public Function SearchCandidates( _
             Exit Function
         End If
         If Not private_TryResolveAbsenceDepartureDateRange( _
-            minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
+            minAbsenceDepartureDate, maxAbsenceDepartureDate, _
+            absenceReferenceDate) Then Exit Function
         Set absenceSelectorImpl = New obj_PEB_AbsenceCnddtSlctr
         If Not absenceSelectorImpl.Initialize( _
-            DRAFT_ALIAS_DATE_FROM, minAbsenceDepartureDate, maxAbsenceDepartureDate) Then Exit Function
+            DRAFT_ALIAS_DATE_FROM, ABSENCE_ORDER_DATE_ALIAS, _
+            minAbsenceDepartureDate, _
+            maxAbsenceDepartureDate, absenceReferenceDate) Then Exit Function
         Set absenceSelector = absenceSelectorImpl
         If Not m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, False) Then Exit Function
         If Not m_LookupFeature.ExtendCandidates( _
@@ -2961,7 +3197,8 @@ End Function
 
 Private Function private_TryResolveAbsenceDepartureDateRange( _
     ByRef outMinDate As Date, _
-    ByRef outMaxDate As Date _
+    ByRef outMaxDate As Date, _
+    ByRef outReferenceDate As Date _
 ) As Boolean
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
@@ -2970,6 +3207,7 @@ Private Function private_TryResolveAbsenceDepartureDateRange( _
 
     outMinDate = 0
     outMaxDate = 0
+    outReferenceDate = 0
     If m_Page Is Nothing Then Exit Function
     If m_ExportCommonData Is Nothing Then Exit Function
     Set pageBase = m_Page.GetPageBase()
@@ -2984,6 +3222,7 @@ Private Function private_TryResolveAbsenceDepartureDateRange( _
         "d", -ABSENCE_DEPARTURE_LOOKBACK_DAYS, VBA.DateValue(orderDate))
     outMaxDate = VBA.DateAdd( _
         "d", ABSENCE_DEPARTURE_LOOKAHEAD_DAYS, VBA.DateValue(orderDate))
+    outReferenceDate = VBA.DateValue(orderDate)
     private_TryResolveAbsenceDepartureDateRange = True
 End Function
 
@@ -3299,12 +3538,15 @@ Private Function private_AppendDeletedExportSnapshots( _
     Dim optionObj As obj_SelectOption
     Dim optionItem As Variant
     Dim eventExists As Boolean
+    Dim staleSnapshotKeys As Collection
+    Dim staleSnapshotKey As Variant
 
     If movementEvents Is Nothing Or wordEvents Is Nothing Then Exit Function
     If m_DeletedExportSnapshots Is Nothing Then
         private_AppendDeletedExportSnapshots = True
         Exit Function
     End If
+    Set staleSnapshotKeys = New Collection
     For Each snapshotKey In m_DeletedExportSnapshots.Keys
         Set snapshot = m_DeletedExportSnapshots(snapshotKey)
         If snapshot Is Nothing Then Exit Function
@@ -3334,8 +3576,17 @@ Private Function private_AppendDeletedExportSnapshots( _
             optionObj.Id = VBA.CStr(snapshot("EventId"))
             optionObj.Caption = VBA.CStr(snapshot("OptionCaption"))
             targetEvents.Add optionObj
+        Else
+            ' WORD bookmark или Movement event снова существует физически:
+            ' обычный повторный экспорт заменяет session undo и не должен
+            ' оставаться красным tombstone.
+            staleSnapshotKeys.Add VBA.CStr(snapshotKey)
         End If
     Next snapshotKey
+    For Each staleSnapshotKey In staleSnapshotKeys
+        If m_DeletedExportSnapshots.Exists(VBA.CStr(staleSnapshotKey)) Then _
+            m_DeletedExportSnapshots.Remove VBA.CStr(staleSnapshotKey)
+    Next staleSnapshotKey
     private_AppendDeletedExportSnapshots = True
 End Function
 
@@ -3351,6 +3602,7 @@ Private Function private_BuildCombinedExportedEventsTableItems( _
     Dim eventsTable As obj_TableDynamic
     Dim movementByIpn As Object
     Dim wordByIpn As Object
+    Dim wordEventCache As Object
     Dim ipnOrder As Collection
     Dim sortedIpnOrder As Collection
     Dim optionItem As Variant
@@ -3366,8 +3618,10 @@ Private Function private_BuildCombinedExportedEventsTableItems( _
     If movementOptions Is Nothing Or wordOptions Is Nothing Then Exit Function
     Set movementByIpn = VBA.CreateObject("Scripting.Dictionary")
     Set wordByIpn = VBA.CreateObject("Scripting.Dictionary")
+    Set wordEventCache = VBA.CreateObject("Scripting.Dictionary")
     movementByIpn.CompareMode = VBA.vbTextCompare
     wordByIpn.CompareMode = VBA.vbTextCompare
+    wordEventCache.CompareMode = VBA.vbTextCompare
     Set ipnOrder = New Collection
 
     For Each optionItem In movementOptions
@@ -3399,6 +3653,7 @@ Private Function private_BuildCombinedExportedEventsTableItems( _
     For Each optionItem In sortedIpnOrder
         If Not private_AppendCombinedIpnRows( _
             VBA.CStr(optionItem), movementByIpn, wordByIpn, eventsTable, _
+            wordEventCache, _
             outMovementIds, outMovementCaptions, _
             outWordIds, outWordCaptions) Then Exit Function
     Next optionItem
@@ -3569,11 +3824,11 @@ Private Function private_AddCombinedExportedEventColumns( _
     Dim columnIndex As Long
     Dim eventColumn As obj_Column
 
-    columnNames = VBA.Array("Тип", "ПІБ", "Подія", "ІПН", _
-        "WORD", "Bookmark", "Текст пункту")
-    columnAliases = VBA.Array("movement.type", "movement.person", _
-        "movement.description", "movement.ipn", "word.source", _
-        "word.bookmark", "word.description")
+    columnNames = VBA.Array("Тип", "Подія", "ПІБ", "ІПН", _
+        "WORD", "Подія WORD", "Bookmark", "Текст пункту")
+    columnAliases = VBA.Array("movement.type", "movement.description", _
+        "movement.person", "movement.ipn", "word.source", _
+        "word.event", "word.bookmark", "word.description")
     For columnIndex = LBound(columnNames) To UBound(columnNames)
         Set eventColumn = New obj_Column
         eventColumn.Name = VBA.CStr(columnNames(columnIndex))
@@ -3588,6 +3843,7 @@ Private Function private_AppendCombinedIpnRows( _
     ByVal movementByIpn As Object, _
     ByVal wordByIpn As Object, _
     ByVal eventsTable As obj_TableDynamic, _
+    ByVal wordEventCache As Object, _
     ByVal movementIds As Collection, _
     ByVal movementCaptions As Collection, _
     ByVal wordIds As Collection, _
@@ -3605,6 +3861,7 @@ Private Function private_AppendCombinedIpnRows( _
     Dim rowCount As Long
     Dim wordOrder As Collection
     Dim wordItemIndex As Long
+    Dim wordEventText As String
 
     Set movementItems = New Collection
     Set wordItems = New Collection
@@ -3621,8 +3878,8 @@ Private Function private_AppendCombinedIpnRows( _
             Set movementOption = sortedMovementItems.Item(rowIndex)
             movementParts = VBA.Split(movementOption.Caption, VBA.vbTab)
             eventRow.PushCellRaw VBA.CStr(movementParts(0))
-            eventRow.PushCellRaw VBA.CStr(movementParts(1))
             eventRow.PushCellRaw VBA.CStr(movementParts(2))
+            eventRow.PushCellRaw VBA.CStr(movementParts(1))
             eventRow.PushCellRaw VBA.CStr(movementParts(3))
             movementIds.Add movementOption.Id
             movementCaptions.Add VBA.Replace(movementOption.Caption, VBA.vbTab, " — ")
@@ -3640,14 +3897,18 @@ Private Function private_AppendCombinedIpnRows( _
         If wordItemIndex > 0 Then
             Set wordOption = wordItems.Item(wordItemIndex)
             wordParts = VBA.Split(wordOption.Caption, VBA.vbTab)
+            If Not private_TryResolveWordEventText( _
+                wordOption.Id, wordEventCache, wordEventText) Then Exit Function
             eventRow.PushCellRaw VBA.CStr(wordParts(0))
+            eventRow.PushCellRaw wordEventText
             eventRow.PushCellRaw VBA.CStr(wordParts(1))
             eventRow.PushCellRaw VBA.CStr(wordParts(2))
             wordIds.Add wordOption.Id
             wordCaptions.Add VBA.Replace(wordOption.Caption, VBA.vbTab, " — ")
             If private_IsDeletedExportSnapshot(False, wordOption.Id) Then _
-                private_SetRowCellDesc eventRow, 5, 7, "diff:deleted"
+                private_SetRowCellDesc eventRow, 5, 8, "diff:deleted"
         Else
+            eventRow.PushCellRaw VBA.vbNullString
             eventRow.PushCellRaw VBA.vbNullString
             eventRow.PushCellRaw VBA.vbNullString
             eventRow.PushCellRaw VBA.vbNullString
@@ -3657,6 +3918,64 @@ Private Function private_AppendCombinedIpnRows( _
         If Not eventsTable.PushRow(eventRow) Then Exit Function
     Next rowIndex
     private_AppendCombinedIpnRows = True
+End Function
+
+Private Function private_TryResolveWordEventText( _
+    ByVal bookmarkName As String, _
+    ByVal wordEventCache As Object, _
+    ByRef outEventText As String _
+) As Boolean
+    Dim bookmarkParts As Variant
+    Dim separatorIndex As Long
+    Dim templateId As String
+    Dim cacheKey As String
+
+    outEventText = VBA.vbNullString
+    bookmarkName = VBA.Trim$(bookmarkName)
+    If VBA.Len(bookmarkName) = 0 Or m_Data Is Nothing Then Exit Function
+    bookmarkParts = VBA.Split(bookmarkName, "_")
+    If UBound(bookmarkParts) >= 2 And _
+        VBA.StrComp(VBA.CStr(bookmarkParts(0)), "PEB", _
+            VBA.vbTextCompare) = 0 And _
+        VBA.Len(VBA.CStr(bookmarkParts(1))) = 2 Then
+        If m_CachedWordExporter Is Nothing Then GoTo MissingExporter
+        cacheKey = VBA.UCase$(VBA.CStr(bookmarkParts(1)))
+        If Not wordEventCache Is Nothing Then
+            If wordEventCache.Exists(cacheKey) Then
+                outEventText = VBA.CStr(wordEventCache(cacheKey))
+                private_TryResolveWordEventText = True
+                Exit Function
+            End If
+        End If
+        If Not m_CachedWordExporter.TryGetTemplateNameByHash( _
+            VBA.CStr(bookmarkParts(1)), templateId) Then Exit Function
+    Else
+        separatorIndex = VBA.InStrRev(bookmarkName, "_", -1, VBA.vbBinaryCompare)
+        If separatorIndex <= 5 Or _
+            VBA.StrComp(VBA.Left$(bookmarkName, 4), "PEB_", _
+                VBA.vbTextCompare) <> 0 Then GoTo InvalidBookmark
+        templateId = VBA.Mid$(bookmarkName, 5, separatorIndex - 5)
+        cacheKey = "LEGACY:" & VBA.LCase$(templateId)
+    End If
+    If m_Data.TryResolveSectionTypeByWordTemplateId( _
+        templateId, outEventText) Then
+        If Not wordEventCache Is Nothing Then _
+            wordEventCache(cacheKey) = outEventText
+        private_TryResolveWordEventText = True
+        Exit Function
+    End If
+    VBA.MsgBox "Для WORD-шаблона '" & templateId & _
+        "' не найден тип события.", VBA.vbExclamation, _
+        "PrsnlEventBuilder / WORD events"
+    Exit Function
+MissingExporter:
+    VBA.MsgBox "WORD exporter не инициализирован. Невозможно определить " & _
+        "событие по закладке '" & bookmarkName & "'.", VBA.vbExclamation, _
+        "PrsnlEventBuilder / WORD events"
+    Exit Function
+InvalidBookmark:
+    VBA.MsgBox "Некорректное имя WORD-закладки: '" & bookmarkName & "'.", _
+        VBA.vbExclamation, "PrsnlEventBuilder / WORD events"
 End Function
 
 Private Function private_TryBuildAlignedWordItemOrder( _

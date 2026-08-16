@@ -180,6 +180,48 @@ DuplicateTemplate:
         "PrototypeNew / WORD export"
 End Function
 
+Public Function TryGetTemplateNameByHash( _
+    ByVal templateHash As String, _
+    ByRef outTemplateName As String _
+) As Boolean
+    Dim templateNodes As Object
+    Dim templateNode As Object
+    Dim candidateName As String
+    Dim candidateHash As String
+
+    outTemplateName = VBA.vbNullString
+    templateHash = VBA.UCase$(VBA.Trim$(templateHash))
+    If VBA.Left$(templateHash, 2) = "0X" Then _
+        templateHash = VBA.Mid$(templateHash, 3)
+    If m_IsDisposed Then Exit Function
+    If VBA.Len(templateHash) <> 2 Or _
+        Not templateHash Like "[0-9A-F][0-9A-F]" Then GoTo InvalidHash
+    If Not private_TryReloadTemplateIfChanged() Then Exit Function
+    Set templateNodes = m_TemplateDoc.selectNodes( _
+        "/p:wordResultTemplates/p:template")
+    For Each templateNode In templateNodes
+        candidateHash = VBA.UCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+            templateNode, "hash")))
+        If VBA.Left$(candidateHash, 2) = "0X" Then _
+            candidateHash = VBA.Mid$(candidateHash, 3)
+        If VBA.StrComp(candidateHash, templateHash, VBA.vbTextCompare) = 0 Then
+            candidateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+                templateNode, "name"))
+            If VBA.Len(candidateName) = 0 Then Exit Function
+            outTemplateName = candidateName
+            TryGetTemplateNameByHash = True
+            Exit Function
+        End If
+    Next templateNode
+    VBA.MsgBox "PrototypeNew: WORD result template was not found by hash: 0x" & _
+        templateHash, VBA.vbExclamation, "PrototypeNew / WORD export"
+    Exit Function
+InvalidHash:
+    VBA.MsgBox "PrototypeNew: invalid WORD template hash: '" & _
+        templateHash & "'. Expected 0xNN.", VBA.vbExclamation, _
+        "PrototypeNew / WORD export"
+End Function
+
 Public Function TryGetDocumentSettings( _
     ByRef outGenerationMode As String, _
     ByRef outDocumentStylesMarkup As String, _

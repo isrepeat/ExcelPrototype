@@ -414,11 +414,13 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -439,11 +441,13 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -464,11 +468,13 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -508,7 +514,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -527,7 +535,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -546,7 +556,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -580,7 +592,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -827,11 +841,13 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -854,11 +870,13 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -884,11 +902,13 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.closeTreatmentVacation;
                   profile.closeAnnualVacation;
                   profile.closeFamilyVacation;
                   profile.closeAmbulatoryVlk;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatmentVacation;
@@ -934,7 +954,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -957,7 +979,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -978,7 +1002,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAmbulatoryVlk;
                   profile.transferTreatmentToTreatmentVacation;
                   profile.transferTreatmentVacationToTreatment;
@@ -1016,7 +1042,9 @@
                   profile.toBusinessTrip;
                   profile.toBusinessTripSzch;
                   profile.closeTreatment;
+                  profile.closeMedicalCompany;
                   profile.toTreatment;
+                  profile.toMedicalCompany;
                   profile.toAnnualVacationPart;
                   profile.toFamilyVacation;
                   profile.toTreatmentVacation;
@@ -1159,8 +1187,23 @@
         orientation="vertical"
         spanColls="50">
       <stackPanel name="BottomWorkspaceCommands" orientation="horizontal">
+        <stackPanel
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          visibility="{Binding [Not] Path=IsBottomWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="2"
+          spanRows="1"/>
+        <control
+          type="Button"
+          name="RefreshWorkspace"
+          caption="Обновить"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=RefreshBottomWorkspace}"
+          visibility="{Binding Path=IsBottomWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="2"
+          spanRows="4"/>
         <!-- Spacer -->
-        <stackPanel spanColls="3" spanRows="1"/>
+        <stackPanel spanColls="1" spanRows="1"/>
         <control
           type="Button"
           name="ShowExportEditing"
@@ -1438,7 +1481,7 @@
         <rule target="controlPart"
               selector="type=buttongroup;name=EventDraftMetaProfileButtonGroup;part=state-selected"
               styles="{
-                backColor:#3AFA3A;
+                backColor:#404040;
                 fontColor:#FFFF00;
                 borderColor:#737373;
                 borderWeight:1.25;
@@ -1556,7 +1599,7 @@
         <rule target="controlPart"
               selector="type=label;name=ReportRankHeader;part=cell"
               styles="{
-                width:12;
+                width:14;
               }"/>
         <rule target="controlPart"
               selector="type=label;name=ReportPersonHeader;part=cell"
@@ -1898,44 +1941,50 @@
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=movement.type"
               styles="{
-                width:12;
+                width:20;
                 horizontal:center;
               }"/>
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=movement.person"
               styles="{
-                width:28;
+                width:20;
               }"/>
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=movement.description"
               styles="{
-                width:38;
+                width:20;
               }"/>
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=movement.ipn"
               styles="{
-                width:16;
+                width:20;
                 horizontal:center;
                 cellType:text;
               }"/>
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=word.source"
               styles="{
-                width:15;
+                width:20;
                 horizontal:center;
+                backColor:#203F66;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=word.event"
+              styles="{
+                width:20;
                 backColor:#203F66;
               }"/>
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=word.bookmark"
               styles="{
-                width:22;
+                width:20;
                 cellType:text;
                 backColor:#203F66;
               }"/>
         <rule target="controlPart"
               selector="type=tablelist;part=rows;columnAlias=word.description"
               styles="{
-                width:37;
+                width:20;
                 backColor:#203F66;
               }"/>
         <!-- Cell-level diff part применяется после обычных rows/columnAlias
