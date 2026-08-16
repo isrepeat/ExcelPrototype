@@ -27,6 +27,7 @@ Private Const HOTKEYS_CONTROL_NAME As String = "SheetHotkeys"
 Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
+Private Const EVENT_DRAFT_ORDER_YEAR_CONTAINER_NAME As String = "EventDraftOrderYearValue"
 Private Const MOVEMENT_HISTORY_LIMIT_CONTAINER_NAME As String = "MovementHistoryLimitField"
 
 Private m_PageBase As obj_PageBase
@@ -159,6 +160,8 @@ Private Function obj_IPage_Render() As Boolean
     Dim activeDraftFieldTag As String
     Dim orderNoValues As Variant
     Dim hasOrderNoValues As Boolean
+    Dim orderYearValues As Variant
+    Dim hasOrderYearValues As Boolean
     Dim movementHistoryLimitValues As Variant
     Dim hasMovementHistoryLimitValues As Boolean
     Dim app As Application
@@ -196,6 +199,7 @@ Private Function obj_IPage_Render() As Boolean
     If Not private_TryCaptureTaggedDraftValues(draftValuesByTag) Then GoTo Cleanup
 
     hasOrderNoValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues)
+    hasOrderYearValues = private_TryCaptureLayoutContainerValues(EVENT_DRAFT_ORDER_YEAR_CONTAINER_NAME, orderYearValues)
     ' Лимит истории не является частью draft-формы и не имеет field tag.
     ' Сохраняем его отдельным snapshot контейнера на время полного render.
     hasMovementHistoryLimitValues = private_TryCaptureLayoutContainerValues( _
@@ -208,6 +212,9 @@ Private Function obj_IPage_Render() As Boolean
 
     If hasOrderNoValues Then
         If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_NO_CONTAINER_NAME, orderNoValues) Then GoTo Cleanup
+    End If
+    If hasOrderYearValues Then
+        If Not private_TryRestoreLayoutContainerValues(EVENT_DRAFT_ORDER_YEAR_CONTAINER_NAME, orderYearValues) Then GoTo Cleanup
     End If
     If hasMovementHistoryLimitValues Then
         ' При выключенном checkbox контейнер collapsed и не имеет диапазона.

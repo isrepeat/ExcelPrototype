@@ -495,6 +495,11 @@ Private Function private_RenderContainerChildrenInBounds( _
         Set childDataContext = Nothing
         If Not private_TryResolveNodeDataContext(renderCtx, childNode, containerDataContext, childDataContext) Then Exit Function
         If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls, childDataContext) Then Exit Function
+        private_ApplyInheritedButtonSpan _
+            childNode, _
+            containerRowStart, containerRowEnd, _
+            containerColStart, containerColEnd, _
+            spanRows, spanColls
 
         If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls, childDataContext) Then Exit Function
         If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueFirstPass
@@ -518,6 +523,11 @@ ContinueFirstPass:
         Set childDataContext = Nothing
         If Not private_TryResolveNodeDataContext(renderCtx, childNode, containerDataContext, childDataContext) Then Exit Function
         If Not private_TryGetEffectiveNodeSpan(renderCtx, childNode, spanRows, spanColls, childDataContext) Then Exit Function
+        private_ApplyInheritedButtonSpan _
+            childNode, _
+            containerRowStart, containerRowEnd, _
+            containerColStart, containerColEnd, _
+            spanRows, spanColls
 
         If Not private_ResolveChildGridPosition(childNode, orientation, seqRow, seqCol, rowIdx, colIdx, spanRows, spanColls, childDataContext) Then Exit Function
         If spanRows <= 0 Or spanColls <= 0 Then GoTo ContinueSecondPass
@@ -551,6 +561,44 @@ ContinueSecondPass:
 
     private_RenderContainerChildrenInBounds = True
 End Function
+
+
+Private Sub private_ApplyInheritedButtonSpan( _
+    ByVal childNode As Object, _
+    ByVal containerRowStart As Long, _
+    ByVal containerRowEnd As Long, _
+    ByVal containerColStart As Long, _
+    ByVal containerColEnd As Long, _
+    ByRef ioSpanRows As Long, _
+    ByRef ioSpanColls As Long _
+)
+    Dim nodeKind As String
+    Dim controlType As String
+    Dim explicitSpanRows As String
+    Dim explicitSpanColls As String
+
+    If childNode Is Nothing Then Exit Sub
+    If containerRowStart <= 0 Or containerRowEnd < containerRowStart Then Exit Sub
+    If containerColStart <= 0 Or containerColEnd < containerColStart Then Exit Sub
+
+    nodeKind = VBA.LCase$(VBA.Trim$(VBA.CStr(childNode.baseName)))
+    If VBA.StrComp(nodeKind, "control", VBA.vbBinaryCompare) <> 0 Then Exit Sub
+
+    controlType = VBA.LCase$(VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(childNode, "type"))))
+    If VBA.StrComp(controlType, "button", VBA.vbBinaryCompare) <> 0 Then Exit Sub
+
+    ' Кнопка наследует отсутствующие spanRows/spanColls от непосредственного
+    ' layout-контейнера. Явно заданные размеры всегда сохраняют приоритет.
+    explicitSpanRows = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(childNode, "spanRows")))
+    If VBA.Len(explicitSpanRows) = 0 Then
+        ioSpanRows = containerRowEnd - containerRowStart + 1
+    End If
+
+    explicitSpanColls = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(childNode, "spanColls")))
+    If VBA.Len(explicitSpanColls) = 0 Then
+        ioSpanColls = containerColEnd - containerColStart + 1
+    End If
+End Sub
 
 
 Private Function private_TryClearWorksheetRange( _

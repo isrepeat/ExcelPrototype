@@ -21,6 +21,7 @@ Private Const CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
+Private Const CONTEXT_MANUAL_ORDER_DATE_SERIAL As String = "ManualOrderDateSerial"
 Private Const CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const CONTEXT_MOVEMENT_PREVALIDATED As String = "MovementPrevalidated"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
@@ -2176,6 +2177,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Dim vacationTicketDateText As String
     Dim vlkDateText As String
     Dim orderNoText As String
+    Dim resolvedOrderDate As Date
     Dim sectionTypeText As String
     Dim durationDaysText As String
     Dim vacationTicketNoText As String
@@ -2251,7 +2253,12 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     ' и date aliases. Все даты передаём в едином компактном виде
     ' ...Short = 01.02.2025; полный вид формирует XML через dateformat.
     orderNoText = private_GetContextText(context, CONTEXT_MANUAL_ORDER_NO)
-    If Not m_ExporterCfgDataProvider.CommonData.SetOrderNo(orderNoText) Then Exit Function
+    If Not VBA.IsNumeric(private_GetContextText( _
+        context, CONTEXT_MANUAL_ORDER_DATE_SERIAL)) Then Exit Function
+    resolvedOrderDate = VBA.CDate(VBA.CDbl(private_GetContextText( _
+        context, CONTEXT_MANUAL_ORDER_DATE_SERIAL)))
+    If Not m_ExporterCfgDataProvider.CommonData.SetResolvedOrderPair( _
+        orderNoText, resolvedOrderDate) Then Exit Function
     If Not m_ExporterCfgDataProvider.CommonData.TryFormatVacationTicketNoForExport( _
         vacationTicketNoText, orderNoText, normalizedVacationTicketNoText) Then Exit Function
     If VBA.Len(normalizedVacationTicketNoText) > 0 Then
@@ -2260,12 +2267,6 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ORDER_NO, orderNoText) Then Exit Function
     End If
-    If VBA.Len(VBA.Trim$(orderNoText)) > 0 And Not m_ExporterCfgDataProvider.CommonData.HasOrderDate Then
-        rt_Messaging.fn_ShowStatusBarWarning _
-            "Order date was not found for order number '" & orderNoText & "'. Short dates use 01.01.1900.", _
-            5
-    End If
-
     ' Все склонения берутся из общего provider-а. Отсутствие ФИО в АЛФ не
     ' блокирует preview/export: ниже используем исходную форму и помечаем её
     ' семантическим warning-тегом для style pipeline.

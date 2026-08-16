@@ -32,7 +32,43 @@ Private m_EjosEvents As Collection
 Private m_MedicalEvents As Collection
 Private m_OrderDateProviderClass As String
 Private m_OrderNoText As String
+Private m_EmbeddedOrderDate As Date
+Private m_EmbeddedResultRuntimeKey As String
+Private m_IsEmbedded As Boolean
 Private m_IsDisposed As Boolean
+
+Public Function InitializeEmbedded( _
+    ByVal page As obj_IPage, _
+    ByVal configTable As obj_ConfigTable, _
+    ByVal orderNo As String, _
+    ByVal orderDate As Date, _
+    ByVal resultRuntimeKey As String _
+) As Boolean
+    Dim multiSourcesViewCfgParser As obj_MultiSourcesViewCfgParser
+
+    If page Is Nothing Or configTable Is Nothing Then Exit Function
+    If VBA.Len(VBA.Trim$(orderNo)) = 0 Or orderDate = 0 Then Exit Function
+    If VBA.Len(VBA.Trim$(resultRuntimeKey)) = 0 Then Exit Function
+    m_IsDisposed = False
+    m_IsEmbedded = True
+    Set m_Page = page
+    Set m_ConfigTable = configTable
+    m_OrderNoText = VBA.Trim$(orderNo)
+    m_EmbeddedOrderDate = VBA.DateValue(orderDate)
+    m_EmbeddedResultRuntimeKey = VBA.Trim$(resultRuntimeKey)
+    Set multiSourcesViewCfgParser = New obj_MultiSourcesViewCfgParser
+    If Not multiSourcesViewCfgParser.Initialize(configTable) Then Exit Function
+    If Not private_TryReadSettings(configTable) Then Exit Function
+    Set m_CfgParser = multiSourcesViewCfgParser
+    InitializeEmbedded = True
+End Function
+
+Public Function RunEmbedded( _
+    Optional ByVal notifyChange As Boolean = False _
+) As Boolean
+    If Not m_IsEmbedded Then Exit Function
+    RunEmbedded = private_RunPipeline(notifyChange)
+End Function
 
 Private Function obj_IMultiSourcesScenario_Initialize( _
     ByVal page As obj_IPage, _
@@ -44,6 +80,7 @@ Private Function obj_IMultiSourcesScenario_Initialize( _
 
     If page Is Nothing Or configTable Is Nothing Then Exit Function
     m_IsDisposed = False
+    m_IsEmbedded = False
     Set m_Page = page
     Set m_ConfigTable = configTable
     Set multiSourcesViewCfgParser = New obj_MultiSourcesViewCfgParser
@@ -183,15 +220,19 @@ Private Function private_RunPipeline( _
         private_ShowError "MovementValidation scenario is not initialized."
         Exit Function
     End If
-    If Not private_TryReadOrderNo(orderNo) Then Exit Function
-
-    If Not private_TryCreateOrderDateProvider( _
-        m_OrderDateProviderClass, orderDateProvider) Then Exit Function
-    If Not orderDateProvider.Initialize(m_ConfigTable) Then Exit Function
-    If Not orderDateProvider.TryResolveOrderDateByNumber(orderNo, orderDate) Then
-        private_ShowError "Наказ № " & orderNo & _
-            " не знайдено у довіднику «Накази»."
-        GoTo CleanFail
+    If m_IsEmbedded Then
+        orderNo = m_OrderNoText
+        orderDate = m_EmbeddedOrderDate
+    Else
+        If Not private_TryReadOrderNo(orderNo) Then Exit Function
+        If Not private_TryCreateOrderDateProvider( _
+            m_OrderDateProviderClass, orderDateProvider) Then Exit Function
+        If Not orderDateProvider.Initialize(m_ConfigTable) Then Exit Function
+        If Not orderDateProvider.TryResolveOrderDateByNumber(orderNo, orderDate) Then
+            private_ShowError "Наказ № " & orderNo & _
+                " не знайдено у довіднику «Накази»."
+            GoTo CleanFail
+        End If
     End If
 
     Set movementColumns = private_CreateStringCollection( _
@@ -247,13 +288,20 @@ Private Function private_RunPipeline( _
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then GoTo CleanFail
-    If Not private_TryBuildPreviousOrderTables( _
-        orderNo, orderDate, orderDateProvider, _
-        previousOrderTables) Then GoTo CleanFail
-    If Not pageBase.RuntimeSources.SetItemsSource( _
-        PREVIOUS_ORDERS_RUNTIME_KEY, previousOrderTables, False) Then GoTo CleanFail
-    If Not pageBase.RuntimeSources.SetItemsSource( _
-        TABLES_RUNTIME_KEY, resultTables, False) Then GoTo CleanFail
+    If m_IsEmbedded Then
+        If Not pageBase.RuntimeSources.RemoveItemsSource( _
+            VBA.LCase$(m_EmbeddedResultRuntimeKey)) Then GoTo CleanFail
+        If Not pageBase.RuntimeSources.SetItemsSource( _
+            VBA.LCase$(m_EmbeddedResultRuntimeKey), resultTables, False) Then GoTo CleanFail
+    Else
+        If Not private_TryBuildPreviousOrderTables( _
+            orderNo, orderDate, orderDateProvider, _
+            previousOrderTables) Then GoTo CleanFail
+        If Not pageBase.RuntimeSources.SetItemsSource( _
+            PREVIOUS_ORDERS_RUNTIME_KEY, previousOrderTables, False) Then GoTo CleanFail
+        If Not pageBase.RuntimeSources.SetItemsSource( _
+            TABLES_RUNTIME_KEY, resultTables, False) Then GoTo CleanFail
+    End If
     If notifyChange Then
         If Not rt_PageManager.fn_RenderPage( _
             m_Page, "movementvalidation:run") Then GoTo CleanFail
@@ -261,7 +309,7 @@ Private Function private_RunPipeline( _
 
     rt_Messaging.fn_ShowStatusBarSuccess _
         "MovementValidation: ЄЖОС і стройова записка перевірені.", 4
-    orderDateProvider.Dispose
+    If Not orderDateProvider Is Nothing Then orderDateProvider.Dispose
     private_RunPipeline = True
     Exit Function
 

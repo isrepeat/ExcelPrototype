@@ -625,18 +625,18 @@ Private Function private_BuildPrimaryProfileNames() As Collection
     profileNames.Add SECTION_TYPE_CLOSE_FROM_ANNUAL_VACATION
     profileNames.Add SECTION_TYPE_CLOSE_FROM_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_CLOSE_FROM_FAMILY_VACATION
+    profileNames.Add SECTION_TYPE_CLOSE_FROM_MEDICAL_COMPANY
     profileNames.Add SECTION_TYPE_CLOSE_FROM_AMBULATORY_VLK
     profileNames.Add SECTION_TYPE_CLOSE_FROM_BUSINESS_TRIP
-    profileNames.Add SECTION_TYPE_CLOSE_FROM_MEDICAL_COMPANY
     ' ButtonGroup использует flow="column" и заполняет по семь строк.
     ' Сначала выводим обычные направления, как единый первый столбец.
     profileNames.Add SECTION_TYPE_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TO_ANNUAL_VACATION_PART
     profileNames.Add SECTION_TYPE_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TO_FAMILY_VACATION
+    profileNames.Add SECTION_TYPE_TO_MEDICAL_COMPANY
     profileNames.Add SECTION_TYPE_TO_AMBULATORY_VLK
     profileNames.Add SECTION_TYPE_TO_BUSINESS_TRIP
-    profileNames.Add SECTION_TYPE_TO_MEDICAL_COMPANY
     ' Второй столбец: СЗЧ и наиболее частые переходы между событиями.
     profileNames.Add SECTION_TYPE_TO_BUSINESS_TRIP_SZCH
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION
@@ -646,8 +646,6 @@ Private Function private_BuildPrimaryProfileNames() As Collection
     profileNames.Add SECTION_TYPE_TRANSFER_FAMILY_VACATION_TO_TREATMENT
     ' Третий столбец начинается переходами, связанными со стационарным ВЛК.
     profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_TO_STATIONARY_VLK
-    profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK
-    profileNames.Add SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION
 
     Set private_BuildPrimaryProfileNames = profileNames
 End Function
@@ -657,6 +655,8 @@ Private Function private_BuildAdditionalProfileNames() As Collection
 
     Set profileNames = New Collection
     profileNames.Add SECTION_TYPE_CLOSE_FROM_STATIONARY_VLK
+    profileNames.Add SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_STATIONARY_VLK
+    profileNames.Add SECTION_TYPE_TRANSFER_STATIONARY_VLK_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT_VACATION
     profileNames.Add SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_TO_TREATMENT_VACATION

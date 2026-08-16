@@ -12,12 +12,20 @@ Private m_LayoutBounds As Collection
 ' Состояние отложенного AutoFit по строкам на время применения одного style stage.
 Private m_DeferredRowAutoFitState As Object
 Private m_IsCollectingDeferredRowAutoFit As Boolean
+Private Const COMMON_CONTROL_STYLES_PATH As String = "ui\CommonControlStyles.xml"
+Private m_CommonControlStylesDom As Object
+Private m_CommonControlStylesModifiedAt As Date
 ' Централизованный cache компиляции stylesheet. Ключом является XML-текст:
 ' изменился page/rule XML -> автоматически получаем новый cache entry.
 ' Dictionaries ниже используются только для чтения после компиляции.
 Private m_ControlStylesCache As Object
 Private m_RuleSelectorCache As Object
 Private m_RuleDeclarationsCache As Object
+' Каталог активного render-pass: Label/Input/ButtonGroup получают готовые
+' declarations без повторной сериализации обоих XML DOM для каждого control.
+Private m_ActiveStyleUiDoc As Object
+Private m_ActiveCompiledControlStyles As Object
+Private m_ActiveStyleRevision As String
 
 ' Полный style pass свободно применяет структурные свойства листа. Partial pass
 ' обязан воспроизвести тот же порядок cascade, но ограничить каждый rule visual
@@ -34,12 +42,68 @@ Public Sub fn_Module_Dispose()
     Set m_ControlStylesCache = Nothing
     Set m_RuleSelectorCache = Nothing
     Set m_RuleDeclarationsCache = Nothing
+    Set m_ActiveStyleUiDoc = Nothing
+    Set m_ActiveCompiledControlStyles = Nothing
+    m_ActiveStyleRevision = VBA.vbNullString
+    Set m_CommonControlStylesDom = Nothing
+    m_CommonControlStylesModifiedAt = 0
     m_IsCollectingDeferredRowAutoFit = False
 End Sub
 
 ' //
 ' // API
 ' //
+Public Function fn_BeginStyleRender(ByVal wsUiDoc As Object) As Boolean
+    Dim commonStylesDoc As Object
+    Dim cacheKey As String
+    Dim compiledStyles As Object
+
+    Set m_ActiveStyleUiDoc = Nothing
+    Set m_ActiveCompiledControlStyles = Nothing
+    m_ActiveStyleRevision = VBA.vbNullString
+    If wsUiDoc Is Nothing Then Exit Function
+
+    private_EnsureCompiledStyleCaches
+    Set commonStylesDoc = private_LoadCommonControlStylesDom()
+    If commonStylesDoc Is Nothing Then Exit Function
+    cacheKey = VBA.CStr(commonStylesDoc.XML) & "|" & VBA.CStr(wsUiDoc.XML)
+    Set compiledStyles = private_GetOrCompileControlStyles( _
+        wsUiDoc, commonStylesDoc, cacheKey)
+    If compiledStyles Is Nothing Then Exit Function
+
+    Set m_ActiveStyleUiDoc = wsUiDoc
+    Set m_ActiveCompiledControlStyles = compiledStyles
+    m_ActiveStyleRevision = private_BuildStyleRevision(cacheKey)
+    fn_BeginStyleRender = True
+End Function
+
+
+Public Sub fn_EndStyleRender()
+    Set m_ActiveStyleUiDoc = Nothing
+    Set m_ActiveCompiledControlStyles = Nothing
+    m_ActiveStyleRevision = VBA.vbNullString
+End Sub
+
+
+Public Function fn_GetStyleRevision(ByVal wsUiDoc As Object) As String
+    Dim commonStylesDoc As Object
+    Dim cacheKey As String
+
+    If wsUiDoc Is Nothing Then Exit Function
+    If Not m_ActiveStyleUiDoc Is Nothing Then
+        If wsUiDoc Is m_ActiveStyleUiDoc Then
+            fn_GetStyleRevision = m_ActiveStyleRevision
+            Exit Function
+        End If
+    End If
+
+    Set commonStylesDoc = private_LoadCommonControlStylesDom()
+    If commonStylesDoc Is Nothing Then Exit Function
+    cacheKey = VBA.CStr(commonStylesDoc.XML) & "|" & VBA.CStr(wsUiDoc.XML)
+    fn_GetStyleRevision = private_BuildStyleRevision(cacheKey)
+End Function
+
+
 Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Object) As Boolean
     Dim stylesByName As Object
 
@@ -69,6 +133,33 @@ Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Objec
     fn_ApplyPageStyles = True
 CleanApplyPageStyles:
     ex_ShapeMetaRuntime.fn_EndReadCache
+End Function
+
+Public Function fn_ApplyRangeControlStyle( _
+    ByVal targetRange As Range, _
+    ByVal wsUiDoc As Object, _
+    ByVal styleName As String _
+) As Boolean
+    Dim stylesByName As Object
+    Dim normalizedStyleName As String
+
+    If targetRange Is Nothing Or wsUiDoc Is Nothing Then Exit Function
+    normalizedStyleName = VBA.LCase$(VBA.Trim$(styleName))
+    If VBA.Len(normalizedStyleName) = 0 Then
+        fn_ApplyRangeControlStyle = True
+        Exit Function
+    End If
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
+    If stylesByName Is Nothing Then Exit Function
+    If Not stylesByName.Exists(normalizedStyleName) Then
+        VBA.MsgBox "PrototypeNew: control style '" & styleName & _
+            "' is not declared in the common or page XML styles.", _
+            VBA.vbExclamation, "PrototypeNew / Styles"
+        Exit Function
+    End If
+    fn_ApplyRangeControlStyle = private_ApplyRangeDeclarations( _
+        targetRange, Nothing, stylesByName(normalizedStyleName), _
+        "controlStyle:" & normalizedStyleName)
 End Function
 
 
@@ -435,6 +526,41 @@ ContinueStage:
     Next stageNode
 
     fn_ApplySheetBaseStylesToRange = True
+End Function
+
+
+' Расширяет вертикальную damage-полосу partial reflow до той же ширины,
+' которую target=sheet использует при полном style pass. Данные диапазона не
+' изменяются: вызывающий код применяет к результату только sheet baseline.
+Public Function fn_TryExpandRangeToSheetStyleWidth( _
+    ByVal ws As Worksheet, _
+    ByVal damageRange As Range, _
+    ByRef outExpandedRange As Range _
+) As Boolean
+    Dim sheetStyleScope As Range
+    Dim firstStyleCol As Long
+    Dim lastStyleCol As Long
+    Dim firstDamageRow As Long
+    Dim lastDamageRow As Long
+
+    Set outExpandedRange = Nothing
+    If ws Is Nothing Or damageRange Is Nothing Then Exit Function
+    If Not (damageRange.Worksheet Is ws) Then Exit Function
+
+    Set sheetStyleScope = private_GetExpandedSheetScopeRange(ws)
+    If sheetStyleScope Is Nothing Then Exit Function
+
+    firstStyleCol = sheetStyleScope.Column
+    lastStyleCol = sheetStyleScope.Column + sheetStyleScope.Columns.Count - 1
+    firstDamageRow = damageRange.Row
+    lastDamageRow = damageRange.Row + damageRange.Rows.Count - 1
+    If firstStyleCol <= 0 Or lastStyleCol < firstStyleCol Then Exit Function
+    If firstDamageRow <= 0 Or lastDamageRow < firstDamageRow Then Exit Function
+
+    Set outExpandedRange = ws.Range( _
+        ws.Cells(firstDamageRow, firstStyleCol), _
+        ws.Cells(lastDamageRow, lastStyleCol))
+    fn_TryExpandRangeToSheetStyleWidth = True
 End Function
 
 
@@ -1486,22 +1612,67 @@ End Function
 
 Private Function private_GetCompiledControlStyles(ByVal wsUiDoc As Object) As Object
     Dim cacheKey As String
-    Dim compiledStyles As Object
+    Dim commonStylesDoc As Object
 
     If wsUiDoc Is Nothing Then Exit Function
+    If Not m_ActiveStyleUiDoc Is Nothing Then
+        If wsUiDoc Is m_ActiveStyleUiDoc Then
+            Set private_GetCompiledControlStyles = m_ActiveCompiledControlStyles
+            Exit Function
+        End If
+    End If
+
     private_EnsureCompiledStyleCaches
     ' Не привязываемся к пути файла: один и тот же stylesheet может применяться
     ' из разных page DOM, а любое изменение XML само инвалидирует ключ.
-    cacheKey = VBA.CStr(wsUiDoc.XML)
+    Set commonStylesDoc = private_LoadCommonControlStylesDom()
+    If commonStylesDoc Is Nothing Then Exit Function
+    cacheKey = VBA.CStr(commonStylesDoc.XML) & "|" & VBA.CStr(wsUiDoc.XML)
+    Set private_GetCompiledControlStyles = private_GetOrCompileControlStyles( _
+        wsUiDoc, commonStylesDoc, cacheKey)
+End Function
+
+
+Private Function private_GetOrCompileControlStyles( _
+    ByVal wsUiDoc As Object, _
+    ByVal commonStylesDoc As Object, _
+    ByVal cacheKey As String _
+) As Object
+    Dim compiledStyles As Object
+
+    If wsUiDoc Is Nothing Or commonStylesDoc Is Nothing Then Exit Function
+    private_EnsureCompiledStyleCaches
     If m_ControlStylesCache.Exists(cacheKey) Then
-        Set private_GetCompiledControlStyles = m_ControlStylesCache(cacheKey)
+        Set private_GetOrCompileControlStyles = m_ControlStylesCache(cacheKey)
         Exit Function
     End If
 
-    Set compiledStyles = private_LoadControlStyles(wsUiDoc)
+    Set compiledStyles = private_LoadControlStyles(wsUiDoc, commonStylesDoc)
     If compiledStyles Is Nothing Then Exit Function
     m_ControlStylesCache.Add cacheKey, compiledStyles
-    Set private_GetCompiledControlStyles = compiledStyles
+    Set private_GetOrCompileControlStyles = compiledStyles
+End Function
+
+
+Private Function private_BuildStyleRevision(ByVal cacheKey As String) As String
+    Dim hashA As Long
+    Dim hashB As Long
+    Dim charCode As Long
+    Dim charIndex As Long
+
+    ' Ревизия не обязана быть криптографической: она лишь инвалидирует
+    ' короткие render-signature Shapes при изменении любого stylesheet XML.
+    hashA = 5381
+    hashB = 7919
+    For charIndex = 1 To VBA.Len(cacheKey)
+        charCode = VBA.AscW(VBA.Mid$(cacheKey, charIndex, 1)) And &HFFFF&
+        hashA = ((hashA * 33) Xor charCode) And &H7FFF&
+        hashB = ((hashB * 37) Xor charCode) And &H7FFF&
+    Next charIndex
+
+    private_BuildStyleRevision = VBA.CStr(VBA.Len(cacheKey)) & ":" & _
+        VBA.Right$("0000" & VBA.Hex$(hashA), 4) & ":" & _
+        VBA.Right$("0000" & VBA.Hex$(hashB), 4)
 End Function
 
 Private Function private_TryGetCompiledRule( _
@@ -1551,14 +1722,27 @@ Private Sub private_EnsureCompiledStyleCaches()
     End If
 End Sub
 
-Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
+Private Function private_LoadControlStyles( _
+    ByVal wsUiDoc As Object, _
+    ByVal commonStylesDoc As Object _
+) As Object
     Dim result As Object
     Dim styleNodes As Object
     Dim styleNode As Object
     Dim styleName As String
+    Dim pageStyleNames As Object
 
     Set result = VBA.CreateObject("Scripting.Dictionary")
     result.CompareMode = 1
+
+    Set styleNodes = commonStylesDoc.selectNodes( _
+        "/p:styleCatalog/p:controlStyle")
+    For Each styleNode In styleNodes
+        styleName = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(styleNode, "name")))
+        If VBA.Len(styleName) = 0 Then Exit Function
+        If result.Exists(styleName) Then Exit Function
+        result.Add styleName, private_ReadStyleDeclarations(styleNode)
+    Next styleNode
 
     Set styleNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:controlStyle | /p:uiDefinition/p:styles/p:controlStyle")
     If styleNodes Is Nothing Then
@@ -1566,6 +1750,8 @@ Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
         Exit Function
     End If
 
+    Set pageStyleNames = VBA.CreateObject("Scripting.Dictionary")
+    pageStyleNames.CompareMode = 1
     For Each styleNode In styleNodes
         styleName = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(styleNode, "name")))
         If VBA.Len(styleName) = 0 Then
@@ -1575,17 +1761,43 @@ Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
             Exit Function
         End If
 
-        If result.Exists(styleName) Then
+        If pageStyleNames.Exists(styleName) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: duplicate controlStyle '" & styleName & "'."
 #End If
             Exit Function
         End If
-
+        pageStyleNames.Add styleName, True
+        If result.Exists(styleName) Then result.Remove styleName
         result.Add styleName, private_ReadStyleDeclarations(styleNode)
     Next styleNode
 
     Set private_LoadControlStyles = result
+End Function
+
+Private Function private_LoadCommonControlStylesDom() As Object
+    Dim resolvedPath As String
+    Dim modifiedAt As Date
+
+    resolvedPath = ex_XmlCore.fn_CombineBasePath( _
+        ThisWorkbook, COMMON_CONTROL_STYLES_PATH)
+    If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: common control styles file was not found: " & _
+            COMMON_CONTROL_STYLES_PATH, VBA.vbExclamation, "PrototypeNew / Styles"
+        Exit Function
+    End If
+    modifiedAt = VBA.FileDateTime(resolvedPath)
+    If m_CommonControlStylesDom Is Nothing Or _
+       modifiedAt <> m_CommonControlStylesModifiedAt Then
+        Set m_CommonControlStylesDom = ex_XmlCore.fn_LoadDomByRelativePath( _
+            ThisWorkbook, COMMON_CONTROL_STYLES_PATH, _
+            "PrototypeNew: common control styles file was not found: ", _
+            "PrototypeNew: failed to parse common control styles file: ", _
+            "urn:excelprototype:profiles")
+        If m_CommonControlStylesDom Is Nothing Then Exit Function
+        m_CommonControlStylesModifiedAt = modifiedAt
+    End If
+    Set private_LoadCommonControlStylesDom = m_CommonControlStylesDom
 End Function
 
 

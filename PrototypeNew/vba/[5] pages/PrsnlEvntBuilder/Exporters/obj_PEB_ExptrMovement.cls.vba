@@ -20,6 +20,7 @@ Private Const MOVEMENT_TARGET_COLUMN_COUNT As Long = 6
 Private Const MOVEMENT_TRAILING_EMPTY_LOOKBACK_ROWS As Long = 40
 Private Const MOVEMENT_SOURCE_INCOMING_NO As String = "Вх. №"
 Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
+Private Const MOVEMENT_CONTEXT_MANUAL_ORDER_DATE_SERIAL As String = "ManualOrderDateSerial"
 Private Const MOVEMENT_CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const MOVEMENT_CONTEXT_SECTION_TYPE As String = "SectionType"
 Private Const MOVEMENT_CONTEXT_VALIDATION_ENABLED As String = "ValidateMovement"
@@ -1723,7 +1724,8 @@ Private Function private_TryAppendSourceFormRowsToTextLog( _
         If sourceRow Is Nothing Then Exit Function
         lineText = "[" & private_NormalizeTextLogValue(orderNoText) & "] " & _
             VBA.Format$(orderDate, "yyyy-mm-dd") & " SectionType=" & _
-            private_NormalizeTextLogValue(sectionTypeText) & " | "
+            private_NormalizeTextLogValue(sectionTypeText) & _
+            VBA.vbTab & "|" & VBA.vbTab
         For columnIndex = 1 To sourceTable.ColumnCount
             If columnIndex > 1 Then lineText = lineText & VBA.vbTab
             lineText = lineText & private_NormalizeTextLogValue( _
@@ -1835,22 +1837,14 @@ Private Function private_TryValidateManualOrderNoSpecified(ByVal context As Obje
         Exit Function
     End If
 
-    ' Номер из верхнего поля является обязательной ссылкой на справочник
-    ' «Накази», а не просто текстом для целевой строки Movement. Проверяем его
-    ' до открытия и изменения целевой книги, даже если дата события заполнена.
-    If Not private_TryResolveOrderDateFromCommonData( _
-        manualOrderNoText, _
-        orderDate) Then
-        private_LogError "Movement export blocked: order number was not found in order map. orderNo='" & _
-            private_EscapeForLog(manualOrderNoText) & "'."
-        VBA.MsgBox _
-            "Наказ № " & manualOrderNoText & _
-            " не знайдено у довіднику «Накази». Додайте наказ до довідника " & _
-            "або вкажіть інший номер.", _
-            VBA.vbExclamation, _
-            "PrototypeNew / Movement export"
-        Exit Function
-    End If
+    ' Controller уже один раз сопоставил и принял пару. Exporter только
+    ' переносит сохранённые значения в свой common provider без нового lookup.
+    If Not VBA.IsNumeric(private_GetContextText( _
+        context, MOVEMENT_CONTEXT_MANUAL_ORDER_DATE_SERIAL)) Then Exit Function
+    orderDate = VBA.CDate(VBA.CDbl(private_GetContextText( _
+        context, MOVEMENT_CONTEXT_MANUAL_ORDER_DATE_SERIAL)))
+    If Not m_ExporterCfgDataProvider.CommonData.SetResolvedOrderPair( _
+        manualOrderNoText, orderDate) Then Exit Function
 
     private_TryValidateManualOrderNoSpecified = True
 End Function

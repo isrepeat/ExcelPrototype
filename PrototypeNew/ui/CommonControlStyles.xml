@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<styleCatalog xmlns="urn:excelprototype:profiles" version="1">
+  <!-- Общие стили диапазонных и Shape-контролов. Локальный UI может
+       переопределить любой стиль объявлением controlStyle с тем же name. -->
+  <controlStyle
+    name="tableSection"
+    backColor="#173A5E"
+    textColor="#EAF6FF"
+    fontBold="true"
+    borderColor="#0E2239"
+    borderWeight="thin"
+    borderLineStyle="solid"/>
+
+  <controlStyle
+    name="tableHeaderCell"
+    backColor="#2B4A6B"
+    textColor="#DDEEFF"
+    fontBold="true"
+    borderColor="#1F3650"
+    borderWeight="thin"
+    borderLineStyle="solid"/>
+
+  <controlStyle
+    name="tableDataCell"
+    backColor="#3A3A3A"
+    textColor="#F0F0F0"
+    fontBold="false"
+    borderColor="#2A2A2A"
+    borderWeight="thin"
+    borderLineStyle="solid"/>
+
+  <controlStyle
+    name="tableSpacer"
+    backColor="#1F1F1F"
+    textColor="#1F1F1F"
+    fontBold="false"
+    borderColor="#1F1F1F"
+    borderWeight="hairline"
+    borderLineStyle="solid"/>
+
+  <controlStyle
+    name="lookupInput"
+    backColor="#FFF7D6"
+    textColor="#1F2329"
+    fontBold="true"
+    borderColor="#F59E0B"
+    borderWeight="medium"
+    borderLineStyle="solid"/>
+
+  <controlStyle
+    name="inputField"
+    backColor="#FFF7D6"
+    textColor="#1F2329"
+    fontBold="true"
+    borderColor="#F59E0B"
+    borderWeight="medium"
+    borderLineStyle="solid"/>
+
+  <controlStyle
+    name="validationInput"
+    backColor="#595959"
+    textColor="#FFFFFF"
+    fontBold="true"
+    borderColor="#A6A6A6"
+    borderWeight="medium"
+    borderLineStyle="solid"/>
+</styleCatalog>

@@ -37,6 +37,10 @@ Option Explicit
 Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PrsnlEvntBuilder.Controller"
 Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.EntityLookup.CandidateTables"
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
+Private Const ORDER_HISTORY_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.OrderHistory"
+Private Const VALIDATION_RESULTS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ValidationResults"
+Private Const BOTTOM_WORKSPACE_EDIT As String = "edit"
+Private Const BOTTOM_WORKSPACE_VALIDATION As String = "validation"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Profiles"
 Private Const ADDITIONAL_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.AdditionalProfiles"
@@ -71,8 +75,11 @@ Private Const WORD_BOOKMARKS_TOGGLE_CONTROL_NAME As String = "ToggleWordBookmark
 Private Const EVENT_DRAFT_FORM_CONTAINER_NAME As String = "EventDraftForm"
 Private Const EVENT_DRAFT_VALUES_CONTAINER_NAME As String = "EventDraftValues"
 Private Const EVENT_DRAFT_ORDER_NO_CONTAINER_NAME As String = "EventDraftOrderNoValue"
+Private Const EVENT_DRAFT_ORDER_YEAR_CONTAINER_NAME As String = "EventDraftOrderYearValue"
 Private Const EXPORT_META_PROFILE_TYPE_COLUMN_NAME As String = "meta_ProfileType"
 Private Const EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY As String = "ManualOrderNo"
+Private Const EXPORT_CONTEXT_MANUAL_ORDER_YEAR_KEY As String = "ManualOrderYear"
+Private Const EXPORT_CONTEXT_MANUAL_ORDER_DATE_SERIAL_KEY As String = "ManualOrderDateSerial"
 Private Const EXPORT_CONTEXT_SECTION_TYPE_KEY As String = "SectionType"
 Private Const EXPORT_CONTEXT_WORD_PREVIEW_TEXT_KEY As String = "WordExportPreviewText"
 Private Const EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY As String = "ValidateMovement"
@@ -82,6 +89,8 @@ Private Const EXPORT_CONTEXT_MOVEMENT_PREVALIDATED_KEY As String = "MovementPrev
 Private Const LOOKUP_MODE_CONTROL_NAME As String = "LookupMode"
 Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
 Private Const MOVEMENT_EVENTS_CONTROL_NAME As String = "MovementEventsMenu"
+Private Const VALIDATION_RESULTS_CONTROL_NAME As String = "EmbeddedValidationResults"
+Private Const BOTTOM_WORKSPACE_CONTAINER_NAME As String = "BottomWorkspaceArea"
 Private Const WORD_EVENTS_CONTROL_NAME As String = "WordEventsMenu"
 Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
 Private Const ADDITIONAL_PROFILE_SELECT_CONTROL_NAME As String = "EventDraftAdditionalProfileSelect"
@@ -141,6 +150,11 @@ Private m_IsWordPreviewExportMode As Boolean
 Private m_AreWordBookmarksShownAsMarkers As Boolean
 Private m_AreExportedEventsShown As Boolean
 Private m_ExportCommonData As obj_PEB_ExptrCommonDataPrvdr
+Private m_HasResolvedOrderPair As Boolean
+Private m_ResolvedOrderNo As String
+Private m_ResolvedOrderDate As Date
+Private m_OrderHistoryItems As Collection
+Private m_BottomWorkspaceMode As String
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
@@ -217,6 +231,8 @@ Public Function Initialize(ByVal page As Object) As Boolean
     Set m_Data = Nothing
     Set m_ExportCommonData = New obj_PEB_ExptrCommonDataPrvdr
     If Not m_ExportCommonData.Initialize() Then Exit Function
+    private_ClearResolvedOrderPair
+    m_BottomWorkspaceMode = VBA.vbNullString
     private_ResetExportSettings
     m_IsLookupEnabled = True
     m_IsMovementValidationEnabled = True
@@ -267,6 +283,10 @@ Public Sub Dispose()
     Set m_Data = Nothing
     If Not m_ExportCommonData Is Nothing Then m_ExportCommonData.Dispose
     Set m_ExportCommonData = Nothing
+    m_HasResolvedOrderPair = False
+    m_ResolvedOrderNo = VBA.vbNullString
+    m_ResolvedOrderDate = 0
+    Set m_OrderHistoryItems = Nothing
     ' Сначала освобождаем borrowers, затем общий config provider, которым
     ' WORD exporter может пользоваться без владения его lifetime.
     private_DisposeCachedExporters
@@ -324,6 +344,158 @@ End Sub
 Public Property Get WordExportPreviewText() As String
     WordExportPreviewText = m_WordExportPreviewText
 End Property
+
+Public Property Get HasResolvedOrderPair() As Boolean
+    HasResolvedOrderPair = m_HasResolvedOrderPair
+End Property
+
+Public Property Get IsExportEditingWorkspaceVisible() As Boolean
+    IsExportEditingWorkspaceVisible = (VBA.StrComp( _
+        m_BottomWorkspaceMode, BOTTOM_WORKSPACE_EDIT, VBA.vbTextCompare) = 0)
+End Property
+
+Public Property Get IsValidationWorkspaceVisible() As Boolean
+    IsValidationWorkspaceVisible = (VBA.StrComp( _
+        m_BottomWorkspaceMode, BOTTOM_WORKSPACE_VALIDATION, VBA.vbTextCompare) = 0)
+End Property
+
+Public Function ShowExportEditingWorkspace( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim previousWorkspaceMode As String
+
+    If Not m_HasResolvedOrderPair Then
+        VBA.MsgBox "Спочатку прийміть номер і дату наказу.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
+        Exit Function
+    End If
+    If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    If Me.IsExportEditingWorkspaceVisible Then
+        If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then
+            VBA.MsgBox "Не вдалося частково оновити таблицю редагування. " & _
+                "Натисніть 'Update Sheet' для відновлення сторінки.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+            Exit Function
+        End If
+        ShowExportEditingWorkspace = True
+        Exit Function
+    End If
+
+    previousWorkspaceMode = m_BottomWorkspaceMode
+    m_BottomWorkspaceMode = BOTTOM_WORKSPACE_EDIT
+    If Not pageBase.TryReflowLayoutContainer( _
+        BOTTOM_WORKSPACE_CONTAINER_NAME) Then
+        m_BottomWorkspaceMode = previousWorkspaceMode
+        VBA.MsgBox "Не вдалося частково відкрити таблицю редагування. " & _
+            "Натисніть 'Update Sheet' для відновлення сторінки.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+        Exit Function
+    End If
+    ShowExportEditingWorkspace = True
+End Function
+
+Public Function ShowValidationWorkspace( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim movementVldtnScen As obj_MovementVldtnScen
+    Dim pageBase As obj_PageBase
+    Dim previousWorkspaceMode As String
+
+    If Not m_HasResolvedOrderPair Then
+        VBA.MsgBox "Спочатку прийміть номер і дату наказу.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Валідація"
+        Exit Function
+    End If
+    If m_ProfileConfigTable Is Nothing Then Exit Function
+    Set movementVldtnScen = New obj_MovementVldtnScen
+    If Not movementVldtnScen.InitializeEmbedded( _
+        m_Page, m_ProfileConfigTable, m_ResolvedOrderNo, _
+        m_ResolvedOrderDate, VALIDATION_RESULTS_RUNTIME_KEY) Then Exit Function
+    If Not movementVldtnScen.RunEmbedded(False) Then Exit Function
+    Set movementVldtnScen = Nothing
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+
+    If Me.IsValidationWorkspaceVisible Then
+        If Not pageBase.TryReflowControl( _
+            VALIDATION_RESULTS_CONTROL_NAME) Then
+            VBA.MsgBox "Не вдалося частково оновити таблицю валідації. " & _
+                "Натисніть 'Update Sheet' для відновлення сторінки.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+            Exit Function
+        End If
+        ShowValidationWorkspace = True
+        Exit Function
+    End If
+
+    previousWorkspaceMode = m_BottomWorkspaceMode
+    m_BottomWorkspaceMode = BOTTOM_WORKSPACE_VALIDATION
+    If Not pageBase.TryReflowLayoutContainer( _
+        BOTTOM_WORKSPACE_CONTAINER_NAME) Then
+        m_BottomWorkspaceMode = previousWorkspaceMode
+        VBA.MsgBox "Не вдалося частково відкрити таблицю валідації. " & _
+            "Натисніть 'Update Sheet' для відновлення сторінки.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+        Exit Function
+    End If
+    ShowValidationWorkspace = True
+End Function
+
+Public Function OnAcceptOrderReferenceClick( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+    Dim numberOrDateText As String
+    Dim orderYearText As String
+    Dim resolvedOrderNo As String
+    Dim resolvedOrderDate As Date
+    Dim orderHistoryItems As Collection
+
+    If m_Page Is Nothing Or m_ExportCommonData Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+
+    ' Новая попытка всегда сначала инвалидирует прежнюю пару. Поэтому ошибка
+    ' сопоставления не оставляет экспорту скрытое старое значение.
+    private_ClearResolvedOrderPair
+    numberOrDateText = private_TryReadManualOrderNoValue(pageBase, ws)
+    orderYearText = private_TryReadManualOrderYearValue(pageBase, ws)
+    If Not m_ExportCommonData.TryResolveOrderReference( _
+        numberOrDateText, orderYearText, resolvedOrderNo, resolvedOrderDate) Then
+        If Not private_EnsureOrderHistoryRuntime(False) Then Exit Function
+        If Not rt_PageManager.fn_RenderPage( _
+            m_Page, "prsnlevntbuilder:reject-order") Then Exit Function
+        OnAcceptOrderReferenceClick = True
+        Exit Function
+    End If
+
+    m_ResolvedOrderNo = resolvedOrderNo
+    m_ResolvedOrderDate = resolvedOrderDate
+    m_HasResolvedOrderPair = True
+    If Not private_TryBuildOrderHistoryItems(orderHistoryItems) Then
+        private_ClearResolvedOrderPair
+        If Not private_EnsureOrderHistoryRuntime(False) Then Exit Function
+        If Not rt_PageManager.fn_RenderPage( _
+            m_Page, "prsnlevntbuilder:reject-order-history") Then Exit Function
+        OnAcceptOrderReferenceClick = True
+        Exit Function
+    End If
+    Set m_OrderHistoryItems = orderHistoryItems
+    If Not private_EnsureOrderHistoryRuntime(False) Then Exit Function
+    If Not rt_PageManager.fn_RenderPage( _
+        m_Page, "prsnlevntbuilder:accept-order") Then Exit Function
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "Наказ № " & resolvedOrderNo & " від " & _
+        VBA.Format$(resolvedOrderDate, "dd.mm.yyyy") & " прийнято.", 4
+    OnAcceptOrderReferenceClick = True
+End Function
 
 Public Property Get IsWordPreviewExportMode() As Boolean
     IsWordPreviewExportMode = m_IsWordPreviewExportMode
@@ -879,6 +1051,8 @@ Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) A
     If Not private_RegisterMovementHistoryTable(notifyChange) Then Exit Function
     If Not private_RegisterExportedEventMenus(False, notifyChange) Then Exit Function
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
+    If Not private_EnsureOrderHistoryRuntime(notifyChange) Then Exit Function
+    If Not private_EnsureValidationResultsRuntime(notifyChange) Then Exit Function
     If Not private_EnsureHotkeyRows(notifyChange) Then Exit Function
     PrepareRuntime = True
 End Function
@@ -1847,6 +2021,7 @@ Public Function RuntimeClearExportFormAndCandidates() As Boolean
     private_ClearExportFormState
     m_WordExportPreviewText = VBA.vbNullString
     m_IsWordPreviewExportMode = False
+    m_BottomWorkspaceMode = VBA.vbNullString
 
     activeProfileWasMeta = private_IsMetaProfile(m_SelectedProfile)
     If activeProfileWasMeta Then
@@ -1948,9 +2123,18 @@ End Function
 Public Function OnRefreshExportedEventsClick( _
     Optional ByVal ignored As Variant _
 ) As Boolean
+    Dim pageBase As obj_PageBase
+
     If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
-    OnRefreshExportedEventsClick = rt_PageManager.fn_RenderPage( _
-        m_Page, "prsnlevntbuilder:exported-events-refreshed")
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then
+        VBA.MsgBox "Не вдалося частково оновити таблицю редагування. " & _
+            "Натисніть 'Update Sheet' для відновлення сторінки.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
+        Exit Function
+    End If
+    OnRefreshExportedEventsClick = True
 End Function
 
 Public Function OnMovementEventClick(Optional ByVal eventId As Variant) As Boolean
@@ -2100,6 +2284,10 @@ Public Function OnDisconnectDataSourcesClick( _
         Exit Function
     End If
     Set m_ExportCommonData = pebExptrCommonDataPrvdr
+    If m_HasResolvedOrderPair Then
+        If Not m_ExportCommonData.SetResolvedOrderPair( _
+            m_ResolvedOrderNo, m_ResolvedOrderDate) Then Exit Function
+    End If
 
     rt_Messaging.fn_ShowStatusBarSuccess _
         "Усі з'єднання з зовнішніми таблицями розірвано.", 4
@@ -2755,12 +2943,8 @@ Private Function private_TryApplyAbsenceCandidateDefaults() As Boolean
         Exit Function
     End If
 
-    If Not m_ExportCommonData.HasOrderDate Then
-        VBA.MsgBox "Не вдалося визначити дату поточного наказу для кандидатів ЄЖОС.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / ЄЖОС"
-        Exit Function
-    End If
-    orderDateText = VBA.Format$(m_ExportCommonData.OrderDate, "dd.mm")
+    If Not m_HasResolvedOrderPair Then Exit Function
+    orderDateText = VBA.Format$(m_ResolvedOrderDate, "dd.mm")
 
     For rowIndex = 1 To candidateTable.RowCount
         Set candidateRow = candidateTable.Rows.Item(rowIndex)
@@ -2782,6 +2966,7 @@ Private Function private_TryResolveAbsenceDepartureDateRange( _
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
     Dim orderNoText As String
+    Dim orderDate As Date
 
     outMinDate = 0
     outMaxDate = 0
@@ -2792,26 +2977,13 @@ Private Function private_TryResolveAbsenceDepartureDateRange( _
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then Exit Function
 
-    orderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
-    If VBA.Len(VBA.Trim$(orderNoText)) = 0 Then
-        VBA.MsgBox "PrototypeNew: enter the current order number before searching FIO candidates. " & _
-            "The ЕЖОС candidate must have a departure date from 5 days before " & _
-            "the order date through 10 days after it.", _
-            vbExclamation, "PrototypeNew / EntityLookup runtime"
-        Exit Function
-    End If
-    If Not m_ExportCommonData.SetOrderNo(orderNoText) Then Exit Function
-    If Not m_ExportCommonData.HasOrderDate Then
-        VBA.MsgBox "PrototypeNew: order date was not found for order number '" & orderNoText & _
-            "'. ЕЖОС candidate selection was stopped.", _
-            vbExclamation, "PrototypeNew / EntityLookup runtime"
-        Exit Function
-    End If
+    If Not private_TryResolveCurrentOrderPair( _
+        pageBase, ws, orderNoText, orderDate) Then Exit Function
 
     outMinDate = VBA.DateAdd( _
-        "d", -ABSENCE_DEPARTURE_LOOKBACK_DAYS, VBA.DateValue(m_ExportCommonData.OrderDate))
+        "d", -ABSENCE_DEPARTURE_LOOKBACK_DAYS, VBA.DateValue(orderDate))
     outMaxDate = VBA.DateAdd( _
-        "d", ABSENCE_DEPARTURE_LOOKAHEAD_DAYS, VBA.DateValue(m_ExportCommonData.OrderDate))
+        "d", ABSENCE_DEPARTURE_LOOKAHEAD_DAYS, VBA.DateValue(orderDate))
     private_TryResolveAbsenceDepartureDateRange = True
 End Function
 
@@ -2909,6 +3081,118 @@ Private Function private_RegisterDummyTables(ByVal notifyChange As Boolean) As B
     If Not runtimeSources.SetItemsSource(VBA.LCase$(DUMMY_TABLES_RUNTIME_KEY), dummyTables, notifyChange) Then Exit Function
 
     private_RegisterDummyTables = True
+End Function
+
+Private Sub private_ClearResolvedOrderPair()
+    m_HasResolvedOrderPair = False
+    m_ResolvedOrderNo = VBA.vbNullString
+    m_ResolvedOrderDate = 0
+    Set m_OrderHistoryItems = New Collection
+    m_BottomWorkspaceMode = VBA.vbNullString
+    If Not m_ExportCommonData Is Nothing Then _
+        m_ExportCommonData.ClearOrderReference
+End Sub
+
+Private Function private_EnsureOrderHistoryRuntime( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If m_OrderHistoryItems Is Nothing Then Set m_OrderHistoryItems = New Collection
+    If Not pageBase.RuntimeSources.RemoveItemsSource( _
+        VBA.LCase$(ORDER_HISTORY_RUNTIME_KEY)) Then Exit Function
+    private_EnsureOrderHistoryRuntime = pageBase.RuntimeSources.SetItemsSource( _
+        VBA.LCase$(ORDER_HISTORY_RUNTIME_KEY), m_OrderHistoryItems, notifyChange)
+End Function
+
+Private Function private_EnsureValidationResultsRuntime( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim existingItems As Collection
+    Dim emptyItems As Collection
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.RuntimeSources.TryGetItemsSourceByKey( _
+        VBA.LCase$(VALIDATION_RESULTS_RUNTIME_KEY), existingItems, True) Then Exit Function
+    If Not existingItems Is Nothing Then
+        private_EnsureValidationResultsRuntime = True
+        Exit Function
+    End If
+    Set emptyItems = New Collection
+    private_EnsureValidationResultsRuntime = pageBase.RuntimeSources.SetItemsSource( _
+        VBA.LCase$(VALIDATION_RESULTS_RUNTIME_KEY), emptyItems, notifyChange)
+End Function
+
+Private Function private_TryBuildOrderHistoryItems( _
+    ByRef outItems As Collection _
+) As Boolean
+    Dim historyTable As obj_TableDynamic
+    Dim columnObj As obj_Column
+    Dim rowObj As obj_Row
+    Dim cellObj As obj_Cell
+    Dim currentOrderNumber As Long
+    Dim listedOrderNo As String
+    Dim listedOrderDate As Date
+    Dim listedOrderFound As Boolean
+    Dim orderYear As Long
+    Dim offset As Long
+
+    Set outItems = New Collection
+    If Not m_HasResolvedOrderPair Then
+        private_TryBuildOrderHistoryItems = True
+        Exit Function
+    End If
+
+    Set historyTable = New obj_TableDynamic
+    Set columnObj = New obj_Column
+    columnObj.Name = "Номер наказу"
+    columnObj.Position = 1
+    If Not columnObj.AddAlias("Номер наказу") Then Exit Function
+    If Not historyTable.PushColumn(columnObj) Then Exit Function
+    Set columnObj = New obj_Column
+    columnObj.Name = "Дата наказу"
+    columnObj.Position = 2
+    If Not columnObj.AddAlias("Дата наказу") Then Exit Function
+    If Not historyTable.PushColumn(columnObj) Then Exit Function
+
+    orderYear = VBA.Year(m_ResolvedOrderDate)
+    If VBA.IsNumeric(m_ResolvedOrderNo) Then _
+        currentOrderNumber = VBA.CLng(m_ResolvedOrderNo)
+    For offset = 0 To 4
+        If offset = 0 Then
+            listedOrderNo = m_ResolvedOrderNo
+            listedOrderDate = m_ResolvedOrderDate
+            listedOrderFound = True
+        ElseIf currentOrderNumber > offset Then
+            listedOrderNo = VBA.CStr(currentOrderNumber - offset)
+            listedOrderDate = 0
+            listedOrderFound = False
+            If Not m_ExportCommonData.TryResolveOrderDateByNumber( _
+                listedOrderNo, listedOrderDate, True, listedOrderFound, _
+                orderYear) Then Exit Function
+        Else
+            listedOrderFound = False
+        End If
+
+        If listedOrderFound Then
+            Set rowObj = New obj_Row
+            Set cellObj = New obj_Cell
+            cellObj.Value = listedOrderNo
+            If Not rowObj.PushCell(cellObj) Then Exit Function
+            Set cellObj = New obj_Cell
+            cellObj.Value = VBA.Format$(listedOrderDate, "dd.mm.yyyy")
+            If Not rowObj.PushCell(cellObj) Then Exit Function
+            If Not historyTable.PushRow(rowObj) Then Exit Function
+        End If
+    Next offset
+
+    outItems.Add historyTable
+    private_TryBuildOrderHistoryItems = True
 End Function
 
 Private Function private_RegisterExportedEventMenus( _
@@ -4635,6 +4919,8 @@ Private Function private_TryBuildExportSourceTables( _
     Dim metaTableObj As Variant
     Dim sectionTypeText As String
     Dim manualOrderNoText As String
+    Dim manualOrderDate As Date
+    Dim manualOrderYear As Long
 
     Set outTables = Nothing
     Set outContext = Nothing
@@ -4657,10 +4943,15 @@ Private Function private_TryBuildExportSourceTables( _
 
     sectionTypeText = VBA.Trim$(m_SelectedMainProfile)
     If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(m_SelectedProfile)
-    manualOrderNoText = private_TryReadManualOrderNoValue(pageBase, ws)
+    If Not private_TryResolveCurrentOrderPair( _
+        pageBase, ws, manualOrderNoText, manualOrderDate) Then Exit Function
+    manualOrderYear = VBA.Year(manualOrderDate)
 
     outContext(EXPORT_CONTEXT_SECTION_TYPE_KEY) = sectionTypeText
     outContext(EXPORT_CONTEXT_MANUAL_ORDER_NO_KEY) = manualOrderNoText
+    outContext(EXPORT_CONTEXT_MANUAL_ORDER_YEAR_KEY) = VBA.CStr(manualOrderYear)
+    outContext(EXPORT_CONTEXT_MANUAL_ORDER_DATE_SERIAL_KEY) = _
+        VBA.CStr(VBA.CDbl(manualOrderDate))
     outContext(EXPORT_CONTEXT_VALIDATE_MOVEMENT_KEY) = m_IsMovementValidationEnabled
     outContext(EXPORT_CONTEXT_VALIDATE_WORD_KEY) = m_IsWordValidationEnabled
     If m_ExportMainTable Is Nothing Then
@@ -4878,12 +5169,45 @@ Private Function private_TryReadManualOrderNoValue( _
         orderNoScope) Then Exit Function
     If orderNoScope Is Nothing Then Exit Function
 
-    private_TryReadManualOrderNoValue = VBA.Trim$(VBA.CStr(orderNoScope.Cells(1, 1).Value2))
+    ' Text сохраняет введённую дату в отображаемом полном формате. Value2
+    ' превратил бы её в serial number Excel и resolver принял бы дату за номер.
+    private_TryReadManualOrderNoValue = _
+        VBA.Trim$(VBA.CStr(orderNoScope.Cells(1, 1).Text))
+End Function
+
+Private Function private_TryReadManualOrderYearValue( _
+    ByVal pageBase As obj_PageBase, _
+    ByVal ws As Worksheet _
+) As String
+    Dim orderYearScope As Range
+
+    If pageBase Is Nothing Then Exit Function
+    If ws Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_ORDER_YEAR_CONTAINER_NAME, orderYearScope) Then Exit Function
+    If orderYearScope Is Nothing Then Exit Function
+    private_TryReadManualOrderYearValue = _
+        VBA.Trim$(VBA.CStr(orderYearScope.Cells(1, 1).Text))
+End Function
+
+Private Function private_TryResolveCurrentOrderPair( _
+    ByVal pageBase As obj_PageBase, _
+    ByVal ws As Worksheet, _
+    ByRef outOrderNo As String, _
+    ByRef outOrderDate As Date _
+) As Boolean
+    outOrderNo = VBA.vbNullString
+    outOrderDate = 0
+    If Not m_HasResolvedOrderPair Then Exit Function
+    outOrderNo = m_ResolvedOrderNo
+    outOrderDate = m_ResolvedOrderDate
+    private_TryResolveCurrentOrderPair = True
 End Function
 
 Private Function private_TryGetCurrentManualOrderNo(ByRef outOrderNo As String) As Boolean
     Dim pageBase As obj_PageBase
     Dim ws As Worksheet
+    Dim orderDate As Date
 
     outOrderNo = VBA.vbNullString
     If m_Page Is Nothing Then Exit Function
@@ -4892,13 +5216,8 @@ Private Function private_TryGetCurrentManualOrderNo(ByRef outOrderNo As String) 
     Set ws = pageBase.Worksheet
     If ws Is Nothing Then Exit Function
 
-    outOrderNo = private_TryReadManualOrderNoValue(pageBase, ws)
-    If VBA.Len(VBA.Trim$(outOrderNo)) = 0 Then
-        VBA.MsgBox "PrototypeNew: enter the order number before working with the WORD document.", _
-            VBA.vbExclamation, "PrototypeNew / WORD document"
-        Exit Function
-    End If
-    private_TryGetCurrentManualOrderNo = True
+    private_TryGetCurrentManualOrderNo = private_TryResolveCurrentOrderPair( _
+        pageBase, ws, outOrderNo, orderDate)
 End Function
 
 Private Function private_TryGetSelectedProfile(ByRef outProfile As String) As Boolean
