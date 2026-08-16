@@ -462,7 +462,7 @@
     groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
-#_      У медичну роту, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       ]]>
     </groupHeader>

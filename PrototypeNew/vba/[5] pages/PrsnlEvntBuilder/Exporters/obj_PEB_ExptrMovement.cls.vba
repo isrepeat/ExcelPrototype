@@ -836,6 +836,8 @@ Private Function private_RestoreDeletedWholeMovementRow( _
     Dim columnIndex As Long
     Dim rowCells As Object
     Dim cellSnapshot As Object
+    Dim restoredValue As Variant
+    Dim columnName As String
 
     If targetTable Is Nothing Or snapshot Is Nothing Then Exit Function
     rowIndex = VBA.CLng(snapshot("RowIndex"))
@@ -848,8 +850,11 @@ Private Function private_RestoreDeletedWholeMovementRow( _
             restoredRow.Range.Cells(1, columnIndex).Formula = _
                 cellSnapshot("Formula")
         Else
+            columnName = VBA.CStr(targetTable.ListColumns(columnIndex).Name)
+            If Not private_TryNormalizeRestoredMovementValue( _
+                columnName, cellSnapshot("Value2"), restoredValue) Then Exit Function
             restoredRow.Range.Cells(1, columnIndex).Value2 = _
-                cellSnapshot("Value2")
+                restoredValue
         End If
         restoredRow.Range.Cells(1, columnIndex).NumberFormat = _
             cellSnapshot("NumberFormat")
@@ -939,6 +944,7 @@ Private Function private_RestoreDeletedMovementSnapshotValues( _
     Dim columnIndex As Long
     Dim rowIndex As Long
     Dim cellSnapshot As Object
+    Dim restoredValue As Variant
 
     If targetTable Is Nothing Or snapshot Is Nothing Then Exit Function
     rowIndex = VBA.CLng(snapshot("RowIndex"))
@@ -951,9 +957,15 @@ Private Function private_RestoreDeletedMovementSnapshotValues( _
             targetTable.DataBodyRange.Cells(rowIndex, columnIndex).Formula = _
                 cellSnapshot("Formula")
         Else
+            If Not private_TryNormalizeRestoredMovementValue( _
+                VBA.CStr(columnName), cellSnapshot("Value2"), _
+                restoredValue) Then Exit Function
             targetTable.DataBodyRange.Cells(rowIndex, columnIndex).Value2 = _
-                cellSnapshot("Value2")
+                restoredValue
         End If
+        If cellSnapshot.Exists("NumberFormat") Then _
+            targetTable.DataBodyRange.Cells(rowIndex, columnIndex).NumberFormat = _
+                cellSnapshot("NumberFormat")
     Next columnName
     private_RestoreDeletedMovementSnapshotValues = True
 End Function
@@ -984,6 +996,7 @@ Private Function private_TryBuildDeleteSnapshot( _
         cellSnapshot("HasFormula") = VBA.CBool(targetCell.HasFormula)
         cellSnapshot("Formula") = targetCell.Formula
         cellSnapshot("Value2") = targetCell.Value2
+        cellSnapshot("NumberFormat") = targetCell.NumberFormat
         valuesByColumn.Add VBA.CStr(columnName), cellSnapshot
     Next columnName
     snapshot("Kind") = "Movement"
@@ -995,6 +1008,74 @@ Private Function private_TryBuildDeleteSnapshot( _
     snapshot.Add "Values", valuesByColumn
     Set outSnapshot = snapshot
     private_TryBuildDeleteSnapshot = True
+End Function
+
+Private Function private_TryNormalizeRestoredMovementValue( _
+    ByVal columnName As String, _
+    ByVal sourceValue As Variant, _
+    ByRef outValue As Variant _
+) As Boolean
+    Dim dateText As String
+    Dim dateParts As Variant
+    Dim dayValue As Long
+    Dim monthValue As Long
+    Dim yearValue As Long
+    Dim parsedDate As Date
+
+    outValue = sourceValue
+    If Not private_IsMovementDateColumn(columnName) Then
+        private_TryNormalizeRestoredMovementValue = True
+        Exit Function
+    End If
+    If VBA.IsError(sourceValue) Or VBA.IsEmpty(sourceValue) Then
+        private_TryNormalizeRestoredMovementValue = True
+        Exit Function
+    End If
+    If VBA.IsNumeric(sourceValue) Then
+        outValue = VBA.CDbl(sourceValue)
+        private_TryNormalizeRestoredMovementValue = True
+        Exit Function
+    End If
+    dateText = VBA.Trim$(VBA.CStr(sourceValue))
+    If VBA.Len(dateText) = 0 Then
+        private_TryNormalizeRestoredMovementValue = True
+        Exit Function
+    End If
+    dateParts = VBA.Split(dateText, ".")
+    If UBound(dateParts) <> 2 Then GoTo InvalidDate
+    If Not VBA.IsNumeric(dateParts(0)) Or _
+        Not VBA.IsNumeric(dateParts(1)) Or _
+        Not VBA.IsNumeric(dateParts(2)) Then GoTo InvalidDate
+    dayValue = VBA.CLng(dateParts(0))
+    monthValue = VBA.CLng(dateParts(1))
+    yearValue = VBA.CLng(dateParts(2))
+    On Error GoTo InvalidDate
+    parsedDate = VBA.DateSerial(yearValue, monthValue, dayValue)
+    On Error GoTo 0
+    If VBA.Day(parsedDate) <> dayValue Or _
+        VBA.Month(parsedDate) <> monthValue Or _
+        VBA.Year(parsedDate) <> yearValue Then GoTo InvalidDate
+    ' Value2 получает Excel serial, а не локализованную строку даты.
+    outValue = VBA.CDbl(parsedDate)
+    private_TryNormalizeRestoredMovementValue = True
+    Exit Function
+InvalidDate:
+    On Error GoTo 0
+    VBA.MsgBox "Не удалось восстановить дату Movement из колонки '" & _
+        columnName & "': '" & dateText & "'.", VBA.vbExclamation, _
+        "PrsnlEventBuilder / Movement undo"
+End Function
+
+Private Function private_IsMovementDateColumn( _
+    ByVal columnName As String _
+) As Boolean
+    Select Case private_NormalizeText(columnName)
+        Case private_NormalizeText(MOVEMENT_TARGET_FOOD_FROM), _
+             private_NormalizeText(MOVEMENT_TARGET_DEPARTURE), _
+             private_NormalizeText(MOVEMENT_TARGET_ON_FOOD), _
+             private_NormalizeText(MOVEMENT_TARGET_ARRIVAL)
+            private_IsMovementDateColumn = True
+    End Select
 End Function
 
 Private Function private_FindMovementEventRow( _
@@ -1515,7 +1596,12 @@ Public Function Export( _
         m_Data.RequiresMovementClosingDateFromForm(sectionTypeRaw)
     If isMirrorTransferEvent Then isClosingEvent = False
     validationEnabled = (VBA.StrComp(private_GetContextText(context, MOVEMENT_CONTEXT_VALIDATION_ENABLED), "False", VBA.vbTextCompare) <> 0)
-    If Not m_ExporterCfgDataProvider.IsExportAllowed(sourceTable, sectionTypeRaw, exportValidationError, latestMovementTvoChain, latestMovementRecord, validationEnabled) Then
+    ' Movement всегда выполняет собственную проверку исходного snapshot.
+    ' В частности, смена статуса не может повторно закрыть уже закрытое событие.
+    If Not m_ExporterCfgDataProvider.IsExportAllowed( _
+        sourceTable, sectionTypeRaw, exportValidationError, _
+        latestMovementTvoChain, latestMovementRecord, validationEnabled, _
+        False, False) Then
         private_LogError "Movement export blocked by last-event validation: " & private_EscapeForLog(exportValidationError)
         VBA.MsgBox exportValidationError, VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
@@ -2273,6 +2359,14 @@ Private Function private_ResolveMovementDestinationValue( _
     ByVal sourceRow As obj_Row, _
     ByVal sectionTypeText As String _
 ) As Variant
+    Dim fixedDestination As String
+
+    If m_Data.TryGetFixedMovementDestination( _
+        sectionTypeText, fixedDestination) Then
+        private_ResolveMovementDestinationValue = fixedDestination
+        Exit Function
+    End If
+
     If private_NormalizeText(sectionTypeText) = _
        private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk) Then
         private_ResolveMovementDestinationValue = _
