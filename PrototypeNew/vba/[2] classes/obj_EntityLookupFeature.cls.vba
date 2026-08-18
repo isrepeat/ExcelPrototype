@@ -334,6 +334,52 @@ Public Function ExtendCandidates( _
 #End If
 End Function
 
+' Добавляет самостоятельных кандидатов из второго lookup-источника. В отличие
+' от ExtendCandidates строки, которых нет в основном источнике, не теряются.
+' fixedValues позволяет host-режиму заполнить отсутствующие в источнике поля.
+Public Function AppendCandidates( _
+    ByVal extensionLookupKey As String, _
+    ByVal joinColumnAlias As String, _
+    ByVal queryText As String, _
+    ByVal fixedValues As Object, _
+    Optional ByVal notifyChange As Boolean = True _
+) As Boolean
+    Dim sqlParams As obj_SqlParams
+    Dim extensionTable As obj_TableDynamic
+    Dim ignoredSearchAlias As String
+    Dim ignoredResultAliases As Collection
+
+    If m_EntityLookupCfgParser Is Nothing Then Exit Function
+    If Not m_EntityLookupCfgParser.TryBuildLookupSqlParams( _
+        extensionLookupKey, queryText, sqlParams, ignoredSearchAlias, _
+        ignoredResultAliases) Then Exit Function
+    If Not ex_ExternalExcelSqlEngine.fn_TrySqlRequest(sqlParams, extensionTable) Then Exit Function
+
+    If Not extensionTable Is Nothing Then
+        If extensionTable.RowCount > 0 Then
+            If Not private_AppendCandidateRows( _
+                extensionTable, joinColumnAlias, fixedValues) Then Exit Function
+            If VBA.Len(VBA.Trim$(m_ActiveLookupKey)) = 0 Then _
+                m_ActiveLookupKey = extensionLookupKey
+            If VBA.Len(VBA.Trim$(m_ActiveSearchColumnAlias)) = 0 Then _
+                m_ActiveSearchColumnAlias = joinColumnAlias
+        End If
+    End If
+
+    Set m_CandidateTable = Nothing
+    If Not m_CandidateDataTable Is Nothing Then
+        If Not private_ProjectCandidateTable( _
+            m_CandidateDataTable, m_CandidateTable) Then Exit Function
+        m_CandidateTable.SectionTitle = private_GetLookupSectionCaption(m_ActiveLookupKey)
+    End If
+    If Not private_RegisterCandidateTables(False) Then Exit Function
+    If notifyChange Then
+        If Not rt_PageManager.fn_RenderPage( _
+            m_Page, private_BuildRenderReason("append-candidates")) Then Exit Function
+    End If
+    AppendCandidates = True
+End Function
+
 Public Function TryGetActiveCandidatesContext( _
     ByRef outCfgParser As obj_EntityLookupCfgParser, _
     ByRef outLookupKey As String, _
@@ -545,6 +591,111 @@ ContinueCandidate:
     Next i
 
     private_MergeCandidateExtension = True
+End Function
+
+Private Function private_AppendCandidateRows( _
+    ByVal extensionTable As obj_TableDynamic, _
+    ByVal joinColumnAlias As String, _
+    ByVal fixedValues As Object _
+) As Boolean
+    Dim columnObj As obj_Column
+    Dim newColumn As obj_Column
+    Dim sourceRow As obj_Row
+    Dim resultRow As obj_Row
+    Dim sourceIndexByAlias As Object
+    Dim existingKeys As Object
+    Dim aliasText As String
+    Dim fixedKey As Variant
+    Dim sourceIndex As Long
+    Dim destinationIndex As Long
+    Dim rowIndex As Long
+    Dim candidateKey As String
+
+    If extensionTable Is Nothing Then Exit Function
+    Set sourceIndexByAlias = ex_Helpers.fn_CreateDictionaryTextCompare()
+    For sourceIndex = 1 To extensionTable.ColumnCount
+        Set columnObj = extensionTable.Columns.Item(sourceIndex)
+        aliasText = private_GetColumnPrimaryAlias(columnObj)
+        If VBA.Len(aliasText) = 0 Then aliasText = columnObj.Name
+        sourceIndexByAlias(aliasText) = sourceIndex
+    Next sourceIndex
+
+    If m_CandidateDataTable Is Nothing Then
+        Set m_CandidateDataTable = New obj_TableDynamic
+        If Not m_CandidateDataTable.Initialize() Then Exit Function
+        For sourceIndex = 1 To extensionTable.ColumnCount
+            If Not m_CandidateDataTable.PushColumn( _
+                extensionTable.Columns.Item(sourceIndex)) Then Exit Function
+        Next sourceIndex
+    Else
+        For sourceIndex = 1 To extensionTable.ColumnCount
+            Set columnObj = extensionTable.Columns.Item(sourceIndex)
+            aliasText = private_GetColumnPrimaryAlias(columnObj)
+            If VBA.Len(aliasText) = 0 Then aliasText = columnObj.Name
+            If Not private_TryGetColumnIndex( _
+                m_CandidateDataTable, aliasText, destinationIndex) Then
+                If Not m_CandidateDataTable.PushColumn(columnObj) Then Exit Function
+            End If
+        Next sourceIndex
+    End If
+
+    If Not fixedValues Is Nothing Then
+        For Each fixedKey In fixedValues.Keys
+            aliasText = VBA.Trim$(VBA.CStr(fixedKey))
+            If Not private_TryGetColumnIndex( _
+                m_CandidateDataTable, aliasText, destinationIndex) Then
+                Set newColumn = New obj_Column
+                newColumn.Name = aliasText
+                If Not newColumn.AddAlias(aliasText) Then Exit Function
+                If Not m_CandidateDataTable.PushColumn(newColumn) Then Exit Function
+            End If
+        Next fixedKey
+    End If
+
+    If Not private_TryGetColumnIndex( _
+        m_CandidateDataTable, joinColumnAlias, destinationIndex) Then Exit Function
+    Set existingKeys = ex_Helpers.fn_CreateDictionaryTextCompare()
+    For rowIndex = 1 To m_CandidateDataTable.RowCount
+        Set resultRow = m_CandidateDataTable.Rows.Item(rowIndex)
+        candidateKey = private_NormalizeLookupText( _
+            resultRow.GetCellValue(destinationIndex))
+        If VBA.Len(candidateKey) > 0 Then existingKeys(candidateKey) = True
+    Next rowIndex
+
+    For rowIndex = 1 To extensionTable.RowCount
+        Set sourceRow = extensionTable.Rows.Item(rowIndex)
+        If Not sourceIndexByAlias.Exists(joinColumnAlias) Then Exit Function
+        candidateKey = private_NormalizeLookupText(sourceRow.GetCellValue( _
+            VBA.CLng(sourceIndexByAlias(joinColumnAlias))))
+        If VBA.Len(candidateKey) = 0 Then GoTo ContinueRow
+        If existingKeys.Exists(candidateKey) Then GoTo ContinueRow
+
+        Set resultRow = New obj_Row
+        If Not resultRow.Initialize() Then Exit Function
+        For destinationIndex = 1 To m_CandidateDataTable.ColumnCount
+            Set columnObj = m_CandidateDataTable.Columns.Item(destinationIndex)
+            aliasText = private_GetColumnPrimaryAlias(columnObj)
+            If VBA.Len(aliasText) = 0 Then aliasText = columnObj.Name
+            If Not fixedValues Is Nothing Then
+                If fixedValues.Exists(aliasText) Then
+                    resultRow.PushCellRaw fixedValues(aliasText)
+                    GoTo ContinueColumn
+                End If
+            End If
+            If sourceIndexByAlias.Exists(aliasText) Then
+                resultRow.PushCellRaw sourceRow.GetCellValue( _
+                    VBA.CLng(sourceIndexByAlias(aliasText)))
+            Else
+                resultRow.PushCellRaw VBA.vbNullString
+            End If
+ContinueColumn:
+        Next destinationIndex
+        If Not m_CandidateDataTable.PushRow(resultRow) Then Exit Function
+        existingKeys(candidateKey) = True
+ContinueRow:
+    Next rowIndex
+
+    private_AppendCandidateRows = True
 End Function
 
 Private Function private_ProjectCandidateTable( _

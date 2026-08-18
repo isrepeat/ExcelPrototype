@@ -583,6 +583,50 @@ Public Function TryResolveFioGenitiveByName( _
         outFioGenitive)
 End Function
 
+Public Function TryResolveFioFormsByNameOptional( _
+    ByVal fioText As String, _
+    ByRef outFioGenitive As String, _
+    ByRef outFioAccusative As String, _
+    ByRef outFioInitialsGenitive As String, _
+    ByRef outFound As Boolean _
+) As Boolean
+    fioText = private_NormalizeLookupKey(fioText)
+    outFioGenitive = VBA.vbNullString
+    outFioAccusative = VBA.vbNullString
+    outFioInitialsGenitive = VBA.vbNullString
+    outFound = False
+    If m_IsDisposed Then Exit Function
+    If VBA.Len(fioText) = 0 Then
+        TryResolveFioFormsByNameOptional = True
+        Exit Function
+    End If
+
+    If Not private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(ALF_SHEET_NAME, ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_FIO_KEY_HEADER, ALF_GENITIVE_HEADER, fioText, _
+        "ШПО / АЛФ / ПІБ", outFioGenitive, True, outFound, _
+        False, False) Then Exit Function
+    If Not outFound Then
+        TryResolveFioFormsByNameOptional = True
+        Exit Function
+    End If
+    If Not private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(ALF_SHEET_NAME, ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_FIO_KEY_HEADER, ALF_ACCUSATIVE_HEADER, fioText, _
+        "ШПО / АЛФ / ПІБ", outFioAccusative) Then Exit Function
+    If Not private_TryLookupWorkbookValue( _
+        DEFAULT_SHPO_REL_PATH, _
+        private_BuildAdoRangeRef(ALF_SHEET_NAME, ALF_RANGE_START, _
+            ALF_RANGE_END_COLUMN & VBA.CStr(EXCEL_MAX_ROW)), _
+        ALF_FIO_KEY_HEADER, ALF_INITIALS_GENITIVE_HEADER, fioText, _
+        "ШПО / АЛФ / ПІБ", outFioInitialsGenitive) Then Exit Function
+    TryResolveFioFormsByNameOptional = True
+End Function
+
 Public Function TryResolveFioDefaultByGenitive( _
     ByVal fioGenitive As String, _
     ByRef outFioDefault As String _
