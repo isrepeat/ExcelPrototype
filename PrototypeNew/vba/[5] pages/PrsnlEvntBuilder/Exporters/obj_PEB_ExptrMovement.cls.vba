@@ -43,6 +43,8 @@ Private Const MOVEMENT_TARGET_ARRIVAL As String = "Прибуття"
 Private Const MOVEMENT_TARGET_OUT_REASON As String = "Вибуття.Підстава"
 Private Const MOVEMENT_TARGET_RETURN_REASON As String = "Прибуття.Підстава"
 Private Const MOVEMENT_TARGET_IPN As String = "ІПН"
+Private Const MOVEMENT_TARGET_FIO As String = "ПІБ"
+Private Const TEMPORARY_IPN_MARKER As String = "ТП-ІПН"
 Private Const MOVEMENT_TARGET_DURATION_TERM As String = "Вибуття.Термін"
 Private Const MOVEMENT_TARGET_ADDITIONAL_ROAD_DAYS As String = "Вибуття.Дорога"
 Private Const MOVEMENT_TARGET_ADDITIONAL_DONATION_DAYS As String = "Вибуття.Додатково"
@@ -1532,6 +1534,7 @@ Public Function Export( _
     Dim isMirrorTransferEvent As Boolean
     Dim requiresClosingDateFromForm As Boolean
     Dim closingTargetIpn As String
+    Dim closingTargetFio As String
     Dim basisSummaryText As String
     Dim exportValidationError As String
     Dim latestMovementTvoChain As Collection
@@ -1647,7 +1650,8 @@ Public Function Export( _
             requiresClosingDateFromForm) Then GoTo CleanFail
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
-        If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
+        If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), SOURCE_ALIAS_FIO, closingTargetFio) Then GoTo CleanFail
+        If Not private_TryFindLastPersonRow(targetTable, closingTargetIpn, closingTargetFio, targetRowRange) Then GoTo CleanFail
         changedRowIndex = targetRowRange.Row - targetTable.DataBodyRange.Row + 1
         changedBeforeFormula = targetRowRange.Formula
         If Not private_TryWriteMovementClosingRow(targetTable, targetRowRange, closingOrderNo, closingOnFoodDate, closingArrivalDate, basisSummaryText) Then GoTo CleanFail
@@ -1666,7 +1670,8 @@ Public Function Export( _
             requiresClosingDateFromForm) Then GoTo CleanFail
 
         If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), MOVEMENT_TARGET_IPN, closingTargetIpn) Then GoTo CleanFail
-        If Not private_TryFindLastRowByIpn(targetTable, closingTargetIpn, targetRowRange) Then GoTo CleanFail
+        If Not private_TryGetRequiredSourceText(sourceTable, sourceTable.Rows.Item(1), SOURCE_ALIAS_FIO, closingTargetFio) Then GoTo CleanFail
+        If Not private_TryFindLastPersonRow(targetTable, closingTargetIpn, closingTargetFio, targetRowRange) Then GoTo CleanFail
         ' При смене статуса новая строка по умолчанию продолжает действующую
         ' цепочку ТВО закрываемой строки. Явно переданные meta-ТВО значения
         ' имеют приоритет, а наследование заполняет только пустые поля.
@@ -2224,12 +2229,14 @@ Private Function private_TryBuildMovementClosingValues( _
     private_TryBuildMovementClosingValues = True
 End Function
 
-Private Function private_TryFindLastRowByIpn( _
+Private Function private_TryFindLastPersonRow( _
     ByVal targetTable As ListObject, _
     ByVal ipnValue As String, _
+    ByVal fioValue As String, _
     ByRef outRowRange As Range _
 ) As Boolean
-    Dim ipnColumnIndex As Long
+    Dim keyColumnIndex As Long
+    Dim keyHeader As String
     Dim rowIndex As Long
     Dim candidateValue As String
     Dim expectedValue As String
@@ -2237,31 +2244,38 @@ Private Function private_TryFindLastRowByIpn( _
     Set outRowRange = Nothing
     If targetTable Is Nothing Then Exit Function
 
-    expectedValue = private_NormalizeComparableToken(ipnValue)
+    If VBA.StrComp(VBA.Trim$(ipnValue), TEMPORARY_IPN_MARKER, _
+        VBA.vbTextCompare) = 0 Then
+        keyHeader = MOVEMENT_TARGET_FIO
+        expectedValue = private_NormalizeComparableToken(fioValue)
+    Else
+        keyHeader = MOVEMENT_TARGET_IPN
+        expectedValue = private_NormalizeComparableToken(ipnValue)
+    End If
     If VBA.Len(expectedValue) = 0 Then
-        private_LogError "Movement closing failed because source IПН is empty."
-        VBA.MsgBox "PrototypeNew: Movement closing requires source value '" & MOVEMENT_TARGET_IPN & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
+        private_LogError "Movement closing failed because person key is empty."
+        VBA.MsgBox "PrototypeNew: Movement closing requires source value '" & keyHeader & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
 
-    ipnColumnIndex = private_FindTargetColumnIndex(targetTable, MOVEMENT_TARGET_IPN)
-    If ipnColumnIndex <= 0 Then
-        private_LogError "Movement closing failed because target column '" & private_EscapeForLog(MOVEMENT_TARGET_IPN) & "' was not found."
-        VBA.MsgBox "PrototypeNew: Movement target column '" & MOVEMENT_TARGET_IPN & "' was not found.", VBA.vbExclamation, "PrototypeNew / Movement export"
+    keyColumnIndex = private_FindTargetColumnIndex(targetTable, keyHeader)
+    If keyColumnIndex <= 0 Then
+        private_LogError "Movement closing failed because target column '" & private_EscapeForLog(keyHeader) & "' was not found."
+        VBA.MsgBox "PrototypeNew: Movement target column '" & keyHeader & "' was not found.", VBA.vbExclamation, "PrototypeNew / Movement export"
         Exit Function
     End If
 
     For rowIndex = targetTable.ListRows.Count To 1 Step -1
-        candidateValue = private_NormalizeComparableToken(targetTable.ListRows.Item(rowIndex).Range.Cells(1, ipnColumnIndex).Value2)
+        candidateValue = private_NormalizeComparableToken(targetTable.ListRows.Item(rowIndex).Range.Cells(1, keyColumnIndex).Value2)
         If VBA.StrComp(candidateValue, expectedValue, VBA.vbTextCompare) = 0 Then
             Set outRowRange = targetTable.ListRows.Item(rowIndex).Range
-            private_TryFindLastRowByIpn = True
+            private_TryFindLastPersonRow = True
             Exit Function
         End If
     Next rowIndex
 
-    private_LogError "Movement closing row was not found by ІПН='" & private_EscapeForLog(expectedValue) & "'."
-    VBA.MsgBox "PrototypeNew: failed to find latest Movement row by '" & MOVEMENT_TARGET_IPN & "' = '" & ipnValue & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
+    private_LogError "Movement closing row was not found by " & keyHeader & "='" & private_EscapeForLog(expectedValue) & "'."
+    VBA.MsgBox "PrototypeNew: failed to find latest Movement row by '" & keyHeader & "' = '" & expectedValue & "'.", VBA.vbExclamation, "PrototypeNew / Movement export"
 End Function
 
 Private Function private_NormalizeComparableToken(ByVal rawValue As Variant) As String

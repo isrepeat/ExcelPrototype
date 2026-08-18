@@ -37,6 +37,16 @@
           spanColls="2"
           spanRows="2"/>
 
+        <control
+          type="Button"
+          name="TemporaryPersonnel"
+          caption="{Binding Path=IsTemporaryPersonnelEnabled;TrueAs=[✓] Шукати у ТП;FalseAs=[ ] Шукати у ТП}"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ToggleTemporaryPersonnel}"
+          spanColls="2"
+          spanRows="2"/>
+
 
         <!-- Редкие переходы используют тот же профильный pipeline, но не
              занимают постоянное место в основной матрице кнопок. -->
@@ -1453,7 +1463,7 @@
         <rule target="inlinePart"
               selector="type=banner;part=preview-warning"
               styles="{
-                fontColor:#FF0000;
+                fontColor:#FFFF00;
                 fontBold:false;
                 fontItalic:false;
               }"/>

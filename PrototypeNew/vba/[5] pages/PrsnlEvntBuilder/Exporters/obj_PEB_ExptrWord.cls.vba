@@ -13,7 +13,7 @@ Implements obj_IDataExporter
 
 ' Runtime path is relative to ThisWorkbook.Path, same as page UI paths.
 Private Const WORD_RESULT_TEMPLATES_REL_PATH As String = "modes\PrsnlEvntBuilder\PrsnlEvntBuilderWordResultTemplates.xml"
-Private Const PREVIEW_FALLBACK_COLOR As String = "#FF0000"
+Private Const PREVIEW_FALLBACK_COLOR As String = "#FFFF00"
 Private Const PREVIEW_TRUNCATION_WARNING_LENGTH As Long = 254
 Private Const PREVIEW_TRUNCATED_VALUE_TAG As String = "preview-truncated-value"
 Private Const PREVIEW_LOOKUP_WARNING_VALUE_TAG As String = "preview-lookup-warning-value"
@@ -26,6 +26,7 @@ Private Const CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const CONTEXT_MOVEMENT_PREVALIDATED As String = "MovementPrevalidated"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
 Private Const SOURCE_ALIAS_IPN As String = "IPN"
+Private Const TEMPORARY_IPN_MARKER As String = "ТП-ІПН"
 Private Const SOURCE_ALIAS_RANK As String = "Rank"
 Private Const SOURCE_ALIAS_FIO As String = "FIO"
 Private Const SOURCE_ALIAS_POSITION_CODE As String = "PositionCode"
@@ -126,6 +127,7 @@ Private m_IsDisposed As Boolean
 Private m_Base As obj_DataExporterBase
 Private m_TemplateParser As obj_WordResultTplParser
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
+Private m_LastBuildHasWarnings As Boolean
 Private m_OwnsExporterCfgDataProvider As Boolean
 
 Public Function ToggleSupportedBookmarks( _
@@ -1043,6 +1045,7 @@ Public Function Export( _
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
         Exit Function
     End If
+    m_LastBuildHasWarnings = False
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
 
     sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
@@ -1165,6 +1168,19 @@ Public Function Export( _
     ' CTRL+3 только возвращает линейное preview. CTRL+4 передаёт WriteToWord=True,
     ' после чего groupHeader и recordText вставляются по отдельным правилам.
     If writeToWord Then
+        If m_LastBuildHasWarnings Or _
+           VBA.InStr(1, previewText, "[[preview-warning]]", _
+               VBA.vbTextCompare) > 0 Or _
+           VBA.InStr(1, previewText, "{[", VBA.vbBinaryCompare) > 0 Then
+            If VBA.MsgBox( _
+                "Не всі значення вдалося знайти або відмінити." & _
+                VBA.vbCrLf & "Проблемні фрагменти залишені у результаті " & _
+                "та позначені жовтим у preview." & VBA.vbCrLf & _
+                VBA.vbCrLf & "Продовжити експорт WORD?", _
+                VBA.vbQuestion Or VBA.vbYesNo Or VBA.vbDefaultButton2, _
+                "PrsnlEventBuilder / Неповний результат") <> VBA.vbYes Then _
+                Exit Function
+        End If
         If Not private_TryGetMainTableValue(sourceTable, SOURCE_ALIAS_IPN, recordIpn) Then
             VBA.MsgBox "PrototypeNew: WORD export requires IPN to create a record bookmark.", VBA.vbExclamation, "PrototypeNew / WORD export"
             Exit Function
@@ -2283,14 +2299,22 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If Not m_ExporterCfgDataProvider.CommonData.TryResolveRankGenitiveOptional( _
         rankText, rankGenitive, rankGenitiveFound) Then Exit Function
     If Not rankGenitiveFound And VBA.Len(VBA.Trim$(rankText)) > 0 Then
+        m_LastBuildHasWarnings = True
         rankGenitive = rankText
         rankGenitiveCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
         ex_Core.fn_Diagnostic_LogError _
             "peb-word:rank-declension-missing rank='" & rankText & "'"
     End If
-    If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioFormsOptional( _
-        ipnText, fioGenitive, fioAccusative, fioInitialsGenitive, _
-        fioDeclensionFound) Then Exit Function
+    If VBA.StrComp(VBA.Trim$(ipnText), TEMPORARY_IPN_MARKER, _
+        VBA.vbTextCompare) = 0 Then
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioFormsByNameOptional( _
+            fioText, fioGenitive, fioAccusative, fioInitialsGenitive, _
+            fioDeclensionFound) Then Exit Function
+    Else
+        If Not m_ExporterCfgDataProvider.CommonData.TryResolveFioFormsOptional( _
+            ipnText, fioGenitive, fioAccusative, fioInitialsGenitive, _
+            fioDeclensionFound) Then Exit Function
+    End If
     If Not fioDeclensionFound Then
         If VBA.Len(VBA.Trim$(fioText)) = 0 Then
             VBA.MsgBox "PrototypeNew: FIO was not found in ШПО / АЛФ for IPN '" & _
@@ -2302,6 +2326,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         fioAccusative = fioText
         fioInitialsGenitive = fioText
         fioDeclensionCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
+        m_LastBuildHasWarnings = True
         ex_Core.fn_Diagnostic_LogError _
             "peb-word:fio-declension-missing ipn='" & ipnText & _
             "' fio='" & fioText & "'"
@@ -2320,6 +2345,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         End If
         positionGenitive = positionText
         positionGenitiveCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
+        m_LastBuildHasWarnings = True
         ex_Core.fn_Diagnostic_LogError _
             "peb-word:position-declension-missing code='" & _
             positionCodeText & "' position='" & positionText & "'"
@@ -2365,6 +2391,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
         reportRankGenitiveFound) Then Exit Function
     If Not reportRankGenitiveFound And _
        VBA.Len(VBA.Trim$(reportRankText)) > 0 Then
+        m_LastBuildHasWarnings = True
         reportRankGenitive = reportRankText
         reportRankGenitiveCellTag = PREVIEW_LOOKUP_WARNING_VALUE_TAG
         ex_Core.fn_Diagnostic_LogError _
@@ -2722,6 +2749,7 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim ipnText As String
+    Dim fioText As String
     Dim previousTicketFound As Boolean
     Dim escortDocumentText As String
     Dim departureOrderText As String
@@ -2751,11 +2779,14 @@ Private Function private_TryEnrichPreviousVacationTicketForWord( _
 
     If Not private_TryGetMainTableValue( _
         sourceTable, SOURCE_ALIAS_IPN, ipnText) Then Exit Function
+    If Not private_TryGetMainTableValue( _
+        sourceTable, SOURCE_ALIAS_FIO, fioText) Then fioText = VBA.vbNullString
     If Not m_ExporterCfgDataProvider.TryGetLatestMovementVacationTicket( _
         ipnText, _
         previousTicketFound, _
         escortDocumentText, _
-        departureOrderText) Then Exit Function
+        departureOrderText, _
+        fioText) Then Exit Function
     If Not previousTicketFound Then
         VBA.MsgBox "PrototypeNew: Movement has no previous record containing both " & _
             "'Супровідний документ' and 'Вибуття.Наказ' for IPN '" & _

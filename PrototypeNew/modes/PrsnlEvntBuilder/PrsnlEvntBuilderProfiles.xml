@@ -15,6 +15,14 @@
     <item key="Personnel.Sheet[StateMain].Map[PositionCode]" value="Код посади"/>
     <item key="Personnel.Sheet[StateMain].Map[PositionName]" value="Повна назва посади"/>
 
+    <item attr="#" key="Movement temporary personnel candidates" value=""/>
+    <item key="Source.MovementTemporary.FilePath" value="C:\Users\SVI\Desktop\РУХ_last.xlsx"/>
+    <item key="MovementTemporary.Sheet[TemporaryPersonnel].SheetName" value="Прибулі$B5:R20000"/>
+    <item key="MovementTemporary.Sheet[TemporaryPersonnel].ColumnHeadersAliases" value="Rank; FIO; PositionName"/>
+    <item key="MovementTemporary.Sheet[TemporaryPersonnel].Map[Rank]" value="Звання"/>
+    <item key="MovementTemporary.Sheet[TemporaryPersonnel].Map[FIO]" value="ПІБ"/>
+    <item key="MovementTemporary.Sheet[TemporaryPersonnel].Map[PositionName]" value="Посада"/>
+
     <item attr="#" key="Absence candidates extension source" value=""/>
     <item key="Source.AbsenceEvents.FilePath" value="C:\Users\SVI\Desktop\ЕЖОС_last.xlsx"/>
     <item key="Source.AbsenceEvents.SheetsAliases" value="TemporaryAbsent"/>
@@ -94,6 +102,13 @@
     <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[IPN]]" value="EntityLookup.Table.Column[_IPN]"/>
     <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[PositionCode]]" value="EntityLookup.Table.Column[_PositionCode]"/>
     <item key="EntityLookup.Lookup[op_FIO].ResultColumnsAliases[Personnel.Sheet[StateMain].Column[PositionName]]" value="EntityLookup.Table.Column[_PositionName]"/>
+
+    <!-- Включается только mode-specific checkbox-ом PrsnlEvntBuilder. -->
+    <item key="EntityLookup.Lookup[op_FIOTemporaryPersonnel].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIOTemporaryPersonnel].SearchColumnAlias" value="MovementTemporary.Sheet[TemporaryPersonnel].Column[FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIOTemporaryPersonnel].ResultColumnsAliases[MovementTemporary.Sheet[TemporaryPersonnel].Column[Rank]]" value="EntityLookup.Table.Column[_Rank]"/>
+    <item key="EntityLookup.Lookup[op_FIOTemporaryPersonnel].ResultColumnsAliases[MovementTemporary.Sheet[TemporaryPersonnel].Column[FIO]]" value="EntityLookup.Table.Column[_FIO]"/>
+    <item key="EntityLookup.Lookup[op_FIOTemporaryPersonnel].ResultColumnsAliases[MovementTemporary.Sheet[TemporaryPersonnel].Column[PositionName]]" value="EntityLookup.Table.Column[_PositionName]"/>
 
     <!-- This lookup is invoked only by PrsnlEvntBuilder code after the main FIO lookup. -->
     <item key="EntityLookup.Lookup[op_FIOAbsenceExtension].TargetColumn" value="EntityLookup.Table.Column[_FIO]"/>

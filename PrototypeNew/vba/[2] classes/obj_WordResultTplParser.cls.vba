@@ -728,6 +728,15 @@ Private Function private_RenderTemplate( _
         Set matchObj = matches.Item(matchIndex)
         placeholderName = VBA.Trim$(VBA.CStr(matchObj.SubMatches(0)))
         placeholderValue = private_GetPlaceholderValue(placeholderName, sectionTypeText, sourceTables, renderVars, loopRows)
+        ' Неразрешённый placeholder сохраняем в тексте: пользователь видит,
+        ' какая часть пункта требует ручной правки, вместо немого пробела.
+        If decoratePreviewValues And VBA.Len(placeholderValue) = 0 And _
+           Not private_PlaceholderTokenExists( _
+               placeholderName, sectionTypeText, sourceTables, _
+               renderVars, loopRows) Then
+            placeholderValue = "[[" & PREVIEW_WARNING_MARKER & "]]" & _
+                matchObj.Value & "[[/" & PREVIEW_WARNING_MARKER & "]]"
+        End If
         ' Parser размечает только семантику участка. Конкретный цвет выбирает
         ' общий style pipeline по inlinePart rule страницы.
         If decoratePreviewValues And VBA.Len(placeholderValue) > 0 Then
@@ -1390,6 +1399,26 @@ Private Function private_TokenExists( _
     tokenText = private_UnwrapBracketFieldToken(tokenText)
     private_TokenExists = sourceTable.TryGetColumnIndexByAlias(tokenText, columnIndex)
     If Not private_TokenExists Then private_TokenExists = sourceTable.TryGetColumnIndexByName(tokenText, columnIndex)
+End Function
+
+Private Function private_PlaceholderTokenExists( _
+    ByVal placeholderName As String, _
+    ByVal sectionTypeText As String, _
+    ByVal sourceTables As Collection, _
+    ByVal renderVars As Object, _
+    ByVal loopRows As Object _
+) As Boolean
+    Dim placeholderParts As Collection
+    Dim tokenText As String
+
+    Set placeholderParts = private_SplitByDelimiterOutsideQuotes( _
+        VBA.Trim$(placeholderName), "|")
+    If placeholderParts Is Nothing Then Exit Function
+    If placeholderParts.Count <= 0 Then Exit Function
+
+    tokenText = VBA.Trim$(VBA.CStr(placeholderParts.Item(1)))
+    private_PlaceholderTokenExists = private_TokenExists( _
+        tokenText, sectionTypeText, sourceTables, renderVars, loopRows)
 End Function
 
 Private Function private_GetMainTableFieldValue(ByVal fieldName As String, ByVal sourceTables As Collection) As String

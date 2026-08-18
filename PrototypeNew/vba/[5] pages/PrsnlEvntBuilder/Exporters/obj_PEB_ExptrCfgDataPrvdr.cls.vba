@@ -29,6 +29,7 @@ Private Const CONFIG_MOVEMENT_SHEET_NAME_KEY As String = "Export.Movement.SheetN
 Private Const CONFIG_MOVEMENT_RANGE_START_KEY As String = "Export.Movement.RangeStartMarker"
 Private Const CONFIG_MOVEMENT_RANGE_END_KEY As String = "Export.Movement.RangeEndMarker"
 Private Const MOVEMENT_IPN_HEADER As String = "ІПН"
+Private Const TEMPORARY_IPN_MARKER As String = "ТП-ІПН"
 Private Const MOVEMENT_PERSON_HEADER As String = "ПІБ"
 Private Const MOVEMENT_EVENT_HEADER As String = "Подія"
 Private Const MOVEMENT_DEPARTURE_DATE_HEADER As String = "Вибуття"
@@ -137,7 +138,8 @@ End Property
 Public Function TryGetMovementHistoryByIpn( _
     ByVal ipnText As String, _
     ByRef outTable As obj_TableDynamic, _
-    Optional ByVal maxRows As Long = 0 _
+    Optional ByVal maxRows As Long = 0, _
+    Optional ByVal fioText As String = VBA.vbNullString _
 ) As Boolean
     Dim resolvedPath As String
     Dim snapshotPath As String
@@ -176,11 +178,8 @@ Public Function TryGetMovementHistoryByIpn( _
         ' но показывает их хронологически, а не в обратном порядке.
         query.MaxRows = 0
     End If
-    If Not query.AddCondition( _
-        MOVEMENT_IPN_HEADER, _
-        en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
-        ipnText, _
-        True) Then Exit Function
+    If Not private_TryAddMovementPersonCondition( _
+        query, ipnText, fioText) Then Exit Function
 
     If Not m_QueryEngine.TryExecute(query, outTable) Then Exit Function
     If outTable Is Nothing Then Exit Function
@@ -406,7 +405,8 @@ Public Function TryGetLatestMovementVacationTicket( _
     ByVal ipnText As String, _
     ByRef outFound As Boolean, _
     ByRef outEscortDocumentText As String, _
-    ByRef outDepartureOrderText As String _
+    ByRef outDepartureOrderText As String, _
+    Optional ByVal fioText As String = VBA.vbNullString _
 ) As Boolean
     Dim resolvedPath As String
     Dim snapshotPath As String
@@ -435,11 +435,8 @@ Public Function TryGetLatestMovementVacationTicket( _
     query.SourcePath = snapshotPath
     query.TableRef = movementTableRef
     query.ReverseOrder = True
-    If Not query.AddCondition( _
-        MOVEMENT_IPN_HEADER, _
-        en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
-        ipnText, _
-        True) Then Exit Function
+    If Not private_TryAddMovementPersonCondition( _
+        query, ipnText, fioText) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ESCORT_DOCUMENT_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_DEPARTURE_ORDER_HEADER) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
@@ -474,7 +471,8 @@ End Function
 Public Function TryGetLatestMovementDestination( _
     ByVal ipnText As String, _
     ByRef outFound As Boolean, _
-    ByRef outDestinationText As String _
+    ByRef outDestinationText As String, _
+    Optional ByVal fioText As String = VBA.vbNullString _
 ) As Boolean
     Dim resolvedPath As String
     Dim snapshotPath As String
@@ -501,11 +499,8 @@ Public Function TryGetLatestMovementDestination( _
     query.SourcePath = snapshotPath
     query.TableRef = movementTableRef
     query.ReverseOrder = True
-    If Not query.AddCondition( _
-        MOVEMENT_IPN_HEADER, _
-        en_ExtWorkbookQueryOp.ExtQueryOpEquals, _
-        ipnText, _
-        True) Then Exit Function
+    If Not private_TryAddMovementPersonCondition( _
+        query, ipnText, fioText) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_DESTINATION_HEADER) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
     If resultTable Is Nothing Then Exit Function
@@ -537,7 +532,8 @@ Public Function TryGetLatestMovementEvent( _
     ByRef outEventText As String, _
     ByRef outIsClosed As Boolean, _
     ByRef outDepartureDateText As String, _
-    ByRef outArrivalDateText As String _
+    ByRef outArrivalDateText As String, _
+    Optional ByVal fioText As String = VBA.vbNullString _
 ) As Boolean
     Dim ignoredTvoChain As Collection
     Dim ignoredLatestRecord As Object
@@ -550,7 +546,8 @@ Public Function TryGetLatestMovementEvent( _
         outDepartureDateText, _
         outArrivalDateText, _
         ignoredTvoChain, _
-        ignoredLatestRecord)
+        ignoredLatestRecord, _
+        fioText)
 End Function
 
 ' Читает одним запросом последнюю физическую строку Movement-листа и цепочку ТВО.
@@ -565,7 +562,8 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     ByRef outDepartureDateText As String, _
     ByRef outArrivalDateText As String, _
     ByRef outTvoChain As Collection, _
-    ByRef outLatestRecord As Object _
+    ByRef outLatestRecord As Object, _
+    Optional ByVal fioText As String = VBA.vbNullString _
 ) As Boolean
     Dim resolvedPath As String
     Dim movementTableRef As String
@@ -620,7 +618,8 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     Set query = New obj_ExtWorkbookQuery
     query.SourcePath = resolvedPath
     query.TableRef = movementTableRef
-    If Not query.AddCondition(MOVEMENT_IPN_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpEquals, ipnText, True) Then Exit Function
+    If Not private_TryAddMovementPersonCondition( _
+        query, ipnText, fioText) Then Exit Function
     query.ReverseOrder = True
     query.MaxRows = 1
     If Not query.AddSelectColumn(MOVEMENT_EVENT_HEADER) Then Exit Function
@@ -685,6 +684,7 @@ Public Function IsExportAllowed( _
 ) As Boolean
     Dim data As obj_PrsnlEvntBuilderData
     Dim ipnText As String
+    Dim fioText As String
     Dim found As Boolean
     Dim previousEventText As String
     Dim previousIsClosed As Boolean
@@ -723,9 +723,12 @@ Public Function IsExportAllowed( _
         outErrorMessage = "Export source IPN is empty."
         Exit Function
     End If
+    If Not private_TryGetFirstRowText( _
+        sourceTable, MOVEMENT_PERSON_HEADER, fioText) Then fioText = VBA.vbNullString
     If Not TryGetLatestMovementEventAndTvoChain( _
         ipnText, found, previousEventText, previousIsClosed, _
-        previousDepartureDateText, previousArrivalDateText, outLatestTvoChain, outLatestMovementRecord) Then
+        previousDepartureDateText, previousArrivalDateText, outLatestTvoChain, _
+        outLatestMovementRecord, fioText) Then
         outErrorMessage = "Failed to read the latest Movement event for IPN '" & ipnText & "'."
         Exit Function
     End If
@@ -851,7 +854,8 @@ End Function
 Public Function TryGetLatestMovementTvoChain( _
     ByVal ipnText As String, _
     ByRef outFound As Boolean, _
-    ByRef outChain As Collection _
+    ByRef outChain As Collection, _
+    Optional ByVal fioText As String = VBA.vbNullString _
 ) As Boolean
     Dim resolvedPath As String
     Dim movementTableRef As String
@@ -876,7 +880,8 @@ Public Function TryGetLatestMovementTvoChain( _
     Set query = New obj_ExtWorkbookQuery
     query.SourcePath = resolvedPath
     query.TableRef = movementTableRef
-    If Not query.AddCondition(MOVEMENT_IPN_HEADER, en_ExtWorkbookQueryOp.ExtQueryOpEquals, ipnText, True) Then Exit Function
+    If Not private_TryAddMovementPersonCondition( _
+        query, ipnText, fioText) Then Exit Function
     query.ReverseOrder = True
     query.MaxRows = 1
     If Not query.AddSelectColumn(MOVEMENT_TVO_FIO_HEADER) Then Exit Function
@@ -1741,6 +1746,39 @@ Private Function private_ResolveWorkbookPath(ByVal workbookPath As String) As St
     End If
 End Function
 
+
+Private Function private_TryAddMovementPersonCondition( _
+    ByVal query As obj_ExtWorkbookQuery, _
+    ByVal ipnText As String, _
+    ByVal fioText As String _
+) As Boolean
+    Dim keyHeader As String
+    Dim keyValue As String
+
+    If query Is Nothing Then Exit Function
+    ipnText = private_NormalizeLookupKey(ipnText)
+    fioText = VBA.Trim$(fioText)
+    If VBA.StrComp(ipnText, TEMPORARY_IPN_MARKER, VBA.vbTextCompare) = 0 Then
+        keyHeader = MOVEMENT_PERSON_HEADER
+        keyValue = fioText
+        If VBA.Len(keyValue) = 0 Then
+            VBA.MsgBox "Для пошуку тимчасово прибулого в Movement потрібен ПІБ.", _
+                VBA.vbExclamation, "PrototypeNew / exporter data provider"
+            Exit Function
+        End If
+    Else
+        keyHeader = MOVEMENT_IPN_HEADER
+        keyValue = ipnText
+        If VBA.Len(keyValue) = 0 Then
+            VBA.MsgBox "Для пошуку в Movement потрібен ІПН.", _
+                VBA.vbExclamation, "PrototypeNew / exporter data provider"
+            Exit Function
+        End If
+    End If
+
+    private_TryAddMovementPersonCondition = query.AddCondition( _
+        keyHeader, en_ExtWorkbookQueryOp.ExtQueryOpEquals, keyValue, True)
+End Function
 
 Private Function private_NormalizeLookupKey(ByVal valueText As String) As String
     valueText = VBA.Trim$(VBA.CStr(valueText))
