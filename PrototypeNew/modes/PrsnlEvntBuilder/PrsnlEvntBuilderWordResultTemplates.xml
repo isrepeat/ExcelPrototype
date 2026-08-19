@@ -391,7 +391,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
-#_      {#include block.VacationDestinationPeriod}#^
+#_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -406,7 +406,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
-#_      {#include block.VacationDestinationPeriod}#^
+#_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -420,7 +420,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
-#_      {#include block.VacationDestinationPeriod}#^
+#_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
@@ -434,7 +434,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
-#_      {#include block.VacationDestinationPeriod}#^
+#_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
