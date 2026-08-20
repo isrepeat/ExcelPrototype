@@ -702,8 +702,8 @@ Private Function WritePeriods( _
     ' --------------------------------------------------------
     ' Date formatting
     ' --------------------------------------------------------
-    targetTable .ListColumns(TARGET_COL_PERIOD_FROM) .DataBodyRange .NumberFormat = "dd.mm.yyyy"
-    targetTable .ListColumns(TARGET_COL_PERIOD_TO) .DataBodyRange .NumberFormat = "dd.mm.yyyy"
+    targetTable.ListColumns(TARGET_COL_PERIOD_FROM).DataBodyRange.NumberFormat = "dd.mm.yyyy"
+    targetTable.ListColumns(TARGET_COL_PERIOD_TO).DataBodyRange.NumberFormat = "dd.mm.yyyy"
     DoEvents
     WritePeriods = True
 End Function
