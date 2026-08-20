@@ -542,8 +542,14 @@ Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Vari
     Dim removedCount As Long
     Dim deletedSheetsCount As Long
     Dim prevDisplayAlerts As Boolean
+    Dim prevScreenUpdating As Boolean
+    Dim prevEnableEvents As Boolean
+    Dim prevCalculation As XlCalculation
+    Dim appStateCaptured As Boolean
     Dim notifyStatus As Boolean
     Dim registeredMainPage As obj_IPage
+    Dim clearErrorNumber As Long
+    Dim clearErrorDescription As String
 
     If m_Page Is Nothing Then Exit Function
     notifyStatus = True
@@ -559,6 +565,18 @@ Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Vari
 
     If Not rt_PageManager.fn_TryGetAllPages(pages) Then Exit Function
     If pages Is Nothing Then Exit Function
+
+    ' Большой отрендеренный лист (например, результаты строевых записок)
+    ' Excel удаляет заметно дольше при включённых событиях, обновлении экрана
+    ' и автоматическом пересчёте. Состояние приложения восстанавливается в
+    ' единой точке выхода как при успехе, так и при ошибке.
+    prevScreenUpdating = Application.ScreenUpdating
+    prevEnableEvents = Application.EnableEvents
+    prevCalculation = Application.Calculation
+    appStateCaptured = True
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
 
     For Each pageItem In pages
         Set page = Nothing
@@ -580,7 +598,7 @@ Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Vari
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to remove page '" & VBA.Replace$(pageWsName, "'", "''") & "'."
             #End If
             VBA.MsgBox "PrototypeNew: failed to remove page '" & pageWsName & "'.", vbExclamation, "PrototypeNew / Config runtime"
-            Exit Function
+            GoTo CLEANUP_CLEAR
         End If
         removedCount = removedCount + 1
 
@@ -615,14 +633,14 @@ ContinuePages:
             "Очистка страниц остановлена: лист '" & mainSheetName & _
             "' остался без зарегистрированной runtime-страницы.", _
             VBA.vbExclamation, "PrototypeNew / очистка страниц"
-        Exit Function
+        GoTo CLEANUP_CLEAR
     End If
     If Not (registeredMainPage Is m_Page) Then
         VBA.MsgBox _
             "Очистка страниц остановлена: runtime-регистрация листа '" & _
             mainSheetName & "' указывает не на текущую страницу Main.", _
             VBA.vbExclamation, "PrototypeNew / очистка страниц"
-        Exit Function
+        GoTo CLEANUP_CLEAR
     End If
 
     If notifyStatus Then
@@ -630,21 +648,34 @@ ContinuePages:
     End If
 
     OnClearWorkbookPagesExceptMainCommand = True
-    Exit Function
+    GoTo CLEANUP_CLEAR
 
 EH_DELETE_WS:
+    clearErrorNumber = Err.Number
+    clearErrorDescription = Err.Description
     Application.DisplayAlerts = prevDisplayAlerts
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription
     #End If
-    VBA.MsgBox "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
-    Exit Function
+    VBA.MsgBox "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription, vbExclamation, "PrototypeNew / Config runtime"
+    GoTo CLEANUP_CLEAR
 
 EH_CLEAR:
+    clearErrorNumber = Err.Number
+    clearErrorDescription = Err.Description
     #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription
     #End If
-    VBA.MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    VBA.MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription, vbExclamation, "PrototypeNew / Config runtime"
+
+CLEANUP_CLEAR:
+    If appStateCaptured Then
+        On Error Resume Next
+        Application.Calculation = prevCalculation
+        Application.EnableEvents = prevEnableEvents
+        Application.ScreenUpdating = prevScreenUpdating
+        On Error GoTo 0
+    End If
 End Function
 
 Public Function OnUpdateCodeFullCommand(Optional ByVal arg As Variant) As Boolean

@@ -268,8 +268,8 @@ Private Function private_TryCreateScenario( _
     ' Эта фабрика является единственной точкой регистрации реализаций;
     ' конкретный класс выбирается только по имени из XML-профиля.
     Select Case VBA.LCase$(className)
-        Case VBA.LCase$("obj_MovementVldtnScen")
-            Set outScenario = New obj_MovementVldtnScen
+        Case VBA.LCase$("obj_PEB_MovementVldtnScen")
+            Set outScenario = New obj_PEB_MovementVldtnScen
         Case Else
             VBA.MsgBox "Unsupported MultiSourcesView scenario class: " & _
                 className, VBA.vbExclamation, _

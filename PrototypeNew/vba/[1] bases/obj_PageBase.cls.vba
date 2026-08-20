@@ -165,11 +165,20 @@ End Function
 
 Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     Dim ws As Worksheet
+    Dim generatedRange As Range
     Dim worksheetName As String
+    Dim usedRowsCount As Long
+    Dim usedColumnsCount As Long
+    Dim hasGeneratedBounds As Boolean
     Dim previousDisplayAlerts As Boolean
     Dim displayAlertsCaptured As Boolean
     Dim deleteErrorNumber As Long
     Dim deleteErrorDescription As String
+    Dim bulkClearErrorNumber As Long
+    Dim bulkClearErrorDescription As String
+    Dim clearStartedAt As Double
+    Dim deleteStartedAt As Double
+    Dim cleanupStartedAt As Double
 
 #If LOGGING_VERBOSE_ENABLED Then
     ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
@@ -189,21 +198,32 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
         Exit Sub
     End If
 
-    Call Me.ResetControlActions
     Set ws = m_Worksheet
     If Not ws Is Nothing Then
         On Error Resume Next
         worksheetName = VBA.Trim$(ws.Name)
         On Error GoTo 0
         If VBA.Len(worksheetName) > 0 Then
+            ' Границы берём до сброса runtime registry. Обращение к UsedRange
+            ' после рендера тысяч стилизованных строк само занимало до 10 секунд.
+            hasGeneratedBounds = _
+                ex_ControlRefreshRuntime.fn_TryGetSheetMaxControlBounds( _
+                    worksheetName, usedRowsCount, usedColumnsCount)
+            cleanupStartedAt = VBA.Timer
             Call ex_ControlPartsRuntime.fn_RemoveControlPartsByWorksheetName(worksheetName)
             ' Partial-render registry также имеет worksheet lifecycle. Иначе
             ' удалённая страница оставляет retained bounds до следующего полного
             ' render или выгрузки VBA-проекта.
             Call ex_ControlRefreshRuntime.fn_ResetRegisteredControlsByWorksheet( _
                 worksheetName)
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogInfo _
+                "perf:page-dispose-runtime-cleanup totalMs='" & _
+                VBA.Format$(private_PerfElapsedMs(cleanupStartedAt), "0") & "'"
+#End If
         End If
     End If
+    Call Me.ResetControlActions
     Set m_Worksheet = Nothing
     Set m_Page = Nothing
     m_UiPath = VBA.vbNullString
@@ -236,10 +256,47 @@ Public Sub Dispose(Optional ByVal deleteWorksheet As Boolean = True)
     End If
 
     On Error GoTo EH_DELETE
+    ' Worksheet.Delete непропорционально замедляется на больших массивах
+    ' индивидуально стилизованных ячеек. Перед удалением тяжёлого листа одним
+    ' COM-вызовом освобождаем данные и стили; небольшие листы не трогаем.
+    If hasGeneratedBounds And usedRowsCount >= 2000 Then
+        Set generatedRange = ws.Range( _
+            ws.Cells(1, 1), ws.Cells(usedRowsCount, usedColumnsCount))
+        clearStartedAt = VBA.Timer
+        On Error Resume Next
+        generatedRange.Clear
+        bulkClearErrorNumber = Err.Number
+        bulkClearErrorDescription = Err.Description
+        Err.Clear
+        On Error GoTo EH_DELETE
+#If LOGGING_DEBUG_ENABLED Then
+        If bulkClearErrorNumber = 0 Then
+            ex_Core.fn_Diagnostic_LogInfo _
+                "perf:page-dispose-bulk-clear totalMs='" & _
+                VBA.Format$(private_PerfElapsedMs(clearStartedAt), "0") & _
+                "' rows='" & VBA.CStr(usedRowsCount) & _
+                "' columns='" & VBA.CStr(usedColumnsCount) & "'"
+        Else
+            ex_Core.fn_Diagnostic_LogError _
+                "perf:page-dispose-bulk-clear failed err='" & _
+                VBA.Replace$(bulkClearErrorDescription, "'", "''") & "'"
+        End If
+#End If
+    End If
+    Set generatedRange = Nothing
+
     previousDisplayAlerts = Application.DisplayAlerts
     displayAlertsCaptured = True
     Application.DisplayAlerts = False
+    deleteStartedAt = VBA.Timer
     ws.Delete
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "perf:page-dispose-worksheet-delete totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(deleteStartedAt), "0") & _
+        "' rows='" & VBA.CStr(usedRowsCount) & _
+        "' columns='" & VBA.CStr(usedColumnsCount) & "'"
+#End If
     Application.DisplayAlerts = previousDisplayAlerts
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo _
@@ -488,6 +545,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim oldRowStart As Long, oldColStart As Long, oldRowEnd As Long, oldColEnd As Long
     Dim newSpanRows As Long, newSpanCols As Long
     Dim newRowEnd As Long, newColEnd As Long
+    Dim styleDamageRowEnd As Long
     Dim rowDelta As Long
     Dim reflowPatches As Collection
     Dim ancestorUpdates As Collection
@@ -505,7 +563,8 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     Dim perfStageStartedAt As Double
     Dim planMs As Double, cleanupMs As Double, patchesMs As Double
     Dim reconcileMs As Double, baseStylesMs As Double, renderMs As Double
-    Dim controlStylesMs As Double, commitMs As Double
+    Dim controlStylesMs As Double, restoredStylesMs As Double
+    Dim commitMs As Double
     Dim shapesBefore As Long
     Dim patchCount As Long
 
@@ -547,6 +606,8 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     newRowEnd = oldRowStart + newSpanRows - 1
     newColEnd = oldColStart + newSpanCols - 1
     rowDelta = newRowEnd - oldRowEnd
+    styleDamageRowEnd = newRowEnd
+    If oldRowEnd > styleDamageRowEnd Then styleDamageRowEnd = oldRowEnd
 
     perfStageStartedAt = VBA.Timer
     If Not ex_ControlRefreshRuntime.fn_TryBuildLayoutReflowPlan( _
@@ -597,7 +658,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     If Not ex_StylePipelineEngine.fn_TryExpandRangeToSheetStyleWidth( _
         ws, _
         ws.Range(ws.Cells(oldRowStart, oldColStart), _
-                 ws.Cells(newRowEnd, newColEnd)), _
+                 ws.Cells(styleDamageRowEnd, newColEnd)), _
         baseStyleRange) Then GoTo Cleanup
     If Not ex_StylePipelineEngine.fn_ApplySheetBaseStylesToRange( _
         ws, m_UiDom, baseStyleRange) Then GoTo Cleanup
@@ -610,9 +671,11 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
     perfStageStartedAt = VBA.Timer
     If Not ex_StylePipelineEngine.fn_ApplyControlPartStylesForControl( _
         ws, m_UiDom, controlName) Then GoTo Cleanup
-    If Not private_TryRestoreControlStylesInRange( _
-        ws, baseStyleRange) Then GoTo Cleanup
     controlStylesMs = private_PerfElapsedMs(perfStageStartedAt)
+    perfStageStartedAt = VBA.Timer
+    If Not private_TryRestoreControlStylesInRange( _
+        ws, baseStyleRange, controlName) Then GoTo Cleanup
+    restoredStylesMs = private_PerfElapsedMs(perfStageStartedAt)
     perfStageStartedAt = VBA.Timer
     If Not ex_ControlRefreshRuntime.fn_CommitLayoutReflowPlan( _
         ws.Name, controlName, newRowEnd, newColEnd, ancestorUpdates) Then GoTo Cleanup
@@ -634,6 +697,7 @@ Public Function TryReflowControl(ByVal controlName As String) As Boolean
         "' baseStylesMs='" & VBA.Format$(baseStylesMs, "0") & _
         "' renderMs='" & VBA.Format$(renderMs, "0") & _
         "' controlStylesMs='" & VBA.Format$(controlStylesMs, "0") & _
+        "' restoredStylesMs='" & VBA.Format$(restoredStylesMs, "0") & _
         "' commitMs='" & VBA.Format$(commitMs, "0") & _
         "' control='" & VBA.Replace$(controlName, "'", "''") & _
         "' oldRows='" & VBA.CStr(oldRowEnd - oldRowStart + 1) & _
@@ -3371,7 +3435,8 @@ End Function
 
 Private Function private_TryRestoreControlStylesInRange( _
     ByVal ws As Worksheet, _
-    ByVal damageRange As Range _
+    ByVal damageRange As Range, _
+    Optional ByVal excludedControlName As String = "" _
 ) As Boolean
     Dim controlNodes As Object
     Dim controlNode As Object
@@ -3384,6 +3449,7 @@ Private Function private_TryRestoreControlStylesInRange( _
     Dim overlapRange As Range
 
     If ws Is Nothing Or damageRange Is Nothing Or m_UiDom Is Nothing Then Exit Function
+    excludedControlName = VBA.LCase$(VBA.Trim$(excludedControlName))
     Set controlNodes = m_UiDom.selectNodes( _
         "/p:page//p:control[@name] | " & _
         "/p:uiDefinition/p:layout//p:control[@name]")
@@ -3393,6 +3459,10 @@ Private Function private_TryRestoreControlStylesInRange( _
         controlName = VBA.Trim$(VBA.CStr( _
             ex_XmlCore.fn_NodeAttrText(controlNode, "name")))
         If VBA.Len(controlName) = 0 Then GoTo ContinueControl
+        If VBA.Len(excludedControlName) > 0 Then
+            If VBA.StrComp(controlName, excludedControlName, _
+                VBA.vbTextCompare) = 0 Then GoTo ContinueControl
+        End If
         If Not ex_ControlRefreshRuntime.fn_TryGetControlRenderBounds( _
             controlName, ws.Name, rowStart, colStart, rowEnd, colEnd) Then _
             GoTo ContinueControl

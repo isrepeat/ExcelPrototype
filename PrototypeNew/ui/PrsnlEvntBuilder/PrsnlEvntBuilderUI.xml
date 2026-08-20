@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles" version="1">
+  <templates>
+    <template name="medicalReportFilterHeaderTpl">
+      <control
+        type="Label"
+        name="MedicalReportFilterHeader"
+        text="{Binding Path=Key}"
+        style="medicalReportFilterHeader"
+        spanColls="1"
+        spanRows="1"/>
+    </template>
+    <template name="medicalReportFilterInputTpl">
+      <control
+        type="Input"
+        name="MedicalReportFilterInput"
+        value="{Binding Path=Value}"
+        style="medicalReportFilterInput"
+        spanColls="1"
+        spanRows="1"/>
+    </template>
+  </templates>
   <grid anchorCell="A1">
     <!-- Headless-контрол сохраняет регистрацию сочетаний клавиш без таблицы на листе. -->
     <control
@@ -1254,6 +1274,26 @@
           visibility="{Binding Path=IsValidationWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
           spanColls="3"
           spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowMedicalReports"
+          caption="Стройові записки"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowMedicalReportsWorkspace}"
+          visibility="{Binding [Not] Path=IsMedicalReportsWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowMedicalReportsActive"
+          caption="Стройові записки"
+          style="bottomWorkspaceActive"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowMedicalReportsWorkspace}"
+          visibility="{Binding Path=IsMedicalReportsWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
       </stackPanel>
 
       <!-- Управление уже записанными событиями текущего номера приказа. -->
@@ -1282,12 +1322,63 @@
           itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ValidationResults'}"
           spanColls="50"/>
       </stackPanel>
+
+      <stackPanel
+        name="MedicalReportsWorkspace"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        visibility="{Binding Path=IsMedicalReportsWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="50">
+        <list
+          name="MedicalReportsFilterHeaders"
+          orientation="horizontal"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MedicalReportFilters'}"
+          itemsSourceTemplate="medicalReportFilterHeaderTpl"/>
+        <stackPanel
+          name="MedicalReportsFilterInputs"
+          orientation="horizontal"
+          spanColls="50">
+          <list
+            name="MedicalReportsFilters"
+            orientation="horizontal"
+            itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MedicalReportFilters'}"
+            itemsSourceTemplate="medicalReportFilterInputTpl"/>
+        </stackPanel>
+        <control
+          type="TableList"
+          name="EmbeddedMedicalReports"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MedicalReports'}"
+          applyBuiltInStyles="false"
+          spanColls="50"/>
+      </stackPanel>
       </stackPanel>
 
     </stackPanel>
   </grid>
 
   <styles>
+    <controlStyle
+      name="medicalReportFilterHeader"
+      backColor="#111111"
+      textColor="#FFFFFF"
+      borderColor="#000000"
+      borderWeight="thin"
+      fontBold="true"
+      horizontal="center"
+      vertical="center"
+      overflow="wrap"
+      rowHeight="34.5"/>
+
+    <controlStyle
+      name="medicalReportFilterInput"
+      backColor="#3A3A3A"
+      textColor="#F0F0F0"
+      fontBold="true"
+      horizontal="center"
+      vertical="center"
+      overflow="clip"
+      rowHeight="34.5"/>
+
     <!-- Стили shape-кнопок для команд и переключателей профилей. -->
     <controlStyle
       name="actionWarning"
@@ -2080,6 +2171,71 @@
                 horizontal:center;
                 overflow:wrap;
                 rowHeight:22;
+              }"/>
+      </layer>
+
+      <layer name="embedded-medical-reports">
+        <rule target="controlPart"
+              selector="type=label;name=MedicalReportFilterHeader;part=cell"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34.5;
+              }"/>
+        <rule target="controlPart"
+              selector="type=input;name=MedicalReportFilterInput;part=cell"
+              styles="{
+                backColor:#3A3A3A;
+                fontColor:#F0F0F0;
+                horizontal:center;
+                vertical:center;
+                rowHeight:34.5;
+                cellType:text;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=section"
+              styles="{
+                backColor:#173A5E;
+                fontColor:#EAF6FF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:clip;
+                rowHeight:25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34.5;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=rows"
+              styles="{
+                backColor:#3A3A3A;
+                fontColor:#F0F0F0;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34.5;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=tag-ado-long-value-candidate"
+              styles="{
+                backColor:#6B4F1D;
+                fontColor:#FFF4CC;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
               }"/>
       </layer>
 

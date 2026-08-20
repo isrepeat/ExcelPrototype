@@ -17,6 +17,7 @@ Private m_ControlName As String
 Private m_ItemsSourceRaw As String
 Private m_ItemVisibilityRaw As String
 Private m_RenderAsListObject As Boolean
+Private m_ApplyBuiltInStyles As Boolean
 Private m_MergeSectionCells As Boolean
 Private m_TableNameRaw As String
 Private m_RuntimeTableName As String
@@ -81,6 +82,7 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_TableItems = Nothing
     Set m_ControlBase = Nothing
     m_RenderAsListObject = False
+    m_ApplyBuiltInStyles = True
     m_MergeSectionCells = False
     m_TableNameRaw = VBA.vbNullString
     m_RuntimeTableName = VBA.vbNullString
@@ -102,6 +104,8 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
 
     m_ItemVisibilityRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "itemVisibility")))
     If Not private_TryReadOptionalBooleanAttr(controlNode, "renderAsListObject", False, m_RenderAsListObject) Then Exit Sub
+    If Not private_TryReadOptionalBooleanAttr(controlNode, _
+        "applyBuiltInStyles", True, m_ApplyBuiltInStyles) Then Exit Sub
     If Not private_TryReadOptionalBooleanAttr(controlNode, "mergeSectionCells", False, m_MergeSectionCells) Then Exit Sub
     m_TableNameRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "tableName")))
 
@@ -218,7 +222,7 @@ Private Sub obj_IControl_Render()
     If Not private_TryRegisterControlPartSegments(ws, styleSegments) Then Exit Sub
 
 #If ENALBE_STYLES Then
-    private_ApplyStyleSegments ws, styleSegments
+    If m_ApplyBuiltInStyles Then private_ApplyStyleSegments ws, styleSegments
 #End If
 
     If m_MergeSectionCells Then
@@ -307,7 +311,8 @@ End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "itemssource", "itemvisibility", "renderaslistobject", "mergesectioncells", "tablename"
+        Case "itemssource", "itemvisibility", "renderaslistobject", _
+             "applybuiltinstyles", "mergesectioncells", "tablename"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -634,6 +639,8 @@ Private Function private_TryWriteTableItemToBuffer( _
     Dim rowViewItemIndex As Long
     Dim tableRowIndex As Long
     Dim rowStyleKind As String
+    Dim compactValue As String
+    Dim compactTag As String
 
     If tableViewItem Is Nothing Then
         private_TryWriteTableItemToBuffer = True
@@ -718,6 +725,39 @@ Private Function private_TryWriteTableItemToBuffer( _
 
 ContinueRowView:
         Next rowViewItemIndex
+    ElseIf tableDynamic.IsCompact Then
+        writeStart = ioCurrentOutputRow + 1
+        For tableRowIndex = 1 To tableDynamic.RowCount
+            If ioCurrentOutputRow >= plannedRows Then Exit For
+            ioCurrentOutputRow = ioCurrentOutputRow + 1
+            For colOffset = 1 To tableDynamic.ColumnCount
+                compactValue = tableDynamic.CompactValueAt( _
+                    tableRowIndex, colOffset)
+                valueBlock(ioCurrentOutputRow, colOffset) = compactValue
+#If ENALBE_STYLES Then
+                compactTag = tableDynamic.CompactTagForValue(compactValue)
+                If VBA.Len(compactTag) > 0 Then
+                    private_AddStyleSegment styleSegments, _
+                        "tag-" & compactTag, _
+                        tableDynamic.ColumnCount, ioCurrentOutputRow, _
+                        ioCurrentOutputRow, colOffset, colOffset
+                End If
+#End If
+            Next colOffset
+            private_CoerceDateCellsInMatrixRow _
+                valueBlock, ioCurrentOutputRow, tableDynamic
+#If ENALBE_STYLES Then
+            private_AddStyleSegment styleSegments, "data", _
+                tableDynamic.ColumnCount, ioCurrentOutputRow, _
+                ioCurrentOutputRow
+#End If
+        Next tableRowIndex
+        writeEnd = ioCurrentOutputRow
+#If ENALBE_STYLES Then
+        If writeEnd >= writeStart Then _
+            private_AddColumnFormatStyleSegments styleSegments, _
+                tableDynamic, writeStart, writeEnd
+#End If
     Else
         Set tableRows = tableDynamic.Rows
         If Not tableRows Is Nothing Then

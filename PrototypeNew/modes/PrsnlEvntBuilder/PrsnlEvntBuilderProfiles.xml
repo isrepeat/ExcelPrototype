@@ -3,6 +3,8 @@
   <profile id="default" caption="Personal Event Builder / Lookup">
     <item attr="#" key="Profile.Name" value="Personal Event Builder / Lookup"/>
     <item key="PrsnlEvntBuilder.ControllerClass" value="obj_PagePrsnlEvntBuilderCtrl"/>
+    <item key="PrsnlEvntBuilder.ExportEditingSubmodeClass" value="obj_PEB_ExportEditingScen"/>
+    <item key="PrsnlEvntBuilder.ValidationSubmodeClass" value="obj_PEB_MovementVldtnScen"/>
     <item attr="#" key="Personnel source" value=""/>
     <item key="Source.Personnel.FilePath" value="C:\Users\SVI\Desktop\{yyyy}-{mm}-{dd} А7383 Особовий склад.xlsx"/>
     <item key="Source.Personnel.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>
@@ -176,6 +178,29 @@
     <item key="MedicalDaily.Sheet[StateMain].Map[BasisDocNumber]" value="На підставі чого госпіталізований (№ документу)"/>
     <item key="MedicalDaily.Sheet[StateMain].Map[FullHospitalName]" value="Повна назва лікувального закладу"/>
     <item key="MedicalDaily.Sheet[StateMain].Map[TreatmentStatus]" value="Статус лікування"/>
+
+    <item attr="#" key="Embedded medical reports view" value=""/>
+    <item key="PrsnlEvntBuilder.MedicalReportsViewClass" value="obj_PEB_MedicalReportsScen"/>
+    <item key="Source.MedicalReports.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.07 (липень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
+    <item key="Source.MedicalReports.FilePathResolver" value="ResolveAllByDmyPattern"/>
+    <item key="Source.MedicalReports.FilePathResolverArgs" value="order=asc"/>
+    <item key="Source.MedicalReports.RuntimeAliasPattern" value="Main-{dd}.{mm}.{yyyy}"/>
+    <item key="MedicalReports.Sheet[StateMain].SheetName" value="Аркуш1$A3:S20000"/>
+    <item key="MedicalReports.Sheet[StateMain].ColumnHeadersAliases" value="FIO; IPN; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; FullHospitalName; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[FIO]" value="П.І.Б."/>
+    <item key="MedicalReports.Sheet[StateMain].Map[IPN]" value="ІПН"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[HospitalizationDate]" value="Дата госпіталізації / переведення"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[BasisDocName]" value="На підставі чого госпіталізований (Назва документу)"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[BasisDocDate]" value="На підставі чого госпіталізований (дата, документу)"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[BasisDocNumber]" value="На підставі чого госпіталізований (№ документу)"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[FullHospitalName]" value="Повна назва лікувального закладу"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[TreatmentStatus]" value="Статус лікування"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[AfterTreatmentDocName]" value="Назва документу який він отримав після вибуття з лікування"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[AfterTreatmentDocDate]" value="Дата документу який він отримав після вибуття з лікування"/>
+    <item key="MedicalReports.Sheet[StateMain].Map[AfterTreatmentDocNumber]" value="№ документу який він отримав після вибуття з лікування"/>
+    <item key="MultiSourcesView.Tables" value="MedicalReports.Sheet[StateMain]"/>
+    <item key="MultiSourcesView.Columns" value="FIO; IPN; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; FullHospitalName; TreatmentStatus; AfterTreatmentDocName; AfterTreatmentDocDate; AfterTreatmentDocNumber"/>
+    <item key="MultiSourcesView.MaxRows" value="500"/>
     <item key="MovementValidation.OrderDateProviderClass" value="obj_PEB_ExptrCommonDataPrvdr"/>
     <item key="MovementValidation.MovementTable" value="Movement.Sheet[Absent]"/>
     <item key="MovementValidation.EjosTable" value="Ejos.Sheet[TemporaryAbsent]"/>

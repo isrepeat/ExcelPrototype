@@ -86,13 +86,41 @@ Public Property Get TargetRangeEndMarker() As String
     TargetRangeEndMarker = m_TargetRangeEndMarker
 End Property
 
+Public Function TryGetOpenTargetWorkbook(ByRef outWorkbook As Workbook) As Boolean
+    Dim wb As Workbook
+    Dim resolvedPath As String
+    Dim targetWorkbookName As String
+
+    private_LogMethodEntry "TryGetOpenTargetWorkbook"
+
+    Set outWorkbook = Nothing
+    resolvedPath = VBA.Trim$(m_TargetWorkbookPath)
+
+    If VBA.Len(resolvedPath) > 0 Then
+        Set outWorkbook = private_FindOpenWorkbookByPath(resolvedPath)
+        If Not outWorkbook Is Nothing Then
+            TryGetOpenTargetWorkbook = True
+            Exit Function
+        End If
+    End If
+
+    targetWorkbookName = private_ExtractWorkbookNameFromPath(resolvedPath)
+    If VBA.Len(targetWorkbookName) = 0 Then Exit Function
+
+    For Each wb In Application.Workbooks
+        If VBA.StrComp(wb.Name, targetWorkbookName, VBA.vbTextCompare) = 0 Then
+            Set outWorkbook = wb
+            TryGetOpenTargetWorkbook = True
+            Exit Function
+        End If
+    Next wb
+End Function
+
 Public Function TryOpenTargetWorkbook( _
     ByRef outWorkbook As Workbook, _
     ByRef outOpenedByExporter As Boolean _
 ) As Boolean
-    Dim wb As Workbook
     Dim resolvedPath As String
-    Dim targetWorkbookName As String
 
     private_LogMethodEntry "TryOpenTargetWorkbook"
 
@@ -100,23 +128,9 @@ Public Function TryOpenTargetWorkbook( _
     outOpenedByExporter = False
     resolvedPath = VBA.Trim$(m_TargetWorkbookPath)
 
-    If VBA.Len(resolvedPath) > 0 Then
-        Set outWorkbook = private_FindOpenWorkbookByPath(resolvedPath)
-        If Not outWorkbook Is Nothing Then
-            TryOpenTargetWorkbook = True
-            Exit Function
-        End If
-    End If
-
-    targetWorkbookName = private_ExtractWorkbookNameFromPath(resolvedPath)
-    If VBA.Len(targetWorkbookName) > 0 Then
-        For Each wb In Application.Workbooks
-            If VBA.StrComp(wb.Name, targetWorkbookName, VBA.vbTextCompare) = 0 Then
-                Set outWorkbook = wb
-                TryOpenTargetWorkbook = True
-                Exit Function
-            End If
-        Next wb
+    If Me.TryGetOpenTargetWorkbook(outWorkbook) Then
+        TryOpenTargetWorkbook = True
+        Exit Function
     End If
 
     If VBA.Len(resolvedPath) = 0 Then
