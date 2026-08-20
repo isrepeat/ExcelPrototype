@@ -39,8 +39,14 @@ Private Const CANDIDATE_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBu
 Private Const DUMMY_TABLES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.DummyTables"
 Private Const ORDER_HISTORY_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.OrderHistory"
 Private Const VALIDATION_RESULTS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.ValidationResults"
+Private Const MEDICAL_REPORTS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MedicalReports"
+Private Const MEDICAL_REPORTS_FILTERS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.MedicalReportFilters"
+Private Const MEDICAL_REPORTS_VIEW_CLASS_KEY As String = "PrsnlEvntBuilder.MedicalReportsViewClass"
+Private Const EXPORT_EDITING_SUBMODE_CLASS_KEY As String = "PrsnlEvntBuilder.ExportEditingSubmodeClass"
+Private Const VALIDATION_SUBMODE_CLASS_KEY As String = "PrsnlEvntBuilder.ValidationSubmodeClass"
 Private Const BOTTOM_WORKSPACE_EDIT As String = "edit"
 Private Const BOTTOM_WORKSPACE_VALIDATION As String = "validation"
+Private Const BOTTOM_WORKSPACE_MEDICAL_REPORTS As String = "medical-reports"
 Private Const HOTKEYS_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Hotkeys"
 Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.Profiles"
 Private Const ADDITIONAL_PROFILES_RUNTIME_KEY As String = "RuntimeItems.PrsnlEvntBuilder.AdditionalProfiles"
@@ -96,6 +102,8 @@ Private Const TEMPORARY_POSITION_MARKER As String = "ТП-ПОСАДА"
 Private Const MOVEMENT_HISTORY_TABLE_CONTROL_NAME As String = "MovementHistoryTable"
 Private Const MOVEMENT_EVENTS_CONTROL_NAME As String = "MovementEventsMenu"
 Private Const VALIDATION_RESULTS_CONTROL_NAME As String = "EmbeddedValidationResults"
+Private Const MEDICAL_REPORTS_CONTROL_NAME As String = "EmbeddedMedicalReports"
+Private Const MEDICAL_REPORTS_FILTER_INPUTS_CONTAINER As String = "MedicalReportsFilterInputs"
 Private Const BOTTOM_WORKSPACE_CONTAINER_NAME As String = "BottomWorkspaceArea"
 Private Const WORD_EVENTS_CONTROL_NAME As String = "WordEventsMenu"
 Private Const MOVEMENT_HISTORY_LIMIT_INPUT_NAME As String = "MovementHistoryLimitInput"
@@ -165,6 +173,8 @@ Private m_ResolvedOrderNo As String
 Private m_ResolvedOrderDate As Date
 Private m_OrderHistoryItems As Collection
 Private m_BottomWorkspaceMode As String
+Private m_MedicalReportsScen As obj_PEB_MedicalReportsScen
+Private m_ExportEditingScen As obj_PEB_ExportEditingScen
 Private m_ExporterCfgDataProvider As obj_PEB_ExptrCfgDataPrvdr
 Private m_CachedMovementExporter As obj_PEB_ExptrMovement
 Private m_CachedWordExporter As obj_PEB_ExptrWord
@@ -304,6 +314,10 @@ Public Sub Dispose()
     private_DisposeCachedExporters
     If Not m_ExporterCfgDataProvider Is Nothing Then m_ExporterCfgDataProvider.Dispose
     Set m_ExporterCfgDataProvider = Nothing
+    If Not m_MedicalReportsScen Is Nothing Then m_MedicalReportsScen.Dispose
+    Set m_MedicalReportsScen = Nothing
+    If Not m_ExportEditingScen Is Nothing Then m_ExportEditingScen.Dispose
+    Set m_ExportEditingScen = Nothing
     m_SelectedProfile = VBA.vbNullString
     m_SelectedMainProfile = VBA.vbNullString
     Set m_ExportMainTable = Nothing
@@ -371,9 +385,16 @@ Public Property Get IsValidationWorkspaceVisible() As Boolean
         m_BottomWorkspaceMode, BOTTOM_WORKSPACE_VALIDATION, VBA.vbTextCompare) = 0)
 End Property
 
+Public Property Get IsMedicalReportsWorkspaceVisible() As Boolean
+    IsMedicalReportsWorkspaceVisible = (VBA.StrComp( _
+        m_BottomWorkspaceMode, BOTTOM_WORKSPACE_MEDICAL_REPORTS, _
+        VBA.vbTextCompare) = 0)
+End Property
+
 Public Property Get IsBottomWorkspaceVisible() As Boolean
     IsBottomWorkspaceVisible = (Me.IsExportEditingWorkspaceVisible Or _
-        Me.IsValidationWorkspaceVisible)
+        Me.IsValidationWorkspaceVisible Or _
+        Me.IsMedicalReportsWorkspaceVisible)
 End Property
 
 Public Function ShowExportEditingWorkspace( _
@@ -400,12 +421,8 @@ Public Function ShowExportEditingWorkspace( _
         Exit Function
     End If
 
-    If Not m_HasResolvedOrderPair Then
-        VBA.MsgBox "Спочатку прийміть номер і дату наказу.", _
-            VBA.vbExclamation, "PrsnlEventBuilder / Наказ"
-        Exit Function
-    End If
-    If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
+    If Not private_TryEnsureExportEditingSubmode() Then Exit Function
+    If Not m_ExportEditingScen.PrepareOpen() Then Exit Function
 
     previousWorkspaceMode = m_BottomWorkspaceMode
     m_BottomWorkspaceMode = BOTTOM_WORKSPACE_EDIT
@@ -424,7 +441,7 @@ End Function
 Public Function ShowValidationWorkspace( _
     Optional ByVal ignored As Variant _
 ) As Boolean
-    Dim movementVldtnScen As obj_MovementVldtnScen
+    Dim pebMovementVldtnScen As obj_PEB_MovementVldtnScen
     Dim pageBase As obj_PageBase
     Dim previousWorkspaceMode As String
 
@@ -452,12 +469,12 @@ Public Function ShowValidationWorkspace( _
         Exit Function
     End If
     If m_ProfileConfigTable Is Nothing Then Exit Function
-    Set movementVldtnScen = New obj_MovementVldtnScen
-    If Not movementVldtnScen.InitializeEmbedded( _
+    If Not private_TryCreateValidationSubmode(pebMovementVldtnScen) Then Exit Function
+    If Not pebMovementVldtnScen.InitializeEmbedded( _
         m_Page, m_ProfileConfigTable, m_ResolvedOrderNo, _
         m_ResolvedOrderDate, VALIDATION_RESULTS_RUNTIME_KEY) Then Exit Function
-    If Not movementVldtnScen.RunEmbedded(False) Then Exit Function
-    Set movementVldtnScen = Nothing
+    If Not pebMovementVldtnScen.RunEmbedded(False) Then Exit Function
+    Set pebMovementVldtnScen = Nothing
 
     previousWorkspaceMode = m_BottomWorkspaceMode
     m_BottomWorkspaceMode = BOTTOM_WORKSPACE_VALIDATION
@@ -473,19 +490,65 @@ Public Function ShowValidationWorkspace( _
     ShowValidationWorkspace = True
 End Function
 
+Public Function ShowMedicalReportsWorkspace( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim previousWorkspaceMode As String
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Me.IsMedicalReportsWorkspaceVisible Then
+        previousWorkspaceMode = m_BottomWorkspaceMode
+        m_BottomWorkspaceMode = VBA.vbNullString
+        private_DeleteBottomWorkspaceCommandShapes pageBase.Worksheet
+        If Not pageBase.TryReflowLayoutContainer( _
+            BOTTOM_WORKSPACE_CONTAINER_NAME) Then
+            m_BottomWorkspaceMode = previousWorkspaceMode
+            Exit Function
+        End If
+        ShowMedicalReportsWorkspace = True
+        Exit Function
+    End If
+
+    If Not private_TryPrepareMedicalReports(False) Then Exit Function
+    previousWorkspaceMode = m_BottomWorkspaceMode
+    m_BottomWorkspaceMode = BOTTOM_WORKSPACE_MEDICAL_REPORTS
+    private_DeleteBottomWorkspaceCommandShapes pageBase.Worksheet
+    If Not pageBase.TryReflowLayoutContainer( _
+        BOTTOM_WORKSPACE_CONTAINER_NAME) Then
+        m_BottomWorkspaceMode = previousWorkspaceMode
+        Exit Function
+    End If
+    ShowMedicalReportsWorkspace = True
+End Function
+
 Public Function RefreshBottomWorkspace( _
     Optional ByVal ignored As Variant _
 ) As Boolean
-    Dim movementVldtnScen As obj_MovementVldtnScen
+    Dim pebMovementVldtnScen As obj_PEB_MovementVldtnScen
     Dim pageBase As obj_PageBase
 
     Set pageBase = m_Page.GetPageBase()
     If pageBase Is Nothing Then Exit Function
 
     If Me.IsExportEditingWorkspaceVisible Then
-        If Not private_RegisterExportedEventMenus(True, False) Then Exit Function
-        If Not pageBase.TryReflowControl(MOVEMENT_EVENTS_CONTROL_NAME) Then
-            VBA.MsgBox "Не вдалося частково оновити таблицю редагування.", _
+        If Not private_TryEnsureExportEditingSubmode() Then Exit Function
+        If Not m_ExportEditingScen.Refresh() Then Exit Function
+        RefreshBottomWorkspace = True
+        Exit Function
+    End If
+
+    If Me.IsValidationWorkspaceVisible Then
+        If m_ProfileConfigTable Is Nothing Then Exit Function
+        If Not private_TryCreateValidationSubmode( _
+            pebMovementVldtnScen) Then Exit Function
+        If Not pebMovementVldtnScen.InitializeEmbedded( _
+            m_Page, m_ProfileConfigTable, m_ResolvedOrderNo, _
+            m_ResolvedOrderDate, VALIDATION_RESULTS_RUNTIME_KEY) Then Exit Function
+        If Not pebMovementVldtnScen.RunEmbedded(False) Then Exit Function
+        If Not pageBase.TryReflowControl(VALIDATION_RESULTS_CONTROL_NAME) Then
+            VBA.MsgBox "Не вдалося частково оновити таблицю валідації.", _
                 VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
             Exit Function
         End If
@@ -493,20 +556,222 @@ Public Function RefreshBottomWorkspace( _
         Exit Function
     End If
 
-    If Me.IsValidationWorkspaceVisible Then
-        If m_ProfileConfigTable Is Nothing Then Exit Function
-        Set movementVldtnScen = New obj_MovementVldtnScen
-        If Not movementVldtnScen.InitializeEmbedded( _
-            m_Page, m_ProfileConfigTable, m_ResolvedOrderNo, _
-            m_ResolvedOrderDate, VALIDATION_RESULTS_RUNTIME_KEY) Then Exit Function
-        If Not movementVldtnScen.RunEmbedded(False) Then Exit Function
-        If Not pageBase.TryReflowControl(VALIDATION_RESULTS_CONTROL_NAME) Then
-            VBA.MsgBox "Не вдалося частково оновити таблицю валідації.", _
-                VBA.vbExclamation, "PrsnlEventBuilder / partial reflow"
-            Exit Function
-        End If
-        RefreshBottomWorkspace = True
+    If Me.IsMedicalReportsWorkspaceVisible Then
+        RefreshBottomWorkspace = Me.SearchMedicalReports()
     End If
+End Function
+
+Public Function TryLoadExportEditingEvents( _
+    ByVal loadEvents As Boolean, _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    TryLoadExportEditingEvents = private_RegisterExportedEventMenus( _
+        loadEvents, notifyChange)
+End Function
+
+Private Function private_TryEnsureExportEditingSubmode() As Boolean
+    Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
+    Dim submodeClassName As String
+
+    If Not m_ExportEditingScen Is Nothing Then
+        private_TryEnsureExportEditingSubmode = True
+        Exit Function
+    End If
+    If m_ProfileConfigTable Is Nothing Then
+        VBA.MsgBox "Відсутня конфігурація профілю для таблиці редагування.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Редагування РУХ / WORD"
+        Exit Function
+    End If
+    Set prsnlEvntBuilderCfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not prsnlEvntBuilderCfgParser.Initialize( _
+        m_ProfileConfigTable) Then Exit Function
+    submodeClassName = VBA.Trim$(prsnlEvntBuilderCfgParser.GetOptionalValue( _
+        EXPORT_EDITING_SUBMODE_CLASS_KEY, VBA.vbNullString))
+    If VBA.Len(submodeClassName) = 0 Then
+        VBA.MsgBox "Відсутній обов'язковий class таблиці редагування у ключі '" & _
+            EXPORT_EDITING_SUBMODE_CLASS_KEY & "'.", VBA.vbExclamation, _
+            "PrsnlEventBuilder / Редагування РУХ / WORD"
+        Exit Function
+    End If
+    Select Case VBA.LCase$(submodeClassName)
+        Case VBA.LCase$("obj_PEB_ExportEditingScen")
+            Set m_ExportEditingScen = New obj_PEB_ExportEditingScen
+        Case Else
+            VBA.MsgBox "Непідтримуваний class таблиці редагування: '" & _
+                submodeClassName & "'.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / Редагування РУХ / WORD"
+            Exit Function
+    End Select
+    prsnlEvntBuilderCfgParser.Dispose
+    Set prsnlEvntBuilderCfgParser = Nothing
+    If Not m_ExportEditingScen.Initialize(m_Page, Me) Then
+        Set m_ExportEditingScen = Nothing
+        Exit Function
+    End If
+    private_TryEnsureExportEditingSubmode = True
+End Function
+
+Private Function private_TryCreateValidationSubmode( _
+    ByRef outValidationSubmode As obj_PEB_MovementVldtnScen _
+) As Boolean
+    Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
+    Dim submodeClassName As String
+
+    Set outValidationSubmode = Nothing
+    If m_ProfileConfigTable Is Nothing Then
+        VBA.MsgBox "Відсутня конфігурація профілю для валідації.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Валідація"
+        Exit Function
+    End If
+    Set prsnlEvntBuilderCfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not prsnlEvntBuilderCfgParser.Initialize( _
+        m_ProfileConfigTable) Then Exit Function
+    submodeClassName = VBA.Trim$(prsnlEvntBuilderCfgParser.GetOptionalValue( _
+        VALIDATION_SUBMODE_CLASS_KEY, VBA.vbNullString))
+    If VBA.Len(submodeClassName) = 0 Then
+        VBA.MsgBox "Відсутній обов'язковий class валідації у ключі '" & _
+            VALIDATION_SUBMODE_CLASS_KEY & "'.", VBA.vbExclamation, _
+            "PrsnlEventBuilder / Валідація"
+        Exit Function
+    End If
+    Select Case VBA.LCase$(submodeClassName)
+        Case VBA.LCase$("obj_PEB_MovementVldtnScen")
+            Set outValidationSubmode = New obj_PEB_MovementVldtnScen
+        Case Else
+            VBA.MsgBox "Непідтримуваний class валідації: '" & _
+                submodeClassName & "'.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / Валідація"
+            Exit Function
+    End Select
+    prsnlEvntBuilderCfgParser.Dispose
+    Set prsnlEvntBuilderCfgParser = Nothing
+    private_TryCreateValidationSubmode = True
+End Function
+
+Private Function private_TryPrepareMedicalReports( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim filterItems As Collection
+    Dim emptyTables As Collection
+    Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
+    Dim viewClassName As String
+
+    If m_ProfileConfigTable Is Nothing Then
+        VBA.MsgBox "Відсутня конфігурація профілю для стройових записок.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Стройові записки"
+        Exit Function
+    End If
+
+    If Not m_MedicalReportsScen Is Nothing Then m_MedicalReportsScen.Dispose
+    Set m_MedicalReportsScen = Nothing
+    Set prsnlEvntBuilderCfgParser = New obj_PrsnlEvntBuilderCfgParser
+    If Not prsnlEvntBuilderCfgParser.Initialize( _
+        m_ProfileConfigTable) Then Exit Function
+    viewClassName = VBA.Trim$(prsnlEvntBuilderCfgParser.GetOptionalValue( _
+        MEDICAL_REPORTS_VIEW_CLASS_KEY, VBA.vbNullString))
+    If VBA.Len(viewClassName) = 0 Then
+        VBA.MsgBox "Відсутній обов'язковий class підрежиму стройових " & _
+            "записок у ключі '" & MEDICAL_REPORTS_VIEW_CLASS_KEY & "'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Стройові записки"
+        Exit Function
+    End If
+    Select Case VBA.LCase$(VBA.Trim$(viewClassName))
+        Case VBA.LCase$("obj_PEB_MedicalReportsScen")
+            Set m_MedicalReportsScen = New obj_PEB_MedicalReportsScen
+        Case Else
+            VBA.MsgBox "Непідтримуваний class підрежиму стройових записок: '" & _
+                viewClassName & "'.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / Стройові записки"
+            Exit Function
+    End Select
+    prsnlEvntBuilderCfgParser.Dispose
+    Set prsnlEvntBuilderCfgParser = Nothing
+
+    If Not m_MedicalReportsScen.Initialize(m_ProfileConfigTable) Then Exit Function
+    If Not m_MedicalReportsScen.TryGetFilterItems(filterItems) Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set emptyTables = New Collection
+    If Not pageBase.RuntimeSources.SetItemsSource( _
+        MEDICAL_REPORTS_FILTERS_RUNTIME_KEY, _
+        filterItems, False) Then Exit Function
+    If Not pageBase.RuntimeSources.SetItemsSource( _
+        MEDICAL_REPORTS_RUNTIME_KEY, _
+        emptyTables, notifyChange) Then Exit Function
+    private_TryPrepareMedicalReports = True
+End Function
+
+Public Function SearchMedicalReports( _
+    Optional ByVal ignored As Variant _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim filterValues As Object
+    Dim reportTables As Collection
+
+    If m_MedicalReportsScen Is Nothing Then
+        If Not private_TryPrepareMedicalReports(False) Then Exit Function
+    End If
+    If Not private_TryReadMedicalReportFilters(filterValues) Then Exit Function
+
+    ' Перед SQL-поиском освобождаем page-scoped engine PEB, чтобы два ADO
+    ' connection не держали одновременно последний MedicalDaily-файл.
+    private_DisposeCachedExporters
+    If Not m_ExporterCfgDataProvider Is Nothing Then _
+        m_ExporterCfgDataProvider.Dispose
+    Set m_ExporterCfgDataProvider = Nothing
+    ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
+
+    If Not m_MedicalReportsScen.TryLoadTables( _
+        filterValues, reportTables) Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.RuntimeSources.SetItemsSource( _
+        MEDICAL_REPORTS_RUNTIME_KEY, reportTables, False) Then Exit Function
+    If Not pageBase.TryReflowControl( _
+        MEDICAL_REPORTS_CONTROL_NAME) Then Exit Function
+    SearchMedicalReports = True
+End Function
+
+Private Function private_TryReadMedicalReportFilters( _
+    ByRef outFilterValues As Object _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim filterRange As Range
+    Dim filterColumns As Collection
+    Dim columnIndex As Long
+    Dim cellValue As Variant
+    Dim filterValue As String
+
+    Set outFilterValues = Nothing
+    If m_MedicalReportsScen Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        MEDICAL_REPORTS_FILTER_INPUTS_CONTAINER, filterRange) Then
+        VBA.MsgBox "Не вдалося знайти рядок фільтрів стройових записок.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Стройові записки"
+        Exit Function
+    End If
+    If Not m_MedicalReportsScen.TryGetFilterColumns( _
+        filterColumns) Then Exit Function
+    If filterRange.Columns.Count < filterColumns.Count Then
+        VBA.MsgBox "Рядок фільтрів містить менше колонок, ніж налаштовано.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Стройові записки"
+        Exit Function
+    End If
+    Set outFilterValues = ex_Helpers.fn_CreateDictionaryTextCompare()
+    For columnIndex = 1 To filterColumns.Count
+        cellValue = filterRange.Cells(1, columnIndex).Value2
+        filterValue = VBA.vbNullString
+        If Not VBA.IsError(cellValue) And Not VBA.IsNull(cellValue) And _
+            Not VBA.IsEmpty(cellValue) Then
+            filterValue = VBA.Trim$(VBA.CStr(cellValue))
+        End If
+        outFilterValues(VBA.CStr(filterColumns.Item(columnIndex))) = _
+            filterValue
+    Next columnIndex
+    private_TryReadMedicalReportFilters = True
 End Function
 
 Public Function OnAcceptOrderReferenceClick( _
@@ -727,6 +992,8 @@ Private Sub private_DeleteBottomWorkspaceCommandShapes(ByVal ws As Worksheet)
     private_DeleteGeneratedShapeIfExists ws, "btn_ShowExportEditingActive"
     private_DeleteGeneratedShapeIfExists ws, "btn_ShowValidation"
     private_DeleteGeneratedShapeIfExists ws, "btn_ShowValidationActive"
+    private_DeleteGeneratedShapeIfExists ws, "btn_ShowMedicalReports"
+    private_DeleteGeneratedShapeIfExists ws, "btn_ShowMedicalReportsActive"
 End Sub
 
 Public Property Get IsLookupEnabled() As Boolean
@@ -1134,6 +1401,7 @@ Public Function UpdateDataFromConfigTable(ByVal configTable As obj_ConfigTable) 
     If Not private_RegisterExportFormTables(False) Then Exit Function
     If Not private_RegisterMovementHistoryTable(False) Then Exit Function
     If Not private_RegisterExportedEventMenus(False, False) Then Exit Function
+    If Not private_EnsureMedicalReportsRuntime(False) Then Exit Function
     If Not private_EnsureHotkeyRows(False) Then Exit Function
     UpdateDataFromConfigTable = True
 End Function
@@ -1175,6 +1443,7 @@ Public Function PrepareRuntime(Optional ByVal notifyChange As Boolean = False) A
     If Not private_RegisterDummyTables(notifyChange) Then Exit Function
     If Not private_EnsureOrderHistoryRuntime(notifyChange) Then Exit Function
     If Not private_EnsureValidationResultsRuntime(notifyChange) Then Exit Function
+    If Not private_EnsureMedicalReportsRuntime(notifyChange) Then Exit Function
     If Not private_EnsureHotkeyRows(notifyChange) Then Exit Function
     PrepareRuntime = True
 End Function
@@ -3008,13 +3277,19 @@ End Function
 
 Private Function private_IsHospitalReturnProfile() As Boolean
     Dim sectionText As String
+    Dim sectionKey As String
 
     If m_Data Is Nothing Then Exit Function
     sectionText = VBA.Trim$(m_SelectedMainProfile)
     If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
-    private_IsHospitalReturnProfile = ( _
-        private_NormalizeText(sectionText) = _
-        private_NormalizeText(m_Data.SectionTypeCloseFromTreatment))
+    sectionKey = private_NormalizeText(sectionText)
+
+    Select Case sectionKey
+        Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
+             private_NormalizeText( _
+                m_Data.SectionTypeTransferTreatmentToTreatmentVacation)
+            private_IsHospitalReturnProfile = True
+    End Select
 End Function
 
 Private Function private_TryApplyMovementHospitalDefaults() As Boolean
@@ -3432,6 +3707,38 @@ Private Function private_EnsureValidationResultsRuntime( _
     Set emptyItems = New Collection
     private_EnsureValidationResultsRuntime = pageBase.RuntimeSources.SetItemsSource( _
         VBA.LCase$(VALIDATION_RESULTS_RUNTIME_KEY), emptyItems, notifyChange)
+End Function
+
+Private Function private_EnsureMedicalReportsRuntime( _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim existingItems As Collection
+    Dim emptyItems As Collection
+    Dim existingFilterItems As Collection
+
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.RuntimeSources.TryGetItemsSourceByKey( _
+        VBA.LCase$(MEDICAL_REPORTS_RUNTIME_KEY), _
+        existingItems, True) Then Exit Function
+    If existingItems Is Nothing Then
+        Set emptyItems = New Collection
+        If Not pageBase.RuntimeSources.SetItemsSource( _
+            VBA.LCase$(MEDICAL_REPORTS_RUNTIME_KEY), _
+            emptyItems, notifyChange) Then Exit Function
+    End If
+    If Not pageBase.RuntimeSources.TryGetItemsSourceByKey( _
+        VBA.LCase$(MEDICAL_REPORTS_FILTERS_RUNTIME_KEY), _
+        existingFilterItems, True) Then Exit Function
+    If existingFilterItems Is Nothing Then
+        Set emptyItems = New Collection
+        If Not pageBase.RuntimeSources.SetItemsSource( _
+            VBA.LCase$(MEDICAL_REPORTS_FILTERS_RUNTIME_KEY), _
+            emptyItems, notifyChange) Then Exit Function
+    End If
+    private_EnsureMedicalReportsRuntime = True
 End Function
 
 Private Function private_TryBuildOrderHistoryItems( _
@@ -4965,6 +5272,10 @@ Private Function private_TryUpdateExportSettings(ByVal configTable As obj_Config
     Dim prsnlEvntBuilderCfgParser As obj_PrsnlEvntBuilderCfgParser
 
     private_ResetExportSettings
+    If Not m_ExportEditingScen Is Nothing Then m_ExportEditingScen.Dispose
+    Set m_ExportEditingScen = Nothing
+    If Not m_MedicalReportsScen Is Nothing Then m_MedicalReportsScen.Dispose
+    Set m_MedicalReportsScen = Nothing
     If configTable Is Nothing Then
         private_TryUpdateExportSettings = True
         Exit Function

@@ -530,33 +530,39 @@ Private Function private_RemoveEntriesByWorksheetKey( _
     ByRef entries As Collection, _
     ByVal worksheetKey As String _
 ) As Long
-    Dim entryIndex As Long
+    Dim retainedEntries As Collection
     Dim entry As Object
+    Dim entryItem As Variant
     Dim entrySheetName As String
+    Dim removedCount As Long
 
     worksheetKey = VBA.LCase$(VBA.Trim$(worksheetKey))
     If VBA.Len(worksheetKey) = 0 Then Exit Function
     If entries Is Nothing Then Exit Function
 
-    For entryIndex = entries.Count To 1 Step -1
+    ' Collection.Remove в цикле и явное освобождение каждого Excel.Range
+    ' становятся дорогими на TableList с тысячами зарегистрированных parts.
+    ' За один проход собираем retained entries, затем атомарно заменяем storage.
+    Set retainedEntries = New Collection
+    For Each entryItem In entries
         Set entry = Nothing
         entrySheetName = VBA.vbNullString
 
         On Error Resume Next
-        Set entry = entries.Item(entryIndex)
+        Set entry = entryItem
         If Not entry Is Nothing Then entrySheetName = VBA.LCase$(VBA.Trim$(VBA.CStr(entry("SheetName"))))
         On Error GoTo 0
 
         If VBA.StrComp(entrySheetName, worksheetKey, VBA.vbTextCompare) = 0 Then
-            On Error Resume Next
-            If Not entry Is Nothing Then Set entry("Range") = Nothing
-            entries.Remove entryIndex
-            On Error GoTo 0
-            private_RemoveEntriesByWorksheetKey = private_RemoveEntriesByWorksheetKey + 1
+            removedCount = removedCount + 1
+        ElseIf Not entry Is Nothing Then
+            retainedEntries.Add entry
         End If
-    Next entryIndex
+    Next entryItem
 
-    If entries.Count = 0 Then Set entries = Nothing
+    Set entries = Nothing
+    If retainedEntries.Count > 0 Then Set entries = retainedEntries
+    private_RemoveEntriesByWorksheetKey = removedCount
 End Function
 
 Private Function private_RemoveEntriesByControlKey( _

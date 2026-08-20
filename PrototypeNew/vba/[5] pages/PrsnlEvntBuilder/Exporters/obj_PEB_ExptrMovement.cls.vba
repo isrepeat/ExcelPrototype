@@ -1506,7 +1506,6 @@ Public Function Export( _
     Dim insertedRow As ListRow
     Dim targetRowRange As Range
     Dim targetValues As Variant
-    Dim openedByExporter As Boolean
     Dim fastModeStarted As Boolean
     Dim prevScreenUpdating As Boolean
     Dim prevEnableEvents As Boolean
@@ -1579,6 +1578,12 @@ Public Function Export( _
         Exit Function
     End If
 
+    If Not m_Base.TryGetOpenTargetWorkbook(targetWb) Then
+        VBA.MsgBox "Откройте файл-источник Movement перед экспортом в него.", _
+            VBA.vbExclamation, "PrototypeNew / Movement export"
+        Exit Function
+    End If
+
     ' Основная source-таблица содержит данные строки события, а meta-ТВО
     ' таблицы ниже собираются в синхронные многострочные Movement-поля.
     If Not m_Base.TryGetMainSourceTable(sourceTables, sourceTable) Then Exit Function
@@ -1631,8 +1636,6 @@ Public Function Export( _
 
     m_Base.BeginFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     fastModeStarted = True
-
-    If Not m_Base.TryOpenTargetWorkbook(targetWb, openedByExporter) Then GoTo CleanFail
 
     If Not m_Base.TryGetWorksheet(targetWb, m_Base.ResolveTargetWorksheetName(), targetWs) Then GoTo CleanFail
     If Not m_Base.TryFindConfiguredTargetTable(targetWs, targetTable) Then GoTo CleanFail
@@ -1736,7 +1739,7 @@ Public Function Export( _
         sourceTable, sectionTypeRaw, manualOrderNoText, orderDate, _
         targetWb.FullName) Then GoTo CleanFail
 
-    If Not openedByExporter And SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
+    If SAVE_ALREADY_OPEN_WORKBOOK Then targetWb.Save
     Export = True
     GoTo CleanExit
 
@@ -1763,11 +1766,6 @@ CleanFail:
     End If
 
 CleanExit:
-    If openedByExporter Then
-        On Error Resume Next
-        targetWb.Close SaveChanges:=Export
-        On Error GoTo 0
-    End If
     If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     If Export And undoActionReady Then
         If Not rt_UndoManager.fn_PushExecutedAction(undoAction) Then
@@ -1780,7 +1778,6 @@ EH:
     private_LogError "Movement export exception: [" & VBA.CStr(Err.Number) & "] " & Err.Description
     VBA.MsgBox "PrototypeNew: Movement export failed. " & Err.Description, VBA.vbExclamation, "PrototypeNew / Movement export"
     On Error Resume Next
-    If openedByExporter Then targetWb.Close SaveChanges:=False
     If fastModeStarted Then m_Base.RestoreFastExcelMode prevScreenUpdating, prevEnableEvents, prevDisplayAlerts, prevCalculation
     On Error GoTo 0
 End Function

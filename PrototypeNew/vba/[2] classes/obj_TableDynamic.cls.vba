@@ -13,6 +13,9 @@ Private m_SourceAliasTemplate As String
 Private m_Columns As list__obj_Column
 Private m_Rows As list__obj_Row
 Private m_Schema As obj_DynamicTableSchema
+Private m_CompactData As obj_TableData
+Private m_CompactRowIndexes As Collection
+Private m_CompactTagByTextLength As Object
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -70,7 +73,16 @@ Public Property Get ColumnCount() As Long
 End Property
 
 Public Property Get RowCount() As Long
-    RowCount = m_Rows.Count
+    If Not m_CompactRowIndexes Is Nothing Then
+        RowCount = m_CompactRowIndexes.Count
+    Else
+        RowCount = m_Rows.Count
+    End If
+End Property
+
+Public Property Get IsCompact() As Boolean
+    IsCompact = Not m_CompactData Is Nothing And _
+        Not m_CompactRowIndexes Is Nothing
 End Property
 
 Public Property Get Columns() As list__obj_Column
@@ -118,10 +130,59 @@ Public Sub Dispose()
     m_SourceAliasTemplate = VBA.vbNullString
     Set m_Columns = Nothing
     Set m_Rows = Nothing
+    Set m_CompactData = Nothing
+    Set m_CompactRowIndexes = Nothing
+    Set m_CompactTagByTextLength = Nothing
     If Not m_Schema Is Nothing Then m_Schema.Dispose
     Set m_Schema = Nothing
     On Error GoTo 0
 End Sub
+
+Public Function SetCompactData( _
+    ByVal tableData As obj_TableData, _
+    ByVal rowIndexes As Collection _
+) As Boolean
+    If tableData Is Nothing Or rowIndexes Is Nothing Then Exit Function
+    Set m_CompactData = tableData
+    Set m_CompactRowIndexes = rowIndexes
+    SetCompactData = True
+End Function
+
+Public Function AddCompactTextLengthTag( _
+    ByVal textLength As Long, _
+    ByVal tagName As String _
+) As Boolean
+    tagName = VBA.LCase$(VBA.Trim$(tagName))
+    If textLength <= 0 Or VBA.Len(tagName) = 0 Then Exit Function
+    If m_CompactTagByTextLength Is Nothing Then
+        Set m_CompactTagByTextLength = VBA.CreateObject("Scripting.Dictionary")
+        m_CompactTagByTextLength.CompareMode = 1
+    End If
+    m_CompactTagByTextLength(VBA.CStr(textLength)) = tagName
+    AddCompactTextLengthTag = True
+End Function
+
+Public Function CompactTagForValue(ByVal valueText As String) As String
+    Dim lengthKey As String
+
+    If m_CompactTagByTextLength Is Nothing Then Exit Function
+    lengthKey = VBA.CStr(VBA.Len(valueText))
+    If Not m_CompactTagByTextLength.Exists(lengthKey) Then Exit Function
+    CompactTagForValue = VBA.CStr(m_CompactTagByTextLength(lengthKey))
+End Function
+
+Public Function CompactValueAt( _
+    ByVal visibleRowIndex As Long, _
+    ByVal columnIndex As Long _
+) As String
+    Dim sourceRowIndex As Long
+
+    If Not Me.IsCompact Then Exit Function
+    If visibleRowIndex <= 0 Or visibleRowIndex > m_CompactRowIndexes.Count Then _
+        Exit Function
+    sourceRowIndex = VBA.CLng(m_CompactRowIndexes.Item(visibleRowIndex))
+    CompactValueAt = m_CompactData.ValueAt(sourceRowIndex, columnIndex)
+End Function
 
 Public Function PushColumn(ByVal tableColumn As obj_Column) As Boolean
     Dim newColumn As obj_Column
