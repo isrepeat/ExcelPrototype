@@ -941,6 +941,7 @@ Private Function private_ExtractDataset( _
     Dim fieldNodes As Object, fieldNode As Object
     Dim patternNode As Object, patternText As String, datasetId As String
     Dim matchIndex As Long, datasetMatchIndex As Long, valueText As String
+    Dim columnIndex As Long, cellTag As String
     Dim scopeTexts As Collection, scopeText As Variant
     Dim contextItems As Collection, contextItem As Variant
     Dim executionItems As Collection, expandedItem As Variant
@@ -1056,13 +1057,21 @@ Private Function private_ExtractDataset( _
                 Next fieldNode
 
                 Set rowObj = New obj_Row
+                columnIndex = 0
                 For Each columnNode In columnNodes
+                    columnIndex = columnIndex + 1
                     valueText = private_ResolveValue(ex_XmlCore.fn_NodeAttrText(columnNode, "value"), fieldValues)
                     valueText = private_ApplyTransforms( _
                         valueText, columnNode, fieldValues)
                     valueText = private_ApplyColumnRules( _
                         valueText, datasetNode, columnNode, fieldValues)
                     rowObj.PushCellRaw valueText
+                    cellTag = VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+                        columnNode, "cellTag"))
+                    If VBA.Len(cellTag) > 0 Then
+                        If Not rowObj.AddCellTag( _
+                            columnIndex, cellTag) Then Exit Function
+                    End If
                 Next columnNode
                 If Not tableObj.PushRow(rowObj) Then Exit Function
                 If claimMatches Then
@@ -1096,7 +1105,9 @@ Private Function private_ExtractDataset( _
                 fieldValues) Then Exit Function
         Next fieldNode
         Set rowObj = New obj_Row
+        columnIndex = 0
         For Each columnNode In columnNodes
+            columnIndex = columnIndex + 1
             valueText = private_ResolveValue( _
                 ex_XmlCore.fn_NodeAttrText(columnNode, "value"), _
                 fieldValues)
@@ -1105,6 +1116,12 @@ Private Function private_ExtractDataset( _
             valueText = private_ApplyColumnRules( _
                 valueText, datasetNode, columnNode, fieldValues)
             rowObj.PushCellRaw valueText
+            cellTag = VBA.Trim$(ex_XmlCore.fn_NodeAttrText( _
+                columnNode, "cellTag"))
+            If VBA.Len(cellTag) > 0 Then
+                If Not rowObj.AddCellTag( _
+                    columnIndex, cellTag) Then Exit Function
+            End If
         Next columnNode
         If Not tableObj.PushRow(rowObj) Then Exit Function
     End If

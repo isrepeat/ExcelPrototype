@@ -105,6 +105,14 @@
             rowHeight:22;
           }"/>
 
+        <!-- Значения ТВО визуально выделяются среди остальных данных строки. -->
+        <rule
+          target="controlPart"
+          selector="type=tablelist;name=ExtractedTables;part=tag-tvo-assignment"
+          styles="{
+            fontColor:#38BDF8;
+          }"/>
+
         <!-- Семантический тег приходит из модели таблицы. Цвет является
              настройкой этой страницы и не зашит в общий TableList renderer. -->
         <rule
