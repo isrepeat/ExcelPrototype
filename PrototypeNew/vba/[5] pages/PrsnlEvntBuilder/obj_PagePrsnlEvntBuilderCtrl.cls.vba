@@ -1116,6 +1116,7 @@ End Function
 Public Function ClearDependentDraftFields(ByVal lookupKey As String) As Boolean
     Dim dependentAliases As Object
     Dim sectionText As String
+    Dim reportPersonIsVisible As Boolean
 
     Set dependentAliases = ex_Helpers.fn_CreateDictionaryTextCompare()
     sectionText = VBA.Trim$(m_SelectedMainProfile)
@@ -1135,9 +1136,26 @@ Public Function ClearDependentDraftFields(ByVal lookupKey As String) As Boolean
             ' meta-профиль, m_SelectedMainProfile всё равно указывает на событие,
             ' к которому относится редактируемая форма.
             If Not private_AppendFioDependentAliases(sectionText, dependentAliases) Then Exit Function
+            If Not private_TryIsVisibleDraftAlias( _
+                DRAFT_ALIAS_REPORT_PERSON, reportPersonIsVisible) Then Exit Function
+            If reportPersonIsVisible Then
+                If dependentAliases.Exists(DRAFT_ALIAS_INCOMING_NO) Then _
+                    dependentAliases.Remove DRAFT_ALIAS_INCOMING_NO
+                If dependentAliases.Exists(DRAFT_ALIAS_INCOMING_DATE) Then _
+                    dependentAliases.Remove DRAFT_ALIAS_INCOMING_DATE
+            Else
+                dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
+                dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
+            End If
 
         Case "op_commander"
             If Not private_AppendCommanderDependentAliases(sectionText, dependentAliases) Then Exit Function
+            If Not private_TryIsVisibleDraftAlias( _
+                DRAFT_ALIAS_REPORT_PERSON, reportPersonIsVisible) Then Exit Function
+            If reportPersonIsVisible Then
+                dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
+                dependentAliases(DRAFT_ALIAS_INCOMING_DATE) = True
+            End If
 
         Case Else
             ClearDependentDraftFields = True
@@ -1387,7 +1405,6 @@ End Sub
 Private Sub private_AddStandardCommanderDependentAliases(ByVal dependentAliases As Object)
     dependentAliases(DRAFT_ALIAS_REPORT_RANK) = True
     dependentAliases(DRAFT_ALIAS_REPORT_POSITION_CODE) = True
-    dependentAliases(DRAFT_ALIAS_INCOMING_NO) = True
 End Sub
 
 Public Function UpdateDataFromConfigTable(ByVal configTable As obj_ConfigTable) As Boolean
@@ -6030,6 +6047,48 @@ Private Function private_ReadHeaderText(ByVal headerCell As Range) As String
     On Error GoTo 0
 
     private_ReadHeaderText = VBA.Trim$(valueText)
+End Function
+
+Private Function private_TryIsVisibleDraftAlias( _
+    ByVal aliasText As String, _
+    ByRef outIsVisible As Boolean _
+) As Boolean
+    Dim pageBase As obj_PageBase
+    Dim draftValuesRange As Range
+    Dim tagEntries As Collection
+    Dim tagEntryObj As Variant
+    Dim tagEntry As Object
+
+    outIsVisible = False
+    aliasText = VBA.Trim$(aliasText)
+    If VBA.Len(aliasText) = 0 Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange( _
+        EVENT_DRAFT_VALUES_CONTAINER_NAME, draftValuesRange) Then Exit Function
+    If draftValuesRange Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutTagEntriesInRange( _
+        draftValuesRange, tagEntries, "visible") Then Exit Function
+
+    If Not tagEntries Is Nothing Then
+        For Each tagEntryObj In tagEntries
+            If Not VBA.IsObject(tagEntryObj) Then GoTo ContinueTag
+            Set tagEntry = tagEntryObj
+            If tagEntry Is Nothing Then GoTo ContinueTag
+            If Not tagEntry.Exists("Tag") Then GoTo ContinueTag
+            If VBA.StrComp( _
+                VBA.Trim$(VBA.CStr(tagEntry("Tag"))), aliasText, _
+                VBA.vbTextCompare) = 0 Then
+                outIsVisible = True
+                Exit For
+            End If
+ContinueTag:
+        Next tagEntryObj
+    End If
+
+    private_TryIsVisibleDraftAlias = True
 End Function
 
 Private Function private_ClearVisibleDraftFieldsByAlias(ByVal aliasesToClear As Object) As Boolean

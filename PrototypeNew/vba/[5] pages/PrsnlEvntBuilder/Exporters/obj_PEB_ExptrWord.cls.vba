@@ -2832,7 +2832,9 @@ Private Function private_TryNormalizeDocumentNotesForWord( _
     If sourceTables Is Nothing Then Exit Function
 
     Set data = New obj_PrsnlEvntBuilderData
-    isArrival = data.IsMovementClosingSectionType(sectionTypeText)
+    ' Для переходов из лечения (например, лікування => ВЛК за межами)
+    ' документ также является выпиской, хотя секция не является чистым closing.
+    isArrival = data.UsesHospitalDischargeBasis(sectionTypeText)
 
     For Each tableValue In sourceTables
         Set sourceTable = tableValue
