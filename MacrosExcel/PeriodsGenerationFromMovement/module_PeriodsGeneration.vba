@@ -17,6 +17,7 @@ Private Const SOURCE_COL_RANK As String = "Звання"
 Private Const SOURCE_COL_NAME As String = "ПІБ"
 Private Const SOURCE_COL_TAX_ID As String = "ІПН"
 Private Const SOURCE_COL_POSITION As String = "Посада"
+Private Const SOURCE_COL_EVENT As String = "Подія"
 
 Private Const SOURCE_COL_PERIOD_FROM As String = "Вибуття"
 Private Const SOURCE_COL_PERIOD_TO As String = "Прибуття"
@@ -34,24 +35,32 @@ Private Const TARGET_COL_RANK As String = "Звання"
 Private Const TARGET_COL_NAME As String = "ПІБ"
 Private Const TARGET_COL_TAX_ID As String = "ІПН"
 Private Const TARGET_COL_POSITION As String = "Посада"
+Private Const TARGET_COL_EVENT As String = "Подія"
 
 Private Const TARGET_COL_DEPARTURE_ORDER As String = "Наказ.Вибуття"
 Private Const TARGET_COL_PERIOD_FROM As String = "Період.Вибуття"
 Private Const TARGET_COL_PERIOD_TO As String = "Період.Прибуття"
 Private Const TARGET_COL_ARRIVAL_ORDER As String = "Наказ.Прибуття"
-
-Private Const TARGET_COL_ADDITIONAL_INFO As String = "Додаткова інформація"
+Private Const TARGET_COL_PERIOD_COUNT As String = "Період.Кількість"
 
 ' ----------------------------
 ' Parameters
 ' ----------------------------
-Private Const PARAM_PERIOD_FROM_CELL As String = "E3"
-Private Const PARAM_PERIOD_TO_CELL As String = "F3"
+Private Const PARAM_PERIOD_FROM_CELL As String = "D3"
+Private Const PARAM_PERIOD_TO_CELL As String = "E3"
 
 ' ----------------------------
 ' Merge options
 ' ----------------------------
-Private Const MERGE_ADJACENT_DAYS As Boolean = True
+' Только эти типы событий можно объединять в один непрерывный период.
+' Любое другое событие создает границу периода.
+Private Const MERGEABLE_EVENTS As String = _
+    "Відпустка для лікування" & _
+    "|Стаціонарне лікування" & _
+    "|ВЛК за межами"
+
+Private Const EVENTS_SEPARATOR As String = " | "
+Private Const OPEN_PERIOD_TO_TEXT As String = "по теперішній час"
 
 ' ----------------------------
 ' UI
@@ -75,11 +84,14 @@ Private Const MSG_NO_PERIODS As String ="No periods intersect the requested rang
 Private Const MSG_DONE_PREFIX As String ="Calculation completed. Period count: "
 Private Const MSG_CANCELLED As String ="Calculation cancelled."
 Private Const MSG_UNEXPECTED_ERROR As String ="Unexpected error occurred."
+Private Const MSG_CALCULATION_ALREADY_RUNNING As String = _
+    "Period calculation is already running. Wait for it to complete."
 
 ' ============================================================
 ' Module state
 ' ============================================================
 Private gCancelRequested As Boolean
+Private gCalculationRunning As Boolean
 
 ' ============================================================
 ' Data structures
@@ -89,6 +101,9 @@ Private Type PeriodInfo
     PersonName As String
     taxId As String
     Position As String
+    EventName As String
+    LastEventName As String
+    IsOpen As Boolean
 
     DepartureOrder As String
     dateFrom As Date
@@ -113,13 +128,18 @@ Public Sub CalculatePeriods()
 
     Dim result As Boolean
 
+    If gCalculationRunning Then
+        MsgBox MSG_CALCULATION_ALREADY_RUNNING, vbExclamation
+        Exit Sub
+    End If
     On Error GoTo ErrorHandler
+    gCalculationRunning = True
     gCancelRequested = False
     Application.StatusBar = "Preparing calculation..."
     ClearLog
     LogDebug "Calculation started"
     ' --------------------------------------------------------
-    ' Find source
+    ' Поиск исходной таблицы
     ' --------------------------------------------------------
     If Not FindSourceTable(sourceWorkbook, sourceSheet, sourceTable) Then
         LogError "Source table was not found"
@@ -131,7 +151,7 @@ Public Sub CalculatePeriods()
         GoTo Cancelled
     End If
     ' --------------------------------------------------------
-    ' Find target
+    ' Поиск целевой таблицы
     ' --------------------------------------------------------
     If Not FindTargetTable(targetSheet, targetTable) Then
         LogError "Target table was not found"
@@ -139,7 +159,7 @@ Public Sub CalculatePeriods()
         GoTo ExitPoint
     End If
     ' --------------------------------------------------------
-    ' Validate
+    ' Проверка обязательных данных
     ' --------------------------------------------------------
     If Not ValidateSourceColumns(sourceTable) Then
         MsgBox MSG_SOURCE_COLUMN_NOT_FOUND, vbExclamation
@@ -150,7 +170,7 @@ Public Sub CalculatePeriods()
         GoTo ExitPoint
     End If
     ' --------------------------------------------------------
-    ' Parameters
+    ' Чтение параметров расчета
     ' --------------------------------------------------------
     If Not TryReadDateParameters(targetSheet, filterDateFrom, filterDateTo) Then
         LogError "Invalid calculation range"
@@ -159,7 +179,7 @@ Public Sub CalculatePeriods()
     End If
     LogDebug "Calculation range: " & Format$(filterDateFrom, "dd.mm.yyyy") & " - " & Format$(filterDateTo, "dd.mm.yyyy")
     ' --------------------------------------------------------
-    ' Execute
+    ' Выполнение расчета
     ' --------------------------------------------------------
     result = BuildPeriods(sourceTable, targetTable, filterDateFrom, filterDateTo)
     If gCancelRequested Then
@@ -170,10 +190,12 @@ Cancelled:
     LogWarning "Calculation cancelled by user"
     MsgBox MSG_CANCELLED, vbInformation
 ExitPoint:
+    gCalculationRunning = False
     Application.StatusBar = False
     Exit Sub
 ErrorHandler:
     LogError "Unexpected error" & " | Number=" & Err.Number & " | Description=" & Err.Description
+    gCalculationRunning = False
     Application.StatusBar = False
     MsgBox MSG_UNEXPECTED_ERROR, vbCritical
 End Sub
@@ -201,14 +223,14 @@ Private Function BuildPeriods( _
 
     BuildPeriods = False
     ' --------------------------------------------------------
-    ' Read all closed events
+    ' Чтение закрытых и открытых событий
     ' --------------------------------------------------------
     Application.StatusBar = "Reading source data..."
-    sourceCount = ReadClosedPeriods(sourceTable, sourcePeriods)
+    sourceCount = ReadPeriods(sourceTable, sourcePeriods)
     If gCancelRequested Then
         Exit Function
     End If
-    LogDebug "Closed source event count: " & sourceCount
+    LogDebug "Source event count: " & sourceCount
     If sourceCount = 0 Then
         ClearAllTargetRows targetTable
         MsgBox MSG_NO_PERIODS, vbInformation
@@ -216,7 +238,7 @@ Private Function BuildPeriods( _
         Exit Function
     End If
     ' --------------------------------------------------------
-    ' Sort
+    ' Сортировка событий
     ' --------------------------------------------------------
     Application.StatusBar = "Sorting source periods..."
     SortPeriods sourcePeriods, sourceCount
@@ -224,7 +246,7 @@ Private Function BuildPeriods( _
         Exit Function
     End If
     ' --------------------------------------------------------
-    ' Merge
+    ' Объединение непрерывных периодов
     ' --------------------------------------------------------
     Application.StatusBar = "Merging periods..."
     mergedCount = MergePeriodsByPerson(sourcePeriods, sourceCount, mergedPeriods)
@@ -233,9 +255,9 @@ Private Function BuildPeriods( _
     End If
     LogDebug "Merged period count: " & mergedCount
     ' --------------------------------------------------------
-    ' Filter by requested range
+    ' Фильтрация по заданному диапазону
     '
-    ' Real dates are preserved.
+    ' Исходные даты периодов сохраняются без обрезки.
     ' --------------------------------------------------------
     Application.StatusBar = "Filtering result..."
     finalCount = FilterPeriodsByRange(mergedPeriods, mergedCount, filterDateFrom, filterDateTo)
@@ -244,7 +266,7 @@ Private Function BuildPeriods( _
     End If
     LogDebug "Result period count: " & finalCount
     ' --------------------------------------------------------
-    ' Write
+    ' Запись результата
     ' --------------------------------------------------------
     Application.StatusBar = "Writing result..."
     If Not WritePeriods(targetTable, mergedPeriods, finalCount) Then
@@ -264,9 +286,9 @@ Private Function BuildPeriods( _
 End Function
 
 ' ============================================================
-' Read all closed events
+' Read events
 ' ============================================================
-Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result() As PeriodInfo) As Long
+Private Function ReadPeriods(ByVal sourceTable As ListObject, ByRef result() As PeriodInfo) As Long
     Dim data As Variant
 
     Dim rowCount As Long
@@ -277,6 +299,7 @@ Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result
     Dim nameIndex As Long
     Dim taxIdIndex As Long
     Dim positionIndex As Long
+    Dim eventIndex As Long
 
     Dim fromIndex As Long
     Dim toIndex As Long
@@ -286,6 +309,7 @@ Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result
 
     Dim dateFrom As Date
     Dim dateTo As Date
+    Dim isOpen As Boolean
 
     Dim taxId As String
 
@@ -293,7 +317,7 @@ Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result
     Dim missingTaxIdCount As Long
     Dim openEventCount As Long
 
-    ReadClosedPeriods = 0
+    ReadPeriods = 0
     If sourceTable.DataBodyRange Is Nothing Then
         Exit Function
     End If
@@ -301,6 +325,7 @@ Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result
     nameIndex = sourceTable.ListColumns(SOURCE_COL_NAME).Index
     taxIdIndex = sourceTable.ListColumns(SOURCE_COL_TAX_ID).Index
     positionIndex = sourceTable.ListColumns(SOURCE_COL_POSITION).Index
+    eventIndex = sourceTable.ListColumns(SOURCE_COL_EVENT).Index
     fromIndex = sourceTable.ListColumns(SOURCE_COL_PERIOD_FROM).Index
     toIndex = sourceTable.ListColumns(SOURCE_COL_PERIOD_TO).Index
     departureOrderIndex = sourceTable.ListColumns(SOURCE_COL_DEPARTURE_ORDER).Index
@@ -313,17 +338,27 @@ Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result
         If rowIndex Mod UI_YIELD_INTERVAL = 0 Then
             Application.StatusBar = "Reading source data: " & rowIndex & " / " & rowCount
             If IsCancellationRequested(True) Then
-                ReadClosedPeriods = count
+                ReadPeriods = count
                 Exit Function
             End If
         End If
         If Not TryConvertToDate(data(rowIndex, fromIndex), dateFrom) Then
-            openEventCount = openEventCount + 1
+            invalidPeriodCount = invalidPeriodCount + 1
             GoTo NextRow
         End If
+        isOpen = False
         If Not TryConvertToDate(data(rowIndex, toIndex), dateTo) Then
+            If IsError(data(rowIndex, toIndex)) Then
+                invalidPeriodCount = invalidPeriodCount + 1
+                GoTo NextRow
+            End If
+            If Len(Trim$(SafeString(data(rowIndex, toIndex)))) > 0 Then
+                invalidPeriodCount = invalidPeriodCount + 1
+                GoTo NextRow
+            End If
+            isOpen = True
             openEventCount = openEventCount + 1
-            GoTo NextRow
+            dateTo = DateSerial(9999, 12, 31)
         End If
         If dateTo < dateFrom Then
             invalidPeriodCount = invalidPeriodCount + 1
@@ -340,6 +375,9 @@ Private Function ReadClosedPeriods(ByVal sourceTable As ListObject, ByRef result
             .PersonName = SafeString(data(rowIndex, nameIndex))
             .taxId = taxId
             .Position = SafeString(data(rowIndex, positionIndex))
+            .EventName = SafeString(data(rowIndex, eventIndex))
+            .LastEventName = .EventName
+            .IsOpen = isOpen
             .DepartureOrder = SafeString(data(rowIndex, departureOrderIndex))
             .dateFrom = dateFrom
             .dateTo = dateTo
@@ -356,8 +394,8 @@ NextRow:
     If missingTaxIdCount > 0 Then
         LogWarning "Source rows with empty TaxId skipped: " & missingTaxIdCount
     End If
-    LogDebug "Open events skipped: " & openEventCount
-    ReadClosedPeriods = count
+    LogDebug "Open events included: " & openEventCount
+    ReadPeriods = count
 End Function
 
 ' ============================================================
@@ -507,6 +545,13 @@ End Function
 ' Merge two periods
 ' ============================================================
 Private Sub MergeIntoPeriod(ByRef targetPeriod As PeriodInfo, ByRef sourcePeriod As PeriodInfo)
+    If Len(targetPeriod.EventName) = 0 Then
+        targetPeriod.EventName = sourcePeriod.EventName
+    ElseIf Len(sourcePeriod.EventName) > 0 Then
+        targetPeriod.EventName = targetPeriod.EventName & EVENTS_SEPARATOR & sourcePeriod.EventName
+    End If
+    targetPeriod.LastEventName = sourcePeriod.LastEventName
+    targetPeriod.IsOpen = targetPeriod.IsOpen Or sourcePeriod.IsOpen
 If sourcePeriod.dateTo >targetPeriod.dateTo Then
         targetPeriod.dateTo = sourcePeriod.dateTo
         targetPeriod.ArrivalOrder = sourcePeriod.ArrivalOrder
@@ -525,24 +570,42 @@ End Function
 ' ============================================================
 Private Function IsContinuous(ByRef currentPeriod As PeriodInfo, ByRef NextPeriod As PeriodInfo) As Boolean
     IsContinuous = False
-    ' Overlap or same boundary date.
+    If Not IsMergeableEvent(currentPeriod.LastEventName) Then
+        Exit Function
+    End If
+    If Not IsMergeableEvent(NextPeriod.EventName) Then
+        Exit Function
+    End If
+    ' Периоды пересекаются или имеют общую граничную дату.
 If NextPeriod.dateFrom <=currentPeriod.dateTo Then
         IsContinuous = True
         Exit Function
     End If
-    ' Adjacent calendar days.
+    ' Правило объединения соседних календарных дней временно отключено.
     '
     ' 01.06 - 10.06
     ' 11.06 - 20.06
     '
-    ' Merge only when the order numbers match.
-    If MERGE_ADJACENT_DAYS Then
-        If NextPeriod.dateFrom = DateAdd("d", 1, currentPeriod.dateTo) Then
-            If OrdersMatch(currentPeriod.ArrivalOrder, NextPeriod.DepartureOrder) Then
-                IsContinuous = True
-            End If
-        End If
+    ' Соседние периоды объединяются только при совпадении номеров приказов.
+    ' If NextPeriod.dateFrom = DateAdd("d", 1, currentPeriod.dateTo) Then
+    '     If OrdersMatch(currentPeriod.ArrivalOrder, NextPeriod.DepartureOrder) Then
+    '         IsContinuous = True
+    '     End If
+    ' End If
+End Function
+
+Private Function IsMergeableEvent(ByVal eventName As String) As Boolean
+    eventName = Trim$(eventName)
+    If Len(eventName) = 0 Then
+        IsMergeableEvent = False
+        Exit Function
     End If
+    IsMergeableEvent = InStr( _
+        1, _
+        "|" & MERGEABLE_EVENTS & "|", _
+        "|" & eventName & "|", _
+        vbTextCompare _
+    ) > 0
 End Function
 
 ' ============================================================
@@ -564,8 +627,8 @@ End Function
 ' ============================================================
 ' Filter by requested range
 '
-' Real dates are preserved.
-' Only intersection is checked.
+' Исходные даты периодов сохраняются без обрезки.
+' Проверяется только пересечение с заданным диапазоном.
 ' ============================================================
 Private Function FilterPeriodsByRange( _
     ByRef periods() As PeriodInfo, _
@@ -602,9 +665,8 @@ End Function
 ' ============================================================
 ' Fast bulk target write
 '
-' Old excess ListObject rows are deleted in ONE Range.Delete
-' operation, which is the VBA equivalent of selecting table
-' rows and pressing Ctrl + Minus.
+' Лишние строки ListObject удаляются одним вызовом Range.Delete.
+' Для VBA это аналог выделения строк таблицы и нажатия Ctrl + Minus.
 ' ============================================================
 Private Function WritePeriods( _
     ByVal targetTable As ListObject, _
@@ -622,26 +684,27 @@ Private Function WritePeriods( _
     Dim nameIndex As Long
     Dim taxIdIndex As Long
     Dim positionIndex As Long
+    Dim eventIndex As Long
 
     Dim departureOrderIndex As Long
     Dim fromIndex As Long
     Dim toIndex As Long
     Dim arrivalOrderIndex As Long
-    Dim infoIndex As Long
+    Dim periodCountIndex As Long
 
     WritePeriods = False
     If IsCancellationRequested(True) Then
         Exit Function
     End If
     ' --------------------------------------------------------
-    ' Fast Ctrl-minus equivalent
+    ' Быстрый аналог Ctrl + Minus
     ' --------------------------------------------------------
     DeleteExcessTargetRows targetTable, count
     If IsCancellationRequested(True) Then
         Exit Function
     End If
     ' --------------------------------------------------------
-    ' No result
+    ' Пустой результат
     ' --------------------------------------------------------
     If count = 0 Then
         WritePeriods = True
@@ -649,22 +712,23 @@ Private Function WritePeriods( _
     End If
     columnCount = targetTable.ListColumns.count
     ' --------------------------------------------------------
-    ' Resolve target column indexes
+    ' Определение индексов целевых колонок
     ' --------------------------------------------------------
     rankIndex = targetTable.ListColumns(TARGET_COL_RANK).Index
     nameIndex = targetTable.ListColumns(TARGET_COL_NAME).Index
     taxIdIndex = targetTable.ListColumns(TARGET_COL_TAX_ID).Index
     positionIndex = targetTable.ListColumns(TARGET_COL_POSITION).Index
+    eventIndex = targetTable.ListColumns(TARGET_COL_EVENT).Index
     departureOrderIndex = targetTable.ListColumns(TARGET_COL_DEPARTURE_ORDER).Index
     fromIndex = targetTable.ListColumns(TARGET_COL_PERIOD_FROM).Index
     toIndex = targetTable.ListColumns(TARGET_COL_PERIOD_TO).Index
     arrivalOrderIndex = targetTable.ListColumns(TARGET_COL_ARRIVAL_ORDER).Index
-    infoIndex = targetTable.ListColumns(TARGET_COL_ADDITIONAL_INFO).Index
+    periodCountIndex = targetTable.ListColumns(TARGET_COL_PERIOD_COUNT).Index
     ' --------------------------------------------------------
-    ' Resize once if more rows are required
+    ' Однократное расширение таблицы, если строк недостаточно
     '
-    ' After DeleteExcessTargetRows the table is already the
-    ' correct size when it had more rows than the new result.
+    ' Если строк было больше, чем требуется для нового результата,
+    ' после DeleteExcessTargetRows таблица уже имеет нужный размер.
     ' --------------------------------------------------------
     If targetTable.ListRows.count <> count Then
         Set targetRange = targetTable.HeaderRowRange.Resize(count + 1, columnCount)
@@ -674,7 +738,7 @@ Private Function WritePeriods( _
         Exit Function
     End If
     ' --------------------------------------------------------
-    ' Build output in memory
+    ' Формирование результата в памяти
     ' --------------------------------------------------------
     ReDim data(1 To count, 1 To columnCount)
     For rowIndex = 1 To count
@@ -682,11 +746,26 @@ Private Function WritePeriods( _
         data(rowIndex, nameIndex) = periods(rowIndex).PersonName
         data(rowIndex, taxIdIndex) = periods(rowIndex).taxId
         data(rowIndex, positionIndex) = periods(rowIndex).Position
+        data(rowIndex, eventIndex) = periods(rowIndex).EventName
         data(rowIndex, departureOrderIndex) = periods(rowIndex).DepartureOrder
         data(rowIndex, fromIndex) = periods(rowIndex).dateFrom
-        data(rowIndex, toIndex) = periods(rowIndex).dateTo
-        data(rowIndex, arrivalOrderIndex) = periods(rowIndex).ArrivalOrder
-        data(rowIndex, infoIndex) = vbNullString
+        If periods(rowIndex).IsOpen Then
+            data(rowIndex, toIndex) = OPEN_PERIOD_TO_TEXT
+            data(rowIndex, arrivalOrderIndex) = vbNullString
+            data(rowIndex, periodCountIndex) = CStr(DateDiff( _
+                "d", _
+                periods(rowIndex).dateFrom, _
+                Date _
+            ))
+        Else
+            data(rowIndex, toIndex) = periods(rowIndex).dateTo
+            data(rowIndex, arrivalOrderIndex) = periods(rowIndex).ArrivalOrder
+            data(rowIndex, periodCountIndex) = CStr(DateDiff( _
+                "d", _
+                periods(rowIndex).dateFrom, _
+                periods(rowIndex).dateTo _
+            ))
+        End If
         If rowIndex Mod UI_YIELD_INTERVAL = 0 Then
             Application.StatusBar = "Preparing output: " & rowIndex & " / " & count
             If IsCancellationRequested(True) Then
@@ -695,13 +774,14 @@ Private Function WritePeriods( _
         End If
     Next rowIndex
     ' --------------------------------------------------------
-    ' One bulk Excel write
+    ' Единая пакетная запись в Excel
     ' --------------------------------------------------------
     Application.StatusBar = "Writing result to worksheet..."
     DoEvents
+    targetTable.ListColumns(TARGET_COL_PERIOD_COUNT).DataBodyRange.NumberFormat = "@"
     targetTable.DataBodyRange.value = data
     ' --------------------------------------------------------
-    ' Date formatting
+    ' Форматирование дат
     ' --------------------------------------------------------
     targetTable.ListColumns(TARGET_COL_PERIOD_FROM).DataBodyRange.NumberFormat = "dd.mm.yyyy"
     targetTable.ListColumns(TARGET_COL_PERIOD_TO).DataBodyRange.NumberFormat = "dd.mm.yyyy"
@@ -712,17 +792,17 @@ End Function
 ' ============================================================
 ' Fast Ctrl-minus equivalent
 '
-' Example:
+' Пример:
 '
-' Old result = 3480 rows
-' New result = 900 rows
+' Старый результат = 3480 строк
+' Новый результат = 900 строк
 '
-' Rows 901..3480 are selected as ONE Range and removed using
-' ONE Delete operation.
+' Строки 901..3480 выделяются одним Range и удаляются
+' одной операцией Delete.
 '
-' No ClearFormats.
-' No EntireRow.Delete.
-' No ListRows loop.
+' Без ClearFormats.
+' Без EntireRow.Delete.
+' Без цикла по ListRows.
 ' ============================================================
 Private Sub DeleteExcessTargetRows(ByVal targetTable As ListObject, ByVal newRowCount As Long)
     Dim oldRowCount As Long
@@ -735,7 +815,7 @@ Private Sub DeleteExcessTargetRows(ByVal targetTable As ListObject, ByVal newRow
         Exit Sub
     End If
     ' --------------------------------------------------------
-    ' Delete all table rows
+    ' Удаление всех строк таблицы
     ' --------------------------------------------------------
     If newRowCount <= 0 Then
         If Not targetTable.DataBodyRange Is Nothing Then
@@ -744,20 +824,20 @@ Private Sub DeleteExcessTargetRows(ByVal targetTable As ListObject, ByVal newRow
         Exit Sub
     End If
     ' --------------------------------------------------------
-    ' No excess rows
+    ' Лишних строк нет
     ' --------------------------------------------------------
     If oldRowCount <= newRowCount Then
         Exit Sub
     End If
     deleteCount = oldRowCount - newRowCount
     ' --------------------------------------------------------
-    ' Select only the stale ListObject tail
+    ' Выделение только устаревшего хвоста ListObject
     ' --------------------------------------------------------
 Set staleRange =targetTable.DataBodyRange.Rows(newRowCount + 1).Resize(deleteCount,targetTable.ListColumns.count)
     ' --------------------------------------------------------
-    ' ONE delete operation.
+    ' Одна операция удаления.
     '
-    ' This is the important part.
+    ' Это ключевой участок оптимизации.
     ' --------------------------------------------------------
     staleRange.Delete Shift:=xlShiftUp
 End Sub
@@ -876,6 +956,7 @@ Private Function ValidateSourceColumns(ByVal sourceTable As ListObject) As Boole
     If Not RequireColumn(sourceTable, SOURCE_COL_NAME, "source Name") Then Exit Function
     If Not RequireColumn(sourceTable, SOURCE_COL_TAX_ID, "source TaxId") Then Exit Function
     If Not RequireColumn(sourceTable, SOURCE_COL_POSITION, "source Position") Then Exit Function
+    If Not RequireColumn(sourceTable, SOURCE_COL_EVENT, "source Event") Then Exit Function
     If Not RequireColumn(sourceTable, SOURCE_COL_PERIOD_FROM, "source PeriodFrom") Then Exit Function
     If Not RequireColumn(sourceTable, SOURCE_COL_PERIOD_TO, "source PeriodTo") Then Exit Function
     If Not RequireColumn(sourceTable, SOURCE_COL_DEPARTURE_ORDER, "source DepartureOrder") Then Exit Function
@@ -889,11 +970,12 @@ Private Function ValidateTargetColumns(ByVal targetTable As ListObject) As Boole
     If Not RequireColumn(targetTable, TARGET_COL_NAME, "target Name") Then Exit Function
     If Not RequireColumn(targetTable, TARGET_COL_TAX_ID, "target TaxId") Then Exit Function
     If Not RequireColumn(targetTable, TARGET_COL_POSITION, "target Position") Then Exit Function
+    If Not RequireColumn(targetTable, TARGET_COL_EVENT, "target Event") Then Exit Function
     If Not RequireColumn(targetTable, TARGET_COL_DEPARTURE_ORDER, "target DepartureOrder") Then Exit Function
     If Not RequireColumn(targetTable, TARGET_COL_PERIOD_FROM, "target PeriodFrom") Then Exit Function
     If Not RequireColumn(targetTable, TARGET_COL_PERIOD_TO, "target PeriodTo") Then Exit Function
     If Not RequireColumn(targetTable, TARGET_COL_ARRIVAL_ORDER, "target ArrivalOrder") Then Exit Function
-    If Not RequireColumn(targetTable, TARGET_COL_ADDITIONAL_INFO, "target AdditionalInfo") Then Exit Function
+    If Not RequireColumn(targetTable, TARGET_COL_PERIOD_COUNT, "target PeriodCount") Then Exit Function
     ValidateTargetColumns = True
 End Function
 
