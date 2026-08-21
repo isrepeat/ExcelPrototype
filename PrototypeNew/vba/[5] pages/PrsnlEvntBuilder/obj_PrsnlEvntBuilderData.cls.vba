@@ -718,6 +718,18 @@ Public Function IsHospitalizationSectionType( _
         VBA.vbTextCompare) = 0)
 End Function
 
+Public Function UsesHospitalDischargeBasis( _
+    ByVal sectionTypeText As String _
+) As Boolean
+    Dim previousMovementEventText As String
+
+    If Not TryGetRequiredPreviousMovementEvent( _
+        sectionTypeText, previousMovementEventText) Then Exit Function
+    UsesHospitalDischargeBasis = (VBA.StrComp( _
+        previousMovementEventText, MOVEMENT_EVENT_STATIONARY_TREATMENT, _
+        VBA.vbTextCompare) = 0)
+End Function
+
 Private Function private_BuildPrimaryProfileNames() As Collection
     Dim profileNames As Collection
 
