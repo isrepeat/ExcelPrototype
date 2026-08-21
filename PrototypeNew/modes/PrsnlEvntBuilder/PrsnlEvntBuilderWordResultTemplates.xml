@@ -77,7 +77,7 @@
     <sharedTemplate id="block.VacationDestinationPeriod">
       <text>
         <![CDATA[#^
-#_        {#space}у {[Destination]},#^
+#_        {#space}у {[Destination]|regexreplace:"^медична([ \t]+)рота","медичну$1роту"},#^
 #_        {#if [VacationDurationPhrase]}{#space}{[VacationDurationPhrase]}#^
 #_        {[AdditionalDurationPhrases]}#^
 #_        {#endif}#^
@@ -331,7 +331,7 @@
     </text>
   </template>
 
-  <template name="FromStationaryVlk" hash="0x07">
+  <template name="FromExternalVlk" hash="0x07">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}.#^
@@ -733,7 +733,7 @@
     </text>
   </template>
 
-  <template name="MoveFromHospitalToStationaryVlk" hash="0x1F">
+  <template name="MoveFromHospitalToExternalVlk" hash="0x1F">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -766,7 +766,7 @@
     </text>
   </template>
 
-  <template name="MoveFromStationaryVlkToVacationForCuring" hash="0x21">
+  <template name="MoveFromExternalVlkToVacationForCuring" hash="0x21">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -777,6 +777,23 @@
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="MoveFromExternalVlkToHospital" hash="0x22">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який перебував на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що госпіталізован у {[HospitalAccusative]|lowerFirstLetter}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#include block.OptionalFoodCertificate}#^
+#_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

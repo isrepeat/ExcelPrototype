@@ -842,8 +842,8 @@
         <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </rule>
 
-      <rule id="returned-from-inpatient-vlk" caption="З проходження військово-лікарської комісії стаціонарно" flow="arrival">
-        <scope><match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}З\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно]]></match></scope>
+      <rule id="returned-from-external-vlk" caption="З ВЛК за межами" flow="arrival">
+        <scope><match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:З\s+ВЛК\s+за\s+межами|З\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно)]]></match></scope>
         <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
@@ -971,17 +971,17 @@
       <rule id="departed-for-treatment" kind="section">
         <scope>
           <!--
-            Медрота и стационарная ВЛК являются вариантами лечения, а не
+            Медрота и ВЛК за межами являются вариантами лечения, а не
             отдельными результирующими datasets. Ненумерованный заголовок
             допустим только в начале текущего структурного контекста, чтобы
             вложенное место назначения не активировало второе событие.
           -->
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^\s*|(?:^|\r)\s*\d+(?:\.\d+)*\.?\s*)(?:На\s+лікування|У\s+медичну\s+роту(?:\s+військової\s+частини\s+А7383)?|На\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно)]]></match>
+          <match ignoreCase="true" multiline="false"><![CDATA[(?:^\s*|(?:^|\r)\s*\d+(?:\.\d+)*\.?\s*)(?:На\s+лікування|У\s+медичну\s+роту(?:\s+військової\s+частини\s+А7383)?|На\s+ВЛК\s+за\s+межами|На\s+проходження\s+військово-лікарської\s+комісії\s+стаціонарно)]]></match>
         </scope>
       </rule>
 
       <rule id="departed-for-treatment-destination" kind="section">
-        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:[Уу]\s+([^\r:]+?)(?:\s*,\s*[Зз]\s+({{date}}))?|((?:На\s+)?проходження\s+військово-лікарської\s+комісії\s+стаціонарно)\s*,?\s*[Зз]\s+({{date}})|[Зз]\s+({{date}}))\s*:\s*(?=\r|$)]]></match>
+        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:[Уу]\s+([^\r:]+?)(?:\s*,\s*[Зз]\s+({{date}}))?|((?:На\s+ВЛК\s+за\s+межами|(?:На\s+)?проходження\s+військово-лікарської\s+комісії\s+стаціонарно))\s*,?\s*[Зз]\s+({{date}})|[Зз]\s+({{date}}))\s*:\s*(?=\r|$)]]></match>
         <fields>
           <field id="eventTo" from="$1">
             <transform type="trim"/>

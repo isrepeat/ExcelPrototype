@@ -34,6 +34,11 @@ Private Const MOVEMENT_SOURCE_REPORT_PERSON As String = "ReportPerson"
 Private Const MOVEMENT_SOURCE_REPORT_POSITION_CODE As String = "ReportPositionCode"
 Private Const MOVEMENT_SOURCE_PERSON_RANK As String = "Rank"
 Private Const MOVEMENT_SOURCE_PERSON_IPN As String = "IPN"
+Private Const MOVEMENT_SOURCE_DOCUMENT_NOTE As String = "DocumentNote"
+Private Const MOVEMENT_SOURCE_DOCUMENT_NO As String = "DocNo"
+Private Const MOVEMENT_SOURCE_DOCUMENT_DATE As String = "DocDate"
+Private Const MOVEMENT_SOURCE_VLK_NO As String = "VlkNo"
+Private Const MOVEMENT_SOURCE_VLK_DATE As String = "VlkDate"
 Private Const MOVEMENT_TARGET_ORDER_NO As String = "Вибуття.Наказ"
 Private Const MOVEMENT_TARGET_FOOD_FROM As String = "Вибуття.Продовольче"
 Private Const MOVEMENT_TARGET_DEPARTURE As String = "Вибуття"
@@ -1626,7 +1631,8 @@ Public Function Export( _
     ' Для части профилей значение "Подія" берется не из формы напрямую,
     ' а мапится из типа секции в справочнике PrsnlEvntBuilderData.
     shouldWriteMappedEvent = private_TryMapSectionTypeToEventText(sectionTypeRaw, mappedEventText)
-    If Not private_TryBuildMovementBasisSummary(sourceTable, context, basisSummaryText) Then Exit Function
+    If Not private_TryBuildMovementBasisSummary( _
+        sourceTable, context, sectionTypeRaw, basisSummaryText) Then Exit Function
 
     ' Closing-режим только закрывает существующую строку, поэтому values для новой
     ' строки ему не нужны. Opening и mirror transfer будут писать новую строку.
@@ -2379,7 +2385,7 @@ Private Function private_ResolveMovementDestinationValue( _
     End If
 
     If private_NormalizeText(sectionTypeText) = _
-       private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk) Then
+       private_NormalizeText(m_Data.SectionTypeTransferTreatmentToExternalVlk) Then
         private_ResolveMovementDestinationValue = _
             private_GetOptionalSourceText(sourceTable, sourceRow, "Куди Лікарня скорочена назва")
         Exit Function
@@ -2396,6 +2402,7 @@ End Function
 Private Function private_TryBuildMovementBasisSummary( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal context As Object, _
+    ByVal sectionTypeText As String, _
     ByRef outBasisSummary As String _
 ) As Boolean
     Dim sourceRow As obj_Row
@@ -2423,6 +2430,7 @@ Private Function private_TryBuildMovementBasisSummary( _
     Dim incomingDateValue As Date
     Dim incomingDateResolvedText As String
     Dim basisDetailsText As String
+    Dim additionalBasisText As String
 
     outBasisSummary = VBA.vbNullString
     If sourceTable Is Nothing Then Exit Function
@@ -2565,6 +2573,13 @@ Private Function private_TryBuildMovementBasisSummary( _
 
     outBasisSummary = "рапорт " & reporterText
     If VBA.Len(basisDetailsText) > 0 Then outBasisSummary = outBasisSummary & " (" & basisDetailsText & ")"
+    If m_Data.IsHospitalizationSectionType(sectionTypeText) Then
+        If Not private_TryBuildHospitalizationBasisDetails( _
+            sourceTable, sourceRow, orderNoText, additionalBasisText) Then Exit Function
+        If VBA.Len(additionalBasisText) > 0 Then
+            outBasisSummary = outBasisSummary & "; " & additionalBasisText
+        End If
+    End If
     outBasisSummary = outBasisSummary & "."
     private_TryBuildMovementBasisSummary = True
 End Function
@@ -3139,5 +3154,143 @@ Private Function private_BoolText(ByVal value As Boolean) As String
         private_BoolText = "True"
     Else
         private_BoolText = "False"
+    End If
+End Function
+
+Private Function private_TryBuildHospitalizationBasisDetails( _
+    ByVal sourceTable As obj_TableDynamic, _
+    ByVal sourceRow As obj_Row, _
+    ByVal orderNoText As String, _
+    ByRef outDetailsText As String _
+) As Boolean
+    Dim documentNoteText As String
+    Dim documentNoText As String
+    Dim documentDateText As String
+    Dim documentDateValue As Date
+    Dim documentDetailsText As String
+    Dim vlkNoText As String
+    Dim vlkDateText As String
+    Dim vlkDateValue As Date
+    Dim vlkDetailsText As String
+
+    outDetailsText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, documentNoteText, _
+        MOVEMENT_SOURCE_DOCUMENT_NOTE, "Документ / Замітки") Then _
+        documentNoteText = VBA.vbNullString
+    documentNoteText = private_FilterHospitalizationBasisText(documentNoteText)
+
+    If VBA.Len(documentNoteText) > 0 Then
+        If Not private_TryGetSourceTextByAnyColumn( _
+            sourceTable, sourceRow, documentNoText, _
+            MOVEMENT_SOURCE_DOCUMENT_NO, "Док. №") Then documentNoText = VBA.vbNullString
+        If Not private_TryGetSourceTextByAnyColumn( _
+            sourceTable, sourceRow, documentDateText, _
+            MOVEMENT_SOURCE_DOCUMENT_DATE, "Док. дата") Then documentDateText = VBA.vbNullString
+
+        documentDetailsText = documentNoteText
+        If VBA.Len(documentNoText) > 0 Then _
+            documentDetailsText = documentDetailsText & " № " & documentNoText
+        If VBA.Len(documentDateText) > 0 Then
+            If Not private_TryParseIncomingDateWithOrderContext( _
+                documentDateText, orderNoText, documentDateValue) Then
+                VBA.MsgBox "PrototypeNew: failed to resolve full document date from value '" & _
+                    documentDateText & "'.", VBA.vbExclamation, _
+                    "PrototypeNew / Movement export"
+                Exit Function
+            End If
+            documentDetailsText = documentDetailsText & " від " & _
+                VBA.Format$(documentDateValue, "dd.mm.yyyy")
+        End If
+    End If
+
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, vlkNoText, _
+        MOVEMENT_SOURCE_VLK_NO, "ВЛК №") Then vlkNoText = VBA.vbNullString
+    If Not private_TryGetSourceTextByAnyColumn( _
+        sourceTable, sourceRow, vlkDateText, _
+        MOVEMENT_SOURCE_VLK_DATE, "ВЛК дата") Then vlkDateText = VBA.vbNullString
+    If VBA.Len(vlkNoText) > 0 Or VBA.Len(vlkDateText) > 0 Then
+        vlkDetailsText = "довідка ВЛК"
+        If VBA.Len(vlkNoText) > 0 Then vlkDetailsText = vlkDetailsText & " № " & vlkNoText
+        If VBA.Len(vlkDateText) > 0 Then
+            If Not private_TryParseIncomingDateWithOrderContext( _
+                vlkDateText, orderNoText, vlkDateValue) Then
+                VBA.MsgBox "PrototypeNew: failed to resolve full VLK date from value '" & _
+                    vlkDateText & "'.", VBA.vbExclamation, _
+                    "PrototypeNew / Movement export"
+                Exit Function
+            End If
+            vlkDetailsText = vlkDetailsText & " від " & _
+                VBA.Format$(vlkDateValue, "dd.mm.yyyy")
+        End If
+    End If
+
+    outDetailsText = private_JoinBasisPhrases(vlkDetailsText, documentDetailsText)
+
+    private_TryBuildHospitalizationBasisDetails = True
+End Function
+
+Private Function private_FilterHospitalizationBasisText( _
+    ByVal basisText As String _
+) As String
+    Dim sourceParts As Variant
+    Dim resultParts As Collection
+    Dim resultValues() As String
+    Dim partIndex As Long
+    Dim resultIndex As Long
+    Dim partText As String
+    Dim normalizedPart As String
+
+    basisText = private_NormalizeInlineText(basisText)
+    If VBA.Len(basisText) = 0 Then Exit Function
+
+    sourceParts = VBA.Split(basisText, ";")
+    Set resultParts = New Collection
+    For partIndex = LBound(sourceParts) To UBound(sourceParts)
+        partText = private_TrimMovementBasisPart(VBA.CStr(sourceParts(partIndex)))
+        normalizedPart = private_NormalizeText(partText)
+        If VBA.InStr(1, normalizedPart, "відпускний квиток", VBA.vbTextCompare) = 0 And _
+           VBA.InStr(1, normalizedPart, "посвідчення про відрядження", VBA.vbTextCompare) = 0 Then
+            partText = VBA.Replace(partText, _
+                "виписка із медичної карти стаціонарного хворого", _
+                "ВМКСХ", 1, -1, VBA.vbTextCompare)
+            partText = VBA.Replace(partText, _
+                "медична карта стаціонарного хворого", _
+                "МКСХ", 1, -1, VBA.vbTextCompare)
+            If VBA.Len(partText) > 0 Then resultParts.Add partText
+        End If
+    Next partIndex
+
+    If resultParts.Count = 0 Then Exit Function
+    ReDim resultValues(0 To resultParts.Count - 1)
+    For resultIndex = 1 To resultParts.Count
+        resultValues(resultIndex - 1) = VBA.CStr(resultParts.Item(resultIndex))
+    Next resultIndex
+    private_FilterHospitalizationBasisText = VBA.Join(resultValues, "; ")
+End Function
+
+Private Function private_TrimMovementBasisPart(ByVal valueText As String) As String
+    valueText = VBA.Trim$(valueText)
+    Do While VBA.Len(valueText) > 0 And _
+        (VBA.Right$(valueText, 1) = "." Or _
+         VBA.Right$(valueText, 1) = ";")
+        valueText = VBA.Trim$(VBA.Left$(valueText, VBA.Len(valueText) - 1))
+    Loop
+    private_TrimMovementBasisPart = valueText
+End Function
+
+Private Function private_JoinBasisPhrases( _
+    ByVal leftText As String, _
+    ByVal rightText As String _
+) As String
+    leftText = VBA.Trim$(leftText)
+    rightText = VBA.Trim$(rightText)
+    If VBA.Len(leftText) = 0 Then
+        private_JoinBasisPhrases = rightText
+    ElseIf VBA.Len(rightText) = 0 Then
+        private_JoinBasisPhrases = leftText
+    Else
+        private_JoinBasisPhrases = leftText & "; " & rightText
     End If
 End Function
