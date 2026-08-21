@@ -2575,7 +2575,9 @@ Private Function private_TryBuildMovementBasisSummary( _
     If VBA.Len(basisDetailsText) > 0 Then outBasisSummary = outBasisSummary & " (" & basisDetailsText & ")"
     If m_Data.IsHospitalizationSectionType(sectionTypeText) Then
         If Not private_TryBuildHospitalizationBasisDetails( _
-            sourceTable, sourceRow, orderNoText, additionalBasisText) Then Exit Function
+            sourceTable, sourceRow, orderNoText, _
+            m_Data.UsesHospitalDischargeBasis(sectionTypeText), _
+            additionalBasisText) Then Exit Function
         If VBA.Len(additionalBasisText) > 0 Then
             outBasisSummary = outBasisSummary & "; " & additionalBasisText
         End If
@@ -3161,6 +3163,7 @@ Private Function private_TryBuildHospitalizationBasisDetails( _
     ByVal sourceTable As obj_TableDynamic, _
     ByVal sourceRow As obj_Row, _
     ByVal orderNoText As String, _
+    ByVal usesHospitalDischargeBasis As Boolean, _
     ByRef outDetailsText As String _
 ) As Boolean
     Dim documentNoteText As String
@@ -3178,7 +3181,8 @@ Private Function private_TryBuildHospitalizationBasisDetails( _
         sourceTable, sourceRow, documentNoteText, _
         MOVEMENT_SOURCE_DOCUMENT_NOTE, "Документ / Замітки") Then _
         documentNoteText = VBA.vbNullString
-    documentNoteText = private_FilterHospitalizationBasisText(documentNoteText)
+    documentNoteText = private_FilterHospitalizationBasisText( _
+        documentNoteText, usesHospitalDischargeBasis)
 
     If VBA.Len(documentNoteText) > 0 Then
         If Not private_TryGetSourceTextByAnyColumn( _
@@ -3232,7 +3236,8 @@ Private Function private_TryBuildHospitalizationBasisDetails( _
 End Function
 
 Private Function private_FilterHospitalizationBasisText( _
-    ByVal basisText As String _
+    ByVal basisText As String, _
+    ByVal usesHospitalDischargeBasis As Boolean _
 ) As String
     Dim sourceParts As Variant
     Dim resultParts As Collection
@@ -3252,6 +3257,13 @@ Private Function private_FilterHospitalizationBasisText( _
         normalizedPart = private_NormalizeText(partText)
         If VBA.InStr(1, normalizedPart, "відпускний квиток", VBA.vbTextCompare) = 0 And _
            VBA.InStr(1, normalizedPart, "посвідчення про відрядження", VBA.vbTextCompare) = 0 Then
+            If VBA.StrComp(normalizedPart, "м к", VBA.vbTextCompare) = 0 Then
+                If usesHospitalDischargeBasis Then
+                    partText = "ВМКСХ"
+                Else
+                    partText = "МКСХ"
+                End If
+            End If
             partText = VBA.Replace(partText, _
                 "виписка із медичної карти стаціонарного хворого", _
                 "ВМКСХ", 1, -1, VBA.vbTextCompare)
