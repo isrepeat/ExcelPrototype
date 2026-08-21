@@ -1198,7 +1198,7 @@ Private Function private_AppendFioDependentAliases( _
 
         Case private_NormalizeText(m_Data.SectionTypeCloseFromMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
+             private_NormalizeText(m_Data.SectionTypeCloseFromExternalVlk)
             private_AddStandardFioDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
@@ -1224,7 +1224,7 @@ Private Function private_AppendFioDependentAliases( _
 
         Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToExternalVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
@@ -1237,7 +1237,8 @@ Private Function private_AppendFioDependentAliases( _
 
         Case private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferExternalVlkToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferExternalVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation), _
@@ -1275,7 +1276,7 @@ Private Function private_AppendCommanderDependentAliases( _
              private_NormalizeText(m_Data.SectionTypeCloseFromMedicalCompany), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAmbulatoryVlk), _
              private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromStationaryVlk)
+             private_NormalizeText(m_Data.SectionTypeCloseFromExternalVlk)
             private_AddStandardCommanderDependentAliases dependentAliases
 
         Case private_NormalizeText(m_Data.SectionTypeToTreatment), _
@@ -1289,7 +1290,7 @@ Private Function private_AppendCommanderDependentAliases( _
 
         Case private_NormalizeText(m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferTreatmentVacationToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToStationaryVlk), _
+             private_NormalizeText(m_Data.SectionTypeTransferTreatmentToExternalVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToFamilyVacation), _
@@ -1302,7 +1303,8 @@ Private Function private_AppendCommanderDependentAliases( _
 
         Case private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferExternalVlkToTreatment), _
+             private_NormalizeText(m_Data.SectionTypeTransferExternalVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatment), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation), _
@@ -3482,7 +3484,7 @@ Private Function private_ShouldExtendAbsenceCandidates() As Boolean
              private_NormalizeText(m_Data.SectionTypeTransferAnnualVacationToVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferFamilyVacationToVlk), _
              private_NormalizeText(m_Data.SectionTypeTransferAmbulatoryVlkToTreatmentVacation), _
-             private_NormalizeText(m_Data.SectionTypeTransferStationaryVlkToTreatmentVacation), _
+             private_NormalizeText(m_Data.SectionTypeTransferExternalVlkToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentToTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeTransferMedicalCompanyTreatmentVacationToTreatment)

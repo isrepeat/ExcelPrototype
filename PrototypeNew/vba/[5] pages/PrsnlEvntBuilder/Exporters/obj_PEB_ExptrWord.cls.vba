@@ -1865,6 +1865,7 @@ Private Function private_BuildGroupBookmarkName( _
     Dim availableKeyLength As Long
     Dim availableVisibleKeyLength As Long
     Dim dateParts As Variant
+    Dim appendKeyHash As Boolean
 
     templatePart = VBA.UCase$(private_NormalizeBookmarkPart(templateHash))
     If Not templatePart Like "[0-9A-F][0-9A-F]" Then Exit Function
@@ -1883,6 +1884,10 @@ Private Function private_BuildGroupBookmarkName( _
         Case "text", "none"
             keyPart = private_NormalizeBookmarkPart( _
                 VBA.LCase$(groupKeyText))
+            ' Кириллица превращается в подчёркивания, поэтому разные короткие
+            ' названия одинаковой длины иначе получают один bookmark. Hash
+            ' полного исходного ключа обязателен для всех текстовых групп.
+            appendKeyHash = True
         Case Else
             Exit Function
     End Select
@@ -1896,7 +1901,7 @@ Private Function private_BuildGroupBookmarkName( _
         Exit Function
     End If
 
-    If VBA.Len(keyPart) > availableKeyLength Then
+    If appendKeyHash Or VBA.Len(keyPart) > availableKeyLength Then
         keyHash = private_BuildStableBookmarkHash( _
             VBA.LCase$(VBA.Trim$(groupKeyText)))
         availableVisibleKeyLength = availableKeyLength - _
@@ -2364,7 +2369,7 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     Set builderData = New obj_PrsnlEvntBuilderData
     usesDestinationHospital = (VBA.StrComp( _
         VBA.Trim$(sectionTypeText), _
-        VBA.Trim$(builderData.SectionTypeTransferTreatmentToStationaryVlk), _
+        VBA.Trim$(builderData.SectionTypeTransferTreatmentToExternalVlk), _
         VBA.vbTextCompare) = 0)
     If usesDestinationHospital Then
         If Not m_ExporterCfgDataProvider.CommonData.TryResolveHospitalAccusative( _
