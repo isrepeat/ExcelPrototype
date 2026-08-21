@@ -59,6 +59,12 @@ Private Const MERGEABLE_EVENTS As String = _
     "|Стаціонарне лікування" & _
     "|ВЛК за межами"
 
+' Только периоды с этими событиями отображаются в результате.
+Private Const DISPLAYABLE_EVENTS As String = _
+    "Відпустка для лікування" & _
+    "|Стаціонарне лікування" & _
+    "|ВЛК за межами"
+
 Private Const EVENTS_SEPARATOR As String = " | "
 Private Const OPEN_PERIOD_TO_TEXT As String = "по теперішній час"
 
@@ -103,6 +109,7 @@ Private Type PeriodInfo
     Position As String
     EventName As String
     LastEventName As String
+    HasDisplayableEvent As Boolean
     IsOpen As Boolean
 
     DepartureOrder As String
@@ -377,6 +384,7 @@ Private Function ReadPeriods(ByVal sourceTable As ListObject, ByRef result() As 
             .Position = SafeString(data(rowIndex, positionIndex))
             .EventName = SafeString(data(rowIndex, eventIndex))
             .LastEventName = .EventName
+            .HasDisplayableEvent = IsDisplayableEvent(.EventName)
             .IsOpen = isOpen
             .DepartureOrder = SafeString(data(rowIndex, departureOrderIndex))
             .dateFrom = dateFrom
@@ -551,6 +559,8 @@ Private Sub MergeIntoPeriod(ByRef targetPeriod As PeriodInfo, ByRef sourcePeriod
         targetPeriod.EventName = targetPeriod.EventName & EVENTS_SEPARATOR & sourcePeriod.EventName
     End If
     targetPeriod.LastEventName = sourcePeriod.LastEventName
+    targetPeriod.HasDisplayableEvent = _
+        targetPeriod.HasDisplayableEvent Or sourcePeriod.HasDisplayableEvent
     targetPeriod.IsOpen = targetPeriod.IsOpen Or sourcePeriod.IsOpen
 If sourcePeriod.dateTo >targetPeriod.dateTo Then
         targetPeriod.dateTo = sourcePeriod.dateTo
@@ -595,14 +605,22 @@ If NextPeriod.dateFrom <=currentPeriod.dateTo Then
 End Function
 
 Private Function IsMergeableEvent(ByVal eventName As String) As Boolean
+    IsMergeableEvent = IsEventInList(eventName, MERGEABLE_EVENTS)
+End Function
+
+Private Function IsDisplayableEvent(ByVal eventName As String) As Boolean
+    IsDisplayableEvent = IsEventInList(eventName, DISPLAYABLE_EVENTS)
+End Function
+
+Private Function IsEventInList(ByVal eventName As String, ByVal eventList As String) As Boolean
     eventName = Trim$(eventName)
     If Len(eventName) = 0 Then
-        IsMergeableEvent = False
+        IsEventInList = False
         Exit Function
     End If
-    IsMergeableEvent = InStr( _
+    IsEventInList = InStr( _
         1, _
-        "|" & MERGEABLE_EVENTS & "|", _
+        "|" & eventList & "|", _
         "|" & eventName & "|", _
         vbTextCompare _
     ) > 0
@@ -628,7 +646,8 @@ End Function
 ' Filter by requested range
 '
 ' Исходные даты периодов сохраняются без обрезки.
-' Проверяется только пересечение с заданным диапазоном.
+' В результат попадают только периоды с событиями из DISPLAYABLE_EVENTS,
+' которые пересекаются с заданным диапазоном.
 ' ============================================================
 Private Function FilterPeriodsByRange( _
     ByRef periods() As PeriodInfo, _
@@ -646,6 +665,9 @@ Private Function FilterPeriodsByRange( _
                 FilterPeriodsByRange = writeIndex
                 Exit Function
             End If
+        End If
+        If Not periods(readIndex).HasDisplayableEvent Then
+            GoTo NextPeriod
         End If
         If periods(readIndex).dateTo < filterDateFrom Then
             GoTo NextPeriod
