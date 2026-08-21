@@ -1,4 +1,5 @@
 Option Explicit
+Attribute VB_Name = "module_PeriodsGeneration"
 
 #Const ENABLE_LOGGING = False
 #Const ENABLE_DEBUG_LOGGING = False
