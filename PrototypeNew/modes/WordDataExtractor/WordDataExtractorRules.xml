@@ -16,7 +16,7 @@
   <regexFragments>
     <!-- Формы званий задаются один раз и переиспользуются во всех кадровых
          regex через {{military-rank}}. Более длинные формы стоят первыми. -->
-    <fragment id="military-rank"><![CDATA[молодший\s+лейтенант|молодшого\s+лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|підполковник|підполковника|полковник|полковника|лейтенант|лейтенанта|капітан|капітана|майор|майора|сержант|сержанта|рекрут|рекрута|рядовий|рядового|солдат|солдата]]></fragment>
+    <fragment id="military-rank"><![CDATA[молодший\s+лейтенант|молодшого\s+лейтенанта|старший\s+лейтенант|старшого\s+лейтенанта|старший\s+солдат|старшого\s+солдата|молодший\s+сержант|молодшого\s+сержанта|старший\s+сержант|старшого\s+сержанта|головний\s+сержант|головного\s+сержанта|штаб-сержант|штаб-сержанта|майстер-сержант|майстер-сержанта|підполковник|підполковника|полковник|полковника|лейтенант|лейтенанта|капітан|капітана|майор|майора|сержант|сержанта|рекрут|рекрута|рядовий|рядового|матрос|матроса|солдат|солдата]]></fragment>
     <fragment id="date"><![CDATA[\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|\s+[а-яіїєґ]+\s+\d{4}\s+року)]]></fragment>
     <fragment id="date-words"><![CDATA[\d{1,2}\s+[а-яіїєґ]+\s+\d{4}\s+року]]></fragment>
     <fragment id="item-prefix"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?]]></fragment>
@@ -98,10 +98,10 @@
                   [arrived-for-service-assignment]*
                 ]]>
               </pattern>
-              <pattern id="returned-from-inpatient-vlk">
+              <pattern id="returned-from-external-vlk">
                 <![CDATA[
-                  [returned-from-inpatient-vlk] /
-                  [returned-from-inpatient-vlk]*
+                  [returned-from-external-vlk] /
+                  [returned-from-external-vlk]*
                 ]]>
               </pattern>
               <pattern id="returned-from-family-leave">
@@ -240,7 +240,8 @@
           <transform type="trim"/>
         </field>
         <field id="tvoAssignments" from="$match" ignoreCase="true"
-          regex="((?:Тимчасове\s+виконання\s+обов['’]язків[^\r]*(?:\r|$)\s*)+)"
+          preserveExisting="true"
+          regex="((?:Тимчасове[^\r]*покласти\s+на[^\r]*(?:\r|$)\s*)+)"
           group="1" default=""><transform type="trim"/></field>
         <field id="tvoReturns" from="$match" ignoreCase="true"
           regex="((?:[^\r]*повернутись\s+до\s+виконання\s+обов['’]язків[^\r]*(?:\r|$)\s*)+)"
@@ -250,7 +251,9 @@
         <column id="rank" caption="Звання" value="$rank"/>
         <column id="foodEnrollmentDate" caption="На продовольче" value="$foodEnrollmentDate" flows="arrival;other"/>
         <column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate" flows="departure;other"/>
-        <column id="tvoAssignments" caption="ТВО покласти на" value="$tvoAssignments" flows="departure"/>
+        <column id="tvoAssignments" caption="ТВО покласти на"
+          value="$tvoAssignments" flows="departure"
+          cellTag="tvo-assignment"/>
         <column id="tvoReturns" caption="Повернутись до виконання обов'язків" value="$tvoReturns" flows="arrival"/>
       </commonColumns>
 
@@ -427,17 +430,18 @@
               <match ignoreCase="true" multiline="false" group="1"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+військової\s+частини\s+А7383(?:(?!Згідно\s+Тимчасового\s+алгоритму)[\s\S])*?((?:^|\r)\s*(?:{{military-rank}})\s+[\s\S]*?Підстава:\s*[^\r]+(?=\r|$))]]></match>
             </context>
             -->
-            <context id="individualGroup">
-              <match ignoreCase="true" multiline="false" group="1"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+військової\s+частини\s+А7383[\s\S]*?((?:^|\r)\s*(?:{{military-rank}})\s+[\s\S]*?)(?=\r\s*(?:Згідно\s+Тимчасового\s+алгоритму|\d+\.\s+Вважати)|\s*$)]]></match>
+            <context id="individualGroup" optional="true">
+              <match ignoreCase="true" multiline="false" group="1"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+військової\s+частини\s+А7383(?:(?!Згідно\s+Тимчасового\s+алгоритму)[\s\S])*?((?:^|\r)\s*(?:{{military-rank}})\s+[\s\S]*?)(?=\r\s*(?:Згідно\s+Тимчасового\s+алгоритму|\d+\.\s+Вважати)|\s*$)]]></match>
             </context>
             <context id="temporaryGroup" optional="true">
               <match ignoreCase="true" multiline="false" group="0"><![CDATA[Згідно\s+Тимчасового\s+алгоритму(?:(?!\r\s*\d+\.)[\s\S])*?Підстава:\s*[^\r]+(?=\r|$)]]></match>
             </context>
           </context>
         </scope>
-        <!-- Одна результирующая строка включает персональный абзац и именно
-             принадлежащее ему основание. Следующее звание завершает match. -->
-        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:{{military-rank}})\s+[^\r]+(?:\r(?!\s*(?:{{military-rank}})\s)[^\r]*)*?\r\s*Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <!-- В temporaryGroup каждая строка является отдельной записью, а
+             основание хранится в общем контексте. В individualGroup запись
+             по-прежнему заканчивается собственным абзацем «Підстава:». -->
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:{{military-rank}})\s+(?:[^\r]*зарахован(?:ого|ої)\s+до\s+тимчасово\s+прибулого[^\r]*|[^\r]+(?:\r(?!\s*(?:{{military-rank}})\s)[^\r]*)*?\r\s*Підстава:\s*[^\r]*)(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="true"
             regex="(?:{{military-rank}})\s+({{fio-three-parts}})\s*,"
@@ -471,7 +475,7 @@
             regex="(Згідно\s+Тимчасового\s+алгоритму[^\r]+)"
             group="1" default="" preserveExisting="true">
             <transform type="trim"/>
-            <transform type="regexReplace" pattern="\.\s*$" with=""/>
+            <transform type="regexReplace" pattern="[.:]\s*$" with=""/>
           </field>
           <field id="enrollmentDate" from="$enrollmentHeader.1">
             <transform type="dateFormat" format="dd.mm.yyyy"/>
@@ -837,9 +841,12 @@
           <field id="eventDate" from="$assignmentGroup" regex="з\s+(\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+{{date-words}})" group="1" default=""><transform type="dateRangeStartFormat" format="dd.mm.yyyy"/></field>
           <field id="durationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів|доби|добу)" group="1" default=""><transform type="trim"/></field>
           <field id="eventTo" from="$assignmentGroup" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="tvoAssignments" from="$assignmentGroup" ignoreCase="true"
+            regex="((?:Тимчасове[^\r]*покласти\s+на[^\r]*(?:\r|$)\s*)+)"
+            group="1" default=""><transform type="trim"/></field>
           <field id="basis" from="$assignmentGroup" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="basis" caption="Підстава" value="$basis"/></table>
+        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Вибуття" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="durationDays" caption="Термін вибуття" value="$durationDays"/><column id="eventTo" caption="По" value="$eventTo"/><column id="tvoAssignments" caption="ТВО покласти на" value="$tvoAssignments" cellTag="tvo-assignment"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </rule>
 
       <rule id="returned-from-external-vlk" caption="З ВЛК за межами" flow="arrival">

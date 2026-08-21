@@ -351,9 +351,9 @@ Private Function private_PublishVisibleTables() As Boolean
                     If Not private_AddVisibleTableByAlias(visibleTables, _
                         "returned-from-family-leave") Then Exit Function
                     If Not private_AddVisibleTableByAlias(visibleTables, _
-                        "returned-from-inpatient-vlk") Then Exit Function
+                        "returned-from-external-vlk") Then Exit Function
                 Case "returned-from-family-leave", _
-                     "returned-from-inpatient-vlk"
+                     "returned-from-external-vlk"
                     ' Эти таблицы добавляются рядом с ежегодным отпуском.
                 Case Else
                     If m_ShowEmptyTables Or tableObj.RowCount > 0 Then
