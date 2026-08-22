@@ -22,6 +22,9 @@
     <fragment id="item-prefix"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)*\.?\s*)?]]></fragment>
     <fragment id="fio-three-parts"><![CDATA[[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+]]></fragment>
     <fragment id="ipn"><![CDATA[\d{10}]]></fragment>
+    <!-- В отдельных приказах вместо ИПН указывается буквенно-цифровой
+         персональный номер, например МК019274. -->
+    <fragment id="personnel-number"><![CDATA[(?:\d{10}|[А-ЯІЇЄҐA-Z]{2}\d{6})]]></fragment>
     <fragment id="military-unit"><![CDATA[[АA]\s*\d+]]></fragment>
   </regexFragments>
   <pipelines>
@@ -204,7 +207,6 @@
           </pattern>
           <pattern id="deceased">
             <![CDATA[
-              [deceased] /
               [deceased]*
             ]]>
           </pattern>
@@ -511,7 +513,7 @@
              Поэтому после номера 2.x допускаем как «звание + ФИО», так и
              непосредственно ФИО, но сохраняем обязательные признаки
              зачисления и абзац основания. -->
-        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?(?:(?:{{military-rank}}(?:\s+запасу)?)\s+)?[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^,\r]+,\s*{{ipn}}\s*,[\s\S]*?з\s+{{date-words}}\s+зарахувати\s+до\s+списк(?:ів|у)\s+особового\s+складу[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?(?:(?:{{military-rank}}(?:\s+запасу)?)\s+)?[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^,\r]+,\s*{{personnel-number}}\s*,[\s\S]*?з\s+{{date-words}}\s+зарахувати\s+до\s+списк(?:ів|у)\s+особового\s+складу[\s\S]*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
 
         <fields>
           <field id="fio" from="$match" ignoreCase="true"
@@ -521,7 +523,7 @@
           </field>
 
           <field id="ipn" from="$match" ignoreCase="true"
-            regex=",\s*({{ipn}})\s*," group="1" default="">
+            regex=",\s*({{personnel-number}})\s*," group="1" default="">
             <transform type="trim"/>
           </field>
 
@@ -1177,7 +1179,7 @@
            отсутствия в другое: лечение -> отпуск, лечение -> лечение,
            самовольное оставление части -> арест и т. п. -->
       <rule id="status-changes" caption="Зміна статусів" source="unclaimed">
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?(?:(?:як(?:ий|а)\s+перебува(?:в|ла)(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*що\s+вибу(?:в|ла))|(?:як(?:ий|а)\s+самовільно\s+залиш(?:ив|ила)\s+(?:військову\s+)?частину(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*як(?:ий|а)(?:(?!Підстава:)[\s\S])*?перебуває\s+під\s+арештом))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?(?:(?:як(?:ий|а)\s+перебува(?:в|ла)(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*що\s+(?:вибу(?:в|ла)|госпіталізован(?:ий|а)?\s+у))|(?:як(?:ий|а)\s+самовільно\s+залиш(?:ив|ила)\s+(?:військову\s+)?частину(?:(?!Підстава:)[\s\S])*?вважати\s+та(?:ким|кою),\s*як(?:ий|а)(?:(?!Підстава:)[\s\S])*?перебуває\s+під\s+арештом))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
@@ -1187,7 +1189,7 @@
           </field>
           <!-- Берём только тип нового отсутствия. Учреждение или место
                назначения после него не является частью статуса. -->
-          <field id="newStatus" from="$match" regex="вважати\s+та(?:ким|кою),(?:(?!Підстава:)[\s\S])*?((?:на|у)\s+(?:лікування|відпустку\s+для\s+лікування|відпустку|відрядження)|під\s+арештом)" group="1" default=""><transform type="trim"/></field>
+          <field id="newStatus" from="$match" regex="вважати\s+та(?:ким|кою),(?:(?!Підстава:)[\s\S])*?((?:на|у)\s+(?:лікування|відпустку\s+для\s+лікування|відпустку|відрядження)|госпіталізован(?:ий|а)?\s+у|під\s+арештом)" group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$match" regex="вважати\s+та(?:ким|кою),(?:(?!Підстава:)[\s\S])*?\bз\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="durationDays" from="$match" regex="(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)" group="1" default=""><transform type="trim"/></field>
           <field id="eventTo" from="$match" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
@@ -1267,10 +1269,12 @@
       <!-- Смерть по причинам, не описанным как гибель при защите Отечества.
            Поддерживаются как записи внутри специальной секции, так и
            самостоятельные нумерованные пункты с «помер»/«оголошено померлим».
+           Персональный match не пересекает известный заголовок секции смерти:
+           текст предыдущего события не должен присваиваться этой секции.
            Dataset расположен перед «Які загинули», чтобы последняя секция
            сохранила своё место в самом конце flow. -->
       <rule id="deceased" caption="Які померли" includeCommonColumns="false">
-        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+(?:(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+)[\s\S])*?(?:помер(?:ла)?|оголошено\s+померл(?:им|ою))(?:(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+)[\s\S])*(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+|\s*$)]]></match>
+        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+(?:(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?Яких\s+вважати\s+померлими)(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+)[\s\S])*?(?:помер(?:ла)?(?=\s|[.,;:]|$)|оголошено\s+померл(?:им|ою)(?=\s|[.,;:]|$))(?:(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?Яких\s+вважати\s+померлими)(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+)[\s\S])*(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+|\s*$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="true" regex="(?:{{military-rank}})\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[^,\r]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
