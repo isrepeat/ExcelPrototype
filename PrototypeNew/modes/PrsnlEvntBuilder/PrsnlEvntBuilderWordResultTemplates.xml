@@ -77,7 +77,7 @@
     <sharedTemplate id="block.VacationDestinationPeriod">
       <text>
         <![CDATA[#^
-#_        {#space}у {[Destination]|regexreplace:"^медична([ \t]+)рота","медичну$1роту"},#^
+#_        {#space}у {[Destination]|regexreplace:"^[Мм]едична([ \t]+)рота","медичну$1роту"},#^
 #_        {#if [VacationDurationPhrase]}{#space}{[VacationDurationPhrase]}#^
 #_        {[AdditionalDurationPhrases]}#^
 #_        {#endif}#^

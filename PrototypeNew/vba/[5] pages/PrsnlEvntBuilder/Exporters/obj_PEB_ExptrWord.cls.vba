@@ -2367,6 +2367,12 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     sectionTypeText = private_GetContextText(context, CONTEXT_SECTION_TYPE)
     If VBA.Len(sectionTypeText) = 0 Then sectionTypeText = VBA.Trim$(sourceTable.SectionTitle)
     Set builderData = New obj_PrsnlEvntBuilderData
+    If builderData.UsesTreatmentVacationDestination(sectionTypeText) Then
+        destinationText = private_NormalizeMedicalCompanyVacationDestination( _
+            destinationText, builderData.MedicalCompanyDestination)
+        If Not private_TryUpsertMainTableValue( _
+            sourceTable, SOURCE_ALIAS_DESTINATION, destinationText) Then Exit Function
+    End If
     usesDestinationHospital = (VBA.StrComp( _
         VBA.Trim$(sectionTypeText), _
         VBA.Trim$(builderData.SectionTypeTransferTreatmentToExternalVlk), _
@@ -3726,4 +3732,26 @@ Private Function private_NormalizeTemplateScalar(ByVal valueText As String) As S
     valueText = rx.Replace(valueText, " ")
 
     private_NormalizeTemplateScalar = VBA.Trim$(valueText)
+End Function
+
+Private Function private_NormalizeMedicalCompanyVacationDestination( _
+    ByVal destinationText As String, _
+    ByVal canonicalDestinationText As String _
+) As String
+    Dim rx As Object
+
+    destinationText = private_NormalizeTemplateScalar(destinationText)
+    private_NormalizeMedicalCompanyVacationDestination = destinationText
+    If VBA.Len(destinationText) = 0 Then Exit Function
+
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Global = False
+    rx.IgnoreCase = True
+    rx.Pattern = "^\s*медичн(?:а|у|ої|ій|ою)\s+рот(?:а|у|и|і|ою)\s+" & _
+        "(?:військов(?:а|у|ої|ій|ою)\s+частин(?:а|у|и|і|ою)\s+)?" & _
+        "[АA]\s*7383(?:\s*,[\s\S]*)?\s*$"
+    If rx.Test(destinationText) Then
+        private_NormalizeMedicalCompanyVacationDestination = _
+            canonicalDestinationText
+    End If
 End Function
