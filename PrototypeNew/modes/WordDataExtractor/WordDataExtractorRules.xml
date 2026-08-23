@@ -366,22 +366,24 @@
           <!-- После нормализованного названия статуса сохраняем прежнюю
                организацию целиком, независимо от того, часть это или ТЦК. -->
           <field id="formerOrganization" from="$match" ignoreCase="true"
-            regex="(?:колишнього\s+)?військовослужбовця(?:\s+військової\s+служби\s+за\s+контрактом)?\s+([^,\r]+)"
+            regex="(?:колишнього\s+)?військовослужбовц(?:я|і)(?:\s+військової\s+служби\s+за\s+контрактом)?\s+([^,\r]+)"
             group="1" default="">
             <transform type="trim"/>
+            <transform type="regexReplace"
+              pattern="^з\s+2\s+територіального\s+вузлу\s+урядового\s+зв['’]язку\s+Державної\s+служби\s+спеціального\s+зв['’]язку\s+та\s+захисту\s+інформації\s+України$"
+              with="2 територіальний вузол урядового зв'язку Державної служби спеціального зв'язку та захисту інформації України"/>
           </field>
 
-          <field id="position" from="">
-            <transform type="join"
-              values="колишній військовослужбовець;$formerOrganization"
-              separatorToken="space"/>
-          </field>
+          <field id="position" from="колишній військовослужбовець"/>
 
-          <!-- После должности приказ может уточнять документ, согласно
-               которому военнослужащий был зачислен. Длинную формулировку
+          <field id="assignmentOrigin" from="$formerOrganization"/>
+
+          <!-- После статуса и прежней организации приказ может уточнять
+               документ, согласно которому военнослужащий был зачислен.
+               Длинную формулировку
                о добровольном возвращении сокращаем, сохраняя её смысл,
                дату и номер постановления. -->
-          <field id="assignmentOrigin" from="$match" ignoreCase="true"
+          <field id="additionalInfo" from="$match" ignoreCase="true"
             regex="((?:згідно|відповідно\s+до\s+пункту\s+12\s+Порядку)\s+[^\r]+)" group="1" default="">
             <transform type="trim"/>
             <transform type="regexReplace" pattern="\s*\.\s*$" with=""/>
@@ -407,6 +409,7 @@
           <column id="ipn" caption="ІПН" value="$ipn"/>
           <column id="position" caption="Посада" value="$position"/>
           <column id="assignmentOrigin" caption="Звідки" value="$assignmentOrigin"/>
+          <column id="additionalInfo" caption="Додаткова інформація" value="$additionalInfo"/>
           <column id="enrollmentDate" caption="Прибуття" value="$enrollmentDate"/>
           <column id="foodEnrollmentDate" caption="На продовольче" value="$foodEnrollmentDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
@@ -453,17 +456,17 @@
             <transform type="trim"/>
           </field>
           <field id="formerOrganization" from="$match" ignoreCase="true"
-            regex="військовослужбовц(?:я|і)\s+(військової\s+частини\s+{{military-unit}})"
+            regex="(?:колишнього\s+)?військовослужбовц(?:я|і)(?:\s+військової\s+служби\s+за\s+контрактом)?\s+([^,\r]+)"
             group="1" default="">
             <transform type="regexReplace" pattern="\s+" withToken="space"/>
             <transform type="trim"/>
+            <transform type="regexReplace"
+              pattern="^з\s+2\s+територіального\s+вузлу\s+урядового\s+зв['’]язку\s+Державної\s+служби\s+спеціального\s+зв['’]язку\s+та\s+захисту\s+інформації\s+України$"
+              with="2 територіальний вузел урядового зв'язку Державної служби спеціального зв'язку та захисту інформації України"/>
           </field>
-          <field id="position" from="">
-            <transform type="join"
-              values="колишній військовослужбовець;$formerOrganization"
-              separatorToken="space"/>
-          </field>
-          <field id="assignmentOrigin" from="$match" ignoreCase="true"
+          <field id="position" from="колишній військовослужбовець"/>
+          <field id="assignmentOrigin" from="$formerOrganization"/>
+          <field id="additionalInfo" from="$match" ignoreCase="true"
             regex="((?:згідно|відповідно\s+до\s+пункту\s+12\s+Порядку)\s+[^\r]+)"
             group="1" default="">
             <transform type="trim"/>
@@ -472,7 +475,7 @@
               pattern="^відповідно\s+до\s+пункту\s+12\s+Порядку[\s\S]*?затвердженого\s+постановою\s+Кабінету\s+Міністрів\s+України\s+від\s+(.+?)\s+№\s*([0-9/–—-]+)$"
               with="відповідно до п. 12 Порядку реалізації експериментального проєкту з повернення до служби військовослужбовців, які СЗЧ або дезертирували"/>
           </field>
-          <field id="assignmentOrigin" from="$temporaryGroup"
+          <field id="additionalInfo" from="$temporaryGroup"
             ignoreCase="true"
             regex="(Згідно\s+Тимчасового\s+алгоритму[^\r]+)"
             group="1" default="" preserveExisting="true">
@@ -497,6 +500,7 @@
           <column id="ipn" caption="ІПН" value="$ipn"/>
           <column id="position" caption="Посада" value="$position"/>
           <column id="assignmentOrigin" caption="Звідки" value="$assignmentOrigin"/>
+          <column id="additionalInfo" caption="Додаткова інформація" value="$additionalInfo"/>
           <column id="enrollmentDate" caption="Прибуття" value="$enrollmentDate"/>
           <column id="foodEnrollmentDate" caption="На продовольче" value="$foodEnrollmentDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
