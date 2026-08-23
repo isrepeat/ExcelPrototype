@@ -2326,9 +2326,12 @@ Private Function private_TryApplyMovementEnrichedFieldsAppearance() As Boolean
     If private_IsHospitalReturnProfile() Then
         fieldAliases.Add DRAFT_ALIAS_HOSPITAL
         fieldAliases.Add DRAFT_ALIAS_HOSPITAL_SHORT
-    ElseIf private_IsVacationReturnProfile() Then
+    ElseIf private_IsMovementTicketReturnProfile() Then
         fieldAliases.Add DRAFT_ALIAS_VACATION_TICKET_NO
         fieldAliases.Add DRAFT_ALIAS_VACATION_TICKET_DATE
+        If private_IsBusinessTripReturnProfile() Then
+            fieldAliases.Add DRAFT_ALIAS_DESTINATION
+        End If
     Else
         private_TryApplyMovementEnrichedFieldsAppearance = True
         Exit Function
@@ -3190,7 +3193,7 @@ Public Function SearchCandidates( _
     If m_LookupFeature Is Nothing Then Exit Function
     If Not private_UpdateLookupActiveFormColumns() Then Exit Function
     If VBA.StrComp(VBA.Trim$(lookupKey), FIO_LOOKUP_KEY, VBA.vbTextCompare) = 0 And _
-       private_IsVacationReturnProfile() Then
+       private_IsMovementTicketReturnProfile() Then
         If Not m_LookupFeature.SearchCandidates( _
             lookupKey, queryText, outCandidateCount, False) Then Exit Function
         If Not private_TryAppendTemporaryPersonnel(queryText) Then Exit Function
@@ -3201,6 +3204,16 @@ Public Function SearchCandidates( _
             End If
             SearchCandidates = True
             Exit Function
+        End If
+        If private_IsBusinessTripReturnProfile() Then
+            If Not private_TryApplyMovementBusinessTripDestinationDefaults() Then
+                If notifyChange Then
+                    If Not rt_PageManager.fn_RenderPage( _
+                        m_Page, "prsnlevntbuilder:movement-destination-enrichment-failed") Then Exit Function
+                End If
+                SearchCandidates = True
+                Exit Function
+            End If
         End If
         If notifyChange Then
             If Not rt_PageManager.fn_RenderPage( _
@@ -3383,7 +3396,7 @@ ContinueRow:
     private_TryApplyMovementHospitalDefaults = True
 End Function
 
-Private Function private_IsVacationReturnProfile() As Boolean
+Private Function private_IsMovementTicketReturnProfile() As Boolean
     Dim sectionText As String
     Dim sectionKey As String
 
@@ -3395,9 +3408,80 @@ Private Function private_IsVacationReturnProfile() As Boolean
     Select Case sectionKey
         Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatmentVacation), _
              private_NormalizeText(m_Data.SectionTypeCloseFromAnnualVacation), _
-             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation)
-            private_IsVacationReturnProfile = True
+             private_NormalizeText(m_Data.SectionTypeCloseFromFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip)
+            private_IsMovementTicketReturnProfile = True
     End Select
+End Function
+
+Private Function private_IsBusinessTripReturnProfile() As Boolean
+    Dim sectionText As String
+
+    If m_Data Is Nothing Then Exit Function
+    sectionText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
+
+    private_IsBusinessTripReturnProfile = (VBA.StrComp( _
+        private_NormalizeText(sectionText), _
+        private_NormalizeText(m_Data.SectionTypeCloseFromBusinessTrip), _
+        VBA.vbTextCompare) = 0)
+End Function
+
+Private Function private_TryApplyMovementBusinessTripDestinationDefaults() As Boolean
+    Dim entityLookupCfgParser As obj_EntityLookupCfgParser
+    Dim candidateTable As obj_TableDynamic
+    Dim candidateRow As obj_Row
+    Dim lookupKey As String
+    Dim searchColumnAlias As String
+    Dim ipnColumnIndex As Long
+    Dim fioColumnIndex As Long
+    Dim destinationColumnIndex As Long
+    Dim ipnText As String
+    Dim fioText As String
+    Dim destinationFound As Boolean
+    Dim destinationText As String
+    Dim rowIndex As Long
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not private_TryEnsureExporterCfgDataProvider() Then Exit Function
+    If Not m_LookupFeature.TryGetActiveCandidatesContext( _
+        entityLookupCfgParser, lookupKey, candidateTable, searchColumnAlias) Then Exit Function
+    If candidateTable Is Nothing Then Exit Function
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_IPN, ipnColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_IPN'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_FIO, fioColumnIndex) Then Exit Function
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_DESTINATION, destinationColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_Destination'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
+
+    For rowIndex = 1 To candidateTable.RowCount
+        Set candidateRow = candidateTable.Rows.Item(rowIndex)
+        If candidateRow Is Nothing Then Exit Function
+        ipnText = VBA.Trim$(VBA.CStr(candidateRow.GetCellValue(ipnColumnIndex)))
+        fioText = VBA.Trim$(VBA.CStr(candidateRow.GetCellValue(fioColumnIndex)))
+        If VBA.Len(ipnText) = 0 Then GoTo ContinueRow
+        If Not m_ExporterCfgDataProvider.TryGetLatestMovementDestination( _
+            ipnText, destinationFound, destinationText, fioText) Then
+            VBA.MsgBox "Не вдалося прочитати останнє місце призначення з " & _
+                "Movement для ІПН '" & ipnText & "'.", VBA.vbExclamation, _
+                "PrsnlEventBuilder / Movement enrichment"
+            Exit Function
+        End If
+        If Not destinationFound Then GoTo ContinueRow
+        If Not candidateRow.SetCellRaw( _
+            destinationColumnIndex, destinationText) Then Exit Function
+ContinueRow:
+    Next rowIndex
+
+    private_TryApplyMovementBusinessTripDestinationDefaults = True
 End Function
 
 Private Function private_TryApplyMovementVacationTicketDefaults() As Boolean
