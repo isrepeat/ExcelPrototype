@@ -3178,12 +3178,6 @@ Public Function SearchCandidates( _
     ByRef outCandidateCount As Long, _
     Optional ByVal notifyChange As Boolean = True _
 ) As Boolean
-    Dim minAbsenceDepartureDate As Date
-    Dim maxAbsenceDepartureDate As Date
-    Dim absenceReferenceDate As Date
-    Dim absenceSelectorImpl As obj_PEB_AbsenceCnddtSlctr
-    Dim absenceSelector As obj_ILookupCandidateSelector
-
     outCandidateCount = 0
     If m_SuppressLookupSearch Then
         SearchCandidates = True
@@ -3227,6 +3221,9 @@ Public Function SearchCandidates( _
         If Not m_LookupFeature.SearchCandidates( _
             lookupKey, queryText, outCandidateCount, False) Then Exit Function
         If Not private_TryAppendTemporaryPersonnel(queryText) Then Exit Function
+        If private_ShouldExtendAbsenceCandidates() Then
+            If Not private_TryExtendAbsenceCandidates(queryText) Then Exit Function
+        End If
         If Not private_TryApplyMovementHospitalDefaults() Then
             If notifyChange Then
                 If Not rt_PageManager.fn_RenderPage( _
@@ -3250,24 +3247,9 @@ Public Function SearchCandidates( _
                 lookupKey, queryText, outCandidateCount, notifyChange)
             Exit Function
         End If
-        If Not private_TryResolveAbsenceDepartureDateRange( _
-            minAbsenceDepartureDate, maxAbsenceDepartureDate, _
-            absenceReferenceDate) Then Exit Function
-        Set absenceSelectorImpl = New obj_PEB_AbsenceCnddtSlctr
-        If Not absenceSelectorImpl.Initialize( _
-            DRAFT_ALIAS_DATE_FROM, ABSENCE_ORDER_DATE_ALIAS, _
-            minAbsenceDepartureDate, _
-            maxAbsenceDepartureDate, absenceReferenceDate) Then Exit Function
-        Set absenceSelector = absenceSelectorImpl
         If Not m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, False) Then Exit Function
         If Not private_TryAppendTemporaryPersonnel(queryText) Then Exit Function
-        If Not m_LookupFeature.ExtendCandidates( _
-            "op_FIOAbsenceExtension", _
-            "_FIO", _
-            queryText, _
-            absenceSelector, _
-            False) Then Exit Function
-        If Not private_TryApplyAbsenceCandidateDefaults() Then Exit Function
+        If Not private_TryExtendAbsenceCandidates(queryText) Then Exit Function
         If notifyChange Then
             If Not rt_PageManager.fn_RenderPage( _
                 m_Page, "prsnlevntbuilder:absence-candidates-enriched") Then Exit Function
@@ -3288,6 +3270,36 @@ Public Function SearchCandidates( _
                 lookupKey, queryText, outCandidateCount, notifyChange)
         End If
     End If
+End Function
+
+Private Function private_TryExtendAbsenceCandidates( _
+    ByVal queryText As String _
+) As Boolean
+    Dim minAbsenceDepartureDate As Date
+    Dim maxAbsenceDepartureDate As Date
+    Dim absenceReferenceDate As Date
+    Dim absenceSelectorImpl As obj_PEB_AbsenceCnddtSlctr
+    Dim absenceSelector As obj_ILookupCandidateSelector
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    If Not private_TryResolveAbsenceDepartureDateRange( _
+        minAbsenceDepartureDate, maxAbsenceDepartureDate, _
+        absenceReferenceDate) Then Exit Function
+    Set absenceSelectorImpl = New obj_PEB_AbsenceCnddtSlctr
+    If Not absenceSelectorImpl.Initialize( _
+        DRAFT_ALIAS_DATE_FROM, ABSENCE_ORDER_DATE_ALIAS, _
+        minAbsenceDepartureDate, _
+        maxAbsenceDepartureDate, absenceReferenceDate) Then Exit Function
+    Set absenceSelector = absenceSelectorImpl
+    If Not m_LookupFeature.ExtendCandidates( _
+        "op_FIOAbsenceExtension", _
+        DRAFT_ALIAS_FIO, _
+        queryText, _
+        absenceSelector, _
+        False) Then Exit Function
+    If Not private_TryApplyAbsenceCandidateDefaults() Then Exit Function
+
+    private_TryExtendAbsenceCandidates = True
 End Function
 
 Private Function private_TryAppendTemporaryPersonnel( _
