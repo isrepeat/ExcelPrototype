@@ -166,7 +166,7 @@
     <item key="Ejos.Sheet[TemporaryAbsent].Map[Field2]" value="Стовпець2"/>
     <item key="Ejos.Sheet[TemporaryAbsent].Map[Field3]" value="Стовпець3"/>
 
-    <item key="Source.MedicalDaily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.07 (липень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
+    <item key="Source.MedicalDaily.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.08 (серпень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
     <item key="Source.MedicalDaily.FilePathResolver" value="{Binding Method=ResolveLatestByDmyPattern}"/>
     <item key="MedicalDaily.Sheet[StateMain].SheetName" value="Аркуш1$A3:S20000"/>
     <item key="MedicalDaily.Sheet[StateMain].ColumnHeadersAliases" value="FIO; IPN; HospitalizationDate; BasisDocName; BasisDocDate; BasisDocNumber; FullHospitalName; TreatmentStatus"/>
@@ -181,7 +181,7 @@
 
     <item attr="#" key="Embedded medical reports view" value=""/>
     <item key="PrsnlEvntBuilder.MedicalReportsViewClass" value="obj_PEB_MedicalReportsScen"/>
-    <item key="Source.MedicalReports.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.07 (липень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
+    <item key="Source.MedicalReports.FilePath" value="..\..\..\WORK Alexandr Bondarenko\НАКАЗИ\Ст. запис. мед. 2026.08 (серпень)\Стройова записка медичної служби станом на {dd}.{mm}.{yyyy}.xlsx"/>
     <item key="Source.MedicalReports.FilePathResolver" value="ResolveAllByDmyPattern"/>
     <item key="Source.MedicalReports.FilePathResolverArgs" value="order=asc"/>
     <item key="Source.MedicalReports.RuntimeAliasPattern" value="Main-{dd}.{mm}.{yyyy}"/>

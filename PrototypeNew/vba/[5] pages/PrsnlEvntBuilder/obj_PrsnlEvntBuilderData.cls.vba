@@ -624,6 +624,25 @@ Public Function UsesMovementVacationDestination(ByVal sectionTypeText As String)
     End Select
 End Function
 
+Public Function UsesTreatmentVacationDestination( _
+    ByVal sectionTypeText As String _
+) As Boolean
+    Select Case private_NormalizeText(sectionTypeText)
+        Case private_NormalizeText(SECTION_TYPE_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_TREATMENT_VACATION_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_AMBULATORY_VLK_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_EXTERNAL_VLK_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TO_TREATMENT_VACATION), _
+             private_NormalizeText(SECTION_TYPE_TRANSFER_MEDICAL_COMPANY_TREATMENT_TO_TREATMENT_VACATION)
+            UsesTreatmentVacationDestination = True
+    End Select
+End Function
+
+Public Property Get MedicalCompanyDestination() As String
+    MedicalCompanyDestination = MOVEMENT_DESTINATION_MEDICAL_COMPANY
+End Property
+
 Public Function TryGetFixedMovementDestination( _
     ByVal sectionTypeText As String, _
     ByRef outDestination As String _
