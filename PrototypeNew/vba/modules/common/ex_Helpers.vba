@@ -185,6 +185,23 @@ Public Function fn_IsShortDateValue(ByVal rawDateValue As Variant) As Boolean
 End Function
 
 
+Public Function fn_IsDateOnOrAfter( _
+    ByVal dateValue As Variant, _
+    ByVal referenceDateValue As Variant _
+) As Boolean
+    Dim resolvedDate As Date
+    Dim resolvedReferenceDate As Date
+
+    If Not fn_TryResolveDateWithContext( _
+        referenceDateValue, VBA.Date, resolvedReferenceDate) Then Exit Function
+    If Not fn_TryResolveDateWithContext( _
+        dateValue, resolvedReferenceDate, resolvedDate) Then Exit Function
+
+    fn_IsDateOnOrAfter = ( _
+        VBA.DateValue(resolvedDate) >= VBA.DateValue(resolvedReferenceDate))
+End Function
+
+
 Public Function fn_FormatUaDateLong(ByVal dateValue As Date) As String
     fn_FormatUaDateLong = VBA.Format$(dateValue, "dd") & VBA.ChrW$(160) & _
         private_GetUaMonthGenitiveName(VBA.Month(dateValue)) & " " & _
