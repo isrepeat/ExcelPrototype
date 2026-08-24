@@ -26,6 +26,9 @@
          персональный номер, например МК019274. -->
     <fragment id="personnel-number"><![CDATA[(?:\d{10}|[А-ЯІЇЄҐA-Z]{2}\d{6})]]></fragment>
     <fragment id="military-unit"><![CDATA[[АA]\s*\d+]]></fragment>
+    <!-- Поддерживаемые заголовки событий прибытия. Используются как
+         смысловые границы секций без зависимости от номера пункта. -->
+    <fragment id="arrival-event-heading"><![CDATA[{{item-prefix}}(?:З\s+(?:медичної\s+роти|відрядження|лікувального\s+закладу|щорічної\s+основної\s+відпустки|відпустки\s+для\s+лікування|ВЛК\s+за\s+межами|проходження\s+військово-лікарської\s+комісії\s+стаціонарно|відпустки\s+за\s+сімейними\s+обставинами)|Із\s+самовільного\s+залишення\s+військової\s+частини|У\s+службове\s+відрядження\s+у\s+військову\s+частину)]]></fragment>
   </regexFragments>
   <pipelines>
     <pipeline id="personnel-order">
@@ -49,12 +52,6 @@
           </pattern>
 
           <context id="arrivals" path="[arrivals-section]?">
-            <pattern id="arrived-from-medical-company-group">
-              <![CDATA[
-                [arrived-from-medical-company-group] /
-                [arrived-from-medical-company-group]*
-              ]]>
-            </pattern>
             <pattern id="arrived-to-corps">
               <![CDATA[
                 [arrived-to-corps] /
@@ -89,6 +86,18 @@
                   [returned-from-treatment-leave]*
                 ]]>
               </pattern>
+            </context>
+            <context path="[arrival-event-header]*">
+              <pattern id="returned-from-medical-company">
+                <![CDATA[
+                  [returned-from-medical-company-section] /
+                  [returned-from-medical-company-date]* /
+                  [returned-from-medical-company-basis-group]* /
+                  [returned-from-medical-company-person]*
+                ]]>
+              </pattern>
+            </context>
+            <context path="[sub-item-marker]*">
               <pattern id="returned-from-awol">
                 <![CDATA[
                   [returned-from-awol] /
@@ -270,6 +279,12 @@
             with=""/>
           <transform type="trim"/>
         </rule>
+        <!-- Во всех результирующих таблицах основание сохраняется без
+             завершающей точки независимо от локального правила extraction. -->
+        <rule columnId="basis">
+          <transform type="regexReplace" pattern="\.\s*$" with=""/>
+          <transform type="trim"/>
+        </rule>
       </columnRules>
 
       <!-- Первая служебная таблица связывает весь результат extraction с
@@ -372,9 +387,15 @@
             <transform type="regexReplace"
               pattern="^з\s+2\s+територіального\s+вузлу\s+урядового\s+зв['’]язку\s+Державної\s+служби\s+спеціального\s+зв['’]язку\s+та\s+захисту\s+інформації\s+України$"
               with="2 територіальний вузол урядового зв'язку Державної служби спеціального зв'язку та захисту інформації України"/>
+            <transform type="regexReplace"
+              pattern="^військової\s+частини\s+([АA])\s*(\d+)\.?\s*$"
+              with="$1$2"/>
           </field>
 
-          <field id="position" from="колишній військовослужбовець"/>
+          <field id="position" from="колишній військовослужбовець">
+            <transform type="regexReplace"
+              pattern="^колишній\s+військовослужбов[\s\S]*$" with=""/>
+          </field>
 
           <field id="assignmentOrigin" from="$formerOrganization"/>
 
@@ -383,10 +404,12 @@
                Длинную формулировку
                о добровольном возвращении сокращаем, сохраняя её смысл,
                дату и номер постановления. -->
-          <field id="additionalInfo" from="$match" ignoreCase="true"
+          <!-- Заголовок относится ко всему пункту и находится перед первой
+               персональной записью, поэтому читаем его из текста документа. -->
+          <field id="additionalInfo" from="$document" ignoreCase="true"
             regex="((?:згідно|відповідно\s+до\s+пункту\s+12\s+Порядку)\s+[^\r]+)" group="1" default="">
             <transform type="trim"/>
-            <transform type="regexReplace" pattern="\s*\.\s*$" with=""/>
+            <transform type="regexReplace" pattern="\s*[.:]\s*$" with=""/>
             <transform type="regexReplace"
               pattern="^відповідно\s+до\s+пункту\s+12\s+Порядку[\s\S]*?затвердженого\s+постановою\s+Кабінету\s+Міністрів\s+України\s+від\s+(.+?)\s+№\s*([0-9/–—-]+)$"
               with="відповідно до п. 12 Порядку реалізації експериментального проєкту з повернення до служби військовослужбовців, які СЗЧ або дезертирували"/>
@@ -463,14 +486,21 @@
             <transform type="regexReplace"
               pattern="^з\s+2\s+територіального\s+вузлу\s+урядового\s+зв['’]язку\s+Державної\s+служби\s+спеціального\s+зв['’]язку\s+та\s+захисту\s+інформації\s+України$"
               with="2 територіальний вузел урядового зв'язку Державної служби спеціального зв'язку та захисту інформації України"/>
+            <transform type="regexReplace"
+              pattern="^військової\s+частини\s+([АA])\s*(\d+)\.?\s*$"
+              with="$1$2"/>
           </field>
-          <field id="position" from="колишній військовослужбовець"/>
+          <field id="position" from="колишній військовослужбовець">
+            <transform type="regexReplace"
+              pattern="^колишній\s+військовослужбов[\s\S]*$" with=""/>
+          </field>
           <field id="assignmentOrigin" from="$formerOrganization"/>
-          <field id="additionalInfo" from="$match" ignoreCase="true"
+          <!-- Общий заголовок расположен перед списком военнослужащих. -->
+          <field id="additionalInfo" from="$document" ignoreCase="true"
             regex="((?:згідно|відповідно\s+до\s+пункту\s+12\s+Порядку)\s+[^\r]+)"
             group="1" default="">
             <transform type="trim"/>
-            <transform type="regexReplace" pattern="\.\s*$" with=""/>
+            <transform type="regexReplace" pattern="[.:]\s*$" with=""/>
             <transform type="regexReplace"
               pattern="^відповідно\s+до\s+пункту\s+12\s+Порядку[\s\S]*?затвердженого\s+постановою\s+Кабінету\s+Міністрів\s+України\s+від\s+(.+?)\s+№\s*([0-9/–—-]+)$"
               with="відповідно до п. 12 Порядку реалізації експериментального проєкту з повернення до служби військовослужбовців, які СЗЧ або дезертирували"/>
@@ -559,33 +589,63 @@
         </table>
       </rule>
 
-      <!-- Групповой пункт первого уровня о прибытии непосредственно из
-           медицинской роты. Отдельный context передаёт всем перечисленным
-           военнослужащим общие место, дату и основание. -->
-      <rule id="arrived-from-medical-company-group"
-        caption="Прибули з медичної роти" flow="arrival">
+      <!-- Номер и уровень пункта не определяют структуру этой секции.
+           Заголовок «З медичної роти» открывает диапазон до следующего
+           поддерживаемого section-заголовка и передаёт место всем людям. -->
+      <rule id="arrival-event-header" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[{{arrival-event-heading}}]]></match>
+      </rule>
+
+      <rule id="returned-from-medical-company-section" kind="section">
         <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу\s+сил(?:\s+і\s+засобів)?\s+2\s+корпусу(?:(?!\r\s*\d+\.\d+(?:\.\d+)*\.?\s)[\s\S])*?(?:^|\r)\s*з\s+медичної\s+роти[^\r,]*\s*,\s*з\s+{{date}}\s*:]]></match>
-          <context id="medicalCompanyGroup">
-            <match ignoreCase="true" multiline="false"><![CDATA[Вважати\s+такими,\s*що\s+прибули\s+до\s+складу\s+сил(?:\s+і\s+засобів)?\s+2\s+корпусу(?:(?!\r\s*\d+\.\d+(?:\.\d+)*\.?\s)[\s\S])*?(?:^|\r)\s*з\s+(медичної\s+роти[^\r,]*)\s*,\s*з\s+({{date}})\s*:\s*\r[\s\S]*?Підстава:\s*([^\r]+)(?=\r|$)]]></match>
-          </context>
+          <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}З\s+(медичної\s+роти[^\r,:]*?)\s*,\s*(?:з\s+({{date}})\s*)?:\s*]]></match>
         </scope>
-        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:{{military-rank}})\s+[^\r]+(?=\r|$)]]></match>
+        <fields>
+          <field id="eventFrom" from="$1"><transform type="trim"/></field>
+          <field id="returnDate" from="$2">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
+      </rule>
+
+      <!-- Если дата отсутствует в заголовке, внутри секции допускаются
+           повторяющиеся датированные группы. -->
+      <rule id="returned-from-medical-company-date" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}З\s+({{date}})\s*:\s*]]></match>
+        <fields>
+          <field id="returnDate" from="$1">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
+        </fields>
+      </rule>
+
+      <!-- Одна группа содержит одну или несколько персональных строк и
+           завершается общим абзацем «Підстава». Символ «;» в конце строки
+           позволяет перечислять несколько людей перед одним основанием. -->
+      <rule id="returned-from-medical-company-basis-group" kind="section">
+        <match ignoreCase="true" multiline="false"><![CDATA[((?:^|\r)\s*(?:{{military-rank}})\s+[^\r]*[.;](?:(?!\r\s*Підстава:)[\s\S])*?)\r\s*Підстава:\s*([^\r]+)(?=\r|$)]]></match>
+        <fields>
+          <field id="basis" from="$2"><transform type="trim"/></field>
+        </fields>
+      </rule>
+
+      <rule id="returned-from-medical-company-person"
+        caption="Прибули з медичної роти" flow="arrival">
+        <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:{{military-rank}})\s+[^\r]*[.;][ \t]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="true"
             regex="(?:{{military-rank}})\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[^,\r;]+)\s*,"
             group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match"
             regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="eventFrom" from="$medicalCompanyGroup.1"><transform type="trim"/></field>
-          <field id="eventDate" from="$medicalCompanyGroup.2"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="basis" from="$medicalCompanyGroup.3"><transform type="trim"/></field>
+          <field id="returnDate" from="$returnDate"/>
+          <field id="basis" from="$basis"/>
         </fields>
         <table>
           <column id="fio" caption="ПІБ" value="$fio"/>
           <column id="ipn" caption="ІПН" value="$ipn"/>
           <column id="eventFrom" caption="Звідки" value="$eventFrom"/>
-          <column id="eventDate" caption="Прибуття" value="$eventDate"/>
+          <column id="returnDate" caption="Прибуття" value="$returnDate"/>
           <column id="basis" caption="Підстава" value="$basis"/>
         </table>
       </rule>
@@ -808,22 +868,42 @@
             regex=",\s*з\s+({{date}})"
             group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="basis" from="$assignmentGroup" regex="Підстава:\s*([^\r]+)" group="1" default="">
+            <transform type="regexReplace"
+              pattern="(?:^|[,;]\s*)посвідчення\s+про\s+відрядження[^;]*"
+              with=""/>
+            <transform type="regexReplace" pattern="\s*[,;.]\s*$" with=""/>
+            <transform type="trim"/>
+          </field>
+          <field id="accompanyingDocument" from="$assignmentGroup"
+            regex="Підстава:\s*([^\r]+)" group="1" default="">
             <transform type="orderedTripCredential" indexFrom="$matchIndex"/>
+            <transform type="regexReplace"
+              pattern="^посвідчення\s+про\s+відрядження\s+№\s*"
+              with="ПВ №"/>
+            <transform type="regexReplace" pattern="\.\s*$" with=""/>
             <transform type="trim"/>
           </field>
           <!-- Вводный абзац общий для всех перечисленных людей. -->
           <field id="assignmentOrigin" from="$assignmentGroup"
             regex="(з\s+[^\r]+?)\s*,\s*(?:(?:терміном\s+на)|(?:з\s+\d{1,2}))"
-            group="1" default=""><transform type="trim"/></field>
+            group="1" default="">
+            <transform type="trim"/>
+            <transform type="regexReplace"
+              pattern="^з\s+військової\s+частини\s+([АA])\s*(\d+)$"
+              with="$1$2"/>
+          </field>
           <field id="arrivalDurationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів)" group="1" default=""><transform type="trim"/></field>
           <!-- Посада находится после первого разделителя ФИО в персональном
                абзаце и поэтому, в отличие от origin/срока, не наследуется. -->
           <field id="position" from="$match" regex=",\s*(?:{{ipn}}\s*,\s*)?([^\r]+)" group="1" default="">
             <transform type="regexReplace" pattern="\.\s*$" with=""/>
             <transform type="trim"/>
+            <transform type="regexReplace"
+              pattern="^який\s+перебуває\s+у\s+розпорядженні\s+командира\s+військової\s+частини[\s\S]*$"
+              with=""/>
           </field>
         </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="foodEnrollmentDate" caption="На продовольче" value="$foodEnrollmentDate"/><column id="arrivalDurationDays" caption="Термін прибуття" value="$arrivalDurationDays"/><column id="position" caption="Посада" value="$position"/><column id="assignmentOrigin" caption="Звідки" value="$assignmentOrigin"/><column id="basis" caption="Підстава" value="$basis"/></table>
+        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Прибуття" value="$eventDate"/><column id="foodEnrollmentDate" caption="На продовольче" value="$foodEnrollmentDate"/><column id="arrivalDurationDays" caption="Термін прибуття" value="$arrivalDurationDays"/><column id="position" caption="Посада" value="$position"/><column id="assignmentOrigin" caption="Звідки" value="$assignmentOrigin"/><column id="basis" caption="Підстава" value="$basis"/><column id="accompanyingDocument" caption="Супровідний документ" value="$accompanyingDocument"/></table>
       </rule>
 
       <!-- Обычная командировка является отдельной секцией после прибытия в
