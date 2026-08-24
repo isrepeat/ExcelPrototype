@@ -523,6 +523,73 @@ ContinueRow:
     TryGetLatestMovementDestination = True
 End Function
 
+Public Function TryGetLatestMovementHospitalData( _
+    ByVal ipnText As String, _
+    ByRef outFound As Boolean, _
+    ByRef outDestinationText As String, _
+    ByRef outDepartureReasonText As String, _
+    Optional ByVal fioText As String = VBA.vbNullString _
+) As Boolean
+    ' Место лечения и основание выбытия читаются из одной физической строки:
+    ' номер МКСХ не должен случайно попасть от другого события человека.
+    Dim resolvedPath As String
+    Dim snapshotPath As String
+    Dim movementTableRef As String
+    Dim query As obj_ExtWorkbookQuery
+    Dim resultTable As obj_TableDynamic
+    Dim resultRow As obj_Row
+    Dim destinationText As String
+    Dim departureReasonText As String
+    Dim rowIndex As Long
+
+    outFound = False
+    outDestinationText = VBA.vbNullString
+    outDepartureReasonText = VBA.vbNullString
+    If m_IsDisposed Then Exit Function
+
+    ipnText = private_NormalizeLookupKey(ipnText)
+    If VBA.Len(ipnText) = 0 Then Exit Function
+    If Not private_TryResolveMovementQueryContext( _
+        resolvedPath, movementTableRef) Then Exit Function
+    If m_QueryEngine Is Nothing Then Exit Function
+    If Not private_TryGetMovementSnapshotPath( _
+        resolvedPath, snapshotPath) Then Exit Function
+
+    Set query = New obj_ExtWorkbookQuery
+    query.SourcePath = snapshotPath
+    query.TableRef = movementTableRef
+    query.ReverseOrder = True
+    If Not private_TryAddMovementPersonCondition( _
+        query, ipnText, fioText) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DESTINATION_HEADER) Then Exit Function
+    If Not query.AddSelectColumn( _
+        MOVEMENT_DEPARTURE_REASON_HEADER) Then Exit Function
+    If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
+    If resultTable Is Nothing Then Exit Function
+
+    For rowIndex = 1 To resultTable.RowCount
+        Set resultRow = resultTable.Rows.Item(rowIndex)
+        If resultRow Is Nothing Then GoTo ContinueRow
+        destinationText = VBA.vbNullString
+        departureReasonText = VBA.vbNullString
+        If Not resultRow.TryGetCellValueByColumn( _
+            MOVEMENT_DESTINATION_HEADER, destinationText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn( _
+            MOVEMENT_DEPARTURE_REASON_HEADER, departureReasonText) Then Exit Function
+        destinationText = VBA.Trim$(destinationText)
+        departureReasonText = VBA.Trim$(departureReasonText)
+        If VBA.Len(destinationText) > 0 Then
+            outDestinationText = destinationText
+            outDepartureReasonText = departureReasonText
+            outFound = True
+            Exit For
+        End If
+ContinueRow:
+    Next rowIndex
+
+    TryGetLatestMovementHospitalData = True
+End Function
+
 ' Совместимый узкий API для callers, которым данные ТВО не нужны.
 ' Основной export-flow вызывает объединённый helper напрямую и переиспользует
 ' outTvoChain; эта обёртка сохранена только для прежнего публичного контракта.
