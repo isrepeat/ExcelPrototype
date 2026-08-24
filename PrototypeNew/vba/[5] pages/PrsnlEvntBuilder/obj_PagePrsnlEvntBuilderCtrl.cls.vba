@@ -2326,6 +2326,8 @@ Private Function private_TryApplyMovementEnrichedFieldsAppearance() As Boolean
     If private_IsHospitalReturnProfile() Then
         fieldAliases.Add DRAFT_ALIAS_HOSPITAL
         fieldAliases.Add DRAFT_ALIAS_HOSPITAL_SHORT
+        fieldAliases.Add DRAFT_ALIAS_DOC_NO
+        fieldAliases.Add DRAFT_ALIAS_DOC_DATE
     ElseIf private_IsMovementTicketReturnProfile() Then
         fieldAliases.Add DRAFT_ALIAS_VACATION_TICKET_NO
         fieldAliases.Add DRAFT_ALIAS_VACATION_TICKET_DATE
@@ -3209,6 +3211,7 @@ Public Function SearchCandidates( _
                 Exit Function
             End If
         End If
+        If Not private_TryApplyCurrentOrderDateCandidateDefaults() Then Exit Function
         If notifyChange Then
             If Not rt_PageManager.fn_RenderPage( _
                 m_Page, "prsnlevntbuilder:movement-vacation-ticket-defaults") Then Exit Function
@@ -3232,6 +3235,7 @@ Public Function SearchCandidates( _
             SearchCandidates = True
             Exit Function
         End If
+        If Not private_TryApplyCurrentOrderDateCandidateDefaults() Then Exit Function
         If notifyChange Then
             If Not rt_PageManager.fn_RenderPage( _
                 m_Page, "prsnlevntbuilder:movement-hospital-defaults") Then Exit Function
@@ -3243,13 +3247,20 @@ Public Function SearchCandidates( _
     ' Универсальный EntityLookup не зависит от источников PrsnlEvntBuilder.
     If VBA.StrComp(VBA.Trim$(lookupKey), "op_FIO", VBA.vbTextCompare) = 0 Then
         If Not private_ShouldExtendAbsenceCandidates() Then
-            SearchCandidates = m_LookupFeature.SearchCandidates( _
-                lookupKey, queryText, outCandidateCount, notifyChange)
+            If Not m_LookupFeature.SearchCandidates( _
+                lookupKey, queryText, outCandidateCount, False) Then Exit Function
+            If Not private_TryApplyCurrentOrderDateCandidateDefaults() Then Exit Function
+            If notifyChange Then
+                If Not rt_PageManager.fn_RenderPage( _
+                    m_Page, "prsnlevntbuilder:order-date-candidate-defaults") Then Exit Function
+            End If
+            SearchCandidates = True
             Exit Function
         End If
         If Not m_LookupFeature.SearchCandidates(lookupKey, queryText, outCandidateCount, False) Then Exit Function
         If Not private_TryAppendTemporaryPersonnel(queryText) Then Exit Function
         If Not private_TryExtendAbsenceCandidates(queryText) Then Exit Function
+        If Not private_TryApplyCurrentOrderDateCandidateDefaults() Then Exit Function
         If notifyChange Then
             If Not rt_PageManager.fn_RenderPage( _
                 m_Page, "prsnlevntbuilder:absence-candidates-enriched") Then Exit Function
@@ -3260,9 +3271,21 @@ Public Function SearchCandidates( _
             If Not m_LookupFeature.SearchCandidates( _
                 lookupKey, queryText, outCandidateCount, False) Then Exit Function
             If Not private_TryAppendTemporaryPersonnel(queryText) Then Exit Function
+            If Not private_TryApplyCurrentOrderDateCandidateDefaults() Then Exit Function
             If notifyChange Then
                 If Not rt_PageManager.fn_RenderPage( _
                     m_Page, "prsnlevntbuilder:temporary-personnel-candidates") Then Exit Function
+            End If
+            SearchCandidates = True
+        ElseIf VBA.StrComp( _
+            VBA.Trim$(lookupKey), COMMANDER_LOOKUP_KEY, _
+            VBA.vbTextCompare) = 0 Then
+            If Not m_LookupFeature.SearchCandidates( _
+                lookupKey, queryText, outCandidateCount, False) Then Exit Function
+            If Not private_TryApplyCurrentOrderDateCandidateDefaults() Then Exit Function
+            If notifyChange Then
+                If Not rt_PageManager.fn_RenderPage( _
+                    m_Page, "prsnlevntbuilder:commander-order-date-defaults") Then Exit Function
             End If
             SearchCandidates = True
         Else
@@ -3270,6 +3293,105 @@ Public Function SearchCandidates( _
                 lookupKey, queryText, outCandidateCount, notifyChange)
         End If
     End If
+End Function
+
+Private Function private_TryApplyCurrentOrderDateCandidateDefaults() As Boolean
+    Dim entityLookupCfgParser As obj_EntityLookupCfgParser
+    Dim candidateTable As obj_TableDynamic
+    Dim candidateRow As obj_Row
+    Dim lookupKey As String
+    Dim searchColumnAlias As String
+    Dim incomingDateColumnIndex As Long
+    Dim docDateColumnIndex As Long
+    Dim shouldSetIncomingDate As Boolean
+    Dim shouldSetDocDate As Boolean
+    Dim orderDateText As String
+    Dim currentValueText As String
+    Dim rowIndex As Long
+
+    If m_LookupFeature Is Nothing Then Exit Function
+    shouldSetIncomingDate = private_ShouldDefaultIncomingDate()
+    shouldSetDocDate = private_IsHospitalReturnProfile()
+    If Not shouldSetIncomingDate And Not shouldSetDocDate Then
+        private_TryApplyCurrentOrderDateCandidateDefaults = True
+        Exit Function
+    End If
+    If Not m_LookupFeature.TryGetActiveCandidatesContext( _
+        entityLookupCfgParser, lookupKey, candidateTable, searchColumnAlias) Then Exit Function
+    If candidateTable Is Nothing Then Exit Function
+    shouldSetDocDate = (shouldSetDocDate And VBA.StrComp( _
+        VBA.Trim$(lookupKey), FIO_LOOKUP_KEY, VBA.vbTextCompare) = 0)
+    If Not shouldSetIncomingDate And Not shouldSetDocDate Then
+        private_TryApplyCurrentOrderDateCandidateDefaults = True
+        Exit Function
+    End If
+    If Not m_HasResolvedOrderPair Then
+        VBA.MsgBox "Спочатку прийміть номер і дату поточного наказу.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Candidate defaults"
+        Exit Function
+    End If
+
+    If shouldSetIncomingDate Then
+        If Not candidateTable.TryGetColumnIndexByAlias( _
+            DRAFT_ALIAS_INCOMING_DATE, incomingDateColumnIndex) Then
+            VBA.MsgBox "У таблиці кандидатів відсутня колонка '_IncomingDate'.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / Candidate defaults"
+            Exit Function
+        End If
+    End If
+    If shouldSetDocDate Then
+        If Not candidateTable.TryGetColumnIndexByAlias( _
+            DRAFT_ALIAS_DOC_DATE, docDateColumnIndex) Then
+            VBA.MsgBox "У таблиці кандидатів відсутня колонка '_DocDate'.", _
+                VBA.vbExclamation, "PrsnlEventBuilder / Candidate defaults"
+            Exit Function
+        End If
+    End If
+
+    orderDateText = VBA.Format$(m_ResolvedOrderDate, "dd.mm")
+    For rowIndex = 1 To candidateTable.RowCount
+        Set candidateRow = candidateTable.Rows.Item(rowIndex)
+        If candidateRow Is Nothing Then Exit Function
+        If shouldSetIncomingDate Then
+            currentValueText = VBA.Trim$(VBA.CStr( _
+                candidateRow.GetCellValue(incomingDateColumnIndex)))
+            If VBA.Len(currentValueText) = 0 Then
+                If Not candidateRow.SetCellRaw( _
+                    incomingDateColumnIndex, orderDateText) Then Exit Function
+            End If
+        End If
+        If shouldSetDocDate Then
+            currentValueText = VBA.Trim$(VBA.CStr( _
+                candidateRow.GetCellValue(docDateColumnIndex)))
+            If VBA.Len(currentValueText) = 0 Then
+                If Not candidateRow.SetCellRaw( _
+                    docDateColumnIndex, orderDateText) Then Exit Function
+            End If
+        End If
+    Next rowIndex
+
+    private_TryApplyCurrentOrderDateCandidateDefaults = True
+End Function
+
+Private Function private_ShouldDefaultIncomingDate() As Boolean
+    Dim sectionText As String
+    Dim sectionKey As String
+
+    If m_Data Is Nothing Then Exit Function
+    sectionText = VBA.Trim$(m_SelectedMainProfile)
+    If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
+    sectionKey = private_NormalizeText(sectionText)
+    If VBA.InStr(1, sectionKey, "=>", VBA.vbBinaryCompare) > 0 Then Exit Function
+
+    Select Case sectionKey
+        Case private_NormalizeText(m_Data.SectionTypeToAnnualVacationPart), _
+             private_NormalizeText(m_Data.SectionTypeToFamilyVacation), _
+             private_NormalizeText(m_Data.SectionTypeToMaternityLeave), _
+             private_NormalizeText(m_Data.SectionTypeToTreatmentVacation)
+            Exit Function
+    End Select
+
+    private_ShouldDefaultIncomingDate = True
 End Function
 
 Private Function private_TryExtendAbsenceCandidates( _
@@ -3331,7 +3453,9 @@ Private Function private_IsHospitalReturnProfile() As Boolean
     Select Case sectionKey
         Case private_NormalizeText(m_Data.SectionTypeCloseFromTreatment), _
              private_NormalizeText( _
-                m_Data.SectionTypeTransferTreatmentToTreatmentVacation)
+                m_Data.SectionTypeTransferTreatmentToTreatmentVacation), _
+             private_NormalizeText( _
+                m_Data.SectionTypeTransferTreatmentToExternalVlk)
             private_IsHospitalReturnProfile = True
     End Select
 End Function
@@ -3346,12 +3470,15 @@ Private Function private_TryApplyMovementHospitalDefaults() As Boolean
     Dim fioColumnIndex As Long
     Dim hospitalColumnIndex As Long
     Dim hospitalShortColumnIndex As Long
+    Dim docNoColumnIndex As Long
     Dim ipnText As String
     Dim fioText As String
     Dim hospitalFound As Boolean
     Dim hospitalShortText As String
     Dim hospitalName As String
     Dim hospitalNameFound As Boolean
+    Dim departureReasonText As String
+    Dim medicalCardNoText As String
     Dim rowIndex As Long
 
     If m_LookupFeature Is Nothing Then Exit Function
@@ -3380,6 +3507,12 @@ Private Function private_TryApplyMovementHospitalDefaults() As Boolean
             VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
         Exit Function
     End If
+    If Not candidateTable.TryGetColumnIndexByAlias( _
+        DRAFT_ALIAS_DOC_NO, docNoColumnIndex) Then
+        VBA.MsgBox "У таблиці кандидатів відсутня колонка '_DocNo'.", _
+            VBA.vbExclamation, "PrsnlEventBuilder / Movement enrichment"
+        Exit Function
+    End If
 
     For rowIndex = 1 To candidateTable.RowCount
         Set candidateRow = candidateTable.Rows.Item(rowIndex)
@@ -3387,9 +3520,10 @@ Private Function private_TryApplyMovementHospitalDefaults() As Boolean
         ipnText = VBA.Trim$(VBA.CStr(candidateRow.GetCellValue(ipnColumnIndex)))
         fioText = VBA.Trim$(VBA.CStr(candidateRow.GetCellValue(fioColumnIndex)))
         If VBA.Len(ipnText) = 0 Then GoTo ContinueRow
-        If Not m_ExporterCfgDataProvider.TryGetLatestMovementDestination( _
-            ipnText, hospitalFound, hospitalShortText, fioText) Then
-            VBA.MsgBox "Не вдалося прочитати останнє місце призначення з " & _
+        If Not m_ExporterCfgDataProvider.TryGetLatestMovementHospitalData( _
+            ipnText, hospitalFound, hospitalShortText, _
+            departureReasonText, fioText) Then
+            VBA.MsgBox "Не вдалося прочитати дані лікування з " & _
                 "Movement для ІПН '" & ipnText & "'.", VBA.vbExclamation, _
                 "PrsnlEventBuilder / Movement enrichment"
             Exit Function
@@ -3402,6 +3536,16 @@ Private Function private_TryApplyMovementHospitalDefaults() As Boolean
             hospitalColumnIndex, hospitalName) Then Exit Function
         If Not candidateRow.SetCellRaw( _
             hospitalShortColumnIndex, hospitalShortText) Then Exit Function
+        departureReasonText = VBA.Replace$( _
+            departureReasonText, VBA.ChrW$(160), " ")
+        medicalCardNoText = ex_Helpers.m_RegexGetGroup( _
+            departureReasonText, _
+            "МКСХ\s*(?:№\s*(.+?)\s+)?від\s+", 1)
+        medicalCardNoText = VBA.Trim$(medicalCardNoText)
+        If VBA.Len(medicalCardNoText) > 0 Then
+            If Not candidateRow.SetCellRaw( _
+                docNoColumnIndex, medicalCardNoText) Then Exit Function
+        End If
 ContinueRow:
     Next rowIndex
 
