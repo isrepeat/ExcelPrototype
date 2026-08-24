@@ -2582,7 +2582,6 @@ Private Function private_TryBuildMovementBasisSummary( _
             outBasisSummary = outBasisSummary & "; " & additionalBasisText
         End If
     End If
-    outBasisSummary = outBasisSummary & "."
     private_TryBuildMovementBasisSummary = True
 End Function
 
