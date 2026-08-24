@@ -295,8 +295,8 @@ Private Function private_ExpandStructureSegment( _
     For Each parentContext In parentContexts
         Set singleContexts = New Collection
         singleContexts.Add parentContext
-        If Not private_LocateChildContexts(ruleNode, locatorNode, _
-            singleContexts, foundContexts) Then Exit Function
+        If Not private_LocateChildContexts(pipelineNode, ruleNode, _
+            locatorNode, singleContexts, foundContexts) Then Exit Function
         foundCount = foundContexts.Count
 
         If foundCount = 0 Then
@@ -325,6 +325,7 @@ Private Function private_ExpandStructureSegment( _
 End Function
 
 Private Function private_LocateChildContexts( _
+    ByVal pipelineNode As Object, _
     ByVal ruleNode As Object, _
     ByVal locatorNode As Object, _
     ByVal parentContexts As Collection, _
@@ -358,6 +359,13 @@ Private Function private_LocateChildContexts( _
             Else
                 endPosition = VBA.Len(parentText) + 1
             End If
+            ' Именованная секция заканчивается на ближайшем следующем
+            ' поддерживаемом заголовке, даже если он находится на другом
+            ' уровне structure и имеет другую нумерацию в исходном документе.
+            If Not ruleNode.selectSingleNode("p:scope/p:match") Is Nothing Then
+                endPosition = private_FindNextScopeHeaderPosition( _
+                    pipelineNode, parentText, startPosition, endPosition)
+            End If
             contextText = VBA.Mid$(parentText, startPosition, _
                 endPosition - startPosition)
             If Not private_AddSectionContext(ruleNode, parentContext, _
@@ -365,6 +373,38 @@ Private Function private_LocateChildContexts( _
         Next i
     Next parentContext
     private_LocateChildContexts = True
+End Function
+
+Private Function private_FindNextScopeHeaderPosition( _
+    ByVal pipelineNode As Object, _
+    ByVal contextText As String, _
+    ByVal startPosition As Long, _
+    ByVal defaultEnd As Long _
+) As Long
+    Dim scopeMatchNodes As Object
+    Dim scopeMatchNode As Object
+    Dim rx As Object
+    Dim matches As Object
+    Dim matchObj As Object
+    Dim candidatePosition As Long
+
+    private_FindNextScopeHeaderPosition = defaultEnd
+    Set scopeMatchNodes = pipelineNode.selectNodes( _
+        "p:rules/p:rule/p:scope/p:match")
+    For Each scopeMatchNode In scopeMatchNodes
+        Set rx = private_CreateRegex(VBA.CStr(scopeMatchNode.Text), _
+            private_BoolAttr(scopeMatchNode, "ignoreCase", True), _
+            private_BoolAttr(scopeMatchNode, "multiline", False))
+        If rx Is Nothing Then Exit Function
+        Set matches = rx.Execute(contextText)
+        For Each matchObj In matches
+            candidatePosition = VBA.CLng(matchObj.FirstIndex) + 1
+            If candidatePosition > startPosition And _
+                candidatePosition < private_FindNextScopeHeaderPosition Then
+                private_FindNextScopeHeaderPosition = candidatePosition
+            End If
+        Next matchObj
+    Next scopeMatchNode
 End Function
 
 Private Function private_FilterActiveDatasetContexts( _
@@ -1286,8 +1326,8 @@ Private Function private_GetColumnOrder( _
 
     ' Основные кадровые колонки занимают стабильные позиции во всех таблицах.
     ' Неизвестные alias получают порядок 100 и остаются в хвосте в порядке DSL.
-    ' Підстава всегда замыкает строку, включая datasets с дополнительными
-    ' специализированными колонками, неизвестными общему движку.
+    ' Підстава обычно замыкает строку. Супровідний документ выводится после
+    ' неё, когда такая специализированная колонка объявлена в dataset.
     Select Case aliasText
         Case "rank": private_GetColumnOrder = 5
         Case "fio": private_GetColumnOrder = 10
@@ -1305,6 +1345,7 @@ Private Function private_GetColumnOrder( _
         Case "assignmentorigin": private_GetColumnOrder = 83
         Case "returndate", "enrollmentdate": private_GetColumnOrder = 70
         Case "basis": private_GetColumnOrder = 1000
+        Case "accompanyingdocument": private_GetColumnOrder = 1010
         Case Else: private_GetColumnOrder = 100
     End Select
 End Function
