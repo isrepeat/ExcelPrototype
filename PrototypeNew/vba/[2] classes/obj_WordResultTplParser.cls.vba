@@ -1529,7 +1529,7 @@ Private Function private_TryEvaluateHelperFunction( _
     If VBA.Right$(expressionText, 1) <> ")" Then Exit Function
 
     ' Минимальная поддержка внешних helper-вызовов для #let/#if.
-    ' Сейчас переносим только regex-методы, которые нужны шаблонам:
+    ' Разрешены только явно перечисленные ниже универсальные helper-методы:
     ' $ex_Helpers.m_RegexIsMatch("{[ReportPerson]}", "...")
     ' Аргументы сначала проходят через placeholder evaluation, поэтому внутри
     ' строк можно ссылаться на поля DynamicTable.
@@ -1569,6 +1569,13 @@ Private Function private_TryEvaluateHelperFunction( _
             patternArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(2)), sectionTypeText, sourceTables, renderVars, loopRows)
             replacementArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(3)), sectionTypeText, sourceTables, renderVars, loopRows)
             outValue = ex_Helpers.m_RegexReplace(textArg, patternArg, replacementArg)
+            private_TryEvaluateHelperFunction = True
+        Case "fn_isdateonorafter"
+            If args.Count <> 2 Then Exit Function
+            textArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(1)), sectionTypeText, sourceTables, renderVars, loopRows)
+            patternArg = private_EvaluateFunctionArgument(VBA.CStr(args.Item(2)), sectionTypeText, sourceTables, renderVars, loopRows)
+            outValue = VBA.CStr(ex_Helpers.fn_IsDateOnOrAfter( _
+                textArg, patternArg))
             private_TryEvaluateHelperFunction = True
     End Select
 End Function

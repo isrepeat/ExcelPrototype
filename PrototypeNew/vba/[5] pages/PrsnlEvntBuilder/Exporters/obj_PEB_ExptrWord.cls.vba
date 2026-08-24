@@ -94,6 +94,7 @@ Private Const WORD_ALIAS_REQUIRES_FOOD_SUPPORT_ENROLL As String = "RequiresFoodS
 Private Const WORD_ALIAS_REQUIRES_FOOD_SUPPORT_REMOVE As String = "RequiresFoodSupportRemove"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_NO As String = "PrevVacationTicketNo"
 Private Const WORD_ALIAS_PREV_VACATION_TICKET_DATE_SHORT As String = "PrevVacationTicketDateShort"
+Private Const WORD_ALIAS_ORDER_DATE_SHORT As String = "OrderDateShort"
 
 ' Канонический компактный формат date aliases внутри контекста шаблона.
 ' Он нужен не для окончательного отображения в WORD, а чтобы formatter pipeline
@@ -2298,6 +2299,9 @@ Private Function private_TryEnrichMainSourceTableForWord( _
     If VBA.Len(VBA.Trim$(orderNoText)) > 0 Then
         If Not private_TryUpsertMainTableValue(sourceTable, WORD_ALIAS_ORDER_NO, orderNoText) Then Exit Function
     End If
+    If Not private_TryUpsertMainTableValue( _
+        sourceTable, WORD_ALIAS_ORDER_DATE_SHORT, _
+        VBA.Format$(resolvedOrderDate, WORD_SHORT_DATE_STORAGE_FORMAT)) Then Exit Function
     ' Все склонения берутся из общего provider-а. Отсутствие ФИО в АЛФ не
     ' блокирует preview/export: ниже используем исходную форму и помечаем её
     ' семантическим warning-тегом для style pipeline.
