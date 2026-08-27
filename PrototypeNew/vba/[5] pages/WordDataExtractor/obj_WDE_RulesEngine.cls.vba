@@ -359,10 +359,11 @@ Private Function private_LocateChildContexts( _
             Else
                 endPosition = VBA.Len(parentText) + 1
             End If
-            ' Именованная секция заканчивается на ближайшем следующем
-            ' поддерживаемом заголовке, даже если он находится на другом
-            ' уровне structure и имеет другую нумерацию в исходном документе.
-            If Not ruleNode.selectSingleNode("p:scope/p:match") Is Nothing Then
+            ' Только явно отмеченная смысловая секция заканчивается на
+            ' ближайшем следующем scope-заголовке. Для main/sub-item такое
+            ' поведение обрезало бы пункт сразу после его номера.
+            If private_BoolAttr(ruleNode, _
+                "endAtNextScope", False) Then
                 endPosition = private_FindNextScopeHeaderPosition( _
                     pipelineNode, parentText, startPosition, endPosition)
             End If
@@ -1326,8 +1327,8 @@ Private Function private_GetColumnOrder( _
 
     ' Основные кадровые колонки занимают стабильные позиции во всех таблицах.
     ' Неизвестные alias получают порядок 100 и остаются в хвосте в порядке DSL.
-    ' Підстава обычно замыкает строку. Супровідний документ выводится после
-    ' неё, когда такая специализированная колонка объявлена в dataset.
+    ' Підстава обычно замыкает строку. Специализированные дополнительные
+    ' сведения выводятся после неё, когда они объявлены в dataset.
     Select Case aliasText
         Case "rank": private_GetColumnOrder = 5
         Case "fio": private_GetColumnOrder = 10
@@ -1346,6 +1347,7 @@ Private Function private_GetColumnOrder( _
         Case "returndate", "enrollmentdate": private_GetColumnOrder = 70
         Case "basis": private_GetColumnOrder = 1000
         Case "accompanyingdocument": private_GetColumnOrder = 1010
+        Case "additionalinfo": private_GetColumnOrder = 1010
         Case Else: private_GetColumnOrder = 100
     End Select
 End Function
