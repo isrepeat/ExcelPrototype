@@ -44,6 +44,7 @@ Private Const MOVEMENT_TVO_IPN_HEADER As String = "ТВО.ІПН"
 Private Const MOVEMENT_TVO_POSITION_HEADER As String = "ТВО.Посада"
 Private Const MOVEMENT_ESCORT_DOCUMENT_HEADER As String = "Супровідний документ"
 Private Const MOVEMENT_DESTINATION_HEADER As String = "Куди"
+Private Const SOURCE_HOSPITAL_SHORT_HEADER As String = "Лікарня скорочена назва"
 Private Const PERSONNEL_TVO_HEADER As String = "ТВО"
 Private Const PERSONNEL_UNIT_HEADER As String = "#"
 Private Const PERSONNEL_POSITION_CODE_HEADER As String = "Код посади"
@@ -644,6 +645,7 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     Dim tvoPositionText As String
     Dim departureOrderText As String
     Dim escortDocumentText As String
+    Dim destinationText As String
 
     outFound = False
     outEventText = VBA.vbNullString
@@ -702,6 +704,7 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
     If Not query.AddSelectColumn(MOVEMENT_TVO_IPN_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_TVO_POSITION_HEADER) Then Exit Function
     If Not query.AddSelectColumn(MOVEMENT_ESCORT_DOCUMENT_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(MOVEMENT_DESTINATION_HEADER) Then Exit Function
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
 
     If Not resultTable Is Nothing Then outFound = (resultTable.RowCount > 0)
@@ -718,8 +721,10 @@ Public Function TryGetLatestMovementEventAndTvoChain( _
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_IPN_HEADER, tvoIpnText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_TVO_POSITION_HEADER, tvoPositionText) Then Exit Function
         If Not resultRow.TryGetCellValueByColumn(MOVEMENT_ESCORT_DOCUMENT_HEADER, escortDocumentText) Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(MOVEMENT_DESTINATION_HEADER, destinationText) Then Exit Function
         outLatestRecord(MOVEMENT_DEPARTURE_ORDER_HEADER) = departureOrderText
         outLatestRecord(MOVEMENT_ESCORT_DOCUMENT_HEADER) = escortDocumentText
+        outLatestRecord(MOVEMENT_DESTINATION_HEADER) = destinationText
         If Not private_TryBuildTvoChain( _
             tvoFioText, _
             tvoIpnText, _
@@ -758,6 +763,8 @@ Public Function IsExportAllowed( _
     Dim previousDepartureDateText As String
     Dim previousArrivalDateText As String
     Dim requiredPreviousEventText As String
+    Dim previousDestinationText As String
+    Dim sourceDestinationText As String
 
     outErrorMessage = VBA.vbNullString
     Set outLatestTvoChain = New Collection
@@ -822,6 +829,13 @@ Public Function IsExportAllowed( _
                 VBA.vbCrLf & "Required previous event: " & requiredPreviousEventText
             Exit Function
         End If
+        previousDestinationText = VBA.vbNullString
+        If outLatestMovementRecord.Exists(MOVEMENT_DESTINATION_HEADER) Then _
+            previousDestinationText = VBA.Trim$(VBA.CStr( _
+                outLatestMovementRecord(MOVEMENT_DESTINATION_HEADER)))
+        If Not private_IsMedicalCompanySectionDestinationValid( _
+            data, exportSectionType, previousDestinationText, _
+            ipnText, outErrorMessage) Then Exit Function
         If previousIsClosed And Not allowMatchingClosedEvent Then
             outErrorMessage = "Export was stopped because the latest Movement event is already closed." & _
                 VBA.vbCrLf & "IPN: " & ipnText & _
@@ -841,6 +855,19 @@ Public Function IsExportAllowed( _
     If movementWasPrevalidated Then
         IsExportAllowed = True
         Exit Function
+    End If
+
+    ' Для новых выбытий профиль и записываемое место лечения также должны
+    ' соответствовать друг другу: медрота не является обычной больницей.
+    If VBA.StrComp(private_NormalizeLookupKey(exportSectionType), _
+        private_NormalizeLookupKey(data.SectionTypeToTreatment), _
+        VBA.vbTextCompare) = 0 Then
+        If Not private_TryGetFirstRowText( _
+            sourceTable, SOURCE_HOSPITAL_SHORT_HEADER, _
+            sourceDestinationText) Then sourceDestinationText = VBA.vbNullString
+        If Not private_IsMedicalCompanySectionDestinationValid( _
+            data, exportSectionType, sourceDestinationText, _
+            ipnText, outErrorMessage) Then Exit Function
     End If
 
     ' Даже при отключённой блокирующей валидации snapshot последней Movement-
@@ -889,6 +916,60 @@ Public Function IsExportAllowed( _
     End If
 
     IsExportAllowed = True
+End Function
+
+Private Function private_IsMedicalCompanySectionDestinationValid( _
+    ByVal data As obj_PrsnlEvntBuilderData, _
+    ByVal sectionTypeText As String, _
+    ByVal destinationText As String, _
+    ByVal ipnText As String, _
+    ByRef outErrorMessage As String _
+) As Boolean
+    Dim normalizedSectionType As String
+    Dim destinationIsMedicalCompany As Boolean
+
+    If data Is Nothing Then Exit Function
+    normalizedSectionType = private_NormalizeLookupKey(sectionTypeText)
+    destinationIsMedicalCompany = (VBA.StrComp( _
+        private_NormalizeLookupKey(destinationText), _
+        private_NormalizeLookupKey(data.MedicalCompanyDestination), _
+        VBA.vbTextCompare) = 0)
+
+    If VBA.StrComp(normalizedSectionType, _
+        private_NormalizeLookupKey(data.SectionTypeCloseFromMedicalCompany), _
+        VBA.vbTextCompare) = 0 Then
+        If Not destinationIsMedicalCompany Then
+            outErrorMessage = "Export was stopped because section '" & _
+                data.SectionTypeCloseFromMedicalCompany & _
+                "' can close treatment only in '" & _
+                data.MedicalCompanyDestination & "'." & VBA.vbCrLf & _
+                "IPN: " & ipnText & VBA.vbCrLf & _
+                "Previous destination: " & destinationText
+            Exit Function
+        End If
+    ElseIf VBA.StrComp(normalizedSectionType, _
+        private_NormalizeLookupKey(data.SectionTypeCloseFromTreatment), _
+        VBA.vbTextCompare) = 0 Then
+        If destinationIsMedicalCompany Then
+            outErrorMessage = "Export was stopped because treatment in '" & _
+                data.MedicalCompanyDestination & "' must be closed by section '" & _
+                data.SectionTypeCloseFromMedicalCompany & "'." & VBA.vbCrLf & _
+                "IPN: " & ipnText
+            Exit Function
+        End If
+    ElseIf VBA.StrComp(normalizedSectionType, _
+        private_NormalizeLookupKey(data.SectionTypeToTreatment), _
+        VBA.vbTextCompare) = 0 Then
+        If destinationIsMedicalCompany Then
+            outErrorMessage = "Export was stopped because departure to '" & _
+                data.MedicalCompanyDestination & "' requires section '" & _
+                data.SectionTypeToMedicalCompany & "'." & VBA.vbCrLf & _
+                "IPN: " & ipnText
+            Exit Function
+        End If
+    End If
+
+    private_IsMedicalCompanySectionDestinationValid = True
 End Function
 
 Public Function NormalizeIncomingNoForExport(ByVal incomingNoText As String) As String
