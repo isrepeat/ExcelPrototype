@@ -3378,6 +3378,11 @@ Private Function private_ShouldDefaultIncomingDate() As Boolean
     Dim sectionKey As String
 
     If m_Data Is Nothing Then Exit Function
+    ' Meta-профили используют собственную схему формы без _IncomingDate.
+    ' Основная секция при этом сохраняется в m_SelectedMainProfile, поэтому
+    ' проверять только её недостаточно: Lookup попытался бы изменить колонку,
+    ' которой закономерно нет в таблице кандидатов активного meta-профиля.
+    If private_IsMetaProfile(m_SelectedProfile) Then Exit Function
     sectionText = VBA.Trim$(m_SelectedMainProfile)
     If VBA.Len(sectionText) = 0 Then sectionText = VBA.Trim$(m_SelectedProfile)
     sectionKey = private_NormalizeText(sectionText)
