@@ -181,12 +181,6 @@
               [departed-awol]*
             ]]>
           </pattern>
-          <pattern id="excluded-from-personnel-lists">
-            <![CDATA[
-              [excluded-from-personnel-lists] /
-              [excluded-from-personnel-lists]*
-            ]]>
-          </pattern>
           <pattern id="departed-to-permanent-duty">
             <![CDATA[
               [departed-to-permanent-duty] /
@@ -214,14 +208,11 @@
               [missing-in-action]*
             ]]>
           </pattern>
-          <pattern id="deceased">
+          <!-- Итоговая таблица исключений всегда выводится последней. -->
+          <pattern id="excluded-from-personnel-lists">
             <![CDATA[
-              [deceased]*
-            ]]>
-          </pattern>
-          <pattern id="killed-in-action">
-            <![CDATA[
-              [killed-in-action]*
+              [excluded-from-personnel-lists] /
+              [excluded-from-personnel-lists]*
             ]]>
           </pattern>
         </context>
@@ -699,7 +690,7 @@
         <!-- В одной датированной группе может быть несколько людей с общим
              основанием. Match потребляет только один персональный абзац,
              а общие значения наследуются из context. -->
-        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+{{fio-three-parts}}\s*,[^\r]*(?=\r|$)]]></match>
+        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})(?:\s+медичної\s+служби)?\s+{{fio-three-parts}}\s*,[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s({{fio-three-parts}})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
@@ -875,8 +866,10 @@
             <transform type="regexReplace" pattern="\s*[,;.]\s*$" with=""/>
             <transform type="trim"/>
           </field>
-          <field id="accompanyingDocument" from="$assignmentGroup"
-            regex="Підстава:\s*([^\r]+)" group="1" default="">
+          <!-- В группе может быть одно общее основание либо отдельное
+               основание после каждого человека. Трансформер получает весь
+               текст группы и распределяет все удостоверения по порядку ФИО. -->
+          <field id="accompanyingDocument" from="$assignmentGroup">
             <transform type="orderedTripCredential" indexFrom="$matchIndex"/>
             <transform type="regexReplace"
               pattern="^посвідчення\s+про\s+відрядження\s+№\s*"
@@ -1029,19 +1022,21 @@
         </table>
       </rule>
 
-      <!-- Внутри общего пункта о выбывших формулировки причины различаются,
-           поэтому признаком строки служит само исключение из списков. Scope
-           заканчивается перед «На лікування», а match ограничен одним
-           нумерованным подпунктом и не может захватить следующего человека. -->
-      <rule id="excluded-from-personnel-lists" caption="Виключення зі списків особового складу" includeCommonColumns="false">
-        <scope>
-          <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:(?:\d+\.?\s*)?Вважати\s+такими,\s*що\s+вибули[^\r]*(?:\r|$)|(?:\d+\.?\s*)?(?:{{military-rank}})\s+[^\r]*припинив\s+службове\s+відрядження\s+та\s+виключен(?:ий|а)\s+зі\s+списків\s+особового\s+складу[^\r]*(?:\r|$))]]></match>
-        </scope>
-        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+(?:(?!Підстава:)[\s\S])*?(?:виключити|виключен(?:ий|а))\s+зі\s+списків\s+особового\s+складу(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+      <!-- Единый dataset для всех исключений, включая смерть и гибель.
+           source=document сохраняет поддержку самостоятельных пунктов без
+           общего заголовка. Match ограничен первой «Підставою» пункта. -->
+      <rule id="excluded-from-personnel-lists" caption="Виключення зі списків особового складу" source="document" includeCommonColumns="false">
+        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+(?:(?!Підстава:)[\s\S])*?(?:(?:виключити|виключен(?:ий|а))\s+зі\s+списків\s+особового\s+складу|(?:який|яка)\s+загину(?:в|ла)|загибеллю|визнано\s+загибл(?:им|ою)|(?:який|яка|та)\s+помер(?:ла)?|оголошено\s+померл(?:им|ою))(?:(?!Підстава:)[\s\S])*?П(?:ід|ді)става:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="true" regex="(?:{{military-rank}})\s+(?:запасу\s+)?({{fio-three-parts}})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$match" regex="(?:вважати\s+та(?:ким|кою),\s*що\s+|\r\s*)з\s+({{date}})(?:(?!Підстава:)[\s\S])*?(?:виключен(?:ий|а)|виключити)\s+зі\s+списків" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="eventDate" from="$match" ignoreCase="true"
+            preserveExisting="true"
+            regex="у\s+зв[’'ʼ]язку\s+(?:із\s+загибеллю|зі\s+смертю)\s+з\s+({{date}})\s+виключити"
+            group="1" default="">
+            <transform type="dateFormat" format="dd.mm.yyyy"/>
+          </field>
           <field id="foodRemovalDate" from="$match" ignoreCase="true"
             regex="з\s+продовольчого\s+забезпечення\s+з\s+({{date}})"
             group="1" default="">
@@ -1065,9 +1060,22 @@
             group="1" default="">
             <transform type="dateAddDays" days="1" format="dd.mm.yyyy"/>
           </field>
-          <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
+          <!-- Статус пуст для обычного исключения. Проверка гибели идёт
+               последней и имеет приоритет, если присутствуют оба маркера. -->
+          <field id="exclusionStatus" from="$match" ignoreCase="true"
+            regex="((?:який|яка|та)\s+помер(?:ла)?|оголошено\s+померл(?:им|ою)|у\s+зв[’'ʼ]язку\s+зі\s+смертю)"
+            group="1" default="">
+            <transform type="regexReplace" pattern="[\s\S]+" with="Помер"/>
+          </field>
+          <field id="exclusionStatus" from="$match" ignoreCase="true"
+            preserveExisting="true"
+            regex="((?:який|яка)\s+загину(?:в|ла)|загибеллю|визнано\s+загибл(?:им|ою))"
+            group="1" default="">
+            <transform type="regexReplace" pattern="[\s\S]+" with="Загинув"/>
+          </field>
+          <field id="basis" from="$match" regex="П(?:ід|ді)става:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
         </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="awolReturnDate" caption="Повернення із СЗЧ" value="$awolReturnDate" format="date"/><column id="eventDate" caption="Виключення" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="movementEvent" caption="Подія РУХ" value="$movementEvent"/><column id="remoteUnit" caption="Куди" value="$remoteUnit"/><column id="basis" caption="Підстава" value="$basis"/></table>
+        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="exclusionStatus" caption="Статус" value="$exclusionStatus"/><column id="awolReturnDate" caption="Повернення із СЗЧ" value="$awolReturnDate" format="date"/><column id="eventDate" caption="Виключення" value="$eventDate"/><column id="foodRemovalDate" caption="З продовольчого" value="$foodRemovalDate"/><column id="movementEvent" caption="Подія РУХ" value="$movementEvent"/><column id="remoteUnit" caption="Куди" value="$remoteUnit"/><column id="basis" caption="Підстава" value="$basis"/></table>
       </rule>
 
       <rule id="departed-for-treatment" kind="section">
@@ -1359,48 +1367,6 @@
         </table>
       </rule>
 
-      <!-- Смерть по причинам, не описанным как гибель при защите Отечества.
-           Поддерживаются как записи внутри специальной секции, так и
-           самостоятельные нумерованные пункты с «помер»/«оголошено померлим».
-           Персональный match не пересекает известный заголовок секции смерти:
-           текст предыдущего события не должен присваиваться этой секции.
-           Dataset расположен перед «Які загинули», чтобы последняя секция
-           сохранила своё место в самом конце flow. -->
-      <rule id="deceased" caption="Які померли" includeCommonColumns="false">
-        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+(?:(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?Яких\s+вважати\s+померлими)(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+)[\s\S])*?(?:помер(?:ла)?(?=\s|[.,;:]|$)|оголошено\s+померл(?:им|ою)(?=\s|[.,;:]|$))(?:(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?Яких\s+вважати\s+померлими)(?!\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+)[\s\S])*(?=\r\s*(?:\d+(?:\.\d+)*\.?\s*)?(?:{{military-rank}})\s+|\s*$)]]></match>
-        <fields>
-          <field id="fio" from="$match" ignoreCase="true" regex="(?:{{military-rank}})\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[^,\r]+)\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="eventDate" from="$match" ignoreCase="true"
-            regex="помер(?:ла)?\s+({{date}})"
-            group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="basis" from="$match" regex="П(?:ід|ді)става:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
-        </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Дата смерті" value="$eventDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </rule>
-
-      <!-- Пункты о гибели обычно не имеют отдельного заголовка секции и
-           содержат много последующих абзацев о семье и выплатах. Строку
-           ограничиваем началом персонального пункта и его «Підстава».
-           Dataset намеренно расположен последним в итоговом flow. -->
-      <rule id="killed-in-action" caption="Які загинули" source="document" includeCommonColumns="false">
-        <!-- source=document позволяет извлечь второе событие из пункта,
-             который уже занят строкой СЗЧ. Вариант «помер» допустим здесь
-             только в связке с самовольным оставлением части, чтобы не
-             дублировать обычную секцию «Які померли». -->
-        <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}(?:{{military-rank}})\s+(?:(?!Підстава:)[\s\S])*?(?:(?:загину(?:в|ла)|загибеллю)|(?:самовільно\s+залиш(?:ив|ила)(?:(?!Підстава:)[\s\S])*?\s+та\s+помер(?:ла)?))(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
-        <fields>
-          <field id="fio" from="$match" ignoreCase="true" regex="(?:{{military-rank}})\s+([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]+\s+[^,\r]+)\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="eventDate" from="$match" regex="загину(?:в|ла)\s+({{date}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="eventDate" from="$match" preserveExisting="true"
-            regex="вважати\s+та(?:ким|кою),\s*що\s+({{date}})\s+самовільно\s+залиш(?:ив|ила)(?:(?!Підстава:)[\s\S])*?\s+та\s+помер(?:ла)?"
-            group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="exclusionDate" from="$match" regex="у\s+зв[’'ʼ]язку\s+із\s+загибеллю\s+з\s+({{date}})\s+виключити" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
-        </fields>
-        <table><column id="fio" caption="ПІБ" value="$fio"/><column id="ipn" caption="ІПН" value="$ipn"/><column id="eventDate" caption="Дата загибелі" value="$eventDate"/><column id="exclusionDate" caption="Виключення зі списків" value="$exclusionDate"/><column id="basis" caption="Підстава" value="$basis"/></table>
-      </rule>
       </rules>
 
     </pipeline>
