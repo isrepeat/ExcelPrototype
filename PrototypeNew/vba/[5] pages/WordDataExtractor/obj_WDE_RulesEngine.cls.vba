@@ -1954,14 +1954,10 @@ Private Function private_TrySelectTripCredential( _
     Dim rx As Object
     Dim matches As Object
     Dim matchObj As Object
-    Dim startNumber As String
-    Dim endNumber As String
+    Dim numberExpression As String
+    Dim selectedNumber As String
     Dim credentialDate As String
     Dim credentialDateFormatted As String
-    Dim startPrefix As String
-    Dim endPrefix As String
-    Dim startSequence As Long
-    Dim endSequence As Long
     Dim rangeCount As Long
     Dim parsedDate As Date
 
@@ -1972,49 +1968,33 @@ Private Function private_TrySelectTripCredential( _
     rx.Global = True
     rx.IgnoreCase = True
     rx.MultiLine = True
-    ' В документах встречаются оба варианта маркера диапазона:
-    ' `№№ 47/117-47/118` и `№ № 47/117-47/118`.
-    rx.Pattern = "посвідчення\s+про\s+відрядження\s+№\s*№?\s*" & _
-        "([0-9]+(?:/[0-9]+)*)(?:\s*[-–—]\s*" & _
-        "([0-9]+(?:/[0-9]+)*))?(?:\s+від\s+" & _
+    ' Формат номера заранее не ограничиваем: границей служит обязательный
+    ' маркер `від <дата>`. Захваченный фрагмент затем разбирается как один
+    ' номер, список либо диапазон.
+    rx.Pattern = "(?:посвідчення\s+про\s+відрядження\s+№\s*№?|" & _
+        "\s*,\s*№)\s*" & _
+        "([^\r]+?)\s*,?\s+від\s+" & _
         "(\d{1,2}(?:[.\-/]\d{1,2}[.\-/]\d{2,4}|" & _
-        "\s+[а-яіїєґ]+\s+\d{4}\s+року)))?"
+        "\s+[а-яіїєґ]+\s+\d{4}\s+року))"
     Set matches = rx.Execute(basisText)
 
     For Each matchObj In matches
-        startNumber = VBA.CStr(matchObj.SubMatches(0))
-        endNumber = VBA.CStr(matchObj.SubMatches(1))
-        credentialDate = VBA.CStr(matchObj.SubMatches(2))
+        numberExpression = VBA.CStr(matchObj.SubMatches(0))
+        credentialDate = VBA.CStr(matchObj.SubMatches(1))
         credentialDateFormatted = VBA.Trim$(credentialDate)
         If VBA.Len(credentialDateFormatted) > 0 Then
             If private_TryParseDateValue(credentialDateFormatted, parsedDate) Then
                 credentialDateFormatted = VBA.Format$(parsedDate, "dd.mm.yyyy")
             End If
         End If
-        rangeCount = 1
+        If Not private_TrySelectTripCredentialNumber( _
+            numberExpression, oneBasedIndex, selectedNumber, _
+            rangeCount) Then Exit Function
 
-        If VBA.Len(endNumber) > 0 Then
-            If private_TrySplitCredentialNumber( _
-                startNumber, startPrefix, startSequence) And _
-               private_TrySplitCredentialNumber( _
-                endNumber, endPrefix, endSequence) Then
-                ' В сокращённой записи `47/117-118` правая граница наследует
-                ' префикс слева; обратные и смешанные диапазоны не разворачиваем.
-                If VBA.Len(endPrefix) = 0 Then endPrefix = startPrefix
-                If VBA.StrComp(startPrefix, endPrefix, _
-                    VBA.vbBinaryCompare) = 0 And endSequence >= startSequence Then
-                    rangeCount = endSequence - startSequence + 1
-                End If
-            End If
-        End If
-
-        If oneBasedIndex <= rangeCount Then
-            If rangeCount = 1 Then
-                outValue = "посвідчення про відрядження № " & startNumber
-            Else
-                outValue = "посвідчення про відрядження № " & _
-                    startPrefix & VBA.CStr(startSequence + oneBasedIndex - 1)
-            End If
+        If VBA.Len(selectedNumber) > 0 Then
+            outValue = "посвідчення про відрядження № " & selectedNumber
+            ' Дата относится ко всей текущей группе номеров: списку,
+            ' диапазону или одиночному удостоверению.
             If VBA.Len(credentialDateFormatted) > 0 Then
                 outValue = outValue & " від " & credentialDateFormatted
             End If
@@ -2024,6 +2004,78 @@ Private Function private_TrySelectTripCredential( _
         End If
         oneBasedIndex = oneBasedIndex - rangeCount
     Next matchObj
+End Function
+
+Private Function private_TrySelectTripCredentialNumber( _
+    ByVal numberExpression As String, _
+    ByVal oneBasedIndex As Long, _
+    ByRef outNumber As String, _
+    ByRef outCount As Long _
+) As Boolean
+    Dim listParts As Variant
+    Dim rangeRx As Object
+    Dim rangeMatches As Object
+    Dim startNumber As String
+    Dim endNumber As String
+    Dim startPrefix As String
+    Dim endPrefix As String
+    Dim startSequence As Long
+    Dim endSequence As Long
+
+    outNumber = VBA.vbNullString
+    outCount = 0
+    numberExpression = VBA.Trim$(numberExpression)
+    If VBA.Len(numberExpression) = 0 Or oneBasedIndex <= 0 Then Exit Function
+
+    If VBA.InStr(1, numberExpression, ",", VBA.vbBinaryCompare) > 0 Then
+        listParts = VBA.Split(numberExpression, ",")
+        outCount = UBound(listParts) - LBound(listParts) + 1
+        If oneBasedIndex <= outCount Then
+            outNumber = VBA.Trim$(VBA.CStr( _
+                listParts(LBound(listParts) + oneBasedIndex - 1)))
+        End If
+        private_TrySelectTripCredentialNumber = True
+        Exit Function
+    End If
+
+    Set rangeRx = VBA.CreateObject("VBScript.RegExp")
+    rangeRx.Global = False
+    rangeRx.IgnoreCase = True
+    rangeRx.MultiLine = False
+    rangeRx.Pattern = "^([0-9]+(?:/[0-9A-ZА-ЯІЇЄҐ]+)*)\s*[-–—]\s*" & _
+        "([0-9]+(?:/[0-9A-ZА-ЯІЇЄҐ]+)*)$"
+    Set rangeMatches = rangeRx.Execute(numberExpression)
+    If rangeMatches.Count = 0 Then
+        outCount = 1
+        If oneBasedIndex = 1 Then outNumber = numberExpression
+        private_TrySelectTripCredentialNumber = True
+        Exit Function
+    End If
+
+    startNumber = VBA.CStr(rangeMatches.Item(0).SubMatches(0))
+    endNumber = VBA.CStr(rangeMatches.Item(0).SubMatches(1))
+    outCount = 1
+    If private_TrySplitCredentialNumber( _
+        startNumber, startPrefix, startSequence) And _
+       private_TrySplitCredentialNumber( _
+        endNumber, endPrefix, endSequence) Then
+        ' В сокращённой записи `47/117-118` правая граница наследует
+        ' префикс слева; обратные и смешанные диапазоны не разворачиваем.
+        If VBA.Len(endPrefix) = 0 Then endPrefix = startPrefix
+        If VBA.StrComp(startPrefix, endPrefix, _
+            VBA.vbBinaryCompare) = 0 And endSequence >= startSequence Then
+            outCount = endSequence - startSequence + 1
+        End If
+    End If
+    If oneBasedIndex <= outCount Then
+        If outCount = 1 Then
+            outNumber = startNumber
+        Else
+            outNumber = startPrefix & VBA.CStr( _
+                startSequence + oneBasedIndex - 1)
+        End If
+    End If
+    private_TrySelectTripCredentialNumber = True
 End Function
 
 Private Function private_TrySplitCredentialNumber( _
