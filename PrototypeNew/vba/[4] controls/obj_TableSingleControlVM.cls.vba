@@ -26,13 +26,13 @@ Private m_Page As obj_IPage
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -45,7 +45,7 @@ End Sub
 ' //
 Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Initialize"
 #End If
     m_IsDisposed = False
     m_IsConfigured = False
@@ -55,7 +55,7 @@ End Function
 
 Private Sub obj_IControl_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -165,7 +165,7 @@ Private Sub obj_IControl_Render()
     End If
 
     If Not private_TryBuildRenderBufferSingle(valueBlock, styleSegments) Then Exit Sub
-    If VBA.IsEmpty(valueBlock) Then Exit Sub
+    If IsEmpty(valueBlock) Then Exit Sub
 
     Set targetRange = ws.Range( _
         ws.Cells(m_RowStart, m_ColStart), _
@@ -179,6 +179,17 @@ Private Sub obj_IControl_Render()
     private_ApplyStyleSegments ws, styleSegments
 #End If
 End Sub
+
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    outSpanRows = 1
+    outSpanColls = 1
+    obj_IControl_Measure = True
+End Function
 
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
@@ -591,7 +602,7 @@ Private Function private_TryResolveSingleTableModel(ByRef outTable As obj_TableD
         Exit Function
     End If
 
-    If Not VBA.IsObject(m_TableItems(1)) Then
+    If Not IsObject(m_TableItems(1)) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table."
 #End If
@@ -606,14 +617,14 @@ End Function
 Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef outTable As obj_TableDynamic) As Boolean
     Dim fixedTable As obj_Table
 
-    If Not VBA.IsObject(tableItem) Then
+    If Not IsObject(tableItem) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "TableSingle: itemsSource entry must be obj_TableDynamic or obj_Table."
 #End If
         Exit Function
     End If
 
-    Select Case VBA.LCase$(VBA.TypeName(tableItem))
+    Select Case VBA.LCase$(TypeName(tableItem))
         Case "obj_tabledynamic"
             Set outTable = tableItem
             private_TryResolveTableModel = True
@@ -626,7 +637,7 @@ Private Function private_TryResolveTableModel(ByVal tableItem As Variant, ByRef 
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "TableSingle: unsupported table model type '" & VBA.TypeName(tableItem) & "'. Expected obj_TableDynamic or obj_Table."
+            ex_Core.fn_Diagnostic_LogError "TableSingle: unsupported table model type '" & TypeName(tableItem) & "'. Expected obj_TableDynamic or obj_Table."
 #End If
     End Select
 End Function

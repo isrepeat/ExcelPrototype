@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_PostProcessPipeline"
 Option Explicit
 
-Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const DEBUG_LOG_PATH As String = "Logs\runtime_pipeline.log"
 Private Const DEBUG_LOG_ENABLED As Boolean = True
 
 Public Function m_Run( _

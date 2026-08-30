@@ -8,13 +8,17 @@ Option Explicit
 
 Private g_IsDispatchingClick As Boolean
 Private g_IsDispatchingSheetChange As Boolean
+Private g_IsDispatchingSelectionChange As Boolean
+Private g_IsDispatchingHotkey As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_Bridge.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_Bridge.fn_Module_Dispose"
 #End If
     g_IsDispatchingClick = False
     g_IsDispatchingSheetChange = False
+    g_IsDispatchingSelectionChange = False
+    g_IsDispatchingHotkey = False
 End Sub
 
 ' //
@@ -28,6 +32,7 @@ Public Sub fn_OnShapeClick()
     Dim dispatchOk As Boolean
     Dim wsName As String
     Dim wsCodeName As String
+    Dim wasDispatchingClick As Boolean
 
     ' Почему нужен bridge:
     ' - Excel Shape.OnAction принимает только имя макроса (строку),
@@ -35,6 +40,10 @@ Public Sub fn_OnShapeClick()
     ' - Поэтому все shape клики сходятся в один модульный entrypoint,
     '   а дальше мы сами маршрутизируем к нужной странице/контролу.
     On Error GoTo EH_CLICK
+    ' Вложенный click допустим из DoEvents: так кнопка Cancel попадает в
+    ' выполняющийся поиск. После него внешний dispatch всё ещё активен, поэтому
+    ' восстанавливаем предыдущее состояние вместо безусловного False.
+    wasDispatchingClick = g_IsDispatchingClick
     g_IsDispatchingClick = True
 
     ' 1) Получаем имя shape, по которому кликнули (Application.Caller).
@@ -77,11 +86,11 @@ Public Sub fn_OnShapeClick()
     private_LogBridgeInfo "click-done shape='" & private_EscapeForLog(callerShapeName) & "' sheet='" & private_EscapeForLog(wsName) & "'"
 
 CleanExit:
-    g_IsDispatchingClick = False
+    g_IsDispatchingClick = wasDispatchingClick
     Exit Sub
 
 EH_CLICK:
-    g_IsDispatchingClick = False
+    g_IsDispatchingClick = wasDispatchingClick
     private_LogBridgeError "click-exception err='" & private_EscapeForLog(Err.Description) & "'"
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "rt_Bridge: shape click dispatch failed: " & Err.Description
@@ -96,6 +105,173 @@ End Function
 Public Function fn_IsDispatchingSheetChange() As Boolean
     fn_IsDispatchingSheetChange = g_IsDispatchingSheetChange
 End Function
+
+Public Function fn_IsDispatchingAny() As Boolean
+    fn_IsDispatchingAny = _
+        g_IsDispatchingClick Or _
+        g_IsDispatchingSheetChange Or _
+        g_IsDispatchingSelectionChange Or _
+        g_IsDispatchingHotkey
+End Function
+
+Public Sub fn_OnSheetSelectionChange( _
+    ByVal Sh As Object, _
+    ByVal Target As Range _
+)
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim dispatchOk As Boolean
+
+    On Error GoTo EH_SELECTION
+    If g_IsDispatchingSelectionChange Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-skip method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='dispatch-already-active'"
+        Exit Sub
+    End If
+    If Sh Is Nothing Or Target Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-skip method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='event-argument-missing'"
+        Exit Sub
+    End If
+    If Not TypeOf Sh Is Worksheet Then
+        ex_Core.fn_Diagnostic_LogEventInfo _
+            "event:selection-skip method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='sheet-not-worksheet'"
+        Exit Sub
+    End If
+    Set ws = Sh
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:method-enter method='rt_Bridge.fn_OnSheetSelectionChange' sheet='" & _
+        private_EscapeForLog(ws.Name) & "' target='" & _
+        private_EscapeForLog(Target.Address(False, False)) & "'"
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-failed method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='page-not-found' sheet='" & _
+            private_EscapeForLog(ws.Name) & "'"
+        Exit Sub
+    End If
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-failed method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='page-base-missing' sheet='" & _
+            private_EscapeForLog(ws.Name) & "'"
+        Exit Sub
+    End If
+
+    g_IsDispatchingSelectionChange = True
+    dispatchOk = pageBase.DispatchSelectionChange(Target)
+    g_IsDispatchingSelectionChange = False
+    If Not dispatchOk Then
+        ex_Core.fn_Diagnostic_LogEventError _
+            "event:selection-failed method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+            "reason='page-dispatch-returned-false' sheet='" & _
+            private_EscapeForLog(ws.Name) & "'"
+        Exit Sub
+    End If
+    ex_Core.fn_Diagnostic_LogEventInfo _
+        "event:method-exit method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+        "result='true' sheet='" & private_EscapeForLog(ws.Name) & "'"
+    Exit Sub
+
+EH_SELECTION:
+    g_IsDispatchingSelectionChange = False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogEventError _
+        "event:method-error method='rt_Bridge.fn_OnSheetSelectionChange' " & _
+        "errNumber='" & VBA.CStr(Err.Number) & "' err='" & _
+        private_EscapeForLog(Err.Description) & "'"
+#End If
+End Sub
+
+Public Function fn_IsDispatchingHotkey() As Boolean
+    fn_IsDispatchingHotkey = g_IsDispatchingHotkey
+End Function
+
+Public Sub fn_OnSheetActivate(ByVal Sh As Object)
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim pageId As String
+    Dim wsName As String
+    Dim syncOk As Boolean
+
+    On Error GoTo EH_ACTIVATE
+    If Sh Is Nothing Then Exit Sub
+    If Not TypeOf Sh Is Worksheet Then
+        Call ex_Core.fn_Diagnostic_ApplyLoggingPagePolicy(VBA.vbNullString)
+        syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+        Exit Sub
+    End If
+
+    Set ws = Sh
+    wsName = VBA.Trim$(VBA.CStr(ws.Name))
+    Call ex_Core.fn_Diagnostic_ApplyLoggingPagePolicy(wsName)
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then
+        syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+        Exit Sub
+    End If
+
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then
+        syncOk = rt_HotkeyRuntime.fn_ActivatePageHotkeys(VBA.vbNullString)
+        Exit Sub
+    End If
+
+    pageId = VBA.LCase$(VBA.Trim$(pageBase.PageId))
+    If VBA.Len(pageId) = 0 Then pageId = VBA.LCase$(VBA.Trim$(page.GetPageId()))
+    If Not rt_HotkeyRuntime.fn_ActivatePageHotkeys(pageId) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "bridge:sheet-activate hotkey-sync-failed sheet='" & private_EscapeForLog(wsName) & "'"
+#End If
+    End If
+    Exit Sub
+
+EH_ACTIVATE:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: sheet activate dispatch failed: " & Err.Description
+#End If
+End Sub
+
+Public Sub fn_OnHotkey(ByVal hotkeyKey As String)
+    Dim activeSheetObj As Object
+    Dim ws As Worksheet
+    Dim page As obj_IPage
+    Dim pageBase As obj_PageBase
+    Dim wsName As String
+
+    On Error GoTo EH_HOTKEY
+    If g_IsDispatchingHotkey Then Exit Sub
+    If VBA.Len(hotkeyKey) = 0 Then Exit Sub
+
+    Set activeSheetObj = Application.ActiveSheet
+    If Not TypeOf activeSheetObj Is Worksheet Then Exit Sub
+    Set ws = activeSheetObj
+    wsName = VBA.Trim$(VBA.CStr(ws.Name))
+
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, page) Then Exit Sub
+    Set pageBase = page.GetPageBase()
+    If pageBase Is Nothing Then Exit Sub
+
+    g_IsDispatchingHotkey = True
+    If Not pageBase.DispatchHotkey(hotkeyKey) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "bridge:hotkey-dispatch-failed hotkey='" & private_EscapeForLog(hotkeyKey) & "' sheet='" & private_EscapeForLog(wsName) & "'"
+#End If
+    End If
+    g_IsDispatchingHotkey = False
+    Exit Sub
+
+EH_HOTKEY:
+    g_IsDispatchingHotkey = False
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "rt_Bridge: hotkey dispatch failed: " & Err.Description
+#End If
+End Sub
 
 Public Sub fn_OnSheetChange(ByVal Sh As Object, ByVal Target As Range)
     Dim ws As Worksheet
@@ -202,7 +378,13 @@ Public Function fn_RunCallback( _
 
 EH_RUN:
 #If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogError "rt_Bridge: failed to execute callback '" & callbackRef & "' (context='" & VBA.TypeName(callbackContext) & "' hasArg=" & VBA.CStr(hasCallbackArg) & "): " & Err.Description
+    ex_Core.fn_Diagnostic_LogEventError _
+        "event:callback-error method='rt_Bridge.fn_RunCallback' callback='" & _
+        private_EscapeForLog(callbackRef) & "' context='" & _
+        private_EscapeForLog(VBA.TypeName(callbackContext)) & _
+        "' hasArg='" & VBA.LCase$(VBA.CStr(hasCallbackArg)) & _
+        "' errNumber='" & VBA.CStr(Err.Number) & "' err='" & _
+        private_EscapeForLog(Err.Description) & "'"
 #End If
 End Function
 

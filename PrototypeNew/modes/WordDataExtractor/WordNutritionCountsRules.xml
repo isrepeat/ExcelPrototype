@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wordDataExtractor xmlns="urn:excelprototype:word-data-extractor:v4" version="4">
+  <!--
+    Профиль читает Word-документ целиком. Если целевой блок присутствует,
+    один match извлекает четыре показателя. В пакетном режиме документ без
+    такого блока сохраняется как строка с датой и пустыми показателями.
+  -->
+  <pipelines>
+    <pipeline id="nutrition-counts">
+      <structure>
+        <pattern id="nutrition-counts-row"><![CDATA[
+          [nutrition-counts-row]*
+        ]]></pattern>
+      </structure>
+
+      <rules>
+        <rule id="nutrition-counts-row"
+          caption="Котлове забезпечення"
+          source="document"
+          includeCommonColumns="false">
+          <match ignoreCase="true" multiline="false"><![CDATA[зняти\s+з\s+котлового\s+забезпечення[\s\S]*?["“”']?\s*(\d+)\s*["“”']?\s+військовослужбовц[^\r;.]*(?:[;.]|\r)[\s\S]*?зарахувати\s+на\s+(?:котлове|продовольче)\s+забезпечення[\s\S]*?["“”']?\s*(\d+)\s*["“”']?\s+військовослужбовц[^\r;.]*(?:[;.]|\r)[\s\S]*?загальна\s+кількість\s+військовослужбовців,\s*яка\s+перебуває\s+на\s+котловому\s+забезпеченні,\s*складає\s*["“”']?\s*(\d+)\s*["“”']?\s+військовослужбовц[^\r;.]*(?:[;.]|\r)[\s\S]*?загальна\s+кількість\s+військовослужбовців,\s*яка\s+забезпечена\s+загальновійськовим\s+набором\s+сухих\s+продуктів,\s*складає\s*["“”']?\s*(\d+)\s*["“”']?\s+військовослужбовц]]></match>
+          <fields>
+            <field id="foodRemovalCount" from="$1"/>
+            <field id="foodEnrollmentCount" from="$2"/>
+            <field id="onMealSupportCount" from="$3"/>
+            <field id="dryRationCount" from="$4"/>
+            <field id="orderNumber" from="$document"
+              regex="(?:^|\r)\s*\d{2}\.\d{2}\.\d{4}[\s\S]{0,300}?№\s*(\d+)"
+              group="1" default=""/>
+          </fields>
+          <table emitEmptyRow="true">
+            <column id="orderNumber"
+              caption="номер наказа"
+              value="$orderNumber"/>
+            <column id="onMealSupportCount"
+              caption="Загальна кількість на котловому"
+              value="$onMealSupportCount"/>
+            <column id="foodRemovalCount"
+              caption="Зняти з котлового"
+              value="$foodRemovalCount"/>
+            <column id="foodEnrollmentCount"
+              caption="Зарахувати на котлове"
+              value="$foodEnrollmentCount"/>
+            <column id="dryRationCount"
+              caption="Кількість на сухпайку"
+              value="$dryRationCount"/>
+          </table>
+        </rule>
+      </rules>
+    </pipeline>
+  </pipelines>
+</wordDataExtractor>

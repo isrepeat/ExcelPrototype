@@ -13,7 +13,7 @@ Private g_DemoConfigVariant As String
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Test.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_Test.fn_Module_Dispose"
 #End If
 End Sub
 ' //
@@ -25,7 +25,7 @@ Public Sub fn_TEST_RenderDevUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevUI.xml"
+    private_RenderWorksheetPage ws, "ui\MainUI.xml"
 End Sub
 
 Public Sub fn_TEST_RenderDevTableListUI()
@@ -34,7 +34,7 @@ Public Sub fn_TEST_RenderDevTableListUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevTableListUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevTableListUI.xml"
 End Sub
 
 
@@ -44,7 +44,7 @@ Public Sub fn_TEST_RenderDevPrimitiveTableUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevPrimitiveTableUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevPrimitiveTableUI.xml"
 End Sub
 
 
@@ -54,7 +54,7 @@ Public Sub fn_TEST_RenderDevListTableSingleUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevListTableSingleUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevListTableSingleUI.xml"
 End Sub
 
 
@@ -64,7 +64,7 @@ Public Sub fn_TEST_RenderDevTablePartStylesUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevTablePartStylesUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevTablePartStylesUI.xml"
 End Sub
 
 
@@ -114,34 +114,17 @@ End Sub
 Public Sub fn_TEST_ProfileDevTableListUI()
     Dim ws As Worksheet
     Dim tables As Collection
-    Dim t0 As Double
-    Dim t1 As Double
-    Dim t2 As Double
-    Dim t3 As Double
 
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    t0 = VBA.Timer
     Set tables = fn_TEST_BuildDemoTableItems()
-    t1 = VBA.Timer
 
     If tables Is Nothing Then Exit Sub
 
     If Not private_TryClearTestRuntimeSources() Then Exit Sub
     If Not private_TrySetItemsSource("RuntimeItems.Test.Tables", tables, False) Then Exit Sub
-    t2 = VBA.Timer
-
-    private_RenderWorksheetPage ws, "ui\DevProfileTableUI.xml"
-    t3 = VBA.Timer
-
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "Profile (ms):" & VBA.vbCrLf & _
-           "Build data: " & VBA.Format$((t1 - t0) * 1000#, "0") & VBA.vbCrLf & _
-           "Register source: " & VBA.Format$((t2 - t1) * 1000#, "0") & VBA.vbCrLf & _
-           "Render UI: " & VBA.Format$((t3 - t2) * 1000#, "0") & VBA.vbCrLf & _
-           "Total: " & VBA.Format$((t3 - t0) * 1000#, "0")
-#End If
+    private_RenderWorksheetPage ws, "ui\Dev\DevProfileTableUI.xml"
 End Sub
 
 
@@ -177,7 +160,7 @@ Public Sub fn_TEST_RenderDevSingleTableUI()
     Set ws = private_GetActiveWorksheet()
     If ws Is Nothing Then Exit Sub
 
-    private_RenderWorksheetPage ws, "ui\DevSingleTableUI.xml"
+    private_RenderWorksheetPage ws, "ui\Dev\DevSingleTableUI.xml"
 End Sub
 
 
@@ -404,7 +387,7 @@ Public Function fn_TEST_BuildDemoTableViewItems( _
     If sourceTables Is Nothing Then Exit Function
 
     Set result = New list__obj_TableViewItem
-    Randomize
+    VBA.Randomize
 
     tableIndex = 0
     For Each sourceTableObj In sourceTables
@@ -554,7 +537,7 @@ ContinueMergedSourceColumn:
         For sourceRowIndex = 1 To sourceTable.Rows.Count
             Set sourceRow = sourceTable.Rows.Item(sourceRowIndex)
             If sourceRow Is Nothing Then GoTo ContinueMergedSourceRow
-            If VBA.TypeName(sourceRow) <> "obj_Row" Then
+            If TypeName(sourceRow) <> "obj_Row" Then
 #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "PrototypeNew: expected obj_Row in demo table rows."
 #End If
@@ -797,7 +780,7 @@ Private Function private_GetRandomRowBannerTargetIndex( _
         Exit Function
     End If
 
-    slotRoll = VBA.Int(Rnd * 3) + 1
+    slotRoll = VBA.Int(VBA.Rnd * 3) + 1
 
     Select Case slotRoll
         Case 1
@@ -828,14 +811,14 @@ Private Function private_TryResolveDemoTableDynamic(ByVal tableObj As Variant, B
     Dim sourceColumnIndex As Long
     Dim sourceRowIndex As Long
 
-    If Not VBA.IsObject(tableObj) Then
+    If Not IsObject(tableObj) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: demo table item is not object."
 #End If
         Exit Function
     End If
 
-    Select Case VBA.LCase$(VBA.TypeName(tableObj))
+    Select Case VBA.LCase$(TypeName(tableObj))
         Case "obj_tabledynamic"
             Set outTable = tableObj
             private_TryResolveDemoTableDynamic = True
@@ -877,7 +860,7 @@ ContinueResolveRow:
 
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & VBA.TypeName(tableObj) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: unsupported demo table type '" & TypeName(tableObj) & "'."
 #End If
     End Select
 End Function
@@ -1003,7 +986,7 @@ Private Function private_TryResolveMainPage(ByRef outPage As obj_IPage) As Boole
     If rt_PageManager.fn_TryGetAllPages(allPages) Then
         If Not allPages Is Nothing Then
             For Each pageCandidate In allPages
-                If VBA.IsObject(pageCandidate) Then
+                If IsObject(pageCandidate) Then
                     Set outPage = pageCandidate
                     If outPage Is Nothing Then GoTo ContinuePageCandidate
 

@@ -69,7 +69,7 @@ Private Function mp_CreateOrClearSheet(ByVal sheetName As String) As Worksheet
     Set mp_CreateOrClearSheet = ws
 End Function
 
-Public Function m_LogInputObjectField(ByVal fieldName As String, Optional ByVal logPath As String = "Logs\personalcard_pipeline.log") As String
+Public Function m_LogInputObjectField(ByVal fieldName As String, Optional ByVal logPath As String = "Logs\runtime_pipeline.log") As String
     Dim inputObj As Object
     Dim valueObj As Object
     Dim info As String

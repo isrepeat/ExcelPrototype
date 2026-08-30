@@ -2,6 +2,7 @@ Attribute VB_Name = "rt_RestoreManager"
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
 #Const LOGGING_VERBOSE_ENABLED = False
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 
 Private Const RUNTIME_GLOBALS_NS As String = "urn:excelprototype:runtime-globals:v1"
 Private Const RUNTIME_GLOBALS_ROOT As String = "runtimeGlobals"
@@ -11,10 +12,9 @@ Private Const RUNTIME_GLOBALS_MODULE_SNAPSHOT_NODE As String = "snapshot"
 Private Const RUNTIME_GLOBALS_ACTIVE_SHEET_ATTR As String = "activeSheetName"
 Private Const MODULE_NAME_PAGE_MANAGER As String = "rt_PageManager"
 
-' Callstack[1]: ex_Core.private_Dev_TryPrepareRuntimeForHotUpdate -> private_Dev_TryRunModuleDisposers -> Application.Run(rt_RestoreManager.fn_Module_Dispose)
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:rt_RestoreManager.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:rt_RestoreManager.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -22,14 +22,17 @@ End Sub
 ' // API
 ' //
 ' Callstack[1]: ThisWorkbook.Workbook_BeforeClose -> rt_RestoreManager.fn_SaveRuntimeState
-' Callstack[2]: rt_CoreActions.private_ScheduleUpdateAndRerender -> rt_RestoreManager.fn_SaveRuntimeState
 ' Callstack[3]: ex_Core.private_Dev_TryRunSafeUpdateByMode -> private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager","fn_SaveRuntimeState")
 ' Callstack[4]: rt_RestoreManager.private_TryFallbackRestoreByResettingMainPage -> rt_RestoreManager.fn_SaveRuntimeState
 Public Function fn_SaveRuntimeState() As Boolean
     ' Единая точка сохранения runtime-состояния.
     ' Сейчас сохраняется модульный snapshot rt_PageManager, но формат рассчитан
     ' на добавление других runtime-модулей без изменения внешнего API.
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     fn_SaveRuntimeState = private_TrySaveRuntimeGlobalsSnapshot()
+#Else
+    fn_SaveRuntimeState = True
+#End If
 End Function
 
 ' Callstack[1]: ThisWorkbook.Workbook_Open -> rt_RestoreManager.fn_RestoreRuntimeState
@@ -46,6 +49,10 @@ Public Function fn_RestoreRuntimeState( _
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
     outRestoredPagesCount = 0
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    fn_RestoreRuntimeState = True
+    Exit Function
+#End If
     If isRuntimeStateRestoreRunning Then Exit Function
 
     isRuntimeStateRestoreRunning = True
@@ -103,7 +110,10 @@ End Function
 Public Sub fn_RunDeferredRuntimeStateRestore()
     Dim restoredPagesCount As Long
 
+    ex_Core.fn_Dev_MarkRuntimeStateRestoreStarted
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     Call fn_RestoreRuntimeState("deferred:on-time", restoredPagesCount)
+#End If
 End Sub
 
 ' Callstack[1]: rt_RestoreManager.private_TryDeserializeRuntimeModuleSnapshot(rt_PageManager) -> rt_PageManager.fn_TryDeserializeModuleSnapshot -> rt_RestoreManager.fn_TryPrepareWorkbookForRestore
@@ -112,6 +122,9 @@ Public Function fn_TryPrepareWorkbookForRestore(ByRef outTemporaryWorksheet As W
     Dim tmpName As String
 
     Set outTemporaryWorksheet = Nothing
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    Exit Function
+#End If
     Set wb = ThisWorkbook
     If wb Is Nothing Then Exit Function
 
@@ -150,6 +163,9 @@ Public Function fn_TryFinalizeWorkbookAfterRestore(ByVal temporaryWorksheet As W
     Dim wb As Workbook
 
     fn_TryFinalizeWorkbookAfterRestore = True
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    Exit Function
+#End If
     If temporaryWorksheet Is Nothing Then Exit Function
 
     Set wb = ThisWorkbook
@@ -179,9 +195,12 @@ Public Function fn_TryRestoreSerializableCollectionState( _
 ) As Boolean
     Dim item As Variant
     Dim serializableItem As obj_ISerializable
-    Dim typeName As String
+    Dim itemTypeName As String
 
     fn_TryRestoreSerializableCollectionState = True
+#If Not RUNTIME_SNAPSHOTS_ENABLED Then
+    Exit Function
+#End If
     ownerName = VBA.Trim$(ownerName)
     If VBA.Len(ownerName) = 0 Then ownerName = "unknown"
 
@@ -192,16 +211,16 @@ Public Function fn_TryRestoreSerializableCollectionState( _
     ' 2) здесь каждый объект достраивает внутренние ссылки/состояние в TryRestoreState.
     For Each item In serializableItems
         Set serializableItem = Nothing
-        typeName = "unknown"
+        itemTypeName = "unknown"
 
         On Error Resume Next
-        typeName = VBA.TypeName(item)
+        itemTypeName = TypeName(item)
         Set serializableItem = item
         If Err.Number <> 0 Then
             Err.Clear
             On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "RestoreManager: collection item does not implement obj_ISerializable. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
+            ex_Core.fn_Diagnostic_LogError "RestoreManager: collection item does not implement obj_ISerializable. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(itemTypeName, "'", "''") & "'."
 #End If
             fn_TryRestoreSerializableCollectionState = False
             Exit Function
@@ -212,7 +231,7 @@ Public Function fn_TryRestoreSerializableCollectionState( _
         If serializableItem.TryRestoreState() Then GoTo ContinueItem
 
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogError "RestoreManager: TryRestoreState failed. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(typeName, "'", "''") & "'."
+        ex_Core.fn_Diagnostic_LogError "RestoreManager: TryRestoreState failed. owner='" & VBA.Replace$(ownerName, "'", "''") & "' type='" & VBA.Replace$(itemTypeName, "'", "''") & "'."
 #End If
         fn_TryRestoreSerializableCollectionState = False
         Exit Function
@@ -291,7 +310,7 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot(ByRef outActiveWorkshe
         attrValue = VBA.vbNullString
     End If
     On Error GoTo 0
-    If Not IsNull(attrValue) Then
+    If Not VBA.IsNull(attrValue) Then
         outActiveWorksheetName = VBA.Trim$(VBA.CStr(attrValue))
     End If
 
@@ -311,7 +330,7 @@ Private Function private_TryRestoreRuntimeGlobalsSnapshot(ByRef outActiveWorkshe
             attrValue = VBA.vbNullString
         End If
         On Error GoTo 0
-        If IsNull(attrValue) Then
+        If VBA.IsNull(attrValue) Then
             moduleName = VBA.vbNullString
         Else
             moduleName = VBA.Trim$(VBA.CStr(attrValue))

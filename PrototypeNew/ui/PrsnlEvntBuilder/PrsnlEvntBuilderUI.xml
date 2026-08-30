@@ -1,0 +1,2322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <templates>
+    <template name="medicalReportFilterHeaderTpl">
+      <control
+        type="Label"
+        name="MedicalReportFilterHeader"
+        text="{Binding Path=Key}"
+        style="medicalReportFilterHeader"
+        spanColls="1"
+        spanRows="1"/>
+    </template>
+    <template name="medicalReportFilterInputTpl">
+      <control
+        type="Input"
+        name="MedicalReportFilterInput"
+        value="{Binding Path=Value}"
+        style="medicalReportFilterInput"
+        spanColls="1"
+        spanRows="1"/>
+    </template>
+  </templates>
+  <grid anchorCell="A1">
+    <!-- Headless-контрол сохраняет регистрацию сочетаний клавиш без таблицы на листе. -->
+    <control
+      type="Hotkeys"
+      name="SheetHotkeys"
+      dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+      itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Hotkeys'}"
+      actionMethod="RuntimeHandleHotkeyAction"
+      tableName="tblPrsnlEvntBuilderHotkeys"
+      showPanel="false"
+      at="r1c1"
+      spanColls="2"
+      spanRows="1"/>
+
+    <stackPanel at="r2c2" orientation="vertical">
+      <!-- Компактная командная строка не участвует в высоте основного блока профилей. -->
+      <stackPanel name="EventDraftCommandRow" orientation="horizontal">
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+          onClick="{Binding Method=OnRenderCommand}"
+          spanColls="2"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="LookupMode"
+          caption="{Binding Path=IsLookupEnabled;TrueAs=Lookup [[[color=#FFFF00]]enable[[/color]]];FalseAs=Lookup [[[color=#FFFF00]]disable[[/color]]]}"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ToggleLookupEnabled}"
+          spanColls="2"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="TemporaryPersonnel"
+          caption="{Binding Path=IsTemporaryPersonnelEnabled;TrueAs=[✓] Шукати у ТП;FalseAs=[ ] Шукати у ТП}"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ToggleTemporaryPersonnel}"
+          spanColls="2"
+          spanRows="2"/>
+
+
+        <!-- Редкие переходы используют тот же профильный pipeline, но не
+             занимают постоянное место в основной матрице кнопок. -->
+        <control
+          type="Select"
+          name="EventDraftAdditionalProfileSelect"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.AdditionalProfiles'}"
+          onChange="{Binding Method=OnAdditionalProfileChanged}"
+          placeholder="Додаткові секції"
+          headerStyle="profileButton"
+          panelStyle="configSelectPanel"
+          itemStyle="profileButton"
+          itemHeight="30"
+          itemMargin="2"
+          spanColls="4"
+          spanRows="2"/>
+      </stackPanel>
+
+      <stackPanel spanColls="22" spanRows="1"/>
+
+      <!-- Основные и meta-профили слева, WORD-превью выровнено по их верхней границе. -->
+      <stackPanel name="EventDraftProfileRow" orientation="horizontal">
+        <control
+          type="ButtonGroup"
+          name="EventDraftProfileButtonGroup"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.Profiles'}"
+          style="profileButton"
+          shapePrefix="btn_STBar_"
+          onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnProfileButtonClick}"
+          columns="3"
+          flow="column"
+          itemsPerColumn="7"
+          itemSpanRows="2"
+          spanColls="6"
+          spanRows="20"/>
+
+        <control
+          type="ButtonGroup"
+          name="EventDraftMetaProfileButtonGroup"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MetaProfiles'}"
+          style="metaProfileButton"
+          shapePrefix="btn_STBarMeta_"
+          onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}; Method=OnMetaProfileButtonClick}"
+          columns="1"
+          flow="column"
+          itemSpanRows="2"
+          spanColls="2"
+          spanRows="5"/>
+
+        <stackPanel name="OrderResolutionPanel" orientation="vertical">
+          <control
+            type="Label"
+            name="OrderResolutionHeader"
+            text="Наказ"
+            style="tableHeaderCell"
+            mergeCells="true"
+            spanColls="2"
+            spanRows="1"/>
+
+          <stackPanel orientation="horizontal">
+            <stackPanel orientation="vertical">
+              <control
+                type="Label"
+                name="EventDraftOrderNoHeader"
+                text="Номер/дата"
+                style="tableHeaderCell"
+                spanColls="1"
+                spanRows="1"/>
+              <stackPanel name="EventDraftOrderNoValue" orientation="horizontal">
+                <control
+                  type="Label"
+                  name="EventDraftOrderNoLabel"
+                  text=""
+                  style="tableDataCell"
+                  spanColls="1"
+                  spanRows="1"/>
+              </stackPanel>
+            </stackPanel>
+
+            <stackPanel orientation="vertical">
+              <control
+                type="Label"
+                name="EventDraftOrderYearHeader"
+                text="Рік"
+                style="tableHeaderCell"
+                spanColls="1"
+                spanRows="1"/>
+              <stackPanel name="EventDraftOrderYearValue" orientation="horizontal">
+                <control
+                  type="Label"
+                  name="EventDraftOrderYearLabel"
+                  text=""
+                  style="tableDataCell"
+                  spanColls="1"
+                  spanRows="1"/>
+              </stackPanel>
+            </stackPanel>
+          </stackPanel>
+
+          <control
+            type="Button"
+            name="AcceptOrderReference"
+            caption="Прийняти"
+            style="actionWarning"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            onClick="{Binding Method=OnAcceptOrderReferenceClick}"
+            spanColls="2"
+            spanRows="2"/>
+
+          <control
+            type="TableList"
+            name="AcceptedOrderHistory"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.OrderHistory'}"
+            visibility="{Binding Path=HasResolvedOrderPair;TrueAs=Visible;FalseAs=Collapsed}"
+            spanColls="2"/>
+        </stackPanel>
+
+        <!-- Один столбец отделяет превью от кнопок и ставит его в колонку M. -->
+        <!-- <stackPanel spanColls="1" spanRows="1"/> -->
+
+        <!-- Превью занимает освободившуюся правую часть верхней строки. -->
+        <stackPanel name="WordExportPanel" orientation="horizontal">
+          <control
+            type="Banner"
+            name="WordExportPreview"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+            header="WORD export preview"
+            message="{Binding Path=WordExportPreviewText}"
+            spanColls="8"
+            spanRows="15"/>
+
+          <!-- Экспортные действия образуют самостоятельную колонку справа от превью. -->
+          <stackPanel name="WordExportActions" orientation="vertical" spanColls="2">
+            <control
+              type="Button"
+              name="UseWordPreview"
+              caption="Use preview for export"
+              style="exportApplyButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=ToggleWordPreviewExportMode}"
+              visibility="{Binding [Not] Path=IsWordPreviewExportMode;TrueAs=Visible;FalseAs=Collapsed}"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="UseWordPreviewActive"
+              caption="[✓] Export from preview"
+              style="previewModeActiveButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=ToggleWordPreviewExportMode}"
+              visibility="{Binding Path=IsWordPreviewExportMode;TrueAs=Visible;FalseAs=Collapsed}"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="ExportToWord"
+              caption="Export to WORD"
+              style="exportApplyButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnExportToWordClick}"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="ToggleWordBookmarks"
+              caption="{Binding Path=AreWordBookmarksShownAsMarkers;TrueAs=Restore WORD bookmarks;FalseAs=Show WORD markers}"
+              style="exportApplyButton"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnToggleWordBookmarksClick}"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="ClearWordDocument"
+              caption="Remove WORD anchors"
+              style="actionWarning"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnClearWordDocumentClick}"
+              spanRows="2"/>
+
+            <control
+              type="Button"
+              name="DisconnectDataSources"
+              caption="Розірвати з'єднання з таблицями"
+              style="actionWarning"
+              dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+              onClick="{Binding Method=OnDisconnectDataSourcesClick}"
+              spanRows="2"/>
+          </stackPanel>
+        </stackPanel>
+      </stackPanel>
+
+      <!-- Preview Movement обновляется только по CTRL+ENTER. Сам checkbox
+           управляет видимостью и не выполняет запрос к внешней книге. -->
+      <stackPanel
+        name="MovementHistoryCommandRow"
+        orientation="horizontal"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}">
+        <control
+          type="Button"
+          name="ToggleMovementHistory"
+          caption="{Binding Path=IsMovementHistoryEnabled;TrueAs=[✓] Показати історію руху;FalseAs=[ ] Показати історію руху}"
+          style="exportApplyButton"
+          onClick="{Binding Method=ToggleMovementHistory}"
+          spanColls="4"
+          spanRows="1"/>
+
+        <stackPanel
+          name="MovementHistoryLimitField"
+          orientation="horizontal"
+          visibility="{Binding Path=IsMovementHistoryEnabled;TrueAs=Visible;FalseAs=Collapsed}">
+          <control
+            type="Label"
+            name="MovementHistoryLimitHeader"
+            text="Кількість записів:"
+            style="tableHeaderCell"/>
+          <control
+            type="Input"
+            name="MovementHistoryLimitInput"
+            value="2"
+            style="inputField"/>
+        </stackPanel>
+      </stackPanel>
+
+      <stackPanel
+        name="MovementHistoryPanel"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        visibility="{Binding Path=IsMovementHistoryEnabled;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="50">
+        <control
+          type="TableList"
+          name="MovementHistoryTable"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MovementHistory'}"
+          mergeSectionCells="true"
+          spanColls="50"/>
+      </stackPanel>
+
+      <!-- Draft-форма: текущий основной или meta-профиль редактирует эту строку. -->
+      <stackPanel
+        name="EventDraftForm"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        orientation="vertical"
+        spanColls="22"
+        spanRows="2">
+        <!-- Ширина вычисляется по видимым полям: фиксированный spanColls оставлял
+             закрашенный хвост после Collapsed-колонок. -->
+        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanRows="1">
+          <control
+            type="Label"
+            name="HospitalHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text="Лікарня"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="HospitalShortHeader"
+            tags="profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text="Лікарня скорочена назва"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ToHospitalHeader"
+            tags="profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            text="Куди Лікарня"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ToHospitalShortHeader"
+            tags="profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            text="Куди Лікарня скорочена назва"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DestinationHeader"
+            tags="profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text="Куди"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="RankHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text="Звання"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="FioHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text="ПІБ"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="IpnHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text="ІПН"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="PositionCodeHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text="Код посади"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="PositionNameHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text="Посада"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ReportRankHeader"
+            tags="profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text="Звання (рапорт)"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ReportPersonHeader"
+            tags="profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text="ФІО (рапорт)"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="ReportPositionCodeHeader"
+            tags="profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text="Код посади (рапорт)"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="IncomingNoHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core"
+            text="Вх. №"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="IncomingDateHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core"
+            text="Вх. дата"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DocumentNoteHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
+                  profile.metaDocument"
+            text="Документ / Замітки"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DocNoHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
+                  profile.metaDocument"
+            text="Док. №"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DocDateHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
+                  profile.metaDocument"
+            text="Док. дата"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DurationDaysHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text="На скільки"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DateFromHeader"
+            tags="profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferMedicalCompanyToTreatment"
+            text="З"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="DateToHeader"
+            tags="profile.allFields"
+            text="По"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="VacationTicketNoHeader"
+            tags="profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text="Квит. №"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="VacationTicketDateHeader"
+            tags="profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text="Квит. дата"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="VlkNoHeader"
+            tags="profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
+            text="ВЛК №"
+            style="tableHeaderCell"
+            />
+          <control
+            type="Label"
+            name="VlkDateHeader"
+            tags="profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
+            text="ВЛК дата"
+            style="tableHeaderCell"
+            />
+        </stackPanel>
+
+        <!-- Значения измеряются тем же способом, что и заголовки, поэтому фон
+             формы заканчивается на последней видимой колонке. -->
+        <stackPanel name="EventDraftValues" orientation="horizontal" spanRows="1">
+          <control
+            type="Input"
+            name="HospitalLookupInput"
+            tags="_Hospital;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.op_Hospital}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="op_Hospital"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="HospitalShortDraftCell"
+            tags="_HospitalShort;
+                  profile.allFields;
+                  profile.closeTreatment;
+                  profile.toTreatment;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Input"
+            name="ToHospitalLookupInput"
+            tags="_ToHospital;
+                  profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.op_ToHospital}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="op_ToHospital"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="ToHospitalShortCell"
+            tags="_ToHospitalShort;
+                  profile.allFields;
+                  profile.transferTreatmentToVlk;"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DestinationDraftCell"
+            tags="_Destination;
+                  profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="RankDraftCell"
+            tags="_Rank;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Input"
+            name="FioLookupInput"
+            tags="_FIO;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.op_FIO}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="op_FIO"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="IpnDraftCell"
+            tags="_IPN;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="PositionCodeDraftCell"
+            tags="_PositionCode;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="PositionNameDraftCell"
+            tags="_PositionName;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core;
+                  profile.metaTvo"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="ReportRankDraftCell"
+            tags="_ReportRank;
+                  profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Input"
+            name="CommanderLookupInput"
+            tags="_ReportPerson;
+                  profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.op_Commander}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="op_Commander"
+            spanColls="1"
+            spanRows="1"/>
+
+          <control
+            type="Label"
+            name="ReportPositionCodeDraftCell"
+            tags="_ReportPositionCode;
+                  profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="IncomingNoDraftCell"
+            tags="_IncomingNo;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="IncomingDateDraftCell"
+            tags="_IncomingDate;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.core"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Input"
+            name="DocumentNoteLookupInput"
+            tags="_DocumentNote;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
+                  profile.metaDocument"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder'}"
+            value="{Binding Path=LookupQueryValues.op_DocumentNote}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="op_DocumentNote"
+            />
+
+          <control
+            type="Label"
+            name="DocNoDraftCell"
+            tags="_DocNo;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
+                  profile.metaDocument"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DocDateDraftCell"
+            tags="_DocDate;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAmbulatoryVlk;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatment;
+                  profile.transferMedicalCompanyToTreatment;
+                  profile.metaDocument"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DurationDaysDraftCell"
+            tags="_DurationDays;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DateFromDraftCell"
+            tags="_DateFrom;
+                  profile.allFields;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatment;
+                  profile.closeMedicalCompany;
+                  profile.toTreatment;
+                  profile.toMedicalCompany;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatment;
+                  profile.transferTreatmentVacationToVlk;
+                  profile.transferTreatmentToVlk;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferMedicalCompanyToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="DateToDraftCell"
+            tags="_DateTo;
+                  profile.allFields"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VacationTicketNoDraftCell"
+            tags="_VacationTicketNo;
+                  profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VacationTicketDateDraftCell"
+            tags="_VacationTicketDate;
+                  profile.allFields;
+                  profile.closeBusinessTrip;
+                  profile.toBusinessTrip;
+                  profile.toBusinessTripSzch;
+                  profile.closeTreatmentVacation;
+                  profile.closeAnnualVacation;
+                  profile.closeFamilyVacation;
+                  profile.toAnnualVacationPart;
+                  profile.toFamilyVacation;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VlkNoDraftCell"
+            tags="_VlkNo;
+                  profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+
+          <control
+            type="Label"
+            name="VlkDateDraftCell"
+            tags="_VlkDate;
+                  profile.allFields;
+                  profile.closeAmbulatoryVlk;
+                  profile.toTreatmentVacation;
+                  profile.transferTreatmentToTreatmentVacation;
+                  profile.transferTreatmentVacationToTreatmentVacation;
+                  profile.transferVlkToTreatmentVacation;
+                  profile.transferVlkToTreatment"
+            text=""
+            style="tableDataCell"
+            />
+        </stackPanel>
+      </stackPanel>
+
+      <!-- Кандидаты поиска находятся сразу под draft-формой для быстрого выбора. -->
+      <stackPanel orientation="vertical" spanColls="50">
+        <control
+          type="LookupCandidates"
+          name="LookupCandidatesTable"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          lookupFeature="{Binding Path=LookupFeature}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.EntityLookup.CandidateTables'}"
+          itemVisibility="{Binding Path=RowCount; Op=gt; Value=0; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="50"/>
+        <!-- <control
+          type="TableList"
+          name="PrsnlEvntBuilderDummyTable"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.DummyTables'}"
+          spanColls="6"/> -->
+      </stackPanel>
+
+      <!-- Форма экспорта: Apply пишет основную таблицу и дописанные meta-таблицы. -->
+      <stackPanel
+        name="EventExportForm"
+        orientation="vertical"
+        spanColls="50"
+        >
+        <control
+          type="TableList"
+          name="EventExportMainTable"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ExportForm.Main'}"
+          spanColls="50"
+          spanRows="4"/>
+
+        <control
+          type="TableList"
+          name="EventExportMetaTables"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ExportForm.Meta'}"
+          spanColls="50"/>
+      </stackPanel>
+
+      <stackPanel
+        name="BottomWorkspaceArea"
+        orientation="vertical"
+        spanColls="50">
+      <stackPanel name="BottomWorkspaceCommands" orientation="horizontal">
+        <stackPanel
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          visibility="{Binding [Not] Path=IsBottomWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="2"
+          spanRows="1"/>
+        <control
+          type="Button"
+          name="RefreshWorkspace"
+          caption="Обновить"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=RefreshBottomWorkspace}"
+          visibility="{Binding Path=IsBottomWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="2"
+          spanRows="4"/>
+        <!-- Spacer -->
+        <stackPanel spanColls="1" spanRows="1"/>
+        <control
+          type="Button"
+          name="ShowExportEditing"
+          caption="Редагування РУХ / WORD"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowExportEditingWorkspace}"
+          visibility="{Binding [Not] Path=IsExportEditingWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowExportEditingActive"
+          caption="Редагування РУХ / WORD"
+          style="bottomWorkspaceActive"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowExportEditingWorkspace}"
+          visibility="{Binding Path=IsExportEditingWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowValidation"
+          caption="Валідація"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowValidationWorkspace}"
+          visibility="{Binding [Not] Path=IsValidationWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowValidationActive"
+          caption="Валідація"
+          style="bottomWorkspaceActive"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowValidationWorkspace}"
+          visibility="{Binding Path=IsValidationWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowMedicalReports"
+          caption="Стройові записки"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowMedicalReportsWorkspace}"
+          visibility="{Binding [Not] Path=IsMedicalReportsWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+        <control
+          type="Button"
+          name="ShowMedicalReportsActive"
+          caption="Стройові записки"
+          style="bottomWorkspaceActive"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+          onClick="{Binding Method=ShowMedicalReportsWorkspace}"
+          visibility="{Binding Path=IsMedicalReportsWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+          spanColls="3"
+          spanRows="4"/>
+      </stackPanel>
+
+      <!-- Управление уже записанными событиями текущего номера приказа. -->
+      <stackPanel
+        name="ExportedEventsMenu"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        visibility="{Binding Path=IsExportEditingWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="50">
+        <control
+          type="TableList"
+          name="MovementEventsMenu"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MovementEvents'}"
+          spanColls="50"/>
+      </stackPanel>
+
+      <stackPanel
+        name="ValidationWorkspace"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        visibility="{Binding Path=IsValidationWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="50">
+        <control
+          type="TableList"
+          name="EmbeddedValidationResults"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.ValidationResults'}"
+          spanColls="50"/>
+      </stackPanel>
+
+      <stackPanel
+        name="MedicalReportsWorkspace"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PrsnlEvntBuilder.Controller'}"
+        visibility="{Binding Path=IsMedicalReportsWorkspaceVisible;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="50">
+        <list
+          name="MedicalReportsFilterHeaders"
+          orientation="horizontal"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MedicalReportFilters'}"
+          itemsSourceTemplate="medicalReportFilterHeaderTpl"/>
+        <stackPanel
+          name="MedicalReportsFilterInputs"
+          orientation="horizontal"
+          spanColls="50">
+          <list
+            name="MedicalReportsFilters"
+            orientation="horizontal"
+            itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MedicalReportFilters'}"
+            itemsSourceTemplate="medicalReportFilterInputTpl"/>
+        </stackPanel>
+        <control
+          type="TableList"
+          name="EmbeddedMedicalReports"
+          itemsSource="{PageRuntimeSource='RuntimeItems.PrsnlEvntBuilder.MedicalReports'}"
+          applyBuiltInStyles="false"
+          spanColls="50"/>
+      </stackPanel>
+      </stackPanel>
+
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <controlStyle
+      name="medicalReportFilterHeader"
+      backColor="#111111"
+      textColor="#FFFFFF"
+      borderColor="#000000"
+      borderWeight="thin"
+      fontBold="true"
+      horizontal="center"
+      vertical="center"
+      overflow="wrap"
+      rowHeight="34.5"/>
+
+    <controlStyle
+      name="medicalReportFilterInput"
+      backColor="#3A3A3A"
+      textColor="#F0F0F0"
+      fontBold="true"
+      horizontal="center"
+      vertical="center"
+      overflow="clip"
+      rowHeight="34.5"/>
+
+    <!-- Стили shape-кнопок для команд и переключателей профилей. -->
+    <controlStyle
+      name="actionWarning"
+      backColor="#382B23"
+      textColor="#FDBA74"
+      borderColor="#B56B32"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <controlStyle
+      name="exportApplyButton"
+      backColor="#24362B"
+      textColor="#86EFAC"
+      borderColor="#4E8A62"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="previewModeActiveButton"
+      backColor="#643018"
+      textColor="#FFF4E6"
+      borderColor="#34D399"
+      borderWeight="1.75"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="configSelectHeader"
+      backColor="#202A24"
+      textColor="#86EFAC"
+      borderColor="#3F6B4C"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="14"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectPanel"
+      backColor="#20252B"
+      textColor="#F1F5F9"
+      borderColor="#1C2024"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="13"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectItem"
+      backColor="#272D34"
+      textColor="#F8FAFC"
+      borderColor="#282D32"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="13"
+      fontBold="false"/>
+
+    <controlStyle
+      name="profileButton"
+      backColor="#252A31"
+      textColor="#86EFAC"
+      borderColor="#46515E"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="bottomWorkspaceActive"
+      backColor="#3A3A3A"
+      textColor="#FFFF00"
+      borderColor="#737373"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="metaProfileButton"
+      backColor="#252A31"
+      textColor="#FDBA74"
+      borderColor="#46515E"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <stylePipelineStage name="default">
+      <!-- Базовый стиль листа: темная сетка, размеры по умолчанию, отступ в колонке A. -->
+      <layer name="entitylookup-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F2329;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                width:15;
+                rowHeight:21;
+                overflow:wrap;
+                cellType:text;
+                zoom:80%;
+              }"/>
+
+        <rule target="column"
+              selector="address=A:A"
+              styles="{
+                width:1.5;
+              }"/>
+      </layer>
+
+      <!-- Ячейки lookup-input внутри draft-формы. -->
+      <layer name="entitylookup-lookup-inputs">
+        <rule target="controlPart"
+              selector="type=input;part=cell"
+              styles="{
+                backColor:#2B3036;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:left;
+                vertical:center;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <!-- Баннер предпросмотра WORD-экспорта. -->
+      <layer name="word-export-preview">
+        <rule target="controlPart"
+              selector="type=banner;name=WordExportPreview;part=header"
+              styles="{
+                backColor:#202936;
+                fontColor:#BFDBFE;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontSize:16;
+                fontBold:true;
+                horizontal:left;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=banner;name=WordExportPreview;part=message"
+              styles="{
+                backColor:#252A31;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontSize:16;
+                vertical:top;
+              }"/>
+
+        <!-- Семантические участки текста preview. Код задаёт только part,
+             а конкретное оформление полностью принадлежит style pipeline. -->
+        <rule target="inlinePart"
+              selector="type=banner;part=preview-value"
+              styles="{
+                fontColor:#66CCFF;
+                fontBold:false;
+                fontItalic:false;
+              }"/>
+
+        <rule target="inlinePart"
+              selector="type=banner;part=preview-truncated"
+              styles="{
+                fontColor:#FF0000;
+                fontBold:false;
+                fontItalic:false;
+              }"/>
+
+        <rule target="inlinePart"
+              selector="type=banner;part=preview-warning"
+              styles="{
+                fontColor:#FFFF00;
+                fontBold:false;
+                fontItalic:false;
+              }"/>
+
+      </layer>
+
+      <!-- ButtonGroup получает только семантические теги элементов. -->
+      <layer name="profile-button-tags">
+        <rule target="controlPart"
+              selector="type=buttongroup;name=EventDraftProfileButtonGroup;part=tag-departure"
+              styles="{
+                fontColor:#7DD3FC;
+              }"/>
+        <rule target="controlPart"
+              selector="type=buttongroup;name=EventDraftProfileButtonGroup;part=state-selected"
+              styles="{
+                backColor:#404040;
+                fontColor:#FFFF00;
+                borderColor:#737373;
+                borderWeight:1.25;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=buttongroup;name=EventDraftMetaProfileButtonGroup;part=state-selected"
+              styles="{
+                backColor:#404040;
+                fontColor:#FFFF00;
+                borderColor:#737373;
+                borderWeight:1.25;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=select;name=EventDraftAdditionalProfileSelect;part=state-selected"
+              styles="{
+                backColor:#315B3C;
+                fontColor:#F8FAFC;
+                borderColor:#66A36F;
+                borderWeight:1.25;
+                fontName:Calibri;
+                fontSize:11;
+                fontBold:true;
+              }"/>
+      </layer>
+
+      <!-- Размеры draft-формы и ширины колонок, зависящие от профиля. -->
+      <layer name="event-draft-form">
+        <rule target="layoutContainer"
+              selector="name=EventDraftHeaders"
+              styles="{
+                backColor:#111318;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:48;
+              }"/>
+
+        <rule target="layoutContainer"
+              selector="name=EventDraftValues"
+              styles="{
+                backColor:#262B31;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:64;
+              }"/>
+
+        <!-- Editable cells идут после общего EventDraftValues, чтобы каскад
+             сохранял различие между input и вычисляемыми label-ячейками. -->
+        <rule target="controlPart"
+              selector="type=input;part=cell"
+              styles="{
+                backColor:#36424E;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                rowHeight:64;
+                vertical:center;
+                cellType:text;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=label;name=MovementHistoryLimitHeader;part=cell"
+              styles="{
+                width:18;
+              }"/>
+        <rule target="controlPart"
+              selector="type=input;name=MovementHistoryLimitInput;part=cell"
+              styles="{
+                width:8;
+                rowHeight:24;
+                overflow:clip;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=label;name=HospitalHeader;part=cell"
+              styles="{
+                width:20;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=HospitalShortHeader;part=cell"
+              styles="{
+                width:12;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DestinationHeader;part=cell"
+              styles="{
+                width:16;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=RankHeader;part=cell"
+              styles="{
+                width:12;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=FioHeader;part=cell"
+              styles="{
+                width:20;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=IpnHeader;part=cell"
+              styles="{
+                width:13.6;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=PositionCodeHeader;part=cell"
+              styles="{
+                width:12;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=PositionNameHeader;part=cell"
+              styles="{
+                width:18;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=ReportRankHeader;part=cell"
+              styles="{
+                width:14;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=ReportPersonHeader;part=cell"
+              styles="{
+                width:20;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=ReportPositionCodeHeader;part=cell"
+              styles="{
+                width:12;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=IncomingNoHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=IncomingDateHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DocumentNoteHeader;part=cell"
+              styles="{
+                width:15;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DocNoHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DocDateHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DurationDaysHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DateFromHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=DateToHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=VacationTicketNoHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=VacationTicketDateHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=VlkNoHeader;part=cell"
+              styles="{
+                width:12;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=VlkDateHeader;part=cell"
+              styles="{
+                width:9.25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=EventDraftOrderNoLabel;part=cell"
+              styles="{
+                width:16;
+                backColor:#36424E;
+                horizontal:center;
+                vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=EventDraftOrderYearLabel;part=cell"
+              styles="{
+                width:16;
+                backColor:#36424E;
+                horizontal:center;
+                vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=OrderResolutionHeader;part=cell"
+              styles="{
+                horizontal:center;
+                vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=EventDraftOrderNoHeader;part=cell"
+              styles="{
+                horizontal:center;
+                vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=label;name=EventDraftOrderYearHeader;part=cell"
+              styles="{
+                horizontal:center;
+                vertical:center;
+              }"/>
+      </layer>
+
+      <!-- Таблицы формы экспорта, которые рендерит Apply: основная строка и meta-список. -->
+      <layer name="event-export-form">
+        <rule target="layoutContainer"
+              selector="name=EventExportForm"
+              styles="{
+                rowHeight:21;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMainTable;part=section"
+              styles="{
+                backColor:#29232E;
+                fontColor:#E9B8F4;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMainTable;part=header"
+              styles="{
+                backColor:#1D232B;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:44;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMainTable;part=rows"
+              styles="{
+                backColor:#252B33;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:72;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMetaTables;part=section"
+              styles="{
+                backColor:#202936;
+                fontColor:#93C5FD;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMetaTables;part=header"
+              styles="{
+                backColor:#1D232B;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:24;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=EventExportMetaTables;part=rows"
+              styles="{
+                backColor:#252B33;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:24;
+              }"/>
+      </layer>
+
+      <!-- Встроенная история Movement: визуально отделена от зелёной таблицы
+           кандидатов тёплым коричнево-оранжевым цветом строк данных. -->
+      <layer name="movement-history-table">
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementHistoryTable;part=section"
+              styles="{
+                backColor:#20252B;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:left;
+                vertical:center;
+                overflow:clip;
+                rowHeight:22;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementHistoryTable;part=header"
+              styles="{
+                backColor:#101318;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:30;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementHistoryTable;part=rows"
+              styles="{
+                backColor:#87380D;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:42;
+              }"/>
+      </layer>
+
+      <!-- Кандидаты поиска и общие стили секций/заголовков/строк TableList. -->
+      <layer name="entitylookup-labels">
+        <rule target="controlPart"
+              selector="type=tablelist;name=LookupCandidatesTable;part=section"
+              styles="{
+                backColor:#151918;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=LookupCandidatesTable;part=header"
+              styles="{
+                backColor:#073B17;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=LookupCandidatesTable;part=rows"
+              styles="{
+                backColor:#0D5A22;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:40;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=LookupCandidatesTable;part=header;columnAlias=__lookup_auxiliary__"
+              styles="{
+                backColor:#5A3512;
+                fontColor:#FFF2CC;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=LookupCandidatesTable;part=rows;columnAlias=__lookup_auxiliary__"
+              styles="{
+                backColor:#704214;
+                fontColor:#FFF2CC;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=LookupCandidatesTable;part=tag-ado-long-value-candidate"
+              styles="{
+                backColor:#D6C36A;
+                fontColor:#171717;
+                borderColor:#8A7935;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <!-- Таблицы событий используют холодную сине-голубую палитру и тот же
+           section/header/rows ритм, что таблица lookup-кандидатов. -->
+      <layer name="exported-events-tables">
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=section"
+              styles="{
+                backColor:#102A43;
+                fontColor:#E0F2FE;
+                borderColor:#0B1623;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:24;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=header"
+              styles="{
+                backColor:#164E63;
+                fontColor:#F0F9FF;
+                borderColor:#0B1623;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:28;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=rows"
+              styles="{
+                backColor:#1E3A5F;
+                fontColor:#E6F6FF;
+                borderColor:#0B1623;
+                borderWeight:thin;
+                horizontal:left;
+                vertical:center;
+                rowHeight:48;
+                overflow:wrap;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=movement.type"
+              styles="{
+                width:20;
+                horizontal:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=movement.person"
+              styles="{
+                width:20;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=movement.description"
+              styles="{
+                width:20;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=movement.ipn"
+              styles="{
+                width:20;
+                horizontal:center;
+                cellType:text;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=word.source"
+              styles="{
+                width:20;
+                horizontal:center;
+                backColor:#203F66;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=word.event"
+              styles="{
+                width:20;
+                backColor:#203F66;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=word.bookmark"
+              styles="{
+                width:20;
+                cellType:text;
+                backColor:#203F66;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows;columnAlias=word.description"
+              styles="{
+                width:20;
+                backColor:#203F66;
+              }"/>
+        <!-- Cell-level diff part применяется после обычных rows/columnAlias
+             правил, поэтому удалённая Movement или WORD половина остаётся красной. -->
+        <rule target="controlPart"
+              selector="type=tablelist;name=MovementEventsMenu;part=diffdeleted"
+              styles="{
+                backColor:#CC0000;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+              }"/>
+      </layer>
+
+      <layer name="accepted-order-history">
+        <rule target="controlPart"
+              selector="type=tablelist;name=AcceptedOrderHistory;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                rowHeight:22;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=AcceptedOrderHistory;part=rows"
+              styles="{
+                backColor:#30343B;
+                fontColor:#DDEEFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:22;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="embedded-validation-results">
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedValidationResults;part=section"
+              styles="{
+                backColor:#173A5E;
+                fontColor:#EAF6FF;
+                fontBold:true;
+                rowHeight:25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedValidationResults;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                rowHeight:25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedValidationResults;part=rows"
+              styles="{
+                backColor:#3A3A3A;
+                fontColor:#F0F0F0;
+                horizontal:center;
+                overflow:wrap;
+                rowHeight:22;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedValidationResults;part=tag-validation-ok"
+              styles="{
+                backColor:#1F561B;
+                fontColor:#F5F5F5;
+                horizontal:center;
+                overflow:wrap;
+                rowHeight:22;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedValidationResults;part=tag-validation-conflict"
+              styles="{
+                backColor:#9C0006;
+                fontColor:#FFFFFF;
+                horizontal:center;
+                overflow:wrap;
+                rowHeight:22;
+              }"/>
+      </layer>
+
+      <layer name="embedded-medical-reports">
+        <rule target="controlPart"
+              selector="type=label;name=MedicalReportFilterHeader;part=cell"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34.5;
+              }"/>
+        <rule target="controlPart"
+              selector="type=input;name=MedicalReportFilterInput;part=cell"
+              styles="{
+                backColor:#3A3A3A;
+                fontColor:#F0F0F0;
+                horizontal:center;
+                vertical:center;
+                rowHeight:34.5;
+                cellType:text;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=section"
+              styles="{
+                backColor:#173A5E;
+                fontColor:#EAF6FF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:clip;
+                rowHeight:25;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34.5;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=rows"
+              styles="{
+                backColor:#3A3A3A;
+                fontColor:#F0F0F0;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34.5;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;name=EmbeddedMedicalReports;part=tag-ado-long-value-candidate"
+              styles="{
+                backColor:#6B4F1D;
+                fontColor:#FFF4CC;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+              }"/>
+      </layer>
+
+      <!-- Стили таблицы хоткеев. -->
+      <layer name="hotkey-panel">
+        <rule target="controlPart"
+              selector="type=hotkeys;part=action"
+              styles="{
+                backColor:#29232E;
+                fontColor:#E9D5FF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                cellType:text;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=hotkeys;part=hotkey"
+              styles="{
+                backColor:#29232E;
+                fontColor:#C4B5FD;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <!-- Debug-рамки layout-а отключены для обычного отображения страницы.
+      <layer name="layout-debug-bounds">
+        <rule target="layoutBound"
+              selector="tag=grid"
+              styles="{
+                borderColor:#8B5CF6;
+                borderWeight:medium;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=control"
+              styles="{
+                borderColor:#FF0000;
+                borderWeight:thin;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=0"
+              styles="{
+                borderColor:#444444;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=1"
+              styles="{
+                borderColor:#5E5E5E;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=2"
+              styles="{
+                borderColor:#777777;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+       <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=3:10"
+              styles="{
+                borderColor:#999999;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+      </layer>
+      -->
+    </stylePipelineStage>
+  </styles>
+</page>

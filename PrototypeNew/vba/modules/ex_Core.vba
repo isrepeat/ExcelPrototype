@@ -1,6 +1,7 @@
 ' Должен быть вставлен во внутренний модуль книги .xlsm
 Option Explicit
 #Const LOGGING_DEBUG_ENABLED = True
+#Const RUNTIME_SNAPSHOTS_ENABLED = False
 #Const LOGGING_VERBOSE_ENABLED = False
 
 #Const CORE_ENABLE_STATUS_BAR_LOGGING = True
@@ -16,16 +17,11 @@ Private Const COMP_TYPE_MODULE As String = "module"
 Private Const COMP_TYPE_CLASS As String = "class"
 Private Const COMP_TYPE_SHEET As String = "sheet"
 Private Const COMP_TYPE_WORKBOOK As String = "workbook"
+Private Const VB_COMPONENT_TYPE_DOCUMENT As Long = 100
 Private Const MAX_VBA_COMPONENT_NAME_LEN As Long = 31
 Private Const UPDATE_MODE_FULL As Long = 1
 Private Const UPDATE_MODE_DATE As Long = 2
 Private Const UPDATE_MODE_SIZE As Long = 3
-Private Const ERR_COMPONENT_STILL_PRESENT As Long = VBA.vbObjectError + 1015
-' В hot-update часть сбоев вызвана не кодом, а состоянием VBIDE:
-' после Remove редактор может еще недолго держать ссылку на старый компонент.
-' Поэтому retry запускается отложенно (OnTime) и дает VBIDE/COM время корректно
-' освободить ссылки перед повторным импортом.
-Private Const MAX_SAFE_UPDATE_RETRY_ATTEMPTS As Long = 3
 Private Const CORE_COMPONENT_NAME As String = "ex_Core"
 Private Const PATTERN_ALL_COMPONENTS As String = ".+"
 Private Const PATTERN_MAIN_COMPONENTS As String = "^(?!rt_).+"
@@ -37,36 +33,46 @@ Private Const SETTINGS_ROOT_NODE As String = "Settings"
 Private Const SETTINGS_FLAGS_NODE As String = "Flags"
 Private Const SETTINGS_FLAG_IS_LOGGING_ENABLED As String = "IsLoggingEnabled"
 Private Const SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT As Boolean = True
+Private Const SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY As String = "IsLoggingMainPageOnly"
+Private Const SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT As Boolean = True
+Private Const SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED As String = "IsLoggingVerboseEnabled"
+Private Const SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT As Boolean = False
+Private Const MAIN_PAGE_WORKSHEET_NAME As String = "Main"
 
-Private g_QueuedBridgeUpdateAt As Date
-Private g_QueuedBridgeUpdateMacro As String
 Private g_QueuedRuntimeStateRestoreAt As Date
 Private g_QueuedRuntimeStateRestoreMacro As String
-Private g_QueuedSafeUpdateRetryAt As Date
-Private g_QueuedSafeUpdateRetryMacro As String
 
 Private g_FileCacheMap As Object
 Private g_GlobalItemsSourceMap As Object
 Private g_GlobalObjectSourceMap As Object
-Private g_SafeUpdateRetryOperation As String
-Private g_SafeUpdateRetryAttempts As Long
-Private g_LastUpdateErrorNumber As Long
-Private g_LastUpdateErrorSource As String
-Private g_LastUpdateErrorDescription As String
-' Латч на текущий update-run: хотя бы один файл в pass поймал
-' "still present after remove operation" при remove/import компонента.
-Private g_LastImportHadComponentStillPresent As Boolean
+Private g_IsLoggingRuntimeStateInitialized As Boolean
+Private g_IsLoggingRuntimeActive As Boolean
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_Core.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_Core.fn_Module_Dispose"
 #End If
+    Call fn_CancelDeferredTasks
+
+    ' После hot-update политика будет заново применена новой startup-сессией.
+    ' До этого момента не блокируем диагностические сообщения update pipeline.
+    g_IsLoggingRuntimeStateInitialized = False
+    g_IsLoggingRuntimeActive = True
+
     On Error Resume Next
     Set g_FileCacheMap = Nothing
-    Set g_GlobalItemsSourceMap = Nothing
-    Set g_GlobalObjectSourceMap = Nothing
+    Call private_RuntimeSource_ResetStorage
     On Error GoTo 0
 End Sub
+
+
+Public Sub fn_CancelDeferredTasks()
+    ' Отложенный restore ссылается на ThisWorkbook в имени
+    ' макроса. Если Excel остается запущенным из-за другой книги, такой OnTime
+    ' после закрытия может повторно открыть PrototypeNew.
+    Call private_Dev_CancelQueuedRuntimeStateRestore("lifecycle:ex_Core.fn_CancelDeferredTasks")
+End Sub
+
 
 ' //
 ' // API
@@ -129,9 +135,6 @@ End Sub
 ' Callstack[1]: VBA.Macros(ex_Core.fn_Dev_UpdateAllModules) -> ex_Core.fn_Dev_UpdateAllModules
 ' Callstack[2]: DevUI(onClick: ex_Core.fn_Dev_UpdateAllModules) -> ex_Core.fn_Dev_UpdateAllModules
 Public Sub fn_Dev_UpdateAllModules()
-    ' Если обновление запущено из bridge-click dispatch, переносим запуск на следующий тик.
-    ' Это защищает от reentry: нельзя безопасно переимпортировать модули в середине обработки клика.
-    If private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch("full") Then Exit Sub
     If private_Dev_TryRunSafeUpdateByMode(UPDATE_MODE_FULL, PATTERN_ALL_COMPONENTS, PATTERN_EXCLUDE_CORE, True, "full") Then Exit Sub
     private_ShowStatusError "Safe update (full) did not complete. Check core.log.", True, 6
 End Sub
@@ -139,8 +142,6 @@ End Sub
 
 ' Callstack[1]: VBA.Macros(ex_Core.fn_Dev_UpdateCodeByDate) -> ex_Core.fn_Dev_UpdateCodeByDate
 Public Sub fn_Dev_UpdateCodeByDate()
-    ' Та же логика, что и для full: если мы внутри bridge-dispatch, только очередь через OnTime.
-    If private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch("date") Then Exit Sub
     If private_Dev_TryRunSafeUpdateByMode(UPDATE_MODE_DATE, PATTERN_MAIN_COMPONENTS, PATTERN_EXCLUDE_CORE, False, "date") Then Exit Sub
     private_ShowStatusError "Safe update (date) did not complete. Check core.log.", True, 6
 End Sub
@@ -148,8 +149,6 @@ End Sub
 
 ' Callstack[1]: VBA.Macros(ex_Core.fn_Dev_UpdateCodeBySize) -> ex_Core.fn_Dev_UpdateCodeBySize
 Public Sub fn_Dev_UpdateCodeBySize()
-    ' Та же логика, что и для full/date: отложенный запуск только если идет dispatch клика.
-    If private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch("size") Then Exit Sub
     If private_Dev_TryRunSafeUpdateByMode(UPDATE_MODE_SIZE, PATTERN_MAIN_COMPONENTS, PATTERN_EXCLUDE_CORE, False, "size") Then Exit Sub
     private_ShowStatusError "Safe update (size) did not complete. Check core.log.", True, 6
 End Sub
@@ -181,7 +180,95 @@ Public Sub fn_Dev_ToggleLogging()
         private_ShowStatusWarning "Logging is disabled (Settings.xml).", True, 3
     End If
 
-    Call ex_HelpersSheet.fn_TryRerenderActivePage("settings:toggle-logging")
+    ' Перерисовываем только кнопку по уже записанному значению Settings.xml.
+    ' Полный render активной страницы после Clear Pages мог завершиться неуспешно,
+    ' а прежний Call игнорировал Boolean-результат и оставлял stale caption.
+    If Not private_TryRefreshRuntimeStaticControl("ToggleLogging") Then
+        VBA.MsgBox "PrototypeNew: logging state was changed, but the 'ToggleLogging' button could not be refreshed.", _
+            VBA.vbExclamation, "PrototypeNew / Logging"
+    End If
+End Sub
+
+
+Public Sub fn_Dev_ToggleMainPageLogging()
+    Dim isMainPageOnly As Boolean
+    Dim activeSheetName As String
+
+    If Not fn_Settings_TryToggleFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY, _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT, _
+        isMainPageOnly, _
+        True) Then
+        private_ShowStatusError "Failed to update IsLoggingMainPageOnly in Settings.xml.", True, 6
+        Exit Sub
+    End If
+
+    On Error Resume Next
+    activeSheetName = VBA.CStr(Application.ActiveSheet.Name)
+    On Error GoTo 0
+    Call fn_Diagnostic_ApplyLoggingPagePolicy(activeSheetName)
+
+    If Not private_TryRefreshRuntimeStaticControl("ToggleMainPageLogging") Then
+        VBA.MsgBox "PrototypeNew: logging page policy was changed, but the toggle button could not be refreshed.", _
+            VBA.vbExclamation, "PrototypeNew / Logging"
+    End If
+End Sub
+
+
+Public Sub fn_Dev_ToggleVerboseLogging()
+    Dim isVerboseEnabled As Boolean
+
+    If Not fn_Settings_TryToggleFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED, _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT, _
+        isVerboseEnabled, _
+        True) Then
+        private_ShowStatusError "Failed to update IsLoggingVerboseEnabled in Settings.xml.", True, 6
+        Exit Sub
+    End If
+
+    If isVerboseEnabled Then
+        private_ShowStatusSuccess "Verbose logging is enabled (Settings.xml).", True, 3
+    Else
+        private_ShowStatusWarning "Verbose logging is disabled (Settings.xml).", True, 3
+    End If
+
+    If Not private_TryRefreshRuntimeStaticControl("ToggleVerboseLogging") Then
+        VBA.MsgBox "PrototypeNew: verbose logging state was changed, but the 'ToggleVerboseLogging' button could not be refreshed.", _
+            VBA.vbExclamation, "PrototypeNew / Logging"
+    End If
+End Sub
+
+
+Public Sub fn_Dev_ClearLogs()
+    private_Diagnostic_ClearCoreLogFile
+    private_ShowStatusSuccess "Log file was cleared.", True, 3
+End Sub
+
+Public Sub fn_Dev_OpenLogs()
+    Dim logPath As String
+    Dim commandText As String
+    Dim shellRunner As Object
+    Dim errorText As String
+
+    If VBA.Len(VBA.Trim$(ThisWorkbook.Path)) = 0 Then
+        VBA.MsgBox "Cannot open the log because the workbook has not been saved.", vbExclamation, "PrototypeNew / Logging"
+        Exit Sub
+    End If
+
+    logPath = ThisWorkbook.Path & "\\" & CORE_LOG_FILE_REL_PATH
+    If VBA.Len(VBA.Dir$(logPath, VBA.vbNormal)) = 0 Then private_Diagnostic_ClearCoreLogFile
+
+    On Error GoTo EH
+    commandText = "notepad.exe """ & logPath & """"
+    Set shellRunner = VBA.CreateObject("WScript.Shell")
+    shellRunner.Run commandText, VBA.vbNormalFocus, False
+    Set shellRunner = Nothing
+    Exit Sub
+EH:
+    errorText = Err.Description
+    Set shellRunner = Nothing
+    VBA.MsgBox "Failed to open the log file in Notepad: " & errorText, vbExclamation, "PrototypeNew / Logging"
 End Sub
 ' --------------------------------------
 '  } // namespace Dev
@@ -190,7 +277,7 @@ End Sub
 ' --------------------------------------
 '  namespace RuntimeSource {
 ' --------------------------------------
-' Callstack[1]: External bootstrap/init -> ex_Core.fn_RuntimeSource_SetGlobalItemsSource
+' Callstack[1]: External startup/init -> ex_Core.fn_RuntimeSource_SetGlobalItemsSource
 ' Глобальные sources живут в ex_Core, чтобы избежать зависимости Settings/Diagnostic логики от rt_PageManager.
 Public Function fn_RuntimeSource_SetGlobalItemsSource(ByVal sourceKey As String, ByVal items As Collection) As Boolean
     Dim normalizedKey As String
@@ -215,7 +302,7 @@ Public Function fn_RuntimeSource_SetGlobalItemsSource(ByVal sourceKey As String,
 End Function
 
 
-' Callstack[1]: External bootstrap/reset -> ex_Core.fn_RuntimeSource_RemoveGlobalItemsSource
+' Callstack[1]: External lifecycle/reset -> ex_Core.fn_RuntimeSource_RemoveGlobalItemsSource
 Public Function fn_RuntimeSource_RemoveGlobalItemsSource(ByVal sourceKey As String) As Boolean
     Dim normalizedKey As String
 
@@ -275,7 +362,7 @@ Public Function fn_RuntimeSource_TryGetGlobalItemsSourceByKey( _
 End Function
 
 
-' Callstack[1]: External bootstrap/init -> ex_Core.fn_RuntimeSource_SetGlobalObjectSource
+' Callstack[1]: External startup/init -> ex_Core.fn_RuntimeSource_SetGlobalObjectSource
 Public Function fn_RuntimeSource_SetGlobalObjectSource(ByVal sourceKey As String, ByVal sourceObject As Object) As Boolean
     Dim normalizedKey As String
 
@@ -299,7 +386,7 @@ Public Function fn_RuntimeSource_SetGlobalObjectSource(ByVal sourceKey As String
 End Function
 
 
-' Callstack[1]: External bootstrap/reset -> ex_Core.fn_RuntimeSource_RemoveGlobalObjectSource
+' Callstack[1]: External lifecycle/reset -> ex_Core.fn_RuntimeSource_RemoveGlobalObjectSource
 Public Function fn_RuntimeSource_RemoveGlobalObjectSource(ByVal sourceKey As String) As Boolean
     Dim normalizedKey As String
 
@@ -484,7 +571,7 @@ Public Function fn_Settings_TryGetObjectSource( _
 
     Set outObjectSource = Nothing
 
-    Set settingsMap = CreateObject("Scripting.Dictionary")
+    Set settingsMap = VBA.CreateObject("Scripting.Dictionary")
     settingsMap.CompareMode = 1
     ' Объект строится из общего file-cache; XML читаем только при изменении DateLastModified у Settings.xml.
     If Not private_Settings_TryFillObjectSourceMap(settingsMap, showErrorUi) Then Exit Function
@@ -515,6 +602,24 @@ Public Sub fn_Diagnostic_LogError(ByVal messageText As String)
 End Sub
 
 
+' Событийная трассировка должна быть доступна и на generated-страницах даже
+' при IsLoggingMainPageOnly=true. Master switch IsLoggingEnabled сохраняется.
+Public Sub fn_Diagnostic_LogEventInfo(ByVal messageText As String)
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreEvent VBA.CStr(messageText), True
+#End If
+End Sub
+
+
+Public Sub fn_Diagnostic_LogEventError(ByVal messageText As String)
+    messageText = VBA.Trim$(VBA.CStr(messageText))
+    If VBA.Len(messageText) = 0 Then Exit Sub
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreEvent "error: " & messageText, True
+#End If
+End Sub
+
+
 Public Sub fn_Diagnostic_LogWarning(ByVal messageText As String)
     messageText = VBA.Trim$(VBA.CStr(messageText))
     If VBA.Len(messageText) = 0 Then Exit Sub
@@ -524,12 +629,66 @@ Public Sub fn_Diagnostic_LogWarning(ByVal messageText As String)
 End Sub
 
 
+Public Sub fn_Diagnostic_LogVerbose(ByVal messageText As String)
+    Dim isVerboseEnabled As Boolean
+
+    If Not fn_Settings_TryGetFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED, _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT, _
+        isVerboseEnabled, _
+        False) Then Exit Sub
+    If Not isVerboseEnabled Then Exit Sub
+
+#If LOGGING_DEBUG_ENABLED Then
+    ' Verbose использует ту же page-policy, что Info/Error/Warning.
+    private_Diagnostic_LogCoreEvent "verbose: " & VBA.CStr(messageText)
+#End If
+End Sub
+
+
+' Startup/shutdown диагностика не должна зависеть от активного листа: падение
+' часто происходит после удаления или деактивации страницы, когда page-policy
+' уже не соответствует фактическому lifecycle-контексту.
+Public Sub fn_Diagnostic_BeginLifecycleLogging()
+    g_IsLoggingRuntimeActive = True
+    g_IsLoggingRuntimeStateInitialized = True
+End Sub
+
+
 Public Sub fn_Diagnostic_LogStatusBarMessage( _
     ByVal actionName As String, _
     ByVal messageText As String, _
     Optional ByVal timeoutSeconds As Long = 0 _
 )
     private_Diagnostic_LogStatusBarEvent actionName, messageText, timeoutSeconds
+End Sub
+
+
+' Применяет только runtime-фильтр. Значение IsLoggingEnabled остаётся
+' пользовательским master switch и не перезаписывается при переходах по листам.
+Public Sub fn_Diagnostic_ApplyLoggingPagePolicy(ByVal worksheetName As String)
+    Dim isMainPageOnly As Boolean
+
+    If Not fn_Settings_TryGetFlagBoolean( _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY, _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT, _
+        isMainPageOnly, _
+        False) Then
+        ' Ошибка чтения Settings не должна молча включать ограничительный режим.
+        g_IsLoggingRuntimeActive = True
+        g_IsLoggingRuntimeStateInitialized = True
+        Exit Sub
+    End If
+
+    If isMainPageOnly Then
+        g_IsLoggingRuntimeActive = (VBA.StrComp( _
+            VBA.Trim$(worksheetName), _
+            MAIN_PAGE_WORKSHEET_NAME, _
+            VBA.vbTextCompare) = 0)
+    Else
+        g_IsLoggingRuntimeActive = True
+    End If
+    g_IsLoggingRuntimeStateInitialized = True
 End Sub
 
 
@@ -583,7 +742,7 @@ Public Function fn_CustomXmlPartStore_TryLoadDomFromXml( _
 ) As Boolean
     Dim dom As Object
 
-    Set dom = CreateObject("MSXML2.DOMDocument.6.0")
+    Set dom = VBA.CreateObject("MSXML2.DOMDocument.6.0")
     dom.async = False
     dom.validateOnParse = False
     dom.setProperty "SelectionLanguage", "XPath"
@@ -727,7 +886,7 @@ Public Function fn_Helpers_IsRegexMatch(ByVal valueText As String, ByVal regexPa
 
     On Error GoTo EH
 
-    Set re = CreateObject("VBScript.RegExp")
+    Set re = VBA.CreateObject("VBScript.RegExp")
     re.Global = False
     re.IgnoreCase = True
     re.Pattern = regexPattern
@@ -764,7 +923,7 @@ Public Function fn_Helpers_TryGetFileText( _
     cacheKey = private_FileCache_BuildFileTextKey(filePath)
     If Not private_FileCache_TryGetFileStamp(filePath, fileStamp, showErrorUi) Then
         Call private_FileCache_Remove(cacheKey)
-        If allowMissing And VBA.Len(Dir(filePath)) = 0 Then
+        If allowMissing And VBA.Len(VBA.Dir(filePath)) = 0 Then
             fn_Helpers_TryGetFileText = True
             Exit Function
         End If
@@ -814,7 +973,7 @@ Private Function private_Settings_TryGetSettingsDom( _
     If createIfMissing Then
         If Not private_Settings_TryEnsureTemplateExists(settingsPath, showErrorUi) Then Exit Function
     Else
-        If VBA.Len(Dir(settingsPath)) = 0 Then
+        If VBA.Len(VBA.Dir(settingsPath)) = 0 Then
             If showErrorUi Then
 #If LOGGING_DEBUG_ENABLED Then
                 ex_Core.fn_Diagnostic_LogError "Settings: file '" & settingsPath & "' was not found."
@@ -881,6 +1040,22 @@ Private Function private_Settings_TryEnsureSettingsStructure( _
         flagsNode, _
         SETTINGS_FLAG_IS_LOGGING_ENABLED, _
         fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT), _
+        outIsChanged, _
+        showErrorUi) Then Exit Function
+
+    If Not private_Settings_TryEnsureDefaultFlagNode( _
+        settingsDom, _
+        flagsNode, _
+        SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY, _
+        fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT), _
+        outIsChanged, _
+        showErrorUi) Then Exit Function
+
+    If Not private_Settings_TryEnsureDefaultFlagNode( _
+        settingsDom, _
+        flagsNode, _
+        SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED, _
+        fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT), _
         outIsChanged, _
         showErrorUi) Then Exit Function
 
@@ -967,7 +1142,7 @@ Private Function private_Settings_TryBuildFlagsMapFromDom( _
     Set flagsNode = settingsDom.selectSingleNode("/*[local-name()='" & SETTINGS_ROOT_NODE & "']/*[local-name()='" & SETTINGS_FLAGS_NODE & "']")
     If flagsNode Is Nothing Then Exit Function
 
-    Set outFlagsMap = CreateObject("Scripting.Dictionary")
+    Set outFlagsMap = VBA.CreateObject("Scripting.Dictionary")
     outFlagsMap.CompareMode = 1
 
     For Each childNode In flagsNode.ChildNodes
@@ -1118,6 +1293,8 @@ Private Function private_Settings_BuildTemplateXml() As String
         "<Settings>" & VBA.vbCrLf & _
         "  <Flags>" & VBA.vbCrLf & _
     "    <" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_ENABLED & ">" & VBA.vbCrLf & _
+    "    <" & SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_MAIN_PAGE_ONLY & ">" & VBA.vbCrLf & _
+    "    <" & SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED & ">" & fn_Helpers_BoolToText(SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED_DEFAULT) & "</" & SETTINGS_FLAG_IS_LOGGING_VERBOSE_ENABLED & ">" & VBA.vbCrLf & _
         "  </Flags>" & VBA.vbCrLf & _
         "</Settings>"
 End Function
@@ -1127,7 +1304,7 @@ Private Function private_Settings_TryEnsureTemplateExists(ByVal settingsPath As 
     settingsPath = VBA.Trim$(settingsPath)
     If VBA.Len(settingsPath) = 0 Then Exit Function
 
-    If VBA.Len(Dir(settingsPath)) > 0 Then
+    If VBA.Len(VBA.Dir(settingsPath)) > 0 Then
         private_Settings_TryEnsureTemplateExists = True
         Exit Function
     End If
@@ -1161,7 +1338,7 @@ End Function
 ' --------------------------------------
 Private Sub private_FileCache_EnsureStorage()
     If g_FileCacheMap Is Nothing Then
-        Set g_FileCacheMap = CreateObject("Scripting.Dictionary")
+        Set g_FileCacheMap = VBA.CreateObject("Scripting.Dictionary")
         g_FileCacheMap.CompareMode = 1
     End If
 End Sub
@@ -1188,10 +1365,10 @@ Private Function private_FileCache_TryGetFileStamp( _
     filePath = VBA.Trim$(filePath)
     outStamp = VBA.vbNullString
     If VBA.Len(filePath) = 0 Then Exit Function
-    If VBA.Len(Dir(filePath)) = 0 Then Exit Function
+    If VBA.Len(VBA.Dir(filePath)) = 0 Then Exit Function
 
     On Error GoTo EH_STAMP
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     Set fileObj = fso.GetFile(filePath)
     outStamp = VBA.CStr(VBA.CDbl(fileObj.DateLastModified))
     private_FileCache_TryGetFileStamp = True
@@ -1212,12 +1389,12 @@ Private Function private_FileCache_TryReadTextFile( _
     outText = VBA.vbNullString
     filePath = VBA.Trim$(filePath)
     If VBA.Len(filePath) = 0 Then Exit Function
-    If VBA.Len(Dir(filePath)) = 0 Then Exit Function
+    If VBA.Len(VBA.Dir(filePath)) = 0 Then Exit Function
 
     On Error GoTo EH_READ
-    f = FreeFile
+    f = VBA.FreeFile
     Open filePath For Input As #f
-    outText = Input$(LOF(f), f)
+    outText = VBA.Input$(VBA.LOF(f), f)
     Close #f
     private_FileCache_TryReadTextFile = True
     Exit Function
@@ -1241,7 +1418,7 @@ Private Function private_FileCache_TryWriteTextFile( _
     If VBA.Len(filePath) = 0 Then Exit Function
 
     On Error GoTo EH_WRITE
-    f = FreeFile
+    f = VBA.FreeFile
     Open filePath For Output As #f
     Print #f, textValue
     Close #f
@@ -1267,7 +1444,7 @@ Private Function private_FileCache_SetFileTextEntry( _
     cacheKey = private_FileCache_BuildFileTextKey(filePath)
     If VBA.Len(cacheKey) = 0 Then Exit Function
 
-    Set entry = CreateObject("Scripting.Dictionary")
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
     entry.CompareMode = 1
     entry("Text") = VBA.CStr(textValue)
     entry("Stamp") = VBA.CStr(fileStamp)
@@ -1351,12 +1528,12 @@ End Sub
 ' --------------------------------------
 Private Sub private_RuntimeSource_EnsureStorage()
     If g_GlobalItemsSourceMap Is Nothing Then
-        Set g_GlobalItemsSourceMap = CreateObject("Scripting.Dictionary")
+        Set g_GlobalItemsSourceMap = VBA.CreateObject("Scripting.Dictionary")
         g_GlobalItemsSourceMap.CompareMode = 1
     End If
 
     If g_GlobalObjectSourceMap Is Nothing Then
-        Set g_GlobalObjectSourceMap = CreateObject("Scripting.Dictionary")
+        Set g_GlobalObjectSourceMap = VBA.CreateObject("Scripting.Dictionary")
         g_GlobalObjectSourceMap.CompareMode = 1
     End If
 End Sub
@@ -1395,91 +1572,6 @@ End Function
 ' --------------------------------------
 '  namespace Dev {
 ' --------------------------------------
-Private Function private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch(ByVal updateKind As String) As Boolean
-    Dim isBridgeDispatching As Boolean
-    Dim callResult As Variant
-    Dim bridgeComponent As Object
-    Dim coreMethod As String
-    Dim macroRef As String
-    Dim scheduleAt As Date
-    Dim errDescription As String
-
-    updateKind = VBA.LCase$(VBA.Trim$(updateKind))
-    If VBA.Len(updateKind) = 0 Then Exit Function
-
-    ' Эту очередь используем только в одном случае:
-    ' пользователь нажал кнопку обновления из UI, и мы сейчас внутри rt_Bridge dispatch.
-    ' Тогда переносим обновление на OnTime, чтобы сначала завершить текущий click pipeline.
-    ' Если rt_Bridge еще не загружен (bootstrap/cold start), это не ошибка:
-    ' просто выполняем обновление сразу, без очереди.
-    Set bridgeComponent = private_Dev_TryGetComponentByName("rt_Bridge")
-    If bridgeComponent Is Nothing Then Exit Function
-
-    If Not private_Dev_TryRunRuntimeNoArgMember("rt_Bridge", "fn_IsDispatchingClick", callResult, True) Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "queued-runtime-update-failed: kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='bridge-dispatch-state-read-failed'"
-#End If
-        Exit Function
-    End If
-
-    On Error Resume Next
-    isBridgeDispatching = VBA.CBool(callResult)
-    If Err.Number <> 0 Then
-        errDescription = Err.Description
-        Err.Clear
-        On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "queued-runtime-update-failed: kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='bridge-dispatch-state-cast-failed: " & VBA.Replace$(errDescription, "'", "''") & "'"
-#End If
-        Exit Function
-    End If
-    On Error GoTo 0
-
-    If Not isBridgeDispatching Then Exit Function
-
-    Select Case updateKind
-        Case "full"
-            coreMethod = "fn_Dev_UpdateAllModules"
-        Case "date"
-            coreMethod = "fn_Dev_UpdateCodeByDate"
-        Case "size"
-            coreMethod = "fn_Dev_UpdateCodeBySize"
-        Case Else
-            Exit Function
-    End Select
-
-    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_Core." & coreMethod
-    scheduleAt = private_Dev_GetNextOnTimeTick()
-
-    On Error Resume Next
-    ' Держим только последнюю отложенную задачу обновления.
-    If g_QueuedBridgeUpdateAt > 0# And VBA.Len(VBA.Trim$(g_QueuedBridgeUpdateMacro)) > 0 Then
-        Application.OnTime EarliestTime:=g_QueuedBridgeUpdateAt, Procedure:=g_QueuedBridgeUpdateMacro, Schedule:=False
-        Err.Clear
-    End If
-
-    Application.OnTime EarliestTime:=scheduleAt, Procedure:=macroRef
-    If Err.Number <> 0 Then
-        errDescription = Err.Description
-        Err.Clear
-        On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "queued-runtime-update-failed: kind='" & VBA.Replace$(updateKind, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
-#End If
-        Exit Function
-    End If
-    On Error GoTo 0
-
-    g_QueuedBridgeUpdateAt = scheduleAt
-    g_QueuedBridgeUpdateMacro = macroRef
-
-#If LOGGING_DEBUG_ENABLED Then
-    private_Diagnostic_LogCoreSelfEvent "queued-runtime-update: kind='" & VBA.Replace$(updateKind, "'", "''") & "'"
-#End If
-    private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch = True
-End Function
-
-
 ' Callstack[1]: ex_Core.fn_Dev_UpdateAllModules -> private_Dev_TryRunSafeUpdateByMode
 ' Callstack[2]: ex_Core.fn_Dev_UpdateCodeByDate -> private_Dev_TryRunSafeUpdateByMode
 ' Callstack[3]: ex_Core.fn_Dev_UpdateCodeBySize -> private_Dev_TryRunSafeUpdateByMode
@@ -1488,8 +1580,7 @@ End Function
 ' 2) сохраняем runtime-состояние (snapshot);
 ' 3) освобождаем runtime-объекты и отменяем конфликтующие deferred-задачи;
 ' 4) выполняем remove/import модулей;
-' 5) при временной занятости компонента в VBIDE ставим retry на следующий тик;
-' 6) после успешного обновления запускаем отложенное восстановление состояния.
+' 5) после успешного обновления запускаем отложенное восстановление состояния.
 Private Function private_Dev_TryRunSafeUpdateByMode( _
     ByVal updateMode As Long, _
     ByVal includeComponentPattern As String, _
@@ -1497,53 +1588,73 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     ByVal useNativeStatus As Boolean, _
     ByVal operationName As String _
 ) As Boolean
-    Dim bootstrapMode As String
     Dim saveRuntimeOk As Boolean
     Dim updateOk As Boolean
+    Dim safeErrorNumber As Long
+    Dim safeErrorDescription As String
+    Dim missingRuntimeComponents As String
+    Dim presentRuntimeComponentsCount As Long
+    Dim isCoreOnlyProject As Boolean
+
+    On Error GoTo EH_SAFE_UPDATE
 
     ' Этап 0. Нормализуем имя операции для логов.
     operationName = VBA.LCase$(VBA.Trim$(operationName))
     If VBA.Len(operationName) = 0 Then operationName = "unknown"
-    ' Retry учитывается отдельно для каждого типа апдейта (full/date/size).
-    ' При смене сценария очищаем старую очередь, чтобы не переносить попытки
-    ' между разными операциями обновления.
-    If VBA.StrComp(g_SafeUpdateRetryOperation, operationName, VBA.vbTextCompare) <> 0 Then
-        Call private_Dev_ResetSafeUpdateRetryState
-    End If
-
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "safe-update:start op='" & operationName & "'"
 #End If
 
-    ' Этап 1. Гарантируем, что runtime-пайплайн вообще доступен.
-    ' Важно: rt_RestoreManager/rt_PageManager могут отсутствовать (например, после частичного импорта/сброса проекта),
-    ' поэтому сохранить snapshot "до любых действий" не всегда возможно.
-    ' bootstrap сначала поднимает минимально нужные runtime-компоненты.
-    If Not private_Dev_TryBootstrapRuntimePipeline(bootstrapMode) Then
+    ' Этап 1. ex_Core одновременно является автономным initial installer.
+    ' Если runtime отсутствует целиком, Full Update импортирует его без dispose:
+    ' освобождать в такой книге ещё нечего. Частично установленный runtime — уже
+    ' ошибка, которую нельзя молча считать первичной установкой.
+    If Not private_Dev_TryGetRuntimeContractState( _
+        missingRuntimeComponents, presentRuntimeComponentsCount) Then
+        isCoreOnlyProject = private_Dev_IsCoreOnlyProject()
+        If isCoreOnlyProject And _
+            VBA.StrComp(operationName, "full", VBA.vbTextCompare) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='runtime-bootstrap-failed'"
+            private_Diagnostic_LogCoreSelfEvent _
+                "safe-update:initial-install-start op='full'"
 #End If
-        Exit Function
-    End If
+            updateOk = private_Dev_UpdateCodeByRegex( _
+                includeComponentPattern, excludeComponentPattern, _
+                updateMode, useNativeStatus)
+            If Not updateOk Then Exit Function
 
-    ' Если bootstrap был "full", массовый импорт уже выполнен.
-    ' Упрощенный путь: не делаем sync-recovery в этом стеке, а сразу планируем
-    ' единое deferred-восстановление snapshots/globals на следующий тик OnTime.
-    ' Это выравнивает flow с обычной веткой (save/import -> deferred restore).
-    If VBA.StrComp(bootstrapMode, "full", VBA.vbTextCompare) = 0 Then
-        Call private_Dev_ResetSafeUpdateRetryState
+            missingRuntimeComponents = VBA.vbNullString
+            presentRuntimeComponentsCount = 0
+            If Not private_Dev_TryGetRuntimeContractState( _
+                missingRuntimeComponents, presentRuntimeComponentsCount) Then
+                VBA.MsgBox _
+                    "Initial runtime installation is incomplete. Missing VBA components:" & _
+                    VBA.vbCrLf & missingRuntimeComponents, _
+                    VBA.vbExclamation, "PrototypeNew / Update Code"
+                Exit Function
+            End If
+
+            private_Dev_QueueRuntimeStateRestoreAfterUpdate _
+                "initial-install:full"
 #If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:deferred op='" & operationName & "' reason='full-bootstrap-was-required'"
+            private_Diagnostic_LogCoreSelfEvent _
+                "safe-update:initial-install-done op='full'"
 #End If
-        Call private_Dev_QueueRuntimeStateRestoreAfterUpdate("safe-update:bootstrap:" & operationName)
+            private_Diagnostic_ClearCoreLogFile
+            private_Dev_TryRunSafeUpdateByMode = True
+            Exit Function
+        End If
+
+        private_Dev_ShowInvalidRuntimeContract _
+            missingRuntimeComponents, isCoreOnlyProject
 #If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update:done op='" & operationName & "'"
+        private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='runtime-contract-invalid'"
 #End If
-        private_Dev_TryRunSafeUpdateByMode = True
         Exit Function
     End If
 
     ' Этап 2. Runtime валиден -> сохраняем runtime state перед целевым update.
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     If Not private_Dev_TryRunRuntimeBooleanFunction("rt_RestoreManager", "fn_SaveRuntimeState", saveRuntimeOk) Then
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='save-runtime-state-call-failed'"
@@ -1556,6 +1667,7 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
 #End If
         Exit Function
     End If
+#End If
 
     ' Этап 3. Перед hot-import отменяем висящие deferred restore и освобождаем runtime-ссылки.
     If Not private_Dev_TryPrepareRuntimeForHotUpdate(operationName) Then
@@ -1568,25 +1680,6 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     ' Этап 4. Выполняем фактический импорт/обновление модулей.
     updateOk = private_Dev_UpdateCodeByRegex(includeComponentPattern, excludeComponentPattern, updateMode, useNativeStatus)
     If Not updateOk Then
-        ' Ключевая идея обхода VBIDE-проблемы:
-        ' если сбой похож на временную занятость компонента после Remove,
-        ' не считаем это финальным провалом и переносим повтор на следующий тик.
-        If private_Dev_IsRetryableSafeUpdateFailure() Then
-            If private_Dev_TryQueueSafeUpdateRetry(operationName, "component-still-present") Then
-#If LOGGING_DEBUG_ENABLED Then
-                private_Diagnostic_LogCoreSelfEvent "safe-update:deferred-retry op='" & operationName & "' reason='component-still-present'"
-#End If
-                private_ShowStatusWarning "Code update was retried automatically due to temporary VBA component lock.", useNativeStatus, 6
-                ' Для текущего тика это успешная передача управления в retry-пайплайн.
-                ' Финальный результат будет определен уже отложенной попыткой.
-                private_Dev_TryRunSafeUpdateByMode = True
-                Exit Function
-            End If
-#If LOGGING_DEBUG_ENABLED Then
-            private_Diagnostic_LogCoreSelfEvent "safe-update:retry-exhausted op='" & operationName & "' reason='component-still-present'"
-#End If
-        End If
-        Call private_Dev_ResetSafeUpdateRetryState
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "safe-update:fail op='" & operationName & "' reason='update-import-failed'"
 #End If
@@ -1596,202 +1689,120 @@ Private Function private_Dev_TryRunSafeUpdateByMode( _
     ' Этап 5. Не делаем синхронный restore прямо здесь.
     ' Восстановление целиком переносится в deferred-путь на следующий тик OnTime,
     ' чтобы избежать двойного рендера (sync restore + deferred restore) после hot-update.
-    Call private_Dev_ResetSafeUpdateRetryState
     Call private_Dev_QueueRuntimeStateRestoreAfterUpdate("safe-update:" & operationName)
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "safe-update:done op='" & operationName & "'"
 #End If
+    ' Full import is a clean diagnostic boundary. Clear only after the import
+    ' succeeded and deferred runtime restoration was queued successfully.
+    If VBA.StrComp(operationName, "full", VBA.vbTextCompare) = 0 Then
+        private_Diagnostic_ClearCoreLogFile
+    End If
     private_Dev_TryRunSafeUpdateByMode = True
+    Exit Function
+
+EH_SAFE_UPDATE:
+    safeErrorNumber = Err.Number
+    safeErrorDescription = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent _
+        "safe-update:exception op='" & _
+        VBA.Replace$(operationName, "'", "''") & "' err='" & _
+        VBA.Replace$(safeErrorDescription, "'", "''") & "'"
+#End If
+    VBA.MsgBox _
+        "Update Code stopped: [" & VBA.CStr(safeErrorNumber) & "] " & _
+        safeErrorDescription, VBA.vbExclamation, _
+        "PrototypeNew / Update Code"
 End Function
 
 
-Private Function private_Dev_IsRetryableSafeUpdateFailure() As Boolean
-    Dim errDescription As String
+Private Function private_Dev_TryGetRuntimeContractState( _
+    ByRef outMissingComponents As String, _
+    ByRef outPresentComponentsCount As Long _
+) As Boolean
+    outMissingComponents = VBA.vbNullString
+    outPresentComponentsCount = 0
 
-    ' Retry включаем только для технического сценария "VBIDE еще держит компонент".
-    ' Для этого смотрим не только верхнюю ошибку, но и диагностику file-level импорта,
-    ' потому что в рекурсивном обходе исходная причина может быть обернута/перезаписана.
-    ' Все остальные ошибки считаем содержательными (код/данные) и не ретраим.
-    If g_LastImportHadComponentStillPresent Then
-        private_Dev_IsRetryableSafeUpdateFailure = True
-        Exit Function
-    End If
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "rt_Lifecycle"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "rt_CoreActions"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "rt_RestoreManager"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "rt_PageManager"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "ex_HelpersSheet"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "obj_PageBase"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "obj_IPage"
+    private_Dev_AppendRuntimeComponentState _
+        outMissingComponents, outPresentComponentsCount, "obj_ISerializable"
 
-    ' Повторяем только узкий класс ошибок "still present after remove operation".
-    ' Это симптом временного lock в VBIDE/COM, а не признак логической ошибки в коде.
-    errDescription = VBA.Trim$(g_LastUpdateErrorDescription)
-    If VBA.Len(errDescription) = 0 Then Exit Function
-    If VBA.InStr(1, errDescription, "is still present after remove operation", VBA.vbTextCompare) = 0 Then Exit Function
+    private_Dev_TryGetRuntimeContractState = _
+        (VBA.Len(outMissingComponents) = 0)
+End Function
 
-    If g_LastUpdateErrorNumber = ERR_COMPONENT_STILL_PRESENT Then
-        private_Dev_IsRetryableSafeUpdateFailure = True
-        Exit Function
-    End If
 
-    ' В import-folder ошибка remove компонента агрегируется в vbObjectError+1001,
-    ' поэтому допускаем retry и для обернутого случая.
-    If g_LastUpdateErrorNumber = VBA.vbObjectError + 1001 Then
-        If VBA.InStr(1, g_LastUpdateErrorSource, "private_Dev_ImportFolder", VBA.vbTextCompare) > 0 Then
-            private_Dev_IsRetryableSafeUpdateFailure = True
-            Exit Function
+Private Function private_Dev_IsCoreOnlyProject() As Boolean
+    Dim vbComponent As Object
+    Dim componentName As String
+
+    ' Документные модули ThisWorkbook/Worksheet всегда существуют и не
+    ' считаются установленным runtime. Любой другой компонент кроме ex_Core
+    ' означает частичную либо стороннюю сборку, которую Full Update не чинит
+    ' автоматически как initial install.
+    For Each vbComponent In ThisWorkbook.VBProject.VBComponents
+        If VBA.CLng(vbComponent.Type) <> VB_COMPONENT_TYPE_DOCUMENT Then
+            componentName = VBA.Trim$(VBA.CStr(vbComponent.Name))
+            If VBA.StrComp( _
+                componentName, CORE_COMPONENT_NAME, _
+                VBA.vbTextCompare) <> 0 Then Exit Function
         End If
-    End If
+    Next vbComponent
+
+    private_Dev_IsCoreOnlyProject = True
 End Function
 
 
-Private Function private_Dev_TryQueueSafeUpdateRetry(ByVal operationName As String, ByVal reasonText As String) As Boolean
-    Dim macroRef As String
-    Dim scheduleAt As Date
-    Dim nextAttempt As Long
-    Dim errDescription As String
+Private Sub private_Dev_AppendRuntimeComponentState( _
+    ByRef missingComponents As String, _
+    ByRef presentComponentsCount As Long, _
+    ByVal componentName As String _
+)
+    Dim runtimeComponent As Object
 
-    operationName = VBA.LCase$(VBA.Trim$(operationName))
-    reasonText = VBA.Trim$(reasonText)
-    If VBA.Len(operationName) = 0 Then Exit Function
-    If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
-
-    ' Retry делаем только отложенно через OnTime.
-    ' Это дает VBA/COM шанс завершить освобождение ссылок после Remove/Import
-    ' и снижает вероятность повторить тот же transient-сбой в том же call stack.
-    nextAttempt = g_SafeUpdateRetryAttempts + 1
-    If nextAttempt > MAX_SAFE_UPDATE_RETRY_ATTEMPTS Then Exit Function
-    If Not private_Dev_TryResolveSafeUpdateRetryMacro(operationName, macroRef) Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update-retry-queue-failed op='" & operationName & "' err='macro-not-resolved'"
-#End If
-        Exit Function
+    Set runtimeComponent = private_Dev_TryGetComponentByName(componentName)
+    If Not runtimeComponent Is Nothing Then
+        presentComponentsCount = presentComponentsCount + 1
+        Exit Sub
     End If
-
-    scheduleAt = private_Dev_GetNextOnTimeTick()
-
-    On Error Resume Next
-    ' Держим только один pending retry, чтобы не запускать несколько апдейтов параллельно.
-    If g_QueuedSafeUpdateRetryAt > 0# And VBA.Len(VBA.Trim$(g_QueuedSafeUpdateRetryMacro)) > 0 Then
-        Application.OnTime EarliestTime:=g_QueuedSafeUpdateRetryAt, Procedure:=g_QueuedSafeUpdateRetryMacro, Schedule:=False
-        Err.Clear
-    End If
-
-    Application.OnTime EarliestTime:=scheduleAt, Procedure:=macroRef
-    If Err.Number <> 0 Then
-        errDescription = Err.Description
-        Err.Clear
-        On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "safe-update-retry-queue-failed op='" & operationName & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
-#End If
-        Exit Function
-    End If
-    On Error GoTo 0
-
-    g_QueuedSafeUpdateRetryAt = scheduleAt
-    g_QueuedSafeUpdateRetryMacro = macroRef
-    g_SafeUpdateRetryOperation = operationName
-    g_SafeUpdateRetryAttempts = nextAttempt
-
-#If LOGGING_DEBUG_ENABLED Then
-    private_Diagnostic_LogCoreSelfEvent "safe-update-retry-queued op='" & operationName & "' attempt='" & VBA.CStr(nextAttempt) & "' reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
-#End If
-    private_Dev_TryQueueSafeUpdateRetry = True
-End Function
-
-
-Private Function private_Dev_TryResolveSafeUpdateRetryMacro(ByVal operationName As String, ByRef outMacroRef As String) As Boolean
-    Dim coreMethod As String
-
-    outMacroRef = VBA.vbNullString
-    operationName = VBA.LCase$(VBA.Trim$(operationName))
-    If VBA.Len(operationName) = 0 Then Exit Function
-
-    Select Case operationName
-        Case "full"
-            coreMethod = "fn_Dev_UpdateAllModules"
-        Case "date"
-            coreMethod = "fn_Dev_UpdateCodeByDate"
-        Case "size"
-            coreMethod = "fn_Dev_UpdateCodeBySize"
-        Case Else
-            Exit Function
-    End Select
-
-    outMacroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_Core." & coreMethod
-    private_Dev_TryResolveSafeUpdateRetryMacro = True
-End Function
-
-
-Private Sub private_Dev_ResetSafeUpdateRetryState()
-    ' Единая точка сброса retry state:
-    ' снимаем pending OnTime и обнуляем "операцию/счетчик попыток".
-    ' Вызывается после успеха, неретраибельного фейла и при смене operationName.
-    Call private_Dev_TryCancelQueuedSafeUpdateRetry
-    g_SafeUpdateRetryOperation = VBA.vbNullString
-    g_SafeUpdateRetryAttempts = 0
+    missingComponents = missingComponents & "- " & componentName & VBA.vbCrLf
 End Sub
 
 
-Private Sub private_Dev_TryCancelQueuedSafeUpdateRetry()
-    If g_QueuedSafeUpdateRetryAt > 0# And VBA.Len(VBA.Trim$(g_QueuedSafeUpdateRetryMacro)) > 0 Then
-        On Error Resume Next
-        Application.OnTime EarliestTime:=g_QueuedSafeUpdateRetryAt, Procedure:=g_QueuedSafeUpdateRetryMacro, Schedule:=False
-        Err.Clear
-        On Error GoTo 0
+Private Sub private_Dev_ShowInvalidRuntimeContract( _
+    ByVal missingComponents As String, _
+    ByVal isCoreOnlyProject As Boolean _
+)
+    Dim guidanceText As String
+
+    If isCoreOnlyProject Then
+        guidanceText = _
+            "Run Full Update to perform the initial runtime installation."
+    Else
+        guidanceText = _
+            "The VBA project contains a partial runtime installation. " & _
+            "Full Update was not started automatically."
     End If
 
-    g_QueuedSafeUpdateRetryAt = 0#
-    g_QueuedSafeUpdateRetryMacro = VBA.vbNullString
+    VBA.MsgBox _
+        "Update Code cannot continue. Missing required VBA components:" & _
+        VBA.vbCrLf & missingComponents & VBA.vbCrLf & guidanceText, _
+        VBA.vbExclamation, "PrototypeNew / Update Code"
 End Sub
-
-
-' Callstack[1]: ex_Core.fn_Dev_UpdateAllModules -> private_Dev_TryBootstrapRuntimePipeline
-' Callstack[2]: ex_Core.fn_Dev_UpdateCodeByDate -> private_Dev_TryBootstrapRuntimePipeline
-' Callstack[3]: ex_Core.fn_Dev_UpdateCodeBySize -> private_Dev_TryBootstrapRuntimePipeline
-Private Function private_Dev_TryBootstrapRuntimePipeline(ByRef outBootstrapMode As String) As Boolean
-    outBootstrapMode = VBA.vbNullString
-
-    ' Нормальный путь: runtime-компоненты уже на месте, ничего доп. не делаем.
-    If private_Dev_AreSafeUpdateRuntimeComponentsPresent() Then
-        outBootstrapMode = "none"
-        private_Dev_TryBootstrapRuntimePipeline = True
-        Exit Function
-    End If
-
-    ' Аварийный путь: runtime невалиден.
-    ' Для rt_RestoreManager нужны зависимости из ex_*/obj_*, поэтому поднимаем полный набор.
-    outBootstrapMode = "full"
-#If LOGGING_DEBUG_ENABLED Then
-    private_Diagnostic_LogCoreSelfEvent "runtime-update-pipeline-bootstrap: start scope='all-components'"
-#End If
-    If Not private_Dev_UpdateCodeByRegex(PATTERN_ALL_COMPONENTS, PATTERN_EXCLUDE_CORE, UPDATE_MODE_FULL, True) Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "runtime-update-pipeline-bootstrap: fail import-failed"
-#End If
-        Exit Function
-    End If
-
-    If Not private_Dev_AreSafeUpdateRuntimeComponentsPresent() Then
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "runtime-update-pipeline-bootstrap: fail component-not-found-after-import"
-#End If
-        Exit Function
-    End If
-
-#If LOGGING_DEBUG_ENABLED Then
-    private_Diagnostic_LogCoreSelfEvent "runtime-update-pipeline-bootstrap: done scope='all-components'"
-#End If
-    private_Dev_TryBootstrapRuntimePipeline = True
-End Function
-
-
-Private Function private_Dev_AreSafeUpdateRuntimeComponentsPresent() As Boolean
-    ' Минимальный контракт для safe-update: если чего-то из этого нет,
-    ' snapshot-сценарий нельзя считать надежным.
-    If private_Dev_TryGetComponentByName("rt_RestoreManager") Is Nothing Then Exit Function
-    If private_Dev_TryGetComponentByName("rt_PageManager") Is Nothing Then Exit Function
-    If private_Dev_TryGetComponentByName("ex_HelpersSheet") Is Nothing Then Exit Function
-    If private_Dev_TryGetComponentByName("obj_PageBase") Is Nothing Then Exit Function
-    If private_Dev_TryGetComponentByName("obj_IPage") Is Nothing Then Exit Function
-    If private_Dev_TryGetComponentByName("obj_ISerializable") Is Nothing Then Exit Function
-    private_Dev_AreSafeUpdateRuntimeComponentsPresent = True
-End Function
 
 
 ' Callstack[1]: ex_Core.private_Dev_TryRunSafeUpdateByMode -> private_Dev_QueueRuntimeStateRestoreAfterUpdate
@@ -1799,153 +1810,124 @@ Private Sub private_Dev_QueueRuntimeStateRestoreAfterUpdate(ByVal reasonText As 
     Dim macroRef As String
     Dim scheduleAt As Date
     Dim errDescription As String
+    Dim queueStage As String
 
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
+#If RUNTIME_SNAPSHOTS_ENABLED Then
     macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_RestoreManager.fn_RunDeferredRuntimeStateRestore"
+#Else
+    ' Hot-update освобождает rt_PageManager и тем самым удаляет runtime routes.
+    ' Без snapshots на следующем тике создаём чистую Main, иначе на листе
+    ' останутся только Shape с OnAction, но без соответствующего page instance.
+    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!rt_CoreActions.fn_RerenderLastPageAfterUpdate"
+#End If
     scheduleAt = private_Dev_GetNextOnTimeTick()
 
-    On Error Resume Next
+    On Error GoTo EH_QUEUE
+    queueStage = "cancel-existing"
     ' Держим только последнюю задачу deferred restore.
     If g_QueuedRuntimeStateRestoreAt > 0# And VBA.Len(VBA.Trim$(g_QueuedRuntimeStateRestoreMacro)) > 0 Then
         Application.OnTime EarliestTime:=g_QueuedRuntimeStateRestoreAt, Procedure:=g_QueuedRuntimeStateRestoreMacro, Schedule:=False
-        Err.Clear
     End If
+    g_QueuedRuntimeStateRestoreAt = 0#
+    g_QueuedRuntimeStateRestoreMacro = VBA.vbNullString
 
+    queueStage = "schedule"
     Application.OnTime EarliestTime:=scheduleAt, Procedure:=macroRef
-    If Err.Number <> 0 Then
-        errDescription = Err.Description
-        Err.Clear
-        On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-queue-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
-#End If
-        Exit Sub
-    End If
-    On Error GoTo 0
-
     g_QueuedRuntimeStateRestoreAt = scheduleAt
     g_QueuedRuntimeStateRestoreMacro = macroRef
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-queued reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
 #End If
+    Exit Sub
+
+EH_QUEUE:
+    errDescription = Err.Description
+    If VBA.StrComp(queueStage, "schedule", VBA.vbBinaryCompare) = 0 Then
+        g_QueuedRuntimeStateRestoreAt = 0#
+        g_QueuedRuntimeStateRestoreMacro = VBA.vbNullString
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-queue-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
+    Err.Raise VBA.vbObjectError + 9213, _
+        "ex_Core.private_Dev_QueueRuntimeStateRestoreAfterUpdate", _
+        "Failed to schedule runtime restoration: " & _
+        errDescription
+End Sub
+
+
+Public Sub fn_Dev_MarkRuntimeStateRestoreStarted()
+    ' Excel удаляет callback из очереди непосредственно перед вызовом макроса.
+    ' Обнуляем локальную регистрацию, чтобы lifecycle не пытался отменить уже
+    ' исполняемую задачу.
+    g_QueuedRuntimeStateRestoreAt = 0#
+    g_QueuedRuntimeStateRestoreMacro = VBA.vbNullString
 End Sub
 
 
 Private Function private_Dev_TryPrepareRuntimeForHotUpdate(ByVal operationName As String) As Boolean
+    Dim macroRef As String
+
     operationName = VBA.Trim$(operationName)
     If VBA.Len(operationName) = 0 Then operationName = "unknown"
 
-    ' На старте update убираем возможный "хвост" deferred restore,
-    ' чтобы он не сработал, пока rt_* компоненты временно удалены.
-    Call private_Dev_TryCancelQueuedRuntimeStateRestore("safe-update:prepare:" & operationName)
-
-    ' Освобождаем runtime-ссылки через единый lifecycle-контракт модулей.
-    ' rt_PageManager инкапсулирует dispose страниц внутри fn_Module_Dispose.
-    Call private_Dev_TryRunModuleDisposers("safe-update:prepare:" & operationName & ":dispose-modules")
-
-    ' Даем завершиться Class_Terminate/освобождению COM-ссылок перед массовым remove/import.
-    DoEvents
-
-    ' Повторный проход module dispose после page dispose:
-    ' часть модулей может освобождать ссылки только после того, как страницы уже закрыты.
-    Call private_Dev_TryRunModuleDisposers("safe-update:prepare:" & operationName & ":post-dispose-pages")
-
-    ' Сбрасываем глобальные runtime-sources, чтобы не удерживать старые class instances.
-    Call private_RuntimeSource_ResetStorage
+    On Error GoTo EH_PREPARE
+    ' ex_Core должен компилироваться и работать в книге, где он является
+    ' единственным стандартным модулем. Поэтому dependency на lifecycle здесь
+    ' строковая и строго адресует один известный public API, а не ищет disposer-ы.
+    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & _
+        "'!rt_Lifecycle.fn_DisposeRuntime"
+    Application.Run macroRef, False, _
+        "safe-update:prepare:" & operationName
 
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "runtime-update-prepare:done op='" & VBA.Replace$(operationName, "'", "''") & "'"
 #End If
     private_Dev_TryPrepareRuntimeForHotUpdate = True
+    Exit Function
+
+EH_PREPARE:
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent _
+        "runtime-update-prepare:failed op='" & _
+        VBA.Replace$(operationName, "'", "''") & "' err='" & _
+        VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
 End Function
 
 
-Private Sub private_Dev_TryRunModuleDisposers(ByVal reasonText As String)
-    Dim prj As Object
-    Dim comp As Object
-    Dim moduleName As String
-    Dim macroRef As String
-    Dim unqualifiedMacroRef As String
-    Dim errDescriptionQualified As String
-    Dim errDescriptionUnqualified As String
-
-    reasonText = VBA.Trim$(reasonText)
-    If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
-
-    Set prj = ThisWorkbook.VBProject
-    If prj Is Nothing Then Exit Sub
-
-    For Each comp In prj.VBComponents
-        If comp Is Nothing Then GoTo ContinueComponent
-        If VBA.CLng(comp.Type) <> 1 Then GoTo ContinueComponent ' Только стандартные модули.
-
-        moduleName = VBA.Trim$(VBA.CStr(comp.Name))
-        If VBA.Len(moduleName) = 0 Then GoTo ContinueComponent
-
-        macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!" & moduleName & ".fn_Module_Dispose"
-        unqualifiedMacroRef = moduleName & ".fn_Module_Dispose"
-
-        On Error Resume Next
-        Application.Run macroRef
-        If Err.Number = 0 Then
-            On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-            private_Diagnostic_LogCoreSelfEvent "module-dispose-done module='" & VBA.Replace$(moduleName, "'", "''") & "' reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
-#End If
-            GoTo ContinueComponent
-        End If
-
-        errDescriptionQualified = Err.Description
-        Err.Clear
-
-        Application.Run unqualifiedMacroRef
-        If Err.Number = 0 Then
-            On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-            private_Diagnostic_LogCoreSelfEvent "module-dispose-done module='" & VBA.Replace$(moduleName, "'", "''") & "' reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
-#End If
-            GoTo ContinueComponent
-        End If
-
-        errDescriptionUnqualified = Err.Description
-        Err.Clear
-        On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "module-dispose-skip module='" & VBA.Replace$(moduleName, "'", "''") & "' reason='" & VBA.Replace$(reasonText, "'", "''") & "' qualifiedErr='" & VBA.Replace$(errDescriptionQualified, "'", "''") & "' unqualifiedErr='" & VBA.Replace$(errDescriptionUnqualified, "'", "''") & "'"
-#End If
-ContinueComponent:
-    Next comp
-End Sub
-
-
-Private Sub private_Dev_TryCancelQueuedRuntimeStateRestore(Optional ByVal reasonText As String = VBA.vbNullString)
+Private Sub private_Dev_CancelQueuedRuntimeStateRestore(Optional ByVal reasonText As String = VBA.vbNullString)
+    Dim errNumber As Long
     Dim errDescription As String
 
     reasonText = VBA.Trim$(reasonText)
     If VBA.Len(reasonText) = 0 Then reasonText = "unknown"
 
     If g_QueuedRuntimeStateRestoreAt > 0# And VBA.Len(VBA.Trim$(g_QueuedRuntimeStateRestoreMacro)) > 0 Then
-        On Error Resume Next
+        On Error GoTo EH_CANCEL
         Application.OnTime EarliestTime:=g_QueuedRuntimeStateRestoreAt, Procedure:=g_QueuedRuntimeStateRestoreMacro, Schedule:=False
-        If Err.Number <> 0 Then
-            errDescription = Err.Description
-            Err.Clear
-            On Error GoTo 0
 #If LOGGING_DEBUG_ENABLED Then
-            private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-cancel-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+        private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-cancelled reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
 #End If
-        Else
-            On Error GoTo 0
-#If LOGGING_DEBUG_ENABLED Then
-            private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-cancelled reason='" & VBA.Replace$(reasonText, "'", "''") & "'"
-#End If
-        End If
     End If
 
     g_QueuedRuntimeStateRestoreAt = 0#
     g_QueuedRuntimeStateRestoreMacro = VBA.vbNullString
+    Exit Sub
+
+EH_CANCEL:
+    errNumber = Err.Number
+    errDescription = Err.Description
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent "runtime-state-restore-cancel-failed reason='" & VBA.Replace$(reasonText, "'", "''") & "' err='" & VBA.Replace$(errDescription, "'", "''") & "'"
+#End If
+    Err.Raise errNumber, _
+        "ex_Core.private_Dev_CancelQueuedRuntimeStateRestore", _
+        "Failed to cancel deferred runtime restoration: " & _
+        errDescription
 End Sub
 
 
@@ -1969,7 +1951,6 @@ Private Function private_Dev_UpdateCodeCore( _
     Dim cachePath As String
     Dim prevCache As Object
     Dim nextCache As Object
-    Dim incrementalMode As Boolean
     Dim stageName As String
     Dim updatedComponents As Object
     Dim updatedComponentsCount As Long
@@ -1977,21 +1958,21 @@ Private Function private_Dev_UpdateCodeCore( _
     Dim errSource As String
     Dim errDescription As String
     Dim fullErrorText As String
+    Dim previousScreenUpdating As Boolean
+    Dim screenUpdatingCaptured As Boolean
 
-    ' Низкоуровневый движок импорта: выполняет remove/import, кеш и валидацию.
-    ' Решение "retry или финальный fail" принимает слой safe-update выше.
+    ' Низкоуровневый движок импорта: обновляет компоненты in-place, удаляет
+    ' только stale-компоненты, обслуживает кеш и выполняет валидацию.
+    ' Любая ошибка импорта является финальным результатом текущей операции.
     ' stageName нужен для точной диагностики места падения.
     stageName = "init"
-    incrementalMode = (updateMode <> UPDATE_MODE_FULL)
-    Call private_Dev_ResetLastUpdateErrorState
-
     private_ShowStatusNotice "Code update started...", useNativeStatus, 1
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "update-start"
 #End If
 
     basePath = ThisWorkbook.Path & "\\" & BASE_DIR
-    If VBA.Len(Dir(basePath, vbDirectory)) = 0 Then
+    If VBA.Len(VBA.Dir(basePath, vbDirectory)) = 0 Then
         private_ShowStatusWarning "Workbook path is empty or 'vba' folder was not found. Save the workbook first.", useNativeStatus, 6
 #If LOGGING_DEBUG_ENABLED Then
         private_Diagnostic_LogCoreSelfEvent "update-stop: vba-folder-not-found"
@@ -2000,22 +1981,16 @@ Private Function private_Dev_UpdateCodeCore( _
         Exit Function
     End If
 
-    ' Унифицированная очистка module-level ссылок перед любым hot-import.
-    Call private_Dev_TryRunModuleDisposers("update-core:pre-import")
-
-    Application.ScreenUpdating = False
     On Error GoTo EH
+    previousScreenUpdating = Application.ScreenUpdating
+    screenUpdatingCaptured = True
+    Application.ScreenUpdating = False
 
     stageName = "load-cache"
     cachePath = basePath & IMPORT_CACHE_FILE
     Set prevCache = private_Dev_LoadImportCache(cachePath)
     Set nextCache = private_Dev_CreateDictionary()
     Set updatedComponents = private_Dev_CreateDictionary()
-
-    If Not incrementalMode Then
-        stageName = "remove-imported-by-scope"
-        private_Dev_RemoveImportedModulesByScope includeComponentPattern, excludeComponentPattern
-    End If
 
     stageName = "import-folder"
     private_Dev_ImportFolder basePath, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, updatedComponents
@@ -2024,16 +1999,20 @@ Private Function private_Dev_UpdateCodeCore( _
         private_Dev_ValidateClassImports basePath
     End If
 
-    If incrementalMode Then
-        stageName = "remove-stale"
-        private_Dev_RemoveStaleImportedComponentsByScope prevCache, nextCache, includeComponentPattern, excludeComponentPattern
-    End If
+    ' Существующие standard/class компоненты обновляются in-place. Удаляем
+    ' только файлы, которые действительно исчезли из исходного дерева.
+    ' Массовый Remove/Add при full update менял COM/type identity классов и мог
+    ' повреждать compiled state сохраняемого VBA-проекта.
+    stageName = "remove-stale"
+    private_Dev_RemoveStaleImportedComponentsByScope prevCache, nextCache, includeComponentPattern, excludeComponentPattern
     stageName = "preserve-out-of-scope-cache"
     private_Dev_PreserveOutOfScopeCacheRecords prevCache, nextCache, includeComponentPattern, excludeComponentPattern
     stageName = "save-cache"
     private_Dev_SaveImportCache cachePath, nextCache
 
-    Application.ScreenUpdating = True
+    If screenUpdatingCaptured Then
+        Application.ScreenUpdating = previousScreenUpdating
+    End If
     updatedComponentsCount = private_Dev_GetDictionaryCount(updatedComponents)
     private_Dev_LogUpdatedComponents updatedComponents, updateMode
     private_Dev_ShowCodeUpdatedNotice useNativeStatus, updatedComponentsCount
@@ -2047,12 +2026,12 @@ EH:
     errNumber = Err.Number
     errSource = Err.Source
     errDescription = Err.Description
-    ' Сохраняем причину в module-state, чтобы внешний safe-update слой
-    ' мог классифицировать сбой: retryable technical issue или финальный fail.
-    Call private_Dev_SetLastUpdateErrorState(errNumber, errSource, errDescription)
+    ' Сохраняем причину в module-state для полной диагностики ошибки импорта.
     fullErrorText = "Code update failed at stage '" & stageName & "': [" & errSource & " #" & VBA.CStr(errNumber) & "] " & errDescription
 
-    Application.ScreenUpdating = True
+    If screenUpdatingCaptured Then
+        Application.ScreenUpdating = previousScreenUpdating
+    End If
     private_ShowStatusError fullErrorText, useNativeStatus, 6
 
     ' Статус-бар часто обрезает длинный текст ошибки импорта.
@@ -2067,25 +2046,6 @@ EH:
 #End If
     private_Dev_UpdateCodeCore = False
 End Function
-
-
-Private Sub private_Dev_ResetLastUpdateErrorState()
-    g_LastUpdateErrorNumber = 0
-    g_LastUpdateErrorSource = VBA.vbNullString
-    g_LastUpdateErrorDescription = VBA.vbNullString
-    g_LastImportHadComponentStillPresent = False
-End Sub
-
-
-Private Sub private_Dev_SetLastUpdateErrorState( _
-    ByVal errNumber As Long, _
-    ByVal errSource As String, _
-    ByVal errDescription As String _
-)
-    g_LastUpdateErrorNumber = errNumber
-    g_LastUpdateErrorSource = VBA.CStr(errSource)
-    g_LastUpdateErrorDescription = VBA.CStr(errDescription)
-End Sub
 
 
 Private Sub private_Dev_PreserveOutOfScopeCacheRecords( _
@@ -2121,11 +2081,11 @@ Private Sub private_Dev_ValidateClassImports(ByVal rootPath As String)
     Dim fso As Object
     Dim failed As String
 
-    If Dir(rootPath, vbDirectory) = "" Then
+    If VBA.Dir(rootPath, vbDirectory) = "" Then
         Err.Raise VBA.vbObjectError + 1006, "private_Dev_ValidateClassImports", "VBA root folder not found: " & rootPath
     End If
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     private_Dev_ValidateClassImportsRecursive fso.GetFolder(rootPath), 0, failed
 
     If VBA.Len(failed) > 0 Then
@@ -2284,42 +2244,6 @@ EH_CLEAR_DOC:
 End Sub
 
 
-Private Sub private_Dev_RemoveImportedModulesByScope( _
-    Optional ByVal includeComponentPattern As String = VBA.vbNullString, _
-    Optional ByVal excludeComponentPattern As String = VBA.vbNullString _
-)
-    Dim prj As Object
-    Dim comp As Object
-    Dim names() As String
-    Dim n As Long
-    Dim i As Long
-
-    Set prj = ThisWorkbook.VBProject
-
-    For Each comp In prj.VBComponents
-        If comp.Type <> 100 Then ' модуль документа
-            If private_Dev_ShouldProcessComponentByScope(VBA.CStr(comp.Name), includeComponentPattern, excludeComponentPattern) Then
-                n = n + 1
-                ReDim Preserve names(1 To n)
-                names(n) = VBA.CStr(comp.Name)
-            End If
-        End If
-    Next comp
-
-    For i = 1 To n
-        On Error GoTo EH_REMOVE
-        prj.VBComponents.Remove prj.VBComponents(names(i))
-        On Error GoTo 0
-    Next i
-
-    Exit Sub
-
-EH_REMOVE:
-    Err.Raise VBA.vbObjectError + 1004, "private_Dev_RemoveImportedModulesByScope", _
-              "Failed to remove component '" & names(i) & "': " & Err.Description
-End Sub
-
-
 Private Sub private_Dev_ImportFolder( _
     ByVal folderPath As String, _
     ByVal updateMode As Long, _
@@ -2334,9 +2258,9 @@ Private Sub private_Dev_ImportFolder( _
     Dim failed As String
     Dim importPass As Long
 
-    If Dir(folderPath, vbDirectory) = "" Then Exit Sub
+    If VBA.Dir(folderPath, vbDirectory) = "" Then Exit Sub
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     Set rootFolder = fso.GetFolder(folderPath)
 
     ' Глобальные два прохода по всему дереву:
@@ -2389,7 +2313,7 @@ Private Sub private_Dev_ImportFolderRecursive( _
 
     ' Проходим файлы "мягко": ошибка отдельного файла не роняет обход мгновенно,
     ' а копится в списке failed. Это позволяет получить полную картину проблем за pass
-    ' и корректнее отработать retry/диагностику после завершения прохода.
+    ' и вывести полную диагностику после завершения прохода.
     incrementalMode = (updateMode <> UPDATE_MODE_FULL)
 
     For Each fileObj In folderObj.Files
@@ -2423,7 +2347,6 @@ Private Sub private_Dev_ImportFolderRecursive( _
                     componentName = private_Dev_GetComponentNameFromSourceText(sourceText, fallbackName)
                     private_Dev_EnsureValidComponentNameLength componentName, importPath
 
-                    private_Dev_RemoveComponentIfExists componentName
                     If VBA.StrComp(compType, COMP_TYPE_MODULE, VBA.vbTextCompare) = 0 Then
                         private_Dev_ImportStandardModuleFromSource componentName, importPath, sourceText
                     Else
@@ -2488,11 +2411,6 @@ ContinueNextFile:
 
 EH_IMPORT_FILE:
     errText = VBA.CStr(Err.Number) & ": " & Err.Description
-    ' Отмечаем первопричину в точке file-level сбоя, чтобы не потерять признак
-    ' "временная занятость компонента" при последующей агрегации ошибок по папке.
-    If VBA.InStr(1, errText, "is still present after remove operation", VBA.vbTextCompare) > 0 Then
-        g_LastImportHadComponentStillPresent = True
-    End If
 #If LOGGING_DEBUG_ENABLED Then
     private_Diagnostic_LogCoreSelfEvent "update-import-file-failed: path='" & VBA.Replace$(importPath, "'", "''") & "' err='" & VBA.Replace$(errText, "'", "''") & "'"
 #End If
@@ -2571,10 +2489,18 @@ Private Sub private_Dev_ImportStandardModuleFromSource( _
     End If
     cleanCode = private_Dev_ExtractCodeBody(sourceText)
 
-    Set vbComp = ThisWorkbook.VBProject.VBComponents.Add(1) ' стандартный модуль (vbext_ct_StdModule)
-    vbComp.Name = componentName
+    Set vbComp = private_Dev_TryGetComponentByName(componentName)
+    If vbComp Is Nothing Then
+        Set vbComp = ThisWorkbook.VBProject.VBComponents.Add(1) ' vbext_ct_StdModule
+        vbComp.Name = componentName
+    ElseIf vbComp.Type <> 1 Then
+        Err.Raise VBA.vbObjectError + 1016, _
+            "private_Dev_ImportStandardModuleFromSource", _
+            "Existing component '" & componentName & _
+            "' is not a standard module."
+    End If
     Set cm = vbComp.CodeModule
-    cm.DeleteLines 1, cm.CountOfLines
+    If cm.CountOfLines > 0 Then cm.DeleteLines 1, cm.CountOfLines
     cm.AddFromString cleanCode
 End Sub
 
@@ -2600,10 +2526,18 @@ Private Sub private_Dev_ImportClassModuleFromSource( _
     End If
     cleanCode = private_Dev_ExtractCodeBody(sourceText)
 
-    Set vbComp = ThisWorkbook.VBProject.VBComponents.Add(2) ' модуль класса (vbext_ct_ClassModule)
-    vbComp.Name = componentName
+    Set vbComp = private_Dev_TryGetComponentByName(componentName)
+    If vbComp Is Nothing Then
+        Set vbComp = ThisWorkbook.VBProject.VBComponents.Add(2) ' vbext_ct_ClassModule
+        vbComp.Name = componentName
+    ElseIf vbComp.Type <> 2 Then
+        Err.Raise VBA.vbObjectError + 1017, _
+            "private_Dev_ImportClassModuleFromSource", _
+            "Existing component '" & componentName & _
+            "' is not a class module."
+    End If
     Set cm = vbComp.CodeModule
-    cm.DeleteLines 1, cm.CountOfLines
+    If cm.CountOfLines > 0 Then cm.DeleteLines 1, cm.CountOfLines
     cm.AddFromString cleanCode
 End Sub
 
@@ -2622,8 +2556,8 @@ Private Function private_Dev_ExtractCodeBody(ByVal sourceText As String) As Stri
     For i = LBound(lines) To UBound(lines)
         lineText = VBA.CStr(lines(i))
         ' Удаляем служебный BOM/непечатаемый префикс, если он присутствует.
-        lineText = VBA.Replace(lineText, ChrW$(65279), VBA.vbNullString)
-        lineText = VBA.Replace(lineText, ChrW$(160), " ")
+        lineText = VBA.Replace(lineText, VBA.ChrW$(65279), VBA.vbNullString)
+        lineText = VBA.Replace(lineText, VBA.ChrW$(160), " ")
         trimmed = VBA.Trim$(lineText)
 
         If VBA.StrComp(VBA.Left$(trimmed, 8), "VERSION ", VBA.vbTextCompare) = 0 Then GoTo ContinueLine
@@ -2649,7 +2583,6 @@ End Function
 
 Private Sub private_Dev_RemoveComponentIfExists(ByVal componentName As String)
     Dim vbComp As Object
-    Dim attempt As Long
 
     If VBA.Len(componentName) = 0 Then Exit Sub
 
@@ -2658,13 +2591,11 @@ Private Sub private_Dev_RemoveComponentIfExists(ByVal componentName As String)
 
     ThisWorkbook.VBProject.VBComponents.Remove vbComp
 
-    ' После Remove Excel/VBE иногда освобождает компонент не мгновенно.
-    ' Коротко "дожидаемся" исчезновения, чтобы не ловить конфликт имени на следующем Add.
-    For attempt = 1 To 8
-        Set vbComp = private_Dev_TryGetComponentByName(componentName)
-        If vbComp Is Nothing Then Exit Sub
-        DoEvents
-    Next attempt
+    ' DoEvents внутри VBIDE mutation создаёт окно reentrancy, в котором можно
+    ' закрыть книгу с незавершённым import call stack. Если VBE ещё удерживает
+    ' stale-компонент, безопасный update сам повторится через OnTime.
+    Set vbComp = private_Dev_TryGetComponentByName(componentName)
+    If vbComp Is Nothing Then Exit Sub
 
     Err.Raise VBA.vbObjectError + 1015, "private_Dev_RemoveComponentIfExists", _
               "Component '" & componentName & "' is still present after remove operation."
@@ -2813,7 +2744,7 @@ End Function
 
 
 Private Function private_Dev_CreateDictionary() As Object
-    Set private_Dev_CreateDictionary = CreateObject("Scripting.Dictionary")
+    Set private_Dev_CreateDictionary = VBA.CreateObject("Scripting.Dictionary")
     private_Dev_CreateDictionary.CompareMode = 1
 End Function
 
@@ -2827,7 +2758,7 @@ Private Function private_Dev_BuildFileStamp(ByVal filePath As String) As String
     Dim fso As Object
     Dim fileObj As Object
 
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso.FileExists(filePath) Then Exit Function
     Set fileObj = fso.GetFile(filePath)
     private_Dev_BuildFileStamp = private_Dev_BuildFileDateStampFromFileObject(fileObj) & ":" & private_Dev_BuildFileSizeStampFromFileObject(fileObj)
@@ -3093,8 +3024,7 @@ Private Function private_Dev_TryRunRuntimeBooleanFunction( _
     private_Dev_TryRunRuntimeBooleanFunction = True
 End Function
 
-' Callstack[1]: ex_Core.private_Dev_TryQueueRuntimeUpdateWhenBridgeDispatch -> private_Dev_TryRunRuntimeNoArgMember
-' Callstack[2]: ex_Core.private_Dev_TryRunRuntimeBooleanFunction -> private_Dev_TryRunRuntimeNoArgMember
+' Callstack[1]: ex_Core.private_Dev_TryRunRuntimeBooleanFunction -> private_Dev_TryRunRuntimeNoArgMember
 Private Function private_Dev_TryRunRuntimeNoArgMember( _
     ByVal moduleName As String, _
     ByVal memberName As String, _
@@ -3102,9 +3032,7 @@ Private Function private_Dev_TryRunRuntimeNoArgMember( _
     Optional ByVal suppressFailureLog As Boolean = False _
 ) As Boolean
     Dim macroRef As String
-    Dim unqualifiedMacroRef As String
     Dim errDescriptionQualified As String
-    Dim errDescriptionUnqualified As String
     Dim runtimeComponent As Object
 
     outResult = Empty
@@ -3124,7 +3052,6 @@ Private Function private_Dev_TryRunRuntimeNoArgMember( _
     End If
 
     macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!" & moduleName & "." & memberName
-    unqualifiedMacroRef = moduleName & "." & memberName
 
     On Error Resume Next
     outResult = Application.Run(macroRef)
@@ -3135,21 +3062,13 @@ Private Function private_Dev_TryRunRuntimeNoArgMember( _
     End If
     errDescriptionQualified = Err.Description
     Err.Clear
-
-    outResult = Application.Run(unqualifiedMacroRef)
-    If Err.Number = 0 Then
-        private_Dev_TryRunRuntimeNoArgMember = True
-        On Error GoTo 0
-        Exit Function
-    End If
-
-    errDescriptionUnqualified = Err.Description
-    Err.Clear
     On Error GoTo 0
 
     If Not suppressFailureLog Then
 #If LOGGING_DEBUG_ENABLED Then
-        private_Diagnostic_LogCoreSelfEvent "runtime-call-failed: module='" & VBA.Replace$(moduleName, "'", "''") & "' member='" & VBA.Replace$(memberName, "'", "''") & "' qualifiedErr='" & VBA.Replace$(errDescriptionQualified, "'", "''") & "' unqualifiedErr='" & VBA.Replace$(errDescriptionUnqualified, "'", "''") & "'"
+        ' Runtime-вызов никогда не должен разрешаться через другую открытую
+        ' книгу: unqualified Application.Run нарушает изоляцию VBA-проектов.
+        private_Diagnostic_LogCoreSelfEvent "runtime-call-failed: module='" & VBA.Replace$(moduleName, "'", "''") & "' member='" & VBA.Replace$(memberName, "'", "''") & "' err='" & VBA.Replace$(errDescriptionQualified, "'", "''") & "'"
 #End If
     End If
 End Function
@@ -3259,7 +3178,7 @@ End Function
 
 Private Function private_Dev_ReadAllText(ByVal filePath As String) As String
     private_Dev_ReadAllText = private_Dev_ReadAllTextByCharset(filePath, "utf-8")
-    If VBA.Left$(private_Dev_ReadAllText, 1) = ChrW$(65279) Then
+    If VBA.Left$(private_Dev_ReadAllText, 1) = VBA.ChrW$(65279) Then
         private_Dev_ReadAllText = VBA.Mid$(private_Dev_ReadAllText, 2)
     End If
 End Function
@@ -3268,7 +3187,7 @@ End Function
 Private Function private_Dev_ReadAllTextByCharset(ByVal filePath As String, ByVal charsetName As String) As String
     Dim stream As Object
 
-    Set stream = CreateObject("ADODB.Stream")
+    Set stream = VBA.CreateObject("ADODB.Stream")
     stream.Type = 2 ' текстовый поток
     stream.Mode = 3 ' режим чтение/запись
     stream.Charset = charsetName
@@ -3370,6 +3289,35 @@ Private Function private_TryShowRtStatus(ByVal methodName As String, ByVal messa
 End Function
 
 
+Private Function private_TryRefreshRuntimeStaticControl( _
+    ByVal controlName As String _
+) As Boolean
+    Dim macroRef As String
+    Dim callResult As Variant
+
+    controlName = VBA.Trim$(controlName)
+    If VBA.Len(controlName) = 0 Then Exit Function
+
+    ' String-bound runtime boundary сохраняет ex_Core автономным initial
+    ' installer. Этот метод вызывается только после установки runtime.
+    macroRef = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & _
+        "'!ex_ControlRefreshRuntime.fn_TryRefreshStaticControl"
+
+    On Error GoTo EH_REFRESH
+    callResult = Application.Run(macroRef, controlName)
+    private_TryRefreshRuntimeStaticControl = VBA.CBool(callResult)
+    Exit Function
+
+EH_REFRESH:
+#If LOGGING_DEBUG_ENABLED Then
+    private_Diagnostic_LogCoreSelfEvent _
+        "control-refresh-runtime-call-failed control='" & _
+        VBA.Replace$(controlName, "'", "''") & "' err='" & _
+        VBA.Replace$(Err.Description, "'", "''") & "'"
+#End If
+End Function
+
+
 Private Sub private_ShowNativeStatus(ByVal messageText As String)
     Dim statusText As String
     Dim errDescription As String
@@ -3437,7 +3385,10 @@ Private Sub private_Diagnostic_LogCoreSelfEvent(ByVal messageText As String)
 End Sub
 
 
-Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
+Private Sub private_Diagnostic_LogCoreEvent( _
+    ByVal messageText As String, _
+    Optional ByVal ignoreRuntimePagePolicy As Boolean = False _
+)
     Dim enableLogging As Boolean
     Dim logPath As String
     Dim folderPath As String
@@ -3445,6 +3396,10 @@ Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
     Dim stream As Object
     Dim lineText As String
 
+    If Not ignoreRuntimePagePolicy And _
+        g_IsLoggingRuntimeStateInitialized Then
+        If Not g_IsLoggingRuntimeActive Then Exit Sub
+    End If
     If Not fn_Settings_TryGetFlagBoolean(SETTINGS_FLAG_IS_LOGGING_ENABLED, SETTINGS_FLAG_IS_LOGGING_ENABLED_DEFAULT, enableLogging, False) Then Exit Sub
     If Not enableLogging Then Exit Sub
 
@@ -3457,7 +3412,7 @@ Private Sub private_Diagnostic_LogCoreEvent(ByVal messageText As String)
     folderPath = VBA.Left$(logPath, VBA.InStrRev(logPath, "\\") - 1)
 
     On Error Resume Next
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso Is Nothing Then
         If VBA.Len(folderPath) > 0 Then
             If Not fso.FolderExists(folderPath) Then fso.CreateFolder folderPath
@@ -3487,7 +3442,7 @@ Private Sub private_Diagnostic_ClearCoreLogFile()
     folderPath = VBA.Left$(logPath, VBA.InStrRev(logPath, "\\") - 1)
 
     On Error Resume Next
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fso Is Nothing Then
         If VBA.Len(folderPath) > 0 Then
             If Not fso.FolderExists(folderPath) Then fso.CreateFolder folderPath

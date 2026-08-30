@@ -1,0 +1,428 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="horizontal">
+          <control
+            type="Config"
+            name="DevConfig"
+            itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.Config'}"
+            tableName="cfgDevUi"
+            spanColls="3"
+            />
+          <stackPanel orientation="horizontal">
+              <control
+                type="Select"
+                name="ConfigProfilePicker"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+                itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigProfiles'}"
+                dropDownOpened="{Binding Method=OnConfigProfileDropDownOpenedCommand}"
+                placeholder="Choose profile"
+                headerStyle="configSelectHeader"
+                panelStyle="configSelectPanel"
+                itemStyle="configSelectItem"
+                itemHeight="18"
+                itemMargin="2"
+                spanColls="4"
+                spanRows="2"
+                />
+
+              <stackPanel spanColls="1" spanRows="1"/>
+
+              <control
+                type="Select"
+                name="ConfigModePicker"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+                itemsSource="{PageRuntimeSource='RuntimeItems.PageMain.ConfigModes'}"
+                dropDownOpened="{Binding Method=OnConfigModeDropDownOpenedCommand}"
+                placeholder="Choose mode"
+                headerStyle="configSelectHeader"
+                panelStyle="configSelectPanel"
+                itemStyle="configSelectItem"
+                itemHeight="18"
+                itemMargin="2"
+                spanColls="4"
+                spanRows="2"
+                />
+
+              <stackPanel spanColls="1" spanRows="1"/>
+
+              <control
+                type="Button"
+                name="SaveConfigProfile"
+                caption="Save Config Profile"
+                style="actionWarning"
+                dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+                onClick="{Binding Method=OnSaveCurrentConfigProfileCommand}"
+                spanColls="4"
+                spanRows="2"
+                />
+          </stackPanel>
+      </stackPanel>
+
+      <stackPanel at="r2c21" orientation="vertical">
+        <control
+          type="Button"
+          name="OpenPrsnlEvntBuilder"
+          caption="PrsnlEvntBuilder"
+          style="modeAccent"
+          visibility="{Binding Path=IsPrsnlEvntBuilderMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenPrsnlEvntBuilderPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenSupportingDocBuilder"
+          caption="Supporting Document Builder"
+          style="modeAccent"
+          visibility="{Binding Path=IsSupportingDocumentBuilderMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenSupportingDocumentBuilderPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenComparing"
+          caption="Comparing"
+          style="modeAccent"
+          visibility="{Binding Path=IsComparingMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenComparingPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenMultiSourcesView"
+          caption="MultiSourcesView"
+          style="modeAccent"
+          visibility="{Binding Path=IsMultiSourcesViewMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenMultiSourcesViewPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenWordDataExtractor"
+          caption="WordDataExtractor"
+          style="modeAccent"
+          visibility="{Binding Path=IsWordDataExtractorMode; TrueAs=Visible; FalseAs=Collapsed}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenWordDataExtractorPageCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenModeUiFile"
+          caption="Open UI File"
+          style="modeFileAction"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenCurrentModeUiFileCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenModeProfilesFile"
+          caption="Open Profiles File"
+          style="modeFileAction"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnOpenCurrentModeProfilesFileCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          onClick="{Binding Module=rt_PageManager;Method=fn_RenderActivePage}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ClearPagesExceptMain"
+          caption="Clear Pages"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnClearWorkbookPagesExceptMainCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ToggleLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingEnabled;TrueAs=Logging [[[ok]]On[[/ok]]];FalseAs=Logging [[[color=#FF0000]]Off[[/color]]]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleLogging}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ToggleMainPageLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingMainPageOnly;TrueAs=Logging: [[[ok]]Main only[[/ok]]];FalseAs=Logging: [[[color=#FF0000]]All pages[[/color]]]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleMainPageLogging}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ToggleVerboseLogging"
+          dataContext="{GlobalRuntimeSource='Settings'}"
+          caption="{Binding Path=IsLoggingVerboseEnabled;TrueAs=Verbose: [[[ok]]On[[/ok]]];FalseAs=Verbose: [[[color=#FF0000]]Off[[/color]]]}"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ToggleVerboseLogging}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="ClearLogs"
+          caption="Clear Logs"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_ClearLogs}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="OpenLogs"
+          caption="Open Logs"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Core;Method=fn_Dev_OpenLogs}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Button"
+          name="UpdateCodeFull"
+          caption="Update Code Full"
+          style="actionDanger"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          onClick="{Binding Method=OnUpdateCodeFullCommand}"
+          spanColls="5"
+          spanRows="2"
+          />
+        <control
+          type="Label"
+          name="LastCodeUpdate"
+          text="{Binding Path=LastCodeUpdateCaption}"
+          mergeCells="true"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageMain.Controller'}"
+          spanColls="5"
+          spanRows="1"
+          />
+      </stackPanel>
+  </grid>
+
+  <styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <controlStyle
+      name="modeAccent"
+      backColor="#4472C4"
+      textColor="#FFFFFF"
+      borderColor="#2F5597"
+      borderWeight="1.5"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="modeFileAction"
+      backColor="#5B9BD5"
+      textColor="#FFFFFF"
+      borderColor="#2F75B5"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <controlStyle
+      name="actionDanger"
+      backColor="#C00000"
+      textColor="#FFFFFF"
+      borderColor="#7F0000"
+      borderWeight="1.5"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="configSelectHeader"
+      backColor="#438E20"
+      textColor="#0A0A0A"
+      borderColor="#285D14"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectPanel"
+      backColor="#2B3138"
+      textColor="#F1F5F9"
+      borderColor="#1C2024"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <controlStyle
+      name="configSelectItem"
+      backColor="#3B424A"
+      textColor="#F8FAFC"
+      borderColor="#282D32"
+      borderWeight="0.75"
+      fontName="Calibri"
+      fontSize="10"
+      fontBold="false"/>
+
+    <stylePipelineStage name="default">
+      <layer name="dark-base">
+        <rule target="sheet"
+              styles="{ 
+                backColor:#262626;
+                fontColor:#EBEBEB;
+                borderColor:#000000;
+                borderWeight:thin;
+                width:4;
+                rowHeight:16;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="update-meta">
+        <rule
+          target="controlPart"
+          selector="type=label;name=LastCodeUpdate;part=cell"
+          styles="{
+            backColor:#20242A;
+            fontColor:#9CA3AF;
+            borderColor:#20242A;
+            fontName:Calibri;
+            fontSize:9;
+            fontBold:false;
+            horizontal:center;
+            vertical:center;
+            rowHeight:18;
+          }"/>
+      </layer>
+
+      <layer name="config-parts">
+        <rule target="controlPart"
+              selector="type=config;part=attr"
+              styles="{
+                width:4;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=key"
+              styles="{
+                width:55;
+                fontSize:12;
+                overflow:wrap;
+                vertical:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=value"
+              styles="{
+                width:70;
+                fontSize:12;
+                fontColor:#F1A983;
+                overflow:wrap;
+                rowHeight:auto;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=attrhash"
+              styles="{
+                backColor:#3A3422;
+                fontColor:#FDE68A;
+                borderColor:#594F2D;
+                borderWeight:thin;
+                fontBold:true;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=config;part=attrrx"
+              styles="{
+                backColor:#1D3342;
+                fontColor:#BAE6FD;
+                borderColor:#2A4A5F;
+                borderWeight:thin;
+                fontBold:false;
+                fontItalic:true;
+              }"/>
+      </layer>
+
+      <layer name="layout-debug-bounds">
+        <rule target="layoutBound"
+              selector="tag=grid"
+              styles="{
+                borderColor:#8B5CF6;
+                borderWeight:medium;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=control"
+              styles="{
+                borderColor:#FF0000;
+                borderWeight:thin;
+                borderLineStyle:solid;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=0"
+              styles="{
+                borderColor:#444444;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=1"
+              styles="{
+                borderColor:#5E5E5E;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+        <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=2"
+              styles="{
+                borderColor:#777777;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+
+       <rule target="layoutBound"
+              selector="tag=stackpanel;tagDepth=3:10"
+              styles="{
+                borderColor:#999999;
+                borderWeight:medium;
+                borderLineStyle:dash;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

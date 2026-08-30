@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <stackPanel name="SdbCommandRow" orientation="horizontal">
+        <control
+          type="Button"
+          name="SelectTripCertificate"
+          caption="Посвідчення про відрядження"
+          style="profileButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.SupportingDocumentBuilder.Controller'}"
+          onClick="{Binding Method=OnSupportingDocumentSectionClick}"
+          spanColls="4"
+          spanRows="2"/>
+        <control
+          type="Button"
+          name="GenerateDocumentPreview"
+          caption="Сформувати preview"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.SupportingDocumentBuilder.Controller'}"
+          onClick="{Binding Method=OnGenerateWordPreviewClick}"
+          spanColls="3"
+          spanRows="2"/>
+        <control
+          type="Button"
+          name="ExportToWord"
+          caption="Export to WORD"
+          style="exportApplyButton"
+          dataContext="{PageRuntimeSource='RuntimeObjects.SupportingDocumentBuilder.Controller'}"
+          onClick="{Binding Method=OnExportToWordClick}"
+          spanColls="2"
+          spanRows="2"/>
+        <control
+          type="Button"
+          name="UpdateSheet"
+          caption="Update Sheet"
+          style="actionWarning"
+          dataContext="{PageRuntimeSource='RuntimeObjects.SupportingDocumentBuilder'}"
+          onClick="{Binding Method=OnRenderCommand}"
+          spanColls="2"
+          spanRows="2"/>
+      </stackPanel>
+
+      <stackPanel name="EventDraftForm" orientation="vertical" spanColls="11" spanRows="2">
+        <stackPanel name="EventDraftHeaders" orientation="horizontal" spanRows="1">
+          <control type="Label" name="RankHeader" tags="_Rank;profile.toBusinessTrip" text="Звання (відмінок)" style="tableHeaderCell"/>
+          <control type="Label" name="FioHeader" tags="_FIO;profile.toBusinessTrip" text="ПІБ (відмінок)" style="tableHeaderCell"/>
+          <control type="Label" name="PositionCodeHeader" tags="_PositionCode;profile.toBusinessTrip" text="Код посади" style="tableHeaderCell"/>
+          <control type="Label" name="PositionNameHeader" tags="_PositionName;profile.toBusinessTrip" text="Посада (відмінок)" style="tableHeaderCell"/>
+          <control type="Label" name="TripStartHeader" tags="_DateFrom;profile.toBusinessTrip" text="Початок відрядження" style="tableHeaderCell"/>
+          <control type="Label" name="OrderDateHeader" tags="_DocDate;profile.toBusinessTrip" text="Дата наказу" style="tableHeaderCell"/>
+          <control type="Label" name="OrderNoHeader" tags="_DocNo;profile.toBusinessTrip" text="№ наказу" style="tableHeaderCell"/>
+          <control type="Label" name="ReporterPositionHeader" tags="_ReportPositionCode;profile.toBusinessTrip" text="Посада автора повідомлення" style="tableHeaderCell"/>
+          <control type="Label" name="MilitaryUnitHeader" tags="_Destination;profile.toBusinessTrip" text="Військова частина" style="tableHeaderCell"/>
+          <control type="Label" name="OutgoingNoHeader" tags="_IncomingNo;profile.toBusinessTrip" text="Вих. №" style="tableHeaderCell"/>
+          <control type="Label" name="OutgoingDateHeader" tags="_IncomingDate;profile.toBusinessTrip" text="Вих. дата" style="tableHeaderCell"/>
+        </stackPanel>
+
+        <!-- Значения вводятся непосредственно в ячейки этой строки. -->
+        <stackPanel name="EventDraftValues" orientation="horizontal" spanRows="1">
+          <control type="Input" name="RankDraftCell" tags="_Rank;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="FioDraftCell" tags="_FIO;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="PositionCodeDraftCell" tags="_PositionCode;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="PositionNameDraftCell" tags="_PositionName;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="TripStartDraftCell" tags="_DateFrom;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="OrderDateDraftCell" tags="_DocDate;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="OrderNoDraftCell" tags="_DocNo;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="ReporterPositionCell" tags="_ReportPositionCode;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="MilitaryUnitDraftCell" tags="_Destination;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="OutgoingNoDraftCell" tags="_IncomingNo;profile.toBusinessTrip" value=""/>
+          <control type="Input" name="OutgoingDateDraftCell" tags="_IncomingDate;profile.toBusinessTrip" value=""/>
+        </stackPanel>
+      </stackPanel>
+
+      <stackPanel spanColls="1" spanRows="1"/>
+
+      <stackPanel
+        name="WordExportPanel"
+        orientation="vertical"
+        dataContext="{PageRuntimeSource='RuntimeObjects.SupportingDocumentBuilder.Controller'}"
+        visibility="{Binding Path=IsWordPreviewVisible;TrueAs=Visible;FalseAs=Collapsed}"
+        spanColls="11">
+        <control
+          type="Banner"
+          name="WordExportPreview"
+          dataContext="{PageRuntimeSource='RuntimeObjects.SupportingDocumentBuilder.Controller'}"
+          header="Supporting document preview (HTML table markup)"
+          message="{Binding Path=WordExportPreviewText}"
+          spanColls="11"
+          spanRows="18"/>
+      </stackPanel>
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <controlStyle
+      name="profileButton"
+      backColor="#252A31"
+      textColor="#86EFAC"
+      borderColor="#46515E"
+      borderWeight="1"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="exportApplyButton"
+      backColor="#24362B"
+      textColor="#86EFAC"
+      borderColor="#4E8A62"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <controlStyle
+      name="actionWarning"
+      backColor="#382B23"
+      textColor="#FDBA74"
+      borderColor="#B56B32"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="false"/>
+
+    <stylePipelineStage name="default">
+      <layer name="sdb-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F2329;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                width:15;
+                rowHeight:21;
+                overflow:wrap;
+                cellType:text;
+                zoom:80%;
+              }"/>
+
+        <rule target="column"
+              selector="address=A:A"
+              styles="{ width:2.38; }"/>
+
+      </layer>
+
+      <!-- Draft-форма использует тот же визуальный контракт, что и PEB. -->
+      <layer name="sdb-draft-form">
+        <rule target="layoutContainer"
+              selector="name=EventDraftHeaders"
+              styles="{
+                backColor:#111318;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:48;
+              }"/>
+
+        <rule target="layoutContainer"
+              selector="name=EventDraftValues"
+              styles="{
+                backColor:#262B31;
+                fontColor:#E5E7EB;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                vertical:center;
+                rowHeight:64;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=input;part=cell"
+              styles="{
+                backColor:#36424E;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
+                borderWeight:thin;
+                horizontal:center;
+                rowHeight:64;
+                vertical:center;
+                cellType:text;
+              }"/>
+
+        <rule target="controlPart" selector="type=label;name=RankHeader;part=cell" styles="{ width:16; }"/>
+        <rule target="controlPart" selector="type=label;name=FioHeader;part=cell" styles="{ width:22; }"/>
+        <rule target="controlPart" selector="type=label;name=PositionCodeHeader;part=cell" styles="{ width:12; }"/>
+        <rule target="controlPart" selector="type=label;name=PositionNameHeader;part=cell" styles="{ width:22; }"/>
+        <rule target="controlPart" selector="type=label;name=TripStartHeader;part=cell" styles="{ width:12; }"/>
+        <rule target="controlPart" selector="type=label;name=OrderDateHeader;part=cell" styles="{ width:11; }"/>
+        <rule target="controlPart" selector="type=label;name=OrderNoHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=ReporterPositionHeader;part=cell" styles="{ width:24; }"/>
+        <rule target="controlPart" selector="type=label;name=MilitaryUnitHeader;part=cell" styles="{ width:14; }"/>
+        <rule target="controlPart" selector="type=label;name=OutgoingNoHeader;part=cell" styles="{ width:9.25; }"/>
+        <rule target="controlPart" selector="type=label;name=OutgoingDateHeader;part=cell" styles="{ width:9.25; }"/>
+      </layer>
+
+      <layer name="sdb-preview">
+        <rule target="controlPart"
+              selector="type=banner;name=WordExportPreview;part=header"
+              styles="{
+                backColor:#202936;
+                fontColor:#BFDBFE;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontSize:16;
+                fontBold:true;
+                horizontal:left;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=banner;name=WordExportPreview;part=message"
+              styles="{
+                backColor:#252A31;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontSize:12;
+                vertical:top;
+                horizontal:left;
+                overflow:wrap;
+                cellType:text;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

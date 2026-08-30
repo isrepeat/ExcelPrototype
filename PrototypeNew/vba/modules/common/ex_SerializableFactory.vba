@@ -5,7 +5,7 @@ Option Explicit
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_SerializableFactory.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_SerializableFactory.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -20,8 +20,33 @@ Public Function fn_TryCreatePageByTypeRoot( _
     Set outPage = Nothing
 
     Select Case typeRoot
-        Case "page.personalcard"
-            Set outPage = New obj_PagePersonalCard
+        Case "page.entitylookup"
+            Set outPage = New obj_PageEntityLookup
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
+        Case "page.prsnlevntbuilder"
+            Set outPage = New obj_PagePrsnlEvntBuilder
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
+        Case "page.supportingdocumentbuilder"
+            Set outPage = New obj_PageSDB
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
+        Case "page.comparing"
+            Set outPage = New obj_PageComparing
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
+        Case "page.multisourcesview"
+            Set outPage = New obj_PageMultiSourcesView
+            fn_TryCreatePageByTypeRoot = True
+            Exit Function
+
+        Case "page.worddataextractor"
+            Set outPage = New obj_PageWordDataExtractor
             fn_TryCreatePageByTypeRoot = True
             Exit Function
 

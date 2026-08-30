@@ -7,14 +7,62 @@ Private Const RUNTIME_ERROR_TITLE As String = "PrototypeNew / SQL runtime"
 Private Const ADO_UNSUPPORTED_EXT_ERROR_CODE As Long = VBA.vbObjectError + 7312
 Private Const RANGE_REF_CACHE_NAMESPACE As String = "SqlEngine.RangeRefsByMarkers"
 Private Const RANGE_REF_CACHE_VERSION As String = "v1"
+Private Const SCHEMA_CACHE_VERSION As String = "v1"
+Private Const ADO_TEXT_LIMIT As Long = 255
+Private Const ADO_LONG_VALUE_CANDIDATE_TAG As String = "ado-long-value-candidate"
+
+Private m_ConnectionsByPath As Object
+Private m_ResolvedHeadersByKey As Object
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_ExternalExcelSqlEngine.fn_Module_Dispose"
+#End If
+    fn_ResetRuntimeCache
+End Sub
+
+' Закрывает глобальные ADO-соединения, которые переживают отдельные страницы.
+' Модуль остаётся готовым к работе: следующий SQL-запрос лениво пересоздаст
+' словари и соединения через private_EnsureSqlCaches.
+Public Sub fn_ResetRuntimeCache()
+    Dim cleanupErrorNumber As Long
+    Dim cleanupErrorDescription As String
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "lifecycle:method-enter " & _
+        "method='ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache'"
 #End If
     On Error Resume Next
+    private_CloseAllCachedConnections
+    If Err.Number <> 0 Then
+        cleanupErrorNumber = Err.Number
+        cleanupErrorDescription = Err.Description
+        Err.Clear
+    End If
+    Set m_ConnectionsByPath = Nothing
+    Set m_ResolvedHeadersByKey = Nothing
     Call ex_CacheRuntime.fn_ClearNamespace(RANGE_REF_CACHE_NAMESPACE)
+    If Err.Number <> 0 And cleanupErrorNumber = 0 Then
+        cleanupErrorNumber = Err.Number
+        cleanupErrorDescription = Err.Description
+        Err.Clear
+    End If
     On Error GoTo 0
+#If LOGGING_DEBUG_ENABLED Then
+    If cleanupErrorNumber <> 0 Then
+        ex_Core.fn_Diagnostic_LogError _
+            "lifecycle:method-error " & _
+            "method='ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache' " & _
+            "errNumber='" & VBA.CStr(cleanupErrorNumber) & "' err='" & _
+            VBA.Replace$(cleanupErrorDescription, "'", "''") & "'"
+    Else
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit " & _
+            "method='ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache' " & _
+            "result='true'"
+    End If
+#End If
 End Sub
 
 Public Function fn_TrySqlRequest( _
@@ -45,7 +93,14 @@ Public Function fn_TrySqlRequest( _
     Dim availableFields As String
     Dim hasGenericFields As Boolean
     Dim cellText As String
-    Dim fieldErrorText As String
+    Dim recordsetData As Variant
+    Dim recordIndex As Long
+    Dim perfTotalStartedAt As Double
+    Dim perfStageStartedAt As Double
+    Dim connectionMs As Double, schemaMs As Double, queryOpenMs As Double
+    Dim fetchMs As Double, materializeMs As Double
+
+    perfTotalStartedAt = VBA.Timer
 
     On Error GoTo EH_QUERY
 
@@ -54,7 +109,7 @@ Public Function fn_TrySqlRequest( _
 
     ' 1) Базовая валидация входных параметров SQL.
     If sqlParams Is Nothing Then
-        MsgBox "PrototypeNew: SQL params object is not specified.", vbExclamation, RUNTIME_ERROR_TITLE
+        VBA.MsgBox "PrototypeNew: SQL params object is not specified.", vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
 
@@ -66,7 +121,7 @@ Public Function fn_TrySqlRequest( _
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "sql-engine:invalid-params " & validationError & "; " & sqlParams.fn_ToString()
 #End If
-        MsgBox "PrototypeNew: invalid SQL params. " & validationError, vbExclamation, RUNTIME_ERROR_TITLE
+        VBA.MsgBox "PrototypeNew: invalid SQL params. " & validationError, vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
 
@@ -75,14 +130,14 @@ Public Function fn_TrySqlRequest( _
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "sql-engine:source-path-empty raw='" & sqlParams.SourcePath & "'"
 #End If
-        MsgBox "PrototypeNew: resolved source path is empty.", vbExclamation, RUNTIME_ERROR_TITLE
+        VBA.MsgBox "PrototypeNew: resolved source path is empty.", vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
     If VBA.Dir$(sourcePath) = VBA.vbNullString Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "sql-engine:source-file-not-found path='" & sourcePath & "' raw='" & sqlParams.SourcePath & "'"
 #End If
-        MsgBox "PrototypeNew: source file not found: " & sourcePath, vbExclamation, RUNTIME_ERROR_TITLE
+        VBA.MsgBox "PrototypeNew: source file not found: " & sourcePath, vbExclamation, RUNTIME_ERROR_TITLE
         Exit Function
     End If
 
@@ -92,9 +147,13 @@ Public Function fn_TrySqlRequest( _
     If private_HasRangeMarkers(sqlParams) Then
         If Not private_TryBuildTableRefFromMarkers(sourcePath, sqlParams.SheetName, sqlParams.RangeStartMarker, sqlParams.RangeEndMarker, tableRef, markerErrorText) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & "' sheet='" & sqlParams.SheetName & "' start='" & sqlParams.RangeStartMarker & "' end='" & sqlParams.RangeEndMarker & "' error='" & markerErrorText & "'"
+            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & _
+                "' sheet='" & sqlParams.SheetName & _
+                "' start='" & sqlParams.RangeStartMarker & _
+                "' end='" & sqlParams.RangeEndMarker & _
+                "' error='" & markerErrorText & "'"
 #End If
-            MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
+            VBA.MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
             Exit Function
         End If
     Else
@@ -103,7 +162,7 @@ Public Function fn_TrySqlRequest( _
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "sql-engine:table-ref-empty sheet='" & sqlParams.SheetName & "'"
 #End If
-            MsgBox "PrototypeNew: failed to build SQL table reference from SheetName '" & sqlParams.SheetName & "'.", vbExclamation, RUNTIME_ERROR_TITLE
+            VBA.MsgBox "PrototypeNew: failed to build SQL table reference from SheetName '" & sqlParams.SheetName & "'.", vbExclamation, RUNTIME_ERROR_TITLE
             Exit Function
         End If
     End If
@@ -116,39 +175,23 @@ Public Function fn_TrySqlRequest( _
     Set mappedColumnHeaders = sqlParams.MappedColumnHeaders
     Set columnAliases = sqlParams.ColumnAliases
 
-    ' 3) Открываем ADO-подключение к Excel-файлу.
-    Set conn = CreateObject("ADODB.Connection")
-    conn.Open private_BuildAdoConnectionString(sourcePath)
+    ' 3) Повторно используем одно read-only ADO-соединение для каждого пути источника.
+    perfStageStartedAt = VBA.Timer
+    If Not private_TryGetCachedConnection(sourcePath, conn) Then GoTo CleanupFail
+    connectionMs = private_PerfElapsedMs(perfStageStartedAt)
 
-    ' 4) Schema-pass:
-    ' SELECT ... WHERE 1=0 не читает строки, но возвращает структуру полей.
-    ' Это нужно, чтобы проверить, что все SourceColumnHeaders реально доступны у провайдера.
-    Set rsSchema = CreateObject("ADODB.Recordset")
-    rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
-    availableFields = private_ListRecordsetFields(rsSchema, 40)
-    hasGenericFields = private_RecordsetLooksLikeGenericFields(rsSchema)
-
-    Set resolvedSourceColumnHeaders = New Collection
-    For i = 1 To sourceColumnHeaders.Count
-        resolvedSourceColumnHeader = VBA.vbNullString
-        If Not private_TryResolveHeaderInRecordset(rsSchema, VBA.CStr(sourceColumnHeaders.Item(i)), resolvedSourceColumnHeader) Then
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & VBA.CStr(sourceColumnHeaders.Item(i)) & "' available='" & availableFields & "' genericFields=" & VBA.CStr(hasGenericFields)
-#End If
-            MsgBox "PrototypeNew: mapped source header '" & VBA.CStr(sourceColumnHeaders.Item(i)) & "' is not found. Available fields: " & availableFields & private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
-            GoTo CleanupFail
-        End If
-        resolvedSourceColumnHeaders.Add resolvedSourceColumnHeader
-    Next i
-
-    rsSchema.Close
-    Set rsSchema = Nothing
+    ' 4) Определяем физические имена полей. Запрос схемы WHERE 1=0 выполняется только
+    ' при промахе кэша для версии файла, ссылки таблицы и набора заголовков.
+    perfStageStartedAt = VBA.Timer
+    If Not private_TryGetResolvedSourceHeaders( _
+        conn, sourcePath, tableRef, sourceColumnHeaders, resolvedSourceColumnHeaders) Then GoTo CleanupFail
+    schemaMs = private_PerfElapsedMs(perfStageStartedAt)
 
     Set rowProcessor = sqlParams.RowProcessor
     hasCustomRowProcessor = Not rowProcessor Is Nothing
 #If LOGGING_DEBUG_ENABLED Then
     If hasCustomRowProcessor Then
-        ex_Core.fn_Diagnostic_LogInfo "sql-engine:custom-row-processor type='" & VBA.TypeName(rowProcessor) & "'"
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:custom-row-processor type='" & TypeName(rowProcessor) & "'"
     Else
         ex_Core.fn_Diagnostic_LogInfo "sql-engine:custom-row-processor type='<none>'"
     End If
@@ -157,21 +200,37 @@ Public Function fn_TrySqlRequest( _
     ' 5) Data-pass:
     ' Строим и выполняем реальный SELECT только по валидационно-резолвленным колонкам.
     ' Если в SqlParams задано WHERE-условие, добавляем его в запрос.
-    sql = "SELECT " & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
+    ' MaxRows и WhereConditions являются независимыми параметрами. Для
+    ' специального lookup по "*" parser задает TOP N и оставляет в WHERE
+    ' только общий фильтр пустых строк, без текстового условия LIKE.
+    sql = "SELECT "
+    If sqlParams.MaxRows > 0 Then sql = sql & "TOP " & VBA.CStr(sqlParams.MaxRows) & " "
+    sql = sql & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
     If Not hasCustomRowProcessor And VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
         sql = sql & " WHERE " & sqlParams.WhereConditions
     End If
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "sql-engine:data-sql " & sql
 #End If
-    Set rsData = CreateObject("ADODB.Recordset")
+    Set rsData = VBA.CreateObject("ADODB.Recordset")
+    perfStageStartedAt = VBA.Timer
     rsData.Open sql, conn, 0, 1
+    queryOpenMs = private_PerfElapsedMs(perfStageStartedAt)
 
     ' Без кастомного row processor пустой набор данных не считаем ошибкой:
     ' просто нет строк под текущий запрос.
     If rsData.EOF And Not hasCustomRowProcessor Then
         rsData.Close
         Set rsData = Nothing
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "perf:sql-request totalMs='" & _
+            VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+            "' connectionMs='" & VBA.Format$(connectionMs, "0") & _
+            "' schemaMs='" & VBA.Format$(schemaMs, "0") & _
+            "' queryOpenMs='" & VBA.Format$(queryOpenMs, "0") & _
+            "' fetchMs='0' materializeMs='0' rowsRead='0' resultRows='0'" & _
+            " source='" & VBA.Replace$(sourcePath, "'", "''") & "'"
+#End If
         fn_TrySqlRequest = True
         GoTo CleanupDone
     End If
@@ -202,7 +261,7 @@ Public Function fn_TrySqlRequest( _
     If hasCustomRowProcessor Then
         If Not rowProcessor.Initialize(tableObj, sqlParams) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-initialize-failed type='" & VBA.TypeName(rowProcessor) & "' columns=" & VBA.CStr(tableObj.ColumnCount)
+            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-initialize-failed type='" & TypeName(rowProcessor) & "' columns=" & VBA.CStr(tableObj.ColumnCount)
 #End If
             GoTo CleanupFail
         End If
@@ -216,147 +275,87 @@ Public Function fn_TrySqlRequest( _
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "sql-engine:data-field-ordinal-missing header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
 #End If
-            MsgBox "PrototypeNew: resolved header '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' is not available in data recordset.", vbExclamation, RUNTIME_ERROR_TITLE
+            VBA.MsgBox "PrototypeNew: resolved header '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' is not available in data recordset.", vbExclamation, RUNTIME_ERROR_TITLE
             GoTo CleanupFail
         End If
     Next i
 
-    ' 7) Переносим данные из Recordset в obj_TableDynamic (row-by-row).
+    ' 7) Забираем весь Recordset одним COM-вызовом.
+    ' SQL-фильтрация уже выполнена ADO; здесь только переносим результат в runtime-модель.
     rowNumber = 0
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-loop-start hasCustomRowProcessor=" & VBA.CStr(hasCustomRowProcessor)
-#End If
-    Do While Not rsData.EOF
-        rowNumber = rowNumber + 1
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-start rowNumber=" & VBA.CStr(rowNumber) & " eof=" & VBA.CStr(rsData.EOF)
-        End If
-#End If
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-release-previous-start rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        Set rowObj = Nothing
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-release-previous-done rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-create-start rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        Set rowObj = New obj_Row
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-object-create-done rowNumber=" & VBA.CStr(rowNumber) & " type='" & VBA.TypeName(rowObj) & "'"
-        End If
-#End If
-        rowObj.Index = rowNumber
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-index-set rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        For i = 1 To UBound(sourceColumnOrdinals)
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:field-read-start rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " ordinal=" & VBA.CStr(sourceColumnOrdinals(i)) & " header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
-            End If
-#End If
-            cellText = VBA.vbNullString
-            fieldErrorText = VBA.vbNullString
-            If Not private_TryReadRecordsetFieldText(rsData, sourceColumnOrdinals(i), cellText, fieldErrorText) Then
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "sql-engine:field-read-failed rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " ordinal=" & VBA.CStr(sourceColumnOrdinals(i)) & " header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' error='" & fieldErrorText & "'"
-#End If
-                MsgBox "PrototypeNew: failed to read SQL field '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' at row " & VBA.CStr(rowNumber) & ". " & fieldErrorText, vbExclamation, RUNTIME_ERROR_TITLE
-                GoTo CleanupFail
-            End If
-            rowObj.PushCellRaw cellText
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:field-read-done rowNumber=" & VBA.CStr(rowNumber) & " colIndex=" & VBA.CStr(i) & " textLen=" & VBA.CStr(VBA.Len(cellText))
-            End If
-#End If
-        Next i
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-created rowNumber=" & VBA.CStr(rowNumber) & " cells=" & VBA.CStr(rowObj.CellCount)
-        End If
-#End If
-
-        If hasCustomRowProcessor Then
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-handle-row-start rowNumber=" & VBA.CStr(rowNumber)
-            End If
-#End If
-            If Not rowProcessor.HandleRow(rowObj) Then
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-handle-row-failed type='" & VBA.TypeName(rowProcessor) & "' rowNumber=" & VBA.CStr(rowNumber)
-#End If
-                GoTo CleanupFail
-            End If
-#If LOGGING_DEBUG_ENABLED Then
-            If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-                ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-handle-row-done rowNumber=" & VBA.CStr(rowNumber)
-            End If
-#End If
-        Else
-            If Not tableObj.PushRow(rowObj) Then
-#If LOGGING_DEBUG_ENABLED Then
-                ex_Core.fn_Diagnostic_LogError "sql-engine:push-row-failed rowNumber=" & VBA.CStr(rowNumber)
-#End If
-                GoTo CleanupFail
-            End If
-        End If
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:recordset-move-next-start rowNumber=" & VBA.CStr(rowNumber)
-        End If
-#End If
-        rsData.MoveNext
-#If LOGGING_DEBUG_ENABLED Then
-        If rowNumber <= 5 Or (rowNumber Mod 25) = 0 Then
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:recordset-move-next-done rowNumber=" & VBA.CStr(rowNumber) & " eof=" & VBA.CStr(rsData.EOF)
-        End If
-#End If
-    Loop
-
-#If LOGGING_DEBUG_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-loop-end rowsRead=" & VBA.CStr(rowNumber)
-#End If
-
+    perfStageStartedAt = VBA.Timer
+    If Not rsData.EOF Then recordsetData = rsData.GetRows
     rsData.Close
     Set rsData = Nothing
+    fetchMs = private_PerfElapsedMs(perfStageStartedAt)
+
+    perfStageStartedAt = VBA.Timer
+    If Not IsEmpty(recordsetData) Then
+        For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
+            rowNumber = rowNumber + 1
+            Set rowObj = Nothing
+            Set rowObj = New obj_Row
+            rowObj.Index = rowNumber
+            For i = 1 To UBound(sourceColumnOrdinals)
+                cellText = private_ToSafeText(recordsetData(sourceColumnOrdinals(i), recordIndex))
+                rowObj.PushCellRaw cellText
+                If private_IsAdoLongTextCandidate(recordsetData(sourceColumnOrdinals(i), recordIndex)) Then
+                    If Not rowObj.AddCellTag(i, ADO_LONG_VALUE_CANDIDATE_TAG) Then GoTo CleanupFail
+                End If
+            Next i
+
+            If hasCustomRowProcessor Then
+                If Not rowProcessor.HandleRow(rowObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-handle-row-failed type='" & TypeName(rowProcessor) & "' rowNumber=" & VBA.CStr(rowNumber)
+#End If
+                    GoTo CleanupFail
+                End If
+            Else
+                If Not tableObj.PushRow(rowObj) Then
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogError "sql-engine:push-row-failed rowNumber=" & VBA.CStr(rowNumber)
+#End If
+                    GoTo CleanupFail
+                End If
+            End If
+        Next recordIndex
+    End If
+    materializeMs = private_PerfElapsedMs(perfStageStartedAt)
 
     If hasCustomRowProcessor Then
 #If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-build-result-start type='" & VBA.TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-build-result-start type='" & TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
 #End If
         Set tableObj = rowProcessor.BuildResult()
 #If LOGGING_DEBUG_ENABLED Then
         If tableObj Is Nothing Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-build-result-returned-nothing type='" & VBA.TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
+            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-build-result-returned-nothing type='" & TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
         Else
-            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-build-result-done type='" & VBA.TypeName(rowProcessor) & "' resultRows=" & VBA.CStr(tableObj.RowCount) & " resultColumns=" & VBA.CStr(tableObj.ColumnCount)
+            ex_Core.fn_Diagnostic_LogInfo "sql-engine:row-processor-build-result-done type='" & TypeName(rowProcessor) & "' resultRows=" & VBA.CStr(tableObj.RowCount) & " resultColumns=" & VBA.CStr(tableObj.ColumnCount)
         End If
 #End If
         If tableObj Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-build-result-failed type='" & VBA.TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
+            ex_Core.fn_Diagnostic_LogError "sql-engine:row-processor-build-result-failed type='" & TypeName(rowProcessor) & "' rowsRead=" & VBA.CStr(rowNumber)
 #End If
-            MsgBox "PrototypeNew: row processor failed to build result table.", vbExclamation, RUNTIME_ERROR_TITLE
+            VBA.MsgBox "PrototypeNew: row processor failed to build result table.", vbExclamation, RUNTIME_ERROR_TITLE
             GoTo CleanupFail
         End If
     End If
 
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogInfo "sql-engine:request-done rowsRead=" & VBA.CStr(rowNumber) & "; resultRows=" & VBA.CStr(tableObj.RowCount) & "; resultColumns=" & VBA.CStr(tableObj.ColumnCount)
+    ex_Core.fn_Diagnostic_LogInfo "perf:sql-request totalMs='" & _
+        VBA.Format$(private_PerfElapsedMs(perfTotalStartedAt), "0") & _
+        "' connectionMs='" & VBA.Format$(connectionMs, "0") & _
+        "' schemaMs='" & VBA.Format$(schemaMs, "0") & _
+        "' queryOpenMs='" & VBA.Format$(queryOpenMs, "0") & _
+        "' fetchMs='" & VBA.Format$(fetchMs, "0") & _
+        "' materializeMs='" & VBA.Format$(materializeMs, "0") & _
+        "' rowsRead='" & VBA.CStr(rowNumber) & _
+        "' resultRows='" & VBA.CStr(tableObj.RowCount) & _
+        "' source='" & VBA.Replace$(sourcePath, "'", "''") & "'"
 #End If
 
     ' Финализируем успешный результат.
@@ -370,11 +369,10 @@ CleanupDone:
     End If
     On Error GoTo 0
 
-    ' Единая точка освобождения COM-ресурсов (recordset/connection).
+    ' Recordset создаётся на запрос, а соединение остаётся в кэше модуля.
     On Error Resume Next
     If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
     If Not rsData Is Nothing Then If rsData.State <> 0 Then rsData.Close
-    If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
     On Error GoTo 0
     Exit Function
 
@@ -384,6 +382,7 @@ CleanupFail:
     ex_Core.fn_Diagnostic_LogError "sql-engine:cleanup-fail " & sqlParams.fn_ToString()
 #End If
     Set outTable = Nothing
+    private_InvalidateSourceCaches sourcePath
     GoTo CleanupDone
 
 EH_QUERY:
@@ -391,7 +390,205 @@ EH_QUERY:
 #If LOGGING_DEBUG_ENABLED Then
     ex_Core.fn_Diagnostic_LogError "PrototypeNew: SQL query error [" & VBA.CStr(Err.Number) & "] " & Err.Description
 #End If
-    MsgBox "PrototypeNew: SQL query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, RUNTIME_ERROR_TITLE
+    VBA.MsgBox "PrototypeNew: SQL query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, RUNTIME_ERROR_TITLE
+    Resume CleanupFail
+End Function
+
+Public Function fn_TrySqlRequestData( _
+    ByVal sqlParams As obj_SqlParams, _
+    ByRef outTableData As obj_TableData _
+) As Boolean
+    Dim values As Variant
+    Dim rowCount As Long
+    Dim columnCount As Long
+    Dim tableData As obj_TableData
+
+    Set outTableData = Nothing
+    If Not fn_TrySqlRequestValues(sqlParams, values, rowCount, columnCount) Then Exit Function
+
+    Set tableData = New obj_TableData
+    If Not tableData.Initialize(values, rowCount, columnCount, sqlParams.ColumnAliases) Then Exit Function
+
+    Set outTableData = tableData
+    fn_TrySqlRequestData = True
+End Function
+
+Public Function fn_TrySqlRequestValues( _
+    ByVal sqlParams As obj_SqlParams, _
+    ByRef outValues As Variant, _
+    ByRef outRowCount As Long, _
+    ByRef outColumnCount As Long _
+) As Boolean
+    Dim conn As Object
+    Dim rsSchema As Object
+    Dim rsData As Object
+    Dim tableRef As String
+    Dim sql As String
+    Dim validationError As String
+    Dim sourcePath As String
+    Dim sourceColumnHeaders As Collection
+    Dim resolvedSourceColumnHeaders As Collection
+    Dim sourceColumnOrdinals() As Long
+    Dim recordsetData As Variant
+    Dim rowIndex As Long
+    Dim colIndex As Long
+    Dim recordIndex As Long
+    Dim availableFields As String
+    Dim hasGenericFields As Boolean
+    Dim resolvedSourceColumnHeader As String
+    Dim markerErrorText As String
+    Dim i As Long
+
+    On Error GoTo EH_QUERY
+
+    outRowCount = 0
+    outColumnCount = 0
+    outValues = Empty
+
+    If sqlParams Is Nothing Then
+        VBA.MsgBox "PrototypeNew: SQL params object is not specified.", vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:try-request-values " & sqlParams.fn_ToString()
+#End If
+
+    If Not sqlParams.TryValidate(validationError) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:invalid-params " & validationError & "; " & sqlParams.fn_ToString()
+#End If
+        VBA.MsgBox "PrototypeNew: invalid SQL params. " & validationError, vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+    If Not sqlParams.RowProcessor Is Nothing Then
+        VBA.MsgBox "PrototypeNew: array SQL request does not support custom row processors.", vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+    sourcePath = private_ResolvePathLocal(sqlParams.SourcePath)
+    If VBA.Len(sourcePath) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:source-path-empty raw='" & sqlParams.SourcePath & "'"
+#End If
+        VBA.MsgBox "PrototypeNew: resolved source path is empty.", vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+    If VBA.Dir$(sourcePath) = VBA.vbNullString Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "sql-engine:source-file-not-found path='" & sourcePath & "' raw='" & sqlParams.SourcePath & "'"
+#End If
+        VBA.MsgBox "PrototypeNew: source file not found: " & sourcePath, vbExclamation, RUNTIME_ERROR_TITLE
+        Exit Function
+    End If
+
+    If private_HasRangeMarkers(sqlParams) Then
+        If Not private_TryBuildTableRefFromMarkers(sourcePath, sqlParams.SheetName, sqlParams.RangeStartMarker, sqlParams.RangeEndMarker, tableRef, markerErrorText) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:range-marker-resolve-failed source='" & sourcePath & _
+                "' sheet='" & sqlParams.SheetName & _
+                "' start='" & sqlParams.RangeStartMarker & _
+                "' end='" & sqlParams.RangeEndMarker & _
+                "' error='" & markerErrorText & "'"
+#End If
+            VBA.MsgBox "PrototypeNew: failed to resolve range by markers. " & markerErrorText, vbExclamation, RUNTIME_ERROR_TITLE
+            Exit Function
+        End If
+    Else
+        tableRef = private_BuildTableRefFromSheetName(sqlParams.SheetName)
+        If VBA.Len(tableRef) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:table-ref-empty sheet='" & sqlParams.SheetName & "'"
+#End If
+            VBA.MsgBox "PrototypeNew: failed to build SQL table reference from SheetName '" & sqlParams.SheetName & "'.", vbExclamation, RUNTIME_ERROR_TITLE
+            Exit Function
+        End If
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:resolved-source-values path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+
+    Set sourceColumnHeaders = sqlParams.SourceColumnHeaders
+
+    If Not private_TryGetCachedConnection(sourcePath, conn) Then GoTo CleanupFail
+    If Not private_TryGetResolvedSourceHeaders( _
+        conn, sourcePath, tableRef, sourceColumnHeaders, resolvedSourceColumnHeaders) Then GoTo CleanupFail
+
+    ' Аналогичная сборка запроса для API, возвращающего только значения:
+    ' MaxRows добавляет TOP N, а наличие WHERE проверяется отдельно ниже.
+    sql = "SELECT "
+    If sqlParams.MaxRows > 0 Then sql = sql & "TOP " & VBA.CStr(sqlParams.MaxRows) & " "
+    sql = sql & private_BuildSelectColumnsClause(resolvedSourceColumnHeaders) & " FROM " & tableRef
+    If VBA.Len(VBA.Trim$(sqlParams.WhereConditions)) > 0 Then
+        sql = sql & " WHERE " & sqlParams.WhereConditions
+    End If
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:data-sql-values " & sql
+#End If
+
+    Set rsData = VBA.CreateObject("ADODB.Recordset")
+    rsData.Open sql, conn, 0, 1
+    If rsData.EOF Then
+        fn_TrySqlRequestValues = True
+        GoTo CleanupDone
+    End If
+
+    ReDim sourceColumnOrdinals(1 To resolvedSourceColumnHeaders.Count)
+    For i = 1 To resolvedSourceColumnHeaders.Count
+        sourceColumnOrdinals(i) = private_RecordsetGetFieldOrdinal(rsData, VBA.CStr(resolvedSourceColumnHeaders.Item(i)))
+        If sourceColumnOrdinals(i) < 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:data-field-ordinal-missing header='" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "'"
+#End If
+            VBA.MsgBox "PrototypeNew: resolved header '" & VBA.CStr(resolvedSourceColumnHeaders.Item(i)) & "' is not available in data recordset.", vbExclamation, RUNTIME_ERROR_TITLE
+            GoTo CleanupFail
+        End If
+    Next i
+
+    recordsetData = rsData.GetRows
+    rsData.Close
+    Set rsData = Nothing
+
+    If Not IsEmpty(recordsetData) Then
+        outRowCount = UBound(recordsetData, 2) - LBound(recordsetData, 2) + 1
+        outColumnCount = resolvedSourceColumnHeaders.Count
+        ReDim outValues(1 To outRowCount, 1 To outColumnCount)
+        rowIndex = 0
+        For recordIndex = LBound(recordsetData, 2) To UBound(recordsetData, 2)
+            rowIndex = rowIndex + 1
+            For colIndex = 1 To outColumnCount
+                outValues(rowIndex, colIndex) = private_ToSafeValue(recordsetData(sourceColumnOrdinals(colIndex), recordIndex))
+            Next colIndex
+        Next recordIndex
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:request-values-done rowsRead=" & VBA.CStr(outRowCount) & "; resultColumns=" & VBA.CStr(outColumnCount)
+#End If
+
+    fn_TrySqlRequestValues = True
+
+CleanupDone:
+    On Error Resume Next
+    If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
+    If Not rsData Is Nothing Then If rsData.State <> 0 Then rsData.Close
+    On Error GoTo 0
+    Exit Function
+
+CleanupFail:
+    outValues = Empty
+    outRowCount = 0
+    outColumnCount = 0
+    private_InvalidateSourceCaches sourcePath
+    GoTo CleanupDone
+
+EH_QUERY:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: SQL values query error [" & VBA.CStr(Err.Number) & "] " & Err.Description
+#End If
+    VBA.MsgBox "PrototypeNew: SQL values query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, RUNTIME_ERROR_TITLE
     Resume CleanupFail
 End Function
 
@@ -406,6 +603,238 @@ Private Function private_BuildSelectColumnsClause(ByVal headers As Collection) A
         private_BuildSelectColumnsClause = private_BuildSelectColumnsClause & private_QuoteSqlIdentifier(VBA.CStr(headers.Item(i)))
     Next i
 End Function
+
+Private Function private_IsAdoLongTextCandidate(ByVal valueIn As Variant) As Boolean
+    If VBA.IsError(valueIn) Then Exit Function
+    If VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then Exit Function
+    If VBA.VarType(valueIn) <> VBA.vbString Then Exit Function
+    private_IsAdoLongTextCandidate = (VBA.Len(VBA.CStr(valueIn)) = ADO_TEXT_LIMIT)
+End Function
+
+Private Function private_TryGetCachedConnection( _
+    ByVal sourcePath As String, _
+    ByRef outConnection As Object _
+) As Boolean
+    Dim cacheKey As String
+    Dim currentStamp As String
+    Dim entry As Object
+    Dim conn As Object
+
+    Set outConnection = Nothing
+    sourcePath = VBA.Trim$(sourcePath)
+    If VBA.Len(sourcePath) = 0 Then Exit Function
+    private_EnsureSqlCaches
+
+    cacheKey = private_NormalizeCacheKeyPart(sourcePath)
+    currentStamp = private_BuildFileVersionToken(sourcePath)
+    If m_ConnectionsByPath.Exists(cacheKey) Then
+        Set entry = m_ConnectionsByPath(cacheKey)
+        If Not entry Is Nothing Then
+            If VBA.StrComp(VBA.CStr(entry("Stamp")), currentStamp, VBA.vbBinaryCompare) = 0 Then
+                Set conn = entry("Connection")
+                If Not conn Is Nothing Then
+                    If conn.State = 0 Then conn.Open private_BuildAdoConnectionString(sourcePath)
+                    Set outConnection = conn
+#If LOGGING_DEBUG_ENABLED Then
+                    ex_Core.fn_Diagnostic_LogInfo "sql-engine:connection-cache-hit path='" & sourcePath & "'"
+#End If
+                    private_TryGetCachedConnection = True
+                    Exit Function
+                End If
+            End If
+        End If
+        private_InvalidateSourceCaches sourcePath
+        private_EnsureSqlCaches
+    End If
+
+    Set conn = VBA.CreateObject("ADODB.Connection")
+    conn.Open private_BuildAdoConnectionString(sourcePath)
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.CompareMode = 1
+    entry("Stamp") = currentStamp
+    Set entry("Connection") = conn
+    Set m_ConnectionsByPath(cacheKey) = entry
+    Set outConnection = conn
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:connection-cache-miss path='" & sourcePath & "'"
+#End If
+    private_TryGetCachedConnection = True
+End Function
+
+Private Function private_TryGetResolvedSourceHeaders( _
+    ByVal conn As Object, _
+    ByVal sourcePath As String, _
+    ByVal tableRef As String, _
+    ByVal requestedHeaders As Collection, _
+    ByRef outResolvedHeaders As Collection _
+) As Boolean
+    Dim cacheKey As String
+    Dim cachedHeaders As Collection
+    Dim resolvedHeaders As Collection
+    Dim rsSchema As Object
+    Dim availableFields As String
+    Dim hasGenericFields As Boolean
+    Dim requestedHeader As String
+    Dim resolvedHeader As String
+    Dim i As Long
+
+    Set outResolvedHeaders = Nothing
+    If conn Is Nothing Then Exit Function
+    If requestedHeaders Is Nothing Then Exit Function
+    If requestedHeaders.Count <= 0 Then Exit Function
+    private_EnsureSqlCaches
+
+    cacheKey = private_BuildSchemaCacheKey(sourcePath, tableRef, requestedHeaders)
+    If m_ResolvedHeadersByKey.Exists(cacheKey) Then
+        Set cachedHeaders = m_ResolvedHeadersByKey(cacheKey)
+        Set outResolvedHeaders = private_CopyStringCollection(cachedHeaders)
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "sql-engine:schema-cache-hit path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+        private_TryGetResolvedSourceHeaders = Not outResolvedHeaders Is Nothing
+        Exit Function
+    End If
+
+    On Error GoTo EH_SCHEMA
+    Set rsSchema = VBA.CreateObject("ADODB.Recordset")
+    rsSchema.Open "SELECT * FROM " & tableRef & " WHERE 1=0", conn, 0, 1
+    availableFields = private_ListRecordsetFields(rsSchema, 40)
+    hasGenericFields = private_RecordsetLooksLikeGenericFields(rsSchema)
+    Set resolvedHeaders = New Collection
+
+    For i = 1 To requestedHeaders.Count
+        requestedHeader = VBA.CStr(requestedHeaders.Item(i))
+        resolvedHeader = VBA.vbNullString
+        If Not private_TryResolveHeaderInRecordset(rsSchema, requestedHeader, resolvedHeader) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "sql-engine:source-header-not-found requested='" & requestedHeader & _
+                "' available='" & availableFields & "' genericFields=" & VBA.CStr(hasGenericFields)
+#End If
+            VBA.MsgBox "PrototypeNew: mapped source header '" & requestedHeader & _
+                "' is not found. Available fields: " & availableFields & _
+                private_GenericFieldsHint(hasGenericFields), vbExclamation, RUNTIME_ERROR_TITLE
+            GoTo CleanupSchemaFail
+        End If
+        resolvedHeaders.Add resolvedHeader
+    Next i
+
+    rsSchema.Close
+    Set rsSchema = Nothing
+    Set m_ResolvedHeadersByKey(cacheKey) = private_CopyStringCollection(resolvedHeaders)
+    Set outResolvedHeaders = private_CopyStringCollection(resolvedHeaders)
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo "sql-engine:schema-cache-miss path='" & sourcePath & "' tableRef='" & tableRef & "'"
+#End If
+    private_TryGetResolvedSourceHeaders = True
+    Exit Function
+
+CleanupSchemaFail:
+    On Error Resume Next
+    If Not rsSchema Is Nothing Then If rsSchema.State <> 0 Then rsSchema.Close
+    On Error GoTo 0
+    Exit Function
+
+EH_SCHEMA:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "sql-engine:schema-query-error [" & VBA.CStr(Err.Number) & "] " & Err.Description
+#End If
+    VBA.MsgBox "PrototypeNew: SQL schema query error [" & VBA.CStr(Err.Number) & "] " & Err.Description, _
+        vbExclamation, RUNTIME_ERROR_TITLE
+    Resume CleanupSchemaFail
+End Function
+
+Private Function private_BuildSchemaCacheKey( _
+    ByVal sourcePath As String, _
+    ByVal tableRef As String, _
+    ByVal requestedHeaders As Collection _
+) As String
+    Dim i As Long
+    Dim headersToken As String
+
+    If Not requestedHeaders Is Nothing Then
+        For i = 1 To requestedHeaders.Count
+            If i > 1 Then headersToken = headersToken & VBA.ChrW$(30)
+            headersToken = headersToken & private_NormalizeCacheKeyPart(VBA.CStr(requestedHeaders.Item(i)))
+        Next i
+    End If
+
+    private_BuildSchemaCacheKey = SCHEMA_CACHE_VERSION & "|" & _
+        private_NormalizeCacheKeyPart(sourcePath) & "|" & _
+        private_BuildFileVersionToken(sourcePath) & "|" & _
+        private_NormalizeCacheKeyPart(tableRef) & "|" & headersToken
+End Function
+
+Private Function private_CopyStringCollection(ByVal sourceItems As Collection) As Collection
+    Dim result As Collection
+    Dim itemObj As Variant
+
+    Set result = New Collection
+    If Not sourceItems Is Nothing Then
+        For Each itemObj In sourceItems
+            result.Add VBA.CStr(itemObj)
+        Next itemObj
+    End If
+    Set private_CopyStringCollection = result
+End Function
+
+Private Sub private_EnsureSqlCaches()
+    If m_ConnectionsByPath Is Nothing Then
+        Set m_ConnectionsByPath = VBA.CreateObject("Scripting.Dictionary")
+        m_ConnectionsByPath.CompareMode = 1
+    End If
+    If m_ResolvedHeadersByKey Is Nothing Then
+        Set m_ResolvedHeadersByKey = VBA.CreateObject("Scripting.Dictionary")
+        m_ResolvedHeadersByKey.CompareMode = 1
+    End If
+End Sub
+
+Private Sub private_InvalidateSourceCaches(ByVal sourcePath As String)
+    Dim pathKey As String
+    Dim entry As Object
+    Dim conn As Object
+    Dim keyObj As Variant
+    Dim keysToRemove As Collection
+
+    pathKey = private_NormalizeCacheKeyPart(sourcePath)
+    If VBA.Len(pathKey) = 0 Then Exit Sub
+
+    On Error Resume Next
+    If Not m_ConnectionsByPath Is Nothing Then
+        If m_ConnectionsByPath.Exists(pathKey) Then
+            Set entry = m_ConnectionsByPath(pathKey)
+            If Not entry Is Nothing Then Set conn = entry("Connection")
+            If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+            m_ConnectionsByPath.Remove pathKey
+        End If
+    End If
+    On Error GoTo 0
+
+    If m_ResolvedHeadersByKey Is Nothing Then Exit Sub
+    Set keysToRemove = New Collection
+    For Each keyObj In m_ResolvedHeadersByKey.Keys
+        If VBA.InStr(1, VBA.CStr(keyObj), "|" & pathKey & "|", VBA.vbTextCompare) > 0 Then keysToRemove.Add VBA.CStr(keyObj)
+    Next keyObj
+    For Each keyObj In keysToRemove
+        m_ResolvedHeadersByKey.Remove VBA.CStr(keyObj)
+    Next keyObj
+End Sub
+
+Private Sub private_CloseAllCachedConnections()
+    Dim keyObj As Variant
+    Dim entry As Object
+    Dim conn As Object
+
+    If m_ConnectionsByPath Is Nothing Then Exit Sub
+    On Error Resume Next
+    For Each keyObj In m_ConnectionsByPath.Keys
+        Set entry = Nothing
+        Set conn = Nothing
+        Set entry = m_ConnectionsByPath(keyObj)
+        If Not entry Is Nothing Then Set conn = entry("Connection")
+        If Not conn Is Nothing Then If conn.State <> 0 Then conn.Close
+    Next keyObj
+    On Error GoTo 0
+End Sub
 
 Private Function private_BuildAdoConnectionString(ByVal sourcePath As String) As String
     Dim ext As String
@@ -517,7 +946,7 @@ Private Function private_TryBuildTableRefFromMarkers( _
 
     Set wb = private_FindOpenWorkbookByPath(sourcePath)
     If wb Is Nothing Then
-        Set hiddenExcelApp = CreateObject("Excel.Application")
+        Set hiddenExcelApp = VBA.CreateObject("Excel.Application")
         hiddenExcelApp.Visible = False
         hiddenExcelApp.ScreenUpdating = False
         hiddenExcelApp.DisplayAlerts = False
@@ -796,7 +1225,7 @@ Private Function private_FindMarkerTextCellAfterAnchor( _
         ' Ищем текстовый end-маркер строго после anchor:
         ' сначала следующая строка, а в пределах той же строки — следующая колонка.
         If currentFound.Row > anchorCell.Row Or (currentFound.Row = anchorCell.Row And currentFound.Column > anchorCell.Column) Then
-            currentWeight = CDbl(currentFound.Row) * 100000# + CDbl(currentFound.Column)
+            currentWeight = VBA.CDbl(currentFound.Row) * 100000# + VBA.CDbl(currentFound.Column)
             If bestWeight < 0 Or currentWeight < bestWeight Then
                 bestWeight = currentWeight
                 Set private_FindMarkerTextCellAfterAnchor = currentFound
@@ -1002,6 +1431,10 @@ Private Function private_NormalizeHeader(ByVal valueText As String) As String
     normalized = VBA.Replace$(normalized, VBA.vbTab, " ")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(160), " ")
     normalized = VBA.Replace$(normalized, "#", ".")
+    ' ACE/ADO заменяет перенос строки перед уточнением в скобках на "_".
+    ' Нормализуем только конструкцию "_(", а не все подчеркивания: обычный
+    ' символ "_" может быть легальной частью настоящего имени колонки.
+    normalized = VBA.Replace$(normalized, "_(", " (")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(&H2019), "'")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(&H2BC), "'")
     normalized = VBA.Replace$(normalized, VBA.ChrW$(&H60), "'")
@@ -1074,7 +1507,7 @@ Private Function private_ResolvePathLocal(ByVal inputPath As String) As String
     End If
 
     basePath = ThisWorkbook.Path
-    If VBA.Len(basePath) = 0 Then basePath = CurDir$
+    If VBA.Len(basePath) = 0 Then basePath = VBA.CurDir$
     If VBA.Right$(basePath, 1) <> "\" Then basePath = basePath & "\"
 
     private_ResolvePathLocal = basePath & inputPath
@@ -1086,7 +1519,7 @@ Private Function private_ToSafeText(ByVal valueIn As Variant) As String
         private_ToSafeText = "#ERR"
         Exit Function
     End If
-    If VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then
+    If VBA.IsNull(valueIn) Or IsEmpty(valueIn) Then
         private_ToSafeText = VBA.vbNullString
         Exit Function
     End If
@@ -1098,30 +1531,29 @@ EH_SAFE_TEXT:
     private_ToSafeText = VBA.vbNullString
 End Function
 
-Private Function private_TryReadRecordsetFieldText( _
-    ByVal rsData As Object, _
-    ByVal fieldOrdinal As Long, _
-    ByRef outText As String, _
-    ByRef outErrorText As String _
-) As Boolean
-    On Error GoTo EH_READ_FIELD
+Private Function private_ToSafeValue(ByVal valueIn As Variant) As Variant
+    On Error GoTo EH
 
-    outText = VBA.vbNullString
-    outErrorText = VBA.vbNullString
-
-    If rsData Is Nothing Then
-        outErrorText = "Recordset is Nothing."
-        Exit Function
-    End If
-    If fieldOrdinal < 0 Then
-        outErrorText = "Field ordinal is invalid: " & VBA.CStr(fieldOrdinal)
+    If VBA.IsError(valueIn) Then
+        private_ToSafeValue = "#ERR"
         Exit Function
     End If
 
-    outText = private_ToSafeText(rsData.Fields(fieldOrdinal).Value)
-    private_TryReadRecordsetFieldText = True
+    If VBA.IsNull(valueIn) Or VBA.IsEmpty(valueIn) Then
+        private_ToSafeValue = VBA.vbNullString
+        Exit Function
+    End If
+
+    private_ToSafeValue = valueIn
     Exit Function
 
-EH_READ_FIELD:
-    outErrorText = "[" & VBA.CStr(Err.Number) & "] " & Err.Description
+EH:
+    private_ToSafeValue = VBA.vbNullString
+End Function
+
+Private Function private_PerfElapsedMs(ByVal startedAt As Double) As Double
+    Dim finishedAt As Double
+    finishedAt = VBA.Timer
+    If finishedAt < startedAt Then finishedAt = finishedAt + 86400#
+    private_PerfElapsedMs = (finishedAt - startedAt) * 1000#
 End Function

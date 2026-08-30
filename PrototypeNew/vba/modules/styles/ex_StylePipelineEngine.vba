@@ -12,19 +12,98 @@ Private m_LayoutBounds As Collection
 ' Состояние отложенного AutoFit по строкам на время применения одного style stage.
 Private m_DeferredRowAutoFitState As Object
 Private m_IsCollectingDeferredRowAutoFit As Boolean
+Private Const COMMON_CONTROL_STYLES_PATH As String = "ui\CommonControlStyles.xml"
+Private m_CommonControlStylesDom As Object
+Private m_CommonControlStylesModifiedAt As Date
+' Централизованный cache компиляции stylesheet. Ключом является XML-текст:
+' изменился page/rule XML -> автоматически получаем новый cache entry.
+' Dictionaries ниже используются только для чтения после компиляции.
+Private m_ControlStylesCache As Object
+Private m_RuleSelectorCache As Object
+Private m_RuleDeclarationsCache As Object
+' Каталог активного render-pass: Label/Input/ButtonGroup получают готовые
+' declarations без повторной сериализации обоих XML DOM для каждого control.
+Private m_ActiveStyleUiDoc As Object
+Private m_ActiveCompiledControlStyles As Object
+Private m_ActiveStyleRevision As String
+
+' Полный style pass свободно применяет структурные свойства листа. Partial pass
+' обязан воспроизвести тот же порядок cascade, но ограничить каждый rule visual
+' scope обновляемого control. Простое повторное применение только его
+' controlPart-rule неверно: более поздний sheet/column/container rule мог
+' подавить часть его деклараций в исходном XML.
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_StylePipelineEngine.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_StylePipelineEngine.fn_Module_Dispose"
 #End If
     Set m_LayoutBounds = Nothing
     Set m_DeferredRowAutoFitState = Nothing
+    Set m_ControlStylesCache = Nothing
+    Set m_RuleSelectorCache = Nothing
+    Set m_RuleDeclarationsCache = Nothing
+    Set m_ActiveStyleUiDoc = Nothing
+    Set m_ActiveCompiledControlStyles = Nothing
+    m_ActiveStyleRevision = VBA.vbNullString
+    Set m_CommonControlStylesDom = Nothing
+    m_CommonControlStylesModifiedAt = 0
     m_IsCollectingDeferredRowAutoFit = False
 End Sub
 
 ' //
 ' // API
 ' //
+Public Function fn_BeginStyleRender(ByVal wsUiDoc As Object) As Boolean
+    Dim commonStylesDoc As Object
+    Dim cacheKey As String
+    Dim compiledStyles As Object
+
+    Set m_ActiveStyleUiDoc = Nothing
+    Set m_ActiveCompiledControlStyles = Nothing
+    m_ActiveStyleRevision = VBA.vbNullString
+    If wsUiDoc Is Nothing Then Exit Function
+
+    private_EnsureCompiledStyleCaches
+    Set commonStylesDoc = private_LoadCommonControlStylesDom()
+    If commonStylesDoc Is Nothing Then Exit Function
+    cacheKey = VBA.CStr(commonStylesDoc.XML) & "|" & VBA.CStr(wsUiDoc.XML)
+    Set compiledStyles = private_GetOrCompileControlStyles( _
+        wsUiDoc, commonStylesDoc, cacheKey)
+    If compiledStyles Is Nothing Then Exit Function
+
+    Set m_ActiveStyleUiDoc = wsUiDoc
+    Set m_ActiveCompiledControlStyles = compiledStyles
+    m_ActiveStyleRevision = private_BuildStyleRevision(cacheKey)
+    fn_BeginStyleRender = True
+End Function
+
+
+Public Sub fn_EndStyleRender()
+    Set m_ActiveStyleUiDoc = Nothing
+    Set m_ActiveCompiledControlStyles = Nothing
+    m_ActiveStyleRevision = VBA.vbNullString
+End Sub
+
+
+Public Function fn_GetStyleRevision(ByVal wsUiDoc As Object) As String
+    Dim commonStylesDoc As Object
+    Dim cacheKey As String
+
+    If wsUiDoc Is Nothing Then Exit Function
+    If Not m_ActiveStyleUiDoc Is Nothing Then
+        If wsUiDoc Is m_ActiveStyleUiDoc Then
+            fn_GetStyleRevision = m_ActiveStyleRevision
+            Exit Function
+        End If
+    End If
+
+    Set commonStylesDoc = private_LoadCommonControlStylesDom()
+    If commonStylesDoc Is Nothing Then Exit Function
+    cacheKey = VBA.CStr(commonStylesDoc.XML) & "|" & VBA.CStr(wsUiDoc.XML)
+    fn_GetStyleRevision = private_BuildStyleRevision(cacheKey)
+End Function
+
+
 Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Object) As Boolean
     Dim stylesByName As Object
 
@@ -44,13 +123,43 @@ Public Function fn_ApplyPageStyles(ByVal ws As Worksheet, ByVal wsUiDoc As Objec
         Exit Function
     End If
 
-    Set stylesByName = private_LoadControlStyles(wsUiDoc)
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
     If stylesByName Is Nothing Then Exit Function
 
-    If Not private_ApplyControlStyles(ws, stylesByName) Then Exit Function
-    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, "default", True) Then Exit Function
+    ex_ShapeMetaRuntime.fn_BeginReadCache
+    If Not private_ApplyControlStyles(ws, stylesByName) Then GoTo CleanApplyPageStyles
+    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, "default", True) Then GoTo CleanApplyPageStyles
 
     fn_ApplyPageStyles = True
+CleanApplyPageStyles:
+    ex_ShapeMetaRuntime.fn_EndReadCache
+End Function
+
+Public Function fn_ApplyRangeControlStyle( _
+    ByVal targetRange As Range, _
+    ByVal wsUiDoc As Object, _
+    ByVal styleName As String _
+) As Boolean
+    Dim stylesByName As Object
+    Dim normalizedStyleName As String
+
+    If targetRange Is Nothing Or wsUiDoc Is Nothing Then Exit Function
+    normalizedStyleName = VBA.LCase$(VBA.Trim$(styleName))
+    If VBA.Len(normalizedStyleName) = 0 Then
+        fn_ApplyRangeControlStyle = True
+        Exit Function
+    End If
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
+    If stylesByName Is Nothing Then Exit Function
+    If Not stylesByName.Exists(normalizedStyleName) Then
+        VBA.MsgBox "PrototypeNew: control style '" & styleName & _
+            "' is not declared in the common or page XML styles.", _
+            VBA.vbExclamation, "PrototypeNew / Styles"
+        Exit Function
+    End If
+    fn_ApplyRangeControlStyle = private_ApplyRangeDeclarations( _
+        targetRange, Nothing, stylesByName(normalizedStyleName), _
+        "controlStyle:" & normalizedStyleName)
 End Function
 
 
@@ -81,14 +190,546 @@ Public Function fn_ApplyPageStyleStage( _
         Exit Function
     End If
 
-    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, stageName, True) Then Exit Function
+    ex_ShapeMetaRuntime.fn_BeginReadCache
+    If Not private_ApplyPipelineStageByName(ws, wsUiDoc, stageName, True) Then GoTo CleanApplyPageStyleStage
     fn_ApplyPageStyleStage = True
+CleanApplyPageStyleStage:
+    ex_ShapeMetaRuntime.fn_EndReadCache
+End Function
+
+
+Public Function fn_ApplyRetainedControlStyles( _
+    ByVal ws As Worksheet, _
+    ByVal wsUiDoc As Object _
+) As Boolean
+    Dim stylesByName As Object
+
+    If ws Is Nothing Or wsUiDoc Is Nothing Then Exit Function
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
+    If stylesByName Is Nothing Then Exit Function
+
+    ' Partial container render может создать новый Shape (например скрытая до
+    ' этого кнопка ExportToWord). Общий retained-pass дешёвый: неизменившиеся
+    ' Shapes отсекаются по pn.appliedStyleSignature.
+    ex_ShapeMetaRuntime.fn_BeginReadCache
+    fn_ApplyRetainedControlStyles = private_ApplyControlStyles(ws, stylesByName)
+    ex_ShapeMetaRuntime.fn_EndReadCache
+End Function
+
+' Восстанавливает базовый controlStyle ровно одного Shape. Используется
+' stateful-контролами перед повторным наложением semantic controlPart rules,
+' чтобы свойства ушедшего state/tag не оставались на Shape.
+Public Function fn_ApplyControlStyleToShape( _
+    ByVal shp As Shape, _
+    ByVal wsUiDoc As Object, _
+    Optional ByVal forceApply As Boolean = False _
+) As Boolean
+    Dim stylesByName As Object
+    Dim styleName As String
+    Dim styleSignature As String
+    Dim previousStyleSignature As String
+
+    If shp Is Nothing Or wsUiDoc Is Nothing Then Exit Function
+    Set stylesByName = private_GetCompiledControlStyles(wsUiDoc)
+    If stylesByName Is Nothing Then Exit Function
+
+    styleName = VBA.LCase$(VBA.Trim$(private_ReadShapeMetaValue(shp, "pn.style")))
+    If VBA.Len(styleName) = 0 Then
+        fn_ApplyControlStyleToShape = True
+        Exit Function
+    End If
+    If Not stylesByName.Exists(styleName) Then Exit Function
+
+    styleSignature = private_BuildShapeStyleSignature(styleName, stylesByName(styleName))
+    previousStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedStyleSignature")
+    If Not forceApply Then
+        If VBA.StrComp(previousStyleSignature, styleSignature, VBA.vbBinaryCompare) = 0 Then
+            fn_ApplyControlStyleToShape = True
+            Exit Function
+        End If
+    End If
+
+    If Not private_ApplyShapeStyle(shp, stylesByName(styleName), "controlStyle:" & styleName) Then Exit Function
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue( _
+        shp, "pn.appliedStyleSignature", styleSignature) Then Exit Function
+    ' После восстановления базы semantic overlay должен примениться заново.
+    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue( _
+        shp, "pn.appliedPartStyleSignature", VBA.vbNullString) Then Exit Function
+
+    fn_ApplyControlStyleToShape = True
+End Function
+
+
+Public Function fn_ApplyControlPartStylesForControl( _
+    ByVal ws As Worksheet, _
+    ByVal wsUiDoc As Object, _
+    ByVal controlName As String, _
+    Optional ByVal shapeOnly As Boolean = False _
+) As Boolean
+    Dim stageNodes As Object
+    Dim stageNode As Object
+    Dim layerNode As Object
+    Dim ruleNode As Object
+    Dim stageKey As String
+    Dim ruleTarget As String
+    Dim controlScope As Range
+    Dim stageEnabled As Boolean
+    Dim ruleEnabled As Boolean
+
+    If ws Is Nothing Or wsUiDoc Is Nothing Then Exit Function
+    controlName = VBA.LCase$(VBA.Trim$(controlName))
+    If VBA.Len(controlName) = 0 Then Exit Function
+
+    If Not ex_ControlPartsRuntime.fn_TryGetControlVisualScope( _
+        ws, controlName, controlScope) Then Exit Function
+    If controlScope Is Nothing Then
+        fn_ApplyControlPartStylesForControl = True
+        Exit Function
+    End If
+
+    ' Локальный pass повторяет исходный порядок rules default stage. Это важно:
+    ' поздний sheet/column/layoutContainer rule может подавлять свойство раннего
+    ' controlPart rule. Каждый non-controlPart scope пересекается с visual scope
+    ' обновляемого контрола, поэтому соседние ячейки не перерисовываются.
+    ' Структурные column/sheet-свойства дополнительно фильтруются ниже.
+    Set stageNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:stylePipelineStage | /p:uiDefinition/p:styles/p:stylePipelineStage")
+    If stageNodes Is Nothing Then Exit Function
+
+    ex_ShapeMetaRuntime.fn_BeginReadCache
+    private_BeginDeferredRowAutoFit
+    For Each stageNode In stageNodes
+        stageKey = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(stageNode, "name")))
+        If stageKey <> "default" Then GoTo ContinueStage
+        If Not private_TryReadNodeEnabled(stageNode, True, stageEnabled) Then GoTo CleanFail
+        If Not stageEnabled Then GoTo ContinueStage
+        For Each layerNode In stageNode.ChildNodes
+            If layerNode.NodeType <> 1 Then GoTo ContinueLayer
+            For Each ruleNode In layerNode.ChildNodes
+                If ruleNode.NodeType <> 1 Then GoTo ContinueRule
+                If Not private_TryReadNodeEnabled(ruleNode, True, ruleEnabled) Then GoTo CleanFail
+                If Not ruleEnabled Then GoTo ContinueRule
+                ruleTarget = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
+                ' inlinePart не имеет собственного Range: правило разрешается
+                ' позднее для конкретного Characters-run в InlineTextProfile.
+                If ruleTarget = "inlinepart" Then GoTo ContinueRule
+                ' Stateful floating controls обновляют только свои Shape.
+                ' Sheet/range replay здесь затёр бы debug/layout оформление
+                ' ячеек, которые геометрически находятся под dropdown.
+                If shapeOnly And ruleTarget <> "controlpart" Then GoTo ContinueRule
+                If ruleTarget = "controlpart" Then
+                    If Not private_ApplyControlPartRuleForControl(ws, ruleNode, controlName) Then GoTo CleanFail
+                ElseIf ruleTarget <> "layoutbound" Then
+                    If Not private_ApplyRuleClippedToControlScope( _
+                        ws, ruleNode, ruleTarget, controlScope) Then GoTo CleanFail
+                Else
+                    ' layoutBound — диагностическая рамка layout-узла, а не
+                    ' визуальная часть control. Её geometry обновляется через
+                    ' retained bounds/ancestor commit, поэтому локальный replay
+                    ' этого rule здесь дал бы рамку со старым structural scope.
+                End If
+ContinueRule:
+            Next ruleNode
+ContinueLayer:
+        Next layerNode
+ContinueStage:
+    Next stageNode
+
+    If Not private_ApplyDeferredRowAutoFit(ws) Then GoTo CleanFail
+    private_EndDeferredRowAutoFit
+    ex_ShapeMetaRuntime.fn_EndReadCache
+    fn_ApplyControlPartStylesForControl = True
+    Exit Function
+
+CleanFail:
+    private_EndDeferredRowAutoFit
+    ex_ShapeMetaRuntime.fn_EndReadCache
+End Function
+
+Public Function fn_TryResolveInlinePartStyle( _
+    ByVal wsUiDoc As Object, _
+    ByVal ownerType As String, _
+    ByVal partName As String, _
+    ByRef outFontColor As Long, _
+    ByRef outFontBold As Boolean, _
+    ByRef outFontItalic As Boolean, _
+    ByRef outFontUnderline As Boolean, _
+    ByRef outApplyFontFlags As Boolean, _
+    ByRef outStyleFound As Boolean _
+) As Boolean
+    Dim stageNodes As Object
+    Dim stageNode As Object
+    Dim layerNode As Object
+    Dim ruleNode As Object
+    Dim selector As Object
+    Dim declarations As Object
+    Dim effectiveDeclarations As Object
+    Dim declarationKey As Variant
+    Dim stageName As String
+    Dim ruleTarget As String
+    Dim stageEnabled As Boolean
+    Dim ruleEnabled As Boolean
+
+    outStyleFound = False
+    outApplyFontFlags = False
+    If wsUiDoc Is Nothing Then Exit Function
+
+    ownerType = VBA.LCase$(VBA.Trim$(ownerType))
+    partName = VBA.LCase$(VBA.Trim$(partName))
+    If VBA.Len(ownerType) = 0 Or VBA.Len(partName) = 0 Then Exit Function
+
+    Set effectiveDeclarations = VBA.CreateObject("Scripting.Dictionary")
+    effectiveDeclarations.CompareMode = 1
+    Set stageNodes = wsUiDoc.selectNodes( _
+        "/p:page/p:styles/p:stylePipelineStage | " & _
+        "/p:uiDefinition/p:styles/p:stylePipelineStage")
+    If stageNodes Is Nothing Then Exit Function
+
+    ' Используем тот же порядок stage/layer/rule, что и основной pipeline:
+    ' более позднее подходящее правило перекрывает отдельные декларации.
+    For Each stageNode In stageNodes
+        stageName = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(stageNode, "name")))
+        If stageName <> "default" Then GoTo ContinueStage
+        If Not private_TryReadNodeEnabled(stageNode, True, stageEnabled) Then Exit Function
+        If Not stageEnabled Then GoTo ContinueStage
+
+        For Each layerNode In stageNode.ChildNodes
+            If layerNode.NodeType <> 1 Then GoTo ContinueLayer
+            For Each ruleNode In layerNode.ChildNodes
+                If ruleNode.NodeType <> 1 Then GoTo ContinueRule
+                If Not private_TryReadNodeEnabled(ruleNode, True, ruleEnabled) Then Exit Function
+                If Not ruleEnabled Then GoTo ContinueRule
+
+                ruleTarget = VBA.LCase$(VBA.Trim$( _
+                    ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
+                If ruleTarget <> "inlinepart" Then GoTo ContinueRule
+                If Not private_TryGetCompiledRule( _
+                    ruleNode, selector, declarations) Then Exit Function
+                If selector Is Nothing Or declarations Is Nothing Then Exit Function
+                If Not private_InlinePartSelectorMatches( _
+                    selector, ownerType, partName) Then GoTo ContinueRule
+
+                For Each declarationKey In declarations.Keys
+                    effectiveDeclarations(VBA.CStr(declarationKey)) = _
+                        declarations(declarationKey)
+                Next declarationKey
+                outStyleFound = True
+ContinueRule:
+            Next ruleNode
+ContinueLayer:
+        Next layerNode
+ContinueStage:
+    Next stageNode
+
+    If Not outStyleFound Then
+        fn_TryResolveInlinePartStyle = True
+        Exit Function
+    End If
+    If Not effectiveDeclarations.Exists("fontcolor") Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "PrototypeNew: inlinePart style requires fontColor for part '" & _
+            partName & "'."
+#End If
+        Exit Function
+    End If
+    If Not ex_HelpersCSS.fn_TryParseColor( _
+        VBA.CStr(effectiveDeclarations("fontcolor")), outFontColor) Then Exit Function
+
+    If effectiveDeclarations.Exists("fontbold") Then
+        If Not private_TryParseBoolean( _
+            VBA.CStr(effectiveDeclarations("fontbold")), outFontBold) Then Exit Function
+        outApplyFontFlags = True
+    End If
+    If effectiveDeclarations.Exists("fontitalic") Then
+        If Not private_TryParseBoolean( _
+            VBA.CStr(effectiveDeclarations("fontitalic")), outFontItalic) Then Exit Function
+        outApplyFontFlags = True
+    End If
+    outFontUnderline = False
+    fn_TryResolveInlinePartStyle = True
+End Function
+
+Private Function private_InlinePartSelectorMatches( _
+    ByVal selector As Object, _
+    ByVal ownerType As String, _
+    ByVal partName As String _
+) As Boolean
+    If selector Is Nothing Then Exit Function
+    If selector.Exists("name") Then Exit Function
+    If selector.Exists("type") Then
+        If VBA.StrComp( _
+            VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type")))), _
+            ownerType, VBA.vbBinaryCompare) <> 0 Then Exit Function
+    End If
+    If Not selector.Exists("part") Then Exit Function
+    If VBA.StrComp( _
+        VBA.LCase$(VBA.Trim$(VBA.CStr(selector("part")))), _
+        partName, VBA.vbBinaryCompare) <> 0 Then Exit Function
+
+    private_InlinePartSelectorMatches = True
+End Function
+
+
+Public Function fn_ApplySheetBaseStylesToRange( _
+    ByVal ws As Worksheet, _
+    ByVal wsUiDoc As Object, _
+    ByVal targetRange As Range _
+) As Boolean
+    Dim stageNodes As Object
+    Dim stageNode As Object
+    Dim layerNode As Object
+    Dim ruleNode As Object
+    Dim declarations As Object
+    Dim selector As Object
+    Dim stageKey As String
+    Dim ruleTarget As String
+    Dim columnScope As Range
+    Dim partialDeclarations As Object
+    Dim stageEnabled As Boolean
+    Dim ruleEnabled As Boolean
+
+    If ws Is Nothing Or wsUiDoc Is Nothing Or targetRange Is Nothing Then Exit Function
+    Set stageNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:stylePipelineStage | /p:uiDefinition/p:styles/p:stylePipelineStage")
+    If stageNodes Is Nothing Then Exit Function
+    Set columnScope = targetRange.EntireColumn
+
+    ' После освобождения/расширения dynamic slot восстанавливаем только
+    ' декларации target=sheet на его локальном диапазоне, не окрашивая страницу.
+    ' Это cleanup baseline перед Render target, а не самостоятельный повтор
+    ' полного cascade: окончательные локальные overrides применяются позднее
+    ' через fn_ApplyControlPartStylesForControl.
+    For Each stageNode In stageNodes
+        stageKey = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(stageNode, "name")))
+        If stageKey <> "default" Then GoTo ContinueStage
+        If Not private_TryReadNodeEnabled(stageNode, True, stageEnabled) Then Exit Function
+        If Not stageEnabled Then GoTo ContinueStage
+        For Each layerNode In stageNode.ChildNodes
+            If layerNode.NodeType <> 1 Then GoTo ContinueLayer
+            For Each ruleNode In layerNode.ChildNodes
+                If ruleNode.NodeType <> 1 Then GoTo ContinueRule
+                If Not private_TryReadNodeEnabled(ruleNode, True, ruleEnabled) Then Exit Function
+                If Not ruleEnabled Then GoTo ContinueRule
+                ruleTarget = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(ruleNode, "target")))
+                If ruleTarget = "sheet" Then
+                    If Not private_TryGetCompiledRule(ruleNode, selector, declarations) Then Exit Function
+                    If Not declarations Is Nothing Then
+                        Set partialDeclarations = private_GetPartialSafeDeclarations(declarations)
+                        If Not private_ApplyRangeDeclarations( _
+                            targetRange, columnScope, partialDeclarations, "sheet-partial") Then Exit Function
+                    End If
+                End If
+ContinueRule:
+            Next ruleNode
+ContinueLayer:
+        Next layerNode
+ContinueStage:
+    Next stageNode
+
+    fn_ApplySheetBaseStylesToRange = True
+End Function
+
+
+' Расширяет вертикальную damage-полосу partial reflow до той же ширины,
+' которую target=sheet использует при полном style pass. Данные диапазона не
+' изменяются: вызывающий код применяет к результату только sheet baseline.
+Public Function fn_TryExpandRangeToSheetStyleWidth( _
+    ByVal ws As Worksheet, _
+    ByVal damageRange As Range, _
+    ByRef outExpandedRange As Range _
+) As Boolean
+    Dim sheetStyleScope As Range
+    Dim firstStyleCol As Long
+    Dim lastStyleCol As Long
+    Dim firstDamageRow As Long
+    Dim lastDamageRow As Long
+
+    Set outExpandedRange = Nothing
+    If ws Is Nothing Or damageRange Is Nothing Then Exit Function
+    If Not (damageRange.Worksheet Is ws) Then Exit Function
+
+    Set sheetStyleScope = private_GetExpandedSheetScopeRange(ws)
+    If sheetStyleScope Is Nothing Then Exit Function
+
+    firstStyleCol = sheetStyleScope.Column
+    lastStyleCol = sheetStyleScope.Column + sheetStyleScope.Columns.Count - 1
+    firstDamageRow = damageRange.Row
+    lastDamageRow = damageRange.Row + damageRange.Rows.Count - 1
+    If firstStyleCol <= 0 Or lastStyleCol < firstStyleCol Then Exit Function
+    If firstDamageRow <= 0 Or lastDamageRow < firstDamageRow Then Exit Function
+
+    Set outExpandedRange = ws.Range( _
+        ws.Cells(firstDamageRow, firstStyleCol), _
+        ws.Cells(lastDamageRow, lastStyleCol))
+    fn_TryExpandRangeToSheetStyleWidth = True
+End Function
+
+
+Public Function fn_TranslateLayoutBoundsBelow( _
+    ByVal sheetName As String, _
+    ByVal firstRow As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim translated As Collection
+    Dim entry As Variant
+    Dim rowStart As Long
+    Dim rowEnd As Long
+
+    If VBA.Len(VBA.Trim$(sheetName)) = 0 Or firstRow <= 0 Then Exit Function
+    If m_LayoutBounds Is Nothing Or rowDelta = 0 Then
+        fn_TranslateLayoutBoundsBelow = True
+        Exit Function
+    End If
+
+    Set translated = New Collection
+    For Each entry In m_LayoutBounds
+        rowStart = VBA.CLng(entry(1))
+        rowEnd = VBA.CLng(entry(3))
+        If VBA.StrComp(VBA.CStr(entry(0)), sheetName, VBA.vbTextCompare) = 0 Then
+            If rowStart >= firstRow Then
+                rowStart = rowStart + rowDelta
+                rowEnd = rowEnd + rowDelta
+            ElseIf rowEnd >= firstRow Then
+                rowEnd = rowEnd + rowDelta
+            End If
+        End If
+        translated.Add Array(entry(0), rowStart, entry(2), rowEnd, entry(4), entry(5), entry(6), entry(7))
+    Next entry
+    Set m_LayoutBounds = translated
+    fn_TranslateLayoutBoundsBelow = True
+End Function
+
+
+Public Function fn_TranslateLayoutBoundsInRegion( _
+    ByVal sheetName As String, _
+    ByVal regionRowStart As Long, _
+    ByVal regionColStart As Long, _
+    ByVal regionRowEnd As Long, _
+    ByVal regionColEnd As Long, _
+    ByVal rowDelta As Long _
+) As Boolean
+    Dim translated As Collection
+    Dim entry As Variant
+    Dim rowStart As Long, colStart As Long, rowEnd As Long, colEnd As Long
+
+    If m_LayoutBounds Is Nothing Then
+        fn_TranslateLayoutBoundsInRegion = True
+        Exit Function
+    End If
+    Set translated = New Collection
+    For Each entry In m_LayoutBounds
+        rowStart = VBA.CLng(entry(1)): colStart = VBA.CLng(entry(2))
+        rowEnd = VBA.CLng(entry(3)): colEnd = VBA.CLng(entry(4))
+        If VBA.StrComp(VBA.CStr(entry(0)), sheetName, VBA.vbTextCompare) = 0 Then
+            If rowStart >= regionRowStart And rowEnd <= regionRowEnd And _
+               colStart >= regionColStart And colEnd <= regionColEnd Then
+                rowStart = rowStart + rowDelta
+                rowEnd = rowEnd + rowDelta
+            End If
+        End If
+        translated.Add Array(entry(0), rowStart, colStart, rowEnd, colEnd, entry(5), entry(6), entry(7))
+    Next entry
+    Set m_LayoutBounds = translated
+    fn_TranslateLayoutBoundsInRegion = True
+End Function
+
+
+Public Function fn_CommitAncestorLayoutBounds( _
+    ByVal sheetName As String, _
+    ByVal ancestorUpdates As Collection _
+) As Boolean
+    Dim translated As Collection
+    Dim entry As Variant
+    Dim updateEntry As Object
+    Dim rowEnd As Long
+
+    If m_LayoutBounds Is Nothing Or ancestorUpdates Is Nothing Then
+        fn_CommitAncestorLayoutBounds = True
+        Exit Function
+    End If
+    Set translated = New Collection
+    For Each entry In m_LayoutBounds
+        rowEnd = VBA.CLng(entry(3))
+        If VBA.StrComp(VBA.CStr(entry(0)), sheetName, VBA.vbTextCompare) = 0 Then
+            For Each updateEntry In ancestorUpdates
+                If VBA.CLng(entry(1)) = VBA.CLng(updateEntry("RowStart")) And _
+                   VBA.CLng(entry(2)) = VBA.CLng(updateEntry("ColStart")) And _
+                   VBA.CLng(entry(3)) = VBA.CLng(updateEntry("OldRowEnd")) And _
+                   VBA.CLng(entry(4)) = VBA.CLng(updateEntry("ColEnd")) Then
+                    rowEnd = VBA.CLng(updateEntry("RowEnd"))
+                    Exit For
+                End If
+            Next updateEntry
+        End If
+        translated.Add Array(entry(0), entry(1), entry(2), rowEnd, entry(4), entry(5), entry(6), entry(7))
+    Next entry
+    Set m_LayoutBounds = translated
+    fn_CommitAncestorLayoutBounds = True
 End Function
 
 
 Public Sub fn_ResetLayoutBounds()
     Set m_LayoutBounds = Nothing
 End Sub
+
+
+Public Function fn_RemoveLayoutBoundsByControl( _
+    ByVal sheetName As String, _
+    ByVal controlName As String _
+) As Boolean
+    Dim keptBounds As Collection
+    Dim entry As Variant
+    Dim isTargetControl As Boolean
+
+    sheetName = VBA.Trim$(sheetName)
+    controlName = VBA.LCase$(VBA.Trim$(controlName))
+    If VBA.Len(sheetName) = 0 Or VBA.Len(controlName) = 0 Then Exit Function
+    If m_LayoutBounds Is Nothing Then
+        fn_RemoveLayoutBoundsByControl = True
+        Exit Function
+    End If
+
+    Set keptBounds = New Collection
+    For Each entry In m_LayoutBounds
+        isTargetControl = _
+            VBA.StrComp(VBA.CStr(entry(0)), sheetName, VBA.vbTextCompare) = 0 And _
+            VBA.StrComp(VBA.CStr(entry(5)), "control", VBA.vbTextCompare) = 0 And _
+            VBA.StrComp(VBA.CStr(entry(6)), controlName, VBA.vbTextCompare) = 0
+        If Not isTargetControl Then keptBounds.Add entry
+    Next entry
+    Set m_LayoutBounds = keptBounds
+    fn_RemoveLayoutBoundsByControl = True
+End Function
+
+
+Public Function fn_RemoveLayoutBoundsByNode( _
+    ByVal sheetName As String, _
+    ByVal tagName As String, _
+    ByVal nodeName As String _
+) As Boolean
+    Dim keptBounds As Collection
+    Dim entry As Variant
+    Dim isTargetNode As Boolean
+
+    sheetName = VBA.Trim$(sheetName)
+    tagName = VBA.LCase$(VBA.Trim$(tagName))
+    nodeName = VBA.LCase$(VBA.Trim$(nodeName))
+    If VBA.Len(sheetName) = 0 Or VBA.Len(tagName) = 0 Or VBA.Len(nodeName) = 0 Then Exit Function
+    If m_LayoutBounds Is Nothing Then
+        fn_RemoveLayoutBoundsByNode = True
+        Exit Function
+    End If
+
+    Set keptBounds = New Collection
+    For Each entry In m_LayoutBounds
+        isTargetNode = _
+            VBA.StrComp(VBA.CStr(entry(0)), sheetName, VBA.vbTextCompare) = 0 And _
+            VBA.StrComp(VBA.CStr(entry(5)), tagName, VBA.vbTextCompare) = 0 And _
+            VBA.StrComp(VBA.CStr(entry(6)), nodeName, VBA.vbTextCompare) = 0
+        If Not isTargetNode Then keptBounds.Add entry
+    Next entry
+    Set m_LayoutBounds = keptBounds
+    fn_RemoveLayoutBoundsByNode = True
+End Function
 
 
 Public Sub fn_RegisterLayoutBound( _
@@ -112,14 +753,45 @@ Public Sub fn_RegisterLayoutBound( _
 
     m_LayoutBounds.Add Array( _
         ws.Name, _
-        CLng(rowStart), _
-        CLng(colStart), _
-        CLng(rowEnd), _
-        CLng(colEnd), _
+        VBA.CLng(rowStart), _
+        VBA.CLng(colStart), _
+        VBA.CLng(rowEnd), _
+        VBA.CLng(colEnd), _
         VBA.LCase$(VBA.Trim$(tagName)), _
         VBA.LCase$(VBA.Trim$(nodeName)), _
-        CLng(tagDepth))
+        VBA.CLng(tagDepth))
 End Sub
+
+Public Function fn_ApplyTextNumberFormatToControlBounds(ByVal ws As Worksheet) As Boolean
+    Dim entry As Variant
+    Dim minRow As Long, minCol As Long, maxRow As Long, maxCol As Long
+
+    If ws Is Nothing Then Exit Function
+    If m_LayoutBounds Is Nothing Then
+        fn_ApplyTextNumberFormatToControlBounds = True
+        Exit Function
+    End If
+
+    ' Раньше каждый control делал отдельный Range.NumberFormat="@" через COM.
+    ' Здесь строим общий прямоугольник всех control bounds и форматируем его
+    ' одним вызовом. Дополнительные ячейки внутри прямоугольника безопасны:
+    ' страница использует текстовый baseline, чтобы Excel не превращал коды
+    ' и строки вида 01.05 в даты/числа.
+    For Each entry In m_LayoutBounds
+        If VBA.StrComp(VBA.CStr(entry(0)), ws.Name, VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        If VBA.StrComp(VBA.CStr(entry(5)), "control", VBA.vbTextCompare) <> 0 Then GoTo ContinueEntry
+        If minRow = 0 Or VBA.CLng(entry(1)) < minRow Then minRow = VBA.CLng(entry(1))
+        If minCol = 0 Or VBA.CLng(entry(2)) < minCol Then minCol = VBA.CLng(entry(2))
+        If VBA.CLng(entry(3)) > maxRow Then maxRow = VBA.CLng(entry(3))
+        If VBA.CLng(entry(4)) > maxCol Then maxCol = VBA.CLng(entry(4))
+ContinueEntry:
+    Next entry
+
+    If minRow > 0 And minCol > 0 Then
+        ws.Range(ws.Cells(minRow, minCol), ws.Cells(maxRow, maxCol)).NumberFormat = "@"
+    End If
+    fn_ApplyTextNumberFormatToControlBounds = True
+End Function
 
 ' //
 ' // Internal
@@ -128,6 +800,8 @@ End Sub
 Private Function private_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesByName As Object) As Boolean
     Dim shp As Shape
     Dim styleName As String
+    Dim styleSignature As String
+    Dim previousStyleSignature As String
 
     If ws Is Nothing Then Exit Function
     If stylesByName Is Nothing Then Exit Function
@@ -146,12 +820,52 @@ Private Function private_ApplyControlStyles(ByVal ws As Worksheet, ByVal stylesB
             Exit Function
         End If
 
+        styleSignature = private_BuildShapeStyleSignature(styleName, stylesByName(styleName))
+        previousStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedStyleSignature")
+        ' Retained-style: если имя стиля и все declarations совпали, Shape уже
+        ' имеет нужный вид. Пропускаем серию Fill/Line/TextFrame COM-записей.
+        If VBA.StrComp(previousStyleSignature, styleSignature, VBA.vbBinaryCompare) = 0 Then GoTo ContinueShape
+
         If Not private_ApplyShapeStyle(shp, stylesByName(styleName), "controlStyle:" & styleName) Then Exit Function
+        If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue(shp, "pn.appliedStyleSignature", styleSignature) Then Exit Function
 
 ContinueShape:
     Next shp
 
     private_ApplyControlStyles = True
+End Function
+
+Private Function private_BuildShapeStyleSignature(ByVal styleName As String, ByVal declarations As Object) As String
+    Dim keyObj As Variant
+    Dim keys As Variant
+    Dim idx As Long
+    Dim swapIdx As Long
+    Dim tempKey As String
+    Dim resultText As String
+
+    resultText = VBA.LCase$(VBA.Trim$(styleName))
+    If declarations Is Nothing Then
+        private_BuildShapeStyleSignature = resultText
+        Exit Function
+    End If
+    If declarations.Count = 0 Then
+        private_BuildShapeStyleSignature = resultText
+        Exit Function
+    End If
+    ' Scripting.Dictionary не гарантирует контракт порядка Keys. Сортировка
+    ' делает signature детерминированной для одинакового набора declarations.
+    keys = declarations.Keys
+    For idx = LBound(keys) To UBound(keys) - 1
+        For swapIdx = idx + 1 To UBound(keys)
+            If VBA.StrComp(VBA.CStr(keys(idx)), VBA.CStr(keys(swapIdx)), VBA.vbTextCompare) > 0 Then
+                tempKey = VBA.CStr(keys(idx)): keys(idx) = keys(swapIdx): keys(swapIdx) = tempKey
+            End If
+        Next swapIdx
+    Next idx
+    For Each keyObj In keys
+        resultText = resultText & "|" & VBA.LCase$(VBA.CStr(keyObj)) & "=" & VBA.CStr(declarations(keyObj))
+    Next keyObj
+    private_BuildShapeStyleSignature = resultText
 End Function
 
 
@@ -316,12 +1030,15 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
         Exit Function
     End If
 
-    If Not private_TryReadRuleSelector(ruleNode, selector) Then Exit Function
-
-    Set declarations = private_ReadStyleDeclarations(ruleNode)
+    If Not private_TryGetCompiledRule(ruleNode, selector, declarations) Then Exit Function
     If declarations Is Nothing Then Exit Function
 
     Select Case ruleTarget
+        Case "inlinepart"
+            ' Стили символов применяются после основного range/shape pass.
+            private_ApplySingleRule = True
+            Exit Function
+
         Case "layoutbound"
             If Not private_ApplyLayoutBoundRule(ws, selector, declarations, "layoutBound rule") Then Exit Function
             private_ApplySingleRule = True
@@ -356,6 +1073,9 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
             If scopeRange Is Nothing Then Exit Function
             Set columnScope = scopeRange.EntireColumn
 
+        Case "layoutcontainer"
+            If Not private_TryResolveLayoutContainerTargetScope(ws, selector, scopeRange, columnScope) Then Exit Function
+
         Case "controlpart"
             If Not private_TryResolveControlPartTargetScope(ws, selector, scopeRange, columnScope) Then Exit Function
     End Select
@@ -365,9 +1085,247 @@ Private Function private_ApplySingleRule(ByVal ws As Worksheet, ByVal ruleNode A
         Exit Function
     End If
 
-    If Not private_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
+    ' Select состоит из floating Shape. Его semantic parts используют Range
+    ' только как spatial scope для индекса и не должны красить ячейки под ним.
+    If Not private_IsShapeOnlyControlPartSelector(selector) Then
+        If Not private_ApplyRangeDeclarations(scopeRange, columnScope, declarations, ruleTarget) Then Exit Function
+    End If
+    If ruleTarget = "controlpart" Then
+        If Not private_ApplyControlPartShapeDeclarations(ws, selector, scopeRange, declarations) Then Exit Function
+    End If
 
     private_ApplySingleRule = True
+End Function
+
+
+Private Function private_ApplyControlPartRuleForControl( _
+    ByVal ws As Worksheet, _
+    ByVal ruleNode As Object, _
+    ByVal controlName As String _
+) As Boolean
+    Dim selector As Object
+    Dim effectiveSelector As Object
+    Dim declarations As Object
+    Dim selectorKey As Variant
+    Dim declaredName As String
+    Dim scopeRange As Range
+    Dim columnScope As Range
+    Dim partialDeclarations As Object
+
+    If ws Is Nothing Or ruleNode Is Nothing Then Exit Function
+    If Not private_TryGetCompiledRule(ruleNode, selector, declarations) Then Exit Function
+    If selector Is Nothing Or declarations Is Nothing Then Exit Function
+
+    If selector.Exists("name") Then
+        declaredName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
+        If VBA.Len(declaredName) > 0 And declaredName <> controlName Then
+            private_ApplyControlPartRuleForControl = True
+            Exit Function
+        End If
+    End If
+
+    ' Compiled selector cache только читается. Для локального применения
+    ' создаем короткую копию и добавляем обязательный name-фильтр.
+    Set effectiveSelector = VBA.CreateObject("Scripting.Dictionary")
+    effectiveSelector.CompareMode = 1
+    For Each selectorKey In selector.Keys
+        effectiveSelector(VBA.CStr(selectorKey)) = selector(selectorKey)
+    Next selectorKey
+    effectiveSelector("name") = controlName
+
+    If Not private_TryResolveControlPartTargetScope( _
+        ws, effectiveSelector, scopeRange, columnScope) Then Exit Function
+    If scopeRange Is Nothing Then
+        private_ApplyControlPartRuleForControl = True
+        Exit Function
+    End If
+
+    Set partialDeclarations = private_GetPartialSafeDeclarations(declarations)
+    If Not private_IsShapeOnlyControlPartSelector(effectiveSelector) Then
+        If Not private_ApplyRangeDeclarations( _
+            scopeRange, columnScope, partialDeclarations, "controlpart-partial") Then Exit Function
+    End If
+    If Not private_ApplyControlPartShapeDeclarations( _
+        ws, effectiveSelector, scopeRange, partialDeclarations) Then Exit Function
+    private_ApplyControlPartRuleForControl = True
+End Function
+
+Private Function private_IsShapeOnlyControlPartSelector(ByVal selector As Object) As Boolean
+    If selector Is Nothing Then Exit Function
+    If Not selector.Exists("type") Then Exit Function
+    private_IsShapeOnlyControlPartSelector = ( _
+        VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type")))) = "select")
+End Function
+
+' Shape-контролы используют тот же controlPart selector, что и диапазоны.
+' Renderer публикует tagged item одновременно как Range и как точный Shape target.
+Private Function private_ApplyControlPartShapeDeclarations( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByVal partScope As Range, _
+    ByVal declarations As Object _
+) As Boolean
+    Dim shp As Shape
+    Dim partShapes As Collection
+    Dim shapeItem As Variant
+    Dim controlName As String
+    Dim controlType As String
+    Dim partName As String
+    Dim baseStyleSignature As String
+    Dim partStyleSignature As String
+    Dim previousPartStyleSignature As String
+    Dim ruleSignatureName As String
+
+    If ws Is Nothing Or selector Is Nothing Or partScope Is Nothing Then Exit Function
+    If declarations Is Nothing Then Exit Function
+    If selector.Exists("type") Then controlType = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("type"))))
+    If controlType <> "buttongroup" And controlType <> "select" Then
+        private_ApplyControlPartShapeDeclarations = True
+        Exit Function
+    End If
+    If selector.Exists("name") Then controlName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
+    If selector.Exists("part") Then partName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("part"))))
+    If VBA.Len(partName) = 0 Then Exit Function
+
+    If Not ex_ControlPartsRuntime.fn_TryResolveControlPartShapes( _
+        ws, controlType, controlName, partName, partShapes) Then Exit Function
+    If partShapes Is Nothing Then Exit Function
+
+    ruleSignatureName = "controlPart:" & controlType & ":" & controlName & ":" & partName
+    For Each shapeItem In partShapes
+        Set shp = Nothing
+        On Error Resume Next
+        Set shp = shapeItem
+        On Error GoTo 0
+        If shp Is Nothing Then GoTo ContinueShape
+
+        ' Part signature зависит и от базового controlStyle: если он изменился
+        ' или был восстановлен после смены state, semantic override применяется снова.
+        baseStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedStyleSignature")
+        partStyleSignature = baseStyleSignature & "|" & _
+            private_BuildShapeStyleSignature(ruleSignatureName, declarations)
+        previousPartStyleSignature = private_ReadShapeMetaValue(shp, "pn.appliedPartStyleSignature")
+        If VBA.StrComp(previousPartStyleSignature, partStyleSignature, VBA.vbBinaryCompare) = 0 Then GoTo ContinueShape
+
+        If Not private_ApplyShapeStyle(shp, declarations, "controlPart") Then Exit Function
+        If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValue( _
+            shp, "pn.appliedPartStyleSignature", partStyleSignature) Then Exit Function
+ContinueShape:
+    Next shapeItem
+
+    private_ApplyControlPartShapeDeclarations = True
+End Function
+
+
+Private Function private_ApplyRuleClippedToControlScope( _
+    ByVal ws As Worksheet, _
+    ByVal ruleNode As Object, _
+    ByVal ruleTarget As String, _
+    ByVal controlScope As Range _
+) As Boolean
+    Dim selector As Object
+    Dim declarations As Object
+    Dim partialDeclarations As Object
+    Dim ruleScope As Range
+    Dim ruleColumnScope As Range
+    Dim clippedScope As Range
+    Dim clippedColumnScope As Range
+
+    If ws Is Nothing Or ruleNode Is Nothing Or controlScope Is Nothing Then Exit Function
+    If Not private_TryGetCompiledRule(ruleNode, selector, declarations) Then Exit Function
+    If declarations Is Nothing Then Exit Function
+
+    Select Case VBA.LCase$(VBA.Trim$(ruleTarget))
+        Case "sheet", "usedrange"
+            ' Эти targets заведомо покрывают control scope. Не вычисляем
+            ' ExpandedSheetScope/UsedRange и не создаём лишние COM-объекты.
+            Set clippedScope = controlScope
+
+        Case "row"
+            If Not private_TryResolveRowTargetScope( _
+                ws, selector, ruleScope, ruleColumnScope) Then Exit Function
+
+        Case "column"
+            If Not private_TryResolveColumnTargetScope( _
+                ws, selector, ruleScope, ruleColumnScope) Then Exit Function
+
+        Case "cell"
+            If Not private_TryResolveCellTargetScope( _
+                ws, selector, ruleScope, ruleColumnScope) Then Exit Function
+
+        Case "range"
+            If selector Is Nothing Then Exit Function
+            If Not selector.Exists("address") Then Exit Function
+            If Not private_TryGetRangeByAddress( _
+                ws, VBA.CStr(selector("address")), ruleScope) Then Exit Function
+
+        Case "layoutcontainer"
+            If Not private_TryResolveLayoutContainerTargetScope( _
+                ws, selector, ruleScope, ruleColumnScope) Then Exit Function
+
+        Case Else
+            ' Неизвестный здесь target валидируется полным pipeline. Partial
+            ' pass не должен расширять его семантику или затрагивать весь лист.
+            private_ApplyRuleClippedToControlScope = True
+            Exit Function
+    End Select
+
+    If clippedScope Is Nothing Then
+        If ruleScope Is Nothing Then
+            private_ApplyRuleClippedToControlScope = True
+            Exit Function
+        End If
+        Set clippedScope = Application.Intersect(ruleScope, controlScope)
+    End If
+    If clippedScope Is Nothing Then
+        private_ApplyRuleClippedToControlScope = True
+        Exit Function
+    End If
+
+    ' Intersect сохраняет семантику selector-а, но не позволяет глобальному
+    ' rule затронуть соседние controls. Декларации всё равно проходят отдельный
+    ' structural filter ниже.
+    Set partialDeclarations = private_GetPartialSafeDeclarations(declarations)
+    Set clippedColumnScope = clippedScope.EntireColumn
+    If Not private_ApplyRangeDeclarations( _
+        clippedScope, clippedColumnScope, partialDeclarations, _
+        VBA.LCase$(VBA.Trim$(ruleTarget)) & "-partial") Then Exit Function
+
+    private_ApplyRuleClippedToControlScope = True
+End Function
+
+
+Private Function private_GetPartialSafeDeclarations(ByVal declarations As Object) As Object
+    Dim result As Object
+    Dim keyObj As Variant
+    Dim keyName As String
+
+    Set result = VBA.CreateObject("Scripting.Dictionary")
+    result.CompareMode = 1
+    If declarations Is Nothing Then
+        Set private_GetPartialSafeDeclarations = result
+        Exit Function
+    End If
+
+    For Each keyObj In declarations.Keys
+        keyName = VBA.LCase$(VBA.Trim$(VBA.CStr(keyObj)))
+        Select Case keyName
+            Case "width", "minwidth", "maxwidth", "autofitcolumns", "zoom"
+                ' Эти свойства изменяют колонку/worksheet целиком. Локальное
+                ' применение вырывает rule из общего cascade и способно изменить
+                ' геометрию совершенно других контролов. Их обновляет только
+                ' полный style pipeline.
+                '
+                ' Важно: даже Range("B10:B12").EntireColumn.ColumnWidth меняет
+                ' всю колонку B, поэтому обрезка range через Intersect здесь не
+                ' делает width безопасной. RowHeight не исключаем: динамический
+                ' control владеет конкретными строками своего visual scope.
+            Case Else
+                result(keyName) = declarations(keyObj)
+        End Select
+    Next keyObj
+
+    Set private_GetPartialSafeDeclarations = result
 End Function
 
 
@@ -421,10 +1379,10 @@ Private Function private_ApplyLayoutBoundRule( _
 
         If Not private_PaintLayoutBoundFrame( _
             ws:=ws, _
-            rowStart:=CLng(entry(1)), _
-            colStart:=CLng(entry(2)), _
-            rowEnd:=CLng(entry(3)), _
-            colEnd:=CLng(entry(4)), _
+            rowStart:=VBA.CLng(entry(1)), _
+            colStart:=VBA.CLng(entry(2)), _
+            rowEnd:=VBA.CLng(entry(3)), _
+            colEnd:=VBA.CLng(entry(4)), _
             tagName:=VBA.CStr(entry(5)), _
             hasBorderColor:=hasBorderColor, _
             borderColor:=borderColor, _
@@ -469,7 +1427,7 @@ Private Function private_LayoutBoundEntryMatchesSelector(ByRef entry As Variant,
         selectorTagDepth = VBA.Trim$(VBA.CStr(selector("tagdepth")))
         If Not private_TryParseLayoutBoundDepthSpan(selectorTagDepth, depthMin, depthMax) Then Exit Function
 
-        nodeDepth = CLng(entry(7))
+        nodeDepth = VBA.CLng(entry(7))
         If nodeDepth < depthMin Or nodeDepth > depthMax Then Exit Function
     End If
 
@@ -652,14 +1610,139 @@ Private Function private_TryParseLayoutBoundBorderLineStyle(ByVal valueText As S
 End Function
 
 
-Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
+Private Function private_GetCompiledControlStyles(ByVal wsUiDoc As Object) As Object
+    Dim cacheKey As String
+    Dim commonStylesDoc As Object
+
+    If wsUiDoc Is Nothing Then Exit Function
+    If Not m_ActiveStyleUiDoc Is Nothing Then
+        If wsUiDoc Is m_ActiveStyleUiDoc Then
+            Set private_GetCompiledControlStyles = m_ActiveCompiledControlStyles
+            Exit Function
+        End If
+    End If
+
+    private_EnsureCompiledStyleCaches
+    ' Не привязываемся к пути файла: один и тот же stylesheet может применяться
+    ' из разных page DOM, а любое изменение XML само инвалидирует ключ.
+    Set commonStylesDoc = private_LoadCommonControlStylesDom()
+    If commonStylesDoc Is Nothing Then Exit Function
+    cacheKey = VBA.CStr(commonStylesDoc.XML) & "|" & VBA.CStr(wsUiDoc.XML)
+    Set private_GetCompiledControlStyles = private_GetOrCompileControlStyles( _
+        wsUiDoc, commonStylesDoc, cacheKey)
+End Function
+
+
+Private Function private_GetOrCompileControlStyles( _
+    ByVal wsUiDoc As Object, _
+    ByVal commonStylesDoc As Object, _
+    ByVal cacheKey As String _
+) As Object
+    Dim compiledStyles As Object
+
+    If wsUiDoc Is Nothing Or commonStylesDoc Is Nothing Then Exit Function
+    private_EnsureCompiledStyleCaches
+    If m_ControlStylesCache.Exists(cacheKey) Then
+        Set private_GetOrCompileControlStyles = m_ControlStylesCache(cacheKey)
+        Exit Function
+    End If
+
+    Set compiledStyles = private_LoadControlStyles(wsUiDoc, commonStylesDoc)
+    If compiledStyles Is Nothing Then Exit Function
+    m_ControlStylesCache.Add cacheKey, compiledStyles
+    Set private_GetOrCompileControlStyles = compiledStyles
+End Function
+
+
+Private Function private_BuildStyleRevision(ByVal cacheKey As String) As String
+    Dim hashA As Long
+    Dim hashB As Long
+    Dim charCode As Long
+    Dim charIndex As Long
+
+    ' Ревизия не обязана быть криптографической: она лишь инвалидирует
+    ' короткие render-signature Shapes при изменении любого stylesheet XML.
+    hashA = 5381
+    hashB = 7919
+    For charIndex = 1 To VBA.Len(cacheKey)
+        charCode = VBA.AscW(VBA.Mid$(cacheKey, charIndex, 1)) And &HFFFF&
+        hashA = ((hashA * 33) Xor charCode) And &H7FFF&
+        hashB = ((hashB * 37) Xor charCode) And &H7FFF&
+    Next charIndex
+
+    private_BuildStyleRevision = VBA.CStr(VBA.Len(cacheKey)) & ":" & _
+        VBA.Right$("0000" & VBA.Hex$(hashA), 4) & ":" & _
+        VBA.Right$("0000" & VBA.Hex$(hashB), 4)
+End Function
+
+Private Function private_TryGetCompiledRule( _
+    ByVal ruleNode As Object, _
+    ByRef outSelector As Object, _
+    ByRef outDeclarations As Object _
+) As Boolean
+    Dim cacheKey As String
+
+    Set outSelector = Nothing
+    Set outDeclarations = Nothing
+    If ruleNode Is Nothing Then Exit Function
+    private_EnsureCompiledStyleCaches
+    ' Selector и declarations правила парсятся один раз за жизнь module cache.
+    ' Закэшированные объекты далее считаются immutable.
+    cacheKey = VBA.CStr(ruleNode.XML)
+
+    If m_RuleSelectorCache.Exists(cacheKey) Then
+        Set outSelector = m_RuleSelectorCache(cacheKey)
+    Else
+        If Not private_TryReadRuleSelector(ruleNode, outSelector) Then Exit Function
+        m_RuleSelectorCache.Add cacheKey, outSelector
+    End If
+
+    If m_RuleDeclarationsCache.Exists(cacheKey) Then
+        Set outDeclarations = m_RuleDeclarationsCache(cacheKey)
+    Else
+        Set outDeclarations = private_ReadStyleDeclarations(ruleNode)
+        If outDeclarations Is Nothing Then Exit Function
+        m_RuleDeclarationsCache.Add cacheKey, outDeclarations
+    End If
+    private_TryGetCompiledRule = True
+End Function
+
+Private Sub private_EnsureCompiledStyleCaches()
+    If m_ControlStylesCache Is Nothing Then
+        Set m_ControlStylesCache = VBA.CreateObject("Scripting.Dictionary")
+        m_ControlStylesCache.CompareMode = 0
+    End If
+    If m_RuleSelectorCache Is Nothing Then
+        Set m_RuleSelectorCache = VBA.CreateObject("Scripting.Dictionary")
+        m_RuleSelectorCache.CompareMode = 0
+    End If
+    If m_RuleDeclarationsCache Is Nothing Then
+        Set m_RuleDeclarationsCache = VBA.CreateObject("Scripting.Dictionary")
+        m_RuleDeclarationsCache.CompareMode = 0
+    End If
+End Sub
+
+Private Function private_LoadControlStyles( _
+    ByVal wsUiDoc As Object, _
+    ByVal commonStylesDoc As Object _
+) As Object
     Dim result As Object
     Dim styleNodes As Object
     Dim styleNode As Object
     Dim styleName As String
+    Dim pageStyleNames As Object
 
-    Set result = CreateObject("Scripting.Dictionary")
+    Set result = VBA.CreateObject("Scripting.Dictionary")
     result.CompareMode = 1
+
+    Set styleNodes = commonStylesDoc.selectNodes( _
+        "/p:styleCatalog/p:controlStyle")
+    For Each styleNode In styleNodes
+        styleName = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(styleNode, "name")))
+        If VBA.Len(styleName) = 0 Then Exit Function
+        If result.Exists(styleName) Then Exit Function
+        result.Add styleName, private_ReadStyleDeclarations(styleNode)
+    Next styleNode
 
     Set styleNodes = wsUiDoc.selectNodes("/p:page/p:styles/p:controlStyle | /p:uiDefinition/p:styles/p:controlStyle")
     If styleNodes Is Nothing Then
@@ -667,6 +1750,8 @@ Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
         Exit Function
     End If
 
+    Set pageStyleNames = VBA.CreateObject("Scripting.Dictionary")
+    pageStyleNames.CompareMode = 1
     For Each styleNode In styleNodes
         styleName = VBA.LCase$(VBA.Trim$(ex_XmlCore.fn_NodeAttrText(styleNode, "name")))
         If VBA.Len(styleName) = 0 Then
@@ -676,17 +1761,43 @@ Private Function private_LoadControlStyles(ByVal wsUiDoc As Object) As Object
             Exit Function
         End If
 
-        If result.Exists(styleName) Then
+        If pageStyleNames.Exists(styleName) Then
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "PrototypeNew: duplicate controlStyle '" & styleName & "'."
 #End If
             Exit Function
         End If
-
+        pageStyleNames.Add styleName, True
+        If result.Exists(styleName) Then result.Remove styleName
         result.Add styleName, private_ReadStyleDeclarations(styleNode)
     Next styleNode
 
     Set private_LoadControlStyles = result
+End Function
+
+Private Function private_LoadCommonControlStylesDom() As Object
+    Dim resolvedPath As String
+    Dim modifiedAt As Date
+
+    resolvedPath = ex_XmlCore.fn_CombineBasePath( _
+        ThisWorkbook, COMMON_CONTROL_STYLES_PATH)
+    If VBA.Len(resolvedPath) = 0 Or VBA.Len(VBA.Dir$(resolvedPath)) = 0 Then
+        VBA.MsgBox "PrototypeNew: common control styles file was not found: " & _
+            COMMON_CONTROL_STYLES_PATH, VBA.vbExclamation, "PrototypeNew / Styles"
+        Exit Function
+    End If
+    modifiedAt = VBA.FileDateTime(resolvedPath)
+    If m_CommonControlStylesDom Is Nothing Or _
+       modifiedAt <> m_CommonControlStylesModifiedAt Then
+        Set m_CommonControlStylesDom = ex_XmlCore.fn_LoadDomByRelativePath( _
+            ThisWorkbook, COMMON_CONTROL_STYLES_PATH, _
+            "PrototypeNew: common control styles file was not found: ", _
+            "PrototypeNew: failed to parse common control styles file: ", _
+            "urn:excelprototype:profiles")
+        If m_CommonControlStylesDom Is Nothing Then Exit Function
+        m_CommonControlStylesModifiedAt = modifiedAt
+    End If
+    Set private_LoadCommonControlStylesDom = m_CommonControlStylesDom
 End Function
 
 
@@ -696,7 +1807,7 @@ Private Function private_ReadStyleDeclarations(ByVal styleNode As Object) As Obj
 
     If styleNode Is Nothing Then Exit Function
 
-    Set declarations = CreateObject("Scripting.Dictionary")
+    Set declarations = VBA.CreateObject("Scripting.Dictionary")
     declarations.CompareMode = 1
 
     ' Собираем декларации как из явных XML-атрибутов, так и из inline styles="{...}".
@@ -808,7 +1919,7 @@ End Function
 
 Private Function private_IsSupportedStyleKey(ByVal keyName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(keyName))
-        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight", "celltype"
+        Case "backcolor", "fontcolor", "bordercolor", "borderweight", "borderlinestyle", "fontname", "fontsize", "fontbold", "fontitalic", "horizontal", "vertical", "overflow", "width", "minwidth", "maxwidth", "autofitcolumns", "rowheight", "celltype", "zoom"
             private_IsSupportedStyleKey = True
     End Select
 End Function
@@ -823,7 +1934,7 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
     Dim keyName As String
     Dim keyValue As String
 
-    Set outSelector = CreateObject("Scripting.Dictionary")
+    Set outSelector = VBA.CreateObject("Scripting.Dictionary")
     outSelector.CompareMode = 1
 
     ' Selector парсится как key=value;key=value...
@@ -857,7 +1968,7 @@ Private Function private_TryReadRuleSelector(ByVal ruleNode As Object, ByRef out
         End If
 
         Select Case keyName
-            Case "col", "row", "address", "type", "name", "part", "tag", "tagdepth"
+            Case "col", "row", "address", "type", "name", "part", "tag", "tagdepth", "columnalias", "sourcealias", "sourcealiastemplate"
                 If outSelector.Exists(keyName) Then
 #If LOGGING_DEBUG_ENABLED Then
                     ex_Core.fn_Diagnostic_LogError "PrototypeNew: duplicate selector key '" & keyName & "'."
@@ -882,9 +1993,61 @@ End Function
 
 Private Function private_RuleTargetIsSupported(ByVal targetName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(targetName))
-        Case "row", "column", "cell", "range", "usedrange", "sheet", "controlpart", "layoutbound"
+        Case "row", "column", "cell", "range", "usedrange", "sheet", _
+             "layoutcontainer", "controlpart", "layoutbound", "inlinepart"
             private_RuleTargetIsSupported = True
     End Select
+End Function
+
+
+Private Function private_TryResolveLayoutContainerTargetScope( _
+    ByVal ws As Worksheet, _
+    ByVal selector As Object, _
+    ByRef outScope As Range, _
+    ByRef outColumnScope As Range _
+) As Boolean
+    Dim containerName As String
+    Dim pageRef As obj_IPage
+    Dim pageBase As obj_PageBase
+
+    Set outScope = Nothing
+    Set outColumnScope = Nothing
+
+    If ws Is Nothing Then Exit Function
+    If selector Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layoutContainer rule requires selector."
+#End If
+        Exit Function
+    End If
+
+    If Not selector.Exists("name") Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layoutContainer rule requires selector key 'name'."
+#End If
+        Exit Function
+    End If
+
+    containerName = VBA.Trim$(VBA.CStr(selector("name")))
+    If VBA.Len(containerName) = 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: layoutContainer selector 'name' is empty."
+#End If
+        Exit Function
+    End If
+
+    If Not rt_PageManager.fn_TryGetPageByWorksheet(ws, pageRef) Then Exit Function
+    If pageRef Is Nothing Then Exit Function
+
+    Set pageBase = pageRef.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If Not pageBase.TryGetLayoutContainerRange(containerName, outScope) Then
+        private_TryResolveLayoutContainerTargetScope = True
+        Exit Function
+    End If
+
+    If Not outScope Is Nothing Then Set outColumnScope = outScope.EntireColumn
+    private_TryResolveLayoutContainerTargetScope = True
 End Function
 
 
@@ -897,6 +2060,12 @@ Private Function private_TryResolveControlPartTargetScope( _
     Dim controlType As String
     Dim controlName As String
     Dim partName As String
+    Dim columnAlias As String
+    Dim sourceAlias As String
+    Dim sourceAliasTemplate As String
+    Dim aliasColumnScope As Range
+    Dim sourceAliasScope As Range
+    Dim intersectedScope As Range
 
     If ws Is Nothing Then Exit Function
     If selector Is Nothing Then
@@ -924,6 +2093,15 @@ Private Function private_TryResolveControlPartTargetScope( _
     If selector.Exists("name") Then
         controlName = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("name"))))
     End If
+    If selector.Exists("columnalias") Then
+        columnAlias = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("columnalias"))))
+    End If
+    If selector.Exists("sourcealias") Then
+        sourceAlias = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("sourcealias"))))
+    End If
+    If selector.Exists("sourcealiastemplate") Then
+        sourceAliasTemplate = VBA.LCase$(VBA.Trim$(VBA.CStr(selector("sourcealiastemplate"))))
+    End If
 
     If VBA.Len(controlType) = 0 Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -941,6 +2119,54 @@ Private Function private_TryResolveControlPartTargetScope( _
     ' ControlPart scope приходит из runtime-реестра частей контролов.
     If Not ex_ControlPartsRuntime.fn_TryResolveControlPartScope( _
         ws, controlType, controlName, partName, outScope, outColumnScope) Then Exit Function
+
+    If VBA.Len(columnAlias) > 0 Then
+        If Not ex_ControlPartsRuntime.fn_TryResolveControlColumnAliasScope( _
+            ws, controlType, controlName, columnAlias, aliasColumnScope) Then Exit Function
+
+        If outScope Is Nothing Or aliasColumnScope Is Nothing Then
+            Set outScope = Nothing
+            Set outColumnScope = Nothing
+            private_TryResolveControlPartTargetScope = True
+            Exit Function
+        End If
+
+        On Error Resume Next
+        Set intersectedScope = Application.Intersect(outScope, aliasColumnScope)
+        On Error GoTo 0
+        Set outScope = intersectedScope
+
+        If outScope Is Nothing Then
+            Set outColumnScope = Nothing
+            private_TryResolveControlPartTargetScope = True
+            Exit Function
+        End If
+
+        Set outColumnScope = outScope.EntireColumn
+    End If
+
+    If VBA.Len(sourceAlias) > 0 Or VBA.Len(sourceAliasTemplate) > 0 Then
+        If Not ex_ControlPartsRuntime.fn_TryResolveControlSourceAliasScope( _
+            ws, controlType, controlName, sourceAlias, sourceAliasTemplate, sourceAliasScope) Then Exit Function
+
+        If outScope Is Nothing Or sourceAliasScope Is Nothing Then
+            Set outScope = Nothing
+            Set outColumnScope = Nothing
+            private_TryResolveControlPartTargetScope = True
+            Exit Function
+        End If
+
+        On Error Resume Next
+        Set intersectedScope = Application.Intersect(outScope, sourceAliasScope)
+        On Error GoTo 0
+        Set outScope = intersectedScope
+        If outScope Is Nothing Then
+            Set outColumnScope = Nothing
+            private_TryResolveControlPartTargetScope = True
+            Exit Function
+        End If
+        Set outColumnScope = outScope.EntireColumn
+    End If
 
     private_TryResolveControlPartTargetScope = True
 End Function
@@ -1173,11 +2399,28 @@ Private Function private_ApplyRangeDeclarations( _
     Dim hasMaxWidth As Boolean
     Dim autoFitColumnsEnabled As Boolean
     Dim numberFormatValue As String
+    Dim zoomValue As Long
 
     If targetRange Is Nothing Then Exit Function
     If declarations Is Nothing Then
         private_ApplyRangeDeclarations = True
         Exit Function
+    End If
+
+    If declarations.Exists("zoom") Then
+        If VBA.StrComp(VBA.LCase$(VBA.Trim$(contextName)), "sheet", VBA.vbBinaryCompare) <> 0 Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: zoom is supported only for sheet target."
+#End If
+            Exit Function
+        End If
+        If Not private_TryParseZoomPercent(VBA.CStr(declarations("zoom")), zoomValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: invalid zoom in " & contextName & ". Use a percentage from 1% to 100%."
+#End If
+            Exit Function
+        End If
+        If Not private_TryApplyWorksheetZoom(targetRange.Worksheet, zoomValue) Then Exit Function
     End If
 
     If declarations.Exists("backcolor") Then
@@ -1398,6 +2641,52 @@ Private Function private_ApplyRangeDeclarations( _
     End If
 
     private_ApplyRangeDeclarations = True
+End Function
+
+Private Function private_TryParseZoomPercent(ByVal zoomText As String, ByRef outZoom As Long) As Boolean
+    Dim numericText As String
+    Dim zoomValue As Double
+
+    outZoom = 0
+    zoomText = VBA.Trim$(zoomText)
+    If VBA.Len(zoomText) < 2 Then Exit Function
+    If VBA.Right$(zoomText, 1) <> "%" Then Exit Function
+
+    numericText = VBA.Trim$(VBA.Left$(zoomText, VBA.Len(zoomText) - 1))
+    If Not ex_HelpersCSS.fn_TryParsePositiveDouble(numericText, zoomValue) Then Exit Function
+    If zoomValue < 1 Or zoomValue > 100 Then Exit Function
+    If zoomValue <> VBA.Fix(zoomValue) Then Exit Function
+
+    outZoom = VBA.CLng(zoomValue)
+    private_TryParseZoomPercent = True
+End Function
+
+Private Function private_TryApplyWorksheetZoom(ByVal ws As Worksheet, ByVal zoomValue As Long) As Boolean
+    Dim previousSheet As Object
+
+    If ws Is Nothing Then Exit Function
+    If zoomValue < 1 Or zoomValue > 100 Then Exit Function
+    If Application.ActiveWindow Is Nothing Then
+        private_TryApplyWorksheetZoom = True
+        Exit Function
+    End If
+
+    On Error GoTo EH_ZOOM
+    Set previousSheet = ActiveSheet
+    If Not (ActiveSheet Is ws) Then ws.Activate
+    Application.ActiveWindow.Zoom = zoomValue
+    If Not previousSheet Is Nothing Then
+        If Not (previousSheet Is ActiveSheet) Then previousSheet.Activate
+    End If
+    On Error GoTo 0
+
+    private_TryApplyWorksheetZoom = True
+    Exit Function
+
+EH_ZOOM:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to apply worksheet zoom: " & Err.Description
+#End If
 End Function
 
 
@@ -1660,7 +2949,7 @@ End Sub
 
 Private Sub private_BeginDeferredRowAutoFit()
     ' Начало stage-коллекции строк для отложенного AutoFit.
-    Set m_DeferredRowAutoFitState = CreateObject("Scripting.Dictionary")
+    Set m_DeferredRowAutoFitState = VBA.CreateObject("Scripting.Dictionary")
     m_DeferredRowAutoFitState.CompareMode = 1
     m_IsCollectingDeferredRowAutoFit = True
 End Sub
@@ -1693,7 +2982,7 @@ Private Sub private_RecordDeferredRowAutoFit(ByVal targetRange As Range, ByVal e
         rowStart = rowArea.Row
         rowEnd = rowStart + rowArea.Rows.Count - 1
         For rowIndex = rowStart To rowEnd
-            rowKey = CStr(rowIndex)
+            rowKey = VBA.CStr(rowIndex)
             m_DeferredRowAutoFitState(rowKey) = enabled
         Next rowIndex
     Next rowArea
@@ -1722,8 +3011,8 @@ Private Function private_ApplyDeferredRowAutoFit(ByVal ws As Worksheet) As Boole
     ' Собираем только включенные строки, сортируем и применяем AutoFit по contiguous-спанам.
     ReDim enabledRows(1 To m_DeferredRowAutoFitState.Count)
     For Each rowKey In m_DeferredRowAutoFitState.Keys
-        If CBool(m_DeferredRowAutoFitState(CStr(rowKey))) Then
-            rowIndex = CLng(rowKey)
+        If VBA.CBool(m_DeferredRowAutoFitState(VBA.CStr(rowKey))) Then
+            rowIndex = VBA.CLng(rowKey)
             If rowIndex > 0 And rowIndex <= ws.Rows.Count Then
                 enabledCount = enabledCount + 1
                 enabledRows(enabledCount) = rowIndex
@@ -1767,7 +3056,7 @@ Private Sub private_ApplyAutoFitRowSpan(ByVal ws As Worksheet, ByVal rowStart As
     If rowEnd > ws.Rows.Count Then rowEnd = ws.Rows.Count
 
     On Error Resume Next
-    ws.Rows(CStr(rowStart) & ":" & CStr(rowEnd)).AutoFit
+    ws.Rows(VBA.CStr(rowStart) & ":" & VBA.CStr(rowEnd)).AutoFit
     On Error GoTo 0
 End Sub
 

@@ -9,7 +9,7 @@ Private Const UI_NS As String = "urn:excelprototype:profiles"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutListRenderer.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_LayoutListRenderer.fn_Module_Dispose"
 #End If
 End Sub
 ' //
@@ -21,7 +21,8 @@ Public Function fn_Render( _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
-    ByVal colEnd As Long _
+    ByVal colEnd As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim wb As Workbook
     Dim ws As Worksheet
@@ -34,6 +35,8 @@ Public Function fn_Render( _
     Dim itemValue As Variant
     Dim clonedNode As Object
     Dim itemIndex As Long
+    Dim listName As String
+    Dim templateName As String
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -55,13 +58,16 @@ Public Function fn_Render( _
 #End If
         Exit Function
     End If
+    listName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "name"))
+    templateName = VBA.Trim$(ex_XmlCore.fn_NodeAttrText(layoutNode, "itemsSourceTemplate"))
 
     ' itemsSource резолвится единым resolver-ом:
     ' - runtime source expression ({PageRuntimeSource/...}, {GlobalRuntimeSource/...})
     ' - или Binding, возвращающий Collection.
-    If Not ex_RuntimeSourceResolver.fn_TryResolveItemsSource( _
-        pageBase.RuntimeSources, _
+    If Not private_TryResolveItemsSourceForMeasure( _
+        renderCtx, _
         ex_XmlCore.fn_NodeAttrText(layoutNode, "itemsSource"), _
+        dataContext, _
         items) Then Exit Function
 
     If items Is Nothing Then
@@ -101,7 +107,7 @@ Public Function fn_Render( _
         ' Для каждого итема создаем собственный dataContext и применяем Binding
         ' ко всем атрибутам внутри template.
         If Not private_ApplyListItemBindings(clonedNode, itemValue, renderCtx) Then Exit Function
-        private_AppendSuffixToControlNames clonedNode, "_" & VBA.CStr(itemIndex)
+        private_AppendSuffixToControlNames clonedNode, "_item" & VBA.CStr(renderCtx.NextObjectRenderSuffix())
         private_ApplyListItemValueToTemplate clonedNode, itemValue
         syntheticRoot.appendChild clonedNode
     Next itemValue
@@ -179,6 +185,7 @@ End Function
 ' //
 ' // Internal
 ' //
+
 Private Sub private_CopyTemplatesToTempListDoc(ByVal targetDoc As Object, ByVal sourceDoc As Object)
     Dim targetRoot As Object
     Dim targetTemplatesNode As Object
@@ -442,7 +449,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
 
                     runtimeListSourceKey = private_RegisterRuntimeListItemsSourceKey(runtimeItems, renderCtx)
                     If VBA.Len(runtimeListSourceKey) = 0 Then Exit Function
-                    rootNode.setAttribute attrName, runtimeListSourceKey
+                    rootNode.setAttribute attrName, private_BuildPageRuntimeSourceExpression(runtimeListSourceKey)
                 ElseIf VBA.StrComp(VBA.LCase$(attrName), "objectsource", VBA.vbBinaryCompare) = 0 And _
                        VBA.StrComp(rootNodeName, "itemcontrol", VBA.vbBinaryCompare) = 0 Then
 
@@ -452,7 +459,7 @@ Private Function private_ApplyNodeBindingsRecursive( _
                     Else
                         runtimeObjectSourceKey = private_RegisterRuntimeObjectSourceKey(resolvedObject, renderCtx)
                         If VBA.Len(runtimeObjectSourceKey) = 0 Then Exit Function
-                        rootNode.setAttribute attrName, runtimeObjectSourceKey
+                        rootNode.setAttribute attrName, private_BuildPageRuntimeSourceExpression(runtimeObjectSourceKey)
                     End If
                 Else
 #If LOGGING_DEBUG_ENABLED Then
@@ -522,6 +529,12 @@ Private Function private_RegisterRuntimeObjectSourceKey( _
 
     If Not renderCtx.Page.GetPageBase().RuntimeSources.SetObjectSource(sourceKey, sourceObject) Then Exit Function
     private_RegisterRuntimeObjectSourceKey = sourceKey
+End Function
+
+Private Function private_BuildPageRuntimeSourceExpression(ByVal sourceKey As String) As String
+    sourceKey = VBA.Trim$(sourceKey)
+    If VBA.Len(sourceKey) = 0 Then Exit Function
+    private_BuildPageRuntimeSourceExpression = "{PageRuntimeSource='" & VBA.Replace$(sourceKey, "'", "''") & "'}"
 End Function
 
 

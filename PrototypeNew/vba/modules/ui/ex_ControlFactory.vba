@@ -5,7 +5,7 @@ Option Explicit
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_ControlFactory.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_ControlFactory.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -36,11 +36,20 @@ Public Function fn_CreateControlByTypeRoot( _
         Case "config"
             Set control = New obj_ConfigControlVM
 
+        Case "hotkeys"
+            Set control = New obj_HotkeysControlVM
+
+        Case "buttongroup"
+            Set control = New obj_ButtonGroupControlVM
+
         Case "select"
             Set control = New obj_SelectControlVM
 
         Case "tablelist"
             Set control = New obj_TableListControlVM
+
+        Case "lookupcandidates"
+            Set control = New obj_LookupCandidatesControlVM
 
         Case "tablesingle"
             Set control = New obj_TableSingleControlVM

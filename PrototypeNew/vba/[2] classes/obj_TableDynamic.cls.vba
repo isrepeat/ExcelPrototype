@@ -8,21 +8,29 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private m_SectionTitle As String
+Private m_SourceAlias As String
+Private m_SourceAliasTemplate As String
 Private m_Columns As list__obj_Column
 Private m_Rows As list__obj_Row
+Private m_Schema As obj_DynamicTableSchema
+Private m_CompactData As obj_TableData
+Private m_CompactRowIndexes As Collection
+Private m_CompactTagByTextLength As Object
 Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_Columns = New list__obj_Column
     Set m_Rows = New list__obj_Row
+    Set m_Schema = New obj_DynamicTableSchema
+    Call m_Schema.Initialize(m_Columns)
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -41,12 +49,40 @@ Public Property Let SectionTitle(ByVal value As String)
     m_SectionTitle = VBA.CStr(value)
 End Property
 
+' Конкретный runtime-алиас физического источника, например Main-01.07.2026.
+Public Property Get SourceAlias() As String
+    SourceAlias = m_SourceAlias
+End Property
+
+Public Property Let SourceAlias(ByVal value As String)
+    m_SourceAlias = VBA.Trim$(VBA.CStr(value))
+End Property
+
+' Стабильный алиас группы из конфигурации, например MedicalDaily.
+' Имя свойства сохранено как SourceAliasTemplate для selector-контракта стилей.
+Public Property Get SourceAliasTemplate() As String
+    SourceAliasTemplate = m_SourceAliasTemplate
+End Property
+
+Public Property Let SourceAliasTemplate(ByVal value As String)
+    m_SourceAliasTemplate = VBA.Trim$(VBA.CStr(value))
+End Property
+
 Public Property Get ColumnCount() As Long
     ColumnCount = m_Columns.Count
 End Property
 
 Public Property Get RowCount() As Long
-    RowCount = m_Rows.Count
+    If Not m_CompactRowIndexes Is Nothing Then
+        RowCount = m_CompactRowIndexes.Count
+    Else
+        RowCount = m_Rows.Count
+    End If
+End Property
+
+Public Property Get IsCompact() As Boolean
+    IsCompact = Not m_CompactData Is Nothing And _
+        Not m_CompactRowIndexes Is Nothing
 End Property
 
 Public Property Get Columns() As list__obj_Column
@@ -76,24 +112,77 @@ End Property
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
     On Error Resume Next
     Err.Clear
     Err.Clear
+    m_SourceAlias = VBA.vbNullString
+    m_SourceAliasTemplate = VBA.vbNullString
     Set m_Columns = Nothing
     Set m_Rows = Nothing
+    Set m_CompactData = Nothing
+    Set m_CompactRowIndexes = Nothing
+    Set m_CompactTagByTextLength = Nothing
+    If Not m_Schema Is Nothing Then m_Schema.Dispose
+    Set m_Schema = Nothing
     On Error GoTo 0
 End Sub
+
+Public Function SetCompactData( _
+    ByVal tableData As obj_TableData, _
+    ByVal rowIndexes As Collection _
+) As Boolean
+    If tableData Is Nothing Or rowIndexes Is Nothing Then Exit Function
+    Set m_CompactData = tableData
+    Set m_CompactRowIndexes = rowIndexes
+    SetCompactData = True
+End Function
+
+Public Function AddCompactTextLengthTag( _
+    ByVal textLength As Long, _
+    ByVal tagName As String _
+) As Boolean
+    tagName = VBA.LCase$(VBA.Trim$(tagName))
+    If textLength <= 0 Or VBA.Len(tagName) = 0 Then Exit Function
+    If m_CompactTagByTextLength Is Nothing Then
+        Set m_CompactTagByTextLength = VBA.CreateObject("Scripting.Dictionary")
+        m_CompactTagByTextLength.CompareMode = 1
+    End If
+    m_CompactTagByTextLength(VBA.CStr(textLength)) = tagName
+    AddCompactTextLengthTag = True
+End Function
+
+Public Function CompactTagForValue(ByVal valueText As String) As String
+    Dim lengthKey As String
+
+    If m_CompactTagByTextLength Is Nothing Then Exit Function
+    lengthKey = VBA.CStr(VBA.Len(valueText))
+    If Not m_CompactTagByTextLength.Exists(lengthKey) Then Exit Function
+    CompactTagForValue = VBA.CStr(m_CompactTagByTextLength(lengthKey))
+End Function
+
+Public Function CompactValueAt( _
+    ByVal visibleRowIndex As Long, _
+    ByVal columnIndex As Long _
+) As String
+    Dim sourceRowIndex As Long
+
+    If Not Me.IsCompact Then Exit Function
+    If visibleRowIndex <= 0 Or visibleRowIndex > m_CompactRowIndexes.Count Then _
+        Exit Function
+    sourceRowIndex = VBA.CLng(m_CompactRowIndexes.Item(visibleRowIndex))
+    CompactValueAt = m_CompactData.ValueAt(sourceRowIndex, columnIndex)
+End Function
 
 Public Function PushColumn(ByVal tableColumn As obj_Column) As Boolean
     Dim newColumn As obj_Column
@@ -108,13 +197,16 @@ Public Function PushColumn(ByVal tableColumn As obj_Column) As Boolean
     Set newColumn = New obj_Column
     newColumn.Name = tableColumn.Name
     newColumn.Position = m_Columns.Count + 1
+    newColumn.FormatKind = tableColumn.FormatKind
 
     If VBA.Len(newColumn.Name) = 0 Then
         newColumn.Name = "Col" & VBA.CStr(newColumn.Position)
     End If
 
     If Not private_CopyColumnAliases(tableColumn, newColumn) Then Exit Function
-    PushColumn = m_Columns.Add(newColumn)
+    If Not m_Columns.Add(newColumn) Then Exit Function
+    If Not m_Schema.BindColumns(m_Columns) Then Exit Function
+    PushColumn = True
 End Function
 
 Public Function InsertColumnAt( _
@@ -147,6 +239,7 @@ Public Function InsertColumnAt( _
 
     Set newColumn = New obj_Column
     newColumn.Name = VBA.Trim$(tableColumn.Name)
+    newColumn.FormatKind = tableColumn.FormatKind
     If VBA.Len(newColumn.Name) = 0 Then newColumn.Name = "Col" & VBA.CStr(oneBasedIndex)
     If Not private_CopyColumnAliases(tableColumn, newColumn) Then Exit Function
 
@@ -165,6 +258,8 @@ Public Function InsertColumnAt( _
     Next i
 
     Set m_Columns = rebuiltColumns
+    If m_Schema Is Nothing Then Set m_Schema = New obj_DynamicTableSchema
+    If Not m_Schema.BindColumns(m_Columns) Then Exit Function
 
     For i = 1 To m_Rows.Count
         Set rowObj = m_Rows.Item(i)
@@ -191,7 +286,23 @@ Public Function PushRow(ByVal tableRow As obj_Row) As Boolean
         If Not private_EnsureColumns(requiredCols) Then Exit Function
     End If
 
+    tableRow.BindTableSchema m_Schema
     PushRow = m_Rows.Add(tableRow)
+End Function
+
+' Публичный API для caller-а: тег ставится на ячейку модели до render-а и
+' затем доступен XML selector-ам TableList как part=tag-<имя>.
+Public Function AddCellTag( _
+    ByVal oneBasedRowIndex As Long, _
+    ByVal oneBasedColumnIndex As Long, _
+    ByVal tagName As String _
+) As Boolean
+    Dim rowObj As obj_Row
+
+    If oneBasedRowIndex <= 0 Or oneBasedRowIndex > m_Rows.Count Then Exit Function
+    Set rowObj = m_Rows.Item(oneBasedRowIndex)
+    If rowObj Is Nothing Then Exit Function
+    AddCellTag = rowObj.AddCellTag(oneBasedColumnIndex, tagName)
 End Function
 
 Public Function InsertRowAt( _
@@ -238,6 +349,7 @@ Public Function InsertRowAt( _
     Next i
 
     Set m_Rows = rebuiltRows
+    tableRow.BindTableSchema m_Schema
     InsertRowAt = True
 End Function
 
@@ -336,6 +448,8 @@ Private Function private_EnsureColumns(ByVal requiredCount As Long) As Boolean
         autoColumn.Name = "Col" & VBA.CStr(i)
         m_Columns.Add autoColumn
     Next i
+
+    If Not m_Schema.BindColumns(m_Columns) Then Exit Function
 
     private_EnsureColumns = True
 End Function

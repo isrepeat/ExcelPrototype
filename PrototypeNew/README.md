@@ -6,10 +6,9 @@ Clean-slate sandbox for rebuilding UI loading with object controls.
 No hardcoded control names in VBA. UI page is described in XML, and runtime builds controls via interface objects.
 
 ## Current scope
-- Read Dev layout from `PrototypeNew/ui/DevUI.xml`.
-- For each declared control, use `type` as root and auto-resolve:
-	- control UI: `PrototypeNew/vba/[4] controls/obj_<Type>ControlUI.xml`
-	- VM class: `obj_<Type>ControlVM`
+- Read Main layout from `PrototypeNew/ui/MainUI.xml`.
+- For each declared control, use `type` to resolve its VM class `obj_<Type>ControlVM`.
+- The page XML is the single UI source; controls and their optional template children are cloned directly from the loaded page DOM.
 - Build controls through `obj_IControl` + `ex_ControlFactory`.
 - Render controls through object VM classes (currently `obj_ButtonControlVM`, `obj_LabelControlVM`, `obj_TableListControlVM`, `obj_TableSingleControlVM`, `obj_BannerControlVM`).
 - Button controls are rendered as Excel `Shape` objects (not Forms buttons) for richer visual customization.
@@ -70,87 +69,36 @@ This resets workbook sheets, creates `Main` page and renders it via `rt_PageMana
 5. Bridge вызывает `rt_Router.fn_OnShapeClick`.
 6. Router берет `Application.Caller`, находит маршрут, находит VM и вызывает целевой метод.
 
-### Почему роуты могут "сломаться" после реимпорта модулей
+### Безопасное обновление runtime
 
-Обновление модулей (`ex_Core.m_Dev_Update*`) делает реимпорт VBA-модулей/классов. Для стандартных модулей и классов это фактически remove + add.
-Если обновление прошло без перерендера страницы, runtime-таблицы роутера могут остаться привязанными к старому VM/runtime-контексту.
-Итог: клики по кнопкам могут перестать работать до ручного перерендера, который пересоберет роуты.
+Для UI-триггеров используется только `rt_CoreActions`. Он ставит один точный
+`OnTime` callback, позволяет текущему click-dispatch полностью завершиться и
+лишь затем вызывает `ex_Core`. Перед импортом `rt_Lifecycle` отменяет внешние
+callbacks и освобождает runtime-граф; после успешного импорта на следующем тике
+создаётся новая страница Main и заново регистрируются routes.
 
-### Стратегии обновления: от простой к надежной
+Стандартные модули и классы обновляются in-place. Удаляются только stale-компоненты,
+исходных файлов которых больше нет. Это сохраняет COM/type identity VBA-классов и
+не оставляет Shape привязанными к старым instance.
 
-1. Прямой вызов обновления в том же call stack
-	- Пример: вызывать `ex_Core.fn_Dev_UpdateCodeByDate` напрямую из кнопки UI.
-	- Плюсы: самая простая реализация.
-	- Минусы: нет гарантированной пересборки роутов; обработчики могут устареть до следующего рендера.
+`ex_Core` остаётся автономным initial installer. Если в VBA-проекте нет ни одного
+обязательного runtime-компонента, Full Update выполняет первичный импорт без
+вызова lifecycle, после чего запускает обычную инициализацию Main. Если runtime
+установлен лишь частично, операция показывает отсутствующие компоненты и
+останавливается. Автоматического восстановления частичной установки и скрытых
+retry нет.
 
-2. Прямой update + ручной rerender после update
-	- Плюсы: лучше, чем прямой update без rerender.
-	- Минусы: легко забыть в отдельных точках входа; хрупко в сопровождении.
+### Открытие и закрытие книги
 
-3. Оркестрируемый deferred update + авто rerender (рекомендуется)
-	- Реализован в `rt_CoreActions`.
-	- Схема:
-	  1) сохранить контекст текущей страницы,
-	  2) запланировать update (`OnTime`),
-	  3) автоматически выполнить rerender.
-	- Плюсы: роуты и визуальное runtime-состояние пересобираются предсказуемо.
-	- Минусы: больше orchestration-кода.
-
-4. Транзакционный hot-reload с rollback
-	- Максимальная надежность, максимальная сложность.
-	- Обычно избыточно для текущего этапа проекта.
-
-### Текущее правило проекта
-
-Для UI-триггеров обновления кода использовать `rt_CoreActions`, а не прямой вызов `ex_Core.m_Dev_Update*` из кнопок.
-Так гарантируется, что после update всегда будет rerender, и роуты кнопок будут пересобраны.
-
-### Flow обновления: новый `.xlsm`, только `ex_Core`
-
-Сценарий: открыт новый файл, в VBA пока добавлен только `ex_Core`, остальные runtime-модули еще не импортированы.
-
-```text
-[Запуск macro: ex_Core.fn_Dev_UpdateAllModules]
-        |
-        v
-private_TryQueueRuntimeUpdateWhenBridgeDispatch("full")
-        |
-        +-- rt_Bridge отсутствует -> queue = False (нормально для cold start)
-        |
-        v
-private_TryRunSafeUpdateByMode(...)
-        |
-        v
-private_TryBootstrapRuntimePipeline(...)
-        |
-        +-- runtime-компонентов нет -> bootstrapMode="full"
-                |
-                v
-        private_UpdateCodeByRegex(all, exclude ex_Core, FULL)
-        (импорт всех модулей/классов/листов/ThisWorkbook)
-                |
-                v
-        bootstrap done
-        |
-        v
-safe-update branch: "full-bootstrap-was-required"
-        |
-        v
-private_TryRecoverUiAfterUpdate(...)
-        |
-        +-- try restore snapshots/runtime (может быть пусто на первой загрузке)
-        +-- try rerender active page (обычно False на первой загрузке)
-        +-- fallback: ThisWorkbook.m_ResetWorkbookAndCreateMainPage(...)
-        +-- checkpoint: SavePageSnapshots + SaveRuntimeGlobalsSnapshot
-        +-- queue deferred restore (OnTime +1s)
-        |
-        v
-[через OnTime] rt_RestoreManager.fn_RunDeferredRuntimeStateRestore
-        |
-        +-- если runtime page уже есть -> restore globals
-        +-- иначе restore pages + restore globals
-        +-- если fail/restoredPages=0 -> fallback reset Main + resave checkpoints
-```
+Единственная event-точка запуска — `ThisWorkbook.Workbook_Open`; `Auto_Open` и
+дополнительные bootstrap-макросы не используются. Cold open и восстановление
+после Update Code вызывают один `rt_Lifecycle.fn_InitializeRuntime`. При закрытии сначала
+фиксируется решение пользователя о сохранении, затем `rt_Lifecycle` выполняет
+две фазы: отменяет все зарегистрированные `OnTime` callbacks и только после
+этого освобождает COM-ресурсы, страницы, controllers и runtime registries.
+Владелец каждого callback хранит его точное время и имя макроса. Ошибка отмены
+останавливает закрытие до начала dispose, поэтому закрытая книга не может быть
+повторно открыта Excel ради оставшейся отложенной задачи.
 
 ## DevTools Import Rules
 `ex_Core.fn_Dev_UpdateCodeByDate` scans only root `vba\` and imports recursively (max depth `4`).
@@ -166,19 +114,19 @@ Files that do not match these patterns are ignored by importer.
 ## Test helpers
 Run from `ex_Test`:
 - `fn_TEST_RenderDevUI`
-	- renders `ui\DevUI.xml` on active worksheet.
+	- renders `ui\MainUI.xml` on active worksheet.
 - `fn_TEST_RegisterDemoListItems`
 	- registers demo collection under itemsSource key `Test.People`.
 - `m_TEST_RenderDevListUI`
-	- registers demo table collections and renders nested-list table demo `ui\DevListUI.xml`.
+	- registers demo table collections and renders nested-list table demo `ui\Dev\DevTableListUI.xml`.
 - `fn_TEST_RenderDevTableListUI`
 	- alias for table list demo render.
 - `fn_TEST_RenderDevPrimitiveTableUI`
-	- renders `ui\DevPrimitiveTableUI.xml` with table-like nested list templates built from primitive controls.
+	- renders `ui\Dev\DevPrimitiveTableUI.xml` with table-like nested list templates built from primitive controls.
 - `fn_TEST_RenderDevListTableSingleUI`
-	- registers demo 20 tables and renders `ui\DevListTableSingleUI.xml` (`List + itemsSourceTemplate + TableSingle` per item).
+	- registers demo 20 tables and renders `ui\Dev\DevListTableSingleUI.xml` (`List + itemsSourceTemplate + TableSingle` per item).
 - `fn_TEST_RenderDevTablePartStylesUI`
-	- renders `ui\DevTablePartStylesUI.xml` with `controlPart` selector rules for `TableList` sections.
+	- renders `ui\Dev\DevTablePartStylesUI.xml` with `controlPart` selector rules for `TableList` sections.
 - `fn_TEST_SetDemoTableItemsMany`
 	- updates `RuntimeItems.Test.Tables` with 20 tables; if a page was rendered already, triggers full page rerender.
 - `fn_TEST_SetDemoTableItemsSingle`
@@ -355,7 +303,7 @@ Call pageBase.RuntimeSources.SetObjectSource("RuntimeObjects.Test.Banner", banne
 
 - `ex_LayoutControlRenderer.fn_Render(renderCtx, layoutControlNode, layoutRowStart, layoutColStart, layoutRowEnd, layoutColEnd)`
 	- validates control attributes against each control's contract (`obj_IControl.SupportsAttribute`).
-	- loads control template `obj_<Type>ControlUI.xml`, applies allowed overrides from page UI, and renders control VM class.
+	- clones the control node directly from page UI, validates VM attributes, and renders the control VM class without per-control XML file I/O.
 	- passes worksheet row/column bounds to controls rendered from worksheet-span layout path.
 	- triggers recursive rendering for template child controls via `ex_XmlLayoutEngine`.
 

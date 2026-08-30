@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <stackPanel orientation="horizontal">
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="HospitalHeader"
+            text="Hospital"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Input"
+            name="HospitalLookupInput"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PageEntityLookup'}"
+            value="{Binding Path=LookupQueryValues.Hospital}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="Hospital"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="FioHeader"
+            text="FIO"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Input"
+            name="FioLookupInput"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PageEntityLookup'}"
+            value="{Binding Path=LookupQueryValues.FIO}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="FIO"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="TvoHeader"
+            text="TVO"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Label"
+            name="TvoDraftCell"
+            text=""
+            style="tableDataCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="CommanderHeader"
+            text="Commander"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Input"
+            name="CommanderLookupInput"
+            dataContext="{PageRuntimeSource='RuntimeObjects.PageEntityLookup'}"
+            value="{Binding Path=LookupQueryValues.Commander}"
+            onChange="{Binding Method=OnLookupInputCellChangedCommand}"
+            onChangeArg="Commander"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="DateHeader"
+            text="Date"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Label"
+            name="DateDraftCell"
+            text=""
+            style="tableDataCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="ColumnRes2Header"
+            text="Colum Res 2"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Label"
+            name="ColumnRes2DraftCell"
+            text=""
+            style="tableDataCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+
+        <stackPanel orientation="vertical" spanColls="1" spanRows="2">
+          <control
+            type="Label"
+            name="ColumnRes3Header"
+            text="Colum Res 3"
+            style="tableHeaderCell"
+            spanColls="1"
+            spanRows="1"/>
+          <control
+            type="Label"
+            name="ColumnRes3DraftCell"
+            text=""
+            style="tableDataCell"
+            spanColls="1"
+            spanRows="1"/>
+        </stackPanel>
+      </stackPanel>
+
+      <stackPanel spanColls="7" spanRows="1"/>
+
+      <stackPanel orientation="vertical" spanColls="50">
+        <control
+          type="LookupCandidates"
+          name="LookupCandidatesTable"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageEntityLookup.Controller'}"
+          lookupFeature="{Binding Path=LookupFeature}"
+          itemsSource="{PageRuntimeSource='RuntimeItems.EntityLookup.CandidateTables'}"
+          itemVisibility="{Binding Path=RowCount; Op=gt; Value=0; TrueAs=Visible; FalseAs=Collapsed}"
+          spanColls="50"/>
+      </stackPanel>
+
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <stylePipelineStage name="default">
+      <layer name="entitylookup-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F2329;
+                fontColor:#E5E7EB;
+                borderColor:#111318;
+                borderWeight:thin;
+                width:15;
+                rowHeight:21;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="entitylookup-lookup-inputs">
+        <rule target="controlPart"
+              selector="type=input;part=cell"
+              styles="{
+                backColor:#2B3036;
+                fontColor:#F8FAFC;
+                borderColor:#6B7280;
+                borderWeight:thin;
+                horizontal:left;
+                vertical:center;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="entitylookup-labels">
+        <rule target="controlPart"
+              selector="type=tablelist;part=section"
+              styles="{
+                backColor:#242424;
+                fontColor:#00B0F0;
+                borderColor:#111318;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:center;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=header"
+              styles="{
+                backColor:#00370F;
+                fontColor:#92D050;
+                borderColor:#000000;
+                borderWeight:thin;
+                fontBold:false;
+                horizontal:center;
+                overflow:wrap;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=rows"
+              styles="{
+                backColor:#00370F;
+                fontColor:#F8FAFC;
+                borderColor:#000000;
+                borderWeight:thin;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:34;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

@@ -5,7 +5,7 @@ Option Explicit
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutStackPanelRenderer.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_LayoutStackPanelRenderer.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -20,9 +20,12 @@ Public Function fn_Render( _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
-    ByVal colEnd As Long _
+    ByVal colEnd As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     Dim stackDepth As Long
+    Dim pageBase As obj_PageBase
+    Dim containerName As String
 
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -39,7 +42,28 @@ Public Function fn_Render( _
 
     If Not renderCtx Is Nothing Then
         stackDepth = private_GetStackPanelDepth(layoutNode)
-        ex_StylePipelineEngine.fn_RegisterLayoutBound renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, "stackpanel", vbNullString, stackDepth
+        containerName = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(layoutNode, "name")))
+        ex_StylePipelineEngine.fn_RegisterLayoutBound _
+            renderCtx.Worksheet, rowStart, colStart, rowEnd, colEnd, _
+            "stackpanel", containerName, stackDepth
+
+        If VBA.Len(containerName) > 0 Then
+            ' Только именованный container доступен публичному partial-reflow API.
+            ' Безымянные stackPanel по-прежнему участвуют в retained layout tree,
+            ' но однозначно адресовать их из page/controller кода нельзя. Здесь
+            ' сохраняются именно фактические bounds последнего render — они
+            ' служат исходной областью очистки и точкой привязки нового subtree.
+            Set pageBase = renderCtx.Page.GetPageBase()
+            If pageBase Is Nothing Then Exit Function
+            If Not pageBase.RegisterLayoutContainer( _
+                containerName, _
+                "stackpanel", _
+                renderCtx.Worksheet.Name, _
+                rowStart, _
+                colStart, _
+                rowEnd, _
+                colEnd) Then Exit Function
+        End If
     End If
 
     fn_Render = ex_XmlLayoutEngine.fn_RenderContainerNodeInBounds( _
@@ -48,7 +72,8 @@ Public Function fn_Render( _
         layoutRowStart:=rowStart, _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
-        layoutColEnd:=colEnd)
+        layoutColEnd:=colEnd, _
+        dataContext:=dataContext)
 End Function
 
 Private Function private_GetStackPanelDepth(ByVal stackPanelNode As Object) As Long

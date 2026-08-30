@@ -1,0 +1,886 @@
+(async () => {
+    const FIND_TIMEOUT = 15000;
+    const FIND_INTERVAL = 400;
+    const MAX_DEPTH = 12;
+    const MAX_NODES = 60000;
+
+    const sleep = ms =>
+        new Promise(resolve => setTimeout(resolve, ms));
+
+    // ============================================================
+    //  1. CLEANUP ПРЕДЫДУЩИХ ВЕРСИЙ
+    // ============================================================
+
+    try {
+        window.__vagonModifierFix?.stop?.(true);
+    } catch {}
+
+    try {
+        window.__vagonCtrlHoldFix?.stop?.(true);
+    } catch {}
+
+    try {
+        window.__vagonPhantomAltFix?.stop?.(true);
+    } catch {}
+
+    if (window.__vagonClipboardToastObserver) {
+        try {
+            window.__vagonClipboardToastObserver.disconnect();
+        } catch {}
+
+        delete window.__vagonClipboardToastObserver;
+    }
+
+    // ============================================================
+    //  2. СКРЫТИЕ "Clipboard synced"
+    // ============================================================
+
+    const CLIPBOARD_TEXT =
+        /^Clipboard synced[.!]?$/i;
+
+    function hideClipboardToast(el) {
+        if (!(el instanceof HTMLElement)) {
+            return;
+        }
+
+        const text =
+            el.innerText?.trim();
+
+        if (
+            !text ||
+            !CLIPBOARD_TEXT.test(text)
+        ) {
+            return;
+        }
+
+        let toast = el.closest(
+            '[role="alert"], ' +
+            '[role="status"], ' +
+            '[aria-live], ' +
+            '[class*="toast" i], ' +
+            '[class*="snackbar" i], ' +
+            '[class*="notification" i], ' +
+            '[class*="message" i]'
+        );
+
+        if (!toast) {
+            let parent = el;
+
+            for (
+                let i = 0;
+                i < 5 && parent;
+                i++, parent = parent.parentElement
+            ) {
+                const style =
+                    getComputedStyle(parent);
+
+                const rect =
+                    parent.getBoundingClientRect();
+
+                if (
+                    (
+                        style.position === "fixed" ||
+                        style.position === "absolute"
+                    ) &&
+                    rect.width < 700 &&
+                    rect.height < 250
+                ) {
+                    toast = parent;
+                    break;
+                }
+            }
+        }
+
+        (toast || el).style.setProperty(
+            "display",
+            "none",
+            "important"
+        );
+    }
+
+    function scanForClipboardToast(root) {
+        if (!(root instanceof Element)) {
+            return;
+        }
+
+        hideClipboardToast(root);
+
+        root
+            .querySelectorAll("*")
+            .forEach(hideClipboardToast);
+    }
+
+    scanForClipboardToast(document.body);
+
+    const toastObserver =
+        new MutationObserver(mutations => {
+            for (const mutation of mutations) {
+                for (
+                    const node
+                    of mutation.addedNodes
+                ) {
+                    if (node instanceof Element) {
+                        scanForClipboardToast(node);
+                    }
+                }
+            }
+        });
+
+    toastObserver.observe(
+        document.documentElement,
+        {
+            childList: true,
+            subtree: true
+        }
+    );
+
+    window.__vagonClipboardToastObserver =
+        toastObserver;
+
+    // ============================================================
+    //  3. ПОИСК VAGON PERIPHERALS
+    // ============================================================
+
+    const isObject = value =>
+        value !== null &&
+        (
+            typeof value === "object" ||
+            typeof value === "function"
+        );
+
+    function isPeripheral(obj) {
+        try {
+            return (
+                isObject(obj) &&
+                typeof obj.sendPayload === "function" &&
+                typeof obj.processKeyDown === "function" &&
+                typeof obj.processKeyUp === "function" &&
+                typeof obj.startPendingCtrl === "function" &&
+                typeof obj.flushAsRealCtrlNow === "function" &&
+                isObject(obj.trackedModifiers)
+            );
+        } catch {
+            return false;
+        }
+    }
+
+    function collectRoots() {
+        const roots = [];
+
+        const add = value => {
+            if (isObject(value)) {
+                roots.push(value);
+            }
+        };
+
+        for (const el of document.querySelectorAll("*")) {
+            let names;
+
+            try {
+                names =
+                    Object.getOwnPropertyNames(el);
+            } catch {
+                continue;
+            }
+
+            for (const name of names) {
+                if (
+                    name.startsWith("__reactFiber$") ||
+                    name.startsWith("__reactProps$") ||
+                    name.startsWith("__reactContainer$") ||
+                    name === "_reactRootContainer" ||
+                    name === "__vueParentComponent" ||
+                    name === "__vue_app__"
+                ) {
+                    try {
+                        const descriptor =
+                            Object.getOwnPropertyDescriptor(
+                                el,
+                                name
+                            );
+
+                        if (
+                            descriptor &&
+                            "value" in descriptor
+                        ) {
+                            add(descriptor.value);
+                        }
+                    } catch {}
+                }
+            }
+        }
+
+        try {
+            const descriptors =
+                Object.getOwnPropertyDescriptors(
+                    window
+                );
+
+            for (
+                const [name, descriptor]
+                of Object.entries(descriptors)
+            ) {
+                if (
+                    /vagon|workstation|player|stream|peripheral|redux|store|react/i
+                        .test(name) &&
+                    "value" in descriptor
+                ) {
+                    add(descriptor.value);
+                }
+            }
+        } catch {}
+
+        return roots;
+    }
+
+    function searchGraph(roots) {
+        const queue = roots.map(value => ({
+            value,
+            depth: 0
+        }));
+
+        const seen = new WeakSet();
+        let checked = 0;
+
+        while (
+            queue.length &&
+            checked < MAX_NODES
+        ) {
+            const {
+                value,
+                depth
+            } = queue.shift();
+
+            if (!isObject(value)) {
+                continue;
+            }
+
+            try {
+                if (seen.has(value)) {
+                    continue;
+                }
+
+                seen.add(value);
+            } catch {
+                continue;
+            }
+
+            checked++;
+
+            if (isPeripheral(value)) {
+                console.log(
+                    `✅ Peripherals найден ` +
+                    `(${checked} объектов)`
+                );
+
+                return value;
+            }
+
+            if (depth >= MAX_DEPTH) {
+                continue;
+            }
+
+            if (
+                value === window ||
+                value === document ||
+                value instanceof Node
+            ) {
+                continue;
+            }
+
+            let descriptors;
+
+            try {
+                descriptors =
+                    Object.getOwnPropertyDescriptors(
+                        value
+                    );
+            } catch {
+                continue;
+            }
+
+            for (
+                const descriptor
+                of Object.values(descriptors)
+            ) {
+                if (!("value" in descriptor)) {
+                    continue;
+                }
+
+                const child =
+                    descriptor.value;
+
+                if (!isObject(child)) {
+                    continue;
+                }
+
+                queue.push({
+                    value: child,
+                    depth: depth + 1
+                });
+            }
+        }
+
+        return null;
+    }
+
+    async function findPeripheral() {
+        const started = Date.now();
+
+        while (
+            Date.now() - started < FIND_TIMEOUT
+        ) {
+            if (
+                isPeripheral(
+                    window.__vagonPeripheral
+                )
+            ) {
+                console.log(
+                    "✅ Используется существующий " +
+                    "__vagonPeripheral"
+                );
+
+                return window.__vagonPeripheral;
+            }
+
+            const result =
+                searchGraph(collectRoots());
+
+            if (result) {
+                return result;
+            }
+
+            console.log(
+                "🔎 Peripherals пока не найден..."
+            );
+
+            await sleep(FIND_INTERVAL);
+        }
+
+        return null;
+    }
+
+    console.log(
+        "🔎 Ищу Vagon Peripherals..."
+    );
+
+    const p =
+        await findPeripheral();
+
+    if (!p) {
+        console.error(
+            "❌ Vagon Peripherals не найден.\n" +
+            '🙈 Скрытие "Clipboard synced" ' +
+            "продолжает работать."
+        );
+
+        return;
+    }
+
+    window.__vagonPeripheral = p;
+
+    // ============================================================
+    //  4. СОСТОЯНИЕ ФИЗИЧЕСКИХ MODIFIER KEYS
+    // ============================================================
+
+    const physicalCtrls = new Set();
+    const physicalAlts = new Set();
+
+    let realCtrlUpAllowance = 0;
+    let realAltUpAllowance = 0;
+
+    /*
+     * Настоящий KeyboardEvent Ctrl.
+     *
+     * Нужен для исправления 15-мс race Vagon.
+     */
+    let pendingCtrlEvent = null;
+
+    function isCtrlCode(code) {
+        return (
+            code === "ControlLeft" ||
+            code === "ControlRight"
+        );
+    }
+
+    function isAltCode(code) {
+        return (
+            code === "AltLeft" ||
+            code === "AltRight"
+        );
+    }
+
+    // ============================================================
+    //  5. ФИЛЬТР SENDPAYLOAD
+    // ============================================================
+
+    const originalSendPayload =
+        p.sendPayload;
+
+    function parsePayload(payload) {
+        if (
+            payload &&
+            typeof payload === "object"
+        ) {
+            return payload;
+        }
+
+        if (typeof payload !== "string") {
+            return null;
+        }
+
+        try {
+            return JSON.parse(payload);
+        } catch {
+            return null;
+        }
+    }
+
+    function isKeyboardPayload(obj) {
+        return (
+            obj &&
+            String(obj.$type) === "1"
+        );
+    }
+
+    function isControlPayload(obj) {
+        if (!isKeyboardPayload(obj)) {
+            return false;
+        }
+
+        return (
+            obj.k === "Control" ||
+            obj.c === "ControlLeft" ||
+            obj.c === "ControlRight"
+        );
+    }
+
+    function isAltPayload(obj) {
+        if (!isKeyboardPayload(obj)) {
+            return false;
+        }
+
+        return (
+            obj.k === "Alt" ||
+            obj.k === "AltGraph" ||
+            obj.c === "AltLeft" ||
+            obj.c === "AltRight"
+        );
+    }
+
+    function filteredSendPayload(payload) {
+        const obj =
+            parsePayload(payload);
+
+        // --------------------------------------------------------
+        // CTRL UP
+        // --------------------------------------------------------
+
+        if (
+            isControlPayload(obj) &&
+            obj.u === true
+        ) {
+            /*
+             * Физический Ctrl всё ещё зажат.
+             * Запрещаем Vagon отпускать его.
+             */
+            if (physicalCtrls.size > 0) {
+                console.log(
+                    "🚫 Phantom Ctrl UP blocked:",
+                    obj
+                );
+
+                return;
+            }
+
+            /*
+             * Настоящий физический отпуск Ctrl.
+             */
+            if (realCtrlUpAllowance > 0) {
+                realCtrlUpAllowance--;
+
+                console.log(
+                    "✅ Real Ctrl UP allowed"
+                );
+
+                return Reflect.apply(
+                    originalSendPayload,
+                    p,
+                    [payload]
+                );
+            }
+        }
+
+        // --------------------------------------------------------
+        // ALT UP
+        // --------------------------------------------------------
+
+        if (
+            isAltPayload(obj) &&
+            obj.u === true
+        ) {
+            /*
+             * Настоящий Alt всё ещё удерживается.
+             */
+            if (physicalAlts.size > 0) {
+                return Reflect.apply(
+                    originalSendPayload,
+                    p,
+                    [payload]
+                );
+            }
+
+            /*
+             * Настоящий физический отпуск Alt.
+             */
+            if (realAltUpAllowance > 0) {
+                realAltUpAllowance--;
+
+                console.log(
+                    "✅ Real Alt UP allowed"
+                );
+
+                return Reflect.apply(
+                    originalSendPayload,
+                    p,
+                    [payload]
+                );
+            }
+
+            /*
+             * Vagon сам отправляет Alt UP,
+             * пока пользователь держит Ctrl.
+             */
+            if (physicalCtrls.size > 0) {
+                console.log(
+                    "🚫 Phantom Alt UP blocked:",
+                    obj
+                );
+
+                return;
+            }
+        }
+
+        return Reflect.apply(
+            originalSendPayload,
+            p,
+            [payload]
+        );
+    }
+
+    p.sendPayload =
+        filteredSendPayload;
+
+    // ============================================================
+    //  6. ПРЯМАЯ ОТПРАВКА KEY DOWN
+    // ============================================================
+
+    function sendKeyDownDirect(e) {
+        const fallbackKeyCode =
+            e.code === "KeyC"
+                ? 67
+                : e.code === "KeyV"
+                    ? 86
+                    : 0;
+
+        const keyCode =
+            e.keyCode ||
+            e.which ||
+            fallbackKeyCode;
+
+        const payload =
+            JSON.stringify({
+                $type: "1",
+                k: e.key,
+                kc: keyCode,
+                c: e.code,
+                u: false
+            });
+
+        /*
+         * Через наш filteredSendPayload.
+         *
+         * Для C/V down он ничего не блокирует.
+         */
+        p.sendPayload(payload);
+    }
+
+    // ============================================================
+    //  7. KEYDOWN
+    // ============================================================
+
+    function onKeyDown(e) {
+        if (!e.isTrusted) {
+            return;
+        }
+
+        // --------------------------------------------------------
+        // ФИЗИЧЕСКИЙ CTRL
+        // --------------------------------------------------------
+
+        if (isCtrlCode(e.code)) {
+            physicalCtrls.add(e.code);
+
+            /*
+             * Сохраняем настоящий Ctrl event.
+             */
+            pendingCtrlEvent = e;
+
+            return;
+        }
+
+        // --------------------------------------------------------
+        // ФИЗИЧЕСКИЙ ALT
+        // --------------------------------------------------------
+
+        if (isAltCode(e.code)) {
+            physicalAlts.add(e.code);
+            return;
+        }
+
+        // --------------------------------------------------------
+        // FIX:
+        // ПЕРВЫЙ CTRL+C / CTRL+V ТЕРЯЕТСЯ
+        // --------------------------------------------------------
+
+        const isCV =
+            e.code === "KeyC" ||
+            e.code === "KeyV";
+
+        if (
+            isCV &&
+            e.ctrlKey &&
+            physicalCtrls.size > 0 &&
+            p.ctrlMaybeAltGr === true &&
+            pendingCtrlEvent
+        ) {
+            /*
+             * Вот здесь штатный keyDownHandler Vagon
+             * сделал бы:
+             *
+             * flushAsRealCtrlNow();
+             * return;
+             *
+             * и C/V потерялась бы.
+             *
+             * Поэтому не даём событию дойти туда.
+             */
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            try {
+                /*
+                 * Убираем 15-мс ожидание AltGr.
+                 */
+                p.flushAsRealCtrlNow();
+
+                /*
+                 * Vagon ещё НЕ отправил Ctrl down.
+                 *
+                 * Отправляем сохранённый настоящий
+                 * Ctrl KeyboardEvent через его же
+                 * processKeyDown().
+                 */
+                if (
+                    p.trackedModifiers?.Control !== true
+                ) {
+                    p.processKeyDown(
+                        pendingCtrlEvent
+                    );
+                }
+
+                /*
+                 * А C/V down отправляем напрямую.
+                 *
+                 * Это особенно полезно для V:
+                 * здесь мы вообще не запускаем
+                 * navigator.clipboard.readText().
+                 */
+                sendKeyDownDirect(e);
+
+                console.log(
+                    `⚡ Early Ctrl+${e.code === "KeyC" ? "C" : "V"} recovered`
+                );
+            } catch (error) {
+                console.error(
+                    "❌ Early Ctrl combo fix error:",
+                    error
+                );
+            }
+
+            return;
+        }
+    }
+
+    // ============================================================
+    //  8. KEYUP
+    // ============================================================
+
+    function onKeyUp(e) {
+        // --------------------------------------------------------
+        // CTRL
+        // --------------------------------------------------------
+
+        if (isCtrlCode(e.code)) {
+            if (physicalCtrls.has(e.code)) {
+                realCtrlUpAllowance++;
+            }
+
+            physicalCtrls.delete(e.code);
+
+            /*
+             * Если отпущен последний Ctrl,
+             * старый event больше не нужен.
+             */
+            if (physicalCtrls.size === 0) {
+                pendingCtrlEvent = null;
+            }
+
+            return;
+        }
+
+        // --------------------------------------------------------
+        // ALT
+        // --------------------------------------------------------
+
+        if (isAltCode(e.code)) {
+            if (physicalAlts.has(e.code)) {
+                realAltUpAllowance++;
+            }
+
+            physicalAlts.delete(e.code);
+        }
+    }
+
+    /*
+     * window/capture выполняется ДО document/capture,
+     * где Vagon слушает клавиатуру.
+     */
+    window.addEventListener(
+        "keydown",
+        onKeyDown,
+        true
+    );
+
+    window.addEventListener(
+        "keyup",
+        onKeyUp,
+        true
+    );
+
+    // ============================================================
+    //  9. УПРАВЛЕНИЕ
+    // ============================================================
+
+    window.__vagonModifierFix = {
+        version: 3,
+
+        peripheral: p,
+        toastObserver,
+
+        status() {
+            console.log({
+                active: true,
+                version: 3,
+
+                physicalCtrls:
+                    [...physicalCtrls],
+
+                physicalAlts:
+                    [...physicalAlts],
+
+                realCtrlUpAllowance,
+                realAltUpAllowance,
+
+                pendingCtrlEvent:
+                    pendingCtrlEvent?.code || null,
+
+                ctrlMaybeAltGr:
+                    p.ctrlMaybeAltGr,
+
+                vagonTrackedControl:
+                    p.trackedModifiers?.Control,
+
+                vagonTrackedAlt:
+                    p.trackedModifiers?.Alt,
+
+                clipboardToastHider:
+                    true,
+
+                pressedKeys:
+                    p.pressedKeys
+            });
+        },
+
+        stop(silent = false) {
+            window.removeEventListener(
+                "keydown",
+                onKeyDown,
+                true
+            );
+
+            window.removeEventListener(
+                "keyup",
+                onKeyUp,
+                true
+            );
+
+            if (
+                p.sendPayload ===
+                filteredSendPayload
+            ) {
+                p.sendPayload =
+                    originalSendPayload;
+            }
+
+            physicalCtrls.clear();
+            physicalAlts.clear();
+
+            pendingCtrlEvent = null;
+
+            realCtrlUpAllowance = 0;
+            realAltUpAllowance = 0;
+
+            try {
+                toastObserver.disconnect();
+            } catch {}
+
+            if (
+                window.__vagonClipboardToastObserver
+                === toastObserver
+            ) {
+                delete window.__vagonClipboardToastObserver;
+            }
+
+            if (!silent) {
+                console.log(
+                    "🛑 Vagon Modifier Fix V3 stopped"
+                );
+            }
+        }
+    };
+
+    // ============================================================
+    //  READY
+    // ============================================================
+
+    console.log(
+        "✅ Vagon Modifier Fix V3 ACTIVE"
+    );
+
+    console.log(
+        "✅ Phantom Ctrl UP fix"
+    );
+
+    console.log(
+        "✅ Phantom Alt UP fix"
+    );
+
+    console.log(
+        "✅ Early Ctrl+C / Ctrl+V fix"
+    );
+
+    console.log(
+        '🙈 "Clipboard synced" hidden'
+    );
+})();

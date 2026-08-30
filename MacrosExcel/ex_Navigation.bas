@@ -11,7 +11,7 @@ Public Sub m_GoToFirstSheet()
         Exit Sub
     End If
 
-    If wb.Worksheets.Count = 0 Then
+    If wb.Worksheets.count = 0 Then
         MsgBox "There are no worksheets to navigate to.", vbExclamation, "Navigation"
         Exit Sub
     End If
@@ -28,12 +28,12 @@ Public Sub m_GoToLastSheet()
         Exit Sub
     End If
 
-    If wb.Worksheets.Count = 0 Then
+    If wb.Worksheets.count = 0 Then
         MsgBox "There are no worksheets to navigate to.", vbExclamation, "Navigation"
         Exit Sub
     End If
 
-    wb.Worksheets(wb.Worksheets.Count).Activate
+    wb.Worksheets(wb.Worksheets.count).Activate
 End Sub
 
 Public Sub m_GoForwardBy10Sheets()
@@ -57,7 +57,7 @@ Public Sub m_MoveBySheetsOffset(ByVal offset As Long)
         Exit Sub
     End If
 
-    If wb.Worksheets.Count = 0 Then
+    If wb.Worksheets.count = 0 Then
         MsgBox "There are no worksheets to navigate to.", vbExclamation, "Navigation"
         Exit Sub
     End If
@@ -73,7 +73,7 @@ Public Sub m_MoveBySheetsOffset(ByVal offset As Long)
     End If
 
     currentIndex = ws.Index
-    maxIndex = wb.Worksheets.Count
+    maxIndex = wb.Worksheets.count
     targetIndex = currentIndex + offset
 
     If targetIndex < 1 Then targetIndex = 1
@@ -94,7 +94,7 @@ Public Sub m_DeleteCurrentSheetWithConfirm()
         Exit Sub
     End If
 
-    If wb.Worksheets.Count <= 1 Then
+    If wb.Worksheets.count <= 1 Then
         MsgBox "You cannot delete the last worksheet in the workbook.", vbExclamation, "Navigation"
         Exit Sub
     End If
@@ -165,8 +165,8 @@ Public Sub m_CopyCurrentSheetToEndWithName()
     Loop
 
     On Error GoTo EH
-    ws.Copy After:=wb.Worksheets(wb.Worksheets.Count)
-    Set copiedWs = wb.Worksheets(wb.Worksheets.Count)
+    ws.Copy After:=wb.Worksheets(wb.Worksheets.count)
+    Set copiedWs = wb.Worksheets(wb.Worksheets.count)
     copiedWs.Name = newName
     Exit Sub
 EH:
