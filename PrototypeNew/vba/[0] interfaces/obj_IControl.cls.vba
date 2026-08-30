@@ -17,6 +17,14 @@ End Sub
 Public Sub Render()
 End Sub
 
+Public Function Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+End Function
+
 Public Function IsConfigured() As Boolean
 End Function
 

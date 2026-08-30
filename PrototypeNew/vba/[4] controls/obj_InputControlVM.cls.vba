@@ -15,21 +15,25 @@ Private m_ControlName As String
 Private m_ValueRaw As String
 Private m_ValueResolved As String
 Private m_OnChangeRaw As String
+Private m_OnChangeArgRaw As String
+Private m_OnChangeArgResolved As Variant
+Private m_HasOnChangeArg As Boolean
 Private m_OnChangeMacroRef As String
 Private m_CallbackContext As Object
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 Private m_Page As obj_IPage
+Private m_RenderedInputRange As Range
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -42,7 +46,7 @@ End Sub
 ' //
 Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     m_IsDisposed = False
     m_IsConfigured = False
@@ -52,7 +56,7 @@ End Function
 
 Private Sub obj_IControl_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -62,6 +66,7 @@ Private Sub obj_IControl_Dispose()
     Set m_ControlLayout = Nothing
     Set m_CallbackContext = Nothing
     Set m_Page = Nothing
+    Set m_RenderedInputRange = Nothing
     m_RuntimeControlKey = VBA.vbNullString
     m_IsConfigured = False
     On Error GoTo 0
@@ -75,7 +80,10 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     Set m_ControlLayout = Nothing
     Set m_ControlBase = Nothing
     Set m_CallbackContext = Nothing
+    Set m_RenderedInputRange = Nothing
     m_ValueResolved = VBA.vbNullString
+    m_OnChangeArgRaw = VBA.vbNullString
+    m_HasOnChangeArg = False
     m_RuntimeControlKey = VBA.vbNullString
 
     Set pageBase = m_Page.GetPageBase()
@@ -106,6 +114,11 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If VBA.Len(VBA.Trim$(m_OnChangeRaw)) > 0 Then
         If Not private_TryResolveCallbackRef(m_OnChangeRaw, m_CallbackContext, m_OnChangeMacroRef) Then Exit Sub
     End If
+    m_OnChangeArgRaw = VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "onChangeArg"))
+    If VBA.Len(VBA.Trim$(m_OnChangeArgRaw)) > 0 Then
+        If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnChangeArgRaw, dataContext, m_OnChangeArgResolved) Then Exit Sub
+        m_HasOnChangeArg = True
+    End If
 
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Input", m_ControlName, "style") Then Exit Sub
@@ -117,6 +130,7 @@ End Sub
 Private Sub obj_IControl_Render()
     Dim ws As Worksheet
     Dim inputCell As Range
+    Dim inputRange As Range
     Dim currentValue As String
     Dim pageBase As obj_PageBase
 
@@ -145,23 +159,22 @@ Private Sub obj_IControl_Render()
     End If
 
     On Error GoTo EH_RANGE
+    Set inputRange = ws.Range(ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart), ws.Cells(m_ControlLayout.RowEnd, m_ControlLayout.ColEnd))
+    If inputRange.Cells.CountLarge > 1 Then inputRange.Merge
     Set inputCell = ws.Cells(m_ControlLayout.RowStart, m_ControlLayout.ColStart)
     On Error GoTo 0
 
     If inputCell Is Nothing Then Exit Sub
-
-    If m_ControlLayout.RowEnd <> m_ControlLayout.RowStart Or m_ControlLayout.ColEnd <> m_ControlLayout.ColStart Then
-#If LOGGING_DEBUG_ENABLED Then
-        ex_Core.fn_Diagnostic_LogWarning "Input: control '" & m_ControlName & "' is forced to a single cell (" & inputCell.Address(False, False) & ")."
-#End If
-    End If
+    Set m_RenderedInputRange = inputRange
 
     ' Для input всегда фиксируем текстовый формат, чтобы Excel не съедал пользовательский ввод
     ' (даты/коды/лидирующие нули) до того, как onChange обработает значение.
-    inputCell.NumberFormat = "@"
-    inputCell.HorizontalAlignment = xlHAlignLeft
-    inputCell.VerticalAlignment = xlVAlignCenter
-    inputCell.WrapText = False
+    inputRange.NumberFormat = "@"
+    inputRange.HorizontalAlignment = xlHAlignLeft
+    inputRange.VerticalAlignment = xlVAlignCenter
+    inputRange.WrapText = False
+    If Not private_ApplyPresetStyle(inputRange, m_ControlLayout.StyleName) Then Exit Sub
+    If Not private_RegisterControlPart(ws, inputRange) Then Exit Sub
 
     currentValue = VBA.Trim$(VBA.CStr(inputCell.Value2))
 
@@ -180,9 +193,20 @@ EH_RANGE:
 #End If
 End Sub
 
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    outSpanRows = 1
+    outSpanColls = 1
+    obj_IControl_Measure = True
+End Function
+
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "value", "text", "onchange", "onchangemacro"
+        Case "value", "text", "onchange", "onchangemacro", "onchangearg"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -195,18 +219,78 @@ End Function
 ' // API
 ' //
 Public Function RuntimeHandleCellChange(Optional ByVal changedCellAddress As String = VBA.vbNullString) As Boolean
+    Dim callbackPayload As Object
+
     If VBA.Len(VBA.Trim$(m_OnChangeMacroRef)) = 0 Then
         RuntimeHandleCellChange = True
         Exit Function
     End If
 
     changedCellAddress = VBA.Trim$(changedCellAddress)
-    RuntimeHandleCellChange = rt_Bridge.fn_RunCallback(m_OnChangeMacroRef, m_CallbackContext, changedCellAddress)
+    If m_HasOnChangeArg Then
+        Set callbackPayload = private_BuildCellChangePayload(changedCellAddress)
+        RuntimeHandleCellChange = rt_Bridge.fn_RunCallback(m_OnChangeMacroRef, m_CallbackContext, callbackPayload)
+    Else
+        RuntimeHandleCellChange = rt_Bridge.fn_RunCallback(m_OnChangeMacroRef, m_CallbackContext, changedCellAddress)
+    End If
+End Function
+
+Public Function TryGetValue(ByRef outValue As String) As Boolean
+    outValue = VBA.vbNullString
+    If m_RenderedInputRange Is Nothing Then Exit Function
+
+    ' Контрол владеет ссылкой на свой rendered Range. Consumers не должны
+    ' восстанавливать ячейку через глобальный индекс visual parts: тот индекс
+    ' предназначен для styles/layout и может меняться при partial render.
+    outValue = VBA.Trim$(VBA.CStr(m_RenderedInputRange.Cells(1, 1).Value2))
+    TryGetValue = True
+End Function
+
+Public Function ClearValue() As Boolean
+    If m_RenderedInputRange Is Nothing Then Exit Function
+    m_RenderedInputRange.ClearContents
+    ClearValue = True
 End Function
 
 ' //
 ' // Internal
 ' //
+Private Function private_ApplyPresetStyle(ByVal targetRange As Range, ByVal styleName As String) As Boolean
+    Dim pageBase As obj_PageBase
+
+    If targetRange Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    private_ApplyPresetStyle = ex_StylePipelineEngine.fn_ApplyRangeControlStyle( _
+        targetRange, pageBase.UiDom, styleName)
+End Function
+
+Private Function private_RegisterControlPart( _
+    ByVal ws As Worksheet, _
+    ByVal inputRange As Range _
+) As Boolean
+    If ws Is Nothing Then Exit Function
+    If inputRange Is Nothing Then Exit Function
+
+    private_RegisterControlPart = ex_ControlPartsRuntime.fn_RegisterControlPart( _
+        ws, _
+        "input", _
+        m_ControlName, _
+        "cell", _
+        inputRange)
+End Function
+
+Private Function private_BuildCellChangePayload(ByVal changedCellAddress As String) As Object
+    Dim payload As Object
+
+    Set payload = ex_Helpers.fn_CreateDictionaryTextCompare()
+    payload("ChangedCellAddress") = VBA.Trim$(changedCellAddress)
+    payload("Arg") = m_OnChangeArgResolved
+
+    Set private_BuildCellChangePayload = payload
+End Function
+
 Private Function private_TryBindRuntimeRoute(ByVal inputCell As Range) As Boolean
     Dim pageBase As obj_PageBase
 

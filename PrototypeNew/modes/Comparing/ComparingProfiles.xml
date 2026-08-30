@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="default" caption="Default">
+    <item attr="#" key="Profile.Name" value="Default"/>
+
+    <item attr="#" key="Left source" value=""/>
+    <item key="Source.Left.FilePath" value="..\TESTS\Comparing\EventsOld.xlsx"/>
+    <item key="Source.Left.SheetsAliases" value="LeftMain"/>
+    <item key="Left.Sheet[LeftMain].SheetName" value="EventsSheet$F3:I10000"/>
+    <item key="Left.Sheet[LeftMain].ColumnHeadersAliases" value="Name; Age; City; Event"/>
+    <item key="Left.Sheet[LeftMain].Map[Name]" value="Имя"/>
+    <item key="Left.Sheet[LeftMain].Map[Age]" value="Возраст"/>
+    <item key="Left.Sheet[LeftMain].Map[City]" value="Город"/>
+    <item key="Left.Sheet[LeftMain].Map[Event]" value="Событие"/>
+
+    <item attr="#" key="Right source" value=""/>
+    <item key="Source.Right.FilePath" value="..\TESTS\Comparing\EventsNew.xlsx"/>
+    <item key="Source.Right.SheetsAliases" value="RightMain"/>
+    <item key="Right.Sheet[RightMain].SheetName" value="EventsSheet$F3:I10000"/>
+    <item key="Right.Sheet[RightMain].ColumnHeadersAliases" value="Name; Age; City; Event"/>
+    <item key="Right.Sheet[RightMain].Map[Name]" value="Имя"/>
+    <item key="Right.Sheet[RightMain].Map[Age]" value="Возраст"/>
+    <item key="Right.Sheet[RightMain].Map[City]" value="Город"/>
+    <item key="Right.Sheet[RightMain].Map[Event]" value="Событие"/>
+
+    <item attr="#" key="Comparing mode" value=""/>
+    <item key="Comparing.LeftTable" value="Left.Sheet[LeftMain]"/>
+    <item key="Comparing.RightTable" value="Right.Sheet[RightMain]"/>
+    <item key="Comparing.KeyColumns" value="Name"/>
+    <item key="Comparing.CompareColumns" value="Age; City; Event"/>
+    <item key="Comparing.IgnoreCase" value="true"/>
+    <item key="Comparing.TrimText" value="true"/>
+  </profile>
+
+  <profile id="personnel_absence_test_files" caption="Compare Test">
+    <item attr="#" key="Profile.Name" value="PersonnelAbsenceTestFiles"/>
+
+    <item attr="#" key="Left source" value=""/>
+    <!-- <item key="Source.Left.FilePath" value="C:\WORK Alexandr Bondarenko\ЕЖОС\РУХ_2026.06.20.xlsx"/> -->
+    <item key="Source.Left.FilePath" value="..\TESTS\Comparing\EventsOld.xlsx"/>
+    <item key="Source.Left.SheetsAliases" value="AbsentLeft"/>
+    <item key="Left.Sheet[AbsentLeft].SheetName" value="EventsSheet$B2:Q10000"/>
+    <item key="Left.Sheet[AbsentLeft].ColumnHeadersAliases" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate; OutDate; OutTerm; PlannedReturnDate; ReturnDate; ReturnFoodDate; ReturnOrder; OutReason; ReturnReason"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Rank]" value="Звання"/>
+    <item key="Left.Sheet[AbsentLeft].Map[FullName]" value="ПІБ"/>
+    <item key="Left.Sheet[AbsentLeft].Map[TaxId]" value="ІПН"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Position]" value="Посада"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Event]" value="Подія"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Destination]" value="Куди"/>
+    <item key="Left.Sheet[AbsentLeft].Map[IsOutside]" value="За межі"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutOrder]" value="Наказ вибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutFoodDate]" value="З продовольчого"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutDate]" value="Вибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutTerm]" value="Термін вибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[PlannedReturnDate]" value="Планове прибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnDate]" value="Прибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnFoodDate]" value="На продовольче"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnOrder]" value="Наказ прибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutReason]" value="Підстава вибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnReason]" value="Підстава прибуття"/>
+
+    <item attr="#" key="Right source" value=""/>
+    <item key="Source.Right.FilePath" value="C:\WORK Alexandr Bondarenko\ЕЖОС\РУХ_2026.06.21.xlsx"/>
+    <item key="Source.Right.FilePath" value="..\TESTS\Comparing\EventsNew.xlsx"/>
+    <item key="Source.Right.SheetsAliases" value="AbsentRight"/>
+    <item key="Right.Sheet[AbsentRight].SheetName" value="EventsSheet$B2:Q10000"/>
+    <item key="Right.Sheet[AbsentRight].ColumnHeadersAliases" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate; OutDate; OutTerm; PlannedReturnDate; ReturnDate; ReturnFoodDate; ReturnOrder; OutReason; ReturnReason"/>
+    <item key="Right.Sheet[AbsentRight].Map[Rank]" value="Звання"/>
+    <item key="Right.Sheet[AbsentRight].Map[FullName]" value="ПІБ"/>
+    <item key="Right.Sheet[AbsentRight].Map[TaxId]" value="ІПН"/>
+    <item key="Right.Sheet[AbsentRight].Map[Position]" value="Посада"/>
+    <item key="Right.Sheet[AbsentRight].Map[Event]" value="Подія"/>
+    <item key="Right.Sheet[AbsentRight].Map[Destination]" value="Куди"/>
+    <item key="Right.Sheet[AbsentRight].Map[IsOutside]" value="За межі"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutOrder]" value="Наказ вибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutFoodDate]" value="З продовольчого"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutDate]" value="Вибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutTerm]" value="Термін вибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[PlannedReturnDate]" value="Планове прибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnDate]" value="Прибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnFoodDate]" value="На продовольче"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnOrder]" value="Наказ прибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutReason]" value="Підстава вибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnReason]" value="Підстава прибуття"/>
+
+    <item attr="#" key="Comparing mode" value=""/>
+    <item key="Comparing.LeftTable" value="Left.Sheet[AbsentLeft]"/>
+    <item key="Comparing.RightTable" value="Right.Sheet[AbsentRight]"/>
+    <item key="Comparing.KeyColumns" value="TaxId; Event; OutDate; OutOrder"/>
+    <item key="Comparing.CompareColumns" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate{fmt:Date}; OutDate{fmt:Date}; OutTerm; PlannedReturnDate{fmt:Date}; ReturnDate{fmt:Date}; ReturnFoodDate{fmt:Date}; ReturnOrder; OutReason; ReturnReason"/>
+    <item key="Comparing.IgnoreCase" value="true"/>
+    <item key="Comparing.TrimText" value="true"/>
+  </profile>
+
+  <profile id="personnel_absence_local_files" caption="Compare Move">
+    <item attr="#" key="Profile.Name" value="PersonnelAbsenceLocalFiles"/>
+
+    <item attr="#" key="Left source" value=""/>
+    <item key="Source.Left.FilePath" value="C:\WORK Alexandr Bondarenko\ЕЖОС\РУХ_2026.06.25.xlsx"/>
+    <item key="Source.Left.SheetsAliases" value="AbsentLeft"/>
+    <item key="Left.Sheet[AbsentLeft].SheetName" value="Відсутні$B6:Y20000"/>
+    <item key="Left.Sheet[AbsentLeft].ColumnHeadersAliases" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate; OutDate; OutTerm; AdditionalRoadDays; AdditionalDonationDays; PlannedReturnDate; ReturnDate; ReturnFoodDate; ReturnOrder; OutReason; ReturnReason"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Rank]" value="Звання"/>
+    <item key="Left.Sheet[AbsentLeft].Map[FullName]" value="ПІБ"/>
+    <item key="Left.Sheet[AbsentLeft].Map[TaxId]" value="ІПН"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Position]" value="Посада"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Event]" value="Подія"/>
+    <item key="Left.Sheet[AbsentLeft].Map[Destination]" value="Куди"/>
+    <item key="Left.Sheet[AbsentLeft].Map[IsOutside]" value="За межі"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutOrder]" value="Вибуття.Наказ"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutFoodDate]" value="Вибуття.Продовольче"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutDate]" value="Вибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutTerm]" value="Вибуття.Термін"/>
+    <item key="Left.Sheet[AbsentLeft].Map[AdditionalRoadDays]" value="Вибуття.Дорога"/>
+    <item key="Left.Sheet[AbsentLeft].Map[AdditionalDonationDays]" value="Вибуття.Додатково"/>
+    <item key="Left.Sheet[AbsentLeft].Map[PlannedReturnDate]" value="Прибуття.План"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnDate]" value="Прибуття"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnFoodDate]" value="Прибуття.Продовольче"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnOrder]" value="Прибуття.Наказ"/>
+    <item key="Left.Sheet[AbsentLeft].Map[OutReason]" value="Вибуття.Підстава"/>
+    <item key="Left.Sheet[AbsentLeft].Map[ReturnReason]" value="Прибуття.Підстава"/>
+
+    <item attr="#" key="Right source" value=""/>
+    <item key="Source.Right.FilePath" value="C:\WORK Alexandr Bondarenko\ЕЖОС\РУХ_2026.06.26.xlsx"/>
+    <item key="Source.Right.SheetsAliases" value="AbsentRight"/>
+    <item key="Right.Sheet[AbsentRight].SheetName" value="Відсутні$B6:Y20000"/>
+    <item key="Right.Sheet[AbsentRight].ColumnHeadersAliases" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate; OutDate; OutTerm; AdditionalRoadDays; AdditionalDonationDays; PlannedReturnDate; ReturnDate; ReturnFoodDate; ReturnOrder; OutReason; ReturnReason"/>
+    <item key="Right.Sheet[AbsentRight].Map[Rank]" value="Звання"/>
+    <item key="Right.Sheet[AbsentRight].Map[FullName]" value="ПІБ"/>
+    <item key="Right.Sheet[AbsentRight].Map[TaxId]" value="ІПН"/>
+    <item key="Right.Sheet[AbsentRight].Map[Position]" value="Посада"/>
+    <item key="Right.Sheet[AbsentRight].Map[Event]" value="Подія"/>
+    <item key="Right.Sheet[AbsentRight].Map[Destination]" value="Куди"/>
+    <item key="Right.Sheet[AbsentRight].Map[IsOutside]" value="За межі"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutOrder]" value="Вибуття.Наказ"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutFoodDate]" value="Вибуття.Продовольче"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutDate]" value="Вибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutTerm]" value="Вибуття.Термін"/>
+    <item key="Right.Sheet[AbsentRight].Map[AdditionalRoadDays]" value="Вибуття.Дорога"/>
+    <item key="Right.Sheet[AbsentRight].Map[AdditionalDonationDays]" value="Вибуття.Додатково"/>
+    <item key="Right.Sheet[AbsentRight].Map[PlannedReturnDate]" value="Прибуття.План"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnDate]" value="Прибуття"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnFoodDate]" value="Прибуття.Продовольче"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnOrder]" value="Прибуття.Наказ"/>
+    <item key="Right.Sheet[AbsentRight].Map[OutReason]" value="Вибуття.Підстава"/>
+    <item key="Right.Sheet[AbsentRight].Map[ReturnReason]" value="Прибуття.Підстава"/>
+
+    <item attr="#" key="Comparing mode" value=""/>
+    <item key="Comparing.LeftTable" value="Left.Sheet[AbsentLeft]"/>
+    <item key="Comparing.RightTable" value="Right.Sheet[AbsentRight]"/>
+    <item key="Comparing.KeyColumns" value="TaxId; FullName; Event; OutDate; OutOrder"/>
+    <item key="Comparing.CompareColumns" value="Rank; FullName; TaxId; Position; Event; Destination; IsOutside; OutOrder; OutFoodDate{fmt:Date}; OutDate{fmt:Date}; OutTerm; AdditionalRoadDays; AdditionalDonationDays; PlannedReturnDate{fmt:Date}; ReturnDate{fmt:Date}; ReturnFoodDate{fmt:Date}; ReturnOrder; OutReason; ReturnReason"/>
+    <item key="Comparing.IgnoreCase" value="true"/>
+    <item key="Comparing.TrimText" value="true"/>
+  </profile>
+</profiles>

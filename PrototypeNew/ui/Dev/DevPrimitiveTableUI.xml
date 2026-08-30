@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <templates>
+    <template name="primitiveTableTpl">
+      <stackPanel orientation="vertical">
+        <control type="Label" name="SectionTitle" text="{Binding Path=SectionTitle}" style="tableSection"/>
+        <list orientation="horizontal" itemsSource="{Binding Path=Columns}" itemsSourceTemplate="primitiveHeaderCellTpl"/>
+        <list orientation="vertical" itemsSource="{Binding Path=Rows}" itemsSourceTemplate="primitiveDataRowTpl"/>
+        <control type="Label" name="Spacer" text=" " style="tableSpacer"/>
+      </stackPanel>
+    </template>
+    <template name="primitiveHeaderCellTpl">
+      <control type="Label" name="HeaderCell" text="{Binding Path=Name}" style="tableHeaderCell"/>
+    </template>
+    <template name="primitiveDataRowTpl">
+      <list orientation="horizontal" itemsSource="{Binding Path=Cells}" itemsSourceTemplate="primitiveDataCellTpl"/>
+    </template>
+    <template name="primitiveDataCellTpl">
+      <control type="Label" name="DataCell" text="{Binding Path=Value}" style="tableDataCell"/>
+    </template>
+  </templates>
+  <grid anchorCell="A1">
+      <stackPanel at="r2c2" orientation="vertical">
+        <control
+          type="Button"
+          name="BackToDev"
+          caption="Back To Dev UI"
+          style="actionWarning"
+          onClick="{Binding Module=ex_Test;Method=fn_TEST_RenderDevUI}"
+          spanColls="4"
+          spanRows="2"/>
+
+        <control
+          type="TableTpl"
+          name="default"
+          itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
+          spanColls="12"
+          spanRows="260">
+          <list
+            itemsSource="{PageRuntimeSource='RuntimeItems.Test.Tables'}"
+            itemsSourceTemplate="primitiveTableTpl"
+            orientation="vertical"/>
+        </control>
+      </stackPanel>
+    </grid>
+
+<styles>
+    <controlStyle
+      name="actionWarning"
+      backColor="#ED7D31"
+      textColor="#0A0A0A"
+      borderColor="#A84912"
+      borderWeight="1.25"
+      fontName="Calibri"
+      fontSize="11"
+      fontBold="true"/>
+
+    <stylePipelineStage name="default">
+      <layer name="sheet-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#1F1F1F;
+                fontColor:#EAEAEA;
+                borderColor:#000000;
+                borderWeight:thin;
+              }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

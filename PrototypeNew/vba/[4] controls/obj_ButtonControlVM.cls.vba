@@ -18,24 +18,27 @@ Private m_ControlName As String
 Private m_CaptionRaw As String
 Private m_CaptionInlineSource As String
 Private m_OnClickRaw As String
+Private m_OnClickArgRaw As String
 Private m_ControlLayout As obj_ControlLayout
 Private m_CaptionText As String
 Private m_CaptionInlineTextPart As obj_InlineTextPart
 Private m_OnClickMacroRef As String
 Private m_OnClickCallbackContext As Object
+Private m_OnClickArgValue As Variant
+Private m_HasOnClickArg As Boolean
 Private m_RuntimeControlKey As String
 Private m_IsConfigured As Boolean
 Private m_Page As obj_IPage
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -48,7 +51,7 @@ End Sub
 ' //
 Private Function obj_IControl_Initialize(ByVal page As obj_IPage) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     m_IsDisposed = False
     Set m_Page = page
@@ -57,7 +60,7 @@ End Function
 
 Private Sub obj_IControl_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -89,6 +92,9 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     m_CaptionInlineSource = VBA.vbNullString
     m_CaptionText = VBA.vbNullString
     m_RuntimeControlKey = VBA.vbNullString
+    m_OnClickArgRaw = VBA.vbNullString
+    m_HasOnClickArg = False
+    m_OnClickArgValue = VBA.vbNullString
 
     Set pageBase = m_Page.GetPageBase()
     Set m_ControlBase = New obj_ControlBase
@@ -115,6 +121,13 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     If Not private_TryResolveCaptionInlineText(pageBase, m_CaptionInlineSource) Then Exit Sub
 
     Set callbackContext = dataContext
+    ' Предпочтительный способ выбрать целевой объект callback-а — указать DataContext
+    ' прямо в onClick binding:
+    '   onClick="{Binding DataContext={PageRuntimeSource='RuntimeObjects.Page.Controller'}; Method=DoWork}"
+    ' Тогда визуальный dataContext кнопки остается доступен для caption/onClickArg,
+    ' а событие клика вызывается на явно указанном runtime object.
+    If Not ex_BindingRuntime.fn_TryResolveBindingSourceObject(m_OnClickRaw, pageBase.RuntimeSources, dataContext, callbackContext) Then Exit Sub
+
     If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickRaw, callbackContext, onClickResolved) Then Exit Sub
     If VBA.IsObject(onClickResolved) Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -132,6 +145,22 @@ Private Sub obj_IControl_Configure(ByVal controlNode As Object)
     End If
     Set m_OnClickCallbackContext = callbackContext
 
+    ' Опциональный scalar-аргумент callback-а. Значение резолвится при Configure
+    ' относительно dataContext кнопки, а затем передается в RuntimeHandleClick.
+    ' Оставляем только scalar, потому что rt_Bridge передает его как один аргумент
+    ' метода, а не как runtime object source.
+    m_OnClickArgRaw = VBA.Trim$(VBA.CStr(ex_XmlCore.fn_NodeAttrText(controlNode, "onClickArg")))
+    If VBA.Len(m_OnClickArgRaw) > 0 Then
+        If Not ex_BindingRuntime.fn_TryResolveValueBinding(m_OnClickArgRaw, dataContext, m_OnClickArgValue) Then Exit Sub
+        If VBA.IsObject(m_OnClickArgValue) Then
+#If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "Button: onClickArg binding must resolve to scalar callback argument for control '" & m_ControlName & "'."
+#End If
+            Exit Sub
+        End If
+        m_HasOnClickArg = True
+    End If
+
     Set m_ControlLayout = New obj_ControlLayout
     If Not m_ControlLayout.TryReadFromNode(controlNode, "Button", m_ControlName, "style") Then Exit Sub
     m_RuntimeControlKey = "button|" & VBA.LCase$(VBA.Trim$(m_ControlLayout.LayoutSheetName & "|" & m_ControlName))
@@ -148,6 +177,10 @@ Private Sub obj_IControl_Render()
     Dim targetRange As Range
     Dim metaMap As Object
     Dim pageBase As obj_PageBase
+    Dim renderSignature As String
+    Dim previousRenderSignature As String
+    Dim visualUnchanged As Boolean
+    Dim geometryUnchanged As Boolean
 
     If Not m_IsConfigured Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -194,12 +227,29 @@ Private Sub obj_IControl_Render()
     End If
 
     buttonName = "btn_" & m_ControlName
+    ' Retained-signature отсекает повторные записи текста/meta. Геометрия ниже
+    ' проверяется отдельно: Excel мог сдвинуть Shape независимо от signature.
+    ' Callback в signature намеренно не входит: route регистрируется всегда.
+    renderSignature = private_BuildVisualSignature()
 
     Set shp = private_GetUiShapeByName(ws, buttonName)
     If shp Is Nothing Then
         Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
         shp.Name = buttonName
     Else
+        previousRenderSignature = ex_ShapeMetaRuntime.fn_GetShapeMetaValue(shp, "pn.renderSignature", VBA.vbNullString)
+        visualUnchanged = (VBA.StrComp(previousRenderSignature, renderSignature, VBA.vbBinaryCompare) = 0)
+    End If
+
+    ' Excel может физически сдвинуть Shape при Cut/Insert диапазонов во время
+    ' partial reflow. Логическая signature при этом не меняется, поэтому
+    ' геометрию сверяем отдельно с фактическим targetRange.
+    geometryUnchanged = _
+        private_DoublesClose(shp.Left, targetRange.Left) And _
+        private_DoublesClose(shp.Top, targetRange.Top) And _
+        private_DoublesClose(shp.Width, targetRange.Width) And _
+        private_DoublesClose(shp.Height, targetRange.Height)
+    If Not geometryUnchanged Then
         shp.Left = targetRange.Left
         shp.Top = targetRange.Top
         shp.Width = targetRange.Width
@@ -208,25 +258,33 @@ Private Sub obj_IControl_Render()
     shp.Placement = xlMoveAndSize
     If Not private_TryBindRuntimeRoute(shp) Then Exit Sub
 
-    On Error Resume Next
-    shp.TextFrame2.TextRange.Text = m_CaptionText
-    shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
-    shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
-    shp.TextFrame.Characters.Text = m_CaptionText
-    shp.TextFrame.HorizontalAlignment = xlHAlignCenter
-    shp.TextFrame.VerticalAlignment = xlVAlignCenter
+    If Not visualUnchanged Then
+        On Error Resume Next
+        shp.TextFrame2.TextRange.Text = m_CaptionText
+        shp.TextFrame2.VerticalAnchor = msoAnchorMiddle
+        shp.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+        shp.TextFrame.Characters.Text = m_CaptionText
+        shp.TextFrame.HorizontalAlignment = xlHAlignCenter
+        shp.TextFrame.VerticalAlignment = xlVAlignCenter
+        On Error GoTo EH_BUTTON
+    End If
+    ' Inline-runs живут в реестре одного render-прохода. Даже при сохраненном
+    ' Shape их нужно зарегистрировать заново, иначе цветовые участки caption
+    ' пропадут после ResetInlineRuns в PageBase.
     If Not private_RegisterCaptionInlineRuns(pageBase, shp) Then Exit Sub
 
-    Set metaMap = VBA.CreateObject("Scripting.Dictionary")
-    metaMap.CompareMode = 1
-    metaMap("pn.control") = m_ControlName
-    If VBA.Len(VBA.Trim$(m_ControlLayout.StyleName)) > 0 Then
-        metaMap("pn.style") = m_ControlLayout.StyleName
-    Else
-        metaMap("pn.style") = VBA.vbNullString
+    If Not visualUnchanged Then
+        Set metaMap = VBA.CreateObject("Scripting.Dictionary")
+        metaMap.CompareMode = 1
+        metaMap("pn.control") = m_ControlName
+        If VBA.Len(VBA.Trim$(m_ControlLayout.StyleName)) > 0 Then
+            metaMap("pn.style") = m_ControlLayout.StyleName
+        Else
+            metaMap("pn.style") = VBA.vbNullString
+        End If
+        metaMap("pn.renderSignature") = renderSignature
+        If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Sub
     End If
-    If Not ex_ShapeMetaRuntime.fn_TrySetShapeMetaValues(shp, metaMap) Then Exit Sub
-    On Error GoTo EH_BUTTON
 
     Exit Sub
 
@@ -242,9 +300,37 @@ EH_RANGE:
 #End If
 End Sub
 
+Private Function private_DoublesClose( _
+    ByVal leftValue As Double, _
+    ByVal rightValue As Double _
+) As Boolean
+    private_DoublesClose = (VBA.Abs(leftValue - rightValue) < 0.05)
+End Function
+
+Private Function private_BuildVisualSignature() As String
+    ' В signature включаем все значения, изменение которых требует физически
+    ' обновить Shape. Стиль здесь представлен именем; изменение declarations
+    ' того же стиля отдельно ловит pn.appliedStyleSignature style-engine-а.
+    private_BuildVisualSignature = VBA.LCase$(VBA.Trim$(m_ControlName)) & "|" & _
+        VBA.CStr(m_ControlLayout.RowStart) & ":" & VBA.CStr(m_ControlLayout.ColStart) & ":" & _
+        VBA.CStr(m_ControlLayout.RowEnd) & ":" & VBA.CStr(m_ControlLayout.ColEnd) & "|" & _
+        VBA.Trim$(m_ControlLayout.StyleName) & "|" & m_CaptionText
+End Function
+
+Private Function obj_IControl_Measure( _
+    ByVal controlNode As Object, _
+    ByRef outSpanRows As Long, _
+    ByRef outSpanColls As Long, _
+    Optional ByVal dataContext As Object _
+) As Boolean
+    outSpanRows = 1
+    outSpanColls = 1
+    obj_IControl_Measure = True
+End Function
+
 Private Function obj_IControl_SupportsAttribute(ByVal attrName As String) As Boolean
     Select Case VBA.LCase$(VBA.Trim$(attrName))
-        Case "caption", "onclick"
+        Case "caption", "onclick", "onclickarg"
             obj_IControl_SupportsAttribute = True
     End Select
 End Function
@@ -274,7 +360,14 @@ End Function
 ' //
 ' Callstack[1]: Shape.OnAction -> rt_Bridge.fn_OnShapeClick -> rt_PageManager.fn_TryGetPageByWorksheet -> page.DispatchShapeClick -> obj_PageMain.obj_IPage_DispatchShapeClick -> obj_PageBase.DispatchShapeClick -> obj_PageBase.private_TryInvokeControlAction -> obj_ButtonControlVM.RuntimeHandleClick
 Public Function RuntimeHandleClick() As Boolean
-    If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext) Then Exit Function
+    ' Вызываем Method() или Method(arg) в зависимости от наличия onClickArg в XML.
+    ' m_OnClickCallbackContext может быть обычным dataContext или объектом, указанным
+    ' в onClick binding через DataContext.
+    If m_HasOnClickArg Then
+        If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext, m_OnClickArgValue) Then Exit Function
+    Else
+        If Not rt_Bridge.fn_RunCallback(m_OnClickMacroRef, m_OnClickCallbackContext) Then Exit Function
+    End If
     RuntimeHandleClick = True
 End Function
 
@@ -305,6 +398,9 @@ Public Function TrySerializeSnapshot(ByRef outSnapshotXml As String) As Boolean
         " captionRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_CaptionRaw) & """" & _
         " captionInlineSource=""" & ex_Helpers.fn_EscapeXmlAttr(m_CaptionInlineSource) & """" & _
         " onClickRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnClickRaw) & """" & _
+        " onClickArgRaw=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnClickArgRaw) & """" & _
+        " onClickArgValue=""" & ex_Helpers.fn_EscapeXmlAttr(VBA.CStr(m_OnClickArgValue)) & """" & _
+        " hasOnClickArg=""" & VBA.LCase$(VBA.CStr(m_HasOnClickArg)) & """" & _
         " captionText=""" & ex_Helpers.fn_EscapeXmlAttr(m_CaptionText) & """" & _
         " onClickMacroRef=""" & ex_Helpers.fn_EscapeXmlAttr(m_OnClickMacroRef) & """" & _
         " runtimeKey=""" & ex_Helpers.fn_EscapeXmlAttr(m_RuntimeControlKey) & """" & _
@@ -340,6 +436,8 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     Dim wasConfiguredFromContract As Boolean
     Dim isConfiguredAttr As String
     Dim versionText As String
+    Dim configuredLayout As obj_ControlLayout
+    Dim configuredRuntimeControlKey As String
 
     snapshotXml = VBA.Trim$(snapshotXml)
     If VBA.Len(snapshotXml) = 0 Then Exit Function
@@ -350,6 +448,10 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     configuredOnClickRaw = VBA.Trim$(m_OnClickRaw)
     configuredOnClickMacroRef = VBA.Trim$(m_OnClickMacroRef)
     keepConfiguredCallback = (VBA.Len(configuredOnClickMacroRef) > 0)
+    If wasConfiguredFromContract Then
+        Set configuredLayout = m_ControlLayout
+        configuredRuntimeControlKey = m_RuntimeControlKey
+    End If
 
     If Not ex_Core.fn_CustomXmlPartStore_TryLoadDomFromXml(snapshotXml, dom) Then Exit Function
     Set root = dom.DocumentElement
@@ -361,6 +463,11 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
     m_CaptionRaw = VBA.CStr(root.getAttribute("captionRaw"))
     m_CaptionInlineSource = VBA.CStr(root.getAttribute("captionInlineSource"))
     m_CaptionText = VBA.CStr(root.getAttribute("captionText"))
+    If Not wasConfiguredFromContract Then
+        m_OnClickArgRaw = VBA.Trim$(VBA.CStr(root.getAttribute("onClickArgRaw")))
+        m_OnClickArgValue = VBA.CStr(root.getAttribute("onClickArgValue"))
+        m_HasOnClickArg = ex_Helpers.fn_ReadSnapshotBooleanAttr(root, "hasOnClickArg", False)
+    End If
     snapshotOnClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClickMacroRef")))
     If VBA.Len(snapshotOnClickMacroRef) = 0 Then snapshotOnClickMacroRef = VBA.Trim$(VBA.CStr(root.getAttribute("onClick")))
     If Not keepConfiguredCallback Then
@@ -412,17 +519,25 @@ Public Function TryDeserializeSnapshot(ByVal snapshotXml As String) As Boolean
 
     If VBA.Len(shapeName) = 0 Then shapeName = "btn_" & m_ControlName
 
-    ' 1) Восстанавливаем объект layout (лист/границы/style) из snapshot-атрибутов.
-    Set m_ControlLayout = New obj_ControlLayout
-    If Not m_ControlLayout.TryReadFromRuntimeValues( _
-        "Button", _
-        m_ControlName, _
-        layoutSheetName, _
-        layoutRowStart, _
-        layoutColStart, _
-        layoutRowEnd, _
-        layoutColEnd, _
-        layoutStyle) Then Exit Function
+    ' Актуальный XML владеет структурой контрола. Snapshot не должен возвращать
+    ' старые координаты после переноса кнопки между layout-контейнерами.
+    If wasConfiguredFromContract Then
+        If configuredLayout Is Nothing Then Exit Function
+        Set m_ControlLayout = configuredLayout
+        m_RuntimeControlKey = configuredRuntimeControlKey
+        layoutSheetName = VBA.Trim$(m_ControlLayout.LayoutSheetName)
+    Else
+        Set m_ControlLayout = New obj_ControlLayout
+        If Not m_ControlLayout.TryReadFromRuntimeValues( _
+            "Button", _
+            m_ControlName, _
+            layoutSheetName, _
+            layoutRowStart, _
+            layoutColStart, _
+            layoutRowEnd, _
+            layoutColEnd, _
+            layoutStyle) Then Exit Function
+    End If
 
     ' 2) Ищем worksheet по имени листа из snapshot.
     Set ws = ex_HelpersSheet.fn_GetRuntimeWorksheetByName(layoutSheetName)

@@ -16,13 +16,13 @@ Private m_Stamp As String
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -53,7 +53,7 @@ End Function
 ' //
 Public Function Initialize(ByVal providerKey As String, ByVal items As Collection) As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Initialize"
 #End If
     providerKey = VBA.LCase$(VBA.Trim$(providerKey))
 
@@ -84,7 +84,7 @@ Public Function Initialize(ByVal providerKey As String, ByVal items As Collectio
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -111,7 +111,7 @@ Private Function private_TryCloneItems(ByVal sourceItems As Collection, ByRef ou
 
     Set outItems = New Collection
     For Each rawItem In sourceItems
-        If VBA.IsObject(rawItem) Then
+        If IsObject(rawItem) Then
             outItems.Add rawItem
         Else
             outItems.Add rawItem
@@ -133,11 +133,11 @@ Private Function private_BuildStampByItems(ByVal sourceItems As Collection) As S
     For Each rawItem In sourceItems
         itemCount = itemCount + 1
 
-        If VBA.IsObject(rawItem) Then
-            itemSignature = VBA.TypeName(rawItem)
+        If IsObject(rawItem) Then
+            itemSignature = TypeName(rawItem)
             On Error Resume Next
-            itemSignature = itemSignature & "|" & VBA.CStr(CallByName(rawItem, "Id", VbGet))
-            itemSignature = itemSignature & "|" & VBA.CStr(CallByName(rawItem, "Caption", VbGet))
+            itemSignature = itemSignature & "|" & VBA.CStr(VBA.CallByName(rawItem, "Id", VbGet))
+            itemSignature = itemSignature & "|" & VBA.CStr(VBA.CallByName(rawItem, "Caption", VbGet))
             On Error GoTo 0
         Else
             itemSignature = VBA.CStr(rawItem)

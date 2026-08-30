@@ -1,7 +1,7 @@
-// PersonalCard Default pre-process script.
+// Default pre-process script.
 // Safe for the unified pipeline: always creates ScriptIO output with Keys.
 
-let logPath = "Logs\\personalcard_pipeline.log";
+let logPath = "Logs\\runtime_pipeline.log";
 callMacro("ex_Messaging.m_LogToFile", "[PRE] START Default_PreProcessScript", logPath);
 
 let keysText = callMacro("ex_ConfigProvider.m_GetConfigValue", "MultiKeys", "");

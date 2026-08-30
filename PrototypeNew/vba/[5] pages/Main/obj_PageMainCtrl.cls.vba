@@ -1,0 +1,2001 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
+Attribute VB_Name = "obj_PageMainCtrl"
+Option Explicit
+#Const LOGGING_DEBUG_ENABLED = True
+#Const LOGGING_VERBOSE_ENABLED = False
+
+Private Const CONTROLLER_RUNTIME_OBJECT_KEY As String = "RuntimeObjects.PageMain.Controller"
+Private Const MODES_ROOT_REL_PATH As String = "modes"
+Private Const MODE_PROFILES_FILE_SUFFIX As String = "Profiles.xml"
+Private Const ENTITY_LOOKUP_SHEET_BASE_NAME As String = "EntityLookup"
+Private Const PRSNL_EVNT_BUILDER_SHEET_BASE_NAME As String = "PrsnlEvntBuilder"
+Private Const SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME As String = "SupportingDocBuilder"
+Private Const COMPARING_SHEET_BASE_NAME As String = "Comparing"
+Private Const MULTI_SOURCES_VIEW_SHEET_BASE_NAME As String = "MultiSourcesView"
+Private Const WORD_DATA_EXTRACTOR_SHEET_BASE_NAME As String = "WordDataExtractor"
+Private Const MODE_ON_SELECT_MACRO As String = "OnConfigModeChanged"
+Private Const PROFILE_ON_SELECT_MACRO As String = "OnConfigProfileChanged"
+Private Const MODE_PICKER_CONTROL_NAME As String = "ConfigModePicker"
+Private Const PROFILE_PICKER_CONTROL_NAME As String = "ConfigProfilePicker"
+Private Const CONFIG_CONTROL_NAME As String = "DevConfig"
+Private Const MODES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigModes"
+Private Const PROFILES_RUNTIME_KEY As String = "RuntimeItems.PageMain.ConfigProfiles"
+Private Const CONFIG_RUNTIME_KEY As String = "RuntimeItems.PageMain.Config"
+
+Private m_Page As obj_IPage
+Private m_ModeItemsProvider As obj_SIP_ModeFolders
+Private m_ProfileItemsProvider As obj_SIP_ModeProfilesXml
+Private m_ConfigContextsById As Object
+Private m_SelectItemsProvidersReady As Boolean
+Private m_IsDisposed As Boolean
+
+Private Sub Class_Initialize()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Initialize"
+#End If
+End Sub
+
+Private Sub Class_Terminate()
+#If LOGGING_VERBOSE_ENABLED Then
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & TypeName(Me) & ".Class_Terminate"
+#End If
+    If m_IsDisposed Then Exit Sub
+    On Error Resume Next
+    Dispose
+    On Error GoTo 0
+End Sub
+
+
+' //
+' // API
+' //
+Public Function Initialize(ByVal page As obj_IPage) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-enter method='obj_PageMainCtrl.Initialize'"
+    #End If
+    Dim pageBase As obj_PageBase
+
+    If page Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+                "result='false' reason='page-not-specified'"
+        #End If
+        VBA.MsgBox "PrototypeNew: PageMainController initialization failed because page is not specified.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    m_IsDisposed = False
+    Set m_Page = page
+    Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+                "result='false' reason='page-base-missing'"
+        #End If
+        Exit Function
+    End If
+
+    ' Привязку objectSource для контроллера создаем один раз при инициализации.
+    ' Дальнейшие runtime-обновления должны делать точечную очистку и не очищать этот ключ.
+    If Not pageBase.RuntimeSources.SetObjectSource( _
+        CONTROLLER_RUNTIME_OBJECT_KEY, Me) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+                "result='false' step='SetObjectSource'"
+        #End If
+        Exit Function
+    End If
+    Initialize = True
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-exit method='obj_PageMainCtrl.Initialize' " & _
+            "result='true'"
+    #End If
+End Function
+
+Public Sub Dispose()
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-enter method='obj_PageMainCtrl.Dispose'"
+    #End If
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+
+    If m_IsDisposed Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogInfo _
+                "lifecycle:method-exit method='obj_PageMainCtrl.Dispose' " & _
+                "result='true' reason='already-disposed'"
+        #End If
+        Exit Sub
+    End If
+    m_IsDisposed = True
+    On Error Resume Next
+    Set pageBase = m_Page.GetPageBase()
+    If Not pageBase Is Nothing Then
+        Set runtimeSources = pageBase.RuntimeSources
+        If Not runtimeSources Is Nothing Then
+            Call runtimeSources.RemoveObjectSource(CONTROLLER_RUNTIME_OBJECT_KEY)
+        End If
+    End If
+    Call ex_SelectItemsSourceProviders.fn_UnregisterProvider(MODES_RUNTIME_KEY)
+    Call ex_SelectItemsSourceProviders.fn_UnregisterProvider(PROFILES_RUNTIME_KEY)
+    Set m_ModeItemsProvider = Nothing
+    Set m_ProfileItemsProvider = Nothing
+    Set m_ConfigContextsById = Nothing
+    m_SelectItemsProvidersReady = False
+    Set m_Page = Nothing
+    On Error GoTo 0
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "lifecycle:method-exit method='obj_PageMainCtrl.Dispose' " & _
+            "result='true'"
+    #End If
+End Sub
+
+Public Property Get RuntimeObjectSourceKey() As String
+    RuntimeObjectSourceKey = CONTROLLER_RUNTIME_OBJECT_KEY
+End Property
+
+Public Property Get IsPrsnlEvntBuilderMode() As Boolean
+    IsPrsnlEvntBuilderMode = private_IsCurrentMode("PrsnlEvntBuilder")
+End Property
+
+Public Property Get IsSupportingDocumentBuilderMode() As Boolean
+    IsSupportingDocumentBuilderMode = _
+        private_IsCurrentMode("SupportingDocumentBuilder")
+End Property
+
+Public Property Get IsComparingMode() As Boolean
+    IsComparingMode = private_IsCurrentMode("Comparing")
+End Property
+
+Public Property Get IsMultiSourcesViewMode() As Boolean
+    IsMultiSourcesViewMode = private_IsCurrentMode("MultiSourcesView")
+End Property
+
+Public Property Get IsWordDataExtractorMode() As Boolean
+    IsWordDataExtractorMode = private_IsCurrentMode("WordDataExtractor")
+End Property
+
+Public Function TryRefreshModeConfigContext(ByVal configContext As obj_ModeConfigContext) As Boolean
+    Dim activeContextId As String
+    Dim modeId As String
+    Dim profileId As String
+    Dim rawControl As Object
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
+
+    If configContext Is Nothing Then Exit Function
+    If Not private_TryResolveActiveConfigIdentity(activeContextId, modeId, profileId) Then Exit Function
+    If VBA.StrComp(activeContextId, configContext.ContextId, VBA.vbTextCompare) <> 0 Then
+        TryRefreshModeConfigContext = True
+        Exit Function
+    End If
+
+    If Not m_Page.TryGetRegisteredControlByName(CONFIG_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then Exit Function
+    Set configControl = rawControl
+    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
+    If Not configContext.ReplaceConfigTable(configTable) Then Exit Function
+
+    TryRefreshModeConfigContext = True
+End Function
+
+Public Function AttachRestoredModeConfigContext(ByVal configContext As obj_ModeConfigContext) As Boolean
+    Dim contextId As String
+
+    If configContext Is Nothing Then Exit Function
+    If m_Page Is Nothing Then Exit Function
+    contextId = VBA.LCase$(VBA.Trim$(configContext.ContextId))
+    If VBA.Len(contextId) = 0 Then Exit Function
+    If m_ConfigContextsById Is Nothing Then Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
+
+    ' После restore возвращаем контекст в реестр Main: дальнейшие несохранённые
+    ' правки активного mode/profile снова обновляют уже открытую PEB-страницу.
+    If m_ConfigContextsById.Exists(contextId) Then m_ConfigContextsById.Remove contextId
+    m_ConfigContextsById.Add contextId, configContext
+    If Not configContext.BindOwner(m_Page, Me) Then Exit Function
+    AttachRestoredModeConfigContext = True
+End Function
+
+Public Function OnOpenWordDataExtractorPageCommand(Optional ByVal arg As Variant) As Boolean
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim extractorPage As obj_IPage
+    Dim extractorPageObject As obj_PageWordDataExtractor
+    Dim parentPage As obj_IPage
+    Dim profileUiPath As String
+    Dim controllerClassName As String
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+    If Not private_TryResolveWordDataExtractorComponents( _
+        profileUiPath, controllerClassName) Then Exit Function
+    If rt_PageManager.fn_TryGetPageByWorksheetName(WORD_DATA_EXTRACTOR_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageWordDataExtractor Then
+            VBA.MsgBox "Worksheet '" & WORD_DATA_EXTRACTOR_SHEET_BASE_NAME & "' is bound to an unexpected page type.", VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+            Exit Function
+        End If
+        Set extractorPageObject = existingPage
+        If Not extractorPageObject.ConfigureProfileComponents( _
+            profileUiPath, controllerClassName) Then Exit Function
+        If Not existingPage.RunPagePipeline() Then Exit Function
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-worddataextractor:reuse") Then Exit Function
+        OnOpenWordDataExtractorPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, WORD_DATA_EXTRACTOR_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    Set extractorPageObject = New obj_PageWordDataExtractor
+    If Not extractorPageObject.ConfigureProfileComponents( _
+        profileUiPath, controllerClassName) Then Exit Function
+    Set extractorPage = extractorPageObject
+    Set parentPage = m_Page
+    If Not rt_PageManager.fn_CreatePage(extractorPage, _
+        profileUiPath, sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+    If Not extractorPage.RunPagePipeline() Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_RenderPageAndActivate(extractorPage, "pagemain:open-worddataextractor") Then GoTo EH_CREATE
+    rt_Messaging.fn_ShowStatusBarSuccess "WordDataExtractor page has been created.", 3
+    OnOpenWordDataExtractorPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not extractorPage Is Nothing And isPageCreated Then Call rt_PageManager.fn_RemovePage(extractorPage, True)
+    On Error GoTo 0
+    If Not OnOpenWordDataExtractorPageCommand Then VBA.MsgBox "Failed to create WordDataExtractor page.", VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+    Exit Function
+EH_OPEN:
+    VBA.MsgBox "WordDataExtractor error: [" & VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, "PrototypeNew / WordDataExtractor"
+    Resume EH_CREATE
+End Function
+
+Private Function private_TryResolveWordDataExtractorComponents( _
+    ByRef outUiPath As String, _
+    ByRef outControllerClassName As String _
+) As Boolean
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
+    Dim wordDataExtrCfgParser As obj_WordDataExtrCfgParser
+    Dim resolvedUiPath As String
+
+    outUiPath = VBA.vbNullString
+    outControllerClassName = VBA.vbNullString
+    If Not private_TryResolveConfigControl(configControl) Then Exit Function
+    If Not configControl.TryBuildConfigTableFromRendered( _
+        configTable) Then Exit Function
+    Set wordDataExtrCfgParser = New obj_WordDataExtrCfgParser
+    If Not wordDataExtrCfgParser.Initialize(configTable) Then Exit Function
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
+        "WordDataExtractor.UiFile", outUiPath) Then
+        VBA.MsgBox "В профиле отсутствует обязательный ключ " & _
+            "WordDataExtractor.UiFile.", VBA.vbExclamation, _
+            "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    If Not wordDataExtrCfgParser.TryGetRequiredValue( _
+        "WordDataExtractor.ControllerClass", _
+        outControllerClassName) Then
+        VBA.MsgBox "В профиле отсутствует обязательный ключ " & _
+            "WordDataExtractor.ControllerClass.", VBA.vbExclamation, _
+            "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    resolvedUiPath = ex_XmlCore.fn_CombineBasePath( _
+        ThisWorkbook, outUiPath)
+    If VBA.Len(VBA.Dir$(resolvedUiPath, VBA.vbNormal)) = 0 Then
+        VBA.MsgBox "UI-файл профиля WordDataExtractor не найден: " & _
+            resolvedUiPath, VBA.vbExclamation, _
+            "PrototypeNew / WordDataExtractor"
+        Exit Function
+    End If
+    private_TryResolveWordDataExtractorComponents = True
+End Function
+
+Public Function OnOpenCurrentModeUiFileCommand(Optional ByVal arg As Variant) As Boolean
+    Dim modeId As String
+    Dim filePath As String
+    Dim profileUiPath As String
+    Dim controllerClassName As String
+
+    If Not private_TryGetCurrentModeId(modeId) Then Exit Function
+    If VBA.StrComp(modeId, "WordDataExtractor", _
+        VBA.vbTextCompare) = 0 Then
+        If Not private_TryResolveWordDataExtractorComponents( _
+            profileUiPath, controllerClassName) Then Exit Function
+        filePath = ex_XmlCore.fn_CombineBasePath( _
+            ThisWorkbook, profileUiPath)
+    Else
+        filePath = ThisWorkbook.Path & "\ui\" & modeId & _
+            "\" & modeId & "UI.xml"
+    End If
+    OnOpenCurrentModeUiFileCommand = private_TryOpenModeFileInNotepad(filePath, "UI file")
+End Function
+
+Public Function OnOpenMultiSourcesViewPageCommand(Optional ByVal arg As Variant) As Boolean
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim viewPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+    If rt_PageManager.fn_TryGetPageByWorksheetName(MULTI_SOURCES_VIEW_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageMultiSourcesView Then
+            VBA.MsgBox "Worksheet '" & MULTI_SOURCES_VIEW_SHEET_BASE_NAME & "' is bound to an unexpected page type.", VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+            Exit Function
+        End If
+        If Not existingPage.RunPagePipeline() Then Exit Function
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-multisourcesview:reuse") Then Exit Function
+        OnOpenMultiSourcesViewPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, MULTI_SOURCES_VIEW_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    Set viewPage = New obj_PageMultiSourcesView
+    Set parentPage = m_Page
+    If Not rt_PageManager.fn_CreatePage(viewPage, "ui\MultiSourcesView\MultiSourcesViewUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+    If Not viewPage.RunPagePipeline() Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_RenderPageAndActivate(viewPage, "pagemain:open-multisourcesview") Then GoTo EH_CREATE
+    rt_Messaging.fn_ShowStatusBarSuccess "MultiSourcesView page has been created.", 3
+    OnOpenMultiSourcesViewPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not viewPage Is Nothing And isPageCreated Then Call rt_PageManager.fn_RemovePage(viewPage, True)
+    On Error GoTo 0
+    If Not OnOpenMultiSourcesViewPageCommand Then VBA.MsgBox "Failed to create MultiSourcesView page.", VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+    Exit Function
+EH_OPEN:
+    VBA.MsgBox "MultiSourcesView error: [" & VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, "PrototypeNew / MultiSourcesView"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenCurrentModeProfilesFileCommand(Optional ByVal arg As Variant) As Boolean
+    Dim modeId As String
+    Dim filePath As String
+
+    If Not private_TryGetCurrentModeId(modeId) Then Exit Function
+    filePath = ThisWorkbook.Path & "\modes\" & modeId & "\" & modeId & MODE_PROFILES_FILE_SUFFIX
+    OnOpenCurrentModeProfilesFileCommand = private_TryOpenModeFileInNotepad(filePath, "profiles file")
+End Function
+
+Private Function private_TryGetCurrentModeId(ByRef outModeId As String) As Boolean
+    outModeId = VBA.vbNullString
+    If m_ProfileItemsProvider Is Nothing Then
+        VBA.MsgBox "Current mode is not initialized.", vbExclamation, "PrototypeNew / Mode files"
+        Exit Function
+    End If
+
+    outModeId = VBA.Trim$(m_ProfileItemsProvider.CurrentModeId)
+    If VBA.Len(outModeId) = 0 Then
+        VBA.MsgBox "Current mode is not selected.", vbExclamation, "PrototypeNew / Mode files"
+        Exit Function
+    End If
+    private_TryGetCurrentModeId = True
+End Function
+
+Private Function private_TryOpenModeFileInNotepad(ByVal filePath As String, ByVal fileLabel As String) As Boolean
+    Dim shellRunner As Object
+    Dim commandText As String
+    Dim errorText As String
+
+    filePath = VBA.Trim$(filePath)
+    If VBA.Len(filePath) = 0 Or VBA.Len(VBA.Dir$(filePath, VBA.vbNormal)) = 0 Then
+        VBA.MsgBox "PrototypeNew: " & fileLabel & " was not found:" & VBA.vbCrLf & filePath, vbExclamation, "PrototypeNew / Mode files"
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    commandText = "notepad.exe """ & filePath & """"
+    Set shellRunner = VBA.CreateObject("WScript.Shell")
+    shellRunner.Run commandText, VBA.vbNormalFocus, False
+    Set shellRunner = Nothing
+    private_TryOpenModeFileInNotepad = True
+    Exit Function
+EH:
+    errorText = Err.Description
+    Set shellRunner = Nothing
+    VBA.MsgBox "Failed to open " & fileLabel & ": " & errorText, vbExclamation, "PrototypeNew / Mode files"
+End Function
+
+Private Function private_IsCurrentMode(ByVal expectedModeId As String) As Boolean
+    If m_ProfileItemsProvider Is Nothing Then Exit Function
+    private_IsCurrentMode = (VBA.StrComp(m_ProfileItemsProvider.CurrentModeId, expectedModeId, VBA.vbTextCompare) = 0)
+End Function
+
+Public Function OnConfigModeDropDownOpenedCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigModeDropDownOpenedCommand"
+    #End If
+    Dim modeOptions As Collection
+    Dim usedCache As Boolean
+    Dim existingModeItems As Collection
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+
+
+    If Not private_TryBuildModeSelectOptions(modeOptions, usedCache) Then Exit Function
+
+    ' Если провайдер вернул cache-hit и источник уже есть на странице,
+    ' повторный SetItemsSource пропускаем: данные те же, лишняя перезапись не нужна.
+    If usedCache Then
+        Set pageBase = m_Page.GetPageBase()
+        Set runtimeSources = pageBase.RuntimeSources
+        If runtimeSources.TryGetItemsSourceByKey(MODES_RUNTIME_KEY, existingModeItems, True) Then
+            If Not existingModeItems Is Nothing Then
+#If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogInfo "config-modes: skip-setitemsource reason='cache-hit-runtime-present'"
+#End If
+                OnConfigModeDropDownOpenedCommand = True
+                Exit Function
+            End If
+        End If
+    End If
+
+    If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False) Then Exit Function
+
+    OnConfigModeDropDownOpenedCommand = True
+End Function
+
+
+Public Function OnConfigProfileDropDownOpenedCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigProfileDropDownOpenedCommand"
+    #End If
+    Dim ws As Worksheet
+    Dim modeOptions As Collection
+    Dim profileOptions As Collection
+    Dim selectedModeId As String
+    Dim profileFilePath As String
+    Dim pageBase As obj_PageBase
+
+    ' Открытие dropdown у profile-select пересобирает:
+    ' 1) актуальные режимы
+    ' 2) профили для текущего выбранного режима
+    Set pageBase = m_Page.GetPageBase()
+    Set ws = pageBase.Worksheet
+
+    If Not private_TryBuildModeSelectOptions(modeOptions) Then Exit Function
+    If Not private_TrySetItemsSource(MODES_RUNTIME_KEY, modeOptions, False) Then Exit Function
+    If Not private_TryResolveSelectedIdForControl(ws, MODE_PICKER_CONTROL_NAME, modeOptions, selectedModeId) Then Exit Function
+
+    If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
+    If Not private_TrySetItemsSource(PROFILES_RUNTIME_KEY, profileOptions, False) Then Exit Function
+
+    OnConfigProfileDropDownOpenedCommand = True
+End Function
+
+Public Function OnConfigModeChanged( _
+    Optional ByVal notifyChange As Boolean = True _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-enter method='obj_PageMainCtrl.OnConfigModeChanged'"
+    #End If
+    ' После смены режима нужно пересобрать runtime-источники.
+    If Not private_TryPrepareModeProfileConfigRuntime(notifyChange) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError _
+                "startup:method-exit " & _
+                "method='obj_PageMainCtrl.OnConfigModeChanged' result='false'"
+        #End If
+        Exit Function
+    End If
+    OnConfigModeChanged = True
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo _
+            "startup:method-exit " & _
+            "method='obj_PageMainCtrl.OnConfigModeChanged' result='true'"
+    #End If
+End Function
+
+Public Function OnConfigProfileChanged( _
+    Optional ByVal notifyChange As Boolean = True _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnConfigProfileChanged"
+    #End If
+    ' После смены профиля также пересобираем runtime-состояние.
+    If Not private_TryPrepareModeProfileConfigRuntime(notifyChange) Then Exit Function
+    OnConfigProfileChanged = True
+End Function
+
+
+Public Function OnSaveCurrentConfigProfileCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnSaveCurrentConfigProfileCommand"
+    #End If
+    OnSaveCurrentConfigProfileCommand = private_TrySaveCurrentConfigProfile()
+End Function
+
+Public Function OnClearWorkbookPagesExceptMainCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnClearWorkbookPagesExceptMainCommand"
+    #End If
+    Dim pageBase As obj_PageBase
+    Dim pages As Collection
+    Dim pageItem As Variant
+    Dim page As obj_IPage
+    Dim pageWsName As String
+    Dim mainSheetName As String
+    Dim wb As Workbook
+    Dim ws As Worksheet
+    Dim wsIndex As Long
+    Dim removedCount As Long
+    Dim deletedSheetsCount As Long
+    Dim prevDisplayAlerts As Boolean
+    Dim prevScreenUpdating As Boolean
+    Dim prevEnableEvents As Boolean
+    Dim prevCalculation As XlCalculation
+    Dim appStateCaptured As Boolean
+    Dim notifyStatus As Boolean
+    Dim registeredMainPage As obj_IPage
+    Dim clearErrorNumber As Long
+    Dim clearErrorDescription As String
+
+    If m_Page Is Nothing Then Exit Function
+    notifyStatus = True
+    If Not VBA.IsMissing(arg) Then
+        If VBA.VarType(arg) = vbBoolean Then notifyStatus = VBA.CBool(arg)
+    End If
+
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    If pageBase.Worksheet Is Nothing Then Exit Function
+    mainSheetName = VBA.Trim$(pageBase.Worksheet.Name)
+    If VBA.Len(mainSheetName) = 0 Then Exit Function
+
+    If Not rt_PageManager.fn_TryGetAllPages(pages) Then Exit Function
+    If pages Is Nothing Then Exit Function
+
+    ' Большой отрендеренный лист (например, результаты строевых записок)
+    ' Excel удаляет заметно дольше при включённых событиях, обновлении экрана
+    ' и автоматическом пересчёте. Состояние приложения восстанавливается в
+    ' единой точке выхода как при успехе, так и при ошибке.
+    prevScreenUpdating = Application.ScreenUpdating
+    prevEnableEvents = Application.EnableEvents
+    prevCalculation = Application.Calculation
+    appStateCaptured = True
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    For Each pageItem In pages
+        Set page = Nothing
+        On Error Resume Next
+        Set page = pageItem
+        On Error GoTo EH_CLEAR
+        If page Is Nothing Then GoTo ContinuePages
+
+        Set pageBase = page.GetPageBase()
+        If pageBase Is Nothing Then GoTo ContinuePages
+        If pageBase.Worksheet Is Nothing Then GoTo ContinuePages
+        pageWsName = VBA.Trim$(pageBase.Worksheet.Name)
+
+        If VBA.StrComp(pageWsName, mainSheetName, VBA.vbTextCompare) = 0 Then GoTo ContinuePages
+        If TypeOf page Is obj_PageMain Then GoTo ContinuePages
+
+        If Not rt_PageManager.fn_RemovePage(page, True) Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to remove page '" & VBA.Replace$(pageWsName, "'", "''") & "'."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to remove page '" & pageWsName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            GoTo CLEANUP_CLEAR
+        End If
+        removedCount = removedCount + 1
+
+ContinuePages:
+    Next pageItem
+
+    ' SQL engine общий для всех страниц и поэтому не входит в их Dispose-chain.
+    ' После удаления дочерних страниц явно освобождаем ADO-соединения, иначе
+    ' закрытые источники (например ЕЖОС) могут оставаться заблокированными.
+    ex_ExternalExcelSqlEngine.fn_ResetRuntimeCache
+
+    Set wb = ThisWorkbook
+    prevDisplayAlerts = Application.DisplayAlerts
+    Application.DisplayAlerts = False
+    On Error GoTo EH_DELETE_WS
+
+    For wsIndex = wb.Worksheets.Count To 1 Step -1
+        Set ws = wb.Worksheets(wsIndex)
+        If VBA.StrComp(VBA.Trim$(ws.Name), mainSheetName, VBA.vbTextCompare) <> 0 Then
+            ws.Delete
+            deletedSheetsCount = deletedSheetsCount + 1
+        End If
+    Next wsIndex
+
+    Application.DisplayAlerts = prevDisplayAlerts
+
+    ' Успешная очистка не имеет права оставлять живой лист Main без runtime
+    ' page. Проверяем инвариант до положительного status-сообщения.
+    If Not rt_PageManager.fn_TryGetPageByWorksheetName( _
+        mainSheetName, registeredMainPage) Then
+        VBA.MsgBox _
+            "Очистка страниц остановлена: лист '" & mainSheetName & _
+            "' остался без зарегистрированной runtime-страницы.", _
+            VBA.vbExclamation, "PrototypeNew / очистка страниц"
+        GoTo CLEANUP_CLEAR
+    End If
+    If Not (registeredMainPage Is m_Page) Then
+        VBA.MsgBox _
+            "Очистка страниц остановлена: runtime-регистрация листа '" & _
+            mainSheetName & "' указывает не на текущую страницу Main.", _
+            VBA.vbExclamation, "PrototypeNew / очистка страниц"
+        GoTo CLEANUP_CLEAR
+    End If
+
+    If notifyStatus Then
+        rt_Messaging.fn_ShowStatusBarSuccess "Pages cleared. Kept only '" & mainSheetName & "' (removed pages=" & VBA.CStr(removedCount) & ", deleted sheets=" & VBA.CStr(deletedSheetsCount) & ").", 3
+    End If
+
+    OnClearWorkbookPagesExceptMainCommand = True
+    GoTo CLEANUP_CLEAR
+
+EH_DELETE_WS:
+    clearErrorNumber = Err.Number
+    clearErrorDescription = Err.Description
+    Application.DisplayAlerts = prevDisplayAlerts
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription
+    #End If
+    VBA.MsgBox "PrototypeNew: failed to delete worksheet while clearing pages: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription, vbExclamation, "PrototypeNew / Config runtime"
+    GoTo CLEANUP_CLEAR
+
+EH_CLEAR:
+    clearErrorNumber = Err.Number
+    clearErrorDescription = Err.Description
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in OnClearWorkbookPagesExceptMainCommand: [" & VBA.CStr(clearErrorNumber) & "] " & clearErrorDescription, vbExclamation, "PrototypeNew / Config runtime"
+
+CLEANUP_CLEAR:
+    If appStateCaptured Then
+        On Error Resume Next
+        Application.Calculation = prevCalculation
+        Application.EnableEvents = prevEnableEvents
+        Application.ScreenUpdating = prevScreenUpdating
+        On Error GoTo 0
+    End If
+End Function
+
+Public Function OnUpdateCodeFullCommand(Optional ByVal arg As Variant) As Boolean
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "enter:obj_PageMainCtrl.OnUpdateCodeFullCommand"
+#End If
+
+    ' Hot-import не должен сохранять визуальное/runtime-состояние дочерних
+    ' страниц. Сначала выполняем тот же lifecycle, что и кнопка Clear Pages,
+    ' затем ex_Core безопасно перенесёт update за пределы bridge-dispatch.
+    If Not Me.OnClearWorkbookPagesExceptMainCommand(False) Then Exit Function
+    rt_CoreActions.fn_UpdateCodeFullAndRerender
+    OnUpdateCodeFullCommand = True
+End Function
+
+Public Property Get LastCodeUpdateCaption() As String
+    LastCodeUpdateCaption = _
+        rt_CoreActions.fn_GetLastCodeUpdateCaption()
+End Property
+
+Public Function OnOpenEntityLookupPageCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenEntityLookupPageCommand"
+    #End If
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim entityLookupPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(ENTITY_LOOKUP_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageEntityLookup Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
+            #End If
+            VBA.MsgBox "PrototypeNew: worksheet '" & ENTITY_LOOKUP_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run EntityLookup page pipeline for existing page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to run EntityLookup page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-entitylookup:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing EntityLookup page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to render existing EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "EntityLookup page has been refreshed.", 3
+        OnOpenEntityLookupPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, ENTITY_LOOKUP_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for EntityLookup page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set entityLookupPage = New obj_PageEntityLookup
+    If entityLookupPage Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate EntityLookup page instance."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate EntityLookup page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set parentPage = m_Page
+
+    If Not rt_PageManager.fn_CreatePage(entityLookupPage, "ui\EntityLookup\EntityLookupUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+
+    If Not entityLookupPage.RunPagePipeline() Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run EntityLookup page pipeline."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to run EntityLookup page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    If Not rt_PageManager.fn_RenderPageAndActivate(entityLookupPage, "pagemain:open-entitylookup") Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render EntityLookup page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to render EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "EntityLookup page has been created.", 3
+    OnOpenEntityLookupPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not entityLookupPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(entityLookupPage, True)
+    End If
+    On Error GoTo 0
+
+    If Not OnOpenEntityLookupPageCommand Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create EntityLookup page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to create EntityLookup page.", vbExclamation, "PrototypeNew / Config runtime"
+    End If
+    Exit Function
+
+EH_OPEN:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in OnOpenEntityLookupPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenPrsnlEvntBuilderPageCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenPrsnlEvntBuilderPageCommand"
+    #End If
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim builderPage As obj_IPage
+    Dim configContext As obj_ModeConfigContext
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(PRSNL_EVNT_BUILDER_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PagePrsnlEvntBuilder Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
+            #End If
+            VBA.MsgBox "PrototypeNew: worksheet '" & PRSNL_EVNT_BUILDER_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-prsnlevntbuilder:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing PrsnlEvntBuilder page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to render existing PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "PrsnlEvntBuilder page has been refreshed.", 3
+        OnOpenPrsnlEvntBuilderPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, PRSNL_EVNT_BUILDER_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set builderPage = New obj_PagePrsnlEvntBuilder
+    If builderPage Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate PrsnlEvntBuilder page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    If Not private_TryGetOrCreateActiveConfigContext(configContext) Then GoTo EH_CREATE
+
+    If Not rt_PageManager.fn_CreatePage(builderPage, "ui\PrsnlEvntBuilder\PrsnlEvntBuilderUI.xml", sheetName, configContext) Then GoTo EH_CREATE
+    isPageCreated = True
+
+    If Not builderPage.RunPagePipeline() Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to run PrsnlEvntBuilder page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    If Not rt_PageManager.fn_RenderPageAndActivate(builderPage, "pagemain:open-prsnlevntbuilder") Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render PrsnlEvntBuilder page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to render PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "PrsnlEvntBuilder page has been created.", 3
+    OnOpenPrsnlEvntBuilderPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not builderPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(builderPage, True)
+    End If
+    On Error GoTo 0
+
+    If Not OnOpenPrsnlEvntBuilderPageCommand Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create PrsnlEvntBuilder page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to create PrsnlEvntBuilder page.", vbExclamation, "PrototypeNew / Config runtime"
+    End If
+    Exit Function
+
+EH_OPEN:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in OnOpenPrsnlEvntBuilderPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenSupportingDocumentBuilderPageCommand( _
+    Optional ByVal arg As Variant _
+) As Boolean
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim supportingPage As obj_IPage
+    Dim supportingPageObject As obj_PageSDB
+    Dim configContext As obj_ModeConfigContext
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+    If rt_PageManager.fn_TryGetPageByWorksheetName( _
+        SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageSDB Then
+            VBA.MsgBox "Worksheet '" & SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME & _
+                "' is bound to an unexpected page type.", VBA.vbExclamation, _
+                "Supporting Document Builder"
+            Exit Function
+        End If
+        If Not existingPage.RunPagePipeline() Then Exit Function
+        If Not rt_PageManager.fn_RenderPageAndActivate( _
+            existingPage, "pagemain:open-supporting-document-builder:reuse") Then Exit Function
+        OnOpenSupportingDocumentBuilderPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName( _
+        ThisWorkbook, SUPPORTING_DOC_BUILDER_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then Exit Function
+    Set supportingPageObject = New obj_PageSDB
+    Set supportingPage = supportingPageObject
+    If Not private_TryGetOrCreateActiveConfigContext(configContext) Then Exit Function
+    If Not rt_PageManager.fn_CreatePage( _
+        supportingPage, _
+        "ui\SupportingDocumentBuilder\SupportingDocumentBuilderUI.xml", _
+        sheetName, configContext) Then GoTo EH_CREATE
+    isPageCreated = True
+    If Not supportingPage.RunPagePipeline() Then GoTo EH_CREATE
+    If Not rt_PageManager.fn_RenderPageAndActivate( _
+        supportingPage, "pagemain:open-supporting-document-builder") Then GoTo EH_CREATE
+    rt_Messaging.fn_ShowStatusBarSuccess _
+        "Supporting Document Builder page has been created.", 3
+    OnOpenSupportingDocumentBuilderPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not supportingPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(supportingPage, True)
+    End If
+    On Error GoTo 0
+    If Not OnOpenSupportingDocumentBuilderPageCommand Then
+        VBA.MsgBox "Failed to create Supporting Document Builder page.", _
+            VBA.vbExclamation, "Supporting Document Builder"
+    End If
+    Exit Function
+
+EH_OPEN:
+    VBA.MsgBox "Supporting Document Builder error: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, VBA.vbExclamation, _
+        "Supporting Document Builder"
+    Resume EH_CREATE
+End Function
+
+Public Function OnOpenComparingPageCommand(Optional ByVal arg As Variant) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.OnOpenComparingPageCommand"
+    #End If
+    Dim sheetName As String
+    Dim existingPage As obj_IPage
+    Dim comparingPage As obj_IPage
+    Dim parentPage As obj_IPage
+    Dim isPageCreated As Boolean
+
+    On Error GoTo EH_OPEN
+
+    If rt_PageManager.fn_TryGetPageByWorksheetName(COMPARING_SHEET_BASE_NAME, existingPage) Then
+        If existingPage Is Nothing Then GoTo EH_CREATE
+        If Not TypeOf existingPage Is obj_PageComparing Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet '" & COMPARING_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'."
+            #End If
+            VBA.MsgBox "PrototypeNew: worksheet '" & COMPARING_SHEET_BASE_NAME & "' is bound to unexpected page type '" & TypeName(existingPage) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not existingPage.RunPagePipeline() Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run Comparing page pipeline for existing page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to run Comparing page pipeline for existing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        If Not rt_PageManager.fn_RenderPageAndActivate(existingPage, "pagemain:open-comparing:reuse") Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render existing Comparing page."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to render existing Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+
+        rt_Messaging.fn_ShowStatusBarSuccess "Comparing page has been refreshed.", 3
+        OnOpenComparingPageCommand = True
+        Exit Function
+    End If
+
+    sheetName = private_BuildUniqueWorksheetName(ThisWorkbook, COMPARING_SHEET_BASE_NAME)
+    If VBA.Len(sheetName) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate worksheet name for Comparing page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate worksheet name for Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set comparingPage = New obj_PageComparing
+    If comparingPage Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to allocate Comparing page instance."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to allocate Comparing page instance.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set parentPage = m_Page
+
+    If Not rt_PageManager.fn_CreatePage(comparingPage, "ui\Comparing\ComparingUI.xml", sheetName, parentPage) Then GoTo EH_CREATE
+    isPageCreated = True
+
+    If Not comparingPage.RunPagePipeline() Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to run Comparing page pipeline."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to run Comparing page pipeline.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    If Not rt_PageManager.fn_RenderPageAndActivate(comparingPage, "pagemain:open-comparing") Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to render Comparing page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to render Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+        GoTo EH_CREATE
+    End If
+
+    rt_Messaging.fn_ShowStatusBarSuccess "Comparing page has been created.", 3
+    OnOpenComparingPageCommand = True
+    Exit Function
+
+EH_CREATE:
+    On Error Resume Next
+    If Not comparingPage Is Nothing And isPageCreated Then
+        Call rt_PageManager.fn_RemovePage(comparingPage, True)
+    End If
+    On Error GoTo 0
+
+    If Not OnOpenComparingPageCommand Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create Comparing page."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to create Comparing page.", vbExclamation, "PrototypeNew / Config runtime"
+    End If
+    Exit Function
+
+EH_OPEN:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in OnOpenComparingPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in OnOpenComparingPageCommand: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+    Resume EH_CREATE
+End Function
+
+' //
+' // Internal
+' //
+Private Function private_TryGetOrCreateActiveConfigContext( _
+    ByRef outContext As obj_ModeConfigContext _
+) As Boolean
+    Dim rawControl As Object
+    Dim configControl As obj_ConfigControlVM
+    Dim configTable As obj_ConfigTable
+    Dim modeId As String
+    Dim profileId As String
+    Dim contextId As String
+
+    Set outContext = Nothing
+    If m_Page Is Nothing Then Exit Function
+    If m_ConfigContextsById Is Nothing Then Set m_ConfigContextsById = ex_Helpers.fn_CreateDictionaryTextCompare()
+
+    If Not m_Page.TryGetRegisteredControlByName(CONFIG_CONTROL_NAME, rawControl) Then Exit Function
+    If rawControl Is Nothing Then Exit Function
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then Exit Function
+    Set configControl = rawControl
+    If Not configControl.TryBuildConfigTableFromRendered(configTable) Then Exit Function
+    If configTable Is Nothing Then Exit Function
+
+    If Not private_TryResolveActiveConfigIdentity(contextId, modeId, profileId) Then Exit Function
+    ' Реестр сохраняет независимые runtime-контексты при переключении Main.
+    ' DevConfig редактирует активный контекст, но не подменяет уже открытые.
+    If m_ConfigContextsById.Exists(contextId) Then
+        Set outContext = m_ConfigContextsById(contextId)
+        If outContext Is Nothing Then Exit Function
+        If Not outContext.ReplaceConfigTable(configTable) Then Exit Function
+    Else
+        Set outContext = New obj_ModeConfigContext
+        If Not outContext.Initialize(contextId, modeId, profileId, configTable, m_Page, Me) Then Exit Function
+        m_ConfigContextsById.Add contextId, outContext
+    End If
+
+    private_TryGetOrCreateActiveConfigContext = True
+End Function
+
+Private Function private_TryResolveActiveConfigIdentity( _
+    ByRef outContextId As String, _
+    ByRef outModeId As String, _
+    ByRef outProfileId As String _
+) As Boolean
+    Dim profileOptions As Collection
+    Dim profilesFilePath As String
+    Dim pageBase As obj_PageBase
+    Dim ws As Worksheet
+
+    outContextId = VBA.vbNullString
+    outModeId = VBA.vbNullString
+    outProfileId = VBA.vbNullString
+    If Not private_TryGetCurrentModeId(outModeId) Then Exit Function
+    If Not private_TryBuildProfileSelectOptionsByMode(outModeId, profileOptions, profilesFilePath) Then Exit Function
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then Exit Function
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then Exit Function
+    If Not private_TryResolveSelectedIdForControl( _
+        ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, outProfileId) Then Exit Function
+
+    outContextId = VBA.LCase$(VBA.Trim$(outModeId)) & "|" & VBA.LCase$(VBA.Trim$(outProfileId))
+    private_TryResolveActiveConfigIdentity = (VBA.Len(outContextId) > 1)
+End Function
+
+Private Function private_TryPrepareModeProfileConfigRuntime( _
+    Optional ByVal notifyChange As Boolean = False _
+) As Boolean
+    Dim ws As Worksheet
+    Dim modeOptions As Collection
+    Dim profileOptions As Collection
+    Dim selectedModeId As String
+    Dim selectedProfileId As String
+    Dim profileFilePath As String
+    Dim pageBase As obj_PageBase
+    Dim activeStep As String
+
+    On Error GoTo EH_PREPARE_RUNTIME
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-enter " & _
+        "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime'"
+#End If
+
+    activeStep = "m_Page.GetPageBase"
+    Set pageBase = m_Page.GetPageBase()
+    If pageBase Is Nothing Then GoTo PREPARE_FAILED
+    Set ws = pageBase.Worksheet
+    If ws Is Nothing Then GoTo PREPARE_FAILED
+
+    ' 2) Формируем источник для списка режимов.
+    activeStep = "private_TryBuildModeSelectOptions"
+    If Not private_TryBuildModeSelectOptions(modeOptions) Then GoTo PREPARE_FAILED
+    activeStep = "private_TrySetItemsSource:modes"
+    If Not private_TrySetItemsSource( _
+        MODES_RUNTIME_KEY, modeOptions, False) Then GoTo PREPARE_FAILED
+
+    ' 3) Для выбранного режима собираем список профилей.
+    activeStep = "private_TryResolveSelectedIdForControl:mode"
+    If Not private_TryResolveSelectedIdForControl( _
+        ws, MODE_PICKER_CONTROL_NAME, modeOptions, _
+        selectedModeId) Then GoTo PREPARE_FAILED
+    activeStep = "private_TryBuildProfileSelectOptionsByMode"
+    If Not private_TryBuildProfileSelectOptionsByMode( _
+        selectedModeId, profileOptions, _
+        profileFilePath) Then GoTo PREPARE_FAILED
+    activeStep = "private_TrySetItemsSource:profiles"
+    If Not private_TrySetItemsSource( _
+        PROFILES_RUNTIME_KEY, profileOptions, False) Then GoTo PREPARE_FAILED
+
+    ' 4) Загружаем config из выбранного профиля.
+    activeStep = "private_TryResolveSelectedIdForControl:profile"
+    If Not private_TryResolveSelectedIdForControl( _
+        ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, _
+        selectedProfileId) Then GoTo PREPARE_FAILED
+    activeStep = "private_TryRegisterConfigFromXmlProfile"
+    If Not private_TryRegisterConfigFromXmlProfile( _
+        profileFilePath, selectedProfileId, _
+        False) Then GoTo PREPARE_FAILED
+
+    ' 5) По флагу обновляем UI.
+    If notifyChange Then
+        activeStep = "rt_PageManager.fn_RenderPage"
+        If Not rt_PageManager.fn_RenderPage( _
+            m_Page, "config:mode-profile-runtime") Then GoTo PREPARE_FAILED
+    End If
+
+    private_TryPrepareModeProfileConfigRuntime = True
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogInfo _
+        "startup:method-exit " & _
+        "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime' " & _
+        "result='true'"
+#End If
+    On Error GoTo 0
+    Exit Function
+
+PREPARE_FAILED:
+#If LOGGING_DEBUG_ENABLED Then
+    ex_Core.fn_Diagnostic_LogError _
+        "startup:method-exit " & _
+        "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime' " & _
+        "result='false' step='" & _
+        VBA.Replace$(activeStep, "'", "''") & "'"
+#End If
+    Exit Function
+
+EH_PREPARE_RUNTIME:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError _
+            "startup:method-error " & _
+            "method='obj_PageMainCtrl.private_TryPrepareModeProfileConfigRuntime' " & _
+            "step='" & VBA.Replace$(activeStep, "'", "''") & _
+            "' errNumber='" & VBA.CStr(Err.Number) & "' err='" & _
+            VBA.Replace$(Err.Description, "'", "''") & "'"
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in config runtime prepare: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+End Function
+
+Private Function private_TrySaveCurrentConfigProfile() As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TrySaveCurrentConfigProfile"
+    #End If
+    Dim ws As Worksheet
+    Dim modeOptions As Collection
+    Dim profileOptions As Collection
+    Dim selectedModeId As String
+    Dim selectedProfileId As String
+    Dim profileFilePath As String
+    Dim configControl As obj_ConfigControlVM
+    Dim configEntries As Collection
+    Dim dom As Object
+    Dim profileNode As Object
+    Dim generatedConfigNode As Object
+    Dim pageBase As obj_PageBase
+
+    On Error GoTo EH_SAVE_PROFILE
+
+    ' 1) Проверяем runtime-контекст страницы/листа.
+    Set pageBase = m_Page.GetPageBase()
+    Set ws = pageBase.Worksheet
+
+    ' 2) Определяем текущие выбранные mode/profile и путь к соответствующему Profiles.xml.
+    If Not private_TryBuildModeSelectOptions(modeOptions) Then Exit Function
+    If Not private_TryResolveSelectedIdForControl(ws, MODE_PICKER_CONTROL_NAME, modeOptions, selectedModeId) Then Exit Function
+    If Not private_TryBuildProfileSelectOptionsByMode(selectedModeId, profileOptions, profileFilePath) Then Exit Function
+    If Not private_TryResolveSelectedIdForControl(ws, PROFILE_PICKER_CONTROL_NAME, profileOptions, selectedProfileId) Then Exit Function
+
+    ' 3) Резолвим Config-контрол.
+    ' Здесь же читаем "плоскую" runtime-модель obj_ConfigEntry (Attr/Key/Value),
+    ' она нужна для синхронизации RuntimeSources после успешного сохранения файла.
+    If Not private_TryResolveConfigControl(configControl) Then Exit Function
+    If Not configControl.TryGetRenderedConfigEntries(configEntries) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to read current entries from config control '" & CONFIG_CONTROL_NAME & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to read current entries from config control '" & CONFIG_CONTROL_NAME & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' 4) Грузим профильный XML и находим именно тот profile-node,
+    ' который соответствует текущему выбору profileId.
+    If Not private_TryLoadProfileDomAndNode(profileFilePath, selectedProfileId, dom, profileNode) Then Exit Function
+
+    ' 5) Контрол формирует source-узел из текущего UI-рендера (без знания конкретного profile файла).
+    ' Затем оркестратор переносит строки из source-узла в target profile-node.
+    ' То есть ответственность разделена:
+    ' - ConfigControl: "как представить текущие данные в XML"
+    ' - Actions: "как применить этот XML к реальному профилю"
+    If Not configControl.TryBuildRenderedConfigNode(dom, generatedConfigNode) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to build source config node from control '" & CONFIG_CONTROL_NAME & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to build source config node from control '" & CONFIG_CONTROL_NAME & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not private_TryReplaceProfileRowsFromSourceNode(profileNode, generatedConfigNode) Then
+        Exit Function
+    End If
+    If Not private_TrySaveDomToFile(dom, profileFilePath) Then Exit Function
+
+    ' 6) После успешного Save обновляем in-memory source,
+    ' чтобы следующий render взял именно то состояние, которое ушло в файл.
+    If Not private_TrySetItemsSource(CONFIG_RUNTIME_KEY, configEntries, False) Then Exit Function
+
+    rt_Messaging.fn_ShowStatusBarSuccess "Config profile '" & selectedProfileId & "' saved to '" & profileFilePath & "'.", 4
+    private_TrySaveCurrentConfigProfile = True
+    On Error GoTo 0
+    Exit Function
+
+EH_SAVE_PROFILE:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description
+    #End If
+    VBA.MsgBox "PrototypeNew: exception in config profile save: [" & VBA.CStr(Err.Number) & "] " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+End Function
+
+Private Function private_TryRegisterConfigFromXmlProfile( _
+    ByVal filePath As String, _
+    ByVal profileKey As String, _
+    Optional ByVal notifyChange As Boolean = False _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryRegisterConfigFromXmlProfile"
+    #End If
+    Dim dom As Object
+    Dim profileNode As Object
+    ' Загружаем DOM + выбранный профильный узел из внешнего Profiles.xml.
+    If Not private_TryLoadProfileDomAndNode(filePath, profileKey, dom, profileNode) Then Exit Function
+
+    ' Преобразуем XML-узел профиля в runtime-коллекцию и регистрируем в RuntimeSources.
+    If Not private_TryRegisterConfigFromProfileNode(profileNode, notifyChange) Then Exit Function
+    private_TryRegisterConfigFromXmlProfile = True
+End Function
+
+Private Function private_TryRegisterConfigFromProfileNode( _
+    ByVal profileNode As Object, _
+    Optional ByVal notifyChange As Boolean = False _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryRegisterConfigFromProfileNode"
+    #End If
+    Dim configTable As obj_ConfigTable
+    Dim configEntries As list__obj_ConfigEntry
+    Dim sourceItems As Collection
+    Dim sourceConfigEntry As obj_ConfigEntry
+    Dim i As Long
+
+    ' Узел профиля обязателен.
+    If profileNode Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profile node is not specified."
+        #End If
+        VBA.MsgBox "PrototypeNew: config profile node is not specified.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' Парсим XML profile-node в typed-модель obj_ConfigTable/obj_ConfigEntry.
+    Set configTable = New obj_ConfigTable
+    If Not configTable.TryLoadFromXmlNode(profileNode, True) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to parse selected config profile node."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to parse selected config profile node.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' Готовим обычную Collection для runtime source map (совместимый формат источника).
+    Set sourceItems = New Collection
+    Set configEntries = configTable.Items
+    If configEntries Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config table entries collection is not initialized."
+        #End If
+        VBA.MsgBox "PrototypeNew: config table entries collection is not initialized.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' Важно: здесь используем индексный проход, а не For Each по list__*,
+    ' чтобы не зависеть от NewEnum-атрибута после hot-import.
+    For i = 1 To configEntries.Count
+        Set sourceConfigEntry = configEntries.Item(i)
+        If sourceConfigEntry Is Nothing Then GoTo ContinueSourceConfigEntry
+        sourceItems.Add sourceConfigEntry
+ContinueSourceConfigEntry:
+    Next i
+
+    ' Публикуем источник для Config-контрола.
+    ' Если notifyChange=True, RuntimeSources сам инициирует rerender страницы.
+    If Not private_TrySetItemsSource(CONFIG_RUNTIME_KEY, sourceItems, notifyChange) Then Exit Function
+    private_TryRegisterConfigFromProfileNode = True
+End Function
+
+Private Function private_TryLoadProfileDomAndNode( _
+    ByVal filePath As String, _
+    ByVal profileKey As String, _
+    ByRef outDom As Object, _
+    ByRef outProfileNode As Object _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryLoadProfileDomAndNode"
+    #End If
+    Dim normalizedFilePath As String
+    Dim normalizedProfileKey As String
+    Dim profileKeyLiteral As String
+    Dim profileXPath As String
+
+    Set outDom = Nothing
+    Set outProfileNode = Nothing
+
+    normalizedFilePath = VBA.Trim$(filePath)
+    normalizedProfileKey = VBA.Trim$(profileKey)
+
+    If VBA.Len(normalizedFilePath) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profiles file path is empty."
+        #End If
+        VBA.MsgBox "PrototypeNew: config profiles file path is empty.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If VBA.Len(normalizedProfileKey) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profile key is empty."
+        #End If
+        VBA.MsgBox "PrototypeNew: config profile key is empty.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' 1) Загружаем XML документ режима (например <Mode>Profiles.xml).
+    Set outDom = ex_XmlCore.fn_LoadDomByFilePath( _
+        normalizedFilePath, _
+        "PrototypeNew: config profiles file was not found: ", _
+        "PrototypeNew: failed to parse config profiles file: ", _
+        VBA.vbNullString)
+    If outDom Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to load config profiles file '" & normalizedFilePath & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    profileKeyLiteral = ex_XmlCore.fn_XPathLiteral(normalizedProfileKey)
+    ' 2) XPath подбирает профиль по id/name/key (атрибуты или дочерние теги),
+    ' и одновременно гарантирует, что найденный узел действительно содержит
+    ' конфиг-строки (item/row/entry/config) в себе или в потомках.
+    profileXPath = "//*[" & _
+                  "(" & _
+                  "@id=" & profileKeyLiteral & " or @name=" & profileKeyLiteral & " or @key=" & profileKeyLiteral & " or " & _
+                  "normalize-space(*[local-name()='id'][1])=" & profileKeyLiteral & " or " & _
+                  "normalize-space(*[local-name()='name'][1])=" & profileKeyLiteral & " or " & _
+                  "normalize-space(*[local-name()='key'][1])=" & profileKeyLiteral & _
+                  ")" & _
+                  " and " & _
+                  "(.//*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']" & _
+                  " or *[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config'])" & _
+                  "]"
+
+    ' 3) Возвращаем ровно один целевой узел профиля для чтения/перезаписи.
+    Set outProfileNode = outDom.selectSingleNode(profileXPath)
+    If outProfileNode Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: config profile '" & normalizedProfileKey & "' was not found in file '" & normalizedFilePath & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    private_TryLoadProfileDomAndNode = True
+End Function
+
+Private Function private_TryBuildModeSelectOptions( _
+    ByRef outOptions As Collection, _
+    Optional ByRef outUsedCache As Boolean = False _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryBuildModeSelectOptions"
+    #End If
+    Set outOptions = Nothing
+    outUsedCache = False
+
+    ' Новый подход:
+    ' 1) controller не знает деталей кеша/сканирования;
+    ' 2) просто запрашивает items по providerKey;
+    ' 3) provider+manager решают: cache-hit или rebuild.
+    If Not private_TryEnsureSelectItemsProvidersRegistered() Then Exit Function
+    If Not ex_SelectItemsSourceProviders.fn_TryResolveItemsByProviderKey(MODES_RUNTIME_KEY, outOptions, outUsedCache) Then Exit Function
+    If outOptions Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: mode source provider returned empty collection."
+        #End If
+        VBA.MsgBox "PrototypeNew: mode source provider returned empty collection.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If outOptions.Count = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: mode source provider returned no mode options."
+        #End If
+        VBA.MsgBox "PrototypeNew: mode source provider returned no mode options.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    If outUsedCache Then
+        ex_Core.fn_Diagnostic_LogInfo "config-modes: cache-hit count=" & VBA.CStr(outOptions.Count)
+    Else
+        ex_Core.fn_Diagnostic_LogInfo "config-modes: cache-refresh count=" & VBA.CStr(outOptions.Count)
+    End If
+#End If
+
+    private_TryBuildModeSelectOptions = True
+End Function
+
+Private Function private_TryEnsureSelectItemsProvidersRegistered() As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryEnsureSelectItemsProvidersRegistered"
+    #End If
+    ' Регистрируем providers один раз за lifecycle модуля actions.
+    ' Дальше все resolve идут через ex_SelectItemsSourceProviders.
+    If m_SelectItemsProvidersReady Then
+        private_TryEnsureSelectItemsProvidersRegistered = True
+        Exit Function
+    End If
+
+    Set m_ModeItemsProvider = New obj_SIP_ModeFolders
+    If m_ModeItemsProvider Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create mode source provider."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to create mode source provider.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not m_ModeItemsProvider.Initialize(MODES_RUNTIME_KEY, MODES_ROOT_REL_PATH, MODE_ON_SELECT_MACRO) Then Exit Function
+
+    Set m_ProfileItemsProvider = New obj_SIP_ModeProfilesXml
+    If m_ProfileItemsProvider Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to create profile source provider."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to create profile source provider.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not m_ProfileItemsProvider.Initialize(PROFILES_RUNTIME_KEY, MODES_ROOT_REL_PATH, MODE_PROFILES_FILE_SUFFIX, PROFILE_ON_SELECT_MACRO) Then Exit Function
+
+    If Not ex_SelectItemsSourceProviders.fn_RegisterProvider(m_ModeItemsProvider, True) Then Exit Function
+    If Not ex_SelectItemsSourceProviders.fn_RegisterProvider(m_ProfileItemsProvider, True) Then Exit Function
+
+    m_SelectItemsProvidersReady = True
+    private_TryEnsureSelectItemsProvidersRegistered = True
+End Function
+
+Private Function private_TryBuildProfileSelectOptionsByMode( _
+    ByVal modeId As String, _
+    ByRef outOptions As Collection, _
+    ByRef outProfilesFilePath As String _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryBuildProfileSelectOptionsByMode"
+    #End If
+    Dim usedCache As Boolean
+
+    Set outOptions = Nothing
+    outProfilesFilePath = VBA.vbNullString
+
+    ' Новый поток для профилей:
+    ' 1) передаем provider-у текущий modeId;
+    ' 2) cache manager сам решает cache-hit/cache-miss;
+    ' 3) получаем и options, и фактический путь <Mode>Profiles.xml.
+    If Not private_TryEnsureSelectItemsProvidersRegistered() Then Exit Function
+    If m_ProfileItemsProvider Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: profile source provider is not initialized."
+        #End If
+        VBA.MsgBox "PrototypeNew: profile source provider is not initialized.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not m_ProfileItemsProvider.SetCurrentModeId(modeId) Then Exit Function
+
+    If Not ex_SelectItemsSourceProviders.fn_TryResolveItemsByProviderKey(PROFILES_RUNTIME_KEY, outOptions, usedCache) Then Exit Function
+    If outOptions Is Nothing Then Exit Function
+    If outOptions.Count = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: profile source provider returned no profile options for mode '" & modeId & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: profile source provider returned no profile options for mode '" & modeId & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    outProfilesFilePath = VBA.Trim$(m_ProfileItemsProvider.CurrentProfilesFilePath)
+    If VBA.Len(outProfilesFilePath) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: profile source provider did not resolve profiles file path for mode '" & modeId & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: profile source provider did not resolve profiles file path for mode '" & modeId & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+#If LOGGING_DEBUG_ENABLED Then
+    If usedCache Then
+        ex_Core.fn_Diagnostic_LogInfo "config-profiles: cache-hit mode='" & VBA.Replace$(VBA.Trim$(modeId), "'", "''") & "' count=" & VBA.CStr(outOptions.Count)
+    Else
+        ex_Core.fn_Diagnostic_LogInfo "config-profiles: cache-refresh mode='" & VBA.Replace$(VBA.Trim$(modeId), "'", "''") & "' count=" & VBA.CStr(outOptions.Count)
+    End If
+#End If
+
+    private_TryBuildProfileSelectOptionsByMode = True
+End Function
+
+Private Function private_TryResolveSelectedIdForControl( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByVal options As Collection, _
+    ByRef outSelectedId As String _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryResolveSelectedIdForControl"
+    #End If
+    Dim storedId As String
+    Dim firstId As String
+
+    ' Сначала пробуем восстановить выбранный id из state store.
+    outSelectedId = VBA.vbNullString
+    If ws Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: worksheet is not specified for selectedId resolve."
+        #End If
+        VBA.MsgBox "PrototypeNew: worksheet is not specified for selectedId resolve.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If options Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: options are not specified for control '" & controlName & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: options are not specified for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If options.Count = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: options are empty for control '" & controlName & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: options are empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    If Not private_TryGetStoredSelectedIdForControl(ws, controlName, storedId) Then Exit Function
+    If private_SelectOptionsContainsId(options, storedId) Then
+        outSelectedId = VBA.Trim$(storedId)
+        private_TryResolveSelectedIdForControl = True
+        Exit Function
+    End If
+
+    ' Если не нашли — берем первый option и сохраняем его как выбранный.
+    If Not private_TryGetFirstOptionId(options, firstId) Then Exit Function
+    If VBA.Len(firstId) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to resolve first option id for control '" & controlName & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to resolve first option id for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    outSelectedId = firstId
+    If Not private_TrySetStoredSelectedIdForControl(ws, controlName, outSelectedId) Then Exit Function
+    private_TryResolveSelectedIdForControl = True
+End Function
+
+Private Function private_SelectOptionsContainsId(ByVal options As Collection, ByVal optionId As String) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_SelectOptionsContainsId"
+    #End If
+    Dim itemObj As Variant
+    Dim normalizedId As String
+
+    If options Is Nothing Then Exit Function
+
+    normalizedId = VBA.LCase$(VBA.Trim$(optionId))
+    If VBA.Len(normalizedId) = 0 Then Exit Function
+
+    For Each itemObj In options
+        If Not IsObject(itemObj) Then GoTo ContinueOptionContains
+        If VBA.StrComp(TypeName(itemObj), "obj_SelectOption", VBA.vbTextCompare) <> 0 Then GoTo ContinueOptionContains
+
+        If VBA.LCase$(VBA.Trim$(VBA.CStr(itemObj.Id))) = normalizedId Then
+            private_SelectOptionsContainsId = True
+            Exit Function
+        End If
+ContinueOptionContains:
+    Next itemObj
+End Function
+
+Private Function private_TryGetFirstOptionId(ByVal options As Collection, ByRef outId As String) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryGetFirstOptionId"
+    #End If
+    Dim itemObj As Variant
+
+    outId = VBA.vbNullString
+    If options Is Nothing Then Exit Function
+
+    For Each itemObj In options
+        If Not IsObject(itemObj) Then GoTo ContinueFirstOption
+        If VBA.StrComp(TypeName(itemObj), "obj_SelectOption", VBA.vbTextCompare) <> 0 Then GoTo ContinueFirstOption
+
+        outId = VBA.Trim$(VBA.CStr(itemObj.Id))
+        private_TryGetFirstOptionId = True
+        Exit Function
+ContinueFirstOption:
+    Next itemObj
+End Function
+
+Private Function private_TryGetStoredSelectedIdForControl( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByRef outSelectedId As String _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryGetStoredSelectedIdForControl"
+    #End If
+    Dim selectStatic As obj_SelectControlVMStatic
+    Dim selectKey As String
+
+    outSelectedId = VBA.vbNullString
+    If ws Is Nothing Then Exit Function
+
+    ' Ключ хранения: "<SheetName>|<ControlName>".
+    selectKey = VBA.LCase$(VBA.Trim$(ws.Name) & "|" & VBA.Trim$(controlName))
+    If VBA.Len(selectKey) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: select key is empty for control '" & controlName & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: select key is empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set selectStatic = New obj_SelectControlVMStatic
+    private_TryGetStoredSelectedIdForControl = selectStatic.TryGetSelectedId(selectKey, outSelectedId)
+End Function
+
+Private Function private_TrySetStoredSelectedIdForControl( _
+    ByVal ws As Worksheet, _
+    ByVal controlName As String, _
+    ByVal selectedId As String _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TrySetStoredSelectedIdForControl"
+    #End If
+    Dim selectStatic As obj_SelectControlVMStatic
+    Dim selectKey As String
+
+    If ws Is Nothing Then Exit Function
+
+    ' Ключ хранения: "<SheetName>|<ControlName>".
+    selectKey = VBA.LCase$(VBA.Trim$(ws.Name) & "|" & VBA.Trim$(controlName))
+    If VBA.Len(selectKey) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: select key is empty for control '" & controlName & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: select key is empty for control '" & controlName & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set selectStatic = New obj_SelectControlVMStatic
+    private_TrySetStoredSelectedIdForControl = selectStatic.SetSelectedId(selectKey, VBA.Trim$(selectedId))
+End Function
+
+Private Function private_TryResolveConfigControl( _
+    ByRef outConfigControl As obj_ConfigControlVM _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryResolveConfigControl"
+    #End If
+    Dim pageBase As obj_PageBase
+    Dim rawControl As Object
+
+    Set pageBase = m_Page.GetPageBase()
+    Set outConfigControl = Nothing
+    If Not pageBase.TryGetRegisteredControlByName(CONFIG_CONTROL_NAME, rawControl) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' was not found in runtime registry."
+        #End If
+        VBA.MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' was not found in runtime registry.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If rawControl Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' runtime entry is empty."
+        #End If
+        VBA.MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' runtime entry is empty.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If Not TypeOf rawControl Is obj_ConfigControlVM Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & TypeName(rawControl) & "'."
+        #End If
+        VBA.MsgBox "PrototypeNew: config control '" & CONFIG_CONTROL_NAME & "' has unexpected type '" & TypeName(rawControl) & "'.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    Set outConfigControl = rawControl
+    private_TryResolveConfigControl = True
+End Function
+
+Private Function private_TryReplaceProfileRowsFromSourceNode( _
+    ByVal targetProfileNode As Object, _
+    ByVal sourceConfigNode As Object _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TryReplaceProfileRowsFromSourceNode"
+    #End If
+    Dim targetRowNodes As Object
+    Dim sourceRowNodes As Object
+    Dim rowIndex As Long
+    Dim sourceRowNode As Object
+    Dim clonedRowNode As Object
+
+    If targetProfileNode Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: target profile node is not specified for save."
+        #End If
+        VBA.MsgBox "PrototypeNew: target profile node is not specified for save.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If sourceConfigNode Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: source config node is not specified for save."
+        #End If
+        VBA.MsgBox "PrototypeNew: source config node is not specified for save.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' Этап A: очищаем у target-профиля все существующие row-узлы.
+    ' Это делает операцию save "полной заменой", а не частичным merge.
+    On Error GoTo EH_XML
+    Set targetRowNodes = targetProfileNode.selectNodes("./*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']")
+    On Error GoTo 0
+
+    If Not targetRowNodes Is Nothing Then
+        For rowIndex = targetRowNodes.Length - 1 To 0 Step -1
+            targetProfileNode.removeChild targetRowNodes.Item(rowIndex)
+        Next rowIndex
+    End If
+
+    ' Этап B: читаем row-узлы из source, который сгенерировал ConfigControl.
+    On Error GoTo EH_XML
+    Set sourceRowNodes = sourceConfigNode.selectNodes("./*[local-name()='item' or local-name()='row' or local-name()='entry' or local-name()='config']")
+    On Error GoTo 0
+    If sourceRowNodes Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: source config node does not contain readable rows for save."
+        #End If
+        VBA.MsgBox "PrototypeNew: source config node does not contain readable rows for save.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If sourceRowNodes.Length = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: source config node is empty and cannot replace profile rows."
+        #End If
+        VBA.MsgBox "PrototypeNew: source config node is empty and cannot replace profile rows.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    ' Этап C: переносим source-узлы в target.
+    ' Используем cloneNode(True), чтобы перенос был независимым от исходного контейнера.
+    For rowIndex = 0 To sourceRowNodes.Length - 1
+        Set sourceRowNode = sourceRowNodes.Item(rowIndex)
+        If sourceRowNode Is Nothing Then GoTo ContinueSourceRow
+
+        ' В save-пайплайне source node строится тем же DOM, что и target profile node.
+        Set clonedRowNode = sourceRowNode.cloneNode(True)
+        If clonedRowNode Is Nothing Then
+            #If LOGGING_DEBUG_ENABLED Then
+                ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to clone source row node while updating profile."
+            #End If
+            VBA.MsgBox "PrototypeNew: failed to clone source row node while updating profile.", vbExclamation, "PrototypeNew / Config runtime"
+            Exit Function
+        End If
+        targetProfileNode.appendChild clonedRowNode
+ContinueSourceRow:
+    Next rowIndex
+
+    private_TryReplaceProfileRowsFromSourceNode = True
+    Exit Function
+
+EH_XML:
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to transfer source config rows into profile node: " & Err.Description
+    #End If
+    VBA.MsgBox "PrototypeNew: failed to transfer source config rows into profile node: " & Err.Description, vbExclamation, "PrototypeNew / Config runtime"
+End Function
+
+
+Private Function private_TrySaveDomToFile(ByVal dom As Object, ByVal filePath As String) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TrySaveDomToFile"
+    #End If
+    Dim saveError As String
+
+    filePath = VBA.Trim$(filePath)
+    If dom Is Nothing Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: DOM is not specified for file save."
+        #End If
+        VBA.MsgBox "PrototypeNew: DOM is not specified for file save.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+    If VBA.Len(filePath) = 0 Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: file path is empty for profile save."
+        #End If
+        VBA.MsgBox "PrototypeNew: file path is empty for profile save.", vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    If Not ex_XmlCore.fn_TrySaveDomPretty(dom, filePath, saveError) Then
+        #If LOGGING_DEBUG_ENABLED Then
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError
+        #End If
+        VBA.MsgBox "PrototypeNew: failed to write profile file '" & filePath & "': " & saveError, vbExclamation, "PrototypeNew / Config runtime"
+        Exit Function
+    End If
+
+    private_TrySaveDomToFile = True
+    Exit Function
+End Function
+
+
+Private Function private_TrySetItemsSource( _
+    ByVal sourceKey As String, _
+    ByVal items As Collection, _
+    ByVal notifyChange As Boolean _
+) As Boolean
+    #If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogInfo "enter:obj_PageMainCtrl.private_TrySetItemsSource"
+    #End If
+    Dim normalizedKey As String
+    Dim pageBase As obj_PageBase
+    Dim runtimeSources As obj_PageRuntimeSources
+
+    ' Приводим ключ к normalized-форме.
+    normalizedKey = VBA.LCase$(VBA.Trim$(sourceKey))
+
+    Set pageBase = m_Page.GetPageBase()
+    Set runtimeSources = pageBase.RuntimeSources
+    If Not runtimeSources.SetItemsSource(normalizedKey, items, notifyChange) Then Exit Function
+
+    private_TrySetItemsSource = True
+End Function
+
+Private Function private_BuildUniqueWorksheetName(ByVal wb As Workbook, ByVal baseName As String) As String
+    Dim i As Long
+    Dim suffix As String
+    Dim candidate As String
+
+    If wb Is Nothing Then Exit Function
+
+    baseName = VBA.Trim$(baseName)
+    If VBA.Len(baseName) = 0 Then baseName = "GeneratedPage"
+    If VBA.Len(baseName) > 31 Then baseName = VBA.Left$(baseName, 31)
+
+    If Not private_WorksheetNameExists(wb, baseName) Then
+        private_BuildUniqueWorksheetName = baseName
+        Exit Function
+    End If
+
+    For i = 1 To 9999
+        suffix = "_" & VBA.CStr(i)
+        candidate = VBA.Left$(baseName, 31 - VBA.Len(suffix)) & suffix
+        If VBA.Len(candidate) = 0 Then candidate = "Page" & suffix
+        If Not private_WorksheetNameExists(wb, candidate) Then
+            private_BuildUniqueWorksheetName = candidate
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function private_WorksheetNameExists(ByVal wb As Workbook, ByVal worksheetName As String) As Boolean
+    Dim ws As Worksheet
+
+    If wb Is Nothing Then Exit Function
+
+    worksheetName = VBA.Trim$(worksheetName)
+    If VBA.Len(worksheetName) = 0 Then Exit Function
+
+    On Error Resume Next
+    Set ws = wb.Worksheets(worksheetName)
+    private_WorksheetNameExists = Not ws Is Nothing
+    Err.Clear
+    On Error GoTo 0
+End Function

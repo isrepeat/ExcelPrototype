@@ -9,7 +9,7 @@ Private m_PendingFallbackRanges As Collection
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutControlFallbackRndr.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_LayoutControlFallbackRndr.fn_Module_Dispose"
 #End If
     Set m_PendingFallbackRanges = Nothing
 End Sub
@@ -47,7 +47,7 @@ Public Sub fn_ApplyPendingControlFallbacks(ByVal ws As Worksheet)
     On Error GoTo EH_APPLY
     For Each entry In m_PendingFallbackRanges
         If VBA.LCase$(VBA.CStr(entry(0))) = VBA.LCase$(ws.Name) Then
-            private_PaintControlFallbackRange ws, CLng(entry(1)), CLng(entry(2)), CLng(entry(3)), CLng(entry(4)), VBA.CStr(entry(5))
+            private_PaintControlFallbackRange ws, VBA.CLng(entry(1)), VBA.CLng(entry(2)), VBA.CLng(entry(3)), VBA.CLng(entry(4)), VBA.CStr(entry(5))
         End If
     Next entry
     Exit Sub
@@ -110,16 +110,16 @@ Private Sub private_PaintControlFallbackRange( _
 
     targetRange.Interior.Pattern = xlSolid
     targetRange.Interior.TintAndShade = 0
-    targetRange.Interior.Color = RGB(255, 87, 107)
+    targetRange.Interior.Color = VBA.RGB(255, 87, 107)
     targetRange.Borders.LineStyle = xlContinuous
     targetRange.Borders.Weight = xlThin
-    targetRange.Borders.Color = RGB(200, 90, 90)
+    targetRange.Borders.Color = VBA.RGB(200, 90, 90)
     targetRange.Cells(1, 1).Value2 = captionText
     targetRange.HorizontalAlignment = xlLeft
     targetRange.VerticalAlignment = xlTop
     targetRange.WrapText = True
     targetRange.Font.Bold = True
-    targetRange.Font.Color = RGB(156, 0, 6)
+    targetRange.Font.Color = VBA.RGB(156, 0, 6)
     Exit Sub
 
 EH_FALLBACK:

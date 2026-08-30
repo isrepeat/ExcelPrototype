@@ -5,7 +5,7 @@ Option Explicit
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_LayoutGridRenderer.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_LayoutGridRenderer.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -20,7 +20,8 @@ Public Function fn_Render( _
     ByVal rowStart As Long, _
     ByVal colStart As Long, _
     ByVal rowEnd As Long, _
-    ByVal colEnd As Long _
+    ByVal colEnd As Long, _
+    Optional ByVal dataContext As Object _
 ) As Boolean
     If layoutNode Is Nothing Then
 #If LOGGING_DEBUG_ENABLED Then
@@ -45,5 +46,6 @@ Public Function fn_Render( _
         layoutRowStart:=rowStart, _
         layoutColStart:=colStart, _
         layoutRowEnd:=rowEnd, _
-        layoutColEnd:=colEnd)
+        layoutColEnd:=colEnd, _
+        dataContext:=dataContext)
 End Function

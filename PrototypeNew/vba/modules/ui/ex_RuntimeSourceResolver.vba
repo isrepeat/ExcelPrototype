@@ -12,7 +12,7 @@ Private Const RUNTIME_SOURCE_BINDING_EXPRESSION_TYPE_GLOBAL As Long = 2
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_RuntimeSourceResolver.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_RuntimeSourceResolver.fn_Module_Dispose"
 #End If
 End Sub
 ' //

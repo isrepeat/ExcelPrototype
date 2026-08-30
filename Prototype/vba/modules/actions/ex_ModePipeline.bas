@@ -14,7 +14,7 @@ Private Const INPUT_KEY_LAYOUT_FIELDRANGES As String = "__ResultLayoutFieldRange
 Private Const INPUT_KEY_LAYOUT_KINDRANGES As String = "__ResultLayoutKindRanges"
 
 Private Const AUTO_POSTPROCESS_SCRIPT_KEY As String = "PostProcess.Script.Implicit"
-Private Const DEBUG_LOG_PATH As String = "Logs\personalcard_pipeline.log"
+Private Const DEBUG_LOG_PATH As String = "Logs\runtime_pipeline.log"
 Private Const DEBUG_LOG_ENABLED As Boolean = True
 
 Private g_PipelineBusyDepth As Long

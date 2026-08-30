@@ -5,7 +5,7 @@ Option Explicit
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_SqlRowProcessorFactory.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_SqlRowProcessorFactory.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -21,12 +21,6 @@ Public Function fn_TryCreateByClassName( _
     If VBA.Len(className) = 0 Then Exit Function
 
     Select Case VBA.LCase$(className)
-        Case VBA.LCase$("obj_PersonalCardSqlRowPcsr")
-            Set outProcessor = New obj_PersonalCardSqlRowPcsr
-#If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogInfo "SqlRowProcessorFactory: created row processor class='" & className & "' type='" & VBA.TypeName(outProcessor) & "'"
-#End If
-
         Case Else
 #If LOGGING_DEBUG_ENABLED Then
             ex_Core.fn_Diagnostic_LogError "SqlRowProcessorFactory: unsupported row processor class '" & className & "'."

@@ -1,0 +1,15 @@
+if (!window.__vagonCtrlAFix) {
+    window.__vagonCtrlAFix = function (e) {
+        if (e.code === "KeyA" && e.ctrlKey) {
+            e.preventDefault();
+        }
+    };
+
+    window.addEventListener(
+        "keydown",
+        window.__vagonCtrlAFix,
+        true
+    );
+
+    console.log("Vagon Ctrl+A fix enabled");
+}

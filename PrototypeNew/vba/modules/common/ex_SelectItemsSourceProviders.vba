@@ -7,12 +7,10 @@ Private m_Manager As obj_SIPCacheManager
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_SelectItemsSourceProviders.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_SelectItemsSourceProviders.fn_Module_Dispose"
 #End If
-    On Error Resume Next
     If Not m_Manager Is Nothing Then m_Manager.Dispose
     Set m_Manager = Nothing
-    On Error GoTo 0
 End Sub
 
 ' //

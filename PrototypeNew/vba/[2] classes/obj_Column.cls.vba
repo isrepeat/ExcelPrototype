@@ -9,18 +9,19 @@ Private m_IsDisposed As Boolean
 
 Private m_Name As String
 Private m_Position As Long
+Private m_FormatKind As String
 Private m_AliasesByKey As Object
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_AliasesByKey = VBA.CreateObject("Scripting.Dictionary")
     m_AliasesByKey.CompareMode = 1
 End Sub
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -33,13 +34,13 @@ End Sub
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     Initialize = True
 End Function
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
@@ -66,6 +67,14 @@ Public Property Let Position(ByVal value As Long)
     Else
         m_Position = 0
     End If
+End Property
+
+Public Property Get FormatKind() As String
+    FormatKind = m_FormatKind
+End Property
+
+Public Property Let FormatKind(ByVal value As String)
+    m_FormatKind = VBA.LCase$(VBA.Trim$(VBA.CStr(value)))
 End Property
 
 Public Property Get Aliases() As Collection

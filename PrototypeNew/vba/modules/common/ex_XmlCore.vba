@@ -7,7 +7,7 @@ Private Const UI_NS As String = "urn:excelprototype:profiles"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_XmlCore.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_XmlCore.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -21,7 +21,7 @@ Public Function fn_CombineBasePath(ByVal wb As Workbook, ByVal relPath As String
     If wb Is Nothing Then Exit Function
 
     basePath = wb.Path
-    If VBA.Len(basePath) = 0 Then basePath = CurDir$
+    If VBA.Len(basePath) = 0 Then basePath = VBA.CurDir$
 
     fn_CombineBasePath = basePath & "\" & relPath
 End Function
@@ -30,7 +30,7 @@ End Function
 Public Function fn_CreateDom(Optional ByVal nsUri As String = VBA.vbNullString) As Object
     Dim doc As Object
 
-    Set doc = CreateObject("MSXML2.DOMDocument.6.0")
+    Set doc = VBA.CreateObject("MSXML2.DOMDocument.6.0")
     doc.async = False
     doc.validateOnParse = False
 
@@ -92,7 +92,7 @@ Private Function private_FileExists(ByVal filePath As String) As Boolean
     Dim fso As Object
 
     On Error GoTo EH
-    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     ' Для путей вида `[4] controls` избегаем Dir(...), чтобы `[`/`]`
     ' трактовались как обычные символы имени папки.
     private_FileExists = fso.FileExists(filePath)
@@ -177,13 +177,13 @@ Public Function fn_TrySaveDomPretty( _
 
     On Error GoTo EH_PRETTY_SAVE
 
-    Set writer = CreateObject("MSXML2.MXXMLWriter.6.0")
+    Set writer = VBA.CreateObject("MSXML2.MXXMLWriter.6.0")
     writer.omitXMLDeclaration = False
     writer.indent = True
     writer.standalone = True
     writer.encoding = "UTF-8"
 
-    Set reader = CreateObject("MSXML2.SAXXMLReader.6.0")
+    Set reader = VBA.CreateObject("MSXML2.SAXXMLReader.6.0")
     Set reader.contentHandler = writer
     Set reader.dtdHandler = writer
     Set reader.errorHandler = writer
@@ -195,7 +195,7 @@ Public Function fn_TrySaveDomPretty( _
     reader.parse VBA.CStr(dom.XML)
     xmlText = VBA.CStr(writer.output)
 
-    Set stream = CreateObject("ADODB.Stream")
+    Set stream = VBA.CreateObject("ADODB.Stream")
     stream.Type = 2
     stream.Charset = "utf-8"
     stream.Open

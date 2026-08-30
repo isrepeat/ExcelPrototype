@@ -12,13 +12,13 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
 End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -167,6 +167,56 @@ Public Function TryParseTableRefToken( _
     If VBA.Len(VBA.Trim$(VBA.Mid$(suffix, closePos + 1))) > 0 Then Exit Function
 
     TryParseTableRefToken = True
+End Function
+
+Public Function TryParseColumnRefToken( _
+    ByVal tokenText As String, _
+    ByRef outSourceAlias As String, _
+    ByRef outTableAlias As String, _
+    ByRef outColumnAlias As String _
+) As Boolean
+    Dim normalized As String
+    Dim sheetPos As Long
+    Dim sourceAlias As String
+    Dim suffix As String
+    Dim closeSheetPos As Long
+    Dim afterSheet As String
+    Dim columnPrefix As String
+    Dim closeColumnPos As Long
+
+    outSourceAlias = VBA.vbNullString
+    outTableAlias = VBA.vbNullString
+    outColumnAlias = VBA.vbNullString
+
+    ' Формат токена: <SourceAlias>.Sheet[<TableAlias>].Column[<ColumnAlias>]
+    tokenText = VBA.Trim$(tokenText)
+    normalized = VBA.LCase$(tokenText)
+    If VBA.Len(tokenText) = 0 Then Exit Function
+
+    sheetPos = VBA.InStr(1, normalized, ".sheet[", VBA.vbTextCompare)
+    If sheetPos <= 1 Then Exit Function
+
+    sourceAlias = VBA.Trim$(VBA.Left$(tokenText, sheetPos - 1))
+    suffix = VBA.Mid$(tokenText, sheetPos + 7)
+    closeSheetPos = VBA.InStr(1, suffix, "]", VBA.vbBinaryCompare)
+    If closeSheetPos <= 1 Then Exit Function
+
+    outSourceAlias = sourceAlias
+    outTableAlias = VBA.Trim$(VBA.Left$(suffix, closeSheetPos - 1))
+    afterSheet = VBA.Trim$(VBA.Mid$(suffix, closeSheetPos + 1))
+
+    columnPrefix = ".Column["
+    If VBA.LCase$(VBA.Left$(afterSheet, VBA.Len(columnPrefix))) <> VBA.LCase$(columnPrefix) Then Exit Function
+
+    afterSheet = VBA.Mid$(afterSheet, VBA.Len(columnPrefix) + 1)
+    closeColumnPos = VBA.InStr(1, afterSheet, "]", VBA.vbBinaryCompare)
+    If closeColumnPos <= 1 Then Exit Function
+
+    outColumnAlias = VBA.Trim$(VBA.Left$(afterSheet, closeColumnPos - 1))
+    If VBA.Len(outSourceAlias) = 0 Or VBA.Len(outTableAlias) = 0 Or VBA.Len(outColumnAlias) = 0 Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.Mid$(afterSheet, closeColumnPos + 1))) > 0 Then Exit Function
+
+    TryParseColumnRefToken = True
 End Function
 
 Public Function TryParseMapValue( _

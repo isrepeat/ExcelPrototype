@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <stackPanel at="r2c2" orientation="vertical">
+      <stackPanel orientation="horizontal">
+        <control
+          type="Button"
+          name="RunComparingPipeline"
+          caption="Run compare"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageComparing'}"
+          onClick="{Binding Method=OnRunPipelineAndRenderCommand}"
+          spanColls="4"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="RerenderComparingPage"
+          caption="Rerender"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageComparing'}"
+          onClick="{Binding Method=OnRenderCommand}"
+          spanColls="4"
+          spanRows="2"/>
+
+        <control
+          type="Button"
+          name="ToggleComparingDiffView"
+          caption="{Binding Path=IsCondensedDiffView;TrueAs=View [[[ok]]Condensed[[/ok]]];FalseAs=View Full}"
+          dataContext="{PageRuntimeSource='RuntimeObjects.PageComparing.Controller'}"
+          onClick="{Binding Method=RuntimeToggleDiffView}"
+          spanColls="4"
+          spanRows="2"/>
+      </stackPanel>
+
+      <control
+        type="Banner"
+        name="ComparingStatus"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PageComparing.Controller'}"
+        header="Tables Comparing"
+        message="{Binding Path=StatusText}"
+        spanColls="12"
+        spanRows="4"/>
+
+      <control
+        type="TableList"
+        name="ComparingDiffTable"
+        dataContext="{PageRuntimeSource='RuntimeObjects.PageComparing.Controller'}"
+        itemsSource="{PageRuntimeSource='RuntimeItems.Comparing.DiffTables'}"
+        renderAsListObject="true"
+        tableName="ComparingDiffResult"
+        spanColls="20"/>
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <stylePipelineStage name="default">
+      <layer name="comparing-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#20242A;
+                fontColor:#E5E7EB;
+                borderColor:#111318;
+                borderWeight:thin;
+                width:13;
+                rowHeight:20;
+                cellType:text;
+              }"/>
+      </layer>
+
+      <layer name="comparing-banners">
+        <rule target="controlPart"
+              selector="type=banner;part=header"
+              styles="{
+                backColor:#14532D;
+                fontColor:#DCFCE7;
+                borderColor:#052E16;
+                borderWeight:thin;
+                fontBold:true;
+                horizontal:left;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=banner;part=message"
+              styles="{
+                backColor:#263238;
+                fontColor:#F8FAFC;
+                borderColor:#111827;
+                borderWeight:thin;
+                overflow:wrap;
+                vertical:top;
+              }"/>
+      </layer>
+
+      <layer name="comparing-tablelist">
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=section"
+              styles="{
+                backColor:#173A5E;
+                fontColor:#EAF6FF;
+                borderColor:#0E2239;
+                borderWeight:thin;
+                fontBold:true;
+                fontSize:10;
+                horizontal:left;
+                vertical:center;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=header"
+              styles="{
+                backColor:#2B4A6B;
+                fontColor:#DDEEFF;
+                borderColor:#1F3650;
+                borderWeight:thin;
+                fontBold:true;
+                fontSize:10;
+                horizontal:center;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=rows"
+              styles="{
+                backColor:#3A3A3A;
+                fontColor:#F0F0F0;
+                borderColor:#2A2A2A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffadded"
+              styles="{
+                backColor:#1F561B;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffdeleted"
+              styles="{
+                backColor:#CC0000;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffduplicateleft"
+              styles="{
+                backColor:#DAA520;
+                fontColor:#1A1A1A;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffduplicateright"
+              styles="{
+                backColor:#DAA520;
+                fontColor:#1A1A1A;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffmodified"
+              styles="{
+                backColor:#911F87;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffmodifiedold"
+              styles="{
+                backColor:#800A4D;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffmodifiednew"
+              styles="{
+                backColor:#B905D1;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffaddedmoved"
+              styles="{
+                backColor:#4E6424;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffdeletedmoved"
+              styles="{
+                backColor:#6B2323;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffchangedcell"
+              styles="{
+                backColor:#E074D6;
+                fontColor:#F5F5F5;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffchangedmodifiedoldcell"
+              styles="{
+                backColor:#CA107A;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffchangedmodifiednewcell"
+              styles="{
+                backColor:#EA6DFB;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=diffellipsis"
+              styles="{
+                backColor:#212121;
+                fontColor:#BEBEBE;
+                borderColor:#0A0A0A;
+                borderWeight:thin;
+                fontSize:10;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:25;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=itembanner"
+              styles="{
+                backColor:#2D4A68;
+                fontColor:#F5FBFF;
+                borderColor:#1A2B3D;
+                borderWeight:thin;
+                fontBold:true;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:28;
+              }"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=rowbanner"
+              styles="{
+                backColor:#345676;
+                fontColor:#F0F8FF;
+                borderColor:#213952;
+                borderWeight:thin;
+                vertical:center;
+                overflow:wrap;
+                rowHeight:24;
+              }"/>
+      </layer>
+
+      <layer name="comparing-date-format">
+        <rule target="controlPart"
+              selector="type=tablelist;name=ComparingDiffTable;part=datelike"
+              styles="{
+                cellType:date;
+              }"/>
+      </layer>
+
+      <layer name="comparing-column-alignment">
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Action" styles="{ horizontal:center; width:8.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OldRow" styles="{ horizontal:center; width:6; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=NewRow" styles="{ horizontal:center; width:6; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=TaxId" styles="{ horizontal:center; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Position" styles="{ horizontal:center; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Event" styles="{ horizontal:center; width:11; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=Destination" styles="{ horizontal:center; width:13; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=IsOutside" styles="{ horizontal:center; width:7; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutOrder" styles="{ horizontal:center; width:9; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutFoodDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutTerm" styles="{ horizontal:center; width:8; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=PlannedReturnDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnFoodDate" styles="{ horizontal:center; width:9.5; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnOrder" styles="{ horizontal:center; width:9; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=OutReason" styles="{ width:18; }"/>
+        <rule target="controlPart" selector="type=tablelist;name=ComparingDiffTable;part=rows;columnAlias=ReturnReason" styles="{ width:18; }"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

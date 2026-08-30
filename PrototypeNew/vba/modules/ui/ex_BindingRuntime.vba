@@ -5,10 +5,11 @@ Option Explicit
 
 Private Const BINDING_PREFIX As String = "{Binding "
 Private Const BINDING_SUFFIX As String = "}"
+Private Const DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY As String = "__MissingMemberAsEmpty"
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_BindingRuntime.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_BindingRuntime.fn_Module_Dispose"
 #End If
 End Sub
 ' //
@@ -25,7 +26,7 @@ Public Function fn_TryResolveTextBinding( _
 
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
-    If VBA.IsObject(resolvedValue) Then
+    If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: text binding must resolve to scalar value."
 #End If
@@ -48,7 +49,7 @@ Public Function fn_TryResolveMacroBinding( _
 
     If Not private_TryResolveBindingValue(rawText, sourceObject, resolvedValue) Then Exit Function
 
-    If VBA.IsObject(resolvedValue) Then
+    If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
         ex_Core.fn_Diagnostic_LogError "PrototypeNew: macro binding must resolve to text value."
 #End If
@@ -87,9 +88,9 @@ Public Function fn_TryResolveVisibilityBinding( _
 
     If Not fn_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseBooleanVariant(resolvedValue, outVisible) Then
-        If VBA.IsObject(resolvedValue) Then
+        If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected boolean-compatible value."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility value resolved to object '" & TypeName(resolvedValue) & "'. Expected boolean-compatible value."
 #End If
         Else
 #If LOGGING_DEBUG_ENABLED Then
@@ -118,9 +119,9 @@ Public Function fn_TryResolveVisibilityStateBinding( _
 
     If Not fn_TryResolveValueBinding(rawText, sourceObject, resolvedValue) Then Exit Function
     If Not private_TryParseVisibilityStateVariant(resolvedValue, outVisibilityState) Then
-        If VBA.IsObject(resolvedValue) Then
+        If IsObject(resolvedValue) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility state resolved to object '" & VBA.TypeName(resolvedValue) & "'. Expected scalar visibility value."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: visibility state resolved to object '" & TypeName(resolvedValue) & "'. Expected scalar visibility value."
 #End If
         Else
 #If LOGGING_DEBUG_ENABLED Then
@@ -147,6 +148,44 @@ Public Function fn_TryResolveValueBinding( _
 ) As Boolean
     If Not private_TryResolveBindingValue(rawText, sourceObject, outValue) Then Exit Function
     fn_TryResolveValueBinding = True
+End Function
+
+' Возвращает dataContext, явно указанный внутри Binding, например:
+'   {Binding DataContext={PageRuntimeSource='RuntimeObjects.Page.Controller'}; Method=DoWork}
+'
+' Если DataContext не указан, возвращаем defaultSourceObject. Это удобно для callback-ов:
+' визуальный dataContext контрола остается своим, а целевой объект события можно выбрать
+' прямо в onClick, не вводя отдельный control-specific атрибут.
+Public Function fn_TryResolveBindingSourceObject( _
+    ByVal rawText As String, _
+    ByVal runtimeSources As obj_PageRuntimeSources, _
+    ByVal defaultSourceObject As Object, _
+    ByRef outSourceObject As Object _
+) As Boolean
+    Dim bindingBody As String
+    Dim sourceRaw As String
+
+    Set outSourceObject = defaultSourceObject
+
+    If Not private_TryExtractBindingBody(rawText, bindingBody) Then
+        fn_TryResolveBindingSourceObject = True
+        Exit Function
+    End If
+
+    If Not private_TryExtractNamedArg(bindingBody, "DataContext", sourceRaw) Then
+        fn_TryResolveBindingSourceObject = True
+        Exit Function
+    End If
+
+    If Not private_IsRuntimeObjectSourceExpression(sourceRaw) Then
+#If LOGGING_DEBUG_ENABLED Then
+        ex_Core.fn_Diagnostic_LogError "PrototypeNew: Binding DataContext supports only {PageRuntimeSource='...'} or {GlobalRuntimeSource='...'}."
+#End If
+        Exit Function
+    End If
+
+    If Not ex_RuntimeSourceResolver.fn_TryResolveObjectSource(runtimeSources, sourceRaw, outSourceObject, False) Then Exit Function
+    fn_TryResolveBindingSourceObject = True
 End Function
 
 ' //
@@ -394,6 +433,28 @@ Private Function private_TryExtractBindingBody(ByVal rawText As String, ByRef ou
 End Function
 
 
+Private Function private_IsRuntimeObjectSourceExpression(ByVal rawSource As String) As Boolean
+    Dim normalizedSource As String
+    Dim expressionBody As String
+    Dim eqPos As Long
+    Dim argName As String
+
+    normalizedSource = VBA.Trim$(rawSource)
+    If VBA.Len(normalizedSource) < 3 Then Exit Function
+    If VBA.Left$(normalizedSource, 1) <> "{" Then Exit Function
+    If VBA.Right$(normalizedSource, 1) <> "}" Then Exit Function
+
+    expressionBody = VBA.Trim$(VBA.Mid$(normalizedSource, 2, VBA.Len(normalizedSource) - 2))
+    eqPos = VBA.InStr(1, expressionBody, "=", VBA.vbBinaryCompare)
+    If eqPos <= 1 Then Exit Function
+
+    argName = VBA.Trim$(VBA.Left$(expressionBody, eqPos - 1))
+    private_IsRuntimeObjectSourceExpression = _
+        (VBA.StrComp(argName, "PageRuntimeSource", VBA.vbTextCompare) = 0 Or _
+         VBA.StrComp(argName, "GlobalRuntimeSource", VBA.vbTextCompare) = 0)
+End Function
+
+
 Private Function private_TryExtractNamedArg( _
     ByVal bindingBody As String, _
     ByVal argName As String, _
@@ -483,7 +544,7 @@ Private Function private_TryReadBindingPathValue( _
 
         If Not private_TryReadMemberValue(currentObject, segmentName, memberIsObject, memberObject, memberScalar) Then
 #If LOGGING_DEBUG_ENABLED Then
-            ex_Core.fn_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & VBA.TypeName(currentObject) & "'."
+            ex_Core.fn_Diagnostic_LogError "PrototypeNew: member '" & segmentName & "' was not found on object '" & TypeName(currentObject) & "'."
 #End If
             Exit Function
         End If
@@ -527,7 +588,13 @@ Private Function private_TryReadMemberValue( _
 
     Set dictObj = private_AsDictionary(sourceObject)
     If Not dictObj Is Nothing Then
-        If Not dictObj.Exists(memberName) Then Exit Function
+        If Not dictObj.Exists(memberName) Then
+            If dictObj.Exists(DICTIONARY_MISSING_MEMBER_AS_EMPTY_KEY) Then
+                outScalar = VBA.vbNullString
+                private_TryReadMemberValue = True
+            End If
+            Exit Function
+        End If
 
         On Error Resume Next
         Set outObject = dictObj.Item(memberName)
@@ -604,7 +671,7 @@ Private Function private_AsDictionary(ByVal sourceObject As Object) As Object
 
     If sourceObject Is Nothing Then Exit Function
 
-    typeNameText = VBA.TypeName(sourceObject)
+    typeNameText = TypeName(sourceObject)
     If VBA.StrComp(typeNameText, "Dictionary", VBA.vbTextCompare) = 0 Or _
        VBA.StrComp(typeNameText, "Scripting.Dictionary", VBA.vbTextCompare) = 0 Then
         Set private_AsDictionary = sourceObject
@@ -614,7 +681,7 @@ End Function
 
 Private Function private_AsCollection(ByVal sourceObject As Object) As Collection
     If sourceObject Is Nothing Then Exit Function
-    If VBA.StrComp(VBA.TypeName(sourceObject), "Collection", VBA.vbTextCompare) <> 0 Then Exit Function
+    If VBA.StrComp(TypeName(sourceObject), "Collection", VBA.vbTextCompare) <> 0 Then Exit Function
 
     Set private_AsCollection = sourceObject
 End Function
@@ -707,7 +774,7 @@ End Function
 
 
 Private Function private_TryParseNumberVariant(ByVal rawValue As Variant, ByRef outNumber As Double) As Boolean
-    If VBA.IsObject(rawValue) Then Exit Function
+    If IsObject(rawValue) Then Exit Function
     If Not VBA.IsNumeric(rawValue) Then Exit Function
 
     outNumber = VBA.CDbl(rawValue)
@@ -728,7 +795,7 @@ End Function
 Private Function private_TryParseBooleanVariant(ByVal rawValue As Variant, ByRef outBoolean As Boolean) As Boolean
     Dim typeCode As VbVarType
 
-    If VBA.IsObject(rawValue) Then Exit Function
+    If IsObject(rawValue) Then Exit Function
 
     typeCode = VBA.VarType(rawValue)
     If typeCode = vbBoolean Then
@@ -766,7 +833,7 @@ Private Function private_TryParseVisibilityStateVariant(ByVal rawValue As Varian
     Dim typeCode As VbVarType
     Dim visibilityText As String
 
-    If VBA.IsObject(rawValue) Then Exit Function
+    If IsObject(rawValue) Then Exit Function
 
     typeCode = VBA.VarType(rawValue)
     If typeCode = vbBoolean Then

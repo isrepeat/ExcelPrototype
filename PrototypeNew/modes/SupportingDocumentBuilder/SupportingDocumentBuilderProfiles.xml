@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<profiles>
+  <profile id="default" caption="Supporting Document Builder">
+    <item attr="#" key="Profile.Name" value="Supporting Document Builder"/>
+
+    <item attr="#" key="Manual certificate form" value=""/>
+    <item key="SupportingDocumentBuilder.ControllerClass" value="obj_PageSDBCtrl"/>
+    <item key="SupportingDocumentBuilder.ProfilesProviderClass" value="obj_SDB_Data"/>
+
+    <item attr="#" key="WORD export" value=""/>
+    <item key="Export.Word.ExporterClass" value="obj_SDB_ExptrWord"/>
+    <item key="Export.Word.FilePath" value="modes\SupportingDocumentBuilder\SupportingDocumentBuilderTemplate.docx"/>
+  </profile>
+</profiles>

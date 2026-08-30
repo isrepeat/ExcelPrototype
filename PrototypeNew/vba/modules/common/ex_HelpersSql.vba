@@ -4,7 +4,7 @@ Option Explicit
 
 Public Sub fn_Module_Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:ex_HelpersSql.fn_Module_Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:ex_HelpersSql.fn_Module_Dispose"
 #End If
 End Sub
 
@@ -16,6 +16,25 @@ Public Function fn_BuildWhereEqualsSql(ByVal sourceColumnHeader As String, ByVal
     If VBA.Len(sourceColumnHeader) = 0 Then Exit Function
 
     fn_BuildWhereEqualsSql = fn_QuoteSqlIdentifier(sourceColumnHeader) & " = " & fn_QuoteSqlLiteral(valueText)
+End Function
+
+Public Function fn_BuildWhereContainsSql(ByVal sourceColumnHeader As String, ByVal valueText As String) As String
+    sourceColumnHeader = VBA.Trim$(sourceColumnHeader)
+    valueText = VBA.Trim$(valueText)
+    If VBA.Len(sourceColumnHeader) = 0 Then Exit Function
+    If VBA.Len(valueText) = 0 Then Exit Function
+
+    fn_BuildWhereContainsSql = fn_QuoteSqlIdentifier(sourceColumnHeader) & " LIKE " & fn_QuoteSqlLiteral("%" & valueText & "%")
+End Function
+
+Public Function fn_BuildWhereNotBlankSql(ByVal sourceColumnHeader As String) As String
+    Dim quotedHeader As String
+
+    sourceColumnHeader = VBA.Trim$(sourceColumnHeader)
+    If VBA.Len(sourceColumnHeader) = 0 Then Exit Function
+
+    quotedHeader = fn_QuoteSqlIdentifier(sourceColumnHeader)
+    fn_BuildWhereNotBlankSql = quotedHeader & " IS NOT NULL AND Trim(" & quotedHeader & ") <> ''"
 End Function
 
 Public Function fn_QuoteSqlIdentifier(ByVal valueText As String) As String

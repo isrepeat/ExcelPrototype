@@ -8,10 +8,13 @@ Option Explicit
 #Const LOGGING_VERBOSE_ENABLED = False
 
 Private m_SourcePath As String
+Private m_SourceAlias As String
+Private m_SourceAliasTemplate As String
 Private m_SheetName As String
 Private m_RangeStartMarker As String
 Private m_RangeEndMarker As String
 Private m_WhereConditions As String
+Private m_MaxRows As Long
 Private m_SourceColumnHeaders As Collection
 Private m_MappedColumnHeaders As Collection
 Private m_ColumnAliases As Collection
@@ -20,7 +23,7 @@ Private m_IsDisposed As Boolean
 
 Private Sub Class_Initialize()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Initialize"
 #End If
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
@@ -29,7 +32,7 @@ End Sub
 
 Private Sub Class_Terminate()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Class_Terminate"
 #End If
     If m_IsDisposed Then Exit Sub
     On Error Resume Next
@@ -46,6 +49,22 @@ End Property
 
 Public Property Let SourcePath(ByVal value As String)
     m_SourcePath = VBA.Trim$(VBA.CStr(value))
+End Property
+
+Public Property Get SourceAlias() As String
+    SourceAlias = m_SourceAlias
+End Property
+
+Public Property Let SourceAlias(ByVal value As String)
+    m_SourceAlias = VBA.Trim$(VBA.CStr(value))
+End Property
+
+Public Property Get SourceAliasTemplate() As String
+    SourceAliasTemplate = m_SourceAliasTemplate
+End Property
+
+Public Property Let SourceAliasTemplate(ByVal value As String)
+    m_SourceAliasTemplate = VBA.Trim$(VBA.CStr(value))
 End Property
 
 Public Property Get SheetName() As String
@@ -78,6 +97,15 @@ End Property
 
 Public Property Let WhereConditions(ByVal value As String)
     m_WhereConditions = VBA.Trim$(VBA.CStr(value))
+End Property
+
+Public Property Get MaxRows() As Long
+    MaxRows = m_MaxRows
+End Property
+
+Public Property Let MaxRows(ByVal value As Long)
+    If value < 0 Then value = 0
+    m_MaxRows = value
 End Property
 
 Public Property Get SourceColumnHeaders() As Collection
@@ -113,11 +141,14 @@ End Property
 ' //
 Public Function Initialize() As Boolean
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Initialize"
 #End If
     m_RangeStartMarker = VBA.vbNullString
+    m_SourceAlias = VBA.vbNullString
+    m_SourceAliasTemplate = VBA.vbNullString
     m_RangeEndMarker = VBA.vbNullString
     m_WhereConditions = VBA.vbNullString
+    m_MaxRows = 0
     Set m_SourceColumnHeaders = New Collection
     Set m_MappedColumnHeaders = New Collection
     Set m_ColumnAliases = New Collection
@@ -127,12 +158,14 @@ End Function
 
 Public Sub Dispose()
 #If LOGGING_VERBOSE_ENABLED Then
-    ex_Core.fn_Diagnostic_LogInfo "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
+    ex_Core.fn_Diagnostic_LogVerbose "lifecycle:" & VBA.TypeName(Me) & ".Dispose"
 #End If
     If m_IsDisposed Then Exit Sub
     m_IsDisposed = True
 
     On Error Resume Next
+    m_SourceAlias = VBA.vbNullString
+    m_SourceAliasTemplate = VBA.vbNullString
     Set m_SourceColumnHeaders = Nothing
     Set m_MappedColumnHeaders = Nothing
     Set m_ColumnAliases = Nothing
@@ -211,7 +244,6 @@ Public Function TryValidate(ByRef outErrorText As String) As Boolean
         outErrorText = "SourceColumnHeaders and ColumnAliases counts must match."
         Exit Function
     End If
-
     TryValidate = True
 End Function
 
@@ -223,6 +255,7 @@ Public Function fn_ToString() As String
         "RangeStartMarker=" & private_QuoteValue(m_RangeStartMarker) & "; " & _
         "RangeEndMarker=" & private_QuoteValue(m_RangeEndMarker) & "; " & _
         "WhereConditions=" & private_QuoteValue(m_WhereConditions) & "; " & _
+        "MaxRows=" & VBA.CStr(m_MaxRows) & "; " & _
         "SourceColumnHeaders=[" & private_CollectionToDelimitedText(m_SourceColumnHeaders, ", ") & "]; " & _
         "MappedColumnHeaders=[" & private_CollectionToDelimitedText(m_MappedColumnHeaders, ", ") & "]; " & _
         "ColumnAliases=[" & private_CollectionToDelimitedText(m_ColumnAliases, ", ") & "]; " & _
