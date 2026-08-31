@@ -211,7 +211,6 @@
           <!-- Итоговая таблица исключений всегда выводится последней. -->
           <pattern id="excluded-from-personnel-lists">
             <![CDATA[
-              [excluded-from-personnel-lists] /
               [excluded-from-personnel-lists]*
             ]]>
           </pattern>
@@ -554,7 +553,7 @@
 
           <!-- Опциональная формулировка преобразуется в строковый boolean. -->
           <field id="temporaryPersonnel" from="$match" ignoreCase="true"
-            regex="((?:(?:який|яка)\s+(?:зарахований|зарахована|перебуває)[\s\S]{0,120}?тимчасово\s+прибулого\s+особового\s+складу)|(?:зарахован(?:ий|а|е|і|ого|ої|ому|ій|им|ою)?\s+до\s+тимчасово\s+прибулого\s+особового\s+складу))"
+            regex="((?:(?:який|яка)\s+(?:зарахований|зарахована|перебуває)[\s\S]{0,120}?тимчасово\s+прибулого\s+особового\s+складу)|(?:зарахован(?:ий|а|е|і|ого|ої|ому|ій|им|ою)?\s+до\s+(?:списк(?:ів|у)\s+)?тимчасово\s+прибулого\s+особового\s+складу))"
             group="1" default="">
             <transform type="boolean" trueValue="true" falseValue="false"/>
           </field>
@@ -1296,7 +1295,7 @@
           <field id="eventTo" from="$match" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
           <field id="temporaryPersonnel" from="$match" ignoreCase="true"
-            regex="(зарахован(?:ий|а|е|і|ого|ої|ому|ій|им|ою)?\s+до\s+тимчасово\s+прибулого\s+особового\s+складу)"
+            regex="(зарахован(?:ий|а|е|і|ого|ої|ому|ій|им|ою)?\s+до\s+(?:списк(?:ів|у)\s+)?тимчасово\s+прибулого\s+особового\s+складу)"
             group="1" default="">
             <transform type="boolean" trueValue="true" falseValue="false"/>
           </field>
