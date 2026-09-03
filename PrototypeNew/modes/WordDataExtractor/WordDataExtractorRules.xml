@@ -673,16 +673,19 @@
 
       <!-- Возвращение из командировки. Дата задаётся один раз для группы
            пунктов и наследуется всеми местами отправления до следующего блока
-           «з <дата>». Каждое место отправления имеет собственное основание,
-           а дата продовольственного обеспечения наследуется из заголовка
-           пункта первого уровня. -->
+           «з <дата>». Внутри одного места допускается несколько независимых
+           групп военнослужащих со своими основаниями. Дата продовольственного
+           обеспечения наследуется из заголовка пункта первого уровня. -->
       <rule id="returned-from-assignment" caption="З відрядження" flow="arrival" includeCommonColumns="false">
         <scope>
           <match ignoreCase="true" multiline="false"><![CDATA[{{item-prefix}}З\s+відрядження]]></match>
           <context id="returnDate">
             <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+({{date}})[^\r]*\r[\s\S]*?(?=\r\s*з\s+{{date}}|\s*$)]]></match>
             <context id="assignmentGroup">
-              <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(?!{{date}})[^\r]+:\s*\r[\s\S]*?Підстава:\s*([^\r]+)(?=\r|$)]]></match>
+              <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*з\s+(?!{{date}})[^\r]+:\s*\r[\s\S]*?(?=\r\s*з\s+(?!{{date}})[^\r]+:\s*\r|\s*$)]]></match>
+              <context id="basisGroup">
+                <match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:{{military-rank}})\s+[\s\S]*?Підстава:\s*([^\r]+)(?=\r|$)]]></match>
+              </context>
             </context>
           </context>
         </scope>
@@ -695,7 +698,7 @@
           <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="returnDate" from="$returnDate.1"><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="groupFoodEnrollmentDate" from="$foodEnrollmentDate"/>
-          <field id="basis" from="$assignmentGroup.1">
+          <field id="basis" from="$basisGroup.1">
             <transform type="trim"/>
           </field>
         </fields>
@@ -888,7 +891,7 @@
               pattern="^з\s+військової\s+частини\s+([АA])\s*(\d+)$"
               with="$1$2"/>
           </field>
-          <field id="arrivalDurationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів)" group="1" default=""><transform type="trim"/></field>
+          <field id="arrivalDurationDays" from="$assignmentGroup" regex="терміном\s+на\s+(\d+)\s+(?:календарн(?:их|і)\s+)?(?:діб|днів|доби|добу)" group="1" default=""><transform type="trim"/></field>
           <!-- Посада находится после первого разделителя ФИО в персональном
                абзаце и поэтому, в отличие от origin/срока, не наследуется. -->
           <field id="position" from="$match" regex=",\s*(?:{{ipn}}\s*,\s*)?([^\r]+)" group="1" default="">
@@ -1177,11 +1180,11 @@
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$eventDate"/>
           <field id="eventDate" from="$match" preserveExisting="true"
-            regex="(?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)[\s\S]*?з\s+({{date-words}})"
+            regex="(?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)[\s\S]*?з\s+({{date-words}})"
             group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)(?:(?:,\s*)?без\s+урахування\s+\d+\s+діб)?)" group="1" default="">
-            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+діб$" with="$1 + $2"/>
-            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)$" with="$1"/>
+          <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)(?:(?:,\s*)?без\s+урахування\s+\d+\s+(?:діб|днів|доби|добу))?)" group="1" default="">
+            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+(?:діб|днів|доби|добу)$" with="$1 + $2"/>
+            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)$" with="$1"/>
             <transform type="trim"/>
           </field>
           <field id="eventTo" from="$match" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
@@ -1195,16 +1198,16 @@
              вида «4. ...». Последующие переходы «с лечения в отпуск» должны
              обрабатываться dataset-ом изменения статусов. -->
         <scope><match ignoreCase="true" multiline="false"><![CDATA[(?:^|\r)\s*(?:\d+(?:\.\d+)+\.?\s*)?У\s+відпустку\s+для\s+лікування]]></match></scope>
-        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?терміном\s+на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)(?:(?!Підстава:)[\s\S])*?\sз\s+\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+{{date-words}}(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
+        <match ignoreCase="false" multiline="false"><![CDATA[(?:^|\r)\s*[^\r]*[А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[^\r,]+,(?:(?!Підстава:)[\s\S])*?терміном\s+на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)(?:(?!Підстава:)[\s\S])*?\sз\s+\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+{{date-words}}(?:(?!Підстава:)[\s\S])*?Підстава:\s*[^\r]*(?=\r|$)]]></match>
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field><field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
           <!-- В диапазоне «з <дата> по <дата>» начальную дату определяем
                по следующему слову «по». Так правило не зависит от скрытого
                символа Word, который может находиться между «з» и числом. -->
           <field id="eventDate" from="$match" regex="(\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+{{date-words}})" group="1" default=""><transform type="dateRangeStartFormat" format="dd.mm.yyyy"/></field><field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
-          <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)(?:(?:,\s*)?без\s+урахування\s+\d+\s+діб)?)" group="1" default="">
-            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+діб$" with="$1 + $2"/>
-            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)$" with="$1"/>
+          <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)(?:(?:,\s*)?без\s+урахування\s+\d+\s+(?:діб|днів|доби|добу))?)" group="1" default="">
+            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+(?:діб|днів|доби|добу)$" with="$1 + $2"/>
+            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)$" with="$1"/>
             <transform type="trim"/>
           </field>
           <field id="eventTo" from="$match" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
@@ -1218,10 +1221,10 @@
         <fields>
           <field id="fio" from="$match" ignoreCase="false" regex="\s([А-ЯІЇЄҐ][А-ЯІЇЄҐ'’\-]{2,}\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+\s+[А-ЯІЇЄҐ][А-Яа-яІіЇїЄєҐґ'’\-]+)\s*," group="1" default=""><transform type="trim"/></field>
           <field id="ipn" from="$match" regex=",\s*({{ipn}})\s*," group="1" default=""><transform type="trim"/></field>
-          <field id="eventDate" from="$match" regex="(?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)[\s\S]*?з\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів)(?:(?:,\s*)?без\s+урахування\s+\d+\s+діб)?)" group="1" default="">
-            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+діб$" with="$1 + $2"/>
-            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)$" with="$1"/>
+          <field id="eventDate" from="$match" regex="(?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)[\s\S]*?з\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
+          <field id="durationDays" from="$match" regex="((?:терміном\s+)?на\s+\d+\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)(?:(?:,\s*)?без\s+урахування\s+\d+\s+(?:діб|днів|доби|добу))?)" group="1" default="">
+            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)[\s\S]*?без\s+урахування\s+(\d+)\s+(?:діб|днів|доби|добу)$" with="$1 + $2"/>
+            <transform type="regexReplace" pattern="^(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)$" with="$1"/>
             <transform type="trim"/>
           </field>
           <field id="eventTo" from="$match" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
@@ -1246,7 +1249,7 @@
             regex="(\d{1,2}(?:\s+[а-яіїєґ]+)?(?:\s+\d{4}\s+року)?\s+по\s+{{date-words}})"
             group="1" default=""><transform type="dateRangeStartFormat" format="dd.mm.yyyy"/></field>
           <field id="durationDays" from="$match"
-            regex="терміном\s+на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)"
+            regex="терміном\s+на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)"
             group="1" default=""><transform type="trim"/></field>
           <field id="eventTo" from="$match"
             regex="\sпо\s+({{date-words}})"
@@ -1291,7 +1294,7 @@
                назначения после него не является частью статуса. -->
           <field id="newStatus" from="$match" regex="вважати\s+та(?:ким|кою),(?:(?!Підстава:)[\s\S])*?((?:на|у)\s+(?:лікування|медичний\s+огляд|відпустку\s+для\s+лікування|відпустку|відрядження)|госпіталізован(?:ий|а)?\s+у|під\s+арештом)" group="1" default=""><transform type="trim"/></field>
           <field id="eventDate" from="$match" regex="вважати\s+та(?:ким|кою),(?:(?!Підстава:)[\s\S])*?\bз\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
-          <field id="durationDays" from="$match" regex="(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів)" group="1" default=""><transform type="trim"/></field>
+          <field id="durationDays" from="$match" regex="(?:терміном\s+)?на\s+(\d+)\s+календарн(?:их|і)\s+(?:діб|днів|доби|добу)" group="1" default=""><transform type="trim"/></field>
           <field id="eventTo" from="$match" regex="\sпо\s+({{date-words}})" group="1" default=""><transform type="dateFormat" format="dd.mm.yyyy"/></field>
           <field id="basis" from="$match" regex="Підстава:\s*([^\r]+)" group="1" default=""><transform type="trim"/></field>
           <field id="temporaryPersonnel" from="$match" ignoreCase="true"
