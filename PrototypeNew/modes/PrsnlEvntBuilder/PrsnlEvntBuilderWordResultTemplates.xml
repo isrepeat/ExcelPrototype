@@ -17,7 +17,7 @@
     <sharedTemplate id="block.PersonLineUpper">
       <text>
         <![CDATA[#^
-#_        {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}#^
+#_        {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -25,7 +25,7 @@
     <sharedTemplate id="block.PersonLineLower">
       <text>
         <![CDATA[#^
-#_        {[RankGenitive]} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}#^
+#_        {[RankGenitive]} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -163,7 +163,7 @@
     <sharedTemplate id="block.StatusChangePersonLine">
       <text>
         <![CDATA[#^
-#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}, #^
+#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}, #^
         ]]>
       </text>
     </sharedTemplate>
