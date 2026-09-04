@@ -5,7 +5,7 @@
   generationMode="anchored"
 >
   <documentFilepath>
-    <![CDATA[modes\PrsnlEvntBuilder\Template_08_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
+    <![CDATA[modes\PrsnlEvntBuilder\{WordTemplateFileName|regexreplace:"\.[^.]+$",""}_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
   </documentFilepath>
   <!-- Шаблоны для PEB WORD preview.
        Колонки DynamicTable читаются только как {[AliasOrHeader]} или item.[AliasOrHeader],
