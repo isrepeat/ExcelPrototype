@@ -1166,8 +1166,8 @@ Private Function ReadFlag(ByVal value As Variant, ByVal context As String) As Bo
         End If
     End If
     Select Case VBA.LCase$(RequiredText(value, context & MSG_SUBTRACT_BUSINESS_TRIPS))
-        Case "так", "да", "true", "1": ReadFlag = True
-        Case "ні", "нет", "false", "0": ReadFlag = False
+        Case "так", "да", "true", "1": ReadFlag = False
+        Case "ні", "нет", "false", "0": ReadFlag = True
         Case Else: Fail context & MSG_INVALID_TRIP_FLAG
     End Select
 End Function
