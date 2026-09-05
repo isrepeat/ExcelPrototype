@@ -33,6 +33,8 @@ Private Const TARGET_COL_NAME As String = "ПІБ"
 Private Const TARGET_COL_TAX_ID As String = "ІПН"
 Private Const TARGET_COL_START As String = "Дата виведення у розпорядження"
 Private Const TARGET_COL_DAYS As String = "Кількість днів у розпорядженні"
+Private Const TARGET_COL_THRESHOLD_DATE As String = "Дата з якої перебуває у розпорядженні понад 2 місяці"
+Private Const COUNTED_DAYS_THRESHOLD As Long = 60
 Private Const ERROR_REPORT_NAME As String = "DisposalDaysErrorReport"
 Private Const ERROR_REPORT_GAP As Long = 2
 Private Const ERROR_COL_NAME As String = "Full name"
@@ -68,6 +70,7 @@ Private Const EXCLUDED_EVENTS As String = _
     "|Відпустка по догляду за дитиною" & _
     "|Стаціонарне лікування" & _
     "|ВЛК за межами" & _
+    "|Безвісти зниклий" & _
     "|Арешт" & _
     "|Полон"
 
@@ -295,6 +298,10 @@ End Sub
 ' Проверяет интервалы и преобразование параметров без изменения листов.
 ' Запускается вручную в Excel.
 Public Sub TestMovementDays()
+    Const TEST_START_DAY As Long = 100
+    Const TEST_GAP_DAYS As Long = 10
+    Dim thresholdDay As Long, gapStart As Long
+    Dim thresholdDate As Variant
     Dim rows As Collection, namedRows As Collection
     Dim item As Variant
     Dim periodsText As String
@@ -329,6 +336,21 @@ Public Sub TestMovementDays()
     Next item
     AssertDays BuildCountedPeriods(namedRows, VBA.CLng(VBA.DateSerial(2026, 5, 25)), _
         VBA.CLng(VBA.DateSerial(2026, 8, 31)), periodsText), 2, MSG_EXAMPLE_RESULT
+    ' Проверяем достижение настроенного порога и первый день сверх него.
+    thresholdDay = TEST_START_DAY + COUNTED_DAYS_THRESHOLD
+    Set rows = New Collection
+    AssertDays BuildCountedPeriods(rows, TEST_START_DAY, thresholdDay, periodsText, thresholdDate), _
+        COUNTED_DAYS_THRESHOLD, "Exact threshold"
+    AssertDays VBA.CLng(VBA.IsEmpty(thresholdDate)), -1, "No day beyond threshold"
+    AssertDays BuildCountedPeriods(rows, TEST_START_DAY, thresholdDay + 1, periodsText, thresholdDate), _
+        COUNTED_DAYS_THRESHOLD + 1, "One day beyond threshold"
+    AssertDays VBA.CLng(thresholdDate), thresholdDay, "Threshold crossing date"
+    ' Разрыв расположен внутри накопления, независимо от величины порога.
+    gapStart = TEST_START_DAY + COUNTED_DAYS_THRESHOLD \ 2
+    rows.Add VBA.Array(gapStart, gapStart + TEST_GAP_DAYS, "Test exclusion", True)
+    AssertDays BuildCountedPeriods(rows, TEST_START_DAY, thresholdDay + TEST_GAP_DAYS + 1, _
+        periodsText, thresholdDate), COUNTED_DAYS_THRESHOLD + 1, "Threshold after gap"
+    AssertDays VBA.CLng(thresholdDate), thresholdDay + TEST_GAP_DAYS, "Threshold crossing after gap"
     VBA.MsgBox MSG_ALGORITHM_CHECKS_PASSED, vbInformation
     Exit Sub
 Failed:
@@ -351,6 +373,7 @@ Private Sub BuildMovementDays(ByVal params As ListObject, ByVal lastDay As Long)
     Dim personErrors() As String
     Dim resultNames() As Variant, resultTaxIds() As Variant
     Dim resultStarts() As Variant, resultDays() As Variant
+    Dim resultThresholdDates() As Variant, thresholdDate As Variant
     Dim resultPeriods() As Variant, periodsText As String
     Dim resultTrips() As Variant
     Dim starts() As Long, trips() As Boolean
@@ -403,6 +426,7 @@ Private Sub BuildMovementDays(ByVal params As ListObject, ByVal lastDay As Long)
     ReDim resultTaxIds(1 To count, 1 To 1)
     ReDim resultStarts(1 To count, 1 To 1)
     ReDim resultDays(1 To count, 1 To 1)
+    ReDim resultThresholdDates(1 To count, 1 To 1)
     ReDim resultPeriods(1 To count, 1 To 1)
     ReDim resultTrips(1 To count, 1 To 1)
     Set failures = New Collection
@@ -501,8 +525,9 @@ NextMatchedPerson:
         ' Без событий период В строю разрешён только после проверки Списка.
         Set rows = intervals(taxId)
         validCount = validCount + 1
-        resultDays(validCount, 1) = BuildCountedPeriods(rows, starts(i), lastDay, periodsText)
+        resultDays(validCount, 1) = BuildCountedPeriods(rows, starts(i), lastDay, periodsText, thresholdDate)
         resultPeriods(validCount, 1) = periodsText
+        resultThresholdDates(validCount, 1) = thresholdDate
         resultNames(validCount, 1) = resultNames(i, 1)
         resultTaxIds(validCount, 1) = taxId
         resultStarts(validCount, 1) = resultStarts(i, 1)
@@ -524,12 +549,14 @@ NextResultPerson:
     target.ListColumns(TARGET_COL_TAX_ID).DataBodyRange.NumberFormat = FORMAT_TEXT
     target.ListColumns(TARGET_COL_START).DataBodyRange.NumberFormat = FORMAT_DATE
     target.ListColumns(TARGET_COL_DAYS).DataBodyRange.NumberFormat = FORMAT_INTEGER
+    target.ListColumns(TARGET_COL_THRESHOLD_DATE).DataBodyRange.NumberFormat = FORMAT_DATE
     target.ListColumns(TARGET_COL_PERIODS).DataBodyRange.NumberFormat = FORMAT_TEXT
     ' Пакетная запись в именованные колонки умной таблицы.
     WriteResultColumn target.ListColumns(TARGET_COL_NAME), resultNames, count
     WriteResultColumn target.ListColumns(TARGET_COL_TAX_ID), resultTaxIds, count
     WriteResultColumn target.ListColumns(TARGET_COL_START), resultStarts, count
     WriteResultColumn target.ListColumns(TARGET_COL_DAYS), resultDays, count
+    WriteResultColumn target.ListColumns(TARGET_COL_THRESHOLD_DATE), resultThresholdDates, count
     WriteResultColumn target.ListColumns(TARGET_COL_PERIODS), resultPeriods, count
     WriteResultColumn target.ListColumns(TARGET_COL_TRIPS), resultTrips, count
 WriteErrors:
@@ -914,13 +941,14 @@ End Function
 ' Для зачтённых отрезков берём названия активных событий или В строю.
 ' Число дней и текст формируются из одних и тех же зачтённых интервалов.
 Private Function BuildCountedPeriods(ByVal rows As Collection, ByVal firstDay As Long, _
-    ByVal lastDay As Long, ByRef periodsText As String) As Long
+    ByVal lastDay As Long, ByRef periodsText As String, Optional ByRef thresholdDate As Variant) As Long
     Dim boundaries() As Long, unused() As Long
     Dim i As Long, j As Long, count As Long, item As Variant
     Dim segmentStart As Long, segmentEnd As Long, pendingStart As Long, pendingEnd As Long
     Dim label As String, pendingLabel As String, excluded As Boolean
     Dim names As Object, key As Variant
     periodsText = vbNullString
+    thresholdDate = Empty
     If firstDay >= lastDay Then Exit Function
     count = rows.Count * 2 + 2
     ReDim boundaries(1 To count)
@@ -960,6 +988,13 @@ Private Function BuildCountedPeriods(ByVal rows As Collection, ByVal firstDay As
                 label = label & VBA.CStr(key)
             Next key
             If names.Count = 0 Then label = PRESENT_EVENT_NAME
+            ' До добавления отрезка находим первый день сверх порога.
+            ' Если порог уже достигнут, это начало следующего зачтённого отрезка.
+            If VBA.IsEmpty(thresholdDate) Then
+                If BuildCountedPeriods + segmentEnd - segmentStart > COUNTED_DAYS_THRESHOLD Then
+                    thresholdDate = VBA.CDate(segmentStart + COUNTED_DAYS_THRESHOLD - BuildCountedPeriods)
+                End If
+            End If
             BuildCountedPeriods = BuildCountedPeriods + segmentEnd - segmentStart
             If pendingEnd = segmentStart And pendingLabel = label Then
                 pendingEnd = segmentEnd
@@ -1140,7 +1175,7 @@ End Function
 Private Sub ValidateOutput(ByVal lo As ListObject)
     Dim headers As Variant, i As Long, columnNumber As Long
     headers = VBA.Array(TARGET_COL_NAME, TARGET_COL_TAX_ID, TARGET_COL_START, _
-        TARGET_COL_TRIPS, TARGET_COL_DAYS, TARGET_COL_PERIODS)
+        TARGET_COL_TRIPS, TARGET_COL_DAYS, TARGET_COL_PERIODS, TARGET_COL_THRESHOLD_DATE)
     If lo.ListColumns.Count <> UBound(headers) - LBound(headers) + 1 Then Fail MSG_RESULT_COLUMN_COUNT
     For i = LBound(headers) To UBound(headers)
         columnNumber = ColumnIndex(lo, VBA.CStr(headers(i)))
