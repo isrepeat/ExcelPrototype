@@ -1629,6 +1629,10 @@ Private Function private_TryLookupPersonnelTvoPositionCode( _
     Dim query As obj_ExtWorkbookQuery
     Dim resultTable As obj_TableDynamic
     Dim resultRow As obj_Row
+    Dim resultRowIndex As Long
+    Dim tvoFioText As String
+    Dim matchingRowsCount As Long
+    Dim matchingPositionCode As String
 
     outPositionCode = VBA.vbNullString
     outFound = False
@@ -1662,8 +1666,12 @@ Private Function private_TryLookupPersonnelTvoPositionCode( _
     Set query = New obj_ExtWorkbookQuery
     query.SourcePath = resolvedPath
     query.TableRef = m_PersonnelTableRef
-    query.MaxRows = 2
+    ' Фамилия используется только как дешёвый предварительный фильтр для
+    ' внешней книги. Решение о ТВО принимается исключительно после точной
+    ' сверки полного нормализованного ФИО ниже.
+    query.MaxRows = 0
     If Not query.AddSelectColumn(PERSONNEL_POSITION_CODE_HEADER) Then Exit Function
+    If Not query.AddSelectColumn(PERSONNEL_TVO_HEADER) Then Exit Function
     If Not query.AddCondition( _
         PERSONNEL_TVO_HEADER, _
         en_ExtWorkbookQueryOp.ExtQueryOpContains, _
@@ -1672,24 +1680,31 @@ Private Function private_TryLookupPersonnelTvoPositionCode( _
 
     If Not m_QueryEngine.TryExecute(query, resultTable) Then Exit Function
     If resultTable Is Nothing Then Exit Function
-    If resultTable.RowCount = 0 Then
+    For resultRowIndex = 1 To resultTable.RowCount
+        Set resultRow = resultTable.Rows.Item(resultRowIndex)
+        If resultRow Is Nothing Then Exit Function
+        If Not resultRow.TryGetCellValueByColumn(PERSONNEL_TVO_HEADER, tvoFioText) Then Exit Function
+        If VBA.StrComp( _
+            private_NormalizeLookupKey(tvoFioText), reporterFioText, _
+            VBA.vbTextCompare) = 0 Then
+            matchingRowsCount = matchingRowsCount + 1
+            If Not resultRow.TryGetCellValueByColumn( _
+                PERSONNEL_POSITION_CODE_HEADER, matchingPositionCode) Then Exit Function
+        End If
+    Next resultRowIndex
+
+    If matchingRowsCount = 0 Then
         private_TryLookupPersonnelTvoPositionCode = True
         Exit Function
     End If
-    If resultTable.RowCount > 1 Then
+    If matchingRowsCount > 1 Then
         VBA.MsgBox "PrototypeNew: reporter '" & reporterFioText & _
             "' is referenced as TVO in more than one Personnel row. Export was stopped because the TVO position is ambiguous.", _
             VBA.vbExclamation, "PrototypeNew / exporter data provider"
         Exit Function
     End If
 
-    Set resultRow = resultTable.Rows.Item(1)
-    If resultRow Is Nothing Then Exit Function
-    If Not resultRow.TryGetCellValueByColumn( _
-        PERSONNEL_POSITION_CODE_HEADER, _
-        outPositionCode) Then Exit Function
-
-    outPositionCode = VBA.Trim$(outPositionCode)
+    outPositionCode = VBA.Trim$(matchingPositionCode)
     If VBA.Len(outPositionCode) = 0 Then
         VBA.MsgBox "PrototypeNew: Personnel row referencing reporter '" & reporterFioText & _
             "' as TVO has an empty '" & PERSONNEL_POSITION_CODE_HEADER & "' value.", _
