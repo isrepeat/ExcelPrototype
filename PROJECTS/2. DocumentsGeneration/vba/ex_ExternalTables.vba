@@ -32,7 +32,7 @@ Public Function ex_TryLookup( _
     If recordset.EOF Then
         ex_Helpers.LogError tableRef & ": value was not found | Key=" & keyHeader & _
             " | Value=" & keyValue
-        VBA.MsgBox sourceCaption & " " & tableRef & ": value '" & keyValue & _
+        ex_Helpers.ex_ShowErrorMessage sourceCaption & " " & tableRef & ": value '" & keyValue & _
             "' was not found in column '" & keyHeader & "'.", _
             VBA.vbExclamation, "Document Generation"
         GoTo CleanExit
@@ -42,14 +42,14 @@ Public Function ex_TryLookup( _
     If Not recordset.EOF Then
         ex_Helpers.LogError tableRef & ": multiple rows found | Key=" & keyHeader & _
             " | Value=" & keyValue
-        VBA.MsgBox sourceCaption & " " & tableRef & ": multiple rows were found for '" & _
+        ex_Helpers.ex_ShowErrorMessage sourceCaption & " " & tableRef & ": multiple rows were found for '" & _
             keyValue & "'.", VBA.vbExclamation, "Document Generation"
         GoTo CleanExit
     End If
     If VBA.Len(outValue) = 0 Then
         ex_Helpers.LogError tableRef & ": result is empty | Column=" & resultHeader & _
             " | Key=" & keyValue
-        VBA.MsgBox sourceCaption & " " & tableRef & ": column '" & resultHeader & _
+        ex_Helpers.ex_ShowErrorMessage sourceCaption & " " & tableRef & ": column '" & resultHeader & _
             "' is empty for '" & keyValue & "'.", _
             VBA.vbExclamation, "Document Generation"
         GoTo CleanExit
@@ -66,7 +66,7 @@ CleanExit:
 EH:
     ex_Helpers.LogError "Failed to read " & tableRef & " | Number=" & _
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
-    VBA.MsgBox "Failed to read " & sourceCaption & " " & tableRef & ": [" & _
+    ex_Helpers.ex_ShowErrorMessage "Failed to read " & sourceCaption & " " & tableRef & ": [" & _
         VBA.CStr(Err.Number) & "] " & Err.Description, _
         VBA.vbExclamation, "Document Generation"
     Resume CleanExit
@@ -89,7 +89,7 @@ Public Function ex_TryOpenConnection( _
 EH:
     ex_Helpers.LogError "Failed to open " & sourceCaption & " | Number=" & _
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
-    VBA.MsgBox "Failed to open " & sourceCaption & ": [" & _
+    ex_Helpers.ex_ShowErrorMessage "Failed to open " & sourceCaption & ": [" & _
         VBA.CStr(Err.Number) & "] " & Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -108,4 +108,4 @@ Public Function ex_ReadText( _
 End Function
 ' --------------------------------------
 ' } // namespace API
-' --------------------------------------
+' -------------------------------------

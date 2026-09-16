@@ -18,7 +18,7 @@ Public Function ex_TryGenerateWordDocument( _
     outDocumentPath = VBA.vbNullString
     If documentNameValues Is Nothing Then
         ex_Helpers.LogError "Document name context is not initialized"
-        VBA.MsgBox "Document name context is not initialized.", _
+        ex_Helpers.ex_ShowErrorMessage "Document name context is not initialized.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -47,7 +47,7 @@ Public Function ex_TryReadRequired( _
     On Error GoTo 0
     If sourceSheet Is Nothing Then
         ex_Helpers.LogError "Input sheet was not found: " & inputSheetName
-        VBA.MsgBox "Input sheet was not found: " & inputSheetName, _
+        ex_Helpers.ex_ShowErrorMessage "Input sheet was not found: " & inputSheetName, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -56,7 +56,7 @@ Public Function ex_TryReadRequired( _
     If VBA.Len(outValue) = 0 Then
         ex_Helpers.LogError "Required input is empty | Field=" & fieldAlias & _
             " | Cell=" & cellAddress
-        VBA.MsgBox "Enter " & fieldCaption & " in cell " & cellAddress & ".", _
+        ex_Helpers.ex_ShowErrorMessage "Enter " & fieldCaption & " in cell " & cellAddress & ".", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -88,7 +88,7 @@ Public Function ex_TryReadNonNegativeDays( _
     If Not ex_Helpers.private_Text_IsDigits(daysText) Then
         ex_Helpers.LogError "Input must be a non-negative whole number | Field=" & _
             fieldAlias & " | Value=" & daysText
-        VBA.MsgBox "Enter a non-negative whole number for " & fieldCaption & ".", _
+        ex_Helpers.ex_ShowErrorMessage "Enter a non-negative whole number for " & fieldCaption & ".", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -99,7 +99,7 @@ Public Function ex_TryReadNonNegativeDays( _
 EH:
     ex_Helpers.LogError "Input value is out of range | Field=" & fieldAlias & _
         " | Value=" & daysText
-    VBA.MsgBox "The value for " & fieldCaption & " is out of range.", _
+    ex_Helpers.ex_ShowErrorMessage "The value for " & fieldCaption & " is out of range.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -112,6 +112,99 @@ Public Function ex_TryReadOptional( _
 ) As Boolean
     ex_TryReadOptional = private_TryReadOptional( _
         inputSheetName, inputCellMap, fieldAlias, outValue)
+End Function
+
+' Находит единственную открытую умную таблицу по её имени во всех книгах Excel.
+Public Function ex_TryFindOpenTable( _
+    ByVal tableName As String, _
+    ByRef outTable As ListObject _
+) As Boolean
+    Dim workbookObj As Workbook
+    Dim worksheetObj As Worksheet
+    Dim tableObj As ListObject
+    Dim matchCount As Long
+    Dim matchLocations As String
+
+    Set outTable = Nothing
+    tableName = ex_Helpers.private_Text_Normalize(tableName)
+    If VBA.Len(tableName) = 0 Then
+        ex_Helpers.LogError "Target table name is empty"
+        ex_Helpers.ex_ShowErrorMessage "Target table name is empty.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+
+    For Each workbookObj In Application.Workbooks
+        For Each worksheetObj In workbookObj.Worksheets
+            For Each tableObj In worksheetObj.ListObjects
+                If VBA.StrComp(tableObj.Name, tableName, VBA.vbTextCompare) = 0 Then
+                    matchCount = matchCount + 1
+                    matchLocations = matchLocations & VBA.vbCrLf & "- " & _
+                        workbookObj.FullName & " | " & worksheetObj.Name
+                    If matchCount = 1 Then Set outTable = tableObj
+                End If
+            Next tableObj
+        Next worksheetObj
+    Next workbookObj
+
+    If matchCount = 0 Then
+        ex_Helpers.LogError "Open target table was not found: " & tableName
+        ex_Helpers.ex_ShowErrorMessage "Open a workbook containing the table '" & tableName & "'.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If matchCount > 1 Then
+        ex_Helpers.LogError "Target table is ambiguous: " & tableName & _
+            " | Matches=" & VBA.CStr(matchCount)
+        ex_Helpers.ex_ShowErrorMessage "More than one open table named '" & tableName & _
+            "' was found:" & matchLocations, _
+            VBA.vbExclamation, "Document Generation"
+        Set outTable = Nothing
+        Exit Function
+    End If
+
+    ex_Helpers.LogDebug "Open target table found: " & tableName & _
+        " | Workbook=" & outTable.Parent.Parent.FullName & _
+        " | Worksheet=" & outTable.Parent.Name
+    ex_TryFindOpenTable = True
+End Function
+
+' Добавляет строку в умную таблицу, записывая значения по именам её колонок.
+Public Function ex_TryAppendTableRow( _
+    ByVal tableName As String, _
+    ByVal columnValues As Object _
+) As Boolean
+    Dim targetTable As ListObject
+    Dim targetRow As ListRow
+    Dim columnName As Variant
+
+    If columnValues Is Nothing Then
+        ex_Helpers.LogError "Table row values are not initialized"
+        ex_Helpers.ex_ShowErrorMessage "Table row values are not initialized.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not ex_TryFindOpenTable(tableName, targetTable) Then Exit Function
+    For Each columnName In columnValues.Keys
+        If Not private_TableHasColumn(targetTable, VBA.CStr(columnName)) Then Exit Function
+    Next columnName
+
+    On Error GoTo EH
+    Set targetRow = targetTable.ListRows.Add
+    For Each columnName In columnValues.Keys
+        targetRow.Range.Cells(1, targetTable.ListColumns( _
+            VBA.CStr(columnName)).Index).Value = columnValues(columnName)
+    Next columnName
+    ex_Helpers.LogDebug "Table row appended | Table=" & tableName & _
+        " | Row=" & VBA.CStr(targetRow.Index)
+    ex_TryAppendTableRow = True
+    Exit Function
+EH:
+    If Not targetRow Is Nothing Then targetRow.Delete
+    ex_Helpers.LogError "Failed to append table row | Table=" & tableName & _
+        " | Number=" & VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to append a row to table '" & tableName & "': " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
 ' Логирует книгу, листы и фактические привязки конфигурационной формы.
@@ -169,6 +262,24 @@ End Sub
 ' } // namespace API
 ' --------------------------------------
 
+Private Function private_TableHasColumn( _
+    ByVal targetTable As ListObject, _
+    ByVal columnName As String _
+) As Boolean
+    Dim tableColumn As ListColumn
+
+    For Each tableColumn In targetTable.ListColumns
+        If VBA.StrComp(tableColumn.Name, columnName, VBA.vbTextCompare) = 0 Then
+            private_TableHasColumn = True
+            Exit Function
+        End If
+    Next tableColumn
+    ex_Helpers.LogError "Required table column was not found | Table=" & _
+        targetTable.Name & " | Column=" & columnName
+    ex_Helpers.ex_ShowErrorMessage "Required column '" & columnName & "' was not found in table '" & _
+        targetTable.Name & "'.", VBA.vbExclamation, "Document Generation"
+End Function
+
 Private Function private_TryReadOptional( _
     ByVal inputSheetName As String, _
     ByVal inputCellMap As Object, _
@@ -184,7 +295,7 @@ Private Function private_TryReadOptional( _
     On Error GoTo 0
     If sourceSheet Is Nothing Then
         ex_Helpers.LogError "Input sheet was not found: " & inputSheetName
-        VBA.MsgBox "Input sheet was not found: " & inputSheetName, _
+        ex_Helpers.ex_ShowErrorMessage "Input sheet was not found: " & inputSheetName, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -193,20 +304,16 @@ Private Function private_TryReadOptional( _
     private_TryReadOptional = True
 End Function
 
-Private Function private_TryGetInputCellAddress( _
-    ByVal inputCellMap As Object, _
-    ByVal fieldAlias As String, _
-    ByRef outCellAddress As String _
-) As Boolean
+Private Function private_TryGetInputCellAddress(ByVal inputCellMap As Object, ByVal fieldAlias As String, ByRef outCellAddress As String) As Boolean
     If inputCellMap Is Nothing Then
         ex_Helpers.LogError "Input cell mapper is not initialized"
-        VBA.MsgBox "Input cell mapper is not initialized.", _
+        ex_Helpers.ex_ShowErrorMessage "Input cell mapper is not initialized.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     If Not inputCellMap.Exists(fieldAlias) Then
         ex_Helpers.LogError "Input field alias is not mapped: " & fieldAlias
-        VBA.MsgBox "Input field alias is not mapped: " & fieldAlias, _
+        ex_Helpers.ex_ShowErrorMessage "Input field alias is not mapped: " & fieldAlias, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If

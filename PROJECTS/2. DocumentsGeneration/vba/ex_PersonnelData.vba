@@ -51,7 +51,7 @@ Public Function ex_TryResolveOrderReference( _
     inputIsDate = ex_Helpers.private_Date_LooksLikeFullDate(orderInput)
     If inputIsDate Then
         If Not ex_Helpers.private_Date_TryParse(orderInput, inputDate) Then
-            VBA.MsgBox "Order date must be valid and use dd.mm.yyyy format.", _
+            ex_Helpers.ex_ShowErrorMessage "Order date must be valid and use dd.mm.yyyy format.", _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
         End If
@@ -61,7 +61,7 @@ Public Function ex_TryResolveOrderReference( _
         orderInput = private_Order_NormalizeNumber(orderInput)
         If VBA.Len(orderInput) = 0 Then
             ex_Helpers.LogError "Order number is empty after normalization"
-            VBA.MsgBox "Enter a valid order number.", _
+            ex_Helpers.ex_ShowErrorMessage "Enter a valid order number.", _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
         End If
@@ -71,7 +71,7 @@ Public Function ex_TryResolveOrderReference( _
     ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(ORDERS_RELATIVE_PATH)
     If VBA.Len(VBA.Dir$(ordersPath)) = 0 Then
         ex_Helpers.LogError "Orders workbook was not found: " & ordersPath
-        VBA.MsgBox "Orders workbook was not found: " & ordersPath, _
+        ex_Helpers.ex_ShowErrorMessage "Orders workbook was not found: " & ordersPath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -105,7 +105,7 @@ Public Function ex_TryResolveOrderReference( _
     If matchCount = 0 Then
         ex_Helpers.LogError "Order was not found | Input=" & orderInput & _
             " | Year=" & VBA.CStr(orderYear)
-        VBA.MsgBox "Order was not found for value '" & orderInput & _
+        ex_Helpers.ex_ShowErrorMessage "Order was not found for value '" & orderInput & _
             "' in the " & VBA.CStr(orderYear) & " orders table.", _
             VBA.vbExclamation, "Document Generation"
         GoTo CleanExit
@@ -113,7 +113,7 @@ Public Function ex_TryResolveOrderReference( _
     If matchCount > 1 Then
         ex_Helpers.LogError "Order reference is ambiguous | Input=" & orderInput & _
             " | Matches=" & VBA.CStr(matchCount)
-        VBA.MsgBox "Multiple orders were found for value '" & orderInput & "'.", _
+        ex_Helpers.ex_ShowErrorMessage "Multiple orders were found for value '" & orderInput & "'.", _
             VBA.vbExclamation, "Document Generation"
         GoTo CleanExit
     End If
@@ -130,7 +130,7 @@ CleanExit:
 EH:
     ex_Helpers.LogError "Order lookup failed | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description
-    VBA.MsgBox "Order lookup failed: [" & VBA.CStr(Err.Number) & "] " & _
+    ex_Helpers.ex_ShowErrorMessage "Order lookup failed: [" & VBA.CStr(Err.Number) & "] " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
     Resume CleanExit
 End Function
@@ -146,7 +146,7 @@ Public Function ex_TryBuildTicketNo( _
     If Not ex_Helpers.private_Text_IsDigits(rawTicketNo) Or _
         Not ex_Helpers.private_Text_IsDigits(orderNo) Then
         ex_Helpers.LogError "Ticket number requires numeric order and ticket values"
-        VBA.MsgBox "Order number and ticket number must contain digits only.", _
+        ex_Helpers.ex_ShowErrorMessage "Order number and ticket number must contain digits only.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -193,6 +193,14 @@ Public Function ex_TryResolveRankNominative( _
 ) As Boolean
     ex_TryResolveRankNominative = private_TryResolveRankCase( _
         ipnText, "Звання", outRankText)
+End Function
+
+Public Function ex_TryResolvePositionCode( _
+    ByVal ipnText As String, _
+    ByRef outPositionCode As String _
+) As Boolean
+    ex_TryResolvePositionCode = private_TryLookupShpoValue( _
+        OS_TABLE_REF, "ІПН", ipnText, "Код посади", outPositionCode)
 End Function
 
 Public Function ex_TryResolveRankGenitive( _
@@ -274,7 +282,7 @@ Private Function private_TryLookupShpoValue( _
         SHPO_RELATIVE_PATH)
     If VBA.Len(VBA.Dir$(shpoPath)) = 0 Then
         ex_Helpers.LogError "SHPO file was not found: " & shpoPath
-        VBA.MsgBox "SHPO file was not found: " & shpoPath, _
+        ex_Helpers.ex_ShowErrorMessage "SHPO file was not found: " & shpoPath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -294,7 +302,7 @@ CleanExit:
 EH:
     ex_Helpers.LogError "SHPO lookup failed | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description
-    VBA.MsgBox "SHPO lookup failed: [" & VBA.CStr(Err.Number) & "] " & _
+    ex_Helpers.ex_ShowErrorMessage "SHPO lookup failed: [" & VBA.CStr(Err.Number) & "] " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
     Resume CleanExit
 End Function
@@ -379,7 +387,7 @@ Private Function private_Order_TryGetTableRef( _
         Case Else
             ex_Helpers.LogError "Orders table is not configured for year " & _
                 VBA.CStr(orderYear)
-            VBA.MsgBox "Orders table is not configured for year " & _
+            ex_Helpers.ex_ShowErrorMessage "Orders table is not configured for year " & _
                 VBA.CStr(orderYear) & ".", _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
@@ -398,4 +406,4 @@ Private Function private_Order_NormalizeNumber( _
 End Function
 ' --------------------------------------
 ' } // namespace Order
-' --------------------------------------
+' -------------------------------------

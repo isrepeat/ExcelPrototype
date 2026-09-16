@@ -29,7 +29,7 @@ Public Function private_Word_TryGenerateDocument( _
     templatePath = private_Path_ResolveFromWorkbook(templatePathInput)
     If VBA.Len(VBA.Dir$(templatePath)) = 0 Then
         LogError "Word template was not found: " & templatePath
-        VBA.MsgBox "Word template was not found: " & templatePath, _
+        ex_ShowErrorMessage "Word template was not found: " & templatePath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -81,7 +81,7 @@ CleanFail:
 EH:
     LogError "Word generation failed | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description
-    VBA.MsgBox "Word generation failed: [" & VBA.CStr(Err.Number) & _
+    ex_ShowErrorMessage "Word generation failed: [" & VBA.CStr(Err.Number) & _
         "] " & Err.Description, VBA.vbExclamation, "Document Generation"
     Resume CleanFail
 End Function
@@ -103,7 +103,7 @@ Public Function private_Word_TryReplacePlaceholder( _
     markerRange.Find.MatchWildcards = False
     If Not markerRange.Find.Execute Then
         LogError "Required Word placeholder was not found: " & markerText
-        VBA.MsgBox "Required Word placeholder was not found: " & markerText, _
+        ex_ShowErrorMessage "Required Word placeholder was not found: " & markerText, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -377,7 +377,7 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
     fileNameBase = private_Path_SanitizeFileName(documentName)
     If VBA.Len(fileNameBase) = 0 Then
         LogError "Generated document file name is empty after FIO sanitization"
-        VBA.MsgBox "Generated document file name is empty.", _
+        ex_ShowErrorMessage "Generated document file name is empty.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -417,7 +417,7 @@ EH:
     LogError "Failed to create output folder: " & folderPath & _
         " | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description
-    VBA.MsgBox "Failed to create output folder: " & folderPath & _
+    ex_ShowErrorMessage "Failed to create output folder: " & folderPath & _
         " | " & Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -474,6 +474,20 @@ End Function
 ' --------------------------------------
 ' namespace Logging {
 ' --------------------------------------
+Public Sub ex_ShowStatusBarMessage(ByVal messageText As String)
+    Application.StatusBar = private_Text_Normalize(messageText)
+End Sub
+
+' Выводит ошибку одновременно в строку состояния и диалоговое окно.
+Public Sub ex_ShowErrorMessage( _
+    ByVal messageText As String, _
+    Optional ByVal buttons As VbMsgBoxStyle = VBA.vbExclamation, _
+    Optional ByVal titleText As String = "Document Generation" _
+)
+    ex_ShowStatusBarMessage messageText
+    VBA.MsgBox messageText, buttons, titleText
+End Sub
+
 Public Sub ClearLog()
 #If ENABLE_LOGGING Then
     Dim fileNumber As Integer
