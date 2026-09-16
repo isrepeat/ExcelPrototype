@@ -1,7 +1,7 @@
 Option Explicit
 
-#Const ENABLE_LOGGING = True
-#Const ENABLE_DEBUG_LOGGING = True
+#Const ENABLE_LOGGING = False
+#Const ENABLE_DEBUG_LOGGING = False
 
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
 
@@ -12,6 +12,7 @@ Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
 Private Const INPUT_ALIAS_ORDER_REFERENCE As String = "OrderReference"
 Private Const INPUT_ALIAS_VACATION_KIND As String = "VacationKind"
 Private Const INPUT_ALIAS_VACATION_PLACE As String = "VacationPlace"
+Private Const INPUT_ALIAS_VACATION_ABROAD As String = "VacationAbroad"
 Private Const INPUT_ALIAS_VACATION_DAYS As String = "VacationDays"
 Private Const INPUT_ALIAS_ROAD_DAYS As String = "RoadDays"
 Private Const INPUT_ALIAS_DONATION_DAYS As String = "DonationDays"
@@ -19,26 +20,37 @@ Private Const INPUT_ALIAS_TVO_LOOKUP As String = "TvoLookup"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 Private Const INPUT_ALIAS_OUTPUT_FOLDER_PATH As String = "OutputFolderPath"
 
-' Канонические типы отпусков и их текст для Word-шаблона.
+' Канонические типы отпусков и отдельные тексты для Word и реестра Квитки.
 Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
+Private Const VACATION_KIND_ANNUAL_WORD_TEXT As String = "у частину щорічної основної відпустки"
+Private Const VACATION_KIND_ANNUAL_TICKETS_TEXT As String = VACATION_KIND_ANNUAL
+
 Private Const VACATION_KIND_DONATION As String = "Відпочинок за донацію крові"
+Private Const VACATION_KIND_DONATION_WORD_TEXT As String = "у відпочинок за донацію крові"
+Private Const VACATION_KIND_DONATION_TICKETS_TEXT As String = VACATION_KIND_DONATION
+
 Private Const VACATION_KIND_FAMILY As String = "Відпустка за сімейними обставинами"
-Private Const VACATION_KIND_TREATMENT As String = "Відпустка для лікування"
-Private Const VACATION_KIND_MATERNITY As String = _
-    "Відпустка у зв'язку з вагітністю та пологами"
+Private Const VACATION_KIND_FAMILY_WORD_TEXT As String = "у відпустку за сімейними обставинами"
+Private Const VACATION_KIND_FAMILY_TICKETS_TEXT As String = VACATION_KIND_FAMILY
+
+Private Const VACATION_KIND_TREATMENT As String = _
+    "Відпустка для лікування після поранення (контузії, травми або каліцтва)"
+Private Const VACATION_KIND_TREATMENT_WORD_TEXT As String = _
+    "у відпустку для лікування після поранення (контузії, травми або каліцтва)"
+Private Const VACATION_KIND_TREATMENT_TICKETS_TEXT As String = "Відпустка для лікування"
+
+Private Const VACATION_KIND_MATERNITY As String = "Відпустка у зв'язку з вагітністю та пологами"
+Private Const VACATION_KIND_MATERNITY_WORD_TEXT As String = "у відпустку у зв'язку з вагітністю та пологами"
+Private Const VACATION_KIND_MATERNITY_TICKETS_TEXT As String = VACATION_KIND_MATERNITY
+
 Private Const VACATION_KIND_CHILDCARE As String = "Відпустка по догляду за дитиною"
-Private Const VACATION_TEXT_ANNUAL As String = _
-    "у частину щорічної основної відпустки"
-Private Const VACATION_TEXT_DONATION As String = _
-    "у відпочинок за донацію крові"
-Private Const VACATION_TEXT_FAMILY As String = _
-    "у відпустку за сімейними обставинами"
-Private Const VACATION_TEXT_TREATMENT As String = _
-    "у відпустку для лікування"
-Private Const VACATION_TEXT_MATERNITY As String = _
-    "у відпустку у зв'язку з вагітністю та пологами"
-Private Const VACATION_TEXT_CHILDCARE As String = _
-    "у відпустку по догляду за дитиною"
+Private Const VACATION_KIND_CHILDCARE_WORD_TEXT As String = "у відпустку по догляду за дитиною"
+Private Const VACATION_KIND_CHILDCARE_TICKETS_TEXT As String = VACATION_KIND_CHILDCARE
+
+' Допустимые значения признака выезда за границу в форме.
+Private Const VACATION_ABROAD_YES As String = "Так"
+Private Const VACATION_ABROAD_NO As String = "Ні"
+Private Const VACATION_ABROAD_TEXT_YES As String = "Дозволено виїзд за кордон"
 
 ' Форматы дат для Word-шаблона. Текст «до 08:00 год.» находится в шаблоне.
 Private Const DATE_FORMAT_PATTERN As String = """{dd}"" {month} {yyyy} р."
@@ -60,6 +72,8 @@ Public Sub fn_VacationTicketGeneration_Create()
     Dim tvoIpnText As String, tvoFioText As String
     Dim orderReference As String
     Dim vacationKind As String, vacationKindText As String
+    Dim vacationRegistryText As String
+    Dim vacationAbroad As String, vacationAbroadText As String
     Dim vacationPlace As String
     Dim templatePath As String, outputFolderPath As String
     Dim ipnText As String, fioText As String
@@ -88,6 +102,8 @@ Public Sub fn_VacationTicketGeneration_Create()
     orderReference = private_Input_ReadRequired(INPUT_ALIAS_ORDER_REFERENCE, "номер або дату наказу")
     vacationKind = private_Input_ReadRequired(INPUT_ALIAS_VACATION_KIND, "вид відпустки")
     vacationPlace = private_Input_ReadRequired(INPUT_ALIAS_VACATION_PLACE, "місце відпустки")
+    vacationAbroad = private_Input_ReadRequired( _
+        INPUT_ALIAS_VACATION_ABROAD, "відпустка за кордон")
     If Not private_Input_TryReadOptional( _
         INPUT_ALIAS_TVO_LOOKUP, tvoLookup) Then GoTo CleanExit
     templatePath = private_Input_ReadRequired(INPUT_ALIAS_TEMPLATE_PATH, "шлях до шаблону")
@@ -95,6 +111,7 @@ Public Sub fn_VacationTicketGeneration_Create()
         INPUT_ALIAS_OUTPUT_FOLDER_PATH, "шлях до папки результатів")
     If VBA.Len(personLookup) = 0 Or VBA.Len(orderReference) = 0 Or _
         VBA.Len(vacationKind) = 0 Or VBA.Len(vacationPlace) = 0 Or _
+        VBA.Len(vacationAbroad) = 0 Or _
         VBA.Len(templatePath) = 0 Or VBA.Len(outputFolderPath) = 0 Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Input read"
 
@@ -107,7 +124,10 @@ Public Sub fn_VacationTicketGeneration_Create()
         INPUT_ALIAS_ROAD_DAYS, "додаткові дні на дорогу", roadDays) Then GoTo CleanExit
     If Not private_Input_TryReadOptionalNonNegativeDays( _
         INPUT_ALIAS_DONATION_DAYS, "додаткові дні на донацію", donationDays) Then GoTo CleanExit
-    If Not private_Vacation_TryMapKind(vacationKind, vacationKindText) Then GoTo CleanExit
+    If Not private_Vacation_TryMapKind( _
+        vacationKind, vacationKindText, vacationRegistryText) Then GoTo CleanExit
+    If Not private_Vacation_TryMapAbroad( _
+        vacationAbroad, vacationAbroadText) Then GoTo CleanExit
 
     If Not ex_PersonnelData.ex_TryBeginSession() Then GoTo CleanExit
     personnelSessionStarted = True
@@ -159,11 +179,13 @@ Public Sub fn_VacationTicketGeneration_Create()
     placeholderNames = Array( _
         "TicketDate", "TicketNum", "PersonalLine", "VacationKind", _
         "VacationPlace", "VacationDuration", "DateFrom", "DateTo", _
-        "PersonalInitials", "DateArrival")
+        "PersonalInitials", "DateArrival", "VacationAbroadText", _
+        "FooterSpacer")
     placeholderValues = Array( _
         ticketDateText, ticketNo, personalLine, vacationKindText, vacationPlace, _
         VBA.CStr(vacationDays) & " календарних днів", dateFromText, _
-        dateToText, personalInitials, dateArrivalText)
+        dateToText, personalInitials, dateArrivalText, vacationAbroadText, _
+        VBA.vbCr)
 
     Set documentNameValues = VBA.CreateObject("Scripting.Dictionary")
     documentNameValues.CompareMode = VBA.vbBinaryCompare
@@ -177,7 +199,7 @@ Public Sub fn_VacationTicketGeneration_Create()
     private_Performance_LogCheckpoint performanceStart, "Word generation completed"
 
     If Not ex_Tickets.ex_TryAppendVacationRow( _
-        rankText, fioText, ipnText, personPositionCode, vacationKind, orderNo, _
+        rankText, fioText, ipnText, personPositionCode, vacationRegistryText, orderNo, _
         orderDate, vacationDays, roadDays, dateTo, ticketNo, _
         tvoFioText, tvoIpnText, tvoPositionCode) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Registry row appended"
@@ -231,12 +253,13 @@ Private Sub private_Initialize()
     inputCellMap.Add INPUT_ALIAS_ORDER_REFERENCE, "C5"
     inputCellMap.Add INPUT_ALIAS_VACATION_KIND, "C6"
     inputCellMap.Add INPUT_ALIAS_VACATION_PLACE, "C7"
-    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C8"
-    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C9"
-    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C10"
-    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C11"
-    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C12"
-    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C13"
+    inputCellMap.Add INPUT_ALIAS_VACATION_ABROAD, "C8"
+    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C9"
+    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C10"
+    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C11"
+    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C12"
+    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C13"
+    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C14"
 End Sub
 
 ' --------------------------------------
@@ -313,21 +336,28 @@ End Function
 ' --------------------------------------
 Private Function private_Vacation_TryMapKind( _
     ByVal vacationKind As String, _
-    ByRef outVacationText As String _
+    ByRef outWordText As String, _
+    ByRef outRegistryText As String _
 ) As Boolean
     Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationKind))
         Case VBA.LCase$(VACATION_KIND_ANNUAL)
-            outVacationText = VACATION_TEXT_ANNUAL
+            outWordText = VACATION_KIND_ANNUAL_WORD_TEXT
+            outRegistryText = VACATION_KIND_ANNUAL_TICKETS_TEXT
         Case VBA.LCase$(VACATION_KIND_DONATION)
-            outVacationText = VACATION_TEXT_DONATION
+            outWordText = VACATION_KIND_DONATION_WORD_TEXT
+            outRegistryText = VACATION_KIND_DONATION_TICKETS_TEXT
         Case VBA.LCase$(VACATION_KIND_FAMILY)
-            outVacationText = VACATION_TEXT_FAMILY
+            outWordText = VACATION_KIND_FAMILY_WORD_TEXT
+            outRegistryText = VACATION_KIND_FAMILY_TICKETS_TEXT
         Case VBA.LCase$(VACATION_KIND_TREATMENT)
-            outVacationText = VACATION_TEXT_TREATMENT
+            outWordText = VACATION_KIND_TREATMENT_WORD_TEXT
+            outRegistryText = VACATION_KIND_TREATMENT_TICKETS_TEXT
         Case VBA.LCase$(VACATION_KIND_MATERNITY)
-            outVacationText = VACATION_TEXT_MATERNITY
+            outWordText = VACATION_KIND_MATERNITY_WORD_TEXT
+            outRegistryText = VACATION_KIND_MATERNITY_TICKETS_TEXT
         Case VBA.LCase$(VACATION_KIND_CHILDCARE)
-            outVacationText = VACATION_TEXT_CHILDCARE
+            outWordText = VACATION_KIND_CHILDCARE_WORD_TEXT
+            outRegistryText = VACATION_KIND_CHILDCARE_TICKETS_TEXT
         Case Else
             ex_Helpers.LogError "Unsupported vacation kind: " & vacationKind
             ex_Helpers.ex_ShowErrorMessage "Unsupported vacation kind: " & vacationKind, _
@@ -335,6 +365,26 @@ Private Function private_Vacation_TryMapKind( _
             Exit Function
     End Select
     private_Vacation_TryMapKind = True
+End Function
+
+Private Function private_Vacation_TryMapAbroad( _
+    ByVal vacationAbroad As String, _
+    ByRef outVacationAbroadText As String _
+) As Boolean
+    Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationAbroad))
+        Case VBA.LCase$(VACATION_ABROAD_YES)
+            outVacationAbroadText = VACATION_ABROAD_TEXT_YES
+        Case VBA.LCase$(VACATION_ABROAD_NO)
+            ' Сохраняем отдельную строку шаблона при отсутствии разрешения.
+            outVacationAbroadText = VBA.vbCr
+        Case Else
+            ex_Helpers.LogError "Unsupported vacation abroad value: " & vacationAbroad
+            ex_Helpers.ex_ShowErrorMessage _
+                "Vacation abroad value must be 'Так' or 'Ні': " & vacationAbroad, _
+                VBA.vbExclamation, "Document Generation"
+            Exit Function
+    End Select
+    private_Vacation_TryMapAbroad = True
 End Function
 ' --------------------------------------
 ' } // namespace Vacation
