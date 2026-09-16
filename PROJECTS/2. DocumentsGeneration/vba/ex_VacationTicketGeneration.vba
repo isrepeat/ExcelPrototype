@@ -92,6 +92,7 @@ Public Sub fn_VacationTicketGeneration_Create()
     Dim tableValues As Object
     Dim ticketsTable As ListObject
     Dim performanceStart As Single
+    Dim personnelSessionStarted As Boolean
 
     On Error GoTo EH
     private_Initialize
@@ -112,39 +113,42 @@ Public Sub fn_VacationTicketGeneration_Create()
     If VBA.Len(personLookup) = 0 Or VBA.Len(orderReference) = 0 Or _
         VBA.Len(vacationKind) = 0 Or VBA.Len(vacationPlace) = 0 Or _
         VBA.Len(tvoLookup) = 0 Or _
-        VBA.Len(templatePath) = 0 Or VBA.Len(outputFolderPath) = 0 Then Exit Sub
+        VBA.Len(templatePath) = 0 Or VBA.Len(outputFolderPath) = 0 Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Input read"
 
     ex_Helpers.LogDebug "Vacation ticket person lookup: " & personLookup
     ex_Helpers.LogDebug "Vacation ticket order reference: " & orderReference
 
     If Not private_Input_TryReadNonNegativeDays( _
-        INPUT_ALIAS_VACATION_DAYS, "термін вибуття", vacationDays) Then Exit Sub
+        INPUT_ALIAS_VACATION_DAYS, "термін вибуття", vacationDays) Then GoTo CleanExit
     If Not private_Input_TryReadOptionalNonNegativeDays( _
-        INPUT_ALIAS_ROAD_DAYS, "додаткові дні на дорогу", roadDays) Then Exit Sub
+        INPUT_ALIAS_ROAD_DAYS, "додаткові дні на дорогу", roadDays) Then GoTo CleanExit
     If Not private_Input_TryReadOptionalNonNegativeDays( _
-        INPUT_ALIAS_DONATION_DAYS, "додаткові дні на донацію", donationDays) Then Exit Sub
-    If Not private_Vacation_TryMapKind(vacationKind, vacationKindText) Then Exit Sub
+        INPUT_ALIAS_DONATION_DAYS, "додаткові дні на донацію", donationDays) Then GoTo CleanExit
+    If Not private_Vacation_TryMapKind(vacationKind, vacationKindText) Then GoTo CleanExit
 
-    If Not ex_PersonnelData.ex_TryResolveIpn(personLookup, ipnText) Then Exit Sub
-    If Not ex_PersonnelData.ex_TryResolveIpn(tvoLookup, tvoIpnText) Then Exit Sub
+    If Not ex_PersonnelData.ex_TryBeginSession() Then GoTo CleanExit
+    personnelSessionStarted = True
+    private_Performance_LogCheckpoint performanceStart, "SHPO session opened"
+    If Not ex_PersonnelData.ex_TryResolveIpn(personLookup, ipnText) Then GoTo CleanExit
+    If Not ex_PersonnelData.ex_TryResolveIpn(tvoLookup, tvoIpnText) Then GoTo CleanExit
     If Not ex_PersonnelData.ex_TryResolveFioNominative( _
-        tvoIpnText, tvoFioText) Then Exit Sub
+        tvoIpnText, tvoFioText) Then GoTo CleanExit
     If Not ex_PersonnelData.ex_TryResolvePositionCode( _
-        tvoIpnText, tvoPositionCode) Then Exit Sub
-    If Not ex_PersonnelData.ex_TryResolveFioNominative(ipnText, fioText) Then Exit Sub
-    If Not ex_PersonnelData.ex_TryResolveRankNominative(ipnText, rankText) Then Exit Sub
+        tvoIpnText, tvoPositionCode) Then GoTo CleanExit
+    If Not ex_PersonnelData.ex_TryResolveFioNominative(ipnText, fioText) Then GoTo CleanExit
+    If Not ex_PersonnelData.ex_TryResolveRankNominative(ipnText, rankText) Then GoTo CleanExit
     If Not ex_PersonnelData.ex_TryResolvePositionCode( _
-        ipnText, personPositionCode) Then Exit Sub
+        ipnText, personPositionCode) Then GoTo CleanExit
     If Not ex_PersonnelData.ex_TryResolveOrderReference( _
-        orderReference, orderNo, orderDate) Then Exit Sub
+        orderReference, orderNo, orderDate) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Personnel and order data resolved"
     If Not ex_Document.ex_TryFindOpenTable( _
-        TICKETS_TABLE_NAME, ticketsTable) Then Exit Sub
+        TICKETS_TABLE_NAME, ticketsTable) Then GoTo CleanExit
     If Not private_Tickets_TryValidateNoDuplicatePerson( _
-        ticketsTable, ipnText, orderDate) Then Exit Sub
+        ticketsTable, ipnText, orderDate) Then GoTo CleanExit
     If Not private_Tickets_TryBuildNextTicketNo( _
-        ticketsTable, orderNo, orderDate, ticketNo) Then Exit Sub
+        ticketsTable, orderNo, orderDate, ticketNo) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Registry validated and ticket number assigned"
 
     ' Даты рассчитываются по утверждённому правилу отпуска.
@@ -154,18 +158,18 @@ Public Sub fn_VacationTicketGeneration_Create()
     ex_Helpers.LogDebug "Vacation period | From=" & VBA.CStr(dateFrom) & _
         " | To=" & VBA.CStr(dateTo) & " | Arrival=" & VBA.CStr(dateArrival)
     If Not ex_Helpers.private_Date_TryFormat( _
-        orderDate, DATE_FORMAT_PATTERN, ticketDateText) Then Exit Sub
+        orderDate, DATE_FORMAT_PATTERN, ticketDateText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        dateFrom, DATE_FORMAT_PATTERN, dateFromText) Then Exit Sub
+        dateFrom, DATE_FORMAT_PATTERN, dateFromText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        dateTo, DATE_FORMAT_PATTERN, dateToText) Then Exit Sub
+        dateTo, DATE_FORMAT_PATTERN, dateToText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        dateArrival, DATE_FORMAT_PATTERN, dateArrivalText) Then Exit Sub
+        dateArrival, DATE_FORMAT_PATTERN, dateArrivalText) Then GoTo CleanExit
 
     personalLine = rankText & " " & fioText
     ' Краткая запись используется в строке о возвращении из отпуска.
     personalInitials = private_Person_BuildInitials(rankText, fioText)
-    If VBA.Len(personalInitials) = 0 Then Exit Sub
+    If VBA.Len(personalInitials) = 0 Then GoTo CleanExit
 
     ' Имена должны точно совпадать с плейсхолдерами Word-шаблона.
     placeholderNames = Array( _
@@ -185,7 +189,7 @@ Public Sub fn_VacationTicketGeneration_Create()
     If Not ex_Document.ex_TryGenerateWordDocument( _
         templatePath, DOCUMENT_NAME_PATTERN, documentNameValues, _
         placeholderNames, placeholderValues, documentPath, _
-        outputFolderPath) Then Exit Sub
+        outputFolderPath) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Word generation completed"
 
     Set tableValues = private_Tickets_BuildRowValues( _
@@ -193,12 +197,16 @@ Public Sub fn_VacationTicketGeneration_Create()
         orderDate, vacationDays, roadDays, dateTo, ticketNo, _
         tvoFioText, tvoIpnText, tvoPositionCode)
     If Not ex_Document.ex_TryAppendTableRow( _
-        TICKETS_TABLE_NAME, tableValues) Then Exit Sub
+        TICKETS_TABLE_NAME, tableValues) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Registry row appended"
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
     ex_Helpers.LogDebug "Vacation ticket generation completed"
     ex_Helpers.ex_ShowStatusBarMessage _
         "Vacation ticket generated: " & documentPath
+    GoTo CleanExit
+
+CleanExit:
+    If personnelSessionStarted Then ex_PersonnelData.ex_EndSession
     Exit Sub
 EH:
     ex_Helpers.LogError "Vacation ticket generation failed | Number=" & _
@@ -206,6 +214,7 @@ EH:
     ex_Helpers.ex_ShowErrorMessage "Vacation ticket generation failed: [" & _
         VBA.CStr(Err.Number) & "] " & Err.Description, _
         VBA.vbExclamation, "Document Generation"
+    Resume CleanExit
 End Sub
 ' --------------------------------------
 ' } // namespace API
