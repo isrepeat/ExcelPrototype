@@ -10,7 +10,8 @@ Public Function ex_TryGenerateWordDocument( _
     ByVal documentNameValues As Object, _
     ByVal placeholderNames As Variant, _
     ByVal placeholderValues As Variant, _
-    ByRef outDocumentPath As String _
+    ByRef outDocumentPath As String, _
+    Optional ByVal outputFolderPath As String = "" _
 ) As Boolean
     Dim documentName As String
 
@@ -26,7 +27,7 @@ Public Function ex_TryGenerateWordDocument( _
     ex_Helpers.LogDebug "Generated document name: " & documentName
     ex_TryGenerateWordDocument = ex_Helpers.private_Word_TryGenerateDocument( _
         templatePath, documentName, placeholderNames, placeholderValues, _
-        outDocumentPath)
+        outDocumentPath, outputFolderPath)
 End Function
 
 ' Читает обязательное поле по alias из карты адресов формы.
@@ -53,6 +54,8 @@ Public Function ex_TryReadRequired( _
     outValue = ex_Helpers.private_Text_Normalize( _
         VBA.CStr(sourceSheet.Range(cellAddress).Text))
     If VBA.Len(outValue) = 0 Then
+        ex_Helpers.LogError "Required input is empty | Field=" & fieldAlias & _
+            " | Cell=" & cellAddress
         VBA.MsgBox "Enter " & fieldCaption & " in cell " & cellAddress & ".", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
@@ -83,6 +86,8 @@ Public Function ex_TryReadNonNegativeDays( _
             inputSheetName, inputCellMap, fieldAlias, fieldCaption, daysText) Then Exit Function
     End If
     If Not ex_Helpers.private_Text_IsDigits(daysText) Then
+        ex_Helpers.LogError "Input must be a non-negative whole number | Field=" & _
+            fieldAlias & " | Value=" & daysText
         VBA.MsgBox "Enter a non-negative whole number for " & fieldCaption & ".", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
@@ -92,6 +97,8 @@ Public Function ex_TryReadNonNegativeDays( _
     ex_TryReadNonNegativeDays = True
     Exit Function
 EH:
+    ex_Helpers.LogError "Input value is out of range | Field=" & fieldAlias & _
+        " | Value=" & daysText
     VBA.MsgBox "The value for " & fieldCaption & " is out of range.", _
         VBA.vbExclamation, "Document Generation"
 End Function

@@ -74,7 +74,7 @@ Public Sub fn_TravelCertificateGeneration_Create()
 
     ex_Helpers.ClearLog
     ex_Helpers.LogDebug "Generation started"
-    ex_Document.ex_LogWorkbookContext(INPUT_SHEET_NAME, inputCellMap)
+    Call ex_Document.ex_LogWorkbookContext(INPUT_SHEET_NAME, inputCellMap)
     personLookup = private_Input_ReadPersonLookup()
     If VBA.Len(personLookup) = 0 Then Exit Sub
 
