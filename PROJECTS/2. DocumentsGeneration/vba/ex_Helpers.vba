@@ -2,8 +2,11 @@ Option Explicit
 
 #Const ENABLE_LOGGING = True
 #Const ENABLE_DEBUG_LOGGING = True
+#Const CLEAR_LOG_ON_GENERATION = False
 
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
+
+Private managedWordApp As Object
 
 ' --------------------------------------
 ' namespace Word {
@@ -21,7 +24,6 @@ Public Function private_Word_TryGenerateDocument( _
     Dim outputFolderPath As String
     Dim wordApp As Object
     Dim wordDoc As Object
-    Dim ownsWordApp As Boolean
     Dim placeholderIndex As Long
 
     On Error GoTo EH
@@ -46,12 +48,20 @@ Public Function private_Word_TryGenerateDocument( _
     LogDebug "Word template copied | Source=" & templatePath & _
         " | Target=" & outDocumentPath
 
-    On Error Resume Next
-    Set wordApp = VBA.GetObject(, "Word.Application")
-    On Error GoTo EH
-    If wordApp Is Nothing Then
-        Set wordApp = VBA.CreateObject("Word.Application")
-        ownsWordApp = True
+    If Not managedWordApp Is Nothing Then
+        Set wordApp = managedWordApp
+        LogDebug "Managed Word application reused"
+    Else
+        On Error Resume Next
+        Set wordApp = VBA.GetObject(, "Word.Application")
+        On Error GoTo EH
+        If wordApp Is Nothing Then
+            Set wordApp = VBA.CreateObject("Word.Application")
+            Set managedWordApp = wordApp
+            LogDebug "Managed Word application started"
+        Else
+            LogDebug "Existing Word application used"
+        End If
     End If
 
     Set wordDoc = wordApp.Documents.Open(outDocumentPath)
@@ -64,7 +74,6 @@ Public Function private_Word_TryGenerateDocument( _
     wordDoc.Save
     wordDoc.Close True
     Set wordDoc = Nothing
-    If ownsWordApp Then wordApp.Quit
     Set wordApp = Nothing
     private_Word_TryGenerateDocument = True
     Exit Function
@@ -72,7 +81,6 @@ Public Function private_Word_TryGenerateDocument( _
 CleanFail:
     On Error Resume Next
     If Not wordDoc Is Nothing Then wordDoc.Close False
-    If ownsWordApp And Not wordApp Is Nothing Then wordApp.Quit
     If VBA.Len(outDocumentPath) > 0 Then
         If VBA.Len(VBA.Dir$(outDocumentPath)) > 0 Then VBA.Kill outDocumentPath
     End If
@@ -490,11 +498,13 @@ End Sub
 
 Public Sub ClearLog()
 #If ENABLE_LOGGING Then
+#If CLEAR_LOG_ON_GENERATION Then
     Dim fileNumber As Integer
 
     fileNumber = VBA.FreeFile
     Open GetLogFilePath() For Output As #fileNumber
     Close #fileNumber
+#End If
 #End If
 End Sub
 

@@ -16,9 +16,47 @@ Private Const POSITION_ROZP_TEXT_PREFIX As String = "у розпорядженн
 Private Const POSITION_ROZP_OFFICER_UNIT As String = "А3369"
 Private Const POSITION_ROZP_OTHER_UNIT As String = "А7383"
 
+Private shpoSessionConnection As Object
+
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function ex_TryBeginSession() As Boolean
+    Dim shpoPath As String
+
+    On Error GoTo EH
+    If Not shpoSessionConnection Is Nothing Then
+        ex_TryBeginSession = True
+        Exit Function
+    End If
+    shpoPath = ex_Helpers.private_Path_ResolveFromWorkbook( _
+        SHPO_RELATIVE_PATH)
+    If VBA.Len(VBA.Dir$(shpoPath)) = 0 Then
+        ex_Helpers.LogError "SHPO file was not found: " & shpoPath
+        ex_Helpers.ex_ShowErrorMessage "SHPO file was not found: " & shpoPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not ex_ExternalTables.ex_TryOpenConnection( _
+        shpoPath, "SHPO", shpoSessionConnection) Then Exit Function
+    ex_Helpers.LogDebug "SHPO session connection opened"
+    ex_TryBeginSession = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to open SHPO session | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to open SHPO session: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+    ex_EndSession
+End Function
+
+Public Sub ex_EndSession()
+    On Error Resume Next
+    If Not shpoSessionConnection Is Nothing Then shpoSessionConnection.Close
+    Set shpoSessionConnection = Nothing
+    On Error GoTo 0
+End Sub
+
 Public Function ex_TryResolveIpn( _
     ByVal personLookup As String, _
     ByRef outIpnText As String _
@@ -275,6 +313,7 @@ Private Function private_TryLookupShpoValue( _
 ) As Boolean
     Dim shpoPath As String
     Dim connection As Object
+    Dim usesSessionConnection As Boolean
 
     On Error GoTo EH
     outValue = VBA.vbNullString
@@ -287,14 +326,19 @@ Private Function private_TryLookupShpoValue( _
         Exit Function
     End If
 
-    If Not ex_ExternalTables.ex_TryOpenConnection( _
-        shpoPath, "SHPO", connection) Then GoTo CleanExit
+    If Not shpoSessionConnection Is Nothing Then
+        Set connection = shpoSessionConnection
+        usesSessionConnection = True
+    Else
+        If Not ex_ExternalTables.ex_TryOpenConnection( _
+            shpoPath, "SHPO", connection) Then GoTo CleanExit
+    End If
     private_TryLookupShpoValue = ex_ExternalTables.ex_TryLookup( _
         connection, "SHPO", tableRef, keyHeader, keyValue, resultHeader, outValue)
 
 CleanExit:
     On Error Resume Next
-    If Not connection Is Nothing Then connection.Close
+    If Not usesSessionConnection And Not connection Is Nothing Then connection.Close
     Set connection = Nothing
     On Error GoTo 0
     Exit Function
