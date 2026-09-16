@@ -20,13 +20,6 @@ Private Const INPUT_ALIAS_DATE_TO As String = "DateTo"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 
 Private Const INPUT_SHEET_NAME As String = "Відрядження"
-Private Const ORDERS_RELATIVE_PATH As String = "Накази.xlsx"
-Private Const ORDERS_2025_TABLE_REF As String = "[Накази$A2:B12000]"
-Private Const ORDERS_2026_TABLE_REF As String = "[Накази$D2:E12000]"
-
-Private Const AD_OPEN_STATIC As Long = 3
-Private Const AD_LOCK_READ_ONLY As Long = 1
-
 ' Aliases генерируемого контекста, могут использоваться для formatter-ов.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
 Private Const GENERATED_CONTEXT_ALIAS_IPN As String = "IPN"
@@ -125,10 +118,10 @@ Public Sub fn_DocumentsGeneration_Create()
     ex_Helpers.LogDebug "Position code: " & positionCode
     ex_Helpers.LogDebug "Template input: " & templatePath
 
-    If Not private_Order_TryResolveReference( _
+    If Not ex_PersonnelData.ex_TryResolveOrderReference( _
         orderReference, orderNo, orderDate) Then Exit Sub
 
-    If Not private_Order_TryBuildTicketNo( _
+    If Not ex_PersonnelData.ex_TryBuildTicketNo( _
         rawTicketNo, orderNo, orderDate, ticketNo) Then Exit Sub
 
     If Not ex_Helpers.private_Date_TryFormat( _
@@ -154,17 +147,17 @@ Public Sub fn_DocumentsGeneration_Create()
             "до окремого розпорядження"
     End If
 
-    If Not ex_PersonnelData.ex_PersonnelData_TryResolveIpn( _
+    If Not ex_PersonnelData.ex_TryResolveIpn( _
         personLookup, ipnText) Then Exit Sub
-    If Not ex_PersonnelData.ex_PersonnelData_TryResolveFioNominative( _
+    If Not ex_PersonnelData.ex_TryResolveFioNominative( _
         ipnText, fioDefault) Then Exit Sub
-    If Not ex_PersonnelData.ex_PersonnelData_TryResolveFioDative( _
+    If Not ex_PersonnelData.ex_TryResolveFioDative( _
         ipnText, fioDative) Then Exit Sub
-    If Not ex_PersonnelData.ex_PersonnelData_TryResolveRankNominative( _
+    If Not ex_PersonnelData.ex_TryResolveRankNominative( _
         ipnText, rankText) Then Exit Sub
-    If Not ex_PersonnelData.ex_PersonnelData_TryResolveRankDative( _
+    If Not ex_PersonnelData.ex_TryResolveRankDative( _
         ipnText, rankDative) Then Exit Sub
-    If Not ex_PersonnelData.ex_PersonnelData_TryResolvePositionGenitive( _
+    If Not ex_PersonnelData.ex_TryResolvePositionGenitive( _
         positionCode, rankText, positionText) Then Exit Sub
 
     ex_Helpers.LogDebug "Resolved IPN: " & ipnText
@@ -375,167 +368,6 @@ Private Function private_Input_GetCellAddress(ByVal fieldAlias As String) As Str
 End Function
 ' --------------------------------------
 ' } // namespace Input
-' --------------------------------------
-
-' --------------------------------------
-' namespace Order {
-' --------------------------------------
-Private Function private_Order_TryResolveReference( _
-    ByVal orderInput As String, _
-    ByRef outOrderNo As String, _
-    ByRef outOrderDate As Date _
-) As Boolean
-    Dim ordersPath As String
-    Dim ordersTableRef As String
-    Dim connection As Object
-    Dim recordset As Object
-    Dim sqlText As String
-    Dim inputIsDate As Boolean
-    Dim inputDate As Date
-    Dim orderYear As Long
-    Dim candidateNo As String
-    Dim candidateDate As Date
-    Dim matchCount As Long
-
-    On Error GoTo EH
-    outOrderNo = VBA.vbNullString
-    outOrderDate = 0
-    inputIsDate = ex_Helpers.private_Date_LooksLikeFullDate(orderInput)
-    If inputIsDate Then
-        If Not ex_Helpers.private_Date_TryParse(orderInput, inputDate) Then
-            VBA.MsgBox "Order date must be valid and use dd.mm.yyyy format.", _
-                VBA.vbExclamation, "Document Generation"
-            Exit Function
-        End If
-        orderYear = VBA.Year(inputDate)
-    Else
-        orderYear = VBA.Year(VBA.Date)
-        orderInput = private_Order_NormalizeNumber(orderInput)
-        If VBA.Len(orderInput) = 0 Then
-            ex_Helpers.LogError "Order number is empty after normalization"
-            VBA.MsgBox "Enter a valid order number.", _
-                VBA.vbExclamation, "Document Generation"
-            Exit Function
-        End If
-    End If
-
-    If Not private_Order_TryGetTableRef(orderYear, ordersTableRef) Then Exit Function
-    ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(ORDERS_RELATIVE_PATH)
-    If VBA.Len(VBA.Dir$(ordersPath)) = 0 Then
-        ex_Helpers.LogError "Orders workbook was not found: " & ordersPath
-        VBA.MsgBox "Orders workbook was not found: " & ordersPath, _
-            VBA.vbExclamation, "Document Generation"
-        Exit Function
-    End If
-    If Not ex_ExternalTables.ex_ExternalTables_TryOpenConnection( _
-        ordersPath, "Orders", connection) Then Exit Function
-
-    sqlText = "SELECT [Номер наказу], [Дата наказу] FROM " & ordersTableRef
-    ex_Helpers.LogDebug "Order lookup SQL: " & sqlText
-    Set recordset = VBA.CreateObject("ADODB.Recordset")
-    recordset.Open sqlText, connection, AD_OPEN_STATIC, AD_LOCK_READ_ONLY
-    Do While Not recordset.EOF
-        candidateNo = private_Order_NormalizeNumber( _
-            ex_ExternalTables.ex_ExternalTables_ReadText(recordset, "Номер наказу"))
-        candidateDate = 0
-        If ex_Helpers.private_Date_TryReadRecordsetDate( _
-            recordset.Fields("Дата наказу").Value, candidateDate) Then
-            If (inputIsDate And VBA.DateValue(candidateDate) = _
-                    VBA.DateValue(inputDate)) Or _
-               (Not inputIsDate And VBA.StrComp(candidateNo, orderInput, _
-                    VBA.vbTextCompare) = 0) Then
-                matchCount = matchCount + 1
-                If matchCount = 1 Then
-                    outOrderNo = candidateNo
-                    outOrderDate = candidateDate
-                End If
-            End If
-        End If
-        recordset.MoveNext
-    Loop
-
-    If matchCount = 0 Then
-        ex_Helpers.LogError "Order was not found | Input=" & orderInput & _
-            " | Year=" & VBA.CStr(orderYear)
-        VBA.MsgBox "Order was not found for value '" & orderInput & _
-            "' in the " & VBA.CStr(orderYear) & " orders table.", _
-            VBA.vbExclamation, "Document Generation"
-        GoTo CleanExit
-    End If
-    If matchCount > 1 Then
-        ex_Helpers.LogError "Order reference is ambiguous | Input=" & orderInput & _
-            " | Matches=" & VBA.CStr(matchCount)
-        VBA.MsgBox "Multiple orders were found for value '" & orderInput & "'.", _
-            VBA.vbExclamation, "Document Generation"
-        GoTo CleanExit
-    End If
-
-    private_Order_TryResolveReference = True
-CleanExit:
-    On Error Resume Next
-    If Not recordset Is Nothing Then recordset.Close
-    If Not connection Is Nothing Then connection.Close
-    Set recordset = Nothing
-    Set connection = Nothing
-    On Error GoTo 0
-    Exit Function
-EH:
-    ex_Helpers.LogError "Order lookup failed | Number=" & VBA.CStr(Err.Number) & _
-        " | Description=" & Err.Description
-    VBA.MsgBox "Order lookup failed: [" & VBA.CStr(Err.Number) & "] " & _
-        Err.Description, VBA.vbExclamation, "Document Generation"
-    Resume CleanExit
-End Function
-
-Private Function private_Order_TryGetTableRef( _
-    ByVal orderYear As Long, _
-    ByRef outTableRef As String _
-) As Boolean
-    Select Case orderYear
-        Case 2025: outTableRef = ORDERS_2025_TABLE_REF
-        Case 2026: outTableRef = ORDERS_2026_TABLE_REF
-        Case Else
-            ex_Helpers.LogError "Orders table is not configured for year " & _
-                VBA.CStr(orderYear)
-            VBA.MsgBox "Orders table is not configured for year " & _
-                VBA.CStr(orderYear) & ".", _
-                VBA.vbExclamation, "Document Generation"
-            Exit Function
-    End Select
-    private_Order_TryGetTableRef = True
-End Function
-
-Private Function private_Order_TryBuildTicketNo( _
-    ByVal rawTicketNo As String, _
-    ByVal orderNo As String, _
-    ByVal orderDate As Date, _
-    ByRef outTicketNo As String _
-) As Boolean
-    rawTicketNo = ex_Helpers.private_Text_Normalize(rawTicketNo)
-    orderNo = private_Order_NormalizeNumber(orderNo)
-    If Not ex_Helpers.private_Text_IsDigits(rawTicketNo) Or _
-        Not ex_Helpers.private_Text_IsDigits(orderNo) Then
-        ex_Helpers.LogError "Ticket number requires numeric order and ticket values"
-        VBA.MsgBox "Order number and ticket number must contain digits only.", _
-            VBA.vbExclamation, "Document Generation"
-        Exit Function
-    End If
-    outTicketNo = VBA.CStr(VBA.Year(orderDate)) & "/" & _
-        orderNo & "/" & rawTicketNo
-    private_Order_TryBuildTicketNo = True
-End Function
-
-Private Function private_Order_NormalizeNumber( _
-    ByVal orderNo As String _
-) As String
-    orderNo = ex_Helpers.private_Text_Normalize(orderNo)
-    Do While VBA.Len(orderNo) > 1 And VBA.Left$(orderNo, 1) = "0"
-        orderNo = VBA.Mid$(orderNo, 2)
-    Loop
-    private_Order_NormalizeNumber = orderNo
-End Function
-' --------------------------------------
-' } // namespace Order
 ' --------------------------------------
 
 ' --------------------------------------
