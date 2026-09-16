@@ -14,9 +14,11 @@ Public Function private_Word_TryGenerateDocument( _
     ByVal documentName As String, _
     ByVal placeholderNames As Variant, _
     ByVal placeholderValues As Variant, _
-    ByRef outDocumentPath As String _
+    ByRef outDocumentPath As String, _
+    Optional ByVal outputFolderPathInput As String = "" _
 ) As Boolean
     Dim templatePath As String
+    Dim outputFolderPath As String
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim ownsWordApp As Boolean
@@ -32,8 +34,13 @@ Public Function private_Word_TryGenerateDocument( _
         Exit Function
     End If
 
+    outputFolderPath = private_Text_Normalize(outputFolderPathInput)
+    If VBA.Len(outputFolderPath) > 0 Then
+        outputFolderPath = private_Path_ResolveFromWorkbook(outputFolderPath)
+        If Not private_Path_TryEnsureFolder(outputFolderPath) Then Exit Function
+    End If
     outDocumentPath = private_Path_BuildGeneratedDocumentPath( _
-        templatePath, documentName)
+        templatePath, documentName, outputFolderPath)
     If VBA.Len(outDocumentPath) = 0 Then Exit Function
     VBA.FileCopy templatePath, outDocumentPath
     LogDebug "Word template copied | Source=" & templatePath & _
@@ -55,8 +62,10 @@ Public Function private_Word_TryGenerateDocument( _
     Next placeholderIndex
 
     wordDoc.Save
-    wordApp.Visible = True
-    wordDoc.Activate
+    wordDoc.Close True
+    Set wordDoc = Nothing
+    If ownsWordApp Then wordApp.Quit
+    Set wordApp = Nothing
     private_Word_TryGenerateDocument = True
     Exit Function
 
@@ -338,7 +347,8 @@ End Function
 
 Public Function private_Path_BuildGeneratedDocumentPath( _
     ByVal templatePath As String, _
-    ByVal documentName As String _
+    ByVal documentName As String, _
+    Optional ByVal outputFolderPath As String = "" _
 ) As String
     Dim folderPath As String
     Dim fileNameBase As String
@@ -355,9 +365,15 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
         extensionText = ".docx"
     End If
 
-    slashPosition = VBA.InStrRev(templatePath, Application.PathSeparator)
-    If slashPosition > 0 Then _
-        folderPath = VBA.Left$(templatePath, slashPosition)
+    If VBA.Len(outputFolderPath) > 0 Then
+        folderPath = outputFolderPath
+        If VBA.Right$(folderPath, 1) <> Application.PathSeparator Then _
+            folderPath = folderPath & Application.PathSeparator
+    Else
+        slashPosition = VBA.InStrRev(templatePath, Application.PathSeparator)
+        If slashPosition > 0 Then _
+            folderPath = VBA.Left$(templatePath, slashPosition)
+    End If
     fileNameBase = private_Path_SanitizeFileName(documentName)
     If VBA.Len(fileNameBase) = 0 Then
         LogError "Generated document file name is empty after FIO sanitization"
@@ -374,6 +390,35 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
         copyIndex = copyIndex + 1
     Loop
     private_Path_BuildGeneratedDocumentPath = candidatePath
+End Function
+
+' Создаёт папку результата и отсутствующие родительские папки.
+Private Function private_Path_TryEnsureFolder( _
+    ByVal folderPath As String _
+) As Boolean
+    Dim parentPath As String
+    Dim separatorPosition As Long
+
+    On Error GoTo EH
+    If VBA.Len(VBA.Dir$(folderPath, VBA.vbDirectory)) > 0 Then
+        private_Path_TryEnsureFolder = True
+        Exit Function
+    End If
+    separatorPosition = VBA.InStrRev(folderPath, Application.PathSeparator)
+    If separatorPosition = 0 Then GoTo EH
+    parentPath = VBA.Left$(folderPath, separatorPosition - 1)
+    If VBA.Len(parentPath) = 0 Then GoTo EH
+    If Not private_Path_TryEnsureFolder(parentPath) Then Exit Function
+    VBA.MkDir folderPath
+    LogDebug "Output folder created: " & folderPath
+    private_Path_TryEnsureFolder = True
+    Exit Function
+EH:
+    LogError "Failed to create output folder: " & folderPath & _
+        " | Number=" & VBA.CStr(Err.Number) & _
+        " | Description=" & Err.Description
+    VBA.MsgBox "Failed to create output folder: " & folderPath & _
+        " | " & Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
 Public Function private_Path_SanitizeFileName( _
