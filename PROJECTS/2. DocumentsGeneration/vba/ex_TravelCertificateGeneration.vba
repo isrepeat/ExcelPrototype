@@ -192,6 +192,8 @@ Public Sub fn_TravelCertificateGeneration_Create()
         placeholderNames, placeholderValues, documentPath) Then GoTo CleanExit
 
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
+    ex_Helpers.ex_ShowStatusBarMessage _
+        "Travel certificate generated: " & documentPath
 
 CleanExit:
     Exit Sub
@@ -200,7 +202,7 @@ EH:
     ex_Helpers.LogError "Generation failed | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description
 
-    VBA.MsgBox "Document generation failed: [" & VBA.CStr(Err.Number) & "] " & _
+    ex_Helpers.ex_ShowErrorMessage "Document generation failed: [" & VBA.CStr(Err.Number) & "] " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
 
     Resume CleanExit

@@ -20,6 +20,23 @@ Private Const INPUT_ALIAS_TVO_LOOKUP As String = "TvoLookup"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 Private Const INPUT_ALIAS_OUTPUT_FOLDER_PATH As String = "OutputFolderPath"
 
+Private Const TICKETS_TABLE_NAME As String = "tbTickets"
+Private Const TICKETS_COL_RANK As String = "Звання"
+Private Const TICKETS_COL_FIO As String = "ПІБ"
+Private Const TICKETS_COL_IPN As String = "ІПН"
+Private Const TICKETS_COL_POSITION As String = "Посада"
+Private Const TICKETS_COL_EVENT As String = "Подія"
+Private Const TICKETS_COL_OUT_ORDER As String = "Вибуття.Наказ"
+Private Const TICKETS_COL_OUT_FOOD As String = "Вибуття.Продовольче"
+Private Const TICKETS_COL_OUT_DATE As String = "Вибуття"
+Private Const TICKETS_COL_DURATION As String = "Вибуття.Термін"
+Private Const TICKETS_COL_ROAD As String = "Вибуття.Дорога"
+Private Const TICKETS_COL_ARRIVAL_PLAN As String = "Прибуття.План"
+Private Const TICKETS_COL_DOCUMENT As String = "Супровідний документ"
+Private Const TICKETS_COL_TVO_FIO As String = "ТВО.ПІБ"
+Private Const TICKETS_COL_TVO_IPN As String = "ТВО.ІПН"
+Private Const TICKETS_COL_TVO_POSITION As String = "ТВО.Посада"
+
 ' Канонические типы отпусков и их текст для Word-шаблона.
 Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
 Private Const VACATION_KIND_DONATION As String = "Відпочинок за донацію крові"
@@ -65,6 +82,7 @@ Public Sub fn_VacationTicketGeneration_Create()
     Dim templatePath As String, outputFolderPath As String
     Dim ipnText As String, fioText As String
     Dim rankText As String, orderNo As String
+    Dim personPositionCode As String, tvoPositionCode As String
     Dim orderDate As Date, dateFrom As Date, dateTo As Date, dateArrival As Date
     Dim vacationDays As Long, roadDays As Long, donationDays As Long
     Dim ticketNo As String, ticketDateText As String
@@ -72,6 +90,8 @@ Public Sub fn_VacationTicketGeneration_Create()
     Dim dateArrivalText As String, personalLine As String, personalInitials As String
     Dim placeholderNames As Variant, placeholderValues As Variant
     Dim documentPath As String, documentNameValues As Object
+    Dim tableValues As Object
+    Dim ticketsTable As ListObject
 
     On Error GoTo EH
     private_Initialize
@@ -109,8 +129,12 @@ Public Sub fn_VacationTicketGeneration_Create()
     If Not ex_PersonnelData.ex_TryResolveIpn(tvoLookup, tvoIpnText) Then Exit Sub
     If Not ex_PersonnelData.ex_TryResolveFioNominative( _
         tvoIpnText, tvoFioText) Then Exit Sub
+    If Not ex_PersonnelData.ex_TryResolvePositionCode( _
+        tvoIpnText, tvoPositionCode) Then Exit Sub
     If Not ex_PersonnelData.ex_TryResolveFioNominative(ipnText, fioText) Then Exit Sub
     If Not ex_PersonnelData.ex_TryResolveRankNominative(ipnText, rankText) Then Exit Sub
+    If Not ex_PersonnelData.ex_TryResolvePositionCode( _
+        ipnText, personPositionCode) Then Exit Sub
     If Not ex_PersonnelData.ex_TryResolveOrderReference( _
         orderReference, orderNo, orderDate) Then Exit Sub
     If Not ex_PersonnelData.ex_TryBuildTicketNo( _
@@ -150,17 +174,28 @@ Public Sub fn_VacationTicketGeneration_Create()
     documentNameValues.CompareMode = VBA.vbBinaryCompare
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_FIO, fioText
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_IPN, ipnText
+    If Not ex_Document.ex_TryFindOpenTable( _
+        TICKETS_TABLE_NAME, ticketsTable) Then Exit Sub
     If Not ex_Document.ex_TryGenerateWordDocument( _
         templatePath, DOCUMENT_NAME_PATTERN, documentNameValues, _
         placeholderNames, placeholderValues, documentPath, _
         outputFolderPath) Then Exit Sub
+
+    Set tableValues = private_Tickets_BuildRowValues( _
+        rankText, fioText, ipnText, personPositionCode, vacationKind, orderNo, _
+        orderDate, vacationDays, roadDays, dateTo, ticketNo, _
+        tvoFioText, tvoIpnText, tvoPositionCode)
+    If Not ex_Document.ex_TryAppendTableRow( _
+        TICKETS_TABLE_NAME, tableValues) Then Exit Sub
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
     ex_Helpers.LogDebug "Vacation ticket generation completed"
+    ex_Helpers.ex_ShowStatusBarMessage _
+        "Vacation ticket generated: " & documentPath
     Exit Sub
 EH:
     ex_Helpers.LogError "Vacation ticket generation failed | Number=" & _
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
-    VBA.MsgBox "Vacation ticket generation failed: [" & _
+    ex_Helpers.ex_ShowErrorMessage "Vacation ticket generation failed: [" & _
         VBA.CStr(Err.Number) & "] " & Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Sub
@@ -236,7 +271,7 @@ Private Function private_Person_BuildInitials( _
 
     nameParts = VBA.Split(ex_Helpers.private_Text_Normalize(fioText), " ")
     If UBound(nameParts) < 2 Then
-        VBA.MsgBox "FIO must contain surname, name and patronymic: " & fioText, _
+        ex_Helpers.ex_ShowErrorMessage "FIO must contain surname, name and patronymic: " & fioText, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -270,7 +305,7 @@ Private Function private_Vacation_TryMapKind( _
             outVacationText = VACATION_TEXT_CHILDCARE
         Case Else
             ex_Helpers.LogError "Unsupported vacation kind: " & vacationKind
-            VBA.MsgBox "Unsupported vacation kind: " & vacationKind, _
+            ex_Helpers.ex_ShowErrorMessage "Unsupported vacation kind: " & vacationKind, _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
     End Select
@@ -279,3 +314,42 @@ End Function
 ' --------------------------------------
 ' } // namespace Vacation
 ' --------------------------------------
+
+' Собирает значения новой строки реестра tbTickets по именам его колонок.
+Private Function private_Tickets_BuildRowValues( _
+    ByVal rankText As String, _
+    ByVal fioText As String, _
+    ByVal ipnText As String, _
+    ByVal positionCode As String, _
+    ByVal eventText As String, _
+    ByVal orderNo As String, _
+    ByVal orderDate As Date, _
+    ByVal vacationDays As Long, _
+    ByVal roadDays As Long, _
+    ByVal dateTo As Date, _
+    ByVal ticketNo As String, _
+    ByVal tvoFioText As String, _
+    ByVal tvoIpnText As String, _
+    ByVal tvoPositionCode As String _
+) As Object
+    Dim tableValues As Object
+
+    Set tableValues = VBA.CreateObject("Scripting.Dictionary")
+    tableValues.CompareMode = VBA.vbBinaryCompare
+    tableValues.Add TICKETS_COL_RANK, rankText
+    tableValues.Add TICKETS_COL_FIO, fioText
+    tableValues.Add TICKETS_COL_IPN, ipnText
+    tableValues.Add TICKETS_COL_POSITION, positionCode
+    tableValues.Add TICKETS_COL_EVENT, eventText
+    tableValues.Add TICKETS_COL_OUT_ORDER, orderNo
+    tableValues.Add TICKETS_COL_OUT_FOOD, orderDate
+    tableValues.Add TICKETS_COL_OUT_DATE, orderDate
+    tableValues.Add TICKETS_COL_DURATION, vacationDays
+    tableValues.Add TICKETS_COL_ROAD, roadDays
+    tableValues.Add TICKETS_COL_ARRIVAL_PLAN, dateTo
+    tableValues.Add TICKETS_COL_DOCUMENT, ticketNo
+    tableValues.Add TICKETS_COL_TVO_FIO, tvoFioText
+    tableValues.Add TICKETS_COL_TVO_IPN, tvoIpnText
+    tableValues.Add TICKETS_COL_TVO_POSITION, tvoPositionCode
+    Set private_Tickets_BuildRowValues = tableValues
+End Function
