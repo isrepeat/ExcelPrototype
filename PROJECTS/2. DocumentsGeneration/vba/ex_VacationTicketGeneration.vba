@@ -10,7 +10,6 @@ Private Const INPUT_SHEET_NAME As String = "Відпустки"
 ' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
 Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
 Private Const INPUT_ALIAS_ORDER_REFERENCE As String = "OrderReference"
-Private Const INPUT_ALIAS_TICKET_NO As String = "TicketNo"
 Private Const INPUT_ALIAS_VACATION_KIND As String = "VacationKind"
 Private Const INPUT_ALIAS_VACATION_PLACE As String = "VacationPlace"
 Private Const INPUT_ALIAS_VACATION_DAYS As String = "VacationDays"
@@ -77,7 +76,7 @@ Public Sub fn_VacationTicketGeneration_Create()
     Dim personLookup As String, tvoLookup As String
     Dim tvoIpnText As String, tvoFioText As String
     Dim orderReference As String
-    Dim rawTicketNo As String, vacationKind As String, vacationKindText As String
+    Dim vacationKind As String, vacationKindText As String
     Dim vacationPlace As String
     Dim templatePath As String, outputFolderPath As String
     Dim ipnText As String, fioText As String
@@ -92,16 +91,18 @@ Public Sub fn_VacationTicketGeneration_Create()
     Dim documentPath As String, documentNameValues As Object
     Dim tableValues As Object
     Dim ticketsTable As ListObject
+    Dim performanceStart As Single
 
     On Error GoTo EH
     private_Initialize
     ex_Helpers.ClearLog
+    performanceStart = VBA.Timer
+    private_Performance_LogCheckpoint performanceStart, "Start"
     ex_Helpers.LogDebug "Vacation ticket generation started"
     Call ex_Document.ex_LogWorkbookContext(INPUT_SHEET_NAME, inputCellMap)
 
     personLookup = private_Input_ReadRequired(INPUT_ALIAS_PERSON_LOOKUP, "ПІБ або ІПН")
     orderReference = private_Input_ReadRequired(INPUT_ALIAS_ORDER_REFERENCE, "номер або дату наказу")
-    rawTicketNo = private_Input_ReadRequired(INPUT_ALIAS_TICKET_NO, "номер квитка")
     vacationKind = private_Input_ReadRequired(INPUT_ALIAS_VACATION_KIND, "вид відпустки")
     vacationPlace = private_Input_ReadRequired(INPUT_ALIAS_VACATION_PLACE, "місце відпустки")
     tvoLookup = private_Input_ReadRequired(INPUT_ALIAS_TVO_LOOKUP, "ПІБ або ІПН ТВО")
@@ -109,10 +110,10 @@ Public Sub fn_VacationTicketGeneration_Create()
     outputFolderPath = private_Input_ReadRequired( _
         INPUT_ALIAS_OUTPUT_FOLDER_PATH, "шлях до папки результатів")
     If VBA.Len(personLookup) = 0 Or VBA.Len(orderReference) = 0 Or _
-        VBA.Len(rawTicketNo) = 0 Or _
         VBA.Len(vacationKind) = 0 Or VBA.Len(vacationPlace) = 0 Or _
         VBA.Len(tvoLookup) = 0 Or _
         VBA.Len(templatePath) = 0 Or VBA.Len(outputFolderPath) = 0 Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Input read"
 
     ex_Helpers.LogDebug "Vacation ticket person lookup: " & personLookup
     ex_Helpers.LogDebug "Vacation ticket order reference: " & orderReference
@@ -137,8 +138,14 @@ Public Sub fn_VacationTicketGeneration_Create()
         ipnText, personPositionCode) Then Exit Sub
     If Not ex_PersonnelData.ex_TryResolveOrderReference( _
         orderReference, orderNo, orderDate) Then Exit Sub
-    If Not ex_PersonnelData.ex_TryBuildTicketNo( _
-        rawTicketNo, orderNo, orderDate, ticketNo) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Personnel and order data resolved"
+    If Not ex_Document.ex_TryFindOpenTable( _
+        TICKETS_TABLE_NAME, ticketsTable) Then Exit Sub
+    If Not private_Tickets_TryValidateNoDuplicatePerson( _
+        ticketsTable, ipnText, orderDate) Then Exit Sub
+    If Not private_Tickets_TryBuildNextTicketNo( _
+        ticketsTable, orderNo, orderDate, ticketNo) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Registry validated and ticket number assigned"
 
     ' Даты рассчитываются по утверждённому правилу отпуска.
     dateFrom = VBA.DateAdd("d", 1, orderDate)
@@ -174,12 +181,12 @@ Public Sub fn_VacationTicketGeneration_Create()
     documentNameValues.CompareMode = VBA.vbBinaryCompare
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_FIO, fioText
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_IPN, ipnText
-    If Not ex_Document.ex_TryFindOpenTable( _
-        TICKETS_TABLE_NAME, ticketsTable) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Word generation started"
     If Not ex_Document.ex_TryGenerateWordDocument( _
         templatePath, DOCUMENT_NAME_PATTERN, documentNameValues, _
         placeholderNames, placeholderValues, documentPath, _
         outputFolderPath) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Word generation completed"
 
     Set tableValues = private_Tickets_BuildRowValues( _
         rankText, fioText, ipnText, personPositionCode, vacationKind, orderNo, _
@@ -187,6 +194,7 @@ Public Sub fn_VacationTicketGeneration_Create()
         tvoFioText, tvoIpnText, tvoPositionCode)
     If Not ex_Document.ex_TryAppendTableRow( _
         TICKETS_TABLE_NAME, tableValues) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Registry row appended"
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
     ex_Helpers.LogDebug "Vacation ticket generation completed"
     ex_Helpers.ex_ShowStatusBarMessage _
@@ -203,6 +211,25 @@ End Sub
 ' } // namespace API
 ' --------------------------------------
 
+' --------------------------------------
+' namespace Performance {
+' --------------------------------------
+' Временная диагностика длительности этапов генерации. Удалить после замеров.
+Private Sub private_Performance_LogCheckpoint( _
+    ByVal startTime As Single, _
+    ByVal checkpointName As String _
+)
+    Dim elapsedSeconds As Single
+
+    elapsedSeconds = VBA.Timer - startTime
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400!
+    ex_Helpers.WriteLog "PERF | ElapsedMs=" & _
+        VBA.Format$(elapsedSeconds * 1000!, "0") & " | Checkpoint=" & checkpointName
+End Sub
+' --------------------------------------
+' } // namespace Performance
+' --------------------------------------
+
 ' Инициализирует module-level состояние перед каждым запуском генерации.
 Private Sub private_Initialize()
     Set inputCellMap = VBA.CreateObject("Scripting.Dictionary")
@@ -211,15 +238,14 @@ Private Sub private_Initialize()
     ' Адреса значений соответствуют строкам конфигурационной таблицы на листе.
     inputCellMap.Add INPUT_ALIAS_PERSON_LOOKUP, "C4"
     inputCellMap.Add INPUT_ALIAS_ORDER_REFERENCE, "C5"
-    inputCellMap.Add INPUT_ALIAS_TICKET_NO, "C6"
-    inputCellMap.Add INPUT_ALIAS_VACATION_KIND, "C7"
-    inputCellMap.Add INPUT_ALIAS_VACATION_PLACE, "C8"
-    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C9"
-    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C10"
-    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C11"
-    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C12"
-    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C13"
-    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C14"
+    inputCellMap.Add INPUT_ALIAS_VACATION_KIND, "C6"
+    inputCellMap.Add INPUT_ALIAS_VACATION_PLACE, "C7"
+    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C8"
+    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C9"
+    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C10"
+    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C11"
+    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C12"
+    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C13"
 End Sub
 
 ' --------------------------------------
@@ -313,6 +339,129 @@ Private Function private_Vacation_TryMapKind( _
 End Function
 ' --------------------------------------
 ' } // namespace Vacation
+' --------------------------------------
+
+' --------------------------------------
+' namespace Tickets {
+' --------------------------------------
+' Не допускает повторного оформления отпуска одному человеку на дату приказа.
+Private Function private_Tickets_TryValidateNoDuplicatePerson( _
+    ByVal ticketsTable As ListObject, _
+    ByVal ipnText As String, _
+    ByVal orderDate As Date _
+) As Boolean
+    Dim ticketRow As ListRow
+    Dim ipnColumnIndex As Long, departureDateColumnIndex As Long
+    Dim existingIpnText As String, existingDateText As String
+    Dim existingOrderDate As Date
+
+    On Error GoTo EH
+    ipnColumnIndex = ticketsTable.ListColumns(TICKETS_COL_IPN).Index
+    departureDateColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_DATE).Index
+    For Each ticketRow In ticketsTable.ListRows
+        existingIpnText = ex_Helpers.private_Text_Normalize( _
+            VBA.CStr(ticketRow.Range.Cells(1, ipnColumnIndex).Text))
+        If VBA.StrComp(existingIpnText, ipnText, VBA.vbTextCompare) = 0 Then
+            existingDateText = ex_Helpers.private_Text_Normalize( _
+                VBA.CStr(ticketRow.Range.Cells(1, departureDateColumnIndex).Text))
+            If Not ex_Helpers.private_Date_TryParse( _
+                existingDateText, existingOrderDate) Then
+                ex_Helpers.LogError "Existing ticket has invalid departure date | " & _
+                    "IPN=" & ipnText & " | Value=" & existingDateText
+                ex_Helpers.ex_ShowErrorMessage "Existing ticket for IPN '" & ipnText & _
+                    "' has an invalid departure date: " & existingDateText, _
+                    VBA.vbExclamation, "Document Generation"
+                Exit Function
+            End If
+            If VBA.DateValue(existingOrderDate) = VBA.DateValue(orderDate) Then
+                ex_Helpers.LogError "Duplicate vacation ticket | IPN=" & ipnText & _
+                    " | OrderDate=" & VBA.CStr(orderDate)
+                ex_Helpers.ex_ShowErrorMessage "A vacation ticket already exists for " & _
+                    "this person on " & VBA.Format$(orderDate, "dd.mm.yyyy") & ".", _
+                    VBA.vbExclamation, "Document Generation"
+                Exit Function
+            End If
+        End If
+    Next ticketRow
+    private_Tickets_TryValidateNoDuplicatePerson = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to validate duplicate vacation ticket | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to validate duplicate vacation ticket: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+
+' Формирует следующий номер билета для приказа по уже внесённым строкам tbTickets.
+Private Function private_Tickets_TryBuildNextTicketNo( _
+    ByVal ticketsTable As ListObject, _
+    ByVal orderNo As String, _
+    ByVal orderDate As Date, _
+    ByRef outTicketNo As String _
+) As Boolean
+    Dim ticketRow As ListRow
+    Dim orderColumnIndex As Long, documentColumnIndex As Long
+    Dim normalizedOrderNo As String, existingOrderNo As String
+    Dim existingTicketNo As String, ticketPrefix As String, sequenceText As String
+    Dim greatestSequence As Long, ticketSequence As Long
+
+    On Error GoTo EH
+    outTicketNo = VBA.vbNullString
+    normalizedOrderNo = ex_Helpers.private_Text_Normalize(orderNo)
+    If Not ex_Helpers.private_Text_IsDigits(normalizedOrderNo) Then
+        ex_Helpers.LogError "Resolved order number is not numeric: " & orderNo
+        ex_Helpers.ex_ShowErrorMessage "Resolved order number must contain digits only: " & _
+            orderNo, VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+
+    orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
+    documentColumnIndex = ticketsTable.ListColumns(TICKETS_COL_DOCUMENT).Index
+    ticketPrefix = VBA.CStr(VBA.Year(orderDate)) & "/" & normalizedOrderNo & "/"
+    For Each ticketRow In ticketsTable.ListRows
+        existingOrderNo = ex_Helpers.private_Text_Normalize( _
+            VBA.CStr(ticketRow.Range.Cells(1, orderColumnIndex).Text))
+        If VBA.StrComp(existingOrderNo, normalizedOrderNo, VBA.vbTextCompare) = 0 Then
+            existingTicketNo = ex_Helpers.private_Text_Normalize( _
+                VBA.CStr(ticketRow.Range.Cells(1, documentColumnIndex).Text))
+            If VBA.Left$(existingTicketNo, VBA.Len(ticketPrefix)) <> ticketPrefix Then
+                ex_Helpers.LogError "Ticket number has invalid prefix | Value=" & _
+                    existingTicketNo & " | Expected=" & ticketPrefix
+                ex_Helpers.ex_ShowErrorMessage "Ticket number '" & existingTicketNo & _
+                    "' does not match order '" & normalizedOrderNo & "'.", _
+                    VBA.vbExclamation, "Document Generation"
+                Exit Function
+            End If
+            sequenceText = VBA.Mid$(existingTicketNo, VBA.Len(ticketPrefix) + 1)
+            If Not ex_Helpers.private_Text_IsDigits(sequenceText) Then
+                ex_Helpers.LogError "Ticket number has invalid sequence: " & existingTicketNo
+                ex_Helpers.ex_ShowErrorMessage "Ticket number has an invalid sequence: " & _
+                    existingTicketNo, VBA.vbExclamation, "Document Generation"
+                Exit Function
+            End If
+            ticketSequence = VBA.CLng(sequenceText)
+            If ticketSequence > greatestSequence Then greatestSequence = ticketSequence
+        End If
+    Next ticketRow
+
+    If greatestSequence = 2147483647 Then
+        ex_Helpers.LogError "Ticket sequence limit reached | Prefix=" & ticketPrefix
+        ex_Helpers.ex_ShowErrorMessage "Ticket number sequence limit was reached for order '" & _
+            normalizedOrderNo & "'.", VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    outTicketNo = ticketPrefix & VBA.CStr(greatestSequence + 1)
+    ex_Helpers.LogDebug "Next vacation ticket number: " & outTicketNo
+    private_Tickets_TryBuildNextTicketNo = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to build next ticket number | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to build the next ticket number: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+' --------------------------------------
+' } // namespace Tickets
 ' --------------------------------------
 
 ' Собирает значения новой строки реестра tbTickets по именам его колонок.
