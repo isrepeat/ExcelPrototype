@@ -1,7 +1,7 @@
 Option Explicit
 
-Private Const SHPO_RELATIVE_PATH As String = "ШПО.xlsx"
-Private Const ORDERS_RELATIVE_PATH As String = "Накази.xlsx"
+Private Const SHPO_RELATIVE_PATH As String = "Dependencies\ШПО.xlsx"
+Private Const ORDERS_RELATIVE_PATH As String = "Dependencies\Накази.xlsx"
 Private Const ORDERS_2025_TABLE_REF As String = "[Накази$A2:B12000]"
 Private Const ORDERS_2026_TABLE_REF As String = "[Накази$D2:E12000]"
 Private Const AD_OPEN_STATIC As Long = 3

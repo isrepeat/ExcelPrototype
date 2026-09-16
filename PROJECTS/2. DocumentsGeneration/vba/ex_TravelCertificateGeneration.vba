@@ -5,6 +5,8 @@
 
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
 
+Private Const INPUT_SHEET_NAME As String = "Відрядження"
+
 ' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
 Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
 Private Const INPUT_ALIAS_POSITION_CODE As String = "PositionCode"
@@ -19,7 +21,6 @@ Private Const INPUT_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const INPUT_ALIAS_DATE_TO As String = "DateTo"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 
-Private Const INPUT_SHEET_NAME As String = "Відрядження"
 ' Aliases генерируемого контекста, могут использоваться для formatter-ов.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
 Private Const GENERATED_CONTEXT_ALIAS_IPN As String = "IPN"
@@ -37,8 +38,7 @@ Private inputCellMap As Object
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-' Назначить этот макрос кнопке "Створити".
-Public Sub fn_DocumentsGeneration_Create()
+Public Sub fn_TravelCertificateGeneration_Create()
     Dim personLookup As String
     Dim ipnText As String
     Dim fioDefault As String
@@ -67,7 +67,6 @@ Public Sub fn_DocumentsGeneration_Create()
     Dim placeholderNames As Variant
     Dim placeholderValues As Variant
     Dim documentNameValues As Object
-    Dim documentName As String
 
     On Error GoTo EH
 
@@ -75,7 +74,7 @@ Public Sub fn_DocumentsGeneration_Create()
 
     ex_Helpers.ClearLog
     ex_Helpers.LogDebug "Generation started"
-    private_Diagnoctics_LogWorkbookContext
+    ex_Document.ex_LogWorkbookContext(INPUT_SHEET_NAME, inputCellMap)
     personLookup = private_Input_ReadPersonLookup()
     If VBA.Len(personLookup) = 0 Then Exit Sub
 
@@ -188,14 +187,9 @@ Public Sub fn_DocumentsGeneration_Create()
         orderDateMirroredText
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_TICKET_NO, ticketNo
 
-    If Not ex_Helpers.private_Text_TryFormat( _
-        GENERATED_DOCUMENT_NAME_PATTERN, documentNameValues, _
-        documentName) Then Exit Sub
-
-    ex_Helpers.LogDebug "Generated document name: " & documentName
-    If Not ex_Helpers.private_Word_TryGenerateDocument( _
-        templatePath, documentName, placeholderNames, placeholderValues, _
-        documentPath) Then GoTo CleanExit
+    If Not ex_Document.ex_TryGenerateWordDocument( _
+        templatePath, GENERATED_DOCUMENT_NAME_PATTERN, documentNameValues, _
+        placeholderNames, placeholderValues, documentPath) Then GoTo CleanExit
 
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
 
@@ -242,202 +236,36 @@ End Sub
 ' namespace Input {
 ' --------------------------------------
 Private Function private_Input_ReadPersonLookup() As String
-    Dim sourceSheet As Worksheet
-    Dim cellAddress As String
-
-    On Error Resume Next
-    Set sourceSheet = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    On Error GoTo 0
-    If sourceSheet Is Nothing Then
-        ex_Helpers.LogError "Input sheet was not found | ExpectedNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(INPUT_SHEET_NAME) & _
-            " | WorksheetCount=" & VBA.CStr(ThisWorkbook.Worksheets.Count)
-        VBA.MsgBox "Input sheet was not found. Check the document generation log.", _
-            VBA.vbExclamation, "Document Generation"
-        Exit Function
-    End If
-
-    cellAddress = private_Input_GetCellAddress(INPUT_ALIAS_PERSON_LOOKUP)
-    If VBA.Len(cellAddress) = 0 Then Exit Function
-
-    private_Input_ReadPersonLookup = ex_Helpers.private_Text_Normalize( _
-        VBA.CStr(sourceSheet.Range(cellAddress).Text))
-    If VBA.Len(private_Input_ReadPersonLookup) = 0 Then
-        ex_Helpers.LogError "Person lookup cell is empty | SheetNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(INPUT_SHEET_NAME) & " | Cell=" & _
-            cellAddress
-        VBA.MsgBox "Enter FIO or IPN in cell " & _
-            cellAddress & ".", _
-            VBA.vbExclamation, "Document Generation"
-    End If
+    If Not ex_Document.ex_TryReadRequired( _
+        INPUT_SHEET_NAME, inputCellMap, INPUT_ALIAS_PERSON_LOOKUP, _
+        "FIO or IPN", private_Input_ReadPersonLookup) Then Exit Function
 End Function
 
 Private Function private_Input_ReadPositionCode() As String
-    Dim sourceSheet As Worksheet
-    Dim cellAddress As String
-
-    Set sourceSheet = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    cellAddress = private_Input_GetCellAddress(INPUT_ALIAS_POSITION_CODE)
-    If VBA.Len(cellAddress) = 0 Then Exit Function
-
-    private_Input_ReadPositionCode = ex_Helpers.private_Text_Normalize( _
-        VBA.CStr(sourceSheet.Range(cellAddress).Text))
-    If VBA.Len(private_Input_ReadPositionCode) = 0 Then
-        ex_Helpers.LogError "Position code cell is empty | SheetNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(INPUT_SHEET_NAME) & " | Cell=" & _
-            cellAddress
-        VBA.MsgBox "Enter the position code in cell " & _
-            cellAddress & ".", _
-            VBA.vbExclamation, "Document Generation"
-    End If
+    If Not ex_Document.ex_TryReadRequired( _
+        INPUT_SHEET_NAME, inputCellMap, INPUT_ALIAS_POSITION_CODE, _
+        "position code", private_Input_ReadPositionCode) Then Exit Function
 End Function
 
 Private Function private_Input_ReadTemplatePath() As String
-    Dim sourceSheet As Worksheet
-    Dim cellAddress As String
-
-    Set sourceSheet = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    cellAddress = private_Input_GetCellAddress(INPUT_ALIAS_TEMPLATE_PATH)
-    If VBA.Len(cellAddress) = 0 Then Exit Function
-
-    private_Input_ReadTemplatePath = ex_Helpers.private_Text_Normalize( _
-        VBA.CStr(sourceSheet.Range(cellAddress).Text))
-    If VBA.Len(private_Input_ReadTemplatePath) = 0 Then
-        ex_Helpers.LogError "Template path cell is empty | SheetNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(INPUT_SHEET_NAME) & " | Cell=" & _
-            cellAddress
-        VBA.MsgBox "Enter the Word template path in cell " & _
-            cellAddress & ".", _
-            VBA.vbExclamation, "Document Generation"
-    End If
+    If Not ex_Document.ex_TryReadRequired( _
+        INPUT_SHEET_NAME, inputCellMap, INPUT_ALIAS_TEMPLATE_PATH, _
+        "Word template path", private_Input_ReadTemplatePath) Then Exit Function
 End Function
 
 Private Function private_Input_ReadRequiredValue( _
-    ByVal fieldAlias As String, _
-    ByVal fieldCaption As String _
+    ByVal fieldAlias As String, ByVal fieldCaption As String _
 ) As String
-    Dim sourceSheet As Worksheet
-    Dim cellAddress As String
-
-    Set sourceSheet = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    cellAddress = private_Input_GetCellAddress(fieldAlias)
-    If VBA.Len(cellAddress) = 0 Then Exit Function
-
-    private_Input_ReadRequiredValue = ex_Helpers.private_Text_Normalize( _
-        VBA.CStr(sourceSheet.Range(cellAddress).Text))
-    If VBA.Len(private_Input_ReadRequiredValue) = 0 Then
-        ex_Helpers.LogError "Required input is empty | Field=" & fieldCaption & _
-            " | Cell=" & cellAddress
-        VBA.MsgBox "Enter " & fieldCaption & " in cell " & cellAddress & ".", _
-            VBA.vbExclamation, "Document Generation"
-    End If
+    If Not ex_Document.ex_TryReadRequired( _
+        INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, _
+        private_Input_ReadRequiredValue) Then Exit Function
 End Function
 
-Private Function private_Input_ReadOptionalValue( _
-    ByVal fieldAlias As String _
-) As String
-    Dim sourceSheet As Worksheet
-    Dim cellAddress As String
-
-    Set sourceSheet = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    cellAddress = private_Input_GetCellAddress(fieldAlias)
-    If VBA.Len(cellAddress) = 0 Then Exit Function
-
-    private_Input_ReadOptionalValue = ex_Helpers.private_Text_Normalize( _
-        VBA.CStr(sourceSheet.Range(cellAddress).Text))
-End Function
-
-Private Function private_Input_GetCellAddress(ByVal fieldAlias As String) As String
-    If inputCellMap Is Nothing Then
-        ex_Helpers.LogError "Input cell mapper is not initialized"
-        VBA.MsgBox "Input cell mapper is not initialized.", _
-            VBA.vbExclamation, "Document Generation"
-
-        Exit Function
-    End If
-
-    If Not inputCellMap.Exists(fieldAlias) Then
-        ex_Helpers.LogError "Input field alias is not mapped: " & fieldAlias
-        VBA.MsgBox "Input field alias is not mapped: " & fieldAlias, _
-            VBA.vbExclamation, "Document Generation"
-
-        Exit Function
-    End If
-
-    private_Input_GetCellAddress = VBA.CStr(inputCellMap(fieldAlias))
+Private Function private_Input_ReadOptionalValue(ByVal fieldAlias As String) As String
+    If Not ex_Document.ex_TryReadOptional( _
+        INPUT_SHEET_NAME, inputCellMap, fieldAlias, _
+        private_Input_ReadOptionalValue) Then Exit Function
 End Function
 ' --------------------------------------
 ' } // namespace Input
-' --------------------------------------
-
-' --------------------------------------
-' namespace Diagnostics {
-' --------------------------------------
-Private Sub private_Diagnoctics_LogWorkbookContext()
-#If ENABLE_LOGGING Then
-    Dim worksheetIndex As Long
-    Dim worksheetObj As Worksheet
-    Dim activeSheetText As String
-    Dim personCellAddress As String
-    Dim positionCellAddress As String
-    Dim orderCellAddress As String
-    Dim ticketCellAddress As String
-    Dim dateFromCellAddress As String
-    Dim dateToCellAddress As String
-    Dim templateCellAddress As String
-
-    On Error Resume Next
-    activeSheetText = Application.ActiveSheet.Name
-    On Error GoTo 0
-
-    ex_Helpers.LogDebug "Workbook path: " & ThisWorkbook.FullName
-    ex_Helpers.LogDebug "Worksheet count: " & VBA.CStr(ThisWorkbook.Worksheets.Count)
-    ex_Helpers.LogDebug "Active sheet Unicode: " & _
-        ex_Helpers.private_Text_ToUnicodeDebug(activeSheetText)
-
-    For worksheetIndex = 1 To ThisWorkbook.Worksheets.Count
-        Set worksheetObj = ThisWorkbook.Worksheets(worksheetIndex)
-        ex_Helpers.LogDebug "Worksheet | Index=" & VBA.CStr(worksheetIndex) & _
-            " | CodeName=" & worksheetObj.CodeName & _
-            " | NameUnicode=" & ex_Helpers.private_Text_ToUnicodeDebug(worksheetObj.Name)
-    Next worksheetIndex
-
-    Set worksheetObj = Nothing
-    On Error Resume Next
-    Set worksheetObj = ThisWorkbook.Worksheets(INPUT_SHEET_NAME)
-    On Error GoTo 0
-    If Not worksheetObj Is Nothing Then
-        personCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_PERSON_LOOKUP)
-        positionCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_POSITION_CODE)
-        orderCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_ORDER_REFERENCE)
-        ticketCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_TICKET_NO)
-        dateFromCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_DATE_FROM)
-        dateToCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_DATE_TO)
-        templateCellAddress = private_Input_GetCellAddress(INPUT_ALIAS_TEMPLATE_PATH)
-
-        ex_Helpers.LogDebug "Input binding | SheetNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(INPUT_SHEET_NAME) & _
-            " | PersonCell=" & personCellAddress & _
-            " | PositionCell=" & positionCellAddress & _
-            " | OrderCell=" & orderCellAddress & _
-            " | TicketCell=" & ticketCellAddress & _
-            " | DateFromCell=" & dateFromCellAddress & _
-            " | DateToCell=" & dateToCellAddress & _
-            " | TemplateCell=" & templateCellAddress
-
-        ex_Helpers.LogDebug "Input raw values Unicode | Person=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(VBA.CStr( _
-                worksheetObj.Range(personCellAddress).Text)) & _
-            " | Position=" & ex_Helpers.private_Text_ToUnicodeDebug(VBA.CStr( _
-                worksheetObj.Range(positionCellAddress).Text)) & _
-            " | Template=" & ex_Helpers.private_Text_ToUnicodeDebug(VBA.CStr( _
-                worksheetObj.Range(templateCellAddress).Text))
-    Else
-        ex_Helpers.LogError "Input binding failed | ExpectedNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(INPUT_SHEET_NAME)
-    End If
-#End If
-End Sub
-' --------------------------------------
-' } // namespace Diagnostics
 ' --------------------------------------
