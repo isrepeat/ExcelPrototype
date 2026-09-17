@@ -7,6 +7,7 @@ Option Explicit
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
 
 Private managedWordApp As Object
+Private messageTargetRange As Range
 
 ' --------------------------------------
 ' namespace Word {
@@ -20,12 +21,14 @@ Public Function private_Word_TryGenerateDocument( _
     ByRef outDocumentPath As String, _
     Optional ByVal outputFolderPathInput As String = "", _
     Optional ByVal overwriteDocumentPathInput As String = "", _
-    Optional ByVal failIfDocumentExists As Boolean = False _
+    Optional ByVal failIfDocumentExists As Boolean = False, _
+    Optional ByVal renameUpdatedDocument As Boolean = False _
 ) As Boolean
     Dim templatePath As String
     Dim outputFolderPath As String
     Dim overwriteDocumentPath As String
     Dim temporaryDocumentPath As String
+    Dim finalDocumentPath As String
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim placeholderIndex As Long
@@ -57,6 +60,17 @@ Public Function private_Word_TryGenerateDocument( _
         outDocumentPath = overwriteDocumentPath
         temporaryDocumentPath = private_Path_BuildTemporaryDocumentPath( _
             overwriteDocumentPath)
+        If renameUpdatedDocument Then
+            If Not private_Path_TryBuildExactDocumentPath( _
+                templatePath, documentName, outputFolderPath, finalDocumentPath) Then Exit Function
+            If VBA.StrComp(finalDocumentPath, outDocumentPath, _
+                    VBA.vbTextCompare) <> 0 And _
+               VBA.Len(VBA.Dir$(finalDocumentPath)) > 0 Then
+                ex_ShowErrorMessage "The target vacation ticket file name is already in use: " & _
+                    finalDocumentPath, VBA.vbExclamation, "Document Generation"
+                Exit Function
+            End If
+        End If
     Else
         outDocumentPath = private_Path_BuildGeneratedDocumentPath( _
             templatePath, documentName, outputFolderPath, _
@@ -98,6 +112,11 @@ Public Function private_Word_TryGenerateDocument( _
     If VBA.StrComp(temporaryDocumentPath, outDocumentPath, VBA.vbTextCompare) <> 0 Then
         VBA.Kill outDocumentPath
         Name temporaryDocumentPath As outDocumentPath
+    End If
+    If VBA.Len(finalDocumentPath) > 0 And _
+       VBA.StrComp(finalDocumentPath, outDocumentPath, VBA.vbTextCompare) <> 0 Then
+        Name outDocumentPath As finalDocumentPath
+        outDocumentPath = finalDocumentPath
     End If
     Set wordApp = Nothing
     private_Word_TryGenerateDocument = True
@@ -432,12 +451,96 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
     private_Path_BuildGeneratedDocumentPath = candidatePath
 End Function
 
+' Формирует точный путь нового документа без автоматического добавления суффикса.
+Private Function private_Path_TryBuildExactDocumentPath( _
+    ByVal templatePath As String, _
+    ByVal documentName As String, _
+    ByVal outputFolderPath As String, _
+    ByRef outDocumentPath As String _
+) As Boolean
+    Dim folderPath As String
+    Dim fileNameBase As String
+    Dim dotPosition As Long
+    Dim slashPosition As Long
+    Dim extensionText As String
+
+    outDocumentPath = VBA.vbNullString
+    dotPosition = VBA.InStrRev(templatePath, ".")
+    If dotPosition > 0 Then
+        extensionText = VBA.Mid$(templatePath, dotPosition)
+    Else
+        extensionText = ".docx"
+    End If
+    If VBA.Len(outputFolderPath) > 0 Then
+        folderPath = outputFolderPath
+        If VBA.Right$(folderPath, 1) <> Application.PathSeparator Then _
+            folderPath = folderPath & Application.PathSeparator
+    Else
+        slashPosition = VBA.InStrRev(templatePath, Application.PathSeparator)
+        If slashPosition = 0 Then
+            ex_ShowErrorMessage "Cannot determine the document output folder.", _
+                VBA.vbExclamation, "Document Generation"
+            Exit Function
+        End If
+        folderPath = VBA.Left$(templatePath, slashPosition)
+    End If
+    fileNameBase = private_Path_SanitizeFileName(documentName)
+    If VBA.Len(fileNameBase) = 0 Then
+        ex_ShowErrorMessage "Generated document file name is empty.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    outDocumentPath = folderPath & fileNameBase & extensionText
+    private_Path_TryBuildExactDocumentPath = True
+End Function
+
+' Перемещает прежний документ в свободное имя с суффиксом «(old N)».
+Public Function private_Path_TryArchiveDocument( _
+    ByVal documentPath As String _
+) As Boolean
+    Dim dotPosition As Long
+    Dim basePath As String
+    Dim extensionText As String
+    Dim archivedPath As String
+    Dim archiveIndex As Long
+
+    On Error GoTo EH
+    If VBA.Len(VBA.Dir$(documentPath)) = 0 Then
+        ex_ShowErrorMessage "Document to archive was not found: " & documentPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    dotPosition = VBA.InStrRev(documentPath, ".")
+    If dotPosition = 0 Then
+        ex_ShowErrorMessage "Document to archive has no extension: " & documentPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    basePath = VBA.Left$(documentPath, dotPosition - 1)
+    extensionText = VBA.Mid$(documentPath, dotPosition)
+    archiveIndex = 1
+    Do
+        archivedPath = basePath & " (old " & VBA.CStr(archiveIndex) & ")" & _
+            extensionText
+        archiveIndex = archiveIndex + 1
+    Loop While VBA.Len(VBA.Dir$(archivedPath)) > 0
+    Name documentPath As archivedPath
+    private_Path_TryArchiveDocument = True
+    Exit Function
+EH:
+    LogError "Failed to archive document | Number=" & VBA.CStr(Err.Number) & _
+        " | Description=" & Err.Description
+    ex_ShowErrorMessage "Failed to archive document: " & Err.Description, _
+        VBA.vbExclamation, "Document Generation"
+End Function
+
 ' Находит единственный Word-файл билета в указанной папке по номеру и ИПН.
 Public Function private_Path_TryFindVacationTicketDocument( _
     ByVal outputFolderPathInput As String, _
     ByVal ticketNo As String, _
     ByVal ipnText As String, _
-    ByRef outDocumentPath As String _
+    ByRef outDocumentPath As String, _
+    Optional ByVal isDocumentRequired As Boolean = True _
 ) As Boolean
     Dim outputFolderPath As String
     Dim ticketNoFileToken As String
@@ -458,7 +561,8 @@ Public Function private_Path_TryFindVacationTicketDocument( _
         If VBA.InStr(1, fileName, ticketNoFileToken & " ", _
                 VBA.vbTextCompare) > 0 And _
            VBA.InStr(1, fileName, "(" & ipnText & ")", _
-                VBA.vbTextCompare) > 0 Then
+                VBA.vbTextCompare) > 0 And _
+           Not private_Path_IsArchivedDocumentFileName(fileName) Then
             matchCount = matchCount + 1
             outDocumentPath = outputFolderPath & Application.PathSeparator & fileName
         End If
@@ -469,6 +573,10 @@ Public Function private_Path_TryFindVacationTicketDocument( _
         Exit Function
     End If
     If matchCount = 0 Then
+        If Not isDocumentRequired Then
+            private_Path_TryFindVacationTicketDocument = True
+            Exit Function
+        End If
         ex_ShowErrorMessage "Vacation ticket file was not found for ticket '" & _
             ticketNo & "' and IPN '" & ipnText & "' in folder: " & _
             outputFolderPath, VBA.vbExclamation, "Document Generation"
@@ -484,6 +592,14 @@ EH:
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
     ex_ShowErrorMessage "Failed to find vacation ticket file: " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+
+' Исключает архивные копии, которым присваивается суффикс «(old N)».
+Private Function private_Path_IsArchivedDocumentFileName( _
+    ByVal fileName As String _
+) As Boolean
+    private_Path_IsArchivedDocumentFileName = ( _
+        VBA.InStr(1, fileName, " (old ", VBA.vbTextCompare) > 0)
 End Function
 
 ' Возвращает свободный временный путь в папке целевого Word-файла.
@@ -595,19 +711,66 @@ End Function
 ' --------------------------------------
 
 ' --------------------------------------
-' namespace Logging {
+' namespace Messaging {
 ' --------------------------------------
-Public Sub ex_ShowStatusBarMessage(ByVal messageText As String)
-    Application.StatusBar = private_Text_Normalize(messageText)
+Public Function ex_TryConfigureMessageTarget( _
+    ByVal worksheetName As String, _
+    ByVal cellAddress As String _
+) As Boolean
+    Dim targetSheet As Worksheet
+
+    On Error GoTo EH
+    Set messageTargetRange = Nothing
+    Set targetSheet = ThisWorkbook.Worksheets(worksheetName)
+    Set messageTargetRange = targetSheet.Range(cellAddress).MergeArea
+    ex_TryConfigureMessageTarget = True
+    Exit Function
+EH:
+    Set messageTargetRange = Nothing
+    LogError "Message target is unavailable | Sheet=" & worksheetName & _
+        " | Cell=" & cellAddress & " | Number=" & VBA.CStr(Err.Number) & _
+        " | Description=" & Err.Description
+    VBA.MsgBox "Message area '" & cellAddress & "' was not found on sheet '" & _
+        worksheetName & "'.", VBA.vbExclamation, "Document Generation"
+End Function
+
+Public Sub ex_ClearMessageTarget()
+    Set messageTargetRange = Nothing
 End Sub
 
-' Выводит ошибку одновременно в строку состояния и диалоговое окно.
+Public Sub ex_ShowStatusMessage( _
+    ByVal messageText As String, _
+    Optional ByVal isErrorMessage As Boolean = False _
+)
+    On Error GoTo EH
+    If messageTargetRange Is Nothing Then
+        LogError "Message target is not configured | Message=" & messageText
+        Exit Sub
+    End If
+    messageTargetRange.Cells(1, 1).Value = private_Text_Normalize(messageText)
+    If isErrorMessage Then
+        messageTargetRange.Font.Color = VBA.RGB(255, 255, 0)
+    Else
+        messageTargetRange.Font.Color = VBA.RGB(116, 116, 116)
+    End If
+    Exit Sub
+EH:
+    LogError "Failed to write message target | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+End Sub
+
+' Сохраняет совместимость с существующими модулями без использования StatusBar.
+Public Sub ex_ShowStatusBarMessage(ByVal messageText As String)
+    ex_ShowStatusMessage messageText
+End Sub
+
+' Выводит ошибку в область сообщений и диалоговое окно.
 Public Sub ex_ShowErrorMessage( _
     ByVal messageText As String, _
     Optional ByVal buttons As VbMsgBoxStyle = VBA.vbExclamation, _
     Optional ByVal titleText As String = "Document Generation" _
 )
-    ex_ShowStatusBarMessage messageText
+    ex_ShowStatusMessage messageText, True
     VBA.MsgBox messageText, buttons, titleText
 End Sub
 

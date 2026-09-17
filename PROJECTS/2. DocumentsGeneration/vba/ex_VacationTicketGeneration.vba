@@ -6,6 +6,7 @@ Option Explicit
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
 
 Private Const INPUT_SHEET_NAME As String = "Відпустки"
+Private Const INPUT_MESSAGE_CELL_ADDRESS As String = "E7"
 
 ' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
 Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
@@ -63,8 +64,10 @@ Private Const VACATION_STATUS_TICKETS_CANCELLED As String = "СКАСОВАНО"
 Private Const DATE_FORMAT_PATTERN As String = """{dd}"" {month} {yyyy} р."
 
 ' Стабильный шаблон имени созданного документа.
-Private Const DOCUMENT_NAME_PATTERN As String = _
-    "Відпускний квиток {TicketNo} {FIO} ({IPN})"
+Private Const DOCUMENT_NAME_PATTERN_ACTIVE As String = _
+    "В.к. {TicketNo} {FIO} ({IPN})"
+Private Const DOCUMENT_NAME_PATTERN_CANCELLED As String = _
+    "В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})"
 
 ' Aliases контекста имени генерируемого документа.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
@@ -105,13 +108,20 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Dim dateArrivalText As String, personalLine As String, personalInitials As String
     Dim placeholderNames As Variant, placeholderValues As Variant
     Dim documentPath As String, matchedDocumentPath As String
+    Dim overwriteDocumentPath As String
+    Dim documentNamePattern As String
     Dim documentNameValues As Object
     Dim ticketsTable As ListObject, ticketRow As ListRow
     Dim performanceStart As Single
     Dim personnelSessionStarted As Boolean
+    Dim overwriteExistingDocument As Boolean
+    Dim archiveExistingDocument As Boolean
+    Dim restoreMissingDocument As Boolean
 
     On Error GoTo EH
     private_Initialize
+    If Not ex_Helpers.ex_TryConfigureMessageTarget( _
+        INPUT_SHEET_NAME, INPUT_MESSAGE_CELL_ADDRESS) Then Exit Sub
     ex_Helpers.ClearLog
     performanceStart = VBA.Timer
     private_Performance_LogCheckpoint performanceStart, "Start"
@@ -155,6 +165,12 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         vacationAbroad, vacationAbroadText) Then GoTo CleanExit
     If Not private_Vacation_TryMapStatus( _
         vacationStatus, ticketsStatusText) Then GoTo CleanExit
+    If VBA.StrComp(ticketsStatusText, VACATION_STATUS_TICKETS_CANCELLED, _
+            VBA.vbTextCompare) = 0 Then
+        documentNamePattern = DOCUMENT_NAME_PATTERN_CANCELLED
+    Else
+        documentNamePattern = DOCUMENT_NAME_PATTERN_ACTIVE
+    End If
 
     If Not ex_PersonnelData.ex_TryBeginSession() Then GoTo CleanExit
     personnelSessionStarted = True
@@ -192,14 +208,28 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         private_Performance_LogCheckpoint performanceStart, "Registry row found for update"
     Else
         If Not ticketRow Is Nothing Then
-            ex_Helpers.ex_ShowErrorMessage "A vacation ticket already exists for " & _
-                "this person and order '" & orderNo & "'. " & _
-                "Use Update data instead.", VBA.vbExclamation, "Document Generation"
-            GoTo CleanExit
+            If Not ex_Tickets.ex_TryReadTicketNo( _
+                ticketsTable, ticketRow, ticketNo) Then GoTo CleanExit
+            If Not ex_Helpers.private_Path_TryFindVacationTicketDocument( _
+                outputFolderPath, ticketNo, ipnText, matchedDocumentPath, False) Then GoTo CleanExit
+            If VBA.Len(matchedDocumentPath) > 0 Then
+                ex_Helpers.ex_ShowErrorMessage "A vacation ticket already exists for " & _
+                    "this person and order '" & orderNo & "'. " & _
+                    "Use Update data instead.", VBA.vbExclamation, "Document Generation"
+                GoTo CleanExit
+            End If
+            If VBA.MsgBox("A vacation ticket record already exists in tbTickets, " & _
+                "but its Word file was not found." & VBA.vbCrLf & VBA.vbCrLf & _
+                "Create the Word file from the current form data?", _
+                VBA.vbYesNo + VBA.vbQuestion, "Document Generation") <> VBA.vbYes Then
+                GoTo CleanExit
+            End If
+            restoreMissingDocument = True
+        Else
+            If Not ex_Tickets.ex_TryBuildNextTicketNo( _
+                ticketsTable, orderNo, orderDate, ticketNo) Then GoTo CleanExit
+            private_Performance_LogCheckpoint performanceStart, "New ticket number assigned"
         End If
-        If Not ex_Tickets.ex_TryBuildNextTicketNo( _
-            ticketsTable, orderNo, orderDate, ticketNo) Then GoTo CleanExit
-        private_Performance_LogCheckpoint performanceStart, "New ticket number assigned"
     End If
 
     ' Даты рассчитываются от указанной пользователем даты выбытия.
@@ -238,29 +268,54 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_FIO, fioText
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_IPN, ipnText
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_TICKET_NO, ticketNo
-    private_Performance_LogCheckpoint performanceStart, "Word generation started"
-    If Not ex_Document.ex_TryGenerateWordDocument( _
-        templatePath, DOCUMENT_NAME_PATTERN, documentNameValues, _
-        placeholderNames, placeholderValues, documentPath, _
-        outputFolderPath, matchedDocumentPath, Not isUpdateMode) Then GoTo CleanExit
-    private_Performance_LogCheckpoint performanceStart, "Word generation completed"
-
+    If Not isUpdateMode Then
+        If Not ex_Helpers.private_Path_TryFindVacationTicketDocument( _
+            outputFolderPath, ticketNo, ipnText, matchedDocumentPath, False) Then GoTo CleanExit
+        If VBA.Len(matchedDocumentPath) > 0 Then
+            If VBA.MsgBox("A document already exists for this vacation ticket:" & _
+                VBA.vbCrLf & matchedDocumentPath & VBA.vbCrLf & VBA.vbCrLf & _
+                "Replace it with the new document?", _
+                VBA.vbYesNo + VBA.vbQuestion, "Document Generation") = VBA.vbYes Then
+                overwriteExistingDocument = True
+            Else
+                archiveExistingDocument = True
+            End If
+        End If
+        If overwriteExistingDocument Then _
+            overwriteDocumentPath = matchedDocumentPath
+    Else
+        overwriteDocumentPath = matchedDocumentPath
+    End If
     If Not ex_Tickets.ex_TrySaveVacationRow( _
         ticketsTable, ticketRow, rankText, fioText, ipnText, personPositionCode, _
         vacationRegistryText, orderNo, orderDate, departureDate, vacationDays, roadDays, dateTo, _
         ticketNo, tvoFioText, tvoIpnText, tvoPositionCode, ticketsStatusText) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Registry row saved"
+    If archiveExistingDocument Then
+        If Not ex_Helpers.private_Path_TryArchiveDocument( _
+            matchedDocumentPath) Then GoTo CleanExit
+    End If
+    private_Performance_LogCheckpoint performanceStart, "Word generation started"
+    If Not ex_Document.ex_TryGenerateWordDocument( _
+        templatePath, documentNamePattern, documentNameValues, _
+        placeholderNames, placeholderValues, documentPath, _
+        outputFolderPath, overwriteDocumentPath, _
+        Not isUpdateMode Or restoreMissingDocument, _
+        isUpdateMode Or overwriteExistingDocument) Then GoTo CleanExit
+    private_Performance_LogCheckpoint performanceStart, "Word generation completed"
+
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
     ex_Helpers.LogDebug "Vacation ticket generation completed"
     If isUpdateMode Then
-        ex_Helpers.ex_ShowStatusBarMessage "Vacation ticket updated: " & documentPath
+        ex_Helpers.ex_ShowStatusMessage "Vacation ticket updated: " & documentPath
     Else
-        ex_Helpers.ex_ShowStatusBarMessage "Vacation ticket generated: " & documentPath
+        ex_Helpers.ex_ShowStatusMessage "Vacation ticket generated: " & documentPath
     End If
     GoTo CleanExit
 
 CleanExit:
     If personnelSessionStarted Then ex_PersonnelData.ex_EndSession
+    ex_Helpers.ex_ClearMessageTarget
     Exit Sub
 EH:
     ex_Helpers.LogError "Vacation ticket generation failed | Number=" & _

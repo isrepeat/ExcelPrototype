@@ -13,7 +13,8 @@ Public Function ex_TryGenerateWordDocument( _
     ByRef outDocumentPath As String, _
     Optional ByVal outputFolderPath As String = "", _
     Optional ByVal overwriteDocumentPath As String = "", _
-    Optional ByVal failIfDocumentExists As Boolean = False _
+    Optional ByVal failIfDocumentExists As Boolean = False, _
+    Optional ByVal renameUpdatedDocument As Boolean = False _
 ) As Boolean
     Dim documentName As String
 
@@ -30,7 +31,7 @@ Public Function ex_TryGenerateWordDocument( _
     ex_TryGenerateWordDocument = ex_Helpers.private_Word_TryGenerateDocument( _
         templatePath, documentName, placeholderNames, placeholderValues, _
         outDocumentPath, outputFolderPath, overwriteDocumentPath, _
-        failIfDocumentExists)
+        failIfDocumentExists, renameUpdatedDocument)
 End Function
 
 ' Читает обязательное поле по alias из карты адресов формы.
