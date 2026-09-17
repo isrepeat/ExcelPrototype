@@ -16,6 +16,7 @@ Private Const TICKETS_COL_DOCUMENT As String = "Супровідний доку�
 Private Const TICKETS_COL_TVO_FIO As String = "ТВО.ПІБ"
 Private Const TICKETS_COL_TVO_IPN As String = "ТВО.ІПН"
 Private Const TICKETS_COL_TVO_POSITION As String = "ТВО.Посада"
+Private Const TICKETS_COL_STATUS As String = "Статус"
 
 Private Const POSITION_PREFIX_ROZP As String = "A1A"
 Private Const POSITION_PREFIX_SPIS As String = "A1B"
@@ -36,51 +37,71 @@ Public Function ex_GetRegistryPosition(ByVal positionCode As String) As String
     ex_GetRegistryPosition = private_Position_ToRegistryValue(positionCode)
 End Function
 
-' Не допускает повторного оформления отпуска одному человеку на дату приказа.
-Public Function ex_TryValidateNoDuplicatePerson( _
+' Находит строку билета по ИПН и номеру приказа; отсутствие строки не является ошибкой.
+Public Function ex_TryFindVacationRow( _
     ByVal ticketsTable As ListObject, _
     ByVal ipnText As String, _
-    ByVal orderDate As Date _
+    ByVal orderNo As String, _
+    ByRef outTicketRow As ListRow _
 ) As Boolean
     Dim ticketRow As ListRow
-    Dim ipnColumnIndex As Long, departureDateColumnIndex As Long
-    Dim existingIpnText As String, existingDateText As String
-    Dim existingOrderDate As Date
+    Dim ipnColumnIndex As Long, orderColumnIndex As Long
+    Dim existingIpnText As String, existingOrderNo As String
 
     On Error GoTo EH
+    Set outTicketRow = Nothing
     ipnColumnIndex = ticketsTable.ListColumns(TICKETS_COL_IPN).Index
-    departureDateColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_DATE).Index
+    orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
     For Each ticketRow In ticketsTable.ListRows
         existingIpnText = ex_Helpers.private_Text_Normalize( _
             VBA.CStr(ticketRow.Range.Cells(1, ipnColumnIndex).Text))
         If VBA.StrComp(existingIpnText, ipnText, VBA.vbTextCompare) = 0 Then
-            existingDateText = ex_Helpers.private_Text_Normalize( _
-                VBA.CStr(ticketRow.Range.Cells(1, departureDateColumnIndex).Text))
-            If Not ex_Helpers.private_Date_TryParse( _
-                existingDateText, existingOrderDate) Then
-                ex_Helpers.LogError "Existing ticket has invalid departure date | " & _
-                    "IPN=" & ipnText & " | Value=" & existingDateText
-                ex_Helpers.ex_ShowErrorMessage "Existing ticket for IPN '" & ipnText & _
-                    "' has an invalid departure date: " & existingDateText, _
-                    VBA.vbExclamation, "Document Generation"
-                Exit Function
-            End If
-            If VBA.DateValue(existingOrderDate) = VBA.DateValue(orderDate) Then
-                ex_Helpers.LogError "Duplicate vacation ticket | IPN=" & ipnText & _
-                    " | OrderDate=" & VBA.CStr(orderDate)
-                ex_Helpers.ex_ShowErrorMessage "A vacation ticket already exists for " & _
-                    "this person on " & VBA.Format$(orderDate, "dd.mm.yyyy") & ".", _
-                    VBA.vbExclamation, "Document Generation"
-                Exit Function
+            existingOrderNo = ex_Helpers.private_Text_Normalize( _
+                VBA.CStr(ticketRow.Range.Cells(1, orderColumnIndex).Text))
+            If VBA.StrComp(existingOrderNo, orderNo, VBA.vbTextCompare) = 0 Then
+                If Not outTicketRow Is Nothing Then
+                    ex_Helpers.ex_ShowErrorMessage "Multiple vacation tickets were found " & _
+                        "for IPN '" & ipnText & "' and order '" & orderNo & "'.", _
+                        VBA.vbExclamation, "Document Generation"
+                    Exit Function
+                End If
+                Set outTicketRow = ticketRow
             End If
         End If
     Next ticketRow
-    ex_TryValidateNoDuplicatePerson = True
+    ex_TryFindVacationRow = True
     Exit Function
 EH:
-    ex_Helpers.LogError "Failed to validate duplicate vacation ticket | Number=" & _
+    ex_Helpers.LogError "Failed to find vacation ticket | Number=" & _
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
-    ex_Helpers.ex_ShowErrorMessage "Failed to validate duplicate vacation ticket: " & _
+    ex_Helpers.ex_ShowErrorMessage "Failed to find vacation ticket: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+
+' Возвращает сохранённый номер билета для режима обновления.
+Public Function ex_TryReadTicketNo( _
+    ByVal ticketsTable As ListObject, _
+    ByVal ticketRow As ListRow, _
+    ByRef outTicketNo As String _
+) As Boolean
+    Dim documentColumnIndex As Long
+
+    On Error GoTo EH
+    outTicketNo = VBA.vbNullString
+    documentColumnIndex = ticketsTable.ListColumns(TICKETS_COL_DOCUMENT).Index
+    outTicketNo = ex_Helpers.private_Text_Normalize( _
+        VBA.CStr(ticketRow.Range.Cells(1, documentColumnIndex).Text))
+    If VBA.Len(outTicketNo) = 0 Then
+        ex_Helpers.ex_ShowErrorMessage "Existing vacation ticket has no ticket number.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    ex_TryReadTicketNo = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to read existing ticket number | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to read existing ticket number: " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -153,8 +174,10 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Добавляет в tbTickets строку отпускного билета.
-Public Function ex_TryAppendVacationRow( _
+' Добавляет новую либо обновляет найденную строку tbTickets.
+Public Function ex_TrySaveVacationRow( _
+    ByVal ticketsTable As ListObject, _
+    ByRef ioTicketRow As ListRow, _
     ByVal rankText As String, _
     ByVal fioText As String, _
     ByVal ipnText As String, _
@@ -162,16 +185,21 @@ Public Function ex_TryAppendVacationRow( _
     ByVal eventText As String, _
     ByVal orderNo As String, _
     ByVal orderDate As Date, _
+    ByVal departureDate As Date, _
     ByVal vacationDays As Long, _
     ByVal roadDays As Long, _
     ByVal dateTo As Date, _
     ByVal ticketNo As String, _
     ByVal tvoFioText As String, _
     ByVal tvoIpnText As String, _
-    ByVal tvoPositionCode As String _
+    ByVal tvoPositionCode As String, _
+    ByVal statusText As String _
 ) As Boolean
     Dim tableValues As Object
+    Dim valueKey As Variant
+    Dim columnIndex As Long
 
+    On Error GoTo EH
     Set tableValues = VBA.CreateObject("Scripting.Dictionary")
     tableValues.CompareMode = VBA.vbBinaryCompare
     tableValues.Add TICKETS_COL_RANK, rankText
@@ -181,7 +209,7 @@ Public Function ex_TryAppendVacationRow( _
     tableValues.Add TICKETS_COL_EVENT, eventText
     tableValues.Add TICKETS_COL_OUT_ORDER, orderNo
     tableValues.Add TICKETS_COL_OUT_FOOD, orderDate
-    tableValues.Add TICKETS_COL_OUT_DATE, orderDate
+    tableValues.Add TICKETS_COL_OUT_DATE, departureDate
     tableValues.Add TICKETS_COL_DURATION, private_Value_ZeroToBlank(vacationDays)
     tableValues.Add TICKETS_COL_ROAD, private_Value_ZeroToBlank(roadDays)
     tableValues.Add TICKETS_COL_ARRIVAL_PLAN, dateTo
@@ -190,8 +218,24 @@ Public Function ex_TryAppendVacationRow( _
     tableValues.Add TICKETS_COL_TVO_IPN, tvoIpnText
     tableValues.Add TICKETS_COL_TVO_POSITION, _
         private_Position_ToRegistryValue(tvoPositionCode)
-    ex_TryAppendVacationRow = ex_Document.ex_TryAppendTableRow( _
-        TICKETS_TABLE_NAME, tableValues)
+    tableValues.Add TICKETS_COL_STATUS, statusText
+
+    ' Сначала проверяем все заголовки, чтобы не создать пустую строку при ошибке схемы.
+    For Each valueKey In tableValues.Keys
+        columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
+    Next valueKey
+    If ioTicketRow Is Nothing Then Set ioTicketRow = ticketsTable.ListRows.Add
+    For Each valueKey In tableValues.Keys
+        columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
+        ioTicketRow.Range.Cells(1, columnIndex).Value = tableValues(valueKey)
+    Next valueKey
+    ex_TrySaveVacationRow = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to save vacation ticket row | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to save vacation ticket row: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 ' --------------------------------------
 ' } // namespace API

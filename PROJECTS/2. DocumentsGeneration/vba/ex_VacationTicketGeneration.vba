@@ -10,6 +10,7 @@ Private Const INPUT_SHEET_NAME As String = "Відпустки"
 ' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
 Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
 Private Const INPUT_ALIAS_ORDER_REFERENCE As String = "OrderReference"
+Private Const INPUT_ALIAS_DEPARTURE_DATE As String = "DepartureDate"
 Private Const INPUT_ALIAS_VACATION_KIND As String = "VacationKind"
 Private Const INPUT_ALIAS_VACATION_PLACE As String = "VacationPlace"
 Private Const INPUT_ALIAS_VACATION_ABROAD As String = "VacationAbroad"
@@ -17,6 +18,7 @@ Private Const INPUT_ALIAS_VACATION_DAYS As String = "VacationDays"
 Private Const INPUT_ALIAS_ROAD_DAYS As String = "RoadDays"
 Private Const INPUT_ALIAS_DONATION_DAYS As String = "DonationDays"
 Private Const INPUT_ALIAS_TVO_LOOKUP As String = "TvoLookup"
+Private Const INPUT_ALIAS_STATUS As String = "Status"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 Private Const INPUT_ALIAS_OUTPUT_FOLDER_PATH As String = "OutputFolderPath"
 
@@ -52,15 +54,22 @@ Private Const VACATION_ABROAD_YES As String = "Так"
 Private Const VACATION_ABROAD_NO As String = "Ні"
 Private Const VACATION_ABROAD_TEXT_YES As String = "Дозволено виїзд за кордон"
 
+' Допустимые статусы отпускного билета и их представление в реестре.
+Private Const VACATION_STATUS_ACTIVE As String = "Активна"
+Private Const VACATION_STATUS_CANCELLED As String = "Скасовано"
+Private Const VACATION_STATUS_TICKETS_CANCELLED As String = "СКАСОВАНО"
+
 ' Форматы дат для Word-шаблона. Текст «до 08:00 год.» находится в шаблоне.
 Private Const DATE_FORMAT_PATTERN As String = """{dd}"" {month} {yyyy} р."
 
 ' Стабильный шаблон имени созданного документа.
-Private Const DOCUMENT_NAME_PATTERN As String = "Відпускний квиток {FIO} ({IPN})"
+Private Const DOCUMENT_NAME_PATTERN As String = _
+    "Відпускний квиток {TicketNo} {FIO} ({IPN})"
 
 ' Aliases контекста имени генерируемого документа.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
 Private Const GENERATED_CONTEXT_ALIAS_IPN As String = "IPN"
+Private Const GENERATED_CONTEXT_ALIAS_TICKET_NO As String = "TicketNo"
 
 Private inputCellMap As Object
 
@@ -68,25 +77,36 @@ Private inputCellMap As Object
 ' namespace API {
 ' --------------------------------------
 Public Sub fn_VacationTicketGeneration_Create()
+    private_Generate False
+End Sub
+
+' Обновляет существующий билет, найденный по ИПН и номеру приказа.
+Public Sub fn_VacationTicketGeneration_Update()
+    private_Generate True
+End Sub
+
+Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Dim personLookup As String, tvoLookup As String
     Dim tvoIpnText As String, tvoFioText As String
     Dim orderReference As String
     Dim vacationKind As String, vacationKindText As String
     Dim vacationRegistryText As String
     Dim vacationAbroad As String, vacationAbroadText As String
+    Dim vacationStatus As String, ticketsStatusText As String
     Dim vacationPlace As String
     Dim templatePath As String, outputFolderPath As String
     Dim ipnText As String, fioText As String
     Dim rankText As String, orderNo As String
     Dim personPositionCode As String, tvoPositionCode As String
-    Dim orderDate As Date, dateFrom As Date, dateTo As Date, dateArrival As Date
+    Dim orderDate As Date, departureDate As Date, dateTo As Date, dateArrival As Date
     Dim vacationDays As Long, roadDays As Long, donationDays As Long
     Dim ticketNo As String, ticketDateText As String
     Dim dateFromText As String, dateToText As String
     Dim dateArrivalText As String, personalLine As String, personalInitials As String
     Dim placeholderNames As Variant, placeholderValues As Variant
-    Dim documentPath As String, documentNameValues As Object
-    Dim ticketsTable As ListObject
+    Dim documentPath As String, matchedDocumentPath As String
+    Dim documentNameValues As Object
+    Dim ticketsTable As ListObject, ticketRow As ListRow
     Dim performanceStart As Single
     Dim personnelSessionStarted As Boolean
 
@@ -95,23 +115,28 @@ Public Sub fn_VacationTicketGeneration_Create()
     ex_Helpers.ClearLog
     performanceStart = VBA.Timer
     private_Performance_LogCheckpoint performanceStart, "Start"
-    ex_Helpers.LogDebug "Vacation ticket generation started"
+    ex_Helpers.LogDebug "Vacation ticket generation started | UpdateMode=" & _
+        VBA.CStr(isUpdateMode)
     Call ex_Document.ex_LogWorkbookContext(INPUT_SHEET_NAME, inputCellMap)
 
     personLookup = private_Input_ReadRequired(INPUT_ALIAS_PERSON_LOOKUP, "ПІБ або ІПН")
-    orderReference = private_Input_ReadRequired(INPUT_ALIAS_ORDER_REFERENCE, "номер або дату наказу")
     vacationKind = private_Input_ReadRequired(INPUT_ALIAS_VACATION_KIND, "вид відпустки")
     vacationPlace = private_Input_ReadRequired(INPUT_ALIAS_VACATION_PLACE, "місце відпустки")
     vacationAbroad = private_Input_ReadRequired( _
         INPUT_ALIAS_VACATION_ABROAD, "відпустка за кордон")
+    orderReference = private_Input_ReadRequired(INPUT_ALIAS_ORDER_REFERENCE, "номер або дату наказу")
+    If Not private_Input_TryReadDate( _
+        INPUT_ALIAS_DEPARTURE_DATE, "дату вибуття", departureDate) Then GoTo CleanExit
     If Not private_Input_TryReadOptional( _
         INPUT_ALIAS_TVO_LOOKUP, tvoLookup) Then GoTo CleanExit
+    vacationStatus = private_Input_ReadRequired(INPUT_ALIAS_STATUS, "статус")
     templatePath = private_Input_ReadRequired(INPUT_ALIAS_TEMPLATE_PATH, "шлях до шаблону")
     outputFolderPath = private_Input_ReadRequired( _
         INPUT_ALIAS_OUTPUT_FOLDER_PATH, "шлях до папки результатів")
     If VBA.Len(personLookup) = 0 Or VBA.Len(orderReference) = 0 Or _
         VBA.Len(vacationKind) = 0 Or VBA.Len(vacationPlace) = 0 Or _
         VBA.Len(vacationAbroad) = 0 Or _
+        VBA.Len(vacationStatus) = 0 Or _
         VBA.Len(templatePath) = 0 Or VBA.Len(outputFolderPath) = 0 Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Input read"
 
@@ -128,6 +153,8 @@ Public Sub fn_VacationTicketGeneration_Create()
         vacationKind, vacationKindText, vacationRegistryText) Then GoTo CleanExit
     If Not private_Vacation_TryMapAbroad( _
         vacationAbroad, vacationAbroadText) Then GoTo CleanExit
+    If Not private_Vacation_TryMapStatus( _
+        vacationStatus, ticketsStatusText) Then GoTo CleanExit
 
     If Not ex_PersonnelData.ex_TryBeginSession() Then GoTo CleanExit
     personnelSessionStarted = True
@@ -149,22 +176,41 @@ Public Sub fn_VacationTicketGeneration_Create()
         orderReference, orderNo, orderDate) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Personnel and order data resolved"
     If Not ex_Tickets.ex_TryGetOpenTable(ticketsTable) Then GoTo CleanExit
-    If Not ex_Tickets.ex_TryValidateNoDuplicatePerson( _
-        ticketsTable, ipnText, orderDate) Then GoTo CleanExit
-    If Not ex_Tickets.ex_TryBuildNextTicketNo( _
-        ticketsTable, orderNo, orderDate, ticketNo) Then GoTo CleanExit
-    private_Performance_LogCheckpoint performanceStart, "Registry validated and ticket number assigned"
+    If Not ex_Tickets.ex_TryFindVacationRow( _
+        ticketsTable, ipnText, orderNo, ticketRow) Then GoTo CleanExit
+    If isUpdateMode Then
+        If ticketRow Is Nothing Then
+            ex_Helpers.ex_ShowErrorMessage "Vacation ticket was not found for IPN '" & _
+                ipnText & "' and order '" & orderNo & "'.", _
+                VBA.vbExclamation, "Document Generation"
+            GoTo CleanExit
+        End If
+        If Not ex_Tickets.ex_TryReadTicketNo( _
+            ticketsTable, ticketRow, ticketNo) Then GoTo CleanExit
+        If Not ex_Helpers.private_Path_TryFindVacationTicketDocument( _
+            outputFolderPath, ticketNo, ipnText, matchedDocumentPath) Then GoTo CleanExit
+        private_Performance_LogCheckpoint performanceStart, "Registry row found for update"
+    Else
+        If Not ticketRow Is Nothing Then
+            ex_Helpers.ex_ShowErrorMessage "A vacation ticket already exists for " & _
+                "this person and order '" & orderNo & "'. " & _
+                "Use Update data instead.", VBA.vbExclamation, "Document Generation"
+            GoTo CleanExit
+        End If
+        If Not ex_Tickets.ex_TryBuildNextTicketNo( _
+            ticketsTable, orderNo, orderDate, ticketNo) Then GoTo CleanExit
+        private_Performance_LogCheckpoint performanceStart, "New ticket number assigned"
+    End If
 
-    ' Даты рассчитываются по утверждённому правилу отпуска.
-    dateFrom = VBA.DateAdd("d", 1, orderDate)
-    dateTo = VBA.DateAdd("d", vacationDays + roadDays + donationDays, dateFrom)
+    ' Даты рассчитываются от указанной пользователем даты выбытия.
+    dateTo = VBA.DateAdd("d", vacationDays + roadDays + donationDays, departureDate)
     dateArrival = VBA.DateAdd("d", 1, dateTo)
-    ex_Helpers.LogDebug "Vacation period | From=" & VBA.CStr(dateFrom) & _
+    ex_Helpers.LogDebug "Vacation period | From=" & VBA.CStr(departureDate) & _
         " | To=" & VBA.CStr(dateTo) & " | Arrival=" & VBA.CStr(dateArrival)
     If Not ex_Helpers.private_Date_TryFormat( _
         orderDate, DATE_FORMAT_PATTERN, ticketDateText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        dateFrom, DATE_FORMAT_PATTERN, dateFromText) Then GoTo CleanExit
+        departureDate, DATE_FORMAT_PATTERN, dateFromText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
         dateTo, DATE_FORMAT_PATTERN, dateToText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
@@ -191,22 +237,26 @@ Public Sub fn_VacationTicketGeneration_Create()
     documentNameValues.CompareMode = VBA.vbBinaryCompare
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_FIO, fioText
     documentNameValues.Add GENERATED_CONTEXT_ALIAS_IPN, ipnText
+    documentNameValues.Add GENERATED_CONTEXT_ALIAS_TICKET_NO, ticketNo
     private_Performance_LogCheckpoint performanceStart, "Word generation started"
     If Not ex_Document.ex_TryGenerateWordDocument( _
         templatePath, DOCUMENT_NAME_PATTERN, documentNameValues, _
         placeholderNames, placeholderValues, documentPath, _
-        outputFolderPath) Then GoTo CleanExit
+        outputFolderPath, matchedDocumentPath, Not isUpdateMode) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Word generation completed"
 
-    If Not ex_Tickets.ex_TryAppendVacationRow( _
-        rankText, fioText, ipnText, personPositionCode, vacationRegistryText, orderNo, _
-        orderDate, vacationDays, roadDays, dateTo, ticketNo, _
-        tvoFioText, tvoIpnText, tvoPositionCode) Then GoTo CleanExit
-    private_Performance_LogCheckpoint performanceStart, "Registry row appended"
+    If Not ex_Tickets.ex_TrySaveVacationRow( _
+        ticketsTable, ticketRow, rankText, fioText, ipnText, personPositionCode, _
+        vacationRegistryText, orderNo, orderDate, departureDate, vacationDays, roadDays, dateTo, _
+        ticketNo, tvoFioText, tvoIpnText, tvoPositionCode, ticketsStatusText) Then GoTo CleanExit
+    private_Performance_LogCheckpoint performanceStart, "Registry row saved"
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
     ex_Helpers.LogDebug "Vacation ticket generation completed"
-    ex_Helpers.ex_ShowStatusBarMessage _
-        "Vacation ticket generated: " & documentPath
+    If isUpdateMode Then
+        ex_Helpers.ex_ShowStatusBarMessage "Vacation ticket updated: " & documentPath
+    Else
+        ex_Helpers.ex_ShowStatusBarMessage "Vacation ticket generated: " & documentPath
+    End If
     GoTo CleanExit
 
 CleanExit:
@@ -250,16 +300,18 @@ Private Sub private_Initialize()
 
     ' Адреса значений соответствуют строкам конфигурационной таблицы на листе.
     inputCellMap.Add INPUT_ALIAS_PERSON_LOOKUP, "C4"
-    inputCellMap.Add INPUT_ALIAS_ORDER_REFERENCE, "C5"
-    inputCellMap.Add INPUT_ALIAS_VACATION_KIND, "C6"
-    inputCellMap.Add INPUT_ALIAS_VACATION_PLACE, "C7"
-    inputCellMap.Add INPUT_ALIAS_VACATION_ABROAD, "C8"
-    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C9"
-    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C10"
-    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C11"
-    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C12"
-    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C13"
-    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C14"
+    inputCellMap.Add INPUT_ALIAS_VACATION_KIND, "C5"
+    inputCellMap.Add INPUT_ALIAS_VACATION_PLACE, "C6"
+    inputCellMap.Add INPUT_ALIAS_VACATION_ABROAD, "C7"
+    inputCellMap.Add INPUT_ALIAS_ORDER_REFERENCE, "C8"
+    inputCellMap.Add INPUT_ALIAS_DEPARTURE_DATE, "C9"
+    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C10"
+    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C11"
+    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C12"
+    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C13"
+    inputCellMap.Add INPUT_ALIAS_STATUS, "C14"
+    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C15"
+    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C16"
 End Sub
 
 ' --------------------------------------
@@ -291,6 +343,25 @@ Private Function private_Input_TryReadNonNegativeDays( _
         ex_Document.ex_TryReadNonNegativeDays( _
             INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, _
             False, outDays)
+End Function
+
+Private Function private_Input_TryReadDate( _
+    ByVal fieldAlias As String, _
+    ByVal fieldCaption As String, _
+    ByRef outDate As Date _
+) As Boolean
+    Dim dateText As String
+
+    If Not ex_Document.ex_TryReadRequired( _
+        INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, dateText) Then Exit Function
+    If ex_Helpers.private_Date_TryParse(dateText, outDate) Then
+        private_Input_TryReadDate = True
+        Exit Function
+    End If
+    ex_Helpers.LogError "Invalid required date | Field=" & fieldAlias & _
+        " | Value=" & dateText
+    ex_Helpers.ex_ShowErrorMessage "Enter a valid date for " & fieldCaption & ".", _
+        VBA.vbExclamation, "Document Generation"
 End Function
 
 Private Function private_Input_TryReadOptionalNonNegativeDays( _
@@ -386,8 +457,26 @@ Private Function private_Vacation_TryMapAbroad( _
     End Select
     private_Vacation_TryMapAbroad = True
 End Function
+
+Private Function private_Vacation_TryMapStatus( _
+    ByVal vacationStatus As String, _
+    ByRef outTicketsStatusText As String _
+) As Boolean
+    Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationStatus))
+        Case VBA.LCase$(VACATION_STATUS_ACTIVE)
+            ' Активный билет не требует отметки в реестре.
+            outTicketsStatusText = VBA.vbNullString
+        Case VBA.LCase$(VACATION_STATUS_CANCELLED)
+            outTicketsStatusText = VACATION_STATUS_TICKETS_CANCELLED
+        Case Else
+            ex_Helpers.LogError "Unsupported vacation status: " & vacationStatus
+            ex_Helpers.ex_ShowErrorMessage _
+                "Vacation status must be 'Активна' or 'Скасовано': " & vacationStatus, _
+                VBA.vbExclamation, "Document Generation"
+            Exit Function
+    End Select
+    private_Vacation_TryMapStatus = True
+End Function
 ' --------------------------------------
 ' } // namespace Vacation
-' --------------------------------------
-
 ' --------------------------------------
