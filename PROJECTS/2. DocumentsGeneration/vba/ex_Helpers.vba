@@ -18,10 +18,14 @@ Public Function private_Word_TryGenerateDocument( _
     ByVal placeholderNames As Variant, _
     ByVal placeholderValues As Variant, _
     ByRef outDocumentPath As String, _
-    Optional ByVal outputFolderPathInput As String = "" _
+    Optional ByVal outputFolderPathInput As String = "", _
+    Optional ByVal overwriteDocumentPathInput As String = "", _
+    Optional ByVal failIfDocumentExists As Boolean = False _
 ) As Boolean
     Dim templatePath As String
     Dim outputFolderPath As String
+    Dim overwriteDocumentPath As String
+    Dim temporaryDocumentPath As String
     Dim wordApp As Object
     Dim wordDoc As Object
     Dim placeholderIndex As Long
@@ -41,12 +45,29 @@ Public Function private_Word_TryGenerateDocument( _
         outputFolderPath = private_Path_ResolveFromWorkbook(outputFolderPath)
         If Not private_Path_TryEnsureFolder(outputFolderPath) Then Exit Function
     End If
-    outDocumentPath = private_Path_BuildGeneratedDocumentPath( _
-        templatePath, documentName, outputFolderPath)
+    overwriteDocumentPath = private_Text_Normalize(overwriteDocumentPathInput)
+    If VBA.Len(overwriteDocumentPath) > 0 Then
+        overwriteDocumentPath = private_Path_ResolveFromWorkbook(overwriteDocumentPath)
+        If VBA.Len(VBA.Dir$(overwriteDocumentPath)) = 0 Then
+            LogError "Saved vacation ticket file was not found: " & overwriteDocumentPath
+            ex_ShowErrorMessage "Saved vacation ticket file was not found: " & _
+                overwriteDocumentPath, VBA.vbExclamation, "Document Generation"
+            Exit Function
+        End If
+        outDocumentPath = overwriteDocumentPath
+        temporaryDocumentPath = private_Path_BuildTemporaryDocumentPath( _
+            overwriteDocumentPath)
+    Else
+        outDocumentPath = private_Path_BuildGeneratedDocumentPath( _
+            templatePath, documentName, outputFolderPath, _
+            Not failIfDocumentExists)
+        temporaryDocumentPath = outDocumentPath
+    End If
     If VBA.Len(outDocumentPath) = 0 Then Exit Function
-    VBA.FileCopy templatePath, outDocumentPath
+    If VBA.Len(temporaryDocumentPath) = 0 Then Exit Function
+    VBA.FileCopy templatePath, temporaryDocumentPath
     LogDebug "Word template copied | Source=" & templatePath & _
-        " | Target=" & outDocumentPath
+        " | Target=" & temporaryDocumentPath
 
     If Not managedWordApp Is Nothing Then
         Set wordApp = managedWordApp
@@ -64,7 +85,7 @@ Public Function private_Word_TryGenerateDocument( _
         End If
     End If
 
-    Set wordDoc = wordApp.Documents.Open(outDocumentPath)
+    Set wordDoc = wordApp.Documents.Open(temporaryDocumentPath)
     For placeholderIndex = LBound(placeholderNames) To UBound(placeholderNames)
         If Not private_Word_TryReplacePlaceholder( _
             wordDoc, VBA.CStr(placeholderNames(placeholderIndex)), _
@@ -74,6 +95,10 @@ Public Function private_Word_TryGenerateDocument( _
     wordDoc.Save
     wordDoc.Close True
     Set wordDoc = Nothing
+    If VBA.StrComp(temporaryDocumentPath, outDocumentPath, VBA.vbTextCompare) <> 0 Then
+        VBA.Kill outDocumentPath
+        Name temporaryDocumentPath As outDocumentPath
+    End If
     Set wordApp = Nothing
     private_Word_TryGenerateDocument = True
     Exit Function
@@ -81,8 +106,8 @@ Public Function private_Word_TryGenerateDocument( _
 CleanFail:
     On Error Resume Next
     If Not wordDoc Is Nothing Then wordDoc.Close False
-    If VBA.Len(outDocumentPath) > 0 Then
-        If VBA.Len(VBA.Dir$(outDocumentPath)) > 0 Then VBA.Kill outDocumentPath
+    If VBA.Len(temporaryDocumentPath) > 0 Then
+        If VBA.Len(VBA.Dir$(temporaryDocumentPath)) > 0 Then VBA.Kill temporaryDocumentPath
     End If
     On Error GoTo 0
     Exit Function
@@ -356,7 +381,8 @@ End Function
 Public Function private_Path_BuildGeneratedDocumentPath( _
     ByVal templatePath As String, _
     ByVal documentName As String, _
-    Optional ByVal outputFolderPath As String = "" _
+    Optional ByVal outputFolderPath As String = "", _
+    Optional ByVal allowCopySuffix As Boolean = True _
 ) As String
     Dim folderPath As String
     Dim fileNameBase As String
@@ -391,6 +417,12 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
     End If
 
     candidatePath = folderPath & fileNameBase & extensionText
+    If Not allowCopySuffix And VBA.Len(VBA.Dir$(candidatePath)) > 0 Then
+        LogError "A generated document already exists: " & candidatePath
+        ex_ShowErrorMessage "A document already exists for this vacation ticket: " & _
+            candidatePath, VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
     copyIndex = 2
     Do While VBA.Len(VBA.Dir$(candidatePath)) > 0
         candidatePath = folderPath & fileNameBase & " (" & _
@@ -398,6 +430,89 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
         copyIndex = copyIndex + 1
     Loop
     private_Path_BuildGeneratedDocumentPath = candidatePath
+End Function
+
+' Находит единственный Word-файл билета в указанной папке по номеру и ИПН.
+Public Function private_Path_TryFindVacationTicketDocument( _
+    ByVal outputFolderPathInput As String, _
+    ByVal ticketNo As String, _
+    ByVal ipnText As String, _
+    ByRef outDocumentPath As String _
+) As Boolean
+    Dim outputFolderPath As String
+    Dim ticketNoFileToken As String
+    Dim fileName As String
+    Dim matchCount As Long
+
+    On Error GoTo EH
+    outDocumentPath = VBA.vbNullString
+    outputFolderPath = private_Path_ResolveFromWorkbook(outputFolderPathInput)
+    If VBA.Len(VBA.Dir$(outputFolderPath, VBA.vbDirectory)) = 0 Then
+        ex_ShowErrorMessage "Results folder was not found: " & outputFolderPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    ticketNoFileToken = private_Path_SanitizeFileName(ticketNo)
+    fileName = VBA.Dir$(outputFolderPath & Application.PathSeparator & "*.docx")
+    Do While VBA.Len(fileName) > 0
+        If VBA.InStr(1, fileName, ticketNoFileToken & " ", _
+                VBA.vbTextCompare) > 0 And _
+           VBA.InStr(1, fileName, "(" & ipnText & ")", _
+                VBA.vbTextCompare) > 0 Then
+            matchCount = matchCount + 1
+            outDocumentPath = outputFolderPath & Application.PathSeparator & fileName
+        End If
+        fileName = VBA.Dir$()
+    Loop
+    If matchCount = 1 Then
+        private_Path_TryFindVacationTicketDocument = True
+        Exit Function
+    End If
+    If matchCount = 0 Then
+        ex_ShowErrorMessage "Vacation ticket file was not found for ticket '" & _
+            ticketNo & "' and IPN '" & ipnText & "' in folder: " & _
+            outputFolderPath, VBA.vbExclamation, "Document Generation"
+    Else
+        ex_ShowErrorMessage "Multiple vacation ticket files were found for ticket '" & _
+            ticketNo & "' and IPN '" & ipnText & "' in folder: " & _
+            outputFolderPath, VBA.vbExclamation, "Document Generation"
+    End If
+    outDocumentPath = VBA.vbNullString
+    Exit Function
+EH:
+    LogError "Failed to find vacation ticket file | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_ShowErrorMessage "Failed to find vacation ticket file: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+
+' Возвращает свободный временный путь в папке целевого Word-файла.
+Private Function private_Path_BuildTemporaryDocumentPath( _
+    ByVal documentPath As String _
+) As String
+    Dim dotPosition As Long
+    Dim basePath As String
+    Dim extensionText As String
+    Dim candidatePath As String
+    Dim copyIndex As Long
+
+    dotPosition = VBA.InStrRev(documentPath, ".")
+    If dotPosition = 0 Then
+        LogError "Target vacation ticket file has no extension: " & documentPath
+        ex_ShowErrorMessage "Target vacation ticket file has no extension: " & _
+            documentPath, VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    basePath = VBA.Left$(documentPath, dotPosition - 1)
+    extensionText = VBA.Mid$(documentPath, dotPosition)
+    candidatePath = basePath & ".updating" & extensionText
+    copyIndex = 2
+    Do While VBA.Len(VBA.Dir$(candidatePath)) > 0
+        candidatePath = basePath & ".updating (" & VBA.CStr(copyIndex) & ")" & _
+            extensionText
+        copyIndex = copyIndex + 1
+    Loop
+    private_Path_BuildTemporaryDocumentPath = candidatePath
 End Function
 
 ' Создаёт папку результата и отсутствующие родительские папки.
