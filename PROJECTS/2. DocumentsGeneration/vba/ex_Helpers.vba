@@ -4,10 +4,9 @@ Option Explicit
 #Const ENABLE_DEBUG_LOGGING = True
 #Const CLEAR_LOG_ON_GENERATION = False
 
-Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
-
 Private managedWordApp As Object
 Private messageTargetRange As Range
+Private configuredLogFileSuffix As String
 
 ' --------------------------------------
 ' namespace Word {
@@ -888,6 +887,19 @@ Public Sub ex_ShowErrorMessage( _
     VBA.MsgBox messageText, buttons, titleText
 End Sub
 
+Public Function ex_TryConfigureLogFileSuffix( _
+    ByVal logFileSuffix As String _
+) As Boolean
+    logFileSuffix = private_Text_Normalize(logFileSuffix)
+    If VBA.Len(logFileSuffix) = 0 Then
+        VBA.MsgBox "Log file suffix is not configured.", VBA.vbExclamation, _
+            "Document Generation"
+        Exit Function
+    End If
+    configuredLogFileSuffix = logFileSuffix
+    ex_TryConfigureLogFileSuffix = True
+End Function
+
 Public Sub ClearLog()
 #If ENABLE_LOGGING Then
 #If CLEAR_LOG_ON_GENERATION Then
@@ -938,8 +950,12 @@ Public Function GetLogFilePath() As String
     Else
         baseName = workbookName
     End If
+    If VBA.Len(configuredLogFileSuffix) = 0 Then
+        Err.Raise VBA.vbObjectError + 4102, "GetLogFilePath", _
+            "Log file suffix was not configured by the calling module."
+    End If
     GetLogFilePath = ThisWorkbook.Path & Application.PathSeparator & _
-        baseName & LOG_FILE_SUFFIX
+        baseName & configuredLogFileSuffix
 End Function
 ' --------------------------------------
 ' } // namespace Logging
