@@ -4,7 +4,6 @@ Option Explicit
 #Const ENABLE_DEBUG_LOGGING = True
 
 Private Const LOG_FILE_SUFFIX As String = ".log"
-
 Private Const INPUT_SHEET_NAME As String = "Відпустки"
 Private Const INPUT_MESSAGE_CELL_ADDRESS As String = "E7"
 
@@ -120,7 +119,9 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Dim operationCompleted As Boolean
 
     On Error GoTo EH
+    If Not ex_Helpers.ex_TryConfigureLogFileSuffix(LOG_FILE_SUFFIX) Then Exit Sub
     private_Initialize
+
     If Not ex_Helpers.ex_TryConfigureMessageTarget( _
         INPUT_SHEET_NAME, INPUT_MESSAGE_CELL_ADDRESS) Then Exit Sub
     ex_Helpers.ClearLog

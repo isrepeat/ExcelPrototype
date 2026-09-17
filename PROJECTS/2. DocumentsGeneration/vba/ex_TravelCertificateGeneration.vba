@@ -4,7 +4,6 @@
 #Const ENABLE_DEBUG_LOGGING = True
 
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
-
 Private Const INPUT_SHEET_NAME As String = "Відрядження"
 
 ' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
@@ -70,6 +69,7 @@ Public Sub fn_TravelCertificateGeneration_Create()
 
     On Error GoTo EH
 
+    If Not ex_Helpers.ex_TryConfigureLogFileSuffix(LOG_FILE_SUFFIX) Then Exit Sub
     private_Initialize
 
     ex_Helpers.ClearLog
