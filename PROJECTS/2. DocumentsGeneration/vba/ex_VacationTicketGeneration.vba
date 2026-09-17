@@ -1,9 +1,9 @@
 Option Explicit
 
-#Const ENABLE_LOGGING = False
-#Const ENABLE_DEBUG_LOGGING = False
+#Const ENABLE_LOGGING = True
+#Const ENABLE_DEBUG_LOGGING = True
 
-Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
+Private Const LOG_FILE_SUFFIX As String = ".log"
 
 Private Const INPUT_SHEET_NAME As String = "Відпустки"
 Private Const INPUT_MESSAGE_CELL_ADDRESS As String = "E7"
@@ -28,18 +28,12 @@ Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустк�
 Private Const VACATION_KIND_ANNUAL_WORD_TEXT As String = "у частину щорічної основної відпустки"
 Private Const VACATION_KIND_ANNUAL_TICKETS_TEXT As String = VACATION_KIND_ANNUAL
 
-Private Const VACATION_KIND_DONATION As String = "Відпочинок за донацію крові"
-Private Const VACATION_KIND_DONATION_WORD_TEXT As String = "у відпочинок за донацію крові"
-Private Const VACATION_KIND_DONATION_TICKETS_TEXT As String = VACATION_KIND_DONATION
-
 Private Const VACATION_KIND_FAMILY As String = "Відпустка за сімейними обставинами"
 Private Const VACATION_KIND_FAMILY_WORD_TEXT As String = "у відпустку за сімейними обставинами"
 Private Const VACATION_KIND_FAMILY_TICKETS_TEXT As String = VACATION_KIND_FAMILY
 
-Private Const VACATION_KIND_TREATMENT As String = _
-    "Відпустка для лікування після поранення (контузії, травми або каліцтва)"
-Private Const VACATION_KIND_TREATMENT_WORD_TEXT As String = _
-    "у відпустку для лікування після поранення (контузії, травми або каліцтва)"
+Private Const VACATION_KIND_TREATMENT As String = "Відпустка для лікування після поранення (контузії, травми або каліцтва)"
+Private Const VACATION_KIND_TREATMENT_WORD_TEXT As String = "у відпустку для лікування після поранення (контузії, травми або каліцтва)"
 Private Const VACATION_KIND_TREATMENT_TICKETS_TEXT As String = "Відпустка для лікування"
 
 Private Const VACATION_KIND_MATERNITY As String = "Відпустка у зв'язку з вагітністю та пологами"
@@ -49,6 +43,8 @@ Private Const VACATION_KIND_MATERNITY_TICKETS_TEXT As String = VACATION_KIND_MAT
 Private Const VACATION_KIND_CHILDCARE As String = "Відпустка по догляду за дитиною"
 Private Const VACATION_KIND_CHILDCARE_WORD_TEXT As String = "у відпустку по догляду за дитиною"
 Private Const VACATION_KIND_CHILDCARE_TICKETS_TEXT As String = VACATION_KIND_CHILDCARE
+
+Private Const VACATION_KIND_DONATION_TICKETS_TEXT As String = "Відпочинок за донацію крові"
 
 ' Допустимые значения признака выезда за границу в форме.
 Private Const VACATION_ABROAD_YES As String = "Так"
@@ -99,9 +95,10 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Dim vacationPlace As String
     Dim templatePath As String, outputFolderPath As String
     Dim ipnText As String, fioText As String
-    Dim rankText As String, orderNo As String
+    Dim rankText As String, orderNo As String, donationOrderNo As String
     Dim personPositionCode As String, tvoPositionCode As String
-    Dim orderDate As Date, departureDate As Date, dateTo As Date, dateArrival As Date
+    Dim orderDate As Date, departureDate As Date
+    Dim mainReturnDate As Date, finalReturnDate As Date, dateArrival As Date
     Dim vacationDays As Long, roadDays As Long, donationDays As Long
     Dim ticketNo As String, ticketDateText As String
     Dim dateFromText As String, dateToText As String
@@ -111,12 +108,16 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Dim overwriteDocumentPath As String
     Dim documentNamePattern As String
     Dim documentNameValues As Object
-    Dim ticketsTable As ListObject, ticketRow As ListRow
+    Dim ticketsTable As ListObject, ticketRow As ListRow, donationTicketRow As ListRow
     Dim performanceStart As Single
     Dim personnelSessionStarted As Boolean
     Dim overwriteExistingDocument As Boolean
     Dim archiveExistingDocument As Boolean
     Dim restoreMissingDocument As Boolean
+    Dim mainTicketRowCreated As Boolean
+    Dim donationTicketRowCreated As Boolean
+    Dim registryRowsSaved As Boolean
+    Dim operationCompleted As Boolean
 
     On Error GoTo EH
     private_Initialize
@@ -193,7 +194,7 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     private_Performance_LogCheckpoint performanceStart, "Personnel and order data resolved"
     If Not ex_Tickets.ex_TryGetOpenTable(ticketsTable) Then GoTo CleanExit
     If Not ex_Tickets.ex_TryFindVacationRow( _
-        ticketsTable, ipnText, orderNo, ticketRow) Then GoTo CleanExit
+        ticketsTable, ipnText, orderNo, VBA.vbNullString, ticketRow) Then GoTo CleanExit
     If isUpdateMode Then
         If ticketRow Is Nothing Then
             ex_Helpers.ex_ShowErrorMessage "Vacation ticket was not found for IPN '" & _
@@ -231,18 +232,29 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
             private_Performance_LogCheckpoint performanceStart, "New ticket number assigned"
         End If
     End If
+    If Not ex_Tickets.ex_TryFindDonationRow( _
+        ticketsTable, ipnText, ticketNo, donationTicketRow) Then GoTo CleanExit
 
     ' Даты рассчитываются от указанной пользователем даты выбытия.
-    dateTo = VBA.DateAdd("d", vacationDays + roadDays + donationDays, departureDate)
-    dateArrival = VBA.DateAdd("d", 1, dateTo)
+    mainReturnDate = VBA.DateAdd("d", vacationDays + roadDays, departureDate)
+    finalReturnDate = VBA.DateAdd("d", donationDays, mainReturnDate)
+    dateArrival = VBA.DateAdd("d", 1, finalReturnDate)
+    If donationDays > 0 Then
+        If Not ex_PersonnelData.ex_TryFindOrderNoByDate( _
+            mainReturnDate, donationOrderNo) Then GoTo CleanExit
+        If VBA.Len(donationOrderNo) = 0 Then donationOrderNo = "NNN"
+        donationOrderNo = "(?) " & donationOrderNo
+    End If
     ex_Helpers.LogDebug "Vacation period | From=" & VBA.CStr(departureDate) & _
-        " | To=" & VBA.CStr(dateTo) & " | Arrival=" & VBA.CStr(dateArrival)
+        " | MainReturn=" & VBA.CStr(mainReturnDate) & _
+        " | FinalReturn=" & VBA.CStr(finalReturnDate) & _
+        " | Arrival=" & VBA.CStr(dateArrival)
     If Not ex_Helpers.private_Date_TryFormat( _
         orderDate, DATE_FORMAT_PATTERN, ticketDateText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
         departureDate, DATE_FORMAT_PATTERN, dateFromText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        dateTo, DATE_FORMAT_PATTERN, dateToText) Then GoTo CleanExit
+        finalReturnDate, DATE_FORMAT_PATTERN, dateToText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
         dateArrival, DATE_FORMAT_PATTERN, dateArrivalText) Then GoTo CleanExit
 
@@ -259,7 +271,7 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         "FooterSpacer")
     placeholderValues = Array( _
         ticketDateText, ticketNo, personalLine, vacationKindText, vacationPlace, _
-        VBA.CStr(vacationDays) & " календарних днів", dateFromText, _
+        private_Vacation_BuildWordDuration(vacationDays, donationDays, roadDays), dateFromText, _
         dateToText, personalInitials, dateArrivalText, vacationAbroadText, _
         VBA.vbCr)
 
@@ -286,10 +298,28 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Else
         overwriteDocumentPath = matchedDocumentPath
     End If
+    If Not ex_Helpers.private_Path_TryEnsureDocumentReadable( _
+        templatePath) Then GoTo CleanExit
+    If Not ex_Helpers.private_Path_TryProbeTemplateCopy( _
+        templatePath, outputFolderPath) Then GoTo CleanExit
+    If VBA.Len(matchedDocumentPath) > 0 Then
+        If Not ex_Helpers.private_Path_TryEnsureDocumentWritable( _
+            matchedDocumentPath) Then GoTo CleanExit
+    End If
+    mainTicketRowCreated = (ticketRow Is Nothing)
+    registryRowsSaved = True
     If Not ex_Tickets.ex_TrySaveVacationRow( _
         ticketsTable, ticketRow, rankText, fioText, ipnText, personPositionCode, _
-        vacationRegistryText, orderNo, orderDate, departureDate, vacationDays, roadDays, dateTo, _
+        vacationRegistryText, orderNo, orderDate, departureDate, vacationDays, roadDays, _
         ticketNo, tvoFioText, tvoIpnText, tvoPositionCode, ticketsStatusText) Then GoTo CleanExit
+    If donationDays > 0 Then
+        donationTicketRowCreated = (donationTicketRow Is Nothing)
+        If Not ex_Tickets.ex_TrySaveVacationRow( _
+            ticketsTable, donationTicketRow, rankText, fioText, ipnText, personPositionCode, _
+            VACATION_KIND_DONATION_TICKETS_TEXT, donationOrderNo, finalReturnDate, _
+            mainReturnDate, donationDays, 0, ticketNo, tvoFioText, tvoIpnText, _
+            tvoPositionCode, ticketsStatusText) Then GoTo CleanExit
+    End If
     private_Performance_LogCheckpoint performanceStart, "Registry row saved"
     If archiveExistingDocument Then
         If Not ex_Helpers.private_Path_TryArchiveDocument( _
@@ -303,6 +333,10 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         Not isUpdateMode Or restoreMissingDocument, _
         isUpdateMode Or overwriteExistingDocument) Then GoTo CleanExit
     private_Performance_LogCheckpoint performanceStart, "Word generation completed"
+    If donationDays = 0 And Not donationTicketRow Is Nothing Then
+        If Not ex_Tickets.ex_TryDeleteVacationRow( _
+            donationTicketRow) Then GoTo CleanExit
+    End If
 
     ex_Helpers.WriteLog "DOCUMENT: " & documentPath
     ex_Helpers.LogDebug "Vacation ticket generation completed"
@@ -311,9 +345,14 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Else
         ex_Helpers.ex_ShowStatusMessage "Vacation ticket generated: " & documentPath
     End If
+    operationCompleted = True
     GoTo CleanExit
 
 CleanExit:
+    If registryRowsSaved And Not operationCompleted Then
+        private_TryRollbackCreatedTicketRows ticketRow, mainTicketRowCreated, _
+            donationTicketRow, donationTicketRowCreated
+    End If
     If personnelSessionStarted Then ex_PersonnelData.ex_EndSession
     ex_Helpers.ex_ClearMessageTarget
     Exit Sub
@@ -324,6 +363,26 @@ EH:
         VBA.CStr(Err.Number) & "] " & Err.Description, _
         VBA.vbExclamation, "Document Generation"
     Resume CleanExit
+End Sub
+
+' Удаляет только строки, добавленные в текущем запуске после неудачной генерации Word.
+Private Sub private_TryRollbackCreatedTicketRows( _
+    ByVal ticketRow As ListRow, _
+    ByVal mainTicketRowCreated As Boolean, _
+    ByVal donationTicketRow As ListRow, _
+    ByVal donationTicketRowCreated As Boolean _
+)
+    On Error GoTo EH
+    If donationTicketRowCreated Then donationTicketRow.Delete
+    If mainTicketRowCreated Then ticketRow.Delete
+    ex_Helpers.LogDebug "Created ticket rows were rolled back after a failed operation"
+    Exit Sub
+EH:
+    ex_Helpers.LogError "Failed to roll back created ticket rows | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Word generation failed and the newly created " & _
+        "tbTickets rows could not be removed: " & Err.Description, _
+        VBA.vbExclamation, "Document Generation"
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -460,6 +519,32 @@ End Function
 ' --------------------------------------
 ' namespace Vacation {
 ' --------------------------------------
+Private Function private_Vacation_BuildWordDuration( _
+    ByVal vacationDays As Long, _
+    ByVal donationDays As Long, _
+    ByVal roadDays As Long _
+) As String
+    Dim durationText As String
+
+    durationText = VBA.CStr(vacationDays) & " " & _
+        ex_Helpers.ex_GetUkrainianCountForm( _
+            vacationDays, "календарний день", "календарні дні", _
+            "календарних днів")
+    If donationDays > 0 Then
+        durationText = durationText & " та " & VBA.CStr(donationDays) & " " & _
+            ex_Helpers.ex_GetUkrainianCountForm( _
+                donationDays, "додатковий день", "додаткові дні", _
+                "додаткових днів") & _
+            " відпочинку за донацію донорської крові та/або компонентів крові"
+    End If
+    If roadDays > 0 Then
+        durationText = durationText & " та " & VBA.CStr(roadDays) & " " & _
+            ex_Helpers.ex_GetUkrainianCountForm( _
+                roadDays, "добу", "доби", "діб") & " на дорогу"
+    End If
+    private_Vacation_BuildWordDuration = durationText
+End Function
+
 Private Function private_Vacation_TryMapKind( _
     ByVal vacationKind As String, _
     ByRef outWordText As String, _
@@ -469,9 +554,6 @@ Private Function private_Vacation_TryMapKind( _
         Case VBA.LCase$(VACATION_KIND_ANNUAL)
             outWordText = VACATION_KIND_ANNUAL_WORD_TEXT
             outRegistryText = VACATION_KIND_ANNUAL_TICKETS_TEXT
-        Case VBA.LCase$(VACATION_KIND_DONATION)
-            outWordText = VACATION_KIND_DONATION_WORD_TEXT
-            outRegistryText = VACATION_KIND_DONATION_TICKETS_TEXT
         Case VBA.LCase$(VACATION_KIND_FAMILY)
             outWordText = VACATION_KIND_FAMILY_WORD_TEXT
             outRegistryText = VACATION_KIND_FAMILY_TICKETS_TEXT

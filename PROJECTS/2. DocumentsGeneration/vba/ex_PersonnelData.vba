@@ -173,6 +173,74 @@ EH:
     Resume CleanExit
 End Function
 
+' Ищет единственный приказ по дате без ошибки, если приказ ещё не заведён.
+Public Function ex_TryFindOrderNoByDate( _
+    ByVal orderDate As Date, _
+    ByRef outOrderNo As String _
+) As Boolean
+    Dim ordersPath As String, ordersTableRef As String
+    Dim connection As Object, recordset As Object
+    Dim sqlText As String
+    Dim candidateNo As String, candidateDate As Date
+    Dim matchCount As Long
+
+    On Error GoTo EH
+    outOrderNo = VBA.vbNullString
+    Select Case VBA.Year(orderDate)
+        Case 2025: ordersTableRef = ORDERS_2025_TABLE_REF
+        Case 2026: ordersTableRef = ORDERS_2026_TABLE_REF
+        Case Else
+            ex_Helpers.LogDebug "Orders table is not configured for planned date " & _
+                VBA.CStr(orderDate)
+            ex_TryFindOrderNoByDate = True
+            Exit Function
+    End Select
+    ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(ORDERS_RELATIVE_PATH)
+    If VBA.Len(VBA.Dir$(ordersPath)) = 0 Then
+        ex_Helpers.ex_ShowErrorMessage "Orders workbook was not found: " & ordersPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not ex_ExternalTables.ex_TryOpenConnection( _
+        ordersPath, "Orders", connection) Then Exit Function
+    sqlText = "SELECT [Номер наказу], [Дата наказу] FROM " & ordersTableRef
+    Set recordset = VBA.CreateObject("ADODB.Recordset")
+    recordset.Open sqlText, connection, AD_OPEN_STATIC, AD_LOCK_READ_ONLY
+    Do While Not recordset.EOF
+        candidateDate = 0
+        If ex_Helpers.private_Date_TryReadRecordsetDate( _
+            recordset.Fields("Дата наказу").Value, candidateDate) Then
+            If VBA.DateValue(candidateDate) = VBA.DateValue(orderDate) Then
+                matchCount = matchCount + 1
+                candidateNo = private_Order_NormalizeNumber( _
+                    ex_ExternalTables.ex_ReadText(recordset, "Номер наказу"))
+                If matchCount = 1 Then outOrderNo = candidateNo
+            End If
+        End If
+        recordset.MoveNext
+    Loop
+    If matchCount <> 1 Then outOrderNo = VBA.vbNullString
+    If matchCount > 1 Then
+        ex_Helpers.LogDebug "Planned donation date has multiple orders | Date=" & _
+            VBA.CStr(orderDate) & " | Matches=" & VBA.CStr(matchCount)
+    End If
+    ex_TryFindOrderNoByDate = True
+CleanExit:
+    On Error Resume Next
+    If Not recordset Is Nothing Then recordset.Close
+    If Not connection Is Nothing Then connection.Close
+    Set recordset = Nothing
+    Set connection = Nothing
+    On Error GoTo 0
+    Exit Function
+EH:
+    ex_Helpers.LogError "Planned donation order lookup failed | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Planned donation order lookup failed: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+    Resume CleanExit
+End Function
+
 Public Function ex_TryBuildTicketNo( _
     ByVal rawTicketNo As String, _
     ByVal orderNo As String, _

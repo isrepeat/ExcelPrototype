@@ -17,6 +17,7 @@ Private Const TICKETS_COL_TVO_FIO As String = "ТВО.ПІБ"
 Private Const TICKETS_COL_TVO_IPN As String = "ТВО.ІПН"
 Private Const TICKETS_COL_TVO_POSITION As String = "ТВО.Посада"
 Private Const TICKETS_COL_STATUS As String = "Статус"
+Private Const TICKETS_EVENT_DONATION As String = "Відпочинок за донацію крові"
 
 Private Const POSITION_PREFIX_ROZP As String = "A1A"
 Private Const POSITION_PREFIX_SPIS As String = "A1B"
@@ -37,31 +38,46 @@ Public Function ex_GetRegistryPosition(ByVal positionCode As String) As String
     ex_GetRegistryPosition = private_Position_ToRegistryValue(positionCode)
 End Function
 
-' Находит строку билета по ИПН и номеру приказа; отсутствие строки не является ошибкой.
+' Находит строку билета по ИПН, номеру приказа и виду события.
+' Пустой eventText означает основную строку, кроме отдельной строки донации.
 Public Function ex_TryFindVacationRow( _
     ByVal ticketsTable As ListObject, _
     ByVal ipnText As String, _
     ByVal orderNo As String, _
+    ByVal eventText As String, _
     ByRef outTicketRow As ListRow _
 ) As Boolean
     Dim ticketRow As ListRow
-    Dim ipnColumnIndex As Long, orderColumnIndex As Long
-    Dim existingIpnText As String, existingOrderNo As String
+    Dim ipnColumnIndex As Long, orderColumnIndex As Long, eventColumnIndex As Long
+    Dim existingIpnText As String, existingOrderNo As String, existingEventText As String
+    Dim isEventMatch As Boolean
 
     On Error GoTo EH
     Set outTicketRow = Nothing
     ipnColumnIndex = ticketsTable.ListColumns(TICKETS_COL_IPN).Index
     orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
+    eventColumnIndex = ticketsTable.ListColumns(TICKETS_COL_EVENT).Index
     For Each ticketRow In ticketsTable.ListRows
         existingIpnText = ex_Helpers.private_Text_Normalize( _
             VBA.CStr(ticketRow.Range.Cells(1, ipnColumnIndex).Text))
         If VBA.StrComp(existingIpnText, ipnText, VBA.vbTextCompare) = 0 Then
             existingOrderNo = ex_Helpers.private_Text_Normalize( _
                 VBA.CStr(ticketRow.Range.Cells(1, orderColumnIndex).Text))
-            If VBA.StrComp(existingOrderNo, orderNo, VBA.vbTextCompare) = 0 Then
+            existingEventText = ex_Helpers.private_Text_Normalize( _
+                VBA.CStr(ticketRow.Range.Cells(1, eventColumnIndex).Text))
+            If VBA.Len(eventText) = 0 Then
+                isEventMatch = (VBA.StrComp(existingEventText, _
+                    TICKETS_EVENT_DONATION, VBA.vbTextCompare) <> 0)
+            Else
+                isEventMatch = (VBA.StrComp(existingEventText, _
+                    eventText, VBA.vbTextCompare) = 0)
+            End If
+            If VBA.StrComp(existingOrderNo, orderNo, VBA.vbTextCompare) = 0 And _
+               isEventMatch Then
                 If Not outTicketRow Is Nothing Then
                     ex_Helpers.ex_ShowErrorMessage "Multiple vacation tickets were found " & _
-                        "for IPN '" & ipnText & "' and order '" & orderNo & "'.", _
+                        "for IPN '" & ipnText & "', order '" & orderNo & _
+                        "' and event '" & eventText & "'.", _
                         VBA.vbExclamation, "Document Generation"
                     Exit Function
                 End If
@@ -75,6 +91,58 @@ EH:
     ex_Helpers.LogError "Failed to find vacation ticket | Number=" & _
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
     ex_Helpers.ex_ShowErrorMessage "Failed to find vacation ticket: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+
+' Находит отдельную строку донации по ИПН, номеру билета и префиксу «(?)».
+Public Function ex_TryFindDonationRow( _
+    ByVal ticketsTable As ListObject, _
+    ByVal ipnText As String, _
+    ByVal ticketNo As String, _
+    ByRef outTicketRow As ListRow _
+) As Boolean
+    Dim ticketRow As ListRow
+    Dim ipnColumnIndex As Long, documentColumnIndex As Long
+    Dim eventColumnIndex As Long, orderColumnIndex As Long
+    Dim existingIpnText As String, existingTicketNo As String
+    Dim existingEventText As String, existingOrderNo As String
+
+    On Error GoTo EH
+    Set outTicketRow = Nothing
+    ipnColumnIndex = ticketsTable.ListColumns(TICKETS_COL_IPN).Index
+    documentColumnIndex = ticketsTable.ListColumns(TICKETS_COL_DOCUMENT).Index
+    eventColumnIndex = ticketsTable.ListColumns(TICKETS_COL_EVENT).Index
+    orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
+    For Each ticketRow In ticketsTable.ListRows
+        existingIpnText = ex_Helpers.private_Text_Normalize( _
+            VBA.CStr(ticketRow.Range.Cells(1, ipnColumnIndex).Text))
+        existingTicketNo = ex_Helpers.private_Text_Normalize( _
+            VBA.CStr(ticketRow.Range.Cells(1, documentColumnIndex).Text))
+        existingEventText = ex_Helpers.private_Text_Normalize( _
+            VBA.CStr(ticketRow.Range.Cells(1, eventColumnIndex).Text))
+        existingOrderNo = ex_Helpers.private_Text_Normalize( _
+            VBA.CStr(ticketRow.Range.Cells(1, orderColumnIndex).Text))
+        If VBA.StrComp(existingIpnText, ipnText, VBA.vbTextCompare) = 0 And _
+           VBA.StrComp(existingTicketNo, ticketNo, VBA.vbTextCompare) = 0 And _
+           VBA.StrComp(existingEventText, TICKETS_EVENT_DONATION, _
+               VBA.vbTextCompare) = 0 And _
+           (VBA.Len(existingOrderNo) = 0 Or _
+            VBA.Left$(existingOrderNo, 4) = "(?) ") Then
+            If Not outTicketRow Is Nothing Then
+                ex_Helpers.ex_ShowErrorMessage "Multiple donation rows were found " & _
+                    "for IPN '" & ipnText & "' and ticket '" & ticketNo & "'.", _
+                    VBA.vbExclamation, "Document Generation"
+                Exit Function
+            End If
+            Set outTicketRow = ticketRow
+        End If
+    Next ticketRow
+    ex_TryFindDonationRow = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to find donation ticket row | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to find donation ticket row: " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -102,6 +170,21 @@ EH:
     ex_Helpers.LogError "Failed to read existing ticket number | Number=" & _
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
     ex_Helpers.ex_ShowErrorMessage "Failed to read existing ticket number: " & _
+        Err.Description, VBA.vbExclamation, "Document Generation"
+End Function
+
+' Удаляет отдельную строку донации, когда дополнительные дни больше не указаны.
+Public Function ex_TryDeleteVacationRow( _
+    ByVal ticketRow As ListRow _
+) As Boolean
+    On Error GoTo EH
+    ticketRow.Delete
+    ex_TryDeleteVacationRow = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to delete vacation ticket row | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to delete vacation ticket row: " & _
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -184,11 +267,10 @@ Public Function ex_TrySaveVacationRow( _
     ByVal positionCode As String, _
     ByVal eventText As String, _
     ByVal orderNo As String, _
-    ByVal orderDate As Date, _
+    ByVal foodDepartureDate As Date, _
     ByVal departureDate As Date, _
     ByVal vacationDays As Long, _
     ByVal roadDays As Long, _
-    ByVal dateTo As Date, _
     ByVal ticketNo As String, _
     ByVal tvoFioText As String, _
     ByVal tvoIpnText As String, _
@@ -198,6 +280,7 @@ Public Function ex_TrySaveVacationRow( _
     Dim tableValues As Object
     Dim valueKey As Variant
     Dim columnIndex As Long
+    Dim arrivalPlanFormula As String
 
     On Error GoTo EH
     Set tableValues = VBA.CreateObject("Scripting.Dictionary")
@@ -208,11 +291,11 @@ Public Function ex_TrySaveVacationRow( _
     tableValues.Add TICKETS_COL_POSITION, private_Position_ToRegistryValue(positionCode)
     tableValues.Add TICKETS_COL_EVENT, eventText
     tableValues.Add TICKETS_COL_OUT_ORDER, orderNo
-    tableValues.Add TICKETS_COL_OUT_FOOD, orderDate
+    tableValues.Add TICKETS_COL_OUT_FOOD, foodDepartureDate
     tableValues.Add TICKETS_COL_OUT_DATE, departureDate
     tableValues.Add TICKETS_COL_DURATION, private_Value_ZeroToBlank(vacationDays)
     tableValues.Add TICKETS_COL_ROAD, private_Value_ZeroToBlank(roadDays)
-    tableValues.Add TICKETS_COL_ARRIVAL_PLAN, dateTo
+    ' Прибуття.План не заполняется: его рассчитывает формула таблицы tbTickets.
     tableValues.Add TICKETS_COL_DOCUMENT, ticketNo
     tableValues.Add TICKETS_COL_TVO_FIO, tvoFioText
     tableValues.Add TICKETS_COL_TVO_IPN, tvoIpnText
@@ -224,11 +307,15 @@ Public Function ex_TrySaveVacationRow( _
     For Each valueKey In tableValues.Keys
         columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
     Next valueKey
+    If Not private_Tickets_TryGetCalculatedFormula( _
+        ticketsTable, TICKETS_COL_ARRIVAL_PLAN, arrivalPlanFormula) Then Exit Function
     If ioTicketRow Is Nothing Then Set ioTicketRow = ticketsTable.ListRows.Add
     For Each valueKey In tableValues.Keys
         columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
         ioTicketRow.Range.Cells(1, columnIndex).Value = tableValues(valueKey)
     Next valueKey
+    columnIndex = ticketsTable.ListColumns(TICKETS_COL_ARRIVAL_PLAN).Index
+    ioTicketRow.Range.Cells(1, columnIndex).Formula = arrivalPlanFormula
     ex_TrySaveVacationRow = True
     Exit Function
 EH:
@@ -240,6 +327,42 @@ End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
+
+' Берёт сохранённую формулу вычисляемой колонки из любой строки tbTickets.
+Private Function private_Tickets_TryGetCalculatedFormula( _
+    ByVal ticketsTable As ListObject, _
+    ByVal columnName As String, _
+    ByRef outFormula As String _
+) As Boolean
+    Dim ticketRow As ListRow
+    Dim columnIndex As Long
+    Dim formulaCell As Range
+
+    On Error GoTo EH
+    outFormula = VBA.vbNullString
+    columnIndex = ticketsTable.ListColumns(columnName).Index
+    For Each ticketRow In ticketsTable.ListRows
+        Set formulaCell = ticketRow.Range.Cells(1, columnIndex)
+        If formulaCell.HasFormula Then
+            outFormula = VBA.CStr(formulaCell.Formula)
+            Exit For
+        End If
+    Next ticketRow
+    If VBA.Len(outFormula) = 0 Then
+        ex_Helpers.ex_ShowErrorMessage "Table tbTickets has no saved formula in " & _
+            "column '" & columnName & "'. Add the formula to one table row and retry.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    private_Tickets_TryGetCalculatedFormula = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to read calculated column formula | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to read the formula in column '" & _
+        columnName & "': " & Err.Description, VBA.vbExclamation, _
+        "Document Generation"
+End Function
 
 ' Нормализует специальный код должности для краткого представления в реестре.
 Private Function private_Position_ToRegistryValue( _

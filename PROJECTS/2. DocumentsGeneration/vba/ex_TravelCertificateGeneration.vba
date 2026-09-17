@@ -113,7 +113,6 @@ Public Sub fn_TravelCertificateGeneration_Create()
     If VBA.Len(templatePath) = 0 Then Exit Sub
 
     ex_Helpers.LogDebug "Person lookup: " & personLookup
-    ex_Helpers.LogDebug "Person lookup Unicode: " & ex_Helpers.private_Text_ToUnicodeDebug(personLookup)
     ex_Helpers.LogDebug "Position code: " & positionCode
     ex_Helpers.LogDebug "Template input: " & templatePath
 
