@@ -7,6 +7,9 @@ Option Explicit
 Private managedWordApp As Object
 Private messageTargetRange As Range
 Private configuredLogFileSuffix As String
+Private logWriteFailureNotified As Boolean
+
+Private Const LOG_FOLDER_NAME As String = "2. DocumentsGeneration"
 
 ' --------------------------------------
 ' namespace Word {
@@ -897,6 +900,7 @@ Public Function ex_TryConfigureLogFileSuffix( _
         Exit Function
     End If
     configuredLogFileSuffix = logFileSuffix
+    logWriteFailureNotified = False
     ex_TryConfigureLogFileSuffix = True
 End Function
 
@@ -905,9 +909,16 @@ Public Sub ClearLog()
 #If CLEAR_LOG_ON_GENERATION Then
     Dim fileNumber As Integer
 
+    On Error GoTo EH
     fileNumber = VBA.FreeFile
     Open GetLogFilePath() For Output As #fileNumber
     Close #fileNumber
+    Exit Sub
+EH:
+    On Error Resume Next
+    If fileNumber > 0 Then Close #fileNumber
+    private_Log_NotifyWriteFailure Err.Number, Err.Description
+    On Error GoTo 0
 #End If
 #End If
 End Sub
@@ -930,11 +941,18 @@ Public Sub WriteLog(ByVal messageText As String)
 #If ENABLE_LOGGING Then
     Dim fileNumber As Integer
 
+    On Error GoTo EH
     fileNumber = VBA.FreeFile
     Open GetLogFilePath() For Append As #fileNumber
     Print #fileNumber, VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
         " | " & messageText
     Close #fileNumber
+    Exit Sub
+EH:
+    On Error Resume Next
+    If fileNumber > 0 Then Close #fileNumber
+    private_Log_NotifyWriteFailure Err.Number, Err.Description
+    On Error GoTo 0
 #End If
 End Sub
 
@@ -942,6 +960,7 @@ Public Function GetLogFilePath() As String
     Dim workbookName As String
     Dim baseName As String
     Dim dotPosition As Long
+    Dim logFolderPath As String
 
     workbookName = ThisWorkbook.Name
     dotPosition = VBA.InStrRev(workbookName, ".")
@@ -954,9 +973,54 @@ Public Function GetLogFilePath() As String
         Err.Raise VBA.vbObjectError + 4102, "GetLogFilePath", _
             "Log file suffix was not configured by the calling module."
     End If
-    GetLogFilePath = ThisWorkbook.Path & Application.PathSeparator & _
+    If Not private_Log_TryEnsureFolder(logFolderPath) Then
+        Err.Raise VBA.vbObjectError + 4103, "GetLogFilePath", _
+            "The local log folder is unavailable."
+    End If
+    GetLogFilePath = logFolderPath & Application.PathSeparator & _
         baseName & configuredLogFileSuffix
 End Function
+
+' Создаёт локальную папку журнала, не зависящую от пути открытия Excel-книги.
+Private Function private_Log_TryEnsureFolder( _
+    ByRef outFolderPath As String _
+) As Boolean
+    Dim tempFolderPath As String
+
+    On Error GoTo EH
+    outFolderPath = VBA.vbNullString
+    tempFolderPath = VBA.Trim$(VBA.Environ$("TEMP"))
+    If VBA.Len(tempFolderPath) = 0 Then
+        Err.Raise VBA.vbObjectError + 4104, "private_Log_TryEnsureFolder", _
+            "The TEMP environment variable is empty."
+    End If
+    If VBA.Len(VBA.Dir$(tempFolderPath, VBA.vbDirectory)) = 0 Then
+        Err.Raise VBA.vbObjectError + 4105, "private_Log_TryEnsureFolder", _
+            "The TEMP folder was not found: " & tempFolderPath
+    End If
+    outFolderPath = tempFolderPath & Application.PathSeparator & LOG_FOLDER_NAME
+    If VBA.Len(VBA.Dir$(outFolderPath, VBA.vbDirectory)) = 0 Then
+        VBA.MkDir outFolderPath
+    End If
+    private_Log_TryEnsureFolder = True
+    Exit Function
+EH:
+    outFolderPath = VBA.vbNullString
+End Function
+
+' Логирование не должно скрывать ошибку основной операции.
+Private Sub private_Log_NotifyWriteFailure( _
+    ByVal errorNumber As Long, _
+    ByVal errorDescription As String _
+)
+    If logWriteFailureNotified Then Exit Sub
+
+    logWriteFailureNotified = True
+    VBA.MsgBox "Не удалось записать журнал в локальную папку '%TEMP%\" & _
+        LOG_FOLDER_NAME & "'. Генерация будет продолжена без журнала." & _
+        VBA.vbCrLf & VBA.vbCrLf & "Ошибка [" & VBA.CStr(errorNumber) & _
+        "]: " & errorDescription, VBA.vbExclamation, "Document Generation"
+End Sub
 ' --------------------------------------
 ' } // namespace Logging
 ' --------------------------------------
