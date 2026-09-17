@@ -162,7 +162,7 @@ Public Function private_Word_TryReplacePlaceholder( _
 
     markerRange.Text = replacementText
     LogDebug "Word placeholder replaced | Name=" & placeholderName & _
-        " | ValueUnicode=" & private_Text_ToUnicodeDebug(replacementText)
+        " | Value=" & replacementText
     private_Word_TryReplacePlaceholder = True
 End Function
 ' --------------------------------------
@@ -204,9 +204,9 @@ Public Function private_Date_TryFormat( _
     ' В строковом формате из ячейки или внешнего конфига \" означает кавычку.
     outText = VBA.Replace$(outText, "\""", """")
     If VBA.InStr(1, outText, "{", VBA.vbBinaryCompare) > 0 Or _
-        VBA.InStr(1, outText, "}", VBA.vbBinaryCompare) > 0 Then
+       VBA.InStr(1, outText, "}", VBA.vbBinaryCompare) > 0 Then
         LogError "Date format contains an unsupported token: " & _
-            private_Text_ToUnicodeDebug(formatPattern)
+            formatPattern
         outText = VBA.vbNullString
         Exit Function
     End If
@@ -256,8 +256,7 @@ Public Function private_Date_TryParse( _
     Exit Function
 
 InvalidDate:
-    LogError "Invalid date value: " & private_Text_ToUnicodeDebug( _
-        VBA.CStr(dateValue))
+    LogError "Invalid date value: " & VBA.CStr(dateValue)
 End Function
 
 Public Function private_Date_LooksLikeFullDate( _
@@ -373,7 +372,7 @@ Public Function private_Text_TryFormat( _
     If VBA.InStr(1, validationText, "{", VBA.vbBinaryCompare) > 0 Or _
         VBA.InStr(1, validationText, "}", VBA.vbBinaryCompare) > 0 Then
         LogError "String format contains an unknown or malformed token: " & _
-            private_Text_ToUnicodeDebug(formatPattern)
+            formatPattern
         outText = VBA.vbNullString
         Exit Function
     End If
@@ -534,6 +533,108 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Function
 
+' Проверяет, что существующий Word-файл не открыт и доступен для замены.
+Public Function private_Path_TryEnsureDocumentWritable( _
+    ByVal documentPath As String _
+) As Boolean
+    Dim fileNumber As Integer
+    Dim isOpen As Boolean
+
+    On Error GoTo EH
+    If VBA.Len(VBA.Dir$(documentPath)) = 0 Then
+        ex_ShowErrorMessage "Document to overwrite was not found: " & documentPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    fileNumber = VBA.FreeFile
+    Open documentPath For Binary Access Read Write Lock Read Write As #fileNumber
+    isOpen = True
+    Close #fileNumber
+    private_Path_TryEnsureDocumentWritable = True
+    Exit Function
+EH:
+    If isOpen Then Close #fileNumber
+    LogError "Document is not writable | Number=" & VBA.CStr(Err.Number) & _
+        " | Description=" & Err.Description & " | Path=" & documentPath
+    ex_ShowErrorMessage "The Word file is open or cannot be replaced. Close it " & _
+        "and try again: " & documentPath, VBA.vbExclamation, _
+        "Document Generation"
+End Function
+
+' Проверяет, что Word-шаблон доступен для чтения; открытый в Word файл допустим.
+Public Function private_Path_TryEnsureDocumentReadable( _
+    ByVal documentPathInput As String _
+) As Boolean
+    Dim documentPath As String
+    Dim fileNumber As Integer
+    Dim isOpen As Boolean
+
+    On Error GoTo EH
+    documentPath = private_Path_ResolveFromWorkbook(documentPathInput)
+    If VBA.Len(VBA.Dir$(documentPath)) = 0 Then
+        ex_ShowErrorMessage "Word template was not found: " & documentPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    fileNumber = VBA.FreeFile
+    Open documentPath For Binary Access Read Shared As #fileNumber
+    isOpen = True
+    Close #fileNumber
+    private_Path_TryEnsureDocumentReadable = True
+    Exit Function
+EH:
+    If isOpen Then Close #fileNumber
+    LogError "Document is not readable | Number=" & VBA.CStr(Err.Number) & _
+        " | Description=" & Err.Description & " | Path=" & documentPath
+    ex_ShowErrorMessage "The Word template cannot be read. Close it if it is " & _
+        "locked and try again: " & documentPath, VBA.vbExclamation, _
+        "Document Generation"
+End Function
+
+' Пробной копией проверяет именно операцию FileCopy, используемую генератором Word.
+Public Function private_Path_TryProbeTemplateCopy( _
+    ByVal templatePathInput As String, _
+    ByVal outputFolderPathInput As String _
+) As Boolean
+    Dim templatePath As String
+    Dim outputFolderPath As String
+    Dim probePath As String
+    Dim fileSystem As Object
+
+    On Error GoTo EH
+    templatePath = private_Path_ResolveFromWorkbook(templatePathInput)
+    If VBA.Len(VBA.Dir$(templatePath)) = 0 Then
+        ex_ShowErrorMessage "Word template was not found: " & templatePath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    outputFolderPath = private_Text_Normalize(outputFolderPathInput)
+    If VBA.Len(outputFolderPath) = 0 Then
+        outputFolderPath = VBA.Left$(templatePath, _
+            VBA.InStrRev(templatePath, Application.PathSeparator) - 1)
+    Else
+        outputFolderPath = private_Path_ResolveFromWorkbook(outputFolderPath)
+    End If
+    If Not private_Path_TryEnsureFolder(outputFolderPath) Then Exit Function
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    probePath = fileSystem.BuildPath(outputFolderPath, fileSystem.GetTempName)
+    VBA.FileCopy templatePath, probePath
+    VBA.Kill probePath
+    private_Path_TryProbeTemplateCopy = True
+    Exit Function
+EH:
+    On Error Resume Next
+    If VBA.Len(probePath) > 0 Then
+        If VBA.Len(VBA.Dir$(probePath)) > 0 Then VBA.Kill probePath
+    End If
+    On Error GoTo 0
+    LogError "Template copy preflight failed | Number=" & VBA.CStr(Err.Number) & _
+        " | Description=" & Err.Description & " | Template=" & templatePath
+    ex_ShowErrorMessage "Cannot copy the Word template. Close it if it is " & _
+        "locked and try again: " & templatePath, VBA.vbExclamation, _
+        "Document Generation"
+End Function
+
 ' Находит единственный Word-файл билета в указанной папке по номеру и ИПН.
 Public Function private_Path_TryFindVacationTicketDocument( _
     ByVal outputFolderPathInput As String, _
@@ -686,24 +787,37 @@ Public Function private_Text_Normalize(ByVal valueText As String) As String
     private_Text_Normalize = valueText
 End Function
 
-Public Function private_Text_ToUnicodeDebug(ByVal valueText As String) As String
-    Dim charIndex As Long
-    Dim charCode As Long
-    Dim charText As String
+' Возвращает украинскую форму счётного слова для 1, 2-4 либо остальных чисел.
+Public Function ex_GetUkrainianCountForm( _
+    ByVal countValue As Long, _
+    ByVal oneForm As String, _
+    ByVal fewForm As String, _
+    ByVal manyForm As String _
+) As String
+    Dim normalizedCount As Long
 
-    For charIndex = 1 To VBA.Len(valueText)
-        charText = VBA.Mid$(valueText, charIndex, 1)
-        charCode = VBA.AscW(charText)
-        If charCode < 0 Then charCode = charCode + 65536
-        If charCode >= 32 And charCode <= 126 Then
-            private_Text_ToUnicodeDebug = _
-                private_Text_ToUnicodeDebug & charText
-        Else
-            private_Text_ToUnicodeDebug = _
-                private_Text_ToUnicodeDebug & "\u" & _
-                VBA.Right$("0000" & VBA.Hex$(charCode), 4)
-        End If
-    Next charIndex
+    If VBA.Len(oneForm) = 0 Or VBA.Len(fewForm) = 0 Or _
+       VBA.Len(manyForm) = 0 Then
+        Err.Raise VBA.vbObjectError + 4101, "ex_GetUkrainianCountForm", _
+            "All Ukrainian count forms are required."
+    End If
+    normalizedCount = VBA.Abs(countValue)
+    Select Case normalizedCount Mod 10
+        Case 1
+            If normalizedCount Mod 100 <> 11 Then
+                ex_GetUkrainianCountForm = oneForm
+            Else
+                ex_GetUkrainianCountForm = manyForm
+            End If
+        Case 2 To 4
+            If normalizedCount Mod 100 < 12 Or normalizedCount Mod 100 > 14 Then
+                ex_GetUkrainianCountForm = fewForm
+            Else
+                ex_GetUkrainianCountForm = manyForm
+            End If
+        Case Else
+            ex_GetUkrainianCountForm = manyForm
+    End Select
 End Function
 
 ' --------------------------------------

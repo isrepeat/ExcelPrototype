@@ -229,13 +229,11 @@ Public Sub ex_LogWorkbookContext( _
     On Error GoTo 0
     ex_Helpers.LogDebug "Workbook path: " & ThisWorkbook.FullName
     ex_Helpers.LogDebug "Worksheet count: " & VBA.CStr(ThisWorkbook.Worksheets.Count)
-    ex_Helpers.LogDebug "Active sheet Unicode: " & _
-        ex_Helpers.private_Text_ToUnicodeDebug(activeSheetText)
+    ex_Helpers.LogDebug "Active sheet: " & activeSheetText
     For worksheetIndex = 1 To ThisWorkbook.Worksheets.Count
         Set worksheetObj = ThisWorkbook.Worksheets(worksheetIndex)
         ex_Helpers.LogDebug "Worksheet | Index=" & VBA.CStr(worksheetIndex) & _
-            " | CodeName=" & worksheetObj.CodeName & " | NameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(worksheetObj.Name)
+            " | CodeName=" & worksheetObj.CodeName & " | Name=" & worksheetObj.Name
     Next worksheetIndex
 
     Set worksheetObj = Nothing
@@ -243,8 +241,7 @@ Public Sub ex_LogWorkbookContext( _
     Set worksheetObj = ThisWorkbook.Worksheets(inputSheetName)
     On Error GoTo 0
     If worksheetObj Is Nothing Then
-        ex_Helpers.LogError "Input binding failed | ExpectedNameUnicode=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(inputSheetName)
+        ex_Helpers.LogError "Input binding failed | ExpectedName=" & inputSheetName
         Exit Sub
     End If
     If inputCellMap Is Nothing Then
@@ -255,12 +252,10 @@ Public Sub ex_LogWorkbookContext( _
         cellAddress = VBA.CStr(inputCellMap(fieldAlias))
         bindingText = bindingText & " | " & fieldAlias & "=" & cellAddress
         valuesText = valuesText & " | " & fieldAlias & "=" & _
-            ex_Helpers.private_Text_ToUnicodeDebug(VBA.CStr( _
-                worksheetObj.Range(cellAddress).Text))
+            VBA.CStr(worksheetObj.Range(cellAddress).Text)
     Next fieldAlias
-    ex_Helpers.LogDebug "Input binding | SheetNameUnicode=" & _
-        ex_Helpers.private_Text_ToUnicodeDebug(inputSheetName) & bindingText
-    ex_Helpers.LogDebug "Input raw values Unicode" & valuesText
+    ex_Helpers.LogDebug "Input binding | SheetName=" & inputSheetName & bindingText
+    ex_Helpers.LogDebug "Input raw values" & valuesText
 End Sub
 ' --------------------------------------
 ' } // namespace API
