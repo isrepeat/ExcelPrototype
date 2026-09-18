@@ -2,6 +2,7 @@ Option Explicit
 
 Private changeRoutes As Collection
 Private selectionRoutes As Collection
+Private pendingSelectionRouteRemovals As Collection
 Private isDispatchingChange As Boolean
 Private isDispatchingSelection As Boolean
 
@@ -12,6 +13,7 @@ Private isDispatchingSelection As Boolean
 Public Sub fn_Reset()
     Set changeRoutes = New Collection
     Set selectionRoutes = New Collection
+    Set pendingSelectionRouteRemovals = New Collection
     isDispatchingChange = False
     isDispatchingSelection = False
     ex_Helpers.LogDebug "Cell route registry reset"
@@ -35,6 +37,18 @@ Public Function fn_RegisterSelectionRoute( _
         selectionRoutes, worksheetName, rangeAddress, callbackName, _
         "SelectionChange")
 End Function
+
+' Удаляет все selection-маршруты указанного callback на листе.
+Public Sub fn_UnregisterSelectionRoutes( _
+    ByVal worksheetName As String, _
+    ByVal callbackName As String _
+)
+    If isDispatchingSelection Then
+        private_Routes_QueueSelectionRouteRemoval worksheetName, callbackName
+        Exit Sub
+    End If
+    private_Routes_RemoveSelectionRoutes worksheetName, callbackName
+End Sub
 
 ' Маршрутизирует изменение ячейки в зарегистрированный callback.
 Public Sub fn_OnSheetChange( _
@@ -83,11 +97,13 @@ Public Sub fn_OnSheetSelectionChange( _
     isDispatchingSelection = True
     private_Routes_DispatchRoutes selectionRoutes, changedSheet, target
 CleanExit:
+    private_Routes_ApplyPendingSelectionRouteRemovals
     isDispatchingSelection = False
     Exit Sub
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    private_Routes_ApplyPendingSelectionRouteRemovals
     isDispatchingSelection = False
     VBA.Err.Raise errorNumber, "ex_CellChangeRouter.fn_OnSheetSelectionChange", _
         errorDescription
@@ -130,6 +146,53 @@ Private Function private_Routes_TryRegisterRoute( _
         " | Callback=" & callbackName
     private_Routes_TryRegisterRoute = True
 End Function
+
+Private Sub private_Routes_QueueSelectionRouteRemoval( _
+    ByVal worksheetName As String, _
+    ByVal callbackName As String _
+)
+    Dim removalItem As Object
+
+    If pendingSelectionRouteRemovals Is Nothing Then
+        Set pendingSelectionRouteRemovals = New Collection
+    End If
+    Set removalItem = VBA.CreateObject("Scripting.Dictionary")
+    removalItem.CompareMode = VBA.vbTextCompare
+    removalItem.Add "WorksheetName", worksheetName
+    removalItem.Add "CallbackName", callbackName
+    pendingSelectionRouteRemovals.Add removalItem
+End Sub
+
+Private Sub private_Routes_ApplyPendingSelectionRouteRemovals()
+    Dim removalItem As Object
+
+    If pendingSelectionRouteRemovals Is Nothing Then Exit Sub
+    For Each removalItem In pendingSelectionRouteRemovals
+        private_Routes_RemoveSelectionRoutes _
+            VBA.CStr(removalItem.Item("WorksheetName")), _
+            VBA.CStr(removalItem.Item("CallbackName"))
+    Next removalItem
+    Set pendingSelectionRouteRemovals = New Collection
+End Sub
+
+Private Sub private_Routes_RemoveSelectionRoutes( _
+    ByVal worksheetName As String, _
+    ByVal callbackName As String _
+)
+    Dim routeIndex As Long
+    Dim routeItem As Object
+
+    If selectionRoutes Is Nothing Then Exit Sub
+    For routeIndex = selectionRoutes.Count To 1 Step -1
+        Set routeItem = selectionRoutes.Item(routeIndex)
+        If VBA.StrComp(VBA.CStr(routeItem.Item("WorksheetName")), _
+                worksheetName, VBA.vbTextCompare) = 0 And _
+           VBA.StrComp(VBA.CStr(routeItem.Item("CallbackName")), _
+                callbackName, VBA.vbTextCompare) = 0 Then
+            selectionRoutes.Remove routeIndex
+        End If
+    Next routeIndex
+End Sub
 
 Private Sub private_Routes_DispatchRoutes( _
     ByVal routes As Collection, _

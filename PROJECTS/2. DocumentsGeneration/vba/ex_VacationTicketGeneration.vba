@@ -127,17 +127,20 @@ Public Function fn_TryGetCandidatesConfig( _
         INPUT_ALIAS_PERSON_LOOKUP))
     lookupCellAddresses.Add VBA.CStr(inputCellMap( _
         INPUT_ALIAS_TVO_LOOKUP))
-    ' Порядок элементов Columns — порядок колонок от CandidateStartCellAddress.
+    ' CandidateStartCellAddress указывает левую ячейку строки команд.
+    ' Заголовки и данные начинаются на одну и две строки ниже соответственно.
     ' SourceIndex — индекс значения в массиве, возвращённом query callback.
     Set columns = New Collection
     Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
     columnConfig.CompareMode = VBA.vbBinaryCompare
     columnConfig.Add "SourceIndex", 0
+    columnConfig.Add "Header", "ПІБ"
     columnConfig.Add "NumberFormat", "General"
     columns.Add columnConfig
     Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
     columnConfig.CompareMode = VBA.vbBinaryCompare
     columnConfig.Add "SourceIndex", 1
+    columnConfig.Add "Header", "ІПН"
     columnConfig.Add "NumberFormat", "@"
     columns.Add columnConfig
     Set styleConfig = VBA.CreateObject("Scripting.Dictionary")
@@ -145,6 +148,8 @@ Public Function fn_TryGetCandidatesConfig( _
     styleConfig.Add "FontColor", VBA.RGB(255, 255, 255)
     styleConfig.Add "FillColor", VBA.RGB(0, 96, 32)
     styleConfig.Add "SelectedFillColor", VBA.RGB(112, 0, 56)
+    styleConfig.Add "HeaderFontColor", VBA.RGB(255, 255, 255)
+    styleConfig.Add "HeaderFillColor", VBA.RGB(0, 0, 0)
     styleConfig.Add "FontName", PERSONNEL_CANDIDATES_FONT_NAME
     styleConfig.Add "FontSize", PERSONNEL_CANDIDATES_FONT_SIZE
     styleConfig.Add "HorizontalAlignment", _
@@ -157,6 +162,7 @@ Public Function fn_TryGetCandidatesConfig( _
     outCandidatesConfig.Add "InputSheetName", INPUT_SHEET_NAME
     outCandidatesConfig.Add "LookupCellAddresses", lookupCellAddresses
     outCandidatesConfig.Add "CandidateStartCellAddress", PERSONNEL_CANDIDATES_START_CELL_ADDRESS
+    outCandidatesConfig.Add "HideCommandText", "Сховати"
     outCandidatesConfig.Add "MaxCandidateCount", PERSONNEL_CANDIDATES_MAX_COUNT
     outCandidatesConfig.Add "QueryCallbackName", "ex_VacationTicketGeneration.fn_TryFindPersonnelCandidates"
     outCandidatesConfig.Add "SelectedValueIndex", 0
