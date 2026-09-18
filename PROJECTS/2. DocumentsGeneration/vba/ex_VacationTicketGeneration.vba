@@ -26,11 +26,6 @@ Private Const PERSONNEL_CANDIDATES_MAX_COUNT As Long = 20
 Private Const PERSONNEL_CANDIDATES_TABLE_REF As String = "[АЛФ$A1:J12000]"
 Private Const PERSONNEL_CANDIDATES_FIO_FIELD As String = "ПІБ"
 Private Const PERSONNEL_CANDIDATES_IPN_FIELD As String = "ІПН"
-Private Const PERSONNEL_CANDIDATES_FONT_NAME As String = "Times New Roman"
-Private Const PERSONNEL_CANDIDATES_FONT_SIZE As Long = 11
-' -4108 соответствует Excel-константе xlCenter.
-Private Const PERSONNEL_CANDIDATES_HORIZONTAL_ALIGNMENT As Long = -4108
-Private Const PERSONNEL_CANDIDATES_VERTICAL_ALIGNMENT As Long = -4108
 
 ' Канонические типы отпусков и отдельные тексты для Word и реестра Квитки.
 Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
@@ -104,9 +99,11 @@ Public Function fn_TryGetCandidatesConfig( _
     ByRef outCandidatesConfig As Object _
 ) As Boolean
     Dim lookupCellAddresses As Collection
+    Dim lookupFieldTitles As Object
     Dim columns As Collection
     Dim columnConfig As Object
-    Dim styleConfig As Object
+    Dim styles As Object
+    Dim titleStyle As Object
 
     Set outCandidatesConfig = Nothing
     private_Initialize
@@ -127,6 +124,12 @@ Public Function fn_TryGetCandidatesConfig( _
         INPUT_ALIAS_PERSON_LOOKUP))
     lookupCellAddresses.Add VBA.CStr(inputCellMap( _
         INPUT_ALIAS_TVO_LOOKUP))
+    Set lookupFieldTitles = VBA.CreateObject("Scripting.Dictionary")
+    lookupFieldTitles.CompareMode = VBA.vbBinaryCompare
+    lookupFieldTitles.Add VBA.CStr(inputCellMap(INPUT_ALIAS_PERSON_LOOKUP)), _
+        "ПІБ (чи ІПН)"
+    lookupFieldTitles.Add VBA.CStr(inputCellMap(INPUT_ALIAS_TVO_LOOKUP)), _
+        "Відпустка (ТВО ПІБ чи ІПН)"
     ' CandidateStartCellAddress указывает левую ячейку строки команд.
     ' Заголовки и данные начинаются на одну и две строки ниже соответственно.
     ' SourceIndex — индекс значения в массиве, возвращённом query callback.
@@ -143,31 +146,43 @@ Public Function fn_TryGetCandidatesConfig( _
     columnConfig.Add "Header", "ІПН"
     columnConfig.Add "NumberFormat", "@"
     columns.Add columnConfig
-    Set styleConfig = VBA.CreateObject("Scripting.Dictionary")
-    styleConfig.CompareMode = VBA.vbBinaryCompare
-    styleConfig.Add "FontColor", VBA.RGB(255, 255, 255)
-    styleConfig.Add "FillColor", VBA.RGB(0, 96, 32)
-    styleConfig.Add "SelectedFillColor", VBA.RGB(112, 0, 56)
-    styleConfig.Add "HeaderFontColor", VBA.RGB(255, 255, 255)
-    styleConfig.Add "HeaderFillColor", VBA.RGB(0, 0, 0)
-    styleConfig.Add "FontName", PERSONNEL_CANDIDATES_FONT_NAME
-    styleConfig.Add "FontSize", PERSONNEL_CANDIDATES_FONT_SIZE
-    styleConfig.Add "HorizontalAlignment", _
-        PERSONNEL_CANDIDATES_HORIZONTAL_ALIGNMENT
-    styleConfig.Add "VerticalAlignment", _
-        PERSONNEL_CANDIDATES_VERTICAL_ALIGNMENT
-    styleConfig.Add "WrapText", True
+    Set styles = VBA.CreateObject("Scripting.Dictionary")
+    styles.CompareMode = VBA.vbBinaryCompare
+    styles.Add "Candidate", private_CandidatesConfig_CreateCellStyle( _
+        "Times New Roman", 16, VBA.RGB(255, 255, 255), VBA.RGB(0, 96, 32), _
+        -4108, -4108, True)
+    styles.Add "Chrome", private_CandidatesConfig_CreateCellStyle( _
+        "Times New Roman", 16, VBA.RGB(255, 255, 255), VBA.RGB(0, 0, 0), _
+        -4108, -4108, True)
+    styles.Add "Command", private_CandidatesConfig_CreateCellStyle( _
+        "Times New Roman", 16, VBA.RGB(244, 176, 132), VBA.RGB(64, 64, 64), _
+        -4108, -4108, True)
+    Set titleStyle = private_CandidatesConfig_CreateCellStyle( _
+        "Times New Roman", 16, VBA.RGB(166, 166, 166), VBA.RGB(0, 0, 0), _
+        -4108, -4108, True)
+    titleStyle.Remove "FillColor"
+    styles.Add "Title", titleStyle
+    styles.Add "Selected", private_CandidatesConfig_CreateCellStyle( _
+        "Times New Roman", 16, VBA.RGB(255, 255, 255), VBA.RGB(112, 0, 56), _
+        -4108, -4108, True)
     Set outCandidatesConfig = VBA.CreateObject("Scripting.Dictionary")
     outCandidatesConfig.CompareMode = VBA.vbBinaryCompare
     outCandidatesConfig.Add "InputSheetName", INPUT_SHEET_NAME
     outCandidatesConfig.Add "LookupCellAddresses", lookupCellAddresses
+    outCandidatesConfig.Add "LookupFieldTitles", lookupFieldTitles
     outCandidatesConfig.Add "CandidateStartCellAddress", PERSONNEL_CANDIDATES_START_CELL_ADDRESS
+    outCandidatesConfig.Add "TableTitlePrefix", "Кандидати -"
     outCandidatesConfig.Add "HideCommandText", "Сховати"
     outCandidatesConfig.Add "MaxCandidateCount", PERSONNEL_CANDIDATES_MAX_COUNT
     outCandidatesConfig.Add "QueryCallbackName", "ex_VacationTicketGeneration.fn_TryFindPersonnelCandidates"
     outCandidatesConfig.Add "SelectedValueIndex", 0
     outCandidatesConfig.Add "Columns", columns
-    outCandidatesConfig.Add "Style", styleConfig
+    outCandidatesConfig.Add "Styles", styles
+    outCandidatesConfig.Add "TableStyleName", "Candidate"
+    outCandidatesConfig.Add "ChromeStyleName", "Chrome"
+    outCandidatesConfig.Add "CommandStyleName", "Command"
+    outCandidatesConfig.Add "TitleStyleName", "Title"
+    outCandidatesConfig.Add "SelectedStyleName", "Selected"
     fn_TryGetCandidatesConfig = True
 End Function
 
@@ -517,6 +532,36 @@ EH:
 End Sub
 ' --------------------------------------
 ' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace CandidatesConfig {
+' --------------------------------------
+' Создаёт стиль ячейки в едином контракте, используемом общим модулем кандидатов.
+Private Function private_CandidatesConfig_CreateCellStyle( _
+    ByVal fontName As String, _
+    ByVal fontSize As Double, _
+    ByVal fontColor As Long, _
+    ByVal fillColor As Long, _
+    ByVal horizontalAlignment As Long, _
+    ByVal verticalAlignment As Long, _
+    ByVal wrapText As Boolean _
+) As Object
+    Dim cellStyle As Object
+
+    Set cellStyle = VBA.CreateObject("Scripting.Dictionary")
+    cellStyle.CompareMode = VBA.vbBinaryCompare
+    cellStyle.Add "FontName", fontName
+    cellStyle.Add "FontSize", fontSize
+    cellStyle.Add "FontColor", fontColor
+    cellStyle.Add "FillColor", fillColor
+    cellStyle.Add "HorizontalAlignment", horizontalAlignment
+    cellStyle.Add "VerticalAlignment", verticalAlignment
+    cellStyle.Add "WrapText", wrapText
+    Set private_CandidatesConfig_CreateCellStyle = cellStyle
+End Function
+' --------------------------------------
+' } // namespace CandidatesConfig
 ' --------------------------------------
 
 ' --------------------------------------

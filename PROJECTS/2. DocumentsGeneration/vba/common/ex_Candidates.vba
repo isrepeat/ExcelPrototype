@@ -2,22 +2,20 @@ Option Explicit
 
 Private configuredInputSheetName As String
 Private configuredLookupCellAddresses As Collection
+Private configuredLookupFieldTitles As Object
 Private configuredCandidateStartCellAddress As String
+Private configuredTableTitlePrefix As String
 Private configuredHideCommandText As String
 Private configuredMaxCandidateCount As Long
 Private configuredQueryCallbackName As String
 Private configuredSelectedValueIndex As Long
 Private configuredColumns As Collection
-Private configuredFontColor As Long
-Private configuredFillColor As Long
-Private configuredSelectedFillColor As Long
-Private configuredHeaderFontColor As Long
-Private configuredHeaderFillColor As Long
-Private configuredFontName As String
-Private configuredFontSize As Double
-Private configuredHorizontalAlignment As Long
-Private configuredVerticalAlignment As Long
-Private configuredWrapText As Boolean
+Private configuredStyles As Object
+Private configuredTableStyleName As String
+Private configuredChromeStyleName As String
+Private configuredCommandStyleName As String
+Private configuredTitleStyleName As String
+Private configuredSelectedStyleName As String
 Private originalCandidateCellStyles As Object
 Private activeLookupCellAddress As String
 Private selectedCandidateRow As Range
@@ -158,27 +156,24 @@ End Sub
 ' --------------------------------------
 Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Object) As Boolean
     Dim lookupCellAddresses As Collection
-    Dim styleConfig As Object
 
     isConfigured = False
     configuredInputSheetName = VBA.vbNullString
     Set configuredLookupCellAddresses = Nothing
+    Set configuredLookupFieldTitles = Nothing
     configuredCandidateStartCellAddress = VBA.vbNullString
+    configuredTableTitlePrefix = VBA.vbNullString
     configuredHideCommandText = VBA.vbNullString
     configuredMaxCandidateCount = 0
     configuredQueryCallbackName = VBA.vbNullString
     configuredSelectedValueIndex = 0
     Set configuredColumns = Nothing
-    configuredFontColor = 0
-    configuredFillColor = 0
-    configuredSelectedFillColor = 0
-    configuredHeaderFontColor = 0
-    configuredHeaderFillColor = 0
-    configuredFontName = VBA.vbNullString
-    configuredFontSize = 0
-    configuredHorizontalAlignment = 0
-    configuredVerticalAlignment = 0
-    configuredWrapText = False
+    Set configuredStyles = Nothing
+    configuredTableStyleName = VBA.vbNullString
+    configuredChromeStyleName = VBA.vbNullString
+    configuredCommandStyleName = VBA.vbNullString
+    configuredTitleStyleName = VBA.vbNullString
+    configuredSelectedStyleName = VBA.vbNullString
     If candidatesConfig Is Nothing Then
         VBA.MsgBox "Candidate configuration was not provided.", VBA.vbExclamation, _
             "Document Generation"
@@ -193,8 +188,14 @@ Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Obje
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
+    If Not private_Candidates_TryGetRequiredObject( _
+        candidatesConfig, "LookupFieldTitles", configuredLookupFieldTitles) Then Exit Function
+    If Not private_Candidates_TryValidateLookupFieldTitles( _
+        lookupCellAddresses) Then Exit Function
     If Not private_Candidates_TryGetRequiredText(candidatesConfig, _
         "CandidateStartCellAddress", configuredCandidateStartCellAddress) Then Exit Function
+    If Not private_Candidates_TryGetRequiredText(candidatesConfig, _
+        "TableTitlePrefix", configuredTableTitlePrefix) Then Exit Function
     If Not private_Candidates_TryGetRequiredText(candidatesConfig, _
         "HideCommandText", configuredHideCommandText) Then Exit Function
     If Not private_Candidates_TryGetRequiredLong(candidatesConfig, _
@@ -217,32 +218,27 @@ Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Obje
         "Columns", configuredColumns) Then Exit Function
     If Not private_Candidates_TryValidateColumns(configuredColumns) Then Exit Function
     If Not private_Candidates_TryGetRequiredObject( _
-        candidatesConfig, "Style", styleConfig) Then Exit Function
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "FontColor", configuredFontColor) Then Exit Function
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "FillColor", configuredFillColor) Then Exit Function
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "SelectedFillColor", configuredSelectedFillColor) Then Exit Function
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "HeaderFontColor", configuredHeaderFontColor) Then Exit Function
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "HeaderFillColor", configuredHeaderFillColor) Then Exit Function
+        candidatesConfig, "Styles", configuredStyles) Then Exit Function
     If Not private_Candidates_TryGetRequiredText( _
-        styleConfig, "FontName", configuredFontName) Then Exit Function
-    If Not private_Candidates_TryGetRequiredDouble( _
-        styleConfig, "FontSize", configuredFontSize) Then Exit Function
-    If configuredFontSize <= 0 Then
-        VBA.MsgBox "Candidate style FontSize must be greater than zero.", _
-            VBA.vbExclamation, "Document Generation"
-        Exit Function
-    End If
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "HorizontalAlignment", configuredHorizontalAlignment) Then Exit Function
-    If Not private_Candidates_TryGetRequiredLong( _
-        styleConfig, "VerticalAlignment", configuredVerticalAlignment) Then Exit Function
-    If Not private_Candidates_TryGetRequiredBoolean( _
-        styleConfig, "WrapText", configuredWrapText) Then Exit Function
+        candidatesConfig, "TableStyleName", configuredTableStyleName) Then Exit Function
+    If Not private_Candidates_TryGetRequiredText( _
+        candidatesConfig, "ChromeStyleName", configuredChromeStyleName) Then Exit Function
+    If Not private_Candidates_TryGetRequiredText( _
+        candidatesConfig, "CommandStyleName", configuredCommandStyleName) Then Exit Function
+    If Not private_Candidates_TryGetRequiredText( _
+        candidatesConfig, "TitleStyleName", configuredTitleStyleName) Then Exit Function
+    If Not private_Candidates_TryGetRequiredText( _
+        candidatesConfig, "SelectedStyleName", configuredSelectedStyleName) Then Exit Function
+    If Not private_Candidates_TryValidateConfiguredStyle( _
+        configuredTableStyleName) Then Exit Function
+    If Not private_Candidates_TryValidateConfiguredStyle( _
+        configuredChromeStyleName) Then Exit Function
+    If Not private_Candidates_TryValidateConfiguredStyle( _
+        configuredCommandStyleName) Then Exit Function
+    If Not private_Candidates_TryValidateConfiguredStyle( _
+        configuredTitleStyleName) Then Exit Function
+    If Not private_Candidates_TryValidateConfiguredStyle( _
+        configuredSelectedStyleName) Then Exit Function
     Set configuredLookupCellAddresses = lookupCellAddresses
     private_Candidates_TryReadConfig = True
 End Function
@@ -307,6 +303,36 @@ Private Function private_Candidates_TryValidateColumns( _
         Exit Function
     End If
     private_Candidates_TryValidateColumns = True
+End Function
+
+Private Function private_Candidates_TryValidateLookupFieldTitles( _
+    ByVal lookupCellAddresses As Collection _
+) As Boolean
+    Dim lookupCellAddress As Variant
+    Dim lookupFieldTitle As String
+
+    On Error GoTo EH
+    For Each lookupCellAddress In lookupCellAddresses
+        If Not configuredLookupFieldTitles.Exists(VBA.CStr(lookupCellAddress)) Then
+            VBA.MsgBox "Candidate title is not configured for lookup cell '" & _
+                VBA.CStr(lookupCellAddress) & "'.", VBA.vbExclamation, _
+                "Document Generation"
+            Exit Function
+        End If
+        lookupFieldTitle = VBA.Trim$(VBA.CStr(configuredLookupFieldTitles.Item( _
+            VBA.CStr(lookupCellAddress))))
+        If VBA.Len(lookupFieldTitle) = 0 Then
+            VBA.MsgBox "Candidate title is empty for lookup cell '" & _
+                VBA.CStr(lookupCellAddress) & "'.", VBA.vbExclamation, _
+                "Document Generation"
+            Exit Function
+        End If
+    Next lookupCellAddress
+    private_Candidates_TryValidateLookupFieldTitles = True
+    Exit Function
+EH:
+    VBA.MsgBox "Candidate LookupFieldTitles must be a dictionary of text values.", _
+        VBA.vbExclamation, "Document Generation"
 End Function
 
 Private Function private_Candidates_TryGetRequiredText(ByVal candidatesConfig As Object, _
@@ -399,6 +425,85 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Function
 
+' Единый контракт стиля ячейки. Роли таблицы задаются только ссылками на
+' именованные стили в конфигурации, а не специальными свойствами модуля.
+Private Function private_Candidates_TryValidateConfiguredStyle( _
+    ByVal styleName As String _
+) As Boolean
+    Dim cellStyle As Object
+    Dim fontSize As Double
+
+    If Not private_Candidates_TryGetConfiguredStyle(styleName, cellStyle) Then Exit Function
+    If cellStyle.Count = 0 Then
+        VBA.MsgBox "Candidate style '" & styleName & "' must define at least one property.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If cellStyle.Exists("FontSize") Then
+        If Not private_Candidates_TryGetRequiredDouble(cellStyle, "FontSize", fontSize) Then Exit Function
+        If fontSize <= 0 Then
+            VBA.MsgBox "Candidate style '" & styleName & "' FontSize must be greater than zero.", _
+                VBA.vbExclamation, "Document Generation"
+            Exit Function
+        End If
+    End If
+    private_Candidates_TryValidateConfiguredStyle = True
+End Function
+
+Private Function private_Candidates_TryGetConfiguredStyle( _
+    ByVal styleName As String, _
+    ByRef outCellStyle As Object _
+) As Boolean
+    On Error GoTo EH
+    Set outCellStyle = Nothing
+    If configuredStyles Is Nothing Then GoTo MissingStyle
+    If Not configuredStyles.Exists(styleName) Then GoTo MissingStyle
+    Set outCellStyle = configuredStyles.Item(styleName)
+    If outCellStyle Is Nothing Then GoTo MissingStyle
+    private_Candidates_TryGetConfiguredStyle = True
+    Exit Function
+MissingStyle:
+    VBA.MsgBox "Candidate cell style '" & styleName & "' is required.", _
+        VBA.vbExclamation, "Document Generation"
+    Exit Function
+EH:
+    VBA.MsgBox "Candidate cell style '" & styleName & "' must be an object.", _
+        VBA.vbExclamation, "Document Generation"
+End Function
+
+Private Function private_Candidates_TryApplyCellStyle( _
+    ByVal targetRange As Range, _
+    ByVal styleName As String _
+) As Boolean
+    Dim cellStyle As Object
+
+    On Error GoTo EH
+    If Not private_Candidates_TryGetConfiguredStyle(styleName, cellStyle) Then Exit Function
+    If cellStyle.Exists("FontName") Then targetRange.Font.Name = _
+        VBA.CStr(cellStyle.Item("FontName"))
+    If cellStyle.Exists("FontSize") Then targetRange.Font.Size = _
+        VBA.CDbl(cellStyle.Item("FontSize"))
+    If cellStyle.Exists("FontColor") Then targetRange.Font.Color = _
+        VBA.CLng(cellStyle.Item("FontColor"))
+    If cellStyle.Exists("FillColor") Then targetRange.Interior.Color = _
+        VBA.CLng(cellStyle.Item("FillColor"))
+    If cellStyle.Exists("HorizontalAlignment") Then targetRange.HorizontalAlignment = _
+        VBA.CLng(cellStyle.Item("HorizontalAlignment"))
+    If cellStyle.Exists("VerticalAlignment") Then targetRange.VerticalAlignment = _
+        VBA.CLng(cellStyle.Item("VerticalAlignment"))
+    If cellStyle.Exists("WrapText") Then targetRange.WrapText = _
+        VBA.CBool(cellStyle.Item("WrapText"))
+    private_Candidates_TryApplyCellStyle = True
+    Exit Function
+EH:
+    ex_Helpers.LogError "Failed to apply candidate cell style | Style=" & _
+        styleName & " | Number=" & VBA.CStr(VBA.Err.Number) & _
+        " | Description=" & VBA.Err.Description
+    VBA.MsgBox "Failed to apply candidate cell style '" & styleName & "': [" & _
+        VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
+        VBA.vbExclamation, "Document Generation"
+End Function
+
 Private Function private_Candidates_TryEnsureConfigured() As Boolean
     If isConfigured Then
         private_Candidates_TryEnsureConfigured = True
@@ -465,9 +570,9 @@ Private Function private_Candidates_TryClearTable( _
 
     On Error GoTo EH
     If Not private_Candidates_TryClear(candidateRange) Then Exit Function
-    Set candidateTableRange = candidateRange.Rows(1).Offset(-2, 0).Resize( _
-        candidateRange.Rows.Count + 2, candidateRange.Columns.Count)
-    candidateTableRange.Rows(1).Resize(2, candidateRange.Columns.Count).ClearContents
+    Set candidateTableRange = candidateRange.Rows(1).Offset(-3, 0).Resize( _
+        candidateRange.Rows.Count + 3, candidateRange.Columns.Count)
+    candidateTableRange.Rows(1).Resize(3, candidateRange.Columns.Count).ClearContents
     private_Candidates_TryClearTable = True
     Exit Function
 EH:
@@ -483,39 +588,48 @@ Private Function private_Candidates_TryApplyHeaders() As Boolean
     Dim candidateRange As Range
     Dim headerRange As Range
     Dim commandCell As Range
+    Dim titleCell As Range
     Dim headerCell As Range
     Dim columnConfig As Object
+    Dim lookupFieldTitle As String
     Dim outputColumnIndex As Long
 
     On Error GoTo EH
     Set sourceSheet = ThisWorkbook.Worksheets(configuredInputSheetName)
     If Not private_Candidates_TryGetCandidateRange(sourceSheet, candidateRange) Then Exit Function
-    If candidateRange.Row <= 1 Then
-        VBA.MsgBox "CandidateStartCellAddress must leave rows below for headers and candidates.", _
+    If candidateRange.Row <= 2 Then
+        VBA.MsgBox "CandidateStartCellAddress must leave rows above for title, headers and command.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     Set headerRange = candidateRange.Rows(1).Offset(-1, 0)
     Set commandCell = headerRange.Cells(1, 1).Offset(-1, 0)
+    Set titleCell = commandCell.Offset(-1, 0)
+    If Not configuredLookupFieldTitles.Exists(activeLookupCellAddress) Then
+        VBA.MsgBox "Candidate title is not configured for active lookup cell '" & _
+            activeLookupCellAddress & "'.", VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    lookupFieldTitle = VBA.CStr(configuredLookupFieldTitles.Item( _
+        activeLookupCellAddress))
+    If VBA.Len(VBA.Trim$(lookupFieldTitle)) = 0 Then
+        VBA.MsgBox "Candidate title is empty for active lookup cell '" & _
+            activeLookupCellAddress & "'.", VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not private_Candidates_TrySaveCellStyle(titleCell) Then Exit Function
     If Not private_Candidates_TrySaveCellStyle(commandCell) Then Exit Function
     For Each headerCell In headerRange.Cells
         If Not private_Candidates_TrySaveCellStyle(headerCell) Then Exit Function
     Next headerCell
-    commandCell.Font.Name = configuredFontName
-    commandCell.Font.Size = configuredFontSize
-    commandCell.Font.Color = configuredHeaderFontColor
-    commandCell.Interior.Color = configuredHeaderFillColor
-    commandCell.HorizontalAlignment = configuredHorizontalAlignment
-    commandCell.VerticalAlignment = configuredVerticalAlignment
-    commandCell.WrapText = configuredWrapText
+    If Not private_Candidates_TryApplyCellStyle( _
+        titleCell, configuredTitleStyleName) Then Exit Function
+    titleCell.Value = configuredTableTitlePrefix & " """ & lookupFieldTitle & """:"
+    If Not private_Candidates_TryApplyCellStyle( _
+        commandCell, configuredCommandStyleName) Then Exit Function
     commandCell.Value = configuredHideCommandText
-    headerRange.Font.Name = configuredFontName
-    headerRange.Font.Size = configuredFontSize
-    headerRange.Font.Color = configuredHeaderFontColor
-    headerRange.Interior.Color = configuredHeaderFillColor
-    headerRange.HorizontalAlignment = configuredHorizontalAlignment
-    headerRange.VerticalAlignment = configuredVerticalAlignment
-    headerRange.WrapText = configuredWrapText
+    If Not private_Candidates_TryApplyCellStyle( _
+        headerRange, configuredChromeStyleName) Then Exit Function
     outputColumnIndex = 0
     For Each columnConfig In configuredColumns
         outputColumnIndex = outputColumnIndex + 1
@@ -669,13 +783,8 @@ Private Function private_Candidates_TryRenderCandidates( _
     For Each candidateCell In outputRange.Cells
         If Not private_Candidates_TrySaveCellStyle(candidateCell) Then Exit Function
     Next candidateCell
-    outputRange.Font.Name = configuredFontName
-    outputRange.Font.Size = configuredFontSize
-    outputRange.Font.Color = configuredFontColor
-    outputRange.Interior.Color = configuredFillColor
-    outputRange.HorizontalAlignment = configuredHorizontalAlignment
-    outputRange.VerticalAlignment = configuredVerticalAlignment
-    outputRange.WrapText = configuredWrapText
+    If Not private_Candidates_TryApplyCellStyle( _
+        outputRange, configuredTableStyleName) Then Exit Function
     outputColumnIndex = 0
     For Each columnConfig In configuredColumns
         outputColumnIndex = outputColumnIndex + 1
@@ -724,10 +833,13 @@ Private Sub private_Candidates_Accept(ByVal sourceSheet As Worksheet, ByVal cand
     On Error GoTo EH
     Application.EnableEvents = False
     sourceSheet.Range(activeLookupCellAddress).Value = selectedValue
-    private_Candidates_ApplySelectedCellStyle candidateCell
+    If Not private_Candidates_TryApplySelectedCellStyle(candidateCell) Then GoTo CleanExit
     ex_Helpers.LogDebug "Candidate accepted | Sheet=" & sourceSheet.Name & _
         " | TargetCell=" & activeLookupCellAddress & " | CandidateRow=" & _
         VBA.CStr(candidateCell.Row)
+    Application.EnableEvents = eventsWereEnabled
+    Exit Sub
+CleanExit:
     Application.EnableEvents = eventsWereEnabled
     Exit Sub
 EH:
@@ -738,9 +850,9 @@ EH:
         VBA.Err.Description, VBA.vbExclamation, "Document Generation"
 End Sub
 
-Private Sub private_Candidates_ApplySelectedCellStyle( _
+Private Function private_Candidates_TryApplySelectedCellStyle( _
     ByVal candidateCell As Range _
-)
+) As Boolean
     Dim candidateRow As Range
 
     Set candidateRow = candidateCell.Worksheet.Cells( _
@@ -748,11 +860,14 @@ Private Sub private_Candidates_ApplySelectedCellStyle( _
         configuredCandidateStartCellAddress).Column).Resize( _
         1, configuredColumns.Count)
     If Not selectedCandidateRow Is Nothing Then
-        selectedCandidateRow.Interior.Color = configuredFillColor
+        If Not private_Candidates_TryApplyCellStyle( _
+            selectedCandidateRow, configuredTableStyleName) Then Exit Function
     End If
-    candidateRow.Interior.Color = configuredSelectedFillColor
+    If Not private_Candidates_TryApplyCellStyle( _
+        candidateRow, configuredSelectedStyleName) Then Exit Function
     Set selectedCandidateRow = candidateRow
-End Sub
+    private_Candidates_TryApplySelectedCellStyle = True
+End Function
 
 Private Function private_Candidates_TryGetOutputColumnIndex( _
     ByVal sourceIndex As Long, _
