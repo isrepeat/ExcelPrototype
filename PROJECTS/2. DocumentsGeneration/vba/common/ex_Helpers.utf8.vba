@@ -10,6 +10,9 @@ Private configuredLogFileSuffix As String
 Private logWriteFailureNotified As Boolean
 
 Private Const LOG_FOLDER_NAME As String = "2. DocumentsGeneration"
+' Имя журнала намеренно ASCII: VBA I/O на ПК с другой ANSI-локалью может
+' некорректно обработать имя книги, содержащее кириллицу.
+Private Const LOG_FILE_BASE_NAME As String = "documents_generation"
 
 ' --------------------------------------
 ' namespace Word {
@@ -907,16 +910,18 @@ End Function
 Public Sub ClearLog()
 #If ENABLE_LOGGING Then
 #If CLEAR_LOG_ON_GENERATION Then
-    Dim fileNumber As Integer
+    Dim fileSystem As Object
+    Dim logStream As Object
 
     On Error GoTo EH
-    fileNumber = VBA.FreeFile
-    Open GetLogFilePath() For Output As #fileNumber
-    Close #fileNumber
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    ' TristateTrue создаёт Unicode-журнал независимо от системной ANSI-кодировки.
+    Set logStream = fileSystem.OpenTextFile(GetLogFilePath(), 2, True, -1)
+    logStream.Close
     Exit Sub
 EH:
     On Error Resume Next
-    If fileNumber > 0 Then Close #fileNumber
+    If Not logStream Is Nothing Then logStream.Close
     private_Log_NotifyWriteFailure Err.Number, Err.Description
     On Error GoTo 0
 #End If
@@ -939,36 +944,28 @@ End Sub
 
 Public Sub WriteLog(ByVal messageText As String)
 #If ENABLE_LOGGING Then
-    Dim fileNumber As Integer
+    Dim fileSystem As Object
+    Dim logStream As Object
 
     On Error GoTo EH
-    fileNumber = VBA.FreeFile
-    Open GetLogFilePath() For Append As #fileNumber
-    Print #fileNumber, VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    ' TristateTrue сохраняет украинские и русские символы без зависимости от ACP.
+    Set logStream = fileSystem.OpenTextFile(GetLogFilePath(), 8, True, -1)
+    logStream.WriteLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
         " | " & messageText
-    Close #fileNumber
+    logStream.Close
     Exit Sub
 EH:
     On Error Resume Next
-    If fileNumber > 0 Then Close #fileNumber
+    If Not logStream Is Nothing Then logStream.Close
     private_Log_NotifyWriteFailure Err.Number, Err.Description
     On Error GoTo 0
 #End If
 End Sub
 
 Public Function GetLogFilePath() As String
-    Dim workbookName As String
-    Dim baseName As String
-    Dim dotPosition As Long
     Dim logFolderPath As String
 
-    workbookName = ThisWorkbook.Name
-    dotPosition = VBA.InStrRev(workbookName, ".")
-    If dotPosition > 0 Then
-        baseName = VBA.Left$(workbookName, dotPosition - 1)
-    Else
-        baseName = workbookName
-    End If
     If VBA.Len(configuredLogFileSuffix) = 0 Then
         Err.Raise VBA.vbObjectError + 4102, "GetLogFilePath", _
             "Log file suffix was not configured by the calling module."
@@ -978,7 +975,7 @@ Public Function GetLogFilePath() As String
             "The local log folder is unavailable."
     End If
     GetLogFilePath = logFolderPath & Application.PathSeparator & _
-        baseName & configuredLogFileSuffix
+        LOG_FILE_BASE_NAME & configuredLogFileSuffix
 End Function
 
 ' Создаёт локальную папку журнала, не зависящую от пути открытия Excel-книги.
@@ -1016,10 +1013,10 @@ Private Sub private_Log_NotifyWriteFailure( _
     If logWriteFailureNotified Then Exit Sub
 
     logWriteFailureNotified = True
-    VBA.MsgBox "Не удалось записать журнал в локальную папку '%TEMP%\" & _
-        LOG_FOLDER_NAME & "'. Генерация будет продолжена без журнала." & _
-        VBA.vbCrLf & VBA.vbCrLf & "Ошибка [" & VBA.CStr(errorNumber) & _
-        "]: " & errorDescription, VBA.vbExclamation, "Document Generation"
+    VBA.MsgBox "Unable to write the log to '%TEMP%\" & LOG_FOLDER_NAME & _
+        "'. Generation will continue without logging." & VBA.vbCrLf & _
+        VBA.vbCrLf & "Error [" & VBA.CStr(errorNumber) & "]: " & _
+        errorDescription, VBA.vbExclamation, "Document Generation"
 End Sub
 ' --------------------------------------
 ' } // namespace Logging
