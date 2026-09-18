@@ -21,8 +21,16 @@ Private Const INPUT_ALIAS_TVO_LOOKUP As String = "TvoLookup"
 Private Const INPUT_ALIAS_STATUS As String = "Status"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 Private Const INPUT_ALIAS_OUTPUT_FOLDER_PATH As String = "OutputFolderPath"
-Private Const INPUT_CANDIDATES_RANGE_ADDRESS As String = "J4:K23"
-Private Const INPUT_CANDIDATES_MAX_COUNT As Long = 20
+Private Const PERSONNEL_CANDIDATES_START_CELL_ADDRESS As String = "J4"
+Private Const PERSONNEL_CANDIDATES_MAX_COUNT As Long = 20
+Private Const PERSONNEL_CANDIDATES_TABLE_REF As String = "[АЛФ$A1:J12000]"
+Private Const PERSONNEL_CANDIDATES_FIO_FIELD As String = "ПІБ"
+Private Const PERSONNEL_CANDIDATES_IPN_FIELD As String = "ІПН"
+Private Const PERSONNEL_CANDIDATES_FONT_NAME As String = "Times New Roman"
+Private Const PERSONNEL_CANDIDATES_FONT_SIZE As Long = 11
+' -4108 соответствует Excel-константе xlCenter.
+Private Const PERSONNEL_CANDIDATES_HORIZONTAL_ALIGNMENT As Long = -4108
+Private Const PERSONNEL_CANDIDATES_VERTICAL_ALIGNMENT As Long = -4108
 
 ' Канонические типы отпусков и отдельные тексты для Word и реестра Квитки.
 Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
@@ -91,17 +99,16 @@ Public Function fn_TryInitializeUiRuntime() As Boolean
         LOG_FILE_SUFFIX)
 End Function
 
-' Возвращает конфигурацию поиска персонала, принадлежащую форме отпуска.
-Public Function fn_TryGetPersonnelCandidatesConfig( _
-    ByRef outInputSheetName As String, _
-    ByRef outLookupCellAddresses As Collection, _
-    ByRef outCandidateRangeAddress As String, _
-    ByRef outMaxCandidateCount As Long _
+' Возвращает конфигурацию универсального поиска кандидатов формы отпуска.
+Public Function fn_TryGetCandidatesConfig( _
+    ByRef outCandidatesConfig As Object _
 ) As Boolean
-    outInputSheetName = VBA.vbNullString
-    Set outLookupCellAddresses = Nothing
-    outCandidateRangeAddress = VBA.vbNullString
-    outMaxCandidateCount = 0
+    Dim lookupCellAddresses As Collection
+    Dim columns As Collection
+    Dim columnConfig As Object
+    Dim styleConfig As Object
+
+    Set outCandidatesConfig = Nothing
     private_Initialize
     If inputCellMap Is Nothing Then
         VBA.MsgBox "Vacation input cell map is not initialized.", _
@@ -115,15 +122,89 @@ Public Function fn_TryGetPersonnelCandidatesConfig( _
         Exit Function
     End If
 
-    Set outLookupCellAddresses = New Collection
-    outLookupCellAddresses.Add VBA.CStr(inputCellMap( _
+    Set lookupCellAddresses = New Collection
+    lookupCellAddresses.Add VBA.CStr(inputCellMap( _
         INPUT_ALIAS_PERSON_LOOKUP))
-    outLookupCellAddresses.Add VBA.CStr(inputCellMap( _
+    lookupCellAddresses.Add VBA.CStr(inputCellMap( _
         INPUT_ALIAS_TVO_LOOKUP))
-    outInputSheetName = INPUT_SHEET_NAME
-    outCandidateRangeAddress = INPUT_CANDIDATES_RANGE_ADDRESS
-    outMaxCandidateCount = INPUT_CANDIDATES_MAX_COUNT
-    fn_TryGetPersonnelCandidatesConfig = True
+    ' Порядок элементов Columns — порядок колонок от CandidateStartCellAddress.
+    ' SourceIndex — индекс значения в массиве, возвращённом query callback.
+    Set columns = New Collection
+    Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
+    columnConfig.CompareMode = VBA.vbBinaryCompare
+    columnConfig.Add "SourceIndex", 0
+    columnConfig.Add "NumberFormat", "General"
+    columns.Add columnConfig
+    Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
+    columnConfig.CompareMode = VBA.vbBinaryCompare
+    columnConfig.Add "SourceIndex", 1
+    columnConfig.Add "NumberFormat", "@"
+    columns.Add columnConfig
+    Set styleConfig = VBA.CreateObject("Scripting.Dictionary")
+    styleConfig.CompareMode = VBA.vbBinaryCompare
+    styleConfig.Add "FontColor", VBA.RGB(255, 255, 255)
+    styleConfig.Add "FillColor", VBA.RGB(0, 96, 32)
+    styleConfig.Add "SelectedFillColor", VBA.RGB(112, 0, 56)
+    styleConfig.Add "FontName", PERSONNEL_CANDIDATES_FONT_NAME
+    styleConfig.Add "FontSize", PERSONNEL_CANDIDATES_FONT_SIZE
+    styleConfig.Add "HorizontalAlignment", _
+        PERSONNEL_CANDIDATES_HORIZONTAL_ALIGNMENT
+    styleConfig.Add "VerticalAlignment", _
+        PERSONNEL_CANDIDATES_VERTICAL_ALIGNMENT
+    styleConfig.Add "WrapText", True
+    Set outCandidatesConfig = VBA.CreateObject("Scripting.Dictionary")
+    outCandidatesConfig.CompareMode = VBA.vbBinaryCompare
+    outCandidatesConfig.Add "InputSheetName", INPUT_SHEET_NAME
+    outCandidatesConfig.Add "LookupCellAddresses", lookupCellAddresses
+    outCandidatesConfig.Add "CandidateStartCellAddress", PERSONNEL_CANDIDATES_START_CELL_ADDRESS
+    outCandidatesConfig.Add "MaxCandidateCount", PERSONNEL_CANDIDATES_MAX_COUNT
+    outCandidatesConfig.Add "QueryCallbackName", "ex_VacationTicketGeneration.fn_TryFindPersonnelCandidates"
+    outCandidatesConfig.Add "SelectedValueIndex", 0
+    outCandidatesConfig.Add "Columns", columns
+    outCandidatesConfig.Add "Style", styleConfig
+    fn_TryGetCandidatesConfig = True
+End Function
+
+' Выполняет предметный SQL-запрос формы отпуска и возвращает пары ПІБ/ІПН.
+Public Function fn_TryFindPersonnelCandidates( _
+    ByVal searchText As String, _
+    ByVal maxCandidateCount As Long _
+) As Collection
+    Dim normalizedSearchText As String
+    Dim sqlText As String
+    Dim candidates As Collection
+    Dim candidateFieldNames As Collection
+
+    normalizedSearchText = ex_Helpers.private_Text_Normalize(searchText)
+    If VBA.Len(normalizedSearchText) = 0 Then
+        Set candidates = New Collection
+        Set fn_TryFindPersonnelCandidates = candidates
+        Exit Function
+    End If
+    If maxCandidateCount <= 0 Then
+        VBA.MsgBox "Maximum candidate count must be greater than zero.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    sqlText = "SELECT TOP " & VBA.CStr(maxCandidateCount) & " [" & _
+        PERSONNEL_CANDIDATES_FIO_FIELD & "], [" & _
+        PERSONNEL_CANDIDATES_IPN_FIELD & "] FROM " & _
+        PERSONNEL_CANDIDATES_TABLE_REF & " WHERE UCASE(TRIM(CSTR(IIF(ISNULL([" & _
+        PERSONNEL_CANDIDATES_FIO_FIELD & "]), '', [" & _
+        PERSONNEL_CANDIDATES_FIO_FIELD & "])))) LIKE '%" & _
+        ex_ExternalTables.ex_EscapeSql(VBA.UCase$(normalizedSearchText)) & _
+        "%' OR UCASE(TRIM(CSTR(IIF(ISNULL([" & _
+        PERSONNEL_CANDIDATES_IPN_FIELD & "]), '', [" & _
+        PERSONNEL_CANDIDATES_IPN_FIELD & "])))) LIKE '%" & _
+        ex_ExternalTables.ex_EscapeSql(VBA.UCase$(normalizedSearchText)) & _
+        "%' ORDER BY [" & PERSONNEL_CANDIDATES_FIO_FIELD & "]"
+    ex_Helpers.LogDebug "Vacation candidate query SQL: " & sqlText
+    Set candidateFieldNames = New Collection
+    candidateFieldNames.Add PERSONNEL_CANDIDATES_FIO_FIELD
+    candidateFieldNames.Add PERSONNEL_CANDIDATES_IPN_FIELD
+    If Not ex_PersonnelData.ex_TryExecuteShpoCandidateSql( _
+        sqlText, candidateFieldNames, candidates) Then Exit Function
+    Set fn_TryFindPersonnelCandidates = candidates
 End Function
 
 Private Sub private_Generate(ByVal isUpdateMode As Boolean)
