@@ -21,6 +21,8 @@ Private Const INPUT_ALIAS_TVO_LOOKUP As String = "TvoLookup"
 Private Const INPUT_ALIAS_STATUS As String = "Status"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 Private Const INPUT_ALIAS_OUTPUT_FOLDER_PATH As String = "OutputFolderPath"
+Private Const INPUT_CANDIDATES_RANGE_ADDRESS As String = "J4:K23"
+Private Const INPUT_CANDIDATES_MAX_COUNT As Long = 20
 
 ' Канонические типы отпусков и отдельные тексты для Word и реестра Квитки.
 Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
@@ -82,6 +84,47 @@ End Sub
 Public Sub fn_VacationTicketGeneration_Update()
     private_Generate True
 End Sub
+
+' Инициализирует зависимости формы, нужные до запуска генерации документа.
+Public Function fn_TryInitializeUiRuntime() As Boolean
+    fn_TryInitializeUiRuntime = ex_Helpers.ex_TryConfigureLogFileSuffix( _
+        LOG_FILE_SUFFIX)
+End Function
+
+' Возвращает конфигурацию поиска персонала, принадлежащую форме отпуска.
+Public Function fn_TryGetPersonnelCandidatesConfig( _
+    ByRef outInputSheetName As String, _
+    ByRef outLookupCellAddresses As Collection, _
+    ByRef outCandidateRangeAddress As String, _
+    ByRef outMaxCandidateCount As Long _
+) As Boolean
+    outInputSheetName = VBA.vbNullString
+    Set outLookupCellAddresses = Nothing
+    outCandidateRangeAddress = VBA.vbNullString
+    outMaxCandidateCount = 0
+    private_Initialize
+    If inputCellMap Is Nothing Then
+        VBA.MsgBox "Vacation input cell map is not initialized.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not inputCellMap.Exists(INPUT_ALIAS_PERSON_LOOKUP) Or _
+       Not inputCellMap.Exists(INPUT_ALIAS_TVO_LOOKUP) Then
+        VBA.MsgBox "Vacation personnel lookup cells are not configured.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+
+    Set outLookupCellAddresses = New Collection
+    outLookupCellAddresses.Add VBA.CStr(inputCellMap( _
+        INPUT_ALIAS_PERSON_LOOKUP))
+    outLookupCellAddresses.Add VBA.CStr(inputCellMap( _
+        INPUT_ALIAS_TVO_LOOKUP))
+    outInputSheetName = INPUT_SHEET_NAME
+    outCandidateRangeAddress = INPUT_CANDIDATES_RANGE_ADDRESS
+    outMaxCandidateCount = INPUT_CANDIDATES_MAX_COUNT
+    fn_TryGetPersonnelCandidatesConfig = True
+End Function
 
 Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     Dim personLookup As String, tvoLookup As String
