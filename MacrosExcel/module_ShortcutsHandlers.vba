@@ -111,7 +111,7 @@ Public Sub fn_ReloadActiveWorkbookVba()
     private_CollectVbaFiles vbaFolderPath, importFiles, documentImportFiles
     If importFiles.Count = 0 And documentImportFiles.Count = 0 Then
         VBA.MsgBox _
-            "No .bas, .cls, .frm, or .vba files were found in: " & vbaFolderPath, _
+            "No .bas, .cls, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
     End If
@@ -283,9 +283,9 @@ Private Function private_IsDocumentModuleSource( _
     ByVal lowerFileName As String _
 ) As Boolean
     private_IsDocumentModuleSource = ( _
-        VBA.StrComp(lowerFileName, "thisworkbook.vba", VBA.vbTextCompare) = 0 Or _
+        private_IsThisWorkbookModuleSource(lowerFileName) Or _
         (VBA.Left$(lowerFileName, 3) = "ws_" And _
-         VBA.Right$(lowerFileName, 4) = ".vba"))
+         private_IsVbaSourceFile(lowerFileName)))
 End Function
 
 
@@ -307,7 +307,7 @@ Private Sub private_ImportVbaFile( _
         Exit Sub
     End If
 
-    sourceText = private_ReadTextFile(sourcePath)
+    sourceText = private_ReadUtf8TextFile(sourcePath)
     componentName = private_GetComponentName(sourcePath, sourceText)
     componentType = private_GetVbaComponentType(lowerPath, sourceText)
 
@@ -337,17 +337,16 @@ Private Sub private_ImportDocumentVbaFile( _
     On Error GoTo EH
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     fileName = VBA.CStr(fileSystem.GetFileName(sourcePath))
-    sourceText = private_ReadTextFile(sourcePath)
+    sourceText = private_ReadUtf8TextFile(sourcePath)
     If VBA.Len(sourceText) = 0 Then
         VBA.Err.Raise VBA.vbObjectError + 1201, _
             "private_ImportDocumentVbaFile", "Source is empty: " & sourcePath
     End If
 
-    If VBA.StrComp(fileName, "ThisWorkbook.vba", VBA.vbTextCompare) = 0 Then
+    If private_IsThisWorkbookModuleSource(fileName) Then
         componentName = targetWorkbook.CodeName
     Else
-        worksheetName = VBA.Mid$(fileName, 4, _
-            VBA.Len(fileName) - VBA.Len("ws_") - VBA.Len(".vba"))
+        worksheetName = private_GetDocumentModuleSourceName(fileName, "ws_")
         On Error Resume Next
         Set targetSheet = targetWorkbook.Worksheets(worksheetName)
         On Error GoTo EH
@@ -381,10 +380,12 @@ Private Function private_GetVbaComponentType( _
     Const VBEXT_CT_MS_FORM As Long = 3
 
     If VBA.Right$(lowerPath, 8) = ".cls.vba" Or _
+       VBA.Right$(lowerPath, 13) = ".cls.utf8.vba" Or _
         VBA.InStr(1, sourceText, "VERSION 1.0 CLASS", VBA.vbTextCompare) > 0 Then
         private_GetVbaComponentType = VBEXT_CT_CLASS_MODULE
     ElseIf VBA.Right$(lowerPath, 8) = ".frm.vba" Or _
-        VBA.InStr(1, sourceText, "BEGIN VB.Form", VBA.vbTextCompare) > 0 Then
+           VBA.Right$(lowerPath, 13) = ".frm.utf8.vba" Or _
+           VBA.InStr(1, sourceText, "BEGIN VB.Form", VBA.vbTextCompare) > 0 Then
         private_GetVbaComponentType = VBEXT_CT_MS_FORM
     Else
         private_GetVbaComponentType = VBEXT_CT_STD_MODULE
@@ -414,6 +415,9 @@ Private Function private_GetComponentName( _
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     fileName = fileSystem.GetBaseName(sourcePath)
+    If VBA.Right$(VBA.LCase$(fileName), 5) = ".utf8" Then
+        fileName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".utf8"))
+    End If
     If VBA.Right$(VBA.LCase$(fileName), 4) = ".cls" Or _
         VBA.Right$(VBA.LCase$(fileName), 4) = ".bas" Or _
         VBA.Right$(VBA.LCase$(fileName), 4) = ".frm" Then
@@ -446,7 +450,7 @@ Private Function private_RemoveExportMetadata(ByVal sourceText As String) As Str
 End Function
 
 
-Private Function private_ReadTextFile(ByVal filePath As String) As String
+Private Function private_ReadUtf8TextFile(ByVal filePath As String) As String
     Const AD_TYPE_TEXT As Long = 2
     Const AD_READ_ALL As Long = -1
 
@@ -459,8 +463,51 @@ Private Function private_ReadTextFile(ByVal filePath As String) As String
     textStream.Charset = "utf-8"
     textStream.Open
     textStream.LoadFromFile filePath
-    private_ReadTextFile = textStream.ReadText(AD_READ_ALL)
+    private_ReadUtf8TextFile = textStream.ReadText(AD_READ_ALL)
     textStream.Close
+    If VBA.Left$(private_ReadUtf8TextFile, 1) = VBA.ChrW$(65279) Then
+        private_ReadUtf8TextFile = VBA.Mid$(private_ReadUtf8TextFile, 2)
+    End If
+End Function
+
+
+' Источник .utf8.vba обязательно читается как UTF-8 и передаётся в
+' CodeModule.AddFromString как Unicode String, без VBComponents.Import.
+Private Function private_IsVbaSourceFile(ByVal lowerFileName As String) As Boolean
+    private_IsVbaSourceFile = (VBA.Right$(lowerFileName, 4) = ".vba")
+End Function
+
+
+Private Function private_IsThisWorkbookModuleSource(ByVal fileName As String) As Boolean
+    private_IsThisWorkbookModuleSource = ( _
+        VBA.StrComp(fileName, "ThisWorkbook.vba", VBA.vbTextCompare) = 0 Or _
+        VBA.StrComp(fileName, "ThisWorkbook.utf8.vba", VBA.vbTextCompare) = 0)
+End Function
+
+
+Private Function private_GetDocumentModuleSourceName( _
+    ByVal fileName As String, _
+    ByVal requiredPrefix As String _
+) As String
+    Dim sourceStem As String
+
+    sourceStem = fileName
+    If VBA.Right$(VBA.LCase$(sourceStem), 9) = ".utf8.vba" Then
+        sourceStem = VBA.Left$(sourceStem, VBA.Len(sourceStem) - VBA.Len(".utf8.vba"))
+    ElseIf VBA.Right$(VBA.LCase$(sourceStem), 4) = ".vba" Then
+        sourceStem = VBA.Left$(sourceStem, VBA.Len(sourceStem) - VBA.Len(".vba"))
+    Else
+        VBA.Err.Raise VBA.vbObjectError + 1203, _
+            "private_GetDocumentModuleSourceName", _
+            "Unsupported document module source extension: " & fileName
+    End If
+    If VBA.Left$(sourceStem, VBA.Len(requiredPrefix)) <> requiredPrefix Then
+        VBA.Err.Raise VBA.vbObjectError + 1204, _
+            "private_GetDocumentModuleSourceName", _
+            "Document module source has invalid prefix: " & fileName
+    End If
+    private_GetDocumentModuleSourceName = VBA.Mid$(sourceStem, _
+        VBA.Len(requiredPrefix) + 1)
 End Function
 
 
