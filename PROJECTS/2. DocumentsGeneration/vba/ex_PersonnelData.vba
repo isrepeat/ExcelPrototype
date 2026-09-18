@@ -72,6 +72,135 @@ Public Function ex_TryResolveIpn( _
         ALF_TABLE_REF, "ПІБ", personLookup, "ІПН", outIpnText)
 End Function
 
+' Возвращает кандидатов по части ПІБ или ІПН. Каждый элемент коллекции —
+' массив из двух значений: ПІБ (индекс 0) и ІПН (индекс 1).
+Public Function ex_TryFindPersonCandidates( _
+    ByVal searchText As String, _
+    ByVal maxCandidateCount As Long, _
+    ByRef outCandidates As Collection _
+) As Boolean
+    Dim shpoPath As String
+    Dim connection As Object, recordset As Object
+    Dim usesSessionConnection As Boolean
+    Dim normalizedSearchText As String
+    Dim sqlText As String
+    Dim fioText As String, ipnText As String
+
+    On Error GoTo EH
+    Set outCandidates = New Collection
+    normalizedSearchText = ex_Helpers.private_Text_Normalize(searchText)
+    If VBA.Len(normalizedSearchText) = 0 Then
+        ex_TryFindPersonCandidates = True
+        Exit Function
+    End If
+    If maxCandidateCount <= 0 Then
+        ex_Helpers.ex_ShowErrorMessage "Maximum candidate count must be greater than zero.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+
+    shpoPath = ex_Helpers.private_Path_ResolveFromWorkbook( _
+        SHPO_RELATIVE_PATH)
+    If VBA.Len(VBA.Dir$(shpoPath)) = 0 Then
+        ex_Helpers.ex_ShowErrorMessage "SHPO file was not found: " & shpoPath, _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not shpoSessionConnection Is Nothing Then
+        Set connection = shpoSessionConnection
+        usesSessionConnection = True
+    ElseIf Not ex_ExternalTables.ex_TryOpenConnection( _
+        shpoPath, "SHPO", connection) Then
+        GoTo CleanExit
+    End If
+
+    sqlText = "SELECT TOP " & VBA.CStr(maxCandidateCount) & _
+        " [ПІБ], [ІПН] FROM " & ALF_TABLE_REF & _
+        " WHERE UCASE(TRIM(CSTR(IIF(ISNULL([ПІБ]), '', [ПІБ])))) LIKE '%" & _
+        ex_ExternalTables.ex_EscapeSql(VBA.UCase$(normalizedSearchText)) & _
+        "%' OR UCASE(TRIM(CSTR(IIF(ISNULL([ІПН]), '', [ІПН])))) LIKE '%" & _
+        ex_ExternalTables.ex_EscapeSql(VBA.UCase$(normalizedSearchText)) & _
+        "%' ORDER BY [ПІБ]"
+    Set recordset = VBA.CreateObject("ADODB.Recordset")
+    recordset.Open sqlText, connection, AD_OPEN_STATIC, AD_LOCK_READ_ONLY
+    Do While Not recordset.EOF
+        fioText = ex_ExternalTables.ex_ReadText(recordset, "ПІБ")
+        ipnText = ex_ExternalTables.ex_ReadText(recordset, "ІПН")
+        If VBA.Len(fioText) > 0 And VBA.Len(ipnText) > 0 Then
+            outCandidates.Add VBA.Array(fioText, ipnText)
+        End If
+        recordset.MoveNext
+    Loop
+    ex_TryFindPersonCandidates = True
+
+CleanExit:
+    On Error Resume Next
+    If Not recordset Is Nothing Then recordset.Close
+    If Not usesSessionConnection And Not connection Is Nothing Then connection.Close
+    Set recordset = Nothing
+    Set connection = Nothing
+    On Error GoTo 0
+    Exit Function
+EH:
+    ex_Helpers.LogError "SHPO candidate lookup failed | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to search SHPO candidates: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, _
+        VBA.vbExclamation, "Document Generation"
+    Resume CleanExit
+End Function
+
+' Совместимый API для ex_VacationPersonAutocomplete. Возвращает только ПІБ,
+' потому что этот модуль записывает выбранную строку непосредственно в C4.
+Public Function ex_TryFindFioCandidates( _
+    ByVal fioPart As String, _
+    ByRef outCandidates As Collection _
+) As Boolean
+    Const MAX_CANDIDATES As Long = 50
+
+    Dim recordset As Object
+    Dim sqlText As String
+    Dim normalizedPart As String
+    Dim fioText As String
+
+    On Error GoTo EH
+    Set outCandidates = New Collection
+    normalizedPart = ex_Helpers.private_Text_Normalize(fioPart)
+    If VBA.Len(normalizedPart) < 2 Then
+        ex_Helpers.ex_ShowErrorMessage "Enter at least two FIO characters to search SHPO.", _
+            VBA.vbExclamation, "Document Generation"
+        Exit Function
+    End If
+    If Not ex_TryBeginSession() Then Exit Function
+
+    sqlText = "SELECT TOP " & VBA.CStr(MAX_CANDIDATES) & " [ПІБ] FROM " & _
+        ALF_TABLE_REF & " WHERE UCASE(TRIM(CSTR(IIF(ISNULL([ПІБ]), '', [ПІБ])))) " & _
+        "LIKE '%" & ex_ExternalTables.ex_EscapeSql( _
+            VBA.UCase$(normalizedPart)) & "%' ORDER BY [ПІБ]"
+    Set recordset = VBA.CreateObject("ADODB.Recordset")
+    recordset.Open sqlText, shpoSessionConnection, AD_OPEN_STATIC, AD_LOCK_READ_ONLY
+    Do While Not recordset.EOF
+        fioText = ex_ExternalTables.ex_ReadText(recordset, "ПІБ")
+        If VBA.Len(fioText) > 0 Then outCandidates.Add fioText
+        recordset.MoveNext
+    Loop
+    ex_TryFindFioCandidates = True
+
+CleanExit:
+    On Error Resume Next
+    If Not recordset Is Nothing Then recordset.Close
+    Set recordset = Nothing
+    On Error GoTo 0
+    Exit Function
+EH:
+    ex_Helpers.LogError "FIO candidates lookup failed | Number=" & _
+        VBA.CStr(Err.Number) & " | Description=" & Err.Description
+    ex_Helpers.ex_ShowErrorMessage "Failed to get FIO candidates from SHPO: [" & _
+        VBA.CStr(Err.Number) & "] " & Err.Description, _
+        VBA.vbExclamation, "Document Generation"
+    Resume CleanExit
+End Function
+
 Public Function ex_TryResolveOrderReference( _
     ByVal orderInput As String, _
     ByRef outOrderNo As String, _
