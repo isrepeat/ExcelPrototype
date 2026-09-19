@@ -22,6 +22,7 @@ Private Const CONTEXT_VALIDATION_ENABLED As String = "ValidateWord"
 Private Const CONTEXT_WORD_PREVIEW_TEXT As String = "WordExportPreviewText"
 Private Const CONTEXT_MANUAL_ORDER_NO As String = "ManualOrderNo"
 Private Const CONTEXT_MANUAL_ORDER_DATE_SERIAL As String = "ManualOrderDateSerial"
+Private Const CONTEXT_WORD_TEMPLATE_FILE_NAME As String = "WordTemplateFileName"
 Private Const CONTEXT_REPORT_IS_TVO As String = "ReportIsTvo"
 Private Const CONTEXT_MOVEMENT_PREVALIDATED As String = "MovementPrevalidated"
 Private Const SENTINEL_SHORT_DATE As Date = #1/1/1900#
@@ -1041,6 +1042,7 @@ Public Function Export( _
     Dim usePreparedPreview As Boolean
     Dim writeToWord As Boolean
     Dim documentFilepath As String
+    Dim wordTemplateFileName As String
 
     If m_IsDisposed Then
         VBA.MsgBox "PrototypeNew: WORD exporter is disposed.", VBA.vbExclamation, "PrototypeNew / WORD export"
@@ -1082,6 +1084,16 @@ Public Function Export( _
         context, CONTEXT_MANUAL_ORDER_NO)) = 0 Then
         VBA.MsgBox "PrototypeNew: documentFilepath requires a non-empty " & _
             "ManualOrderNo in export context.", VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+    If Not private_TryExtractFileName( _
+        m_Base.TargetWorkbookPath, wordTemplateFileName) Then Exit Function
+    If Not private_TrySetContextText( _
+        context, CONTEXT_WORD_TEMPLATE_FILE_NAME, _
+        wordTemplateFileName) Then
+        VBA.MsgBox "PrototypeNew: failed to add WordTemplateFileName " & _
+            "to WORD export context.", VBA.vbExclamation, _
             "PrototypeNew / WORD export"
         Exit Function
     End If
@@ -3678,6 +3690,44 @@ Private Function private_GetContextText(ByVal context As Object, ByVal keyText A
     Else
         private_GetContextText = private_NormalizeTemplateScalar(rawValueText)
     End If
+End Function
+
+Private Function private_TryExtractFileName( _
+    ByVal filePath As String, _
+    ByRef outFileName As String _
+) As Boolean
+    Dim normalizedPath As String
+    Dim separatorPos As Long
+    Dim extensionPos As Long
+
+    outFileName = VBA.vbNullString
+    normalizedPath = VBA.Trim$(filePath)
+    If VBA.Len(normalizedPath) = 0 Then
+        VBA.MsgBox "PrototypeNew: required profile key " & _
+            "'Export.Word.FilePath' is empty.", VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    normalizedPath = VBA.Replace(normalizedPath, "/", "\")
+    separatorPos = VBA.InStrRev(normalizedPath, "\")
+    If separatorPos > 0 Then
+        outFileName = VBA.Mid$(normalizedPath, separatorPos + 1)
+    Else
+        outFileName = normalizedPath
+    End If
+    outFileName = VBA.Trim$(outFileName)
+    extensionPos = VBA.InStrRev(outFileName, ".")
+
+    If VBA.Len(outFileName) = 0 Or extensionPos <= 1 Or _
+        extensionPos = VBA.Len(outFileName) Then
+        VBA.MsgBox "PrototypeNew: Export.Word.FilePath does not contain " & _
+            "a file name with extension: " & filePath, VBA.vbExclamation, _
+            "PrototypeNew / WORD export"
+        Exit Function
+    End If
+
+    private_TryExtractFileName = True
 End Function
 
 Private Function private_TrySetContextText( _
