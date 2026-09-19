@@ -5,7 +5,7 @@
   generationMode="anchored"
 >
   <documentFilepath>
-    <![CDATA[modes\PrsnlEvntBuilder\Template_08_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
+    <![CDATA[modes\PrsnlEvntBuilder\{WordTemplateFileName|regexreplace:"\.[^.]+$",""}_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
   </documentFilepath>
   <!-- Шаблоны для PEB WORD preview.
        Колонки DynamicTable читаются только как {[AliasOrHeader]} или item.[AliasOrHeader],
@@ -17,7 +17,7 @@
     <sharedTemplate id="block.PersonLineUpper">
       <text>
         <![CDATA[#^
-#_        {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}#^
+#_        {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -25,7 +25,7 @@
     <sharedTemplate id="block.PersonLineLower">
       <text>
         <![CDATA[#^
-#_        {[RankGenitive]} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}#^
+#_        {[RankGenitive]} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -163,7 +163,7 @@
     <sharedTemplate id="block.StatusChangePersonLine">
       <text>
         <![CDATA[#^
-#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {[PositionGenitive]|lowerFirstLetter}, #^
+#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}, #^
         ]]>
       </text>
     </sharedTemplate>

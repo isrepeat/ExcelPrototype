@@ -68,6 +68,7 @@ Public Sub fn_ReloadActiveWorkbookVba()
     Dim vbComponent As Object
     Dim componentNames As Collection
     Dim importFiles As Collection
+    Dim documentImportFiles As Collection
     Dim vbaFolderPath As String
     Dim targetWorkbookName As String
     Dim importedCount As Long
@@ -103,18 +104,14 @@ Public Sub fn_ReloadActiveWorkbookVba()
         Exit Sub
     End If
 
-    vbaFolderPath = targetWorkbook.Path & Application.PathSeparator & "vba"
-    If Not private_FolderExists(vbaFolderPath) Then
-        VBA.MsgBox "The VBA modules folder was not found: " & vbaFolderPath, _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Sub
-    End If
+    If Not private_TryResolveVbaFolder(targetWorkbook, vbaFolderPath) Then Exit Sub
 
     Set importFiles = New Collection
-    private_CollectVbaFiles vbaFolderPath, importFiles
-    If importFiles.Count = 0 Then
+    Set documentImportFiles = New Collection
+    private_CollectVbaFiles vbaFolderPath, importFiles, documentImportFiles
+    If importFiles.Count = 0 And documentImportFiles.Count = 0 Then
         VBA.MsgBox _
-            "No .bas, .cls, .frm, or .vba files were found in: " & vbaFolderPath, _
+            "No .bas, .cls, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
     End If
@@ -144,6 +141,14 @@ Public Sub fn_ReloadActiveWorkbookVba()
         importedCount = importedCount + 1
     Next importFile
 
+    ' Документные модули нельзя импортировать как обычные: Excel создаст
+    ' отдельный Module и события Workbook/Worksheet не будут вызываться.
+    For Each importFile In documentImportFiles
+        private_ImportDocumentVbaFile targetWorkbook, VBA.CStr(importFile)
+        importedCount = importedCount + 1
+    Next importFile
+    private_InitializeReloadedWorkbook targetWorkbook
+
     Application.StatusBar = "Imported VBA modules: " & _
         VBA.CStr(importedCount) & "; imported at: " & _
         VBA.Format$(VBA.Now, "dd.mm.yyyy HH:nn:ss")
@@ -159,16 +164,93 @@ EH:
     Application.StatusBar = False
     VBA.MsgBox "Failed to reload VBA modules in workbook '" & _
         targetWorkbookName & _
-        "': [" & VBA.CStr(Err.Number) & "] " & Err.Description & VBA.vbCrLf & _
+        "': [" & VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description & VBA.vbCrLf & _
         "Make sure 'Trust access to the VBA project object model' is enabled.", _
         VBA.vbCritical, "Reload VBA"
     Resume CleanExit
 End Sub
 
+' Поддерживает книги с runtime-регистрацией событий: после hot reload
+' Workbook_Open не выполняется, поэтому bootstrap вызывается явно.
+Private Sub private_InitializeReloadedWorkbook( _
+    ByVal targetWorkbook As Workbook _
+)
+    Dim bootstrapComponent As Object
+    Dim macroReference As String
+
+    On Error Resume Next
+    Set bootstrapComponent = targetWorkbook.VBProject.VBComponents( _
+        "ex_DocumentGenerationBootstrap")
+    On Error GoTo EH
+    If bootstrapComponent Is Nothing Then Exit Sub
+
+    macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+        "'!ex_DocumentGenerationBootstrap.fn_Initialize"
+    Application.Run macroReference
+    Exit Sub
+EH:
+    VBA.Err.Raise VBA.Err.Number, "private_InitializeReloadedWorkbook", _
+        "Failed to initialize reloaded workbook '" & targetWorkbook.Name & _
+        "': " & VBA.Err.Description
+End Sub
+
+Private Function private_TryResolveVbaFolder( _
+    ByVal targetWorkbook As Workbook, _
+    ByRef outVbaFolderPath As String _
+) As Boolean
+    Dim fileSystem As Object
+    Dim candidatePaths As Collection
+    Dim workbookFolderPath As String
+    Dim workspaceRootPath As String
+    Dim candidatePath As Variant
+
+    outVbaFolderPath = VBA.vbNullString
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    Set candidatePaths = New Collection
+    workbookFolderPath = targetWorkbook.Path
+
+    candidatePath = workbookFolderPath & Application.PathSeparator & "vba"
+    If private_FolderExists(VBA.CStr(candidatePath)) Then _
+        candidatePaths.Add VBA.CStr(candidatePath)
+
+    ' Книга DocumentsGeneration хранится в MacrosExcel/2. DocumentsGeneration,
+    ' а редактируемые исходники — в PROJECTS/2. DocumentsGeneration/vba.
+    If VBA.StrComp(fileSystem.GetFileName(workbookFolderPath), _
+            "2. DocumentsGeneration", VBA.vbTextCompare) = 0 And _
+       VBA.StrComp(fileSystem.GetFileName( _
+            fileSystem.GetParentFolderName(workbookFolderPath)), _
+            "MacrosExcel", VBA.vbTextCompare) = 0 Then
+        workspaceRootPath = fileSystem.GetParentFolderName( _
+            fileSystem.GetParentFolderName(workbookFolderPath))
+        candidatePath = workspaceRootPath & Application.PathSeparator & _
+            "PROJECTS" & Application.PathSeparator & _
+            "2. DocumentsGeneration" & Application.PathSeparator & "vba"
+        If private_FolderExists(VBA.CStr(candidatePath)) Then _
+            candidatePaths.Add VBA.CStr(candidatePath)
+    End If
+
+    If candidatePaths.Count = 0 Then
+        VBA.MsgBox "The VBA modules folder was not found beside the workbook " & _
+            "or in PROJECTS\2. DocumentsGeneration\vba.", _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+    If candidatePaths.Count > 1 Then
+        VBA.MsgBox "More than one VBA source folder was found. Keep only one " & _
+            "source location to avoid importing an unexpected version.", _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    outVbaFolderPath = VBA.CStr(candidatePaths.Item(1))
+    private_TryResolveVbaFolder = True
+End Function
+
 
 Private Sub private_CollectVbaFiles( _
     ByVal folderPath As String, _
-    ByRef outFiles As Collection _
+    ByRef outFiles As Collection, _
+    ByRef outDocumentFiles As Collection _
 )
     Dim fileSystem As Object
     Dim folder As Object
@@ -181,19 +263,30 @@ Private Sub private_CollectVbaFiles( _
 
     For Each file In folder.Files
         lowerName = VBA.LCase$(VBA.CStr(file.Name))
-        If VBA.Left$(lowerName, 13) <> "thisworkbook." And _
-            (VBA.Right$(lowerName, 4) = ".bas" Or _
-             VBA.Right$(lowerName, 4) = ".cls" Or _
-             VBA.Right$(lowerName, 4) = ".frm" Or _
-             VBA.Right$(lowerName, 4) = ".vba") Then
+        If private_IsDocumentModuleSource(lowerName) Then
+            outDocumentFiles.Add VBA.CStr(file.Path)
+        ElseIf VBA.Right$(lowerName, 4) = ".bas" Or _
+               VBA.Right$(lowerName, 4) = ".cls" Or _
+               VBA.Right$(lowerName, 4) = ".frm" Or _
+               VBA.Right$(lowerName, 4) = ".vba" Then
             outFiles.Add VBA.CStr(file.Path)
         End If
     Next file
 
     For Each childFolder In folder.SubFolders
-        private_CollectVbaFiles VBA.CStr(childFolder.Path), outFiles
+        private_CollectVbaFiles VBA.CStr(childFolder.Path), outFiles, _
+            outDocumentFiles
     Next childFolder
 End Sub
+
+Private Function private_IsDocumentModuleSource( _
+    ByVal lowerFileName As String _
+) As Boolean
+    private_IsDocumentModuleSource = ( _
+        private_IsThisWorkbookModuleSource(lowerFileName) Or _
+        (VBA.Left$(lowerFileName, 3) = "ws_" And _
+         private_IsVbaSourceFile(lowerFileName)))
+End Function
 
 
 Private Sub private_ImportVbaFile( _
@@ -214,7 +307,7 @@ Private Sub private_ImportVbaFile( _
         Exit Sub
     End If
 
-    sourceText = private_ReadTextFile(sourcePath)
+    sourceText = private_ReadUtf8TextFile(sourcePath)
     componentName = private_GetComponentName(sourcePath, sourceText)
     componentType = private_GetVbaComponentType(lowerPath, sourceText)
 
@@ -224,8 +317,57 @@ Private Sub private_ImportVbaFile( _
     Exit Sub
 
 EH:
-    Err.Raise Err.Number, "private_ImportVbaFile", _
-        "Failed to import '" & sourcePath & "': " & Err.Description
+    VBA.Err.Raise VBA.Err.Number, "private_ImportVbaFile", _
+        "Failed to import '" & sourcePath & "': " & VBA.Err.Description
+End Sub
+
+' Обновляет исходник в уже существующем модуле книги или листа.
+Private Sub private_ImportDocumentVbaFile( _
+    ByVal targetWorkbook As Workbook, _
+    ByVal sourcePath As String _
+)
+    Dim fileSystem As Object
+    Dim fileName As String
+    Dim worksheetName As String
+    Dim targetSheet As Worksheet
+    Dim componentName As String
+    Dim vbComponent As Object
+    Dim sourceText As String
+
+    On Error GoTo EH
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    fileName = VBA.CStr(fileSystem.GetFileName(sourcePath))
+    sourceText = private_ReadUtf8TextFile(sourcePath)
+    If VBA.Len(sourceText) = 0 Then
+        VBA.Err.Raise VBA.vbObjectError + 1201, _
+            "private_ImportDocumentVbaFile", "Source is empty: " & sourcePath
+    End If
+
+    If private_IsThisWorkbookModuleSource(fileName) Then
+        componentName = targetWorkbook.CodeName
+    Else
+        worksheetName = private_GetDocumentModuleSourceName(fileName, "ws_")
+        On Error Resume Next
+        Set targetSheet = targetWorkbook.Worksheets(worksheetName)
+        On Error GoTo EH
+        If targetSheet Is Nothing Then
+            VBA.Err.Raise VBA.vbObjectError + 1202, _
+                "private_ImportDocumentVbaFile", _
+                "Worksheet '" & worksheetName & "' was not found for " & sourcePath
+        End If
+        componentName = targetSheet.CodeName
+    End If
+
+    Set vbComponent = targetWorkbook.VBProject.VBComponents(componentName)
+    With vbComponent.CodeModule
+        If .CountOfLines > 0 Then .DeleteLines 1, .CountOfLines
+        .AddFromString private_RemoveExportMetadata(sourceText)
+    End With
+    Exit Sub
+EH:
+    VBA.Err.Raise VBA.Err.Number, "private_ImportDocumentVbaFile", _
+        "Failed to import document module '" & sourcePath & "': " & _
+        VBA.Err.Description
 End Sub
 
 
@@ -238,10 +380,12 @@ Private Function private_GetVbaComponentType( _
     Const VBEXT_CT_MS_FORM As Long = 3
 
     If VBA.Right$(lowerPath, 8) = ".cls.vba" Or _
+       VBA.Right$(lowerPath, 13) = ".cls.utf8.vba" Or _
         VBA.InStr(1, sourceText, "VERSION 1.0 CLASS", VBA.vbTextCompare) > 0 Then
         private_GetVbaComponentType = VBEXT_CT_CLASS_MODULE
     ElseIf VBA.Right$(lowerPath, 8) = ".frm.vba" Or _
-        VBA.InStr(1, sourceText, "BEGIN VB.Form", VBA.vbTextCompare) > 0 Then
+           VBA.Right$(lowerPath, 13) = ".frm.utf8.vba" Or _
+           VBA.InStr(1, sourceText, "BEGIN VB.Form", VBA.vbTextCompare) > 0 Then
         private_GetVbaComponentType = VBEXT_CT_MS_FORM
     Else
         private_GetVbaComponentType = VBEXT_CT_STD_MODULE
@@ -271,6 +415,9 @@ Private Function private_GetComponentName( _
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     fileName = fileSystem.GetBaseName(sourcePath)
+    If VBA.Right$(VBA.LCase$(fileName), 5) = ".utf8" Then
+        fileName = VBA.Left$(fileName, VBA.Len(fileName) - VBA.Len(".utf8"))
+    End If
     If VBA.Right$(VBA.LCase$(fileName), 4) = ".cls" Or _
         VBA.Right$(VBA.LCase$(fileName), 4) = ".bas" Or _
         VBA.Right$(VBA.LCase$(fileName), 4) = ".frm" Then
@@ -303,7 +450,7 @@ Private Function private_RemoveExportMetadata(ByVal sourceText As String) As Str
 End Function
 
 
-Private Function private_ReadTextFile(ByVal filePath As String) As String
+Private Function private_ReadUtf8TextFile(ByVal filePath As String) As String
     Const AD_TYPE_TEXT As Long = 2
     Const AD_READ_ALL As Long = -1
 
@@ -316,8 +463,51 @@ Private Function private_ReadTextFile(ByVal filePath As String) As String
     textStream.Charset = "utf-8"
     textStream.Open
     textStream.LoadFromFile filePath
-    private_ReadTextFile = textStream.ReadText(AD_READ_ALL)
+    private_ReadUtf8TextFile = textStream.ReadText(AD_READ_ALL)
     textStream.Close
+    If VBA.Left$(private_ReadUtf8TextFile, 1) = VBA.ChrW$(65279) Then
+        private_ReadUtf8TextFile = VBA.Mid$(private_ReadUtf8TextFile, 2)
+    End If
+End Function
+
+
+' Источник .utf8.vba обязательно читается как UTF-8 и передаётся в
+' CodeModule.AddFromString как Unicode String, без VBComponents.Import.
+Private Function private_IsVbaSourceFile(ByVal lowerFileName As String) As Boolean
+    private_IsVbaSourceFile = (VBA.Right$(lowerFileName, 4) = ".vba")
+End Function
+
+
+Private Function private_IsThisWorkbookModuleSource(ByVal fileName As String) As Boolean
+    private_IsThisWorkbookModuleSource = ( _
+        VBA.StrComp(fileName, "ThisWorkbook.vba", VBA.vbTextCompare) = 0 Or _
+        VBA.StrComp(fileName, "ThisWorkbook.utf8.vba", VBA.vbTextCompare) = 0)
+End Function
+
+
+Private Function private_GetDocumentModuleSourceName( _
+    ByVal fileName As String, _
+    ByVal requiredPrefix As String _
+) As String
+    Dim sourceStem As String
+
+    sourceStem = fileName
+    If VBA.Right$(VBA.LCase$(sourceStem), 9) = ".utf8.vba" Then
+        sourceStem = VBA.Left$(sourceStem, VBA.Len(sourceStem) - VBA.Len(".utf8.vba"))
+    ElseIf VBA.Right$(VBA.LCase$(sourceStem), 4) = ".vba" Then
+        sourceStem = VBA.Left$(sourceStem, VBA.Len(sourceStem) - VBA.Len(".vba"))
+    Else
+        VBA.Err.Raise VBA.vbObjectError + 1203, _
+            "private_GetDocumentModuleSourceName", _
+            "Unsupported document module source extension: " & fileName
+    End If
+    If VBA.Left$(sourceStem, VBA.Len(requiredPrefix)) <> requiredPrefix Then
+        VBA.Err.Raise VBA.vbObjectError + 1204, _
+            "private_GetDocumentModuleSourceName", _
+            "Document module source has invalid prefix: " & fileName
+    End If
+    private_GetDocumentModuleSourceName = VBA.Mid$(sourceStem, _
+        VBA.Len(requiredPrefix) + 1)
 End Function
 
 

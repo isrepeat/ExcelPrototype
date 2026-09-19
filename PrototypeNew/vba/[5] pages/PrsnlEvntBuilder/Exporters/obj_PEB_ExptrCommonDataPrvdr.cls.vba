@@ -20,6 +20,7 @@ Private m_QueryEngine As obj_ExtWorkbookQueryEngine
 
 Private Const DEFAULT_SHPO_REL_PATH As String = "modes\PrsnlEvntBuilder\ШПО.xlsx"
 Private Const ALF_SHEET_NAME As String = "АЛФ"
+' АЛФ сохраняет обычную однострочную шапку и узкий диапазон A:J.
 Private Const ALF_RANGE_START As String = "A1"
 Private Const ALF_RANGE_END_COLUMN As String = "J"
 Private Const DEFAULT_INSTITUTIONS_REL_PATH As String = "modes\PrsnlEvntBuilder\Установи.xlsx"
@@ -63,9 +64,9 @@ Private Const POSITIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const POSITIONS_DATIVE_HEADER As String = "Давальний"
 Private Const POSITIONS_DEFAULT_HEADER As String = "Назва"
 Private Const OS_SHEET_NAME As String = "ОС"
-' В актуальном ШПО таблица ОС начинается с A1: первая строка содержит
-' фактические имена колонок, а данные начинаются со второй строки.
-Private Const OS_RANGE_START As String = "A1"
+' В обновлённой ШПО лист ОС использует ту же трёхстрочную шапку. Основной ІПН
+' остаётся в пределах прежнего узкого диапазона A:AB.
+Private Const OS_RANGE_START As String = "A3"
 Private Const OS_RANGE_END_COLUMN As String = "AB"
 Private Const OS_IPN_HEADER As String = "ІПН"
 Private Const OS_RANK_HEADER As String = "Військове звання фактично"
