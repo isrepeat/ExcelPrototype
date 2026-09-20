@@ -1,28 +1,33 @@
 Option Explicit
 
-Private Const TICKETS_TABLE_NAME As String = "tbTickets"
-Private Const TICKETS_COL_RANK As String = "Звання"
-Private Const TICKETS_COL_FIO As String = "ПІБ"
-Private Const TICKETS_COL_IPN As String = "ІПН"
-Private Const TICKETS_COL_POSITION As String = "Посада"
-Private Const TICKETS_COL_EVENT As String = "Подія"
-Private Const TICKETS_COL_OUT_ORDER As String = "Вибуття.Наказ"
-Private Const TICKETS_COL_OUT_FOOD As String = "Вибуття.Продовольче"
-Private Const TICKETS_COL_OUT_DATE As String = "Вибуття"
-Private Const TICKETS_COL_DURATION As String = "Вибуття.Термін"
-Private Const TICKETS_COL_ROAD As String = "Вибуття.Дорога"
-Private Const TICKETS_COL_ARRIVAL_PLAN As String = "Прибуття.План"
-Private Const TICKETS_COL_DOCUMENT As String = "Супровідний документ"
-Private Const TICKETS_COL_TVO_FIO As String = "ТВО.ПІБ"
-Private Const TICKETS_COL_TVO_IPN As String = "ТВО.ІПН"
-Private Const TICKETS_COL_TVO_POSITION As String = "ТВО.Посада"
-Private Const TICKETS_COL_STATUS As String = "Статус"
-Private Const TICKETS_EVENT_DONATION As String = "Відпочинок за донацію крові"
+Private Const CFG_TBTICKETS As String = "tbTickets"
+Private Const CFG_TBTICKETS_COLUMN_IPN As String = "tbTickets::column.ipn"
+Private Const CFG_TBTICKETS_COLUMN_OUT_ORDER As String = "tbTickets::column.out_order"
+Private Const CFG_TBTICKETS_COLUMN_EVENT As String = "tbTickets::column.event"
+Private Const CFG_TBTICKETS_EVENT_DONATION As String = "tbTickets::event.donation"
+Private Const CFG_TBTICKETS_COLUMN_DOCUMENT As String = "tbTickets::column.document"
+Private Const CFG_TBTICKETS_COLUMN_RANK As String = "tbTickets::column.rank"
+Private Const CFG_TBTICKETS_COLUMN_FIO As String = "tbTickets::column.fio"
+Private Const CFG_TBTICKETS_COLUMN_POSITION As String = "tbTickets::column.position"
+Private Const CFG_TBTICKETS_COLUMN_OUT_FOOD As String = "tbTickets::column.out_food"
+Private Const CFG_TBTICKETS_COLUMN_OUT_DATE As String = "tbTickets::column.out_date"
+Private Const CFG_TBTICKETS_COLUMN_DURATION As String = "tbTickets::column.duration"
+Private Const CFG_TBTICKETS_COLUMN_ROAD As String = "tbTickets::column.road"
+Private Const CFG_TBTICKETS_COLUMN_TVO_FIO As String = "tbTickets::column.tvo_fio"
+Private Const CFG_TBTICKETS_COLUMN_TVO_IPN As String = "tbTickets::column.tvo_ipn"
+Private Const CFG_TBTICKETS_COLUMN_TVO_POSITION As String = "tbTickets::column.tvo_position"
+Private Const CFG_TBTICKETS_COLUMN_STATUS As String = "tbTickets::column.status"
+Private Const CFG_TBTICKETS_COLUMN_ARRIVAL_PLAN As String = "tbTickets::column.arrival_plan"
+Private Const CFG_COMMON_POSITION_ROZP_PREFIX As String = "common::position.rozp.prefix"
+Private Const CFG_COMMON_POSITION_ROZP_SHORT As String = "common::position.rozp.short"
+Private Const CFG_COMMON_POSITION_SPIS_PREFIX As String = "common::position.spis.prefix"
+Private Const CFG_COMMON_POSITION_SPIS_SHORT As String = "common::position.spis.short"
 
-Private Const POSITION_PREFIX_ROZP As String = "A1A"
-Private Const POSITION_PREFIX_SPIS As String = "A1B"
-Private Const POSITION_VALUE_ROZP As String = "РОЗП"
-Private Const POSITION_VALUE_SPIS As String = "СПИС"
+Private Function private_ConfigText(ByVal configKey As String) As String
+    If Not ex_Config.fn_TryGetText(configKey, private_ConfigText) Then
+        Err.Raise VBA.vbObjectError + 1201, "ex_Tickets", "Configuration value is required: " & configKey
+    End If
+End Function
 
 ' --------------------------------------
 ' namespace API {
@@ -30,7 +35,7 @@ Private Const POSITION_VALUE_SPIS As String = "СПИС"
 ' Finds the single open ticket registry table.
 Public Function ex_TryGetOpenTable(ByRef outTicketsTable As ListObject) As Boolean
     ex_TryGetOpenTable = ex_Document.ex_TryFindOpenTable( _
-        TICKETS_TABLE_NAME, outTicketsTable)
+        private_ConfigText(CFG_TBTICKETS), outTicketsTable)
 End Function
 
 ' Returns a short position value for registry columns.
@@ -54,9 +59,9 @@ Public Function ex_TryFindVacationRow( _
 
     On Error GoTo EH
     Set outTicketRow = Nothing
-    ipnColumnIndex = ticketsTable.ListColumns(TICKETS_COL_IPN).Index
-    orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
-    eventColumnIndex = ticketsTable.ListColumns(TICKETS_COL_EVENT).Index
+    ipnColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_IPN)).Index
+    orderColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_ORDER)).Index
+    eventColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_EVENT)).Index
     For Each ticketRow In ticketsTable.ListRows
         existingIpnText = ex_Helpers.private_Text_Normalize( _
             VBA.CStr(ticketRow.Range.Cells(1, ipnColumnIndex).Text))
@@ -67,7 +72,7 @@ Public Function ex_TryFindVacationRow( _
                 VBA.CStr(ticketRow.Range.Cells(1, eventColumnIndex).Text))
             If VBA.Len(eventText) = 0 Then
                 isEventMatch = (VBA.StrComp(existingEventText, _
-                    TICKETS_EVENT_DONATION, VBA.vbTextCompare) <> 0)
+                    private_ConfigText(CFG_TBTICKETS_EVENT_DONATION), VBA.vbTextCompare) <> 0)
             Else
                 isEventMatch = (VBA.StrComp(existingEventText, _
                     eventText, VBA.vbTextCompare) = 0)
@@ -109,10 +114,10 @@ Public Function ex_TryFindDonationRow( _
 
     On Error GoTo EH
     Set outTicketRow = Nothing
-    ipnColumnIndex = ticketsTable.ListColumns(TICKETS_COL_IPN).Index
-    documentColumnIndex = ticketsTable.ListColumns(TICKETS_COL_DOCUMENT).Index
-    eventColumnIndex = ticketsTable.ListColumns(TICKETS_COL_EVENT).Index
-    orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
+    ipnColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_IPN)).Index
+    documentColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_DOCUMENT)).Index
+    eventColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_EVENT)).Index
+    orderColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_ORDER)).Index
     For Each ticketRow In ticketsTable.ListRows
         existingIpnText = ex_Helpers.private_Text_Normalize( _
             VBA.CStr(ticketRow.Range.Cells(1, ipnColumnIndex).Text))
@@ -124,7 +129,7 @@ Public Function ex_TryFindDonationRow( _
             VBA.CStr(ticketRow.Range.Cells(1, orderColumnIndex).Text))
         If VBA.StrComp(existingIpnText, ipnText, VBA.vbTextCompare) = 0 And _
            VBA.StrComp(existingTicketNo, ticketNo, VBA.vbTextCompare) = 0 And _
-           VBA.StrComp(existingEventText, TICKETS_EVENT_DONATION, _
+           VBA.StrComp(existingEventText, private_ConfigText(CFG_TBTICKETS_EVENT_DONATION), _
                VBA.vbTextCompare) = 0 And _
            (VBA.Len(existingOrderNo) = 0 Or _
             VBA.Left$(existingOrderNo, 4) = "(?) ") Then
@@ -156,7 +161,7 @@ Public Function ex_TryReadTicketNo( _
 
     On Error GoTo EH
     outTicketNo = VBA.vbNullString
-    documentColumnIndex = ticketsTable.ListColumns(TICKETS_COL_DOCUMENT).Index
+    documentColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_DOCUMENT)).Index
     outTicketNo = ex_Helpers.private_Text_Normalize( _
         VBA.CStr(ticketRow.Range.Cells(1, documentColumnIndex).Text))
     If VBA.Len(outTicketNo) = 0 Then
@@ -211,8 +216,8 @@ Public Function ex_TryBuildNextTicketNo( _
         Exit Function
     End If
 
-    orderColumnIndex = ticketsTable.ListColumns(TICKETS_COL_OUT_ORDER).Index
-    documentColumnIndex = ticketsTable.ListColumns(TICKETS_COL_DOCUMENT).Index
+    orderColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_ORDER)).Index
+    documentColumnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_DOCUMENT)).Index
     ticketPrefix = VBA.CStr(VBA.Year(orderDate)) & "/" & normalizedOrderNo & "/"
     For Each ticketRow In ticketsTable.ListRows
         existingOrderNo = ex_Helpers.private_Text_Normalize( _
@@ -285,36 +290,36 @@ Public Function ex_TrySaveVacationRow( _
     On Error GoTo EH
     Set tableValues = VBA.CreateObject("Scripting.Dictionary")
     tableValues.CompareMode = VBA.vbBinaryCompare
-    tableValues.Add TICKETS_COL_RANK, rankText
-    tableValues.Add TICKETS_COL_FIO, fioText
-    tableValues.Add TICKETS_COL_IPN, ipnText
-    tableValues.Add TICKETS_COL_POSITION, private_Position_ToRegistryValue(positionCode)
-    tableValues.Add TICKETS_COL_EVENT, eventText
-    tableValues.Add TICKETS_COL_OUT_ORDER, orderNo
-    tableValues.Add TICKETS_COL_OUT_FOOD, foodDepartureDate
-    tableValues.Add TICKETS_COL_OUT_DATE, departureDate
-    tableValues.Add TICKETS_COL_DURATION, private_Value_ZeroToBlank(vacationDays)
-    tableValues.Add TICKETS_COL_ROAD, private_Value_ZeroToBlank(roadDays)
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_RANK), rankText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_FIO), fioText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_IPN), ipnText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_POSITION), private_Position_ToRegistryValue(positionCode)
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_EVENT), eventText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_ORDER), orderNo
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_FOOD), foodDepartureDate
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_DATE), departureDate
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_DURATION), private_Value_ZeroToBlank(vacationDays)
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_ROAD), private_Value_ZeroToBlank(roadDays)
     ' The arrival-plan field is calculated by the tbTickets table formula.
-    tableValues.Add TICKETS_COL_DOCUMENT, ticketNo
-    tableValues.Add TICKETS_COL_TVO_FIO, tvoFioText
-    tableValues.Add TICKETS_COL_TVO_IPN, tvoIpnText
-    tableValues.Add TICKETS_COL_TVO_POSITION, _
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_DOCUMENT), ticketNo
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_TVO_FIO), tvoFioText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_TVO_IPN), tvoIpnText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_TVO_POSITION), _
         private_Position_ToRegistryValue(tvoPositionCode)
-    tableValues.Add TICKETS_COL_STATUS, statusText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_STATUS), statusText
 
     ' Check all headers first to avoid adding an empty row for a schema error.
     For Each valueKey In tableValues.Keys
         columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
     Next valueKey
     If Not private_Tickets_TryGetCalculatedFormula( _
-        ticketsTable, TICKETS_COL_ARRIVAL_PLAN, arrivalPlanFormula) Then Exit Function
+        ticketsTable, private_ConfigText(CFG_TBTICKETS_COLUMN_ARRIVAL_PLAN), arrivalPlanFormula) Then Exit Function
     If ioTicketRow Is Nothing Then Set ioTicketRow = ticketsTable.ListRows.Add
     For Each valueKey In tableValues.Keys
         columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
         ioTicketRow.Range.Cells(1, columnIndex).Value = tableValues(valueKey)
     Next valueKey
-    columnIndex = ticketsTable.ListColumns(TICKETS_COL_ARRIVAL_PLAN).Index
+    columnIndex = ticketsTable.ListColumns(private_ConfigText(CFG_TBTICKETS_COLUMN_ARRIVAL_PLAN)).Index
     ioTicketRow.Range.Cells(1, columnIndex).Formula = arrivalPlanFormula
     ex_TrySaveVacationRow = True
     Exit Function
@@ -372,14 +377,14 @@ Private Function private_Position_ToRegistryValue( _
 
     normalizedCode = VBA.UCase$(ex_Helpers.private_Text_Normalize(positionCode))
     normalizedCode = VBA.Replace$(normalizedCode, " ", VBA.vbNullString)
-    normalizedCode = VBA.Replace$(normalizedCode, "А", "A")
-    normalizedCode = VBA.Replace$(normalizedCode, "В", "B")
-    If VBA.Left$(normalizedCode, VBA.Len(POSITION_PREFIX_ROZP)) = _
-        POSITION_PREFIX_ROZP Then
-        private_Position_ToRegistryValue = POSITION_VALUE_ROZP
-    ElseIf VBA.Left$(normalizedCode, VBA.Len(POSITION_PREFIX_SPIS)) = _
-        POSITION_PREFIX_SPIS Then
-        private_Position_ToRegistryValue = POSITION_VALUE_SPIS
+    normalizedCode = VBA.Replace$(normalizedCode, ex_Helpers.fn_FromCodePoints("1040"), "A")
+    normalizedCode = VBA.Replace$(normalizedCode, ex_Helpers.fn_FromCodePoints("1042"), "B")
+    If VBA.Left$(normalizedCode, VBA.Len(private_ConfigText(CFG_COMMON_POSITION_ROZP_PREFIX))) = _
+        private_ConfigText(CFG_COMMON_POSITION_ROZP_PREFIX) Then
+        private_Position_ToRegistryValue = private_ConfigText(CFG_COMMON_POSITION_ROZP_SHORT)
+    ElseIf VBA.Left$(normalizedCode, VBA.Len(private_ConfigText(CFG_COMMON_POSITION_SPIS_PREFIX))) = _
+        private_ConfigText(CFG_COMMON_POSITION_SPIS_PREFIX) Then
+        private_Position_ToRegistryValue = private_ConfigText(CFG_COMMON_POSITION_SPIS_SHORT)
     Else
         private_Position_ToRegistryValue = positionCode
     End If

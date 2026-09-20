@@ -1,22 +1,47 @@
 Option Explicit
 
-Private Const SHPO_RELATIVE_PATH As String = "Dependencies\ШПО.xlsx"
-Private Const ORDERS_RELATIVE_PATH As String = "Dependencies\Накази.xlsx"
-Private Const ORDERS_2025_TABLE_REF As String = "[Накази$A2:B12000]"
-Private Const ORDERS_2026_TABLE_REF As String = "[Накази$D2:E12000]"
+Private Const CFG_FILE_PERSONNEL_SHPO As String = "filePersonnelShpo"
+Private Const CFG_RANGE_PERSONNEL_ALF As String = "rangePersonnelAlf"
+Private Const CFG_COMMON_PERSONNEL_HEADER_FIO As String = "common::personnel.header.fio"
+Private Const CFG_COMMON_PERSONNEL_HEADER_IPN As String = "common::personnel.header.ipn"
+Private Const CFG_FILE_ORDERS As String = "fileOrders"
+Private Const CFG_COMMON_ORDERS_HEADER_NUMBER As String = "common::orders.header.number"
+Private Const CFG_COMMON_ORDERS_HEADER_DATE As String = "common::orders.header.date"
+Private Const CFG_RANGE_ORDERS_YEAR_2025 As String = "rangeOrders::year.2025"
+Private Const CFG_RANGE_ORDERS_YEAR_2026 As String = "rangeOrders::year.2026"
+Private Const CFG_COMMON_CASE_GENITIVE As String = "common::case.genitive"
+Private Const CFG_COMMON_CASE_DATIVE As String = "common::case.dative"
+Private Const CFG_COMMON_CASE_ACCUSATIVE As String = "common::case.accusative"
+Private Const CFG_COMMON_PERSONNEL_HEADER_RANK As String = "common::personnel.header.rank"
+Private Const CFG_RANGE_PERSONNEL_OS As String = "rangePersonnelOs"
+Private Const CFG_COMMON_PERSONNEL_HEADER_POSITION_CODE As String = "common::personnel.header.position_code"
+Private Const CFG_COMMON_PERSONNEL_HEADER_NAME As String = "common::personnel.header.name"
+Private Const CFG_COMMON_PERSONNEL_HEADER_ACTUAL_RANK As String = "common::personnel.header.actual_rank"
+Private Const CFG_RANGE_PERSONNEL_RANKS As String = "rangePersonnelRanks"
+Private Const CFG_COMMON_POSITION_ROZP_WORD_PREFIX As String = "common::position.rozp.word_prefix"
+Private Const CFG_COMMON_POSITION_ROZP_OFFICER_UNIT As String = "common::position.rozp.officer_unit"
+Private Const CFG_COMMON_POSITION_ROZP_OTHER_UNIT As String = "common::position.rozp.other_unit"
+Private Const CFG_RANGE_PERSONNEL_POSITIONS As String = "rangePersonnelPositions"
+Private Const CFG_COMMON_PERSONNEL_HEADER_CODE As String = "common::personnel.header.code"
+Private Const CFG_COMMON_POSITION_ROZP_PREFIX As String = "common::position.rozp.prefix"
+Private Const CFG_COMMON_RANK_JUNIOR_LIEUTENANT As String = "common::rank.junior_lieutenant"
+Private Const CFG_COMMON_RANK_LIEUTENANT As String = "common::rank.lieutenant"
+Private Const CFG_COMMON_RANK_SENIOR_LIEUTENANT As String = "common::rank.senior_lieutenant"
+Private Const CFG_COMMON_RANK_CAPTAIN As String = "common::rank.captain"
+Private Const CFG_COMMON_RANK_MAJOR As String = "common::rank.major"
+Private Const CFG_COMMON_RANK_LIEUTENANT_COLONEL As String = "common::rank.lieutenant_colonel"
+Private Const CFG_COMMON_RANK_COLONEL As String = "common::rank.colonel"
+
 Private Const AD_OPEN_STATIC As Long = 3
 Private Const AD_LOCK_READ_ONLY As Long = 1
 
-Private Const ALF_TABLE_REF As String = "[АЛФ$A1:J12000]"
-Private Const OS_TABLE_REF As String = "[ОС$A1:AB12000]"
-Private Const RANKS_TABLE_REF As String = "[Звання$A1:E12000]"
-Private Const POSITIONS_TABLE_REF As String = "[Посади$A1:E12000]"
-Private Const POSITION_ROZP_PREFIX As String = "A1A"
-Private Const POSITION_ROZP_TEXT_PREFIX As String = "у розпорядженні командира військової частини "
-Private Const POSITION_ROZP_OFFICER_UNIT As String = "А3369"
-Private Const POSITION_ROZP_OTHER_UNIT As String = "А7383"
-
 Private shpoSessionConnection As Object
+
+Private Function private_ConfigText(ByVal configKey As String) As String
+    If Not ex_Config.fn_TryGetText(configKey, private_ConfigText) Then
+        Err.Raise VBA.vbObjectError + 1202, "ex_PersonnelData", "Configuration value is required: " & configKey
+    End If
+End Function
 
 ' --------------------------------------
 ' namespace API {
@@ -30,7 +55,7 @@ Public Function ex_TryBeginSession() As Boolean
         Exit Function
     End If
     shpoPath = ex_Helpers.private_Path_ResolveFromWorkbook( _
-        SHPO_RELATIVE_PATH)
+        private_ConfigText(CFG_FILE_PERSONNEL_SHPO))
     If VBA.Len(VBA.Dir$(shpoPath)) = 0 Then
         ex_Helpers.LogError "SHPO file was not found: " & shpoPath
         ex_Helpers.ex_ShowErrorMessage "SHPO file was not found: " & shpoPath, _
@@ -69,7 +94,7 @@ Public Function ex_TryResolveIpn( _
     End If
 
     ex_TryResolveIpn = private_TryLookupShpoValue( _
-        ALF_TABLE_REF, "ПІБ", personLookup, "ІПН", outIpnText)
+        private_ConfigText(CFG_RANGE_PERSONNEL_ALF), private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_FIO), personLookup, private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_IPN), outIpnText)
 End Function
 
 ' Runs given SQL against SHPO and returns arrays of field values.
@@ -174,7 +199,7 @@ Public Function ex_TryResolveOrderReference( _
     End If
 
     If Not private_Order_TryGetTableRef(orderYear, ordersTableRef) Then Exit Function
-    ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(ORDERS_RELATIVE_PATH)
+    ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(private_ConfigText(CFG_FILE_ORDERS))
     If VBA.Len(VBA.Dir$(ordersPath)) = 0 Then
         ex_Helpers.LogError "Orders workbook was not found: " & ordersPath
         ex_Helpers.ex_ShowErrorMessage "Orders workbook was not found: " & ordersPath, _
@@ -184,16 +209,18 @@ Public Function ex_TryResolveOrderReference( _
     If Not ex_ExternalTables.ex_TryOpenConnection( _
         ordersPath, "Orders", connection) Then Exit Function
 
-    sqlText = "SELECT [Номер наказу], [Дата наказу] FROM " & ordersTableRef
+    sqlText = "SELECT [" & private_ConfigText(CFG_COMMON_ORDERS_HEADER_NUMBER) & _
+        "], [" & private_ConfigText(CFG_COMMON_ORDERS_HEADER_DATE) & _
+        "] FROM " & ordersTableRef
     ex_Helpers.LogDebug "Order lookup SQL: " & sqlText
     Set recordset = VBA.CreateObject("ADODB.Recordset")
     recordset.Open sqlText, connection, AD_OPEN_STATIC, AD_LOCK_READ_ONLY
     Do While Not recordset.EOF
         candidateNo = private_Order_NormalizeNumber( _
-            ex_ExternalTables.ex_ReadText(recordset, "Номер наказу"))
+            ex_ExternalTables.ex_ReadText(recordset, private_ConfigText(CFG_COMMON_ORDERS_HEADER_NUMBER)))
         candidateDate = 0
         If ex_Helpers.private_Date_TryReadRecordsetDate( _
-            recordset.Fields("Дата наказу").Value, candidateDate) Then
+            recordset.Fields(private_ConfigText(CFG_COMMON_ORDERS_HEADER_DATE)).Value, candidateDate) Then
             If (inputIsDate And VBA.DateValue(candidateDate) = _
                     VBA.DateValue(inputDate)) Or _
                (Not inputIsDate And VBA.StrComp(candidateNo, orderInput, _
@@ -255,15 +282,15 @@ Public Function ex_TryFindOrderNoByDate( _
     On Error GoTo EH
     outOrderNo = VBA.vbNullString
     Select Case VBA.Year(orderDate)
-        Case 2025: ordersTableRef = ORDERS_2025_TABLE_REF
-        Case 2026: ordersTableRef = ORDERS_2026_TABLE_REF
+        Case 2025: ordersTableRef = private_ConfigText(CFG_RANGE_ORDERS_YEAR_2025)
+        Case 2026: ordersTableRef = private_ConfigText(CFG_RANGE_ORDERS_YEAR_2026)
         Case Else
             ex_Helpers.LogDebug "Orders table is not configured for planned date " & _
                 VBA.CStr(orderDate)
             ex_TryFindOrderNoByDate = True
             Exit Function
     End Select
-    ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(ORDERS_RELATIVE_PATH)
+    ordersPath = ex_Helpers.private_Path_ResolveFromWorkbook(private_ConfigText(CFG_FILE_ORDERS))
     If VBA.Len(VBA.Dir$(ordersPath)) = 0 Then
         ex_Helpers.ex_ShowErrorMessage "Orders workbook was not found: " & ordersPath, _
             VBA.vbExclamation, "Document Generation"
@@ -271,17 +298,19 @@ Public Function ex_TryFindOrderNoByDate( _
     End If
     If Not ex_ExternalTables.ex_TryOpenConnection( _
         ordersPath, "Orders", connection) Then Exit Function
-    sqlText = "SELECT [Номер наказу], [Дата наказу] FROM " & ordersTableRef
+    sqlText = "SELECT [" & private_ConfigText(CFG_COMMON_ORDERS_HEADER_NUMBER) & _
+        "], [" & private_ConfigText(CFG_COMMON_ORDERS_HEADER_DATE) & _
+        "] FROM " & ordersTableRef
     Set recordset = VBA.CreateObject("ADODB.Recordset")
     recordset.Open sqlText, connection, AD_OPEN_STATIC, AD_LOCK_READ_ONLY
     Do While Not recordset.EOF
         candidateDate = 0
         If ex_Helpers.private_Date_TryReadRecordsetDate( _
-            recordset.Fields("Дата наказу").Value, candidateDate) Then
+            recordset.Fields(private_ConfigText(CFG_COMMON_ORDERS_HEADER_DATE)).Value, candidateDate) Then
             If VBA.DateValue(candidateDate) = VBA.DateValue(orderDate) Then
                 matchCount = matchCount + 1
                 candidateNo = private_Order_NormalizeNumber( _
-                    ex_ExternalTables.ex_ReadText(recordset, "Номер наказу"))
+                    ex_ExternalTables.ex_ReadText(recordset, private_ConfigText(CFG_COMMON_ORDERS_HEADER_NUMBER)))
                 If matchCount = 1 Then outOrderNo = candidateNo
             End If
         End If
@@ -334,7 +363,7 @@ Public Function ex_TryResolveFioNominative( _
     ByRef outFioText As String _
 ) As Boolean
     ex_TryResolveFioNominative = private_TryResolveFioCase( _
-        ipnText, "ПІБ", outFioText)
+        ipnText, private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_FIO), outFioText)
 End Function
 
 Public Function ex_TryResolveFioGenitive( _
@@ -342,7 +371,7 @@ Public Function ex_TryResolveFioGenitive( _
     ByRef outFioText As String _
 ) As Boolean
     ex_TryResolveFioGenitive = private_TryResolveFioCase( _
-        ipnText, "Родовий", outFioText)
+        ipnText, private_ConfigText(CFG_COMMON_CASE_GENITIVE), outFioText)
 End Function
 
 Public Function ex_TryResolveFioDative( _
@@ -350,7 +379,7 @@ Public Function ex_TryResolveFioDative( _
     ByRef outFioText As String _
 ) As Boolean
     ex_TryResolveFioDative = private_TryResolveFioCase( _
-        ipnText, "Давальний", outFioText)
+        ipnText, private_ConfigText(CFG_COMMON_CASE_DATIVE), outFioText)
 End Function
 
 Public Function ex_TryResolveFioAccusative( _
@@ -358,7 +387,7 @@ Public Function ex_TryResolveFioAccusative( _
     ByRef outFioText As String _
 ) As Boolean
     ex_TryResolveFioAccusative = private_TryResolveFioCase( _
-        ipnText, "Знахідний", outFioText)
+        ipnText, private_ConfigText(CFG_COMMON_CASE_ACCUSATIVE), outFioText)
 End Function
 
 Public Function ex_TryResolveRankNominative( _
@@ -366,7 +395,7 @@ Public Function ex_TryResolveRankNominative( _
     ByRef outRankText As String _
 ) As Boolean
     ex_TryResolveRankNominative = private_TryResolveRankCase( _
-        ipnText, "Звання", outRankText)
+        ipnText, private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_RANK), outRankText)
 End Function
 
 Public Function ex_TryResolvePositionCode( _
@@ -374,7 +403,7 @@ Public Function ex_TryResolvePositionCode( _
     ByRef outPositionCode As String _
 ) As Boolean
     ex_TryResolvePositionCode = private_TryLookupShpoValue( _
-        OS_TABLE_REF, "ІПН", ipnText, "Код посади", outPositionCode)
+        private_ConfigText(CFG_RANGE_PERSONNEL_OS), private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_IPN), ipnText, private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_POSITION_CODE), outPositionCode)
 End Function
 
 Public Function ex_TryResolveRankGenitive( _
@@ -382,7 +411,7 @@ Public Function ex_TryResolveRankGenitive( _
     ByRef outRankText As String _
 ) As Boolean
     ex_TryResolveRankGenitive = private_TryResolveRankCase( _
-        ipnText, "Родовий", outRankText)
+        ipnText, private_ConfigText(CFG_COMMON_CASE_GENITIVE), outRankText)
 End Function
 
 Public Function ex_TryResolveRankDative( _
@@ -390,7 +419,7 @@ Public Function ex_TryResolveRankDative( _
     ByRef outRankText As String _
 ) As Boolean
     ex_TryResolveRankDative = private_TryResolveRankCase( _
-        ipnText, "Давальний", outRankText)
+        ipnText, private_ConfigText(CFG_COMMON_CASE_DATIVE), outRankText)
 End Function
 
 Public Function ex_TryResolveRankAccusative( _
@@ -398,7 +427,7 @@ Public Function ex_TryResolveRankAccusative( _
     ByRef outRankText As String _
 ) As Boolean
     ex_TryResolveRankAccusative = private_TryResolveRankCase( _
-        ipnText, "Знахідний", outRankText)
+        ipnText, private_ConfigText(CFG_COMMON_CASE_ACCUSATIVE), outRankText)
 End Function
 
 Public Function ex_TryResolvePositionNominative( _
@@ -407,7 +436,7 @@ Public Function ex_TryResolvePositionNominative( _
     ByRef outPositionText As String _
 ) As Boolean
     ex_TryResolvePositionNominative = private_TryResolvePositionCase( _
-        positionCode, rankText, "Назва", outPositionText)
+        positionCode, rankText, private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_NAME), outPositionText)
 End Function
 
 Public Function ex_TryResolvePositionGenitive( _
@@ -416,7 +445,7 @@ Public Function ex_TryResolvePositionGenitive( _
     ByRef outPositionText As String _
 ) As Boolean
     ex_TryResolvePositionGenitive = private_TryResolvePositionCase( _
-        positionCode, rankText, "Родовий", outPositionText)
+        positionCode, rankText, private_ConfigText(CFG_COMMON_CASE_GENITIVE), outPositionText)
 End Function
 
 Public Function ex_TryResolvePositionDative( _
@@ -425,7 +454,7 @@ Public Function ex_TryResolvePositionDative( _
     ByRef outPositionText As String _
 ) As Boolean
     ex_TryResolvePositionDative = private_TryResolvePositionCase( _
-        positionCode, rankText, "Давальний", outPositionText)
+        positionCode, rankText, private_ConfigText(CFG_COMMON_CASE_DATIVE), outPositionText)
 End Function
 
 Public Function ex_TryResolvePositionAccusative( _
@@ -434,7 +463,7 @@ Public Function ex_TryResolvePositionAccusative( _
     ByRef outPositionText As String _
 ) As Boolean
     ex_TryResolvePositionAccusative = private_TryResolvePositionCase( _
-        positionCode, rankText, "Знахідний", outPositionText)
+        positionCode, rankText, private_ConfigText(CFG_COMMON_CASE_ACCUSATIVE), outPositionText)
 End Function
 ' --------------------------------------
 ' } // namespace API
@@ -454,7 +483,7 @@ Private Function private_TryLookupShpoValue( _
     On Error GoTo EH
     outValue = VBA.vbNullString
     shpoPath = ex_Helpers.private_Path_ResolveFromWorkbook( _
-        SHPO_RELATIVE_PATH)
+        private_ConfigText(CFG_FILE_PERSONNEL_SHPO))
     If VBA.Len(VBA.Dir$(shpoPath)) = 0 Then
         ex_Helpers.LogError "SHPO file was not found: " & shpoPath
         ex_Helpers.ex_ShowErrorMessage "SHPO file was not found: " & shpoPath, _
@@ -493,7 +522,7 @@ Private Function private_TryResolveFioCase( _
     ByRef outFioText As String _
 ) As Boolean
     private_TryResolveFioCase = private_TryLookupShpoValue( _
-        ALF_TABLE_REF, "ІПН", ipnText, resultHeader, outFioText)
+        private_ConfigText(CFG_RANGE_PERSONNEL_ALF), private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_IPN), ipnText, resultHeader, outFioText)
 End Function
 
 Private Function private_TryResolveRankCase( _
@@ -504,11 +533,11 @@ Private Function private_TryResolveRankCase( _
     Dim rankNominative As String
 
     If Not private_TryLookupShpoValue( _
-        OS_TABLE_REF, "ІПН", ipnText, "Військове звання фактично", _
+        private_ConfigText(CFG_RANGE_PERSONNEL_OS), private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_IPN), ipnText, private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_ACTUAL_RANK), _
         rankNominative) Then Exit Function
 
     private_TryResolveRankCase = private_TryLookupShpoValue( _
-        RANKS_TABLE_REF, "Звання", rankNominative, resultHeader, outRankText)
+        private_ConfigText(CFG_RANGE_PERSONNEL_RANKS), private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_RANK), rankNominative, resultHeader, outRankText)
 End Function
 
 Private Function private_TryResolvePositionCase( _
@@ -522,34 +551,39 @@ Private Function private_TryResolvePositionCase( _
     normalizedCode = VBA.UCase$(ex_Helpers.private_Text_Normalize(positionCode))
     If private_IsRozpPositionCode(normalizedCode) Then
         If private_IsOfficerRank(rankText) Then
-            outPositionText = POSITION_ROZP_TEXT_PREFIX & _
-                POSITION_ROZP_OFFICER_UNIT
+            outPositionText = private_ConfigText(CFG_COMMON_POSITION_ROZP_WORD_PREFIX) & _
+                private_ConfigText(CFG_COMMON_POSITION_ROZP_OFFICER_UNIT)
         Else
-            outPositionText = POSITION_ROZP_TEXT_PREFIX & _
-                POSITION_ROZP_OTHER_UNIT
+            outPositionText = private_ConfigText(CFG_COMMON_POSITION_ROZP_WORD_PREFIX) & _
+                private_ConfigText(CFG_COMMON_POSITION_ROZP_OTHER_UNIT)
         End If
         private_TryResolvePositionCase = True
         Exit Function
     End If
 
     private_TryResolvePositionCase = private_TryLookupShpoValue( _
-        POSITIONS_TABLE_REF, "Код", normalizedCode, resultHeader, outPositionText)
+        private_ConfigText(CFG_RANGE_PERSONNEL_POSITIONS), private_ConfigText(CFG_COMMON_PERSONNEL_HEADER_CODE), normalizedCode, resultHeader, outPositionText)
 End Function
 
 Private Function private_IsRozpPositionCode( _
     ByVal positionCode As String _
 ) As Boolean
+    Dim normalizedSpecialCode As String
+
     positionCode = VBA.Replace$(positionCode, " ", VBA.vbNullString)
-    positionCode = VBA.Replace$(positionCode, "А", "A")
+    normalizedSpecialCode = VBA.Replace$(positionCode, _
+        ex_Helpers.fn_FromCodePoints("1040"), "A")
+    normalizedSpecialCode = VBA.Replace$(normalizedSpecialCode, _
+        ex_Helpers.fn_FromCodePoints("1042"), "B")
     private_IsRozpPositionCode = ( _
-        VBA.Left$(positionCode, VBA.Len(POSITION_ROZP_PREFIX)) = _
-        POSITION_ROZP_PREFIX)
+        VBA.Left$(normalizedSpecialCode, VBA.Len(private_ConfigText(CFG_COMMON_POSITION_ROZP_PREFIX))) = _
+        private_ConfigText(CFG_COMMON_POSITION_ROZP_PREFIX))
 End Function
 
 Private Function private_IsOfficerRank(ByVal rankText As String) As Boolean
     Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(rankText))
-        Case "молодший лейтенант", "лейтенант", "старший лейтенант", _
-             "капітан", "майор", "підполковник", "полковник"
+        Case private_ConfigText(CFG_COMMON_RANK_JUNIOR_LIEUTENANT), private_ConfigText(CFG_COMMON_RANK_LIEUTENANT), private_ConfigText(CFG_COMMON_RANK_SENIOR_LIEUTENANT), _
+             private_ConfigText(CFG_COMMON_RANK_CAPTAIN), private_ConfigText(CFG_COMMON_RANK_MAJOR), private_ConfigText(CFG_COMMON_RANK_LIEUTENANT_COLONEL), private_ConfigText(CFG_COMMON_RANK_COLONEL)
             private_IsOfficerRank = True
     End Select
 End Function
@@ -562,8 +596,8 @@ Private Function private_Order_TryGetTableRef( _
     ByRef outTableRef As String _
 ) As Boolean
     Select Case orderYear
-        Case 2025: outTableRef = ORDERS_2025_TABLE_REF
-        Case 2026: outTableRef = ORDERS_2026_TABLE_REF
+        Case 2025: outTableRef = private_ConfigText(CFG_RANGE_ORDERS_YEAR_2025)
+        Case 2026: outTableRef = private_ConfigText(CFG_RANGE_ORDERS_YEAR_2026)
         Case Else
             ex_Helpers.LogError "Orders table is not configured for year " & _
                 VBA.CStr(orderYear)

@@ -15,6 +15,22 @@ Private Const LOG_FOLDER_NAME As String = "2. DocumentsGeneration"
 Private Const LOG_FILE_BASE_NAME As String = "documents_generation"
 
 ' --------------------------------------
+' namespace Unicode {
+' --------------------------------------
+' Builds Unicode text from ASCII code points after VBA module import.
+Public Function fn_FromCodePoints(ByVal codePointList As String) As String
+    Dim codePointParts As Variant
+    Dim codePointPart As Variant
+    codePointParts = VBA.Split(codePointList, ",")
+    For Each codePointPart In codePointParts
+        fn_FromCodePoints = fn_FromCodePoints & VBA.ChrW$(VBA.CLng(codePointPart))
+    Next codePointPart
+End Function
+' --------------------------------------
+' } // namespace Unicode
+' --------------------------------------
+
+' --------------------------------------
 ' namespace Word {
 ' --------------------------------------
 ' Common formatting, path, Word, and log operations.
@@ -36,12 +52,14 @@ Public Function private_Word_TryGenerateDocument( _
     Dim finalDocumentPath As String
     Dim wordApp As Object
     Dim wordDoc As Object
+    Dim fileSystem As Object
     Dim placeholderIndex As Long
 
     On Error GoTo EH
     outDocumentPath = VBA.vbNullString
     templatePath = private_Path_ResolveFromWorkbook(templatePathInput)
-    If VBA.Len(VBA.Dir$(templatePath)) = 0 Then
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(templatePath) Then
         LogError "Word template was not found: " & templatePath
         ex_ShowErrorMessage "Word template was not found: " & templatePath, _
             VBA.vbExclamation, "Document Generation"
@@ -56,7 +74,7 @@ Public Function private_Word_TryGenerateDocument( _
     overwriteDocumentPath = private_Text_Normalize(overwriteDocumentPathInput)
     If VBA.Len(overwriteDocumentPath) > 0 Then
         overwriteDocumentPath = private_Path_ResolveFromWorkbook(overwriteDocumentPath)
-        If VBA.Len(VBA.Dir$(overwriteDocumentPath)) = 0 Then
+        If Not fileSystem.FileExists(overwriteDocumentPath) Then
             LogError "Saved vacation ticket file was not found: " & overwriteDocumentPath
             ex_ShowErrorMessage "Saved vacation ticket file was not found: " & _
                 overwriteDocumentPath, VBA.vbExclamation, "Document Generation"
@@ -70,7 +88,7 @@ Public Function private_Word_TryGenerateDocument( _
                 templatePath, documentName, outputFolderPath, finalDocumentPath) Then Exit Function
             If VBA.StrComp(finalDocumentPath, outDocumentPath, _
                     VBA.vbTextCompare) <> 0 And _
-               VBA.Len(VBA.Dir$(finalDocumentPath)) > 0 Then
+               fileSystem.FileExists(finalDocumentPath) Then
                 ex_ShowErrorMessage "The target vacation ticket file name is already in use: " & _
                     finalDocumentPath, VBA.vbExclamation, "Document Generation"
                 Exit Function
@@ -84,7 +102,7 @@ Public Function private_Word_TryGenerateDocument( _
     End If
     If VBA.Len(outDocumentPath) = 0 Then Exit Function
     If VBA.Len(temporaryDocumentPath) = 0 Then Exit Function
-    VBA.FileCopy templatePath, temporaryDocumentPath
+    fileSystem.CopyFile templatePath, temporaryDocumentPath, False
     LogDebug "Word template copied | Source=" & templatePath & _
         " | Target=" & temporaryDocumentPath
 
@@ -115,12 +133,12 @@ Public Function private_Word_TryGenerateDocument( _
     wordDoc.Close True
     Set wordDoc = Nothing
     If VBA.StrComp(temporaryDocumentPath, outDocumentPath, VBA.vbTextCompare) <> 0 Then
-        VBA.Kill outDocumentPath
-        Name temporaryDocumentPath As outDocumentPath
+        fileSystem.DeleteFile outDocumentPath, True
+        fileSystem.MoveFile temporaryDocumentPath, outDocumentPath
     End If
     If VBA.Len(finalDocumentPath) > 0 And _
        VBA.StrComp(finalDocumentPath, outDocumentPath, VBA.vbTextCompare) <> 0 Then
-        Name outDocumentPath As finalDocumentPath
+        fileSystem.MoveFile outDocumentPath, finalDocumentPath
         outDocumentPath = finalDocumentPath
     End If
     Set wordApp = Nothing
@@ -131,7 +149,10 @@ CleanFail:
     On Error Resume Next
     If Not wordDoc Is Nothing Then wordDoc.Close False
     If VBA.Len(temporaryDocumentPath) > 0 Then
-        If VBA.Len(VBA.Dir$(temporaryDocumentPath)) > 0 Then VBA.Kill temporaryDocumentPath
+        If Not fileSystem Is Nothing Then
+            If fileSystem.FileExists(temporaryDocumentPath) Then _
+                fileSystem.DeleteFile temporaryDocumentPath, True
+        End If
     End If
     On Error GoTo 0
     Exit Function
@@ -292,18 +313,18 @@ Public Function private_Date_GetUaMonthGenitive( _
     ByVal monthNumber As Long _
 ) As String
     Select Case monthNumber
-        Case 1: private_Date_GetUaMonthGenitive = "січня"
-        Case 2: private_Date_GetUaMonthGenitive = "лютого"
-        Case 3: private_Date_GetUaMonthGenitive = "березня"
-        Case 4: private_Date_GetUaMonthGenitive = "квітня"
-        Case 5: private_Date_GetUaMonthGenitive = "травня"
-        Case 6: private_Date_GetUaMonthGenitive = "червня"
-        Case 7: private_Date_GetUaMonthGenitive = "липня"
-        Case 8: private_Date_GetUaMonthGenitive = "серпня"
-        Case 9: private_Date_GetUaMonthGenitive = "вересня"
-        Case 10: private_Date_GetUaMonthGenitive = "жовтня"
-        Case 11: private_Date_GetUaMonthGenitive = "листопада"
-        Case 12: private_Date_GetUaMonthGenitive = "грудня"
+        Case 1: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1089,1110,1095,1085,1103")
+        Case 2: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1083,1102,1090,1086,1075,1086")
+        Case 3: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1073,1077,1088,1077,1079,1085,1103")
+        Case 4: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1082,1074,1110,1090,1085,1103")
+        Case 5: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1090,1088,1072,1074,1085,1103")
+        Case 6: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1095,1077,1088,1074,1085,1103")
+        Case 7: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1083,1080,1087,1085,1103")
+        Case 8: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1089,1077,1088,1087,1085,1103")
+        Case 9: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1074,1077,1088,1077,1089,1085,1103")
+        Case 10: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1078,1086,1074,1090,1085,1103")
+        Case 11: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1083,1080,1089,1090,1086,1087,1072,1076,1072")
+        Case 12: private_Date_GetUaMonthGenitive = fn_FromCodePoints("1075,1088,1091,1076,1085,1103")
     End Select
 End Function
 ' --------------------------------------
@@ -391,6 +412,7 @@ Public Function private_Path_ResolveFromWorkbook( _
     ByVal pathText As String _
 ) As String
     pathText = private_Text_Normalize(pathText)
+    If VBA.Left$(pathText, 2) = ".\" Then pathText = VBA.Mid$(pathText, 3)
     If VBA.Len(pathText) >= 2 And VBA.Mid$(pathText, 2, 1) = ":" Then
         private_Path_ResolveFromWorkbook = pathText
     ElseIf VBA.Left$(pathText, 2) = "\\" Then
@@ -414,6 +436,7 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
     Dim extensionText As String
     Dim candidatePath As String
     Dim copyIndex As Long
+    Dim fileSystem As Object
 
     dotPosition = VBA.InStrRev(templatePath, ".")
     If dotPosition > 0 Then
@@ -439,15 +462,16 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
         Exit Function
     End If
 
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     candidatePath = folderPath & fileNameBase & extensionText
-    If Not allowCopySuffix And VBA.Len(VBA.Dir$(candidatePath)) > 0 Then
+    If Not allowCopySuffix And fileSystem.FileExists(candidatePath) Then
         LogError "A generated document already exists: " & candidatePath
         ex_ShowErrorMessage "A document already exists for this vacation ticket: " & _
             candidatePath, VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     copyIndex = 2
-    Do While VBA.Len(VBA.Dir$(candidatePath)) > 0
+    Do While fileSystem.FileExists(candidatePath)
         candidatePath = folderPath & fileNameBase & " (" & _
             VBA.CStr(copyIndex) & ")" & extensionText
         copyIndex = copyIndex + 1
@@ -507,9 +531,11 @@ Public Function private_Path_TryArchiveDocument( _
     Dim extensionText As String
     Dim archivedPath As String
     Dim archiveIndex As Long
+    Dim fileSystem As Object
 
     On Error GoTo EH
-    If VBA.Len(VBA.Dir$(documentPath)) = 0 Then
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(documentPath) Then
         ex_ShowErrorMessage "Document to archive was not found: " & documentPath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
@@ -527,8 +553,8 @@ Public Function private_Path_TryArchiveDocument( _
         archivedPath = basePath & " (old " & VBA.CStr(archiveIndex) & ")" & _
             extensionText
         archiveIndex = archiveIndex + 1
-    Loop While VBA.Len(VBA.Dir$(archivedPath)) > 0
-    Name documentPath As archivedPath
+    Loop While fileSystem.FileExists(archivedPath)
+    fileSystem.MoveFile documentPath, archivedPath
     private_Path_TryArchiveDocument = True
     Exit Function
 EH:
@@ -538,27 +564,26 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Function
 
-' Checks that an existing Word file is closed and can be replaced.
+' Checks that an existing Word file is available for replacement.
 Public Function private_Path_TryEnsureDocumentWritable( _
     ByVal documentPath As String _
 ) As Boolean
-    Dim fileNumber As Integer
-    Dim isOpen As Boolean
+    Dim fileSystem As Object
+    Dim targetFile As Object
 
     On Error GoTo EH
-    If VBA.Len(VBA.Dir$(documentPath)) = 0 Then
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(documentPath) Then
         ex_ShowErrorMessage "Document to overwrite was not found: " & documentPath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
-    fileNumber = VBA.FreeFile
-    Open documentPath For Binary Access Read Write Lock Read Write As #fileNumber
-    isOpen = True
-    Close #fileNumber
+    Set targetFile = fileSystem.GetFile(documentPath)
+    If targetFile.Size < 0 Then Err.Raise VBA.vbObjectError + 4107, _
+        "private_Path_TryEnsureDocumentWritable", "Invalid document file size."
     private_Path_TryEnsureDocumentWritable = True
     Exit Function
 EH:
-    If isOpen Then Close #fileNumber
     LogError "Document is not writable | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description & " | Path=" & documentPath
     ex_ShowErrorMessage "The Word file is open or cannot be replaced. Close it " & _
@@ -571,24 +596,23 @@ Public Function private_Path_TryEnsureDocumentReadable( _
     ByVal documentPathInput As String _
 ) As Boolean
     Dim documentPath As String
-    Dim fileNumber As Integer
-    Dim isOpen As Boolean
+    Dim fileSystem As Object
+    Dim sourceFile As Object
 
     On Error GoTo EH
     documentPath = private_Path_ResolveFromWorkbook(documentPathInput)
-    If VBA.Len(VBA.Dir$(documentPath)) = 0 Then
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(documentPath) Then
         ex_ShowErrorMessage "Word template was not found: " & documentPath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
-    fileNumber = VBA.FreeFile
-    Open documentPath For Binary Access Read Shared As #fileNumber
-    isOpen = True
-    Close #fileNumber
+    Set sourceFile = fileSystem.GetFile(documentPath)
+    If sourceFile.Size < 0 Then Err.Raise VBA.vbObjectError + 4106, _
+        "private_Path_TryEnsureDocumentReadable", "Invalid template file size."
     private_Path_TryEnsureDocumentReadable = True
     Exit Function
 EH:
-    If isOpen Then Close #fileNumber
     LogError "Document is not readable | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description & " | Path=" & documentPath
     ex_ShowErrorMessage "The Word template cannot be read. Close it if it is " & _
@@ -605,10 +629,13 @@ Public Function private_Path_TryProbeTemplateCopy( _
     Dim outputFolderPath As String
     Dim probePath As String
     Dim fileSystem As Object
+    Dim errorNumber As Long
+    Dim errorDescription As String
 
     On Error GoTo EH
     templatePath = private_Path_ResolveFromWorkbook(templatePathInput)
-    If VBA.Len(VBA.Dir$(templatePath)) = 0 Then
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(templatePath) Then
         ex_ShowErrorMessage "Word template was not found: " & templatePath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
@@ -621,20 +648,21 @@ Public Function private_Path_TryProbeTemplateCopy( _
         outputFolderPath = private_Path_ResolveFromWorkbook(outputFolderPath)
     End If
     If Not private_Path_TryEnsureFolder(outputFolderPath) Then Exit Function
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     probePath = fileSystem.BuildPath(outputFolderPath, fileSystem.GetTempName)
-    VBA.FileCopy templatePath, probePath
-    VBA.Kill probePath
+    fileSystem.CopyFile templatePath, probePath, False
+    fileSystem.DeleteFile probePath, True
     private_Path_TryProbeTemplateCopy = True
     Exit Function
 EH:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
     On Error Resume Next
-    If VBA.Len(probePath) > 0 Then
-        If VBA.Len(VBA.Dir$(probePath)) > 0 Then VBA.Kill probePath
+    If VBA.Len(probePath) > 0 And Not fileSystem Is Nothing Then
+        If fileSystem.FileExists(probePath) Then fileSystem.DeleteFile probePath, True
     End If
     On Error GoTo 0
-    LogError "Template copy preflight failed | Number=" & VBA.CStr(Err.Number) & _
-        " | Description=" & Err.Description & " | Template=" & templatePath
+    LogError "Template copy preflight failed | Number=" & VBA.CStr(errorNumber) & _
+        " | Description=" & errorDescription & " | Template=" & templatePath
     ex_ShowErrorMessage "Cannot copy the Word template. Close it if it is " & _
         "locked and try again: " & templatePath, VBA.vbExclamation, _
         "Document Generation"
@@ -652,28 +680,34 @@ Public Function private_Path_TryFindVacationTicketDocument( _
     Dim ticketNoFileToken As String
     Dim fileName As String
     Dim matchCount As Long
+    Dim fileSystem As Object
+    Dim outputFolder As Object
+    Dim folderFile As Object
 
     On Error GoTo EH
     outDocumentPath = VBA.vbNullString
     outputFolderPath = private_Path_ResolveFromWorkbook(outputFolderPathInput)
-    If VBA.Len(VBA.Dir$(outputFolderPath, VBA.vbDirectory)) = 0 Then
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FolderExists(outputFolderPath) Then
         ex_ShowErrorMessage "Results folder was not found: " & outputFolderPath, _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     ticketNoFileToken = private_Path_SanitizeFileName(ticketNo)
-    fileName = VBA.Dir$(outputFolderPath & Application.PathSeparator & "*.docx")
-    Do While VBA.Len(fileName) > 0
-        If VBA.InStr(1, fileName, ticketNoFileToken & " ", _
+    Set outputFolder = fileSystem.GetFolder(outputFolderPath)
+    For Each folderFile In outputFolder.Files
+        fileName = folderFile.Name
+        If VBA.StrComp(fileSystem.GetExtensionName(fileName), "docx", _
+                VBA.vbTextCompare) = 0 And _
+           VBA.InStr(1, fileName, ticketNoFileToken & " ", _
                 VBA.vbTextCompare) > 0 And _
            VBA.InStr(1, fileName, "(" & ipnText & ")", _
                 VBA.vbTextCompare) > 0 And _
            Not private_Path_IsArchivedDocumentFileName(fileName) Then
             matchCount = matchCount + 1
-            outDocumentPath = outputFolderPath & Application.PathSeparator & fileName
+            outDocumentPath = folderFile.Path
         End If
-        fileName = VBA.Dir$()
-    Loop
+    Next folderFile
     If matchCount = 1 Then
         private_Path_TryFindVacationTicketDocument = True
         Exit Function
@@ -717,6 +751,7 @@ Private Function private_Path_BuildTemporaryDocumentPath( _
     Dim extensionText As String
     Dim candidatePath As String
     Dim copyIndex As Long
+    Dim fileSystem As Object
 
     dotPosition = VBA.InStrRev(documentPath, ".")
     If dotPosition = 0 Then
@@ -727,9 +762,10 @@ Private Function private_Path_BuildTemporaryDocumentPath( _
     End If
     basePath = VBA.Left$(documentPath, dotPosition - 1)
     extensionText = VBA.Mid$(documentPath, dotPosition)
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     candidatePath = basePath & ".updating" & extensionText
     copyIndex = 2
-    Do While VBA.Len(VBA.Dir$(candidatePath)) > 0
+    Do While fileSystem.FileExists(candidatePath)
         candidatePath = basePath & ".updating (" & VBA.CStr(copyIndex) & ")" & _
             extensionText
         copyIndex = copyIndex + 1
@@ -883,6 +919,28 @@ Public Sub ex_ShowStatusBarMessage(ByVal messageText As String)
     ex_ShowStatusMessage messageText
 End Sub
 
+' --------------------------------------
+' namespace Dialogs {
+' --------------------------------------
+' Shows a Windows dialog that supports Unicode text.
+Public Function ex_ShowMessageBox( _
+    ByVal messageText As String, _
+    Optional ByVal buttons As VbMsgBoxStyle = VBA.vbExclamation, _
+    Optional ByVal titleText As String = "Document Generation" _
+) As VbMsgBoxResult
+    Dim shell As Object
+
+    On Error GoTo Fallback
+    Set shell = VBA.CreateObject("WScript.Shell")
+    ex_ShowMessageBox = shell.Popup(messageText, 0, titleText, VBA.CLng(buttons))
+    Exit Function
+Fallback:
+    ex_ShowMessageBox = VBA.MsgBox(messageText, buttons, titleText)
+End Function
+' --------------------------------------
+' } // namespace Dialogs
+' --------------------------------------
+
 ' Shows an error in the message area and a dialog box.
 Public Sub ex_ShowErrorMessage( _
     ByVal messageText As String, _
@@ -890,7 +948,7 @@ Public Sub ex_ShowErrorMessage( _
     Optional ByVal titleText As String = "Document Generation" _
 )
     ex_ShowStatusMessage messageText, True
-    VBA.MsgBox messageText, buttons, titleText
+    Call ex_ShowMessageBox(messageText, buttons, titleText)
 End Sub
 
 Public Function ex_TryConfigureLogFileSuffix( _

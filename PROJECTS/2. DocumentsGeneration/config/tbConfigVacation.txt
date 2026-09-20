@@ -44,3 +44,15 @@ value	wsVacation::status.cancelled.tickets	СКАСОВАНО
 value	wsVacation::date.word	"{dd}" {month} {yyyy} р.
 value	wsVacation::document_name.active	В.к. {TicketNo} {FIO} ({IPN})
 value	wsVacation::document_name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})
+value	wsVacation::duration.connector	та
+value	wsVacation::duration.vacation.one	календарний день
+value	wsVacation::duration.vacation.few	календарні дні
+value	wsVacation::duration.vacation.many	календарних днів
+value	wsVacation::duration.donation.one	додатковий день
+value	wsVacation::duration.donation.few	додаткові дні
+value	wsVacation::duration.donation.many	додаткових днів
+value	wsVacation::duration.donation.suffix	 відпочинку за донацію донорської крові та/або компонентів крові
+value	wsVacation::duration.road.one	добу
+value	wsVacation::duration.road.few	доби
+value	wsVacation::duration.road.many	діб
+value	wsVacation::duration.road.suffix	 на дорогу

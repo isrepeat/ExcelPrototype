@@ -1,11 +1,11 @@
 file	filePersonnelShpo	Dependencies\ШПО.xlsx
 file	fileOrders	Dependencies\Накази.xlsx
-range	rangePersonnelAlf	[АЛФA1: J12000]
-range	rangePersonnelOs	[ОСA1: Ab12000]
-range	rangePersonnelRanks	[ЗванняA1: E12000]
-range	rangePersonnelPositions	[ПосадиA1: E12000]
-range	rangeOrders::year.2025	[НаказиA2: B12000]
-range	rangeOrders::year.2026	[НаказиD2: E12000]
+range	rangePersonnelAlf	[АЛФ$A1:J12000]
+range	rangePersonnelOs	[ОС$A1:AB12000]
+range	rangePersonnelRanks	[Звання$A1:E12000]
+range	rangePersonnelPositions	[Посади$A1:E12000]
+range	rangeOrders::year.2025	[Накази$A2:B12000]
+range	rangeOrders::year.2026	[Накази$D2:E12000]
 column	rangePersonnelAlf::column.fio	ПІБ
 column	rangePersonnelAlf::column.ipn	ІПН
 table	tbTickets	tbTickets
@@ -35,3 +35,22 @@ value	common::position.rozp.officer_unit	А3369
 value	common::position.rozp.other_unit	А7383
 path	common::log.folder	2. DocumentsGeneration
 file	common::log.base_name	documents_generation
+value	common::personnel.header.fio	ПІБ
+value	common::personnel.header.ipn	ІПН
+value	common::personnel.header.rank	Звання
+value	common::personnel.header.position_code	Код посади
+value	common::personnel.header.actual_rank	Військове звання фактично
+value	common::personnel.header.name	Назва
+value	common::personnel.header.code	Код
+value	common::orders.header.number	Номер наказу
+value	common::orders.header.date	Дата наказу
+value	common::case.genitive	Родовий
+value	common::case.dative	Давальний
+value	common::case.accusative	Знахідний
+value	common::rank.junior_lieutenant	молодший лейтенант
+value	common::rank.lieutenant	лейтенант
+value	common::rank.senior_lieutenant	старший лейтенант
+value	common::rank.captain	капітан
+value	common::rank.major	майор
+value	common::rank.lieutenant_colonel	підполковник
+value	common::rank.colonel	полковник
