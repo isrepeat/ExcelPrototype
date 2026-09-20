@@ -1,0 +1,37 @@
+file	filePersonnelShpo	Dependencies\ШПО.xlsx
+file	fileOrders	Dependencies\Накази.xlsx
+range	rangePersonnelAlf	[АЛФA1: J12000]
+range	rangePersonnelOs	[ОСA1: Ab12000]
+range	rangePersonnelRanks	[ЗванняA1: E12000]
+range	rangePersonnelPositions	[ПосадиA1: E12000]
+range	rangeOrders::year.2025	[НаказиA2: B12000]
+range	rangeOrders::year.2026	[НаказиD2: E12000]
+column	rangePersonnelAlf::column.fio	ПІБ
+column	rangePersonnelAlf::column.ipn	ІПН
+table	tbTickets	tbTickets
+column	tbTickets::column.rank	Звання
+column	tbTickets::column.fio	ПІБ
+column	tbTickets::column.ipn	ІПН
+column	tbTickets::column.position	Посада
+column	tbTickets::column.event	Подія
+column	tbTickets::column.out_order	Вибуття.Наказ
+column	tbTickets::column.out_food	Вибуття.Продовольче
+column	tbTickets::column.out_date	Вибуття
+column	tbTickets::column.duration	Вибуття.Термін
+column	tbTickets::column.road	Вибуття.Дорога
+column	tbTickets::column.arrival_plan	Прибуття.План
+column	tbTickets::column.document	Супровідний документ
+column	tbTickets::column.tvo_fio	ТВО.ПІБ
+column	tbTickets::column.tvo_ipn	ТВО.ІПН
+column	tbTickets::column.tvo_position	ТВО.Посада
+column	tbTickets::column.status	Статус
+value	tbTickets::event.donation	Відпочинок за донацію крові
+value	common::position.rozp.prefix	A1A
+value	common::position.spis.prefix	A1B
+value	common::position.rozp.short	РОЗП
+value	common::position.spis.short	СПИС
+text	common::position.rozp.word_prefix	у розпорядженні командира військової частини
+value	common::position.rozp.officer_unit	А3369
+value	common::position.rozp.other_unit	А7383
+path	common::log.folder	2. DocumentsGeneration
+file	common::log.base_name	documents_generation
