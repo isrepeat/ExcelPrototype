@@ -9,25 +9,23 @@ function Message {
         [string]$color = "Gray",
         [string]$prefix = ""
     )
-
+	
     Write-Host "$prefix$text" -ForegroundColor $color
 }
 
 function MessageError {
-    param(
+    param (
         [Parameter(Position = 0, Mandatory = $true)]
         [string]$text
     )
-
     Message -color Red -text $text
 }
 
 function MessageAction {
-    param(
-        [Parameter(Position = 0, Mandatory = $true)]
+    param (
+		[Parameter(Position = 0, Mandatory = $true)]
         [string]$text
     )
-
     Message -color Yellow -text $text
 }
 
@@ -38,6 +36,7 @@ function TestColoredMessagePalette {
     )
 
     $message = "The quick brown fox jumps over the lazy dog"
+
     Message -color Cyan -text "`nColor Palette Test:"
     foreach ($color in $colors) {
         Message -color $color -text ("{0,-12} : {1}" -f $color, $message)
