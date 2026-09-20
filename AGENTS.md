@@ -1,36 +1,38 @@
 # Agent Instructions
 
-Новые комментарии в коде и пояснения для разработчиков писать преимущественно на русском. Английский оставлять для технических идентификаторов, названий API, ключевых слов DSL и терминов, перевод которых снижает ясность. При изменении существующего блока сохранять принятый в нем язык, если пользователь отдельно не попросил перевод.
+Write all new or modified code comments and developer-facing documentation in English. Do not add Cyrillic text to source code, comments, or configuration keys. Keep technical identifiers, API names, and DSL keywords in English.
 
-Если пользователь пишет «залей ченжи», создать локальный коммит или несколько логичных локальных коммитов с текущими изменениями. Не выполнять `git push`, если пользователь отдельно об этом не попросил.
+Wrap every module's public VBA procedures in a comment-delimited namespace block, following the established format: `namespace API {` and `} // namespace API`. Group public procedures by a more specific namespace when the module already uses one.
 
-Сообщения всех создаваемых коммитов писать только на английском языке.
+When the user requests an upload of changes, create one or more logical local commits from the current changes. Do not run `git push` unless the user explicitly requests it.
 
-## Конец файла
+Write every created commit message in English.
 
-- При изменении файлов не добавлять завершающий перевод строки после последнего символа файла. Если он присутствует, удалять его.
+## End of file
+
+- Do not add a trailing newline after the last character when editing files. Remove it when present.
 
 ## Error handling
 
-- Не использовать молчаливые fallback по умолчанию, например автоматический выбор `Default`.
-- При отсутствии обязательных данных, профиля или файла показывать `MsgBox` с конкретным описанием проблемы и прекращать текущую операцию.
+- Do not use silent default fallbacks, such as automatically selecting `Default`.
+- When required data, a profile, or a file is missing, show a `MsgBox` with a specific description and stop the current operation.
 
 ## Naming constraints in VBA and Excel
 
-- При добавлении VBA-кода и декларативных UI-контролов учитывать ограничения длины имён, действующие в VBA и Excel.
-- Имя Excel `Shape` вместе с автоматически добавляемыми префиксами, например `btn_`, не должно превышать 31 символ. Иначе Excel обрежет имя, и зарегистрированный runtime route может не совпасть с фактическим именем `Shape`.
-- Перед завершением изменений проверять итоговые имена создаваемых Excel-объектов со всеми генерируемыми префиксами и суффиксами.
+- Account for VBA and Excel name-length limits when adding VBA code or declarative UI controls.
+- An Excel `Shape` name, including automatically added prefixes such as `btn_`, must not exceed 31 characters. Otherwise, Excel truncates the name and the registered runtime route may not match the actual `Shape` name.
+- Before completing changes, verify final Excel-object names together with all generated prefixes and suffixes.
 
 ## Custom class variable naming
 
-- По возможности называть переменную в соответствии с именем назначаемого ей кастомного класса. Например, экземпляр `obj_PrsnlEvntBuilderCfgParser` называть `prsnlEvntBuilderCfgParser`.
-- Это предпочтительный стиль, а не безусловное требование. В первую очередь применять его в простых методах, где нет нескольких зависимостей с похожими названиями.
-- Смысловые префиксы и суффиксы разрешены; корень имени переменной должен по возможности оставаться узнаваемо связанным с именем класса.
+- When practical, name a variable after its assigned custom class. For example, name an `obj_PrsnlEvntBuilderCfgParser` instance `prsnlEvntBuilderCfgParser`.
+- This is a preferred style rather than an absolute requirement. Apply it first in simple methods without several similarly named dependencies.
+- Semantic prefixes and suffixes are allowed, but the variable-name root should remain recognizably related to the class name when possible.
 
 ## Mode-specific VBA logic
 
-- `PrototypeNew` является универсальным движком и не должен напрямую создавать mode-specific классы по умолчанию.
-- Если режиму требуется специфическая VBA-логика, класс с этой логикой размещать в `PrototypeNew/vba/[5] pages/<ModeName>/`.
-- Имя mode-specific класса явно указывать в XML-конфигурации режима. Отсутствие обязательного имени класса считать ошибкой конфигурации, показывать конкретный `MsgBox` и прекращать операцию.
-- Общий код может содержать универсальный контракт, каркас жизненного цикла и фабричную точку входа. Выбор и создание конкретной реализации должны происходить только по имени класса, прочитанному из конфигурации.
-- Не добавлять проверки конкретного `ModeName` и специфические правила обработки данных в универсальные controller/parser-классы, если эту логику можно изолировать за общим интерфейсом.
+- `PrototypeNew` is a universal engine and must not directly create mode-specific classes by default.
+- If a mode requires specific VBA logic, place its class in `PrototypeNew/vba/[5] pages/<ModeName>/`.
+- Explicitly specify a mode-specific class name in the mode XML configuration. Treat a missing required class name as a configuration error, show a specific `MsgBox`, and stop the operation.
+- Shared code may contain a universal contract, lifecycle framework, and factory entry point. Select and create a concrete implementation only by the class name read from configuration.
+- Do not add checks for a specific `ModeName` or mode-specific processing rules to universal controller/parser classes when that logic can be isolated behind a shared interface.

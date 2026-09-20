@@ -10,14 +10,14 @@ Private configuredLogFileSuffix As String
 Private logWriteFailureNotified As Boolean
 
 Private Const LOG_FOLDER_NAME As String = "2. DocumentsGeneration"
-' Имя журнала намеренно ASCII: VBA I/O на ПК с другой ANSI-локалью может
-' некорректно обработать имя книги, содержащее кириллицу.
+' The log name is ASCII on purpose. VBA I/O on a PC with another ANSI locale
+' may not read a workbook name with Cyrillic text correctly.
 Private Const LOG_FILE_BASE_NAME As String = "documents_generation"
 
 ' --------------------------------------
 ' namespace Word {
 ' --------------------------------------
-' Общие операции форматирования, работы с путями, Word и журналом.
+' Common formatting, path, Word, and log operations.
 Public Function private_Word_TryGenerateDocument( _
     ByVal templatePathInput As String, _
     ByVal documentName As String, _
@@ -191,7 +191,7 @@ Public Function private_Date_TryFormat( _
     End If
 
     outText = formatPattern
-    ' Сначала заменяем длинные токены, чтобы короткие не затрагивали их части.
+    ' Replace long tokens first so short tokens do not change their parts.
     outText = VBA.Replace$(outText, "{month}", _
         private_Date_GetUaMonthGenitive(VBA.Month(parsedDate)))
     outText = VBA.Replace$(outText, "{yyyy}", _
@@ -206,7 +206,7 @@ Public Function private_Date_TryFormat( _
         VBA.Format$(VBA.Month(parsedDate), "00"))
     outText = VBA.Replace$(outText, "{m}", _
         VBA.CStr(VBA.Month(parsedDate)))
-    ' В строковом формате из ячейки или внешнего конфига \" означает кавычку.
+    ' In a format string from a cell or external config, \" means a quote.
     outText = VBA.Replace$(outText, "\""", """")
     If VBA.InStr(1, outText, "{", VBA.vbBinaryCompare) > 0 Or _
        VBA.InStr(1, outText, "}", VBA.vbBinaryCompare) > 0 Then
@@ -251,7 +251,7 @@ Public Function private_Date_TryParse( _
     monthValue = VBA.CLng(dateParts(1))
     yearValue = VBA.CLng(dateParts(2))
     parsedDate = VBA.DateSerial(yearValue, monthValue, dayValue)
-    ' DateSerial нормализует 31.02, поэтому сверяем компоненты после парсинга.
+    ' DateSerial normalizes 31.02, so check parts after parsing.
     If VBA.Day(parsedDate) <> dayValue Or _
         VBA.Month(parsedDate) <> monthValue Or _
         VBA.Year(parsedDate) <> yearValue Then GoTo InvalidDate
@@ -324,8 +324,8 @@ Public Function private_Text_IsDigits(ByVal valueText As String) As Boolean
         Not valueText Like "*[!0-9]*")
 End Function
 
-' Форматирует строку по именованным токенам: "{FIO} - {OrderNo}".
-' Литеральные фигурные скобки задаются как "{{" и "}}".
+' Formats text with named tokens: "{FIO} - {OrderNo}".
+' Use "{{" and "}}" for literal braces.
 Public Function private_Text_TryFormat( _
     ByVal formatPattern As String, _
     ByVal formatValues As Object, _
@@ -455,7 +455,7 @@ Public Function private_Path_BuildGeneratedDocumentPath( _
     private_Path_BuildGeneratedDocumentPath = candidatePath
 End Function
 
-' Формирует точный путь нового документа без автоматического добавления суффикса.
+' Builds the exact path for a new document without an automatic suffix.
 Private Function private_Path_TryBuildExactDocumentPath( _
     ByVal templatePath As String, _
     ByVal documentName As String, _
@@ -498,7 +498,7 @@ Private Function private_Path_TryBuildExactDocumentPath( _
     private_Path_TryBuildExactDocumentPath = True
 End Function
 
-' Перемещает прежний документ в свободное имя с суффиксом «(old N)».
+' Moves the old document to a free name with an "(old N)" suffix.
 Public Function private_Path_TryArchiveDocument( _
     ByVal documentPath As String _
 ) As Boolean
@@ -538,7 +538,7 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Function
 
-' Проверяет, что существующий Word-файл не открыт и доступен для замены.
+' Checks that an existing Word file is closed and can be replaced.
 Public Function private_Path_TryEnsureDocumentWritable( _
     ByVal documentPath As String _
 ) As Boolean
@@ -566,7 +566,7 @@ EH:
         "Document Generation"
 End Function
 
-' Проверяет, что Word-шаблон доступен для чтения; открытый в Word файл допустим.
+' Checks that the Word template can be read. It may be open in Word.
 Public Function private_Path_TryEnsureDocumentReadable( _
     ByVal documentPathInput As String _
 ) As Boolean
@@ -596,7 +596,7 @@ EH:
         "Document Generation"
 End Function
 
-' Пробной копией проверяет именно операцию FileCopy, используемую генератором Word.
+' Tests the FileCopy operation used by the Word generator.
 Public Function private_Path_TryProbeTemplateCopy( _
     ByVal templatePathInput As String, _
     ByVal outputFolderPathInput As String _
@@ -640,7 +640,7 @@ EH:
         "Document Generation"
 End Function
 
-' Находит единственный Word-файл билета в указанной папке по номеру и ИПН.
+' Finds one ticket Word file in the folder by ticket number and IPN.
 Public Function private_Path_TryFindVacationTicketDocument( _
     ByVal outputFolderPathInput As String, _
     ByVal ticketNo As String, _
@@ -700,7 +700,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Исключает архивные копии, которым присваивается суффикс «(old N)».
+' Ignores archived copies with an "(old N)" suffix.
 Private Function private_Path_IsArchivedDocumentFileName( _
     ByVal fileName As String _
 ) As Boolean
@@ -708,7 +708,7 @@ Private Function private_Path_IsArchivedDocumentFileName( _
         VBA.InStr(1, fileName, " (old ", VBA.vbTextCompare) > 0)
 End Function
 
-' Возвращает свободный временный путь в папке целевого Word-файла.
+' Returns a free temporary path in the target Word-file folder.
 Private Function private_Path_BuildTemporaryDocumentPath( _
     ByVal documentPath As String _
 ) As String
@@ -737,7 +737,7 @@ Private Function private_Path_BuildTemporaryDocumentPath( _
     private_Path_BuildTemporaryDocumentPath = candidatePath
 End Function
 
-' Создаёт папку результата и отсутствующие родительские папки.
+' Creates the result folder and missing parent folders.
 Private Function private_Path_TryEnsureFolder( _
     ByVal folderPath As String _
 ) As Boolean
@@ -792,7 +792,7 @@ Public Function private_Text_Normalize(ByVal valueText As String) As String
     private_Text_Normalize = valueText
 End Function
 
-' Возвращает украинскую форму счётного слова для 1, 2-4 либо остальных чисел.
+' Returns the Ukrainian count-word form for 1, 2-4, or other numbers.
 Public Function ex_GetUkrainianCountForm( _
     ByVal countValue As Long, _
     ByVal oneForm As String, _
@@ -878,12 +878,12 @@ EH:
         VBA.CStr(Err.Number) & " | Description=" & Err.Description
 End Sub
 
-' Сохраняет совместимость с существующими модулями без использования StatusBar.
+' Keeps compatibility with existing modules without using StatusBar.
 Public Sub ex_ShowStatusBarMessage(ByVal messageText As String)
     ex_ShowStatusMessage messageText
 End Sub
 
-' Выводит ошибку в область сообщений и диалоговое окно.
+' Shows an error in the message area and a dialog box.
 Public Sub ex_ShowErrorMessage( _
     ByVal messageText As String, _
     Optional ByVal buttons As VbMsgBoxStyle = VBA.vbExclamation, _
@@ -915,7 +915,7 @@ Public Sub ClearLog()
 
     On Error GoTo EH
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    ' TristateTrue создаёт Unicode-журнал независимо от системной ANSI-кодировки.
+    ' TristateTrue creates a Unicode log without depending on the system ANSI code page.
     Set logStream = fileSystem.OpenTextFile(GetLogFilePath(), 2, True, -1)
     logStream.Close
     Exit Sub
@@ -949,7 +949,7 @@ Public Sub WriteLog(ByVal messageText As String)
 
     On Error GoTo EH
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    ' TristateTrue сохраняет украинские и русские символы без зависимости от ACP.
+    ' TristateTrue keeps Cyrillic text without depending on ACP.
     Set logStream = fileSystem.OpenTextFile(GetLogFilePath(), 8, True, -1)
     logStream.WriteLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
         " | " & messageText
@@ -978,7 +978,7 @@ Public Function GetLogFilePath() As String
         LOG_FILE_BASE_NAME & configuredLogFileSuffix
 End Function
 
-' Создаёт локальную папку журнала, не зависящую от пути открытия Excel-книги.
+' Creates a local log folder that does not depend on the workbook path.
 Private Function private_Log_TryEnsureFolder( _
     ByRef outFolderPath As String _
 ) As Boolean
@@ -1005,7 +1005,7 @@ EH:
     outFolderPath = VBA.vbNullString
 End Function
 
-' Логирование не должно скрывать ошибку основной операции.
+' Logging must not hide the main operation error.
 Private Sub private_Log_NotifyWriteFailure( _
     ByVal errorNumber As Long, _
     ByVal errorDescription As String _

@@ -72,7 +72,7 @@ EH:
     Resume CleanExit
 End Function
 
-' Универсальные операции с внешними Excel-таблицами через ADO.
+' Common ADO operations for external Excel tables.
 Public Function ex_TryOpenConnection( _
     ByVal workbookPath As String, _
     ByVal sourceCaption As String, _

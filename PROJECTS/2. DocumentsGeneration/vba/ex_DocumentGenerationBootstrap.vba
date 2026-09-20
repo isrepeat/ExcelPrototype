@@ -3,10 +3,11 @@ Option Explicit
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-' Собирает runtime-маршруты функций формы после открытия или hot reload книги.
+' Builds form runtime routes after the workbook opens or reloads.
 Public Sub fn_Initialize()
     Dim candidatesConfig As Object
 
+    ex_Config.fn_ResetCache
     If Not ex_VacationTicketGeneration.fn_TryInitializeUiRuntime() Then Exit Sub
     If Not ex_VacationTicketGeneration.fn_TryGetCandidatesConfig(candidatesConfig) Then Exit Sub
     If Not ex_Candidates.fn_Configure(candidatesConfig) Then Exit Sub
