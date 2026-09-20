@@ -58,6 +58,57 @@ Sub fn_DateMinusOne()
 End Sub
 
 
+Public Sub fn_FilterContainsCurrentColumn()
+    Dim dataRange As Range
+    Dim columnIndex As Long
+    Dim query As String
+    Dim targetSheet As Worksheet
+
+    Set targetSheet = ActiveSheet
+
+    ' Match records whose selected column contains the supplied text.
+    query = private_NormalizeFilterQuery(InputBox( _
+        "Enter text to search for." & vbCrLf & _
+        "The filter matches values that contain the entered text.", _
+        "Filter contains"))
+    If Len(query) = 0 Then Exit Sub
+
+    ' Filter the Excel Table when the active cell belongs to one.
+    On Error Resume Next
+    If Not ActiveCell.ListObject Is Nothing Then
+        With ActiveCell.ListObject
+            columnIndex = ActiveCell.Column - .Range.Columns(1).Column + 1
+            .Range.AutoFilter Field:=columnIndex, Criteria1:="*" & query & "*"
+        End With
+        Exit Sub
+    End If
+    On Error GoTo 0
+
+    ' Otherwise, filter the active cell's current region.
+    Set dataRange = ActiveCell.CurrentRegion
+    If dataRange.Rows.Count < 2 Then Exit Sub
+
+    columnIndex = ActiveCell.Column - dataRange.Column + 1
+    If columnIndex < 1 Or columnIndex > dataRange.Columns.Count Then Exit Sub
+
+    If Not targetSheet.AutoFilterMode Then dataRange.AutoFilter
+    dataRange.AutoFilter Field:=columnIndex, Criteria1:="*" & query & "*"
+End Sub
+
+
+Private Function private_NormalizeFilterQuery(ByVal textValue As String) As String
+    ' Normalize line breaks, non-breaking spaces, and repeated spaces.
+    textValue = Replace(textValue, vbCr, " ")
+    textValue = Replace(textValue, vbLf, " ")
+    textValue = Replace(textValue, ChrW(160), " ")
+    textValue = Trim(textValue)
+    Do While InStr(textValue, "  ") > 0
+        textValue = Replace(textValue, "  ", " ")
+    Loop
+    private_NormalizeFilterQuery = textValue
+End Function
+
+
 Public Sub fn_ReloadActiveWorkbookVba()
     Const VBEXT_CT_STD_MODULE As Long = 1
     Const VBEXT_CT_CLASS_MODULE As Long = 2
@@ -516,4 +567,142 @@ Private Function private_FolderExists(ByVal folderPath As String) As Boolean
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     private_FolderExists = fileSystem.FolderExists(folderPath)
+End Function
+
+
+' The classic VBE stores source code using the current system code page.
+' Convert only non-ASCII string literals into ChrW$ expressions before adding
+' code, so the imported module remains executable on every legacy code page.
+Private Function private_PrepareSourceForVbe(ByVal sourceText As String) As String
+    private_PrepareSourceForVbe = private_RemoveExportMetadata( _
+        private_EncodeUnicodeStringLiterals(sourceText))
+End Function
+
+
+Private Function private_EncodeUnicodeStringLiterals( _
+    ByVal sourceText As String _
+) As String
+    Dim sourceLines As Variant
+    Dim sourceLine As Variant
+    Dim resultText As String
+
+    sourceLines = VBA.Split(VBA.Replace$(sourceText, VBA.vbCrLf, VBA.vbLf), _
+        VBA.vbLf)
+    For Each sourceLine In sourceLines
+        resultText = resultText & private_EncodeUnicodeStringLiteralsOnLine( _
+            VBA.CStr(sourceLine)) & VBA.vbCrLf
+    Next sourceLine
+
+    private_EncodeUnicodeStringLiterals = resultText
+End Function
+
+
+Private Function private_EncodeUnicodeStringLiteralsOnLine( _
+    ByVal sourceLine As String _
+) As String
+    Dim charIndex As Long
+    Dim literalStartIndex As Long
+    Dim literalText As String
+    Dim currentCharacter As String
+    Dim resultText As String
+    Dim literalClosed As Boolean
+
+    charIndex = 1
+    Do While charIndex <= VBA.Len(sourceLine)
+        currentCharacter = VBA.Mid$(sourceLine, charIndex, 1)
+
+        If currentCharacter = "'" Then
+            ' A quote begins a comment outside a string literal.
+            resultText = resultText & VBA.Mid$(sourceLine, charIndex)
+            Exit Do
+        End If
+
+        If currentCharacter <> """" Then
+            resultText = resultText & currentCharacter
+            charIndex = charIndex + 1
+        Else
+            literalStartIndex = charIndex
+            charIndex = charIndex + 1
+            literalText = VBA.vbNullString
+            literalClosed = False
+
+            Do While charIndex <= VBA.Len(sourceLine)
+                currentCharacter = VBA.Mid$(sourceLine, charIndex, 1)
+                If currentCharacter <> """" Then
+                    literalText = literalText & currentCharacter
+                    charIndex = charIndex + 1
+                ElseIf charIndex < VBA.Len(sourceLine) And _
+                       VBA.Mid$(sourceLine, charIndex + 1, 1) = """" Then
+                    literalText = literalText & """"
+                    charIndex = charIndex + 2
+                Else
+                    charIndex = charIndex + 1
+                    literalClosed = True
+                    Exit Do
+                End If
+            Loop
+
+            If Not literalClosed Then
+                ' Keep an unterminated literal unchanged and let the VBE report it.
+                resultText = resultText & VBA.Mid$(sourceLine, literalStartIndex)
+                Exit Do
+            End If
+
+            resultText = resultText & private_EncodeUnicodeLiteral(literalText)
+        End If
+    Loop
+
+    private_EncodeUnicodeStringLiteralsOnLine = resultText
+End Function
+
+
+Private Function private_EncodeUnicodeLiteral( _
+    ByVal literalText As String _
+) As String
+    Dim charIndex As Long
+    Dim characterCode As Long
+    Dim asciiBuffer As String
+    Dim expressionParts As Collection
+
+    Set expressionParts = New Collection
+
+    For charIndex = 1 To VBA.Len(literalText)
+        characterCode = VBA.AscW(VBA.Mid$(literalText, charIndex, 1))
+        If characterCode >= 0 And characterCode <= 127 Then
+            asciiBuffer = asciiBuffer & VBA.Mid$(literalText, charIndex, 1)
+        Else
+            private_AppendAsciiLiteralPart expressionParts, asciiBuffer
+            asciiBuffer = VBA.vbNullString
+            expressionParts.Add "VBA.ChrW$(" & VBA.CStr(characterCode) & ")"
+        End If
+    Next charIndex
+    private_AppendAsciiLiteralPart expressionParts, asciiBuffer
+
+    private_EncodeUnicodeLiteral = private_JoinExpressionParts(expressionParts)
+End Function
+
+
+Private Sub private_AppendAsciiLiteralPart( _
+    ByVal expressionParts As Collection, _
+    ByVal asciiText As String _
+)
+    If VBA.Len(asciiText) = 0 Then Exit Sub
+
+    expressionParts.Add """" & VBA.Replace$(asciiText, """", """"") & """"
+End Sub
+
+
+Private Function private_JoinExpressionParts( _
+    ByVal expressionParts As Collection _
+) As String
+    Dim partIndex As Long
+    Dim resultText As String
+
+    For partIndex = 1 To expressionParts.Count
+        If partIndex > 1 Then resultText = resultText & " & "
+        resultText = resultText & VBA.CStr(expressionParts(partIndex))
+    Next partIndex
+
+    If expressionParts.Count = 0 Then resultText = """"
+    private_JoinExpressionParts = resultText
 End Function

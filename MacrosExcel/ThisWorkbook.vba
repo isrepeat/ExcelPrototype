@@ -12,31 +12,31 @@ Public Sub BindKeys()
     ' Application.OnKey действует глобально для всего экземпляра Excel.
     ' Явно указываем книгу с глобальными макросами, чтобы Excel не выбрал
     ' одноимённую процедуру из активной книги.
-    Application.OnKey "+%{UP}", private_GlobalMacroRef("fn_MoveTableRowsUp")
-    Application.OnKey "+%{DOWN}", private_GlobalMacroRef("fn_MoveTableRowsDown")
+    Application.OnKey "+%{UP}", private_GlobalMacroRef("module_Tools.fn_MoveTableRowsUp")
+    Application.OnKey "+%{DOWN}", private_GlobalMacroRef("module_Tools.fn_MoveTableRowsDown")
 
-    Application.OnKey "^q", private_GlobalMacroRef("FilterContainsCurrentColumn")
-    Application.OnKey "^r", private_GlobalMacroRef("fn_RecalculateActiveSheet")
-    Application.OnKey "^%r", private_GlobalMacroRef("fn_ReloadActiveWorkbookVba")
+    Application.OnKey "^q", private_GlobalMacroRef("module_ShortcutsHandlers.fn_FilterContainsCurrentColumn")
+    Application.OnKey "^r", private_GlobalMacroRef("module_ShortcutsHandlers.fn_RecalculateActiveSheet")
+    Application.OnKey "^%r", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ReloadActiveWorkbookVba")
     'Application.OnKey "^d", "PasteClipboardRowToVisibleCellsSkipTabs"
 
-    Application.OnKey "%{PGUP}", private_GlobalMacroRef("fn_DatePlusOne")
-    Application.OnKey "%{PGDN}", private_GlobalMacroRef("fn_DateMinusOne")
+    Application.OnKey "%{PGUP}", private_GlobalMacroRef("module_ShortcutsHandlers.fn_DatePlusOne")
+    Application.OnKey "%{PGDN}", private_GlobalMacroRef("module_ShortcutsHandlers.fn_DateMinusOne")
 
     ' EN: Ctrl + `
     Err.Clear
-    Application.OnKey "^`", private_GlobalMacroRef("fn_ToggleFirstTwoRows")
+    Application.OnKey "^`", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ToggleFirstTwoRows")
 
     ' RU/UKR fallback: Ctrl + '
     If Err.Number <> 0 Then
         Err.Clear
-        Application.OnKey "^'", private_GlobalMacroRef("fn_ToggleFirstTwoRows")
+        Application.OnKey "^'", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ToggleFirstTwoRows")
     End If
 
     ' RU fallback: Ctrl + ¸
     If Err.Number <> 0 Then
         Err.Clear
-        Application.OnKey "^¸", private_GlobalMacroRef("fn_ToggleFirstTwoRows")
+        Application.OnKey "^¸", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ToggleFirstTwoRows")
     End If
 
     On Error GoTo 0
