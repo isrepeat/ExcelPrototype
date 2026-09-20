@@ -1,0 +1,27 @@
+{
+  "rules": [
+    {
+      "path": ".",
+      "maxDepth": -1,
+      "extensions": [
+        ".vba",
+        ".bas",
+        ".cls",
+        ".frm",
+        ".bat",
+        ".cpp",
+        ".jslike",
+        ".json",
+        ".md",
+        ".ps1",
+        ".psm1",
+        ".rels",
+        ".sh",
+        ".txt",
+        ".vbs",
+        ".xml"
+      ],
+      "fileNames": []
+    }
+  ]
+}
