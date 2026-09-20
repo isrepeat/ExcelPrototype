@@ -49,24 +49,27 @@ Private Const CFG_KIND_CHILDCARE_WORD As String = "wsVacation::kind.childcare.wo
 Private Const CFG_KIND_CHILDCARE_TICKETS As String = "wsVacation::kind.childcare.tickets"
 Private Const CFG_KIND_DONATION_TICKETS As String = "tbTickets::event.donation"
 
-' Allowed values for the abroad flag in the form.
-Private Const VACATION_ABROAD_YES As String = "Так"
-Private Const VACATION_ABROAD_NO As String = "Ні"
-Private Const VACATION_ABROAD_TEXT_YES As String = "Дозволено виїзд за кордон"
-
-' Allowed vacation ticket statuses and their registry values.
-Private Const VACATION_STATUS_ACTIVE As String = "Активна"
-Private Const VACATION_STATUS_CANCELLED As String = "Скасовано"
-Private Const VACATION_STATUS_TICKETS_CANCELLED As String = "СКАСОВАНО"
-
-' Date formats for the Word template. The template has the fixed time text.
-Private Const DATE_FORMAT_PATTERN As String = """{dd}"" {month} {yyyy} р."
-
-' Stable pattern for the generated document name.
-Private Const DOCUMENT_NAME_PATTERN_ACTIVE As String = _
-    "В.к. {TicketNo} {FIO} ({IPN})"
-Private Const DOCUMENT_NAME_PATTERN_CANCELLED As String = _
-    "В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})"
+Private Const CFG_ABROAD_YES As String = "wsVacation::abroad.yes"
+Private Const CFG_ABROAD_NO As String = "wsVacation::abroad.no"
+Private Const CFG_ABROAD_YES_WORD As String = "wsVacation::abroad.yes.word"
+Private Const CFG_STATUS_ACTIVE As String = "wsVacation::status.active"
+Private Const CFG_STATUS_CANCELLED As String = "wsVacation::status.cancelled"
+Private Const CFG_STATUS_CANCELLED_TICKETS As String = "wsVacation::status.cancelled.tickets"
+Private Const CFG_DATE_WORD As String = "wsVacation::date.word"
+Private Const CFG_DOCUMENT_NAME_ACTIVE As String = "wsVacation::document_name.active"
+Private Const CFG_DOCUMENT_NAME_CANCELLED As String = "wsVacation::document_name.cancelled"
+Private Const CFG_DURATION_CONNECTOR As String = "wsVacation::duration.connector"
+Private Const CFG_DURATION_VACATION_ONE As String = "wsVacation::duration.vacation.one"
+Private Const CFG_DURATION_VACATION_FEW As String = "wsVacation::duration.vacation.few"
+Private Const CFG_DURATION_VACATION_MANY As String = "wsVacation::duration.vacation.many"
+Private Const CFG_DURATION_DONATION_ONE As String = "wsVacation::duration.donation.one"
+Private Const CFG_DURATION_DONATION_FEW As String = "wsVacation::duration.donation.few"
+Private Const CFG_DURATION_DONATION_MANY As String = "wsVacation::duration.donation.many"
+Private Const CFG_DURATION_DONATION_SUFFIX As String = "wsVacation::duration.donation.suffix"
+Private Const CFG_DURATION_ROAD_ONE As String = "wsVacation::duration.road.one"
+Private Const CFG_DURATION_ROAD_FEW As String = "wsVacation::duration.road.few"
+Private Const CFG_DURATION_ROAD_MANY As String = "wsVacation::duration.road.many"
+Private Const CFG_DURATION_ROAD_SUFFIX As String = "wsVacation::duration.road.suffix"
 
 ' Context aliases for the generated document name.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
@@ -100,6 +103,27 @@ Private candidatesPersonLookupTitle As String
 Private candidatesTvoLookupTitle As String
 Private candidatesTableTitlePrefix As String
 Private candidatesHideCommand As String
+Private vacationAbroadYes As String
+Private vacationAbroadNo As String
+Private vacationAbroadYesWord As String
+Private vacationStatusActive As String
+Private vacationStatusCancelled As String
+Private vacationStatusCancelledTickets As String
+Private dateWordPattern As String
+Private documentNamePatternActive As String
+Private documentNamePatternCancelled As String
+Private durationConnector As String
+Private durationVacationOne As String
+Private durationVacationFew As String
+Private durationVacationMany As String
+Private durationDonationOne As String
+Private durationDonationFew As String
+Private durationDonationMany As String
+Private durationDonationSuffix As String
+Private durationRoadOne As String
+Private durationRoadFew As String
+Private durationRoadMany As String
+Private durationRoadSuffix As String
 
 ' --------------------------------------
 ' namespace API {
@@ -133,14 +157,16 @@ Public Function fn_TryGetCandidatesConfig( _
     Set outCandidatesConfig = Nothing
     If Not private_Initialize() Then Exit Function
     If inputCellMap Is Nothing Then
-        VBA.MsgBox "Vacation input cell map is not initialized.", _
-            VBA.vbExclamation, "Document Generation"
+        Call ex_Helpers.ex_ShowMessageBox( _
+            "Vacation input cell map is not initialized.", VBA.vbExclamation, _
+            "Document Generation")
         Exit Function
     End If
     If Not inputCellMap.Exists(INPUT_ALIAS_PERSON_LOOKUP) Or _
        Not inputCellMap.Exists(INPUT_ALIAS_TVO_LOOKUP) Then
-        VBA.MsgBox "Vacation personnel lookup cells are not configured.", _
-            VBA.vbExclamation, "Document Generation"
+        Call ex_Helpers.ex_ShowMessageBox( _
+            "Vacation personnel lookup cells are not configured.", VBA.vbExclamation, _
+            "Document Generation")
         Exit Function
     End If
 
@@ -229,8 +255,9 @@ Public Function fn_TryFindPersonnelCandidates( _
         Exit Function
     End If
     If maxCandidateCount <= 0 Then
-        VBA.MsgBox "Maximum candidate count must be greater than zero.", _
-            VBA.vbExclamation, "Document Generation"
+        Call ex_Helpers.ex_ShowMessageBox( _
+            "Maximum candidate count must be greater than zero.", VBA.vbExclamation, _
+            "Document Generation")
         Exit Function
     End If
     sqlText = "SELECT TOP " & VBA.CStr(maxCandidateCount) & " [" & _
@@ -338,11 +365,11 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         vacationAbroad, vacationAbroadText) Then GoTo CleanExit
     If Not private_Vacation_TryMapStatus( _
         vacationStatus, ticketsStatusText) Then GoTo CleanExit
-    If VBA.StrComp(ticketsStatusText, VACATION_STATUS_TICKETS_CANCELLED, _
+    If VBA.StrComp(ticketsStatusText, vacationStatusCancelledTickets, _
             VBA.vbTextCompare) = 0 Then
-        documentNamePattern = DOCUMENT_NAME_PATTERN_CANCELLED
+        documentNamePattern = documentNamePatternCancelled
     Else
-        documentNamePattern = DOCUMENT_NAME_PATTERN_ACTIVE
+        documentNamePattern = documentNamePatternActive
     End If
 
     If Not ex_PersonnelData.ex_TryBeginSession() Then GoTo CleanExit
@@ -391,7 +418,8 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
                     "Use Update data instead.", VBA.vbExclamation, "Document Generation"
                 GoTo CleanExit
             End If
-            If VBA.MsgBox("A vacation ticket record already exists in tbTickets, " & _
+            If ex_Helpers.ex_ShowMessageBox( _
+                "A vacation ticket record already exists in tbTickets, " & _
                 "but its Word file was not found." & VBA.vbCrLf & VBA.vbCrLf & _
                 "Create the Word file from the current form data?", _
                 VBA.vbYesNo + VBA.vbQuestion, "Document Generation") <> VBA.vbYes Then
@@ -422,13 +450,13 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         " | FinalReturn=" & VBA.CStr(finalReturnDate) & _
         " | Arrival=" & VBA.CStr(dateArrival)
     If Not ex_Helpers.private_Date_TryFormat( _
-        orderDate, DATE_FORMAT_PATTERN, ticketDateText) Then GoTo CleanExit
+        orderDate, dateWordPattern, ticketDateText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        departureDate, DATE_FORMAT_PATTERN, dateFromText) Then GoTo CleanExit
+        departureDate, dateWordPattern, dateFromText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        finalReturnDate, DATE_FORMAT_PATTERN, dateToText) Then GoTo CleanExit
+        finalReturnDate, dateWordPattern, dateToText) Then GoTo CleanExit
     If Not ex_Helpers.private_Date_TryFormat( _
-        dateArrival, DATE_FORMAT_PATTERN, dateArrivalText) Then GoTo CleanExit
+        dateArrival, dateWordPattern, dateArrivalText) Then GoTo CleanExit
 
     personalLine = rankText & " " & fioText
     ' A short name is used in the return-from-vacation line.
@@ -456,7 +484,8 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         If Not ex_Helpers.private_Path_TryFindVacationTicketDocument( _
             outputFolderPath, ticketNo, ipnText, matchedDocumentPath, False) Then GoTo CleanExit
         If VBA.Len(matchedDocumentPath) > 0 Then
-            If VBA.MsgBox("A document already exists for this vacation ticket:" & _
+            If ex_Helpers.ex_ShowMessageBox( _
+                "A document already exists for this vacation ticket:" & _
                 VBA.vbCrLf & matchedDocumentPath & VBA.vbCrLf & VBA.vbCrLf & _
                 "Replace it with the new document?", _
                 VBA.vbYesNo + VBA.vbQuestion, "Document Generation") = VBA.vbYes Then
@@ -643,6 +672,27 @@ Private Function private_Initialize() As Boolean
     If Not private_LoadConfigText(CFG_KIND_CHILDCARE_WORD, vacationKindChildcareWord) Then Exit Function
     If Not private_LoadConfigText(CFG_KIND_CHILDCARE_TICKETS, vacationKindChildcareTickets) Then Exit Function
     If Not private_LoadConfigText(CFG_KIND_DONATION_TICKETS, vacationKindDonationTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_ABROAD_YES, vacationAbroadYes) Then Exit Function
+    If Not private_LoadConfigText(CFG_ABROAD_NO, vacationAbroadNo) Then Exit Function
+    If Not private_LoadConfigText(CFG_ABROAD_YES_WORD, vacationAbroadYesWord) Then Exit Function
+    If Not private_LoadConfigText(CFG_STATUS_ACTIVE, vacationStatusActive) Then Exit Function
+    If Not private_LoadConfigText(CFG_STATUS_CANCELLED, vacationStatusCancelled) Then Exit Function
+    If Not private_LoadConfigText(CFG_STATUS_CANCELLED_TICKETS, vacationStatusCancelledTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_DATE_WORD, dateWordPattern) Then Exit Function
+    If Not private_LoadConfigText(CFG_DOCUMENT_NAME_ACTIVE, documentNamePatternActive) Then Exit Function
+    If Not private_LoadConfigText(CFG_DOCUMENT_NAME_CANCELLED, documentNamePatternCancelled) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_CONNECTOR, durationConnector) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_VACATION_ONE, durationVacationOne) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_VACATION_FEW, durationVacationFew) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_VACATION_MANY, durationVacationMany) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_DONATION_ONE, durationDonationOne) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_DONATION_FEW, durationDonationFew) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_DONATION_MANY, durationDonationMany) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_DONATION_SUFFIX, durationDonationSuffix) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_ROAD_ONE, durationRoadOne) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_ROAD_FEW, durationRoadFew) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_ROAD_MANY, durationRoadMany) Then Exit Function
+    If Not private_LoadConfigText(CFG_DURATION_ROAD_SUFFIX, durationRoadSuffix) Then Exit Function
     If Not private_LoadConfigText(CFG_WS_VACATION, vacationSheetName) Then Exit Function
     If Not private_LoadConfigText(CFG_PERSONNEL_ALF_RANGE, personnelAlfRange) Then Exit Function
     If Not private_LoadConfigText(CFG_PERSONNEL_ALF_FIO, personnelAlfFioColumn) Then Exit Function
@@ -778,19 +828,21 @@ Private Function private_Vacation_BuildWordDuration( _
 
     durationText = VBA.CStr(vacationDays) & " " & _
         ex_Helpers.ex_GetUkrainianCountForm( _
-            vacationDays, "календарний день", "календарні дні", _
-            "календарних днів")
+            vacationDays, durationVacationOne, durationVacationFew, _
+            durationVacationMany)
     If donationDays > 0 Then
-        durationText = durationText & " та " & VBA.CStr(donationDays) & " " & _
+        durationText = durationText & " " & durationConnector & " " & _
+            VBA.CStr(donationDays) & " " & _
             ex_Helpers.ex_GetUkrainianCountForm( _
-                donationDays, "додатковий день", "додаткові дні", _
-                "додаткових днів") & _
-            " відпочинку за донацію донорської крові та/або компонентів крові"
+                donationDays, durationDonationOne, durationDonationFew, _
+                durationDonationMany) & durationDonationSuffix
     End If
     If roadDays > 0 Then
-        durationText = durationText & " та " & VBA.CStr(roadDays) & " " & _
+        durationText = durationText & " " & durationConnector & " " & _
+            VBA.CStr(roadDays) & " " & _
             ex_Helpers.ex_GetUkrainianCountForm( _
-                roadDays, "добу", "доби", "діб") & " на дорогу"
+                roadDays, durationRoadOne, durationRoadFew, _
+                durationRoadMany) & durationRoadSuffix
     End If
     private_Vacation_BuildWordDuration = durationText
 End Function
@@ -830,9 +882,9 @@ Private Function private_Vacation_TryMapAbroad( _
     ByRef outVacationAbroadText As String _
 ) As Boolean
     Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationAbroad))
-        Case VBA.LCase$(VACATION_ABROAD_YES)
-            outVacationAbroadText = VACATION_ABROAD_TEXT_YES
-        Case VBA.LCase$(VACATION_ABROAD_NO)
+        Case VBA.LCase$(vacationAbroadYes)
+            outVacationAbroadText = vacationAbroadYesWord
+        Case VBA.LCase$(vacationAbroadNo)
             ' Keep a separate template line when there is no permission.
             outVacationAbroadText = VBA.vbCr
         Case Else
@@ -850,11 +902,11 @@ Private Function private_Vacation_TryMapStatus( _
     ByRef outTicketsStatusText As String _
 ) As Boolean
     Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationStatus))
-        Case VBA.LCase$(VACATION_STATUS_ACTIVE)
+        Case VBA.LCase$(vacationStatusActive)
             ' An active ticket does not need a registry mark.
             outTicketsStatusText = VBA.vbNullString
-        Case VBA.LCase$(VACATION_STATUS_CANCELLED)
-            outTicketsStatusText = VACATION_STATUS_TICKETS_CANCELLED
+        Case VBA.LCase$(vacationStatusCancelled)
+            outTicketsStatusText = vacationStatusCancelledTickets
         Case Else
             ex_Helpers.LogError "Unsupported vacation status: " & vacationStatus
             ex_Helpers.ex_ShowErrorMessage _
