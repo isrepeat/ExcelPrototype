@@ -30,7 +30,7 @@ value	common::position.rozp.prefix	A1A
 value	common::position.spis.prefix	A1B
 value	common::position.rozp.short	РОЗП
 value	common::position.spis.short	СПИС
-text	common::position.rozp.word_prefix	у розпорядженні командира військової частини
+value	common::position.rozp.word_prefix	у розпорядженні командира військової частини
 value	common::position.rozp.officer_unit	А3369
 value	common::position.rozp.other_unit	А7383
 path	common::log.folder	2. DocumentsGeneration

@@ -16,31 +16,31 @@ cell	wsVacation::input.template_path	C15
 cell	wsVacation::input.output_folder_path	C16
 cell	wsVacation::candidates.start	J4
 number	wsVacation::candidates.max_count	20
-text	wsVacation::candidates.person_lookup.title	ПІБ (чи ІПН)
-text	wsVacation::candidates.tvo_lookup.title	Відпустка (ТВО ПІБ чи ІПН)
-text	wsVacation::candidates.table_title_prefix	Кандидати -
-text	wsVacation::candidates.hide_command	Сховати
+value	wsVacation::candidates.person_lookup.title	ПІБ (чи ІПН)
+value	wsVacation::candidates.tvo_lookup.title	Відпустка (ТВО ПІБ чи ІПН)
+value	wsVacation::candidates.table_title_prefix	Кандидати -
+value	wsVacation::candidates.hide_command	Сховати
 value	wsVacation::kind.annual.input	Щорічна відпустка
-text	wsVacation::kind.annual.word	у частину щорічної основної відпустки
-text	wsVacation::kind.annual.tickets	Щорічна відпустка
+value	wsVacation::kind.annual.word	у частину щорічної основної відпустки
+value	wsVacation::kind.annual.tickets	Щорічна відпустка
 value	wsVacation::kind.family.input	Відпустка за сімейними обставинами
-text	wsVacation::kind.family.word	у відпустку за сімейними обставинами
-text	wsVacation::kind.family.tickets	Відпустка за сімейними обставинами
+value	wsVacation::kind.family.word	у відпустку за сімейними обставинами
+value	wsVacation::kind.family.tickets	Відпустка за сімейними обставинами
 value	wsVacation::kind.treatment.input	Відпустка для лікування після поранення (контузії, травми або каліцтва)
-text	wsVacation::kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
-text	wsVacation::kind.treatment.tickets	Відпустка для лікування
+value	wsVacation::kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
+value	wsVacation::kind.treatment.tickets	Відпустка для лікування
 value	wsVacation::kind.maternity.input	Відпустка у зв'язку з вагітністю та пологами
-text	wsVacation::kind.maternity.word	у відпустку у зв'язку з вагітністю та пологами
-text	wsVacation::kind.maternity.tickets	Відпустка у зв'язку з вагітністю та пологами
+value	wsVacation::kind.maternity.word	у відпустку у зв'язку з вагітністю та пологами
+value	wsVacation::kind.maternity.tickets	Відпустка у зв'язку з вагітністю та пологами
 value	wsVacation::kind.childcare.input	Відпустка по догляду за дитиною
-text	wsVacation::kind.childcare.word	у відпустку по догляду за дитиною
-text	wsVacation::kind.childcare.tickets	Відпустка по догляду за дитиною
+value	wsVacation::kind.childcare.word	у відпустку по догляду за дитиною
+value	wsVacation::kind.childcare.tickets	Відпустка по догляду за дитиною
 value	wsVacation::abroad.yes	Так
 value	wsVacation::abroad.no	Ні
-text	wsVacation::abroad.yes.word	Дозволено виїзд за кордон
+value	wsVacation::abroad.yes.word	Дозволено виїзд за кордон
 value	wsVacation::status.active	Активна
 value	wsVacation::status.cancelled	Скасовано
-text	wsVacation::status.cancelled.tickets	СКАСОВАНО
-format	wsVacation::date.word	"{dd}" {month} {yyyy} р.
-pattern	wsVacation::document_name.active	В.к. {TicketNo} {FIO} ({IPN})
-pattern	wsVacation::document_name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})
+value	wsVacation::status.cancelled.tickets	СКАСОВАНО
+value	wsVacation::date.word	"{dd}" {month} {yyyy} р.
+value	wsVacation::document_name.active	В.к. {TicketNo} {FIO} ({IPN})
+value	wsVacation::document_name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})

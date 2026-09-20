@@ -26,29 +26,28 @@ Private Const CFG_CANDIDATES_MAX_COUNT As String = "wsVacation::candidates.max_c
 Private Const CFG_PERSONNEL_ALF_RANGE As String = "rangePersonnelAlf"
 Private Const CFG_PERSONNEL_ALF_FIO As String = "rangePersonnelAlf::column.fio"
 Private Const CFG_PERSONNEL_ALF_IPN As String = "rangePersonnelAlf::column.ipn"
+Private Const CFG_CANDIDATES_PERSON_LOOKUP_TITLE As String = "wsVacation::candidates.person_lookup.title"
+Private Const CFG_CANDIDATES_TVO_LOOKUP_TITLE As String = "wsVacation::candidates.tvo_lookup.title"
+Private Const CFG_CANDIDATES_TABLE_TITLE_PREFIX As String = "wsVacation::candidates.table_title_prefix"
+Private Const CFG_CANDIDATES_HIDE_COMMAND As String = "wsVacation::candidates.hide_command"
 
-' Canonical vacation types and separate text for Word and the ticket registry.
-Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
-Private Const VACATION_KIND_ANNUAL_WORD_TEXT As String = "у частину щорічної основної відпустки"
-Private Const VACATION_KIND_ANNUAL_TICKETS_TEXT As String = VACATION_KIND_ANNUAL
-
-Private Const VACATION_KIND_FAMILY As String = "Відпустка за сімейними обставинами"
-Private Const VACATION_KIND_FAMILY_WORD_TEXT As String = "у відпустку за сімейними обставинами"
-Private Const VACATION_KIND_FAMILY_TICKETS_TEXT As String = VACATION_KIND_FAMILY
-
-Private Const VACATION_KIND_TREATMENT As String = "Відпустка для лікування після поранення (контузії, травми або каліцтва)"
-Private Const VACATION_KIND_TREATMENT_WORD_TEXT As String = "у відпустку для лікування після поранення (контузії, травми або каліцтва)"
-Private Const VACATION_KIND_TREATMENT_TICKETS_TEXT As String = "Відпустка для лікування"
-
-Private Const VACATION_KIND_MATERNITY As String = "Відпустка у зв'язку з вагітністю та пологами"
-Private Const VACATION_KIND_MATERNITY_WORD_TEXT As String = "у відпустку у зв'язку з вагітністю та пологами"
-Private Const VACATION_KIND_MATERNITY_TICKETS_TEXT As String = VACATION_KIND_MATERNITY
-
-Private Const VACATION_KIND_CHILDCARE As String = "Відпустка по догляду за дитиною"
-Private Const VACATION_KIND_CHILDCARE_WORD_TEXT As String = "у відпустку по догляду за дитиною"
-Private Const VACATION_KIND_CHILDCARE_TICKETS_TEXT As String = VACATION_KIND_CHILDCARE
-
-Private Const VACATION_KIND_DONATION_TICKETS_TEXT As String = "Відпочинок за донацію крові"
+' Vacation kind values are read from the workbook config.
+Private Const CFG_KIND_ANNUAL_INPUT As String = "wsVacation::kind.annual.input"
+Private Const CFG_KIND_ANNUAL_WORD As String = "wsVacation::kind.annual.word"
+Private Const CFG_KIND_ANNUAL_TICKETS As String = "wsVacation::kind.annual.tickets"
+Private Const CFG_KIND_FAMILY_INPUT As String = "wsVacation::kind.family.input"
+Private Const CFG_KIND_FAMILY_WORD As String = "wsVacation::kind.family.word"
+Private Const CFG_KIND_FAMILY_TICKETS As String = "wsVacation::kind.family.tickets"
+Private Const CFG_KIND_TREATMENT_INPUT As String = "wsVacation::kind.treatment.input"
+Private Const CFG_KIND_TREATMENT_WORD As String = "wsVacation::kind.treatment.word"
+Private Const CFG_KIND_TREATMENT_TICKETS As String = "wsVacation::kind.treatment.tickets"
+Private Const CFG_KIND_MATERNITY_INPUT As String = "wsVacation::kind.maternity.input"
+Private Const CFG_KIND_MATERNITY_WORD As String = "wsVacation::kind.maternity.word"
+Private Const CFG_KIND_MATERNITY_TICKETS As String = "wsVacation::kind.maternity.tickets"
+Private Const CFG_KIND_CHILDCARE_INPUT As String = "wsVacation::kind.childcare.input"
+Private Const CFG_KIND_CHILDCARE_WORD As String = "wsVacation::kind.childcare.word"
+Private Const CFG_KIND_CHILDCARE_TICKETS As String = "wsVacation::kind.childcare.tickets"
+Private Const CFG_KIND_DONATION_TICKETS As String = "tbTickets::event.donation"
 
 ' Allowed values for the abroad flag in the form.
 Private Const VACATION_ABROAD_YES As String = "Так"
@@ -75,6 +74,32 @@ Private Const GENERATED_CONTEXT_ALIAS_IPN As String = "IPN"
 Private Const GENERATED_CONTEXT_ALIAS_TICKET_NO As String = "TicketNo"
 
 Private inputCellMap As Object
+Private vacationKindAnnualInput As String
+Private vacationKindAnnualWord As String
+Private vacationKindAnnualTickets As String
+Private vacationKindFamilyInput As String
+Private vacationKindFamilyWord As String
+Private vacationKindFamilyTickets As String
+Private vacationKindTreatmentInput As String
+Private vacationKindTreatmentWord As String
+Private vacationKindTreatmentTickets As String
+Private vacationKindMaternityInput As String
+Private vacationKindMaternityWord As String
+Private vacationKindMaternityTickets As String
+Private vacationKindChildcareInput As String
+Private vacationKindChildcareWord As String
+Private vacationKindChildcareTickets As String
+Private vacationKindDonationTickets As String
+Private vacationSheetName As String
+Private personnelAlfRange As String
+Private personnelAlfFioColumn As String
+Private personnelAlfIpnColumn As String
+Private candidatesStartCellAddress As String
+Private candidatesMaxCount As Long
+Private candidatesPersonLookupTitle As String
+Private candidatesTvoLookupTitle As String
+Private candidatesTableTitlePrefix As String
+Private candidatesHideCommand As String
 
 ' --------------------------------------
 ' namespace API {
@@ -127,9 +152,9 @@ Public Function fn_TryGetCandidatesConfig( _
     Set lookupFieldTitles = VBA.CreateObject("Scripting.Dictionary")
     lookupFieldTitles.CompareMode = VBA.vbBinaryCompare
     lookupFieldTitles.Add VBA.CStr(inputCellMap(INPUT_ALIAS_PERSON_LOOKUP)), _
-        "ПІБ (чи ІПН)"
+        candidatesPersonLookupTitle
     lookupFieldTitles.Add VBA.CStr(inputCellMap(INPUT_ALIAS_TVO_LOOKUP)), _
-        "Відпустка (ТВО ПІБ чи ІПН)"
+        candidatesTvoLookupTitle
     ' CandidateStartCellAddress points to the left cell of the command row.
     ' Headers and data start one and two rows below it.
     ' SourceIndex is the value index in the query-callback result array.
@@ -137,13 +162,13 @@ Public Function fn_TryGetCandidatesConfig( _
     Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
     columnConfig.CompareMode = VBA.vbBinaryCompare
     columnConfig.Add "SourceIndex", 0
-    columnConfig.Add "Header", "ПІБ"
+    columnConfig.Add "Header", personnelAlfFioColumn
     columnConfig.Add "NumberFormat", "General"
     columns.Add columnConfig
     Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
     columnConfig.CompareMode = VBA.vbBinaryCompare
     columnConfig.Add "SourceIndex", 1
-    columnConfig.Add "Header", "ІПН"
+    columnConfig.Add "Header", personnelAlfIpnColumn
     columnConfig.Add "NumberFormat", "@"
     columns.Add columnConfig
     Set styles = VBA.CreateObject("Scripting.Dictionary")
@@ -167,13 +192,13 @@ Public Function fn_TryGetCandidatesConfig( _
         -4108, -4108, True)
     Set outCandidatesConfig = VBA.CreateObject("Scripting.Dictionary")
     outCandidatesConfig.CompareMode = VBA.vbBinaryCompare
-    outCandidatesConfig.Add "InputSheetName", INPUT_SHEET_NAME
+    outCandidatesConfig.Add "InputSheetName", vacationSheetName
     outCandidatesConfig.Add "LookupCellAddresses", lookupCellAddresses
     outCandidatesConfig.Add "LookupFieldTitles", lookupFieldTitles
-    outCandidatesConfig.Add "CandidateStartCellAddress", PERSONNEL_CANDIDATES_START_CELL_ADDRESS
-    outCandidatesConfig.Add "TableTitlePrefix", "Кандидати -"
-    outCandidatesConfig.Add "HideCommandText", "Сховати"
-    outCandidatesConfig.Add "MaxCandidateCount", PERSONNEL_CANDIDATES_MAX_COUNT
+    outCandidatesConfig.Add "CandidateStartCellAddress", candidatesStartCellAddress
+    outCandidatesConfig.Add "TableTitlePrefix", candidatesTableTitlePrefix
+    outCandidatesConfig.Add "HideCommandText", candidatesHideCommand
+    outCandidatesConfig.Add "MaxCandidateCount", candidatesMaxCount
     outCandidatesConfig.Add "QueryCallbackName", "ex_VacationTicketGeneration.fn_TryFindPersonnelCandidates"
     outCandidatesConfig.Add "SelectedValueIndex", 0
     outCandidatesConfig.Add "Columns", columns
@@ -196,6 +221,7 @@ Public Function fn_TryFindPersonnelCandidates( _
     Dim candidates As Collection
     Dim candidateFieldNames As Collection
 
+    If Not private_Initialize() Then Exit Function
     normalizedSearchText = ex_Helpers.private_Text_Normalize(searchText)
     If VBA.Len(normalizedSearchText) = 0 Then
         Set candidates = New Collection
@@ -208,21 +234,21 @@ Public Function fn_TryFindPersonnelCandidates( _
         Exit Function
     End If
     sqlText = "SELECT TOP " & VBA.CStr(maxCandidateCount) & " [" & _
-        PERSONNEL_CANDIDATES_FIO_FIELD & "], [" & _
-        PERSONNEL_CANDIDATES_IPN_FIELD & "] FROM " & _
-        PERSONNEL_CANDIDATES_TABLE_REF & " WHERE UCASE(TRIM(CSTR(IIF(ISNULL([" & _
-        PERSONNEL_CANDIDATES_FIO_FIELD & "]), '', [" & _
-        PERSONNEL_CANDIDATES_FIO_FIELD & "])))) LIKE '%" & _
+        personnelAlfFioColumn & "], [" & _
+        personnelAlfIpnColumn & "] FROM " & _
+        personnelAlfRange & " WHERE UCASE(TRIM(CSTR(IIF(ISNULL([" & _
+        personnelAlfFioColumn & "]), '', [" & _
+        personnelAlfFioColumn & "])))) LIKE '%" & _
         ex_ExternalTables.ex_EscapeSql(VBA.UCase$(normalizedSearchText)) & _
         "%' OR UCASE(TRIM(CSTR(IIF(ISNULL([" & _
-        PERSONNEL_CANDIDATES_IPN_FIELD & "]), '', [" & _
-        PERSONNEL_CANDIDATES_IPN_FIELD & "])))) LIKE '%" & _
+        personnelAlfIpnColumn & "]), '', [" & _
+        personnelAlfIpnColumn & "])))) LIKE '%" & _
         ex_ExternalTables.ex_EscapeSql(VBA.UCase$(normalizedSearchText)) & _
-        "%' ORDER BY [" & PERSONNEL_CANDIDATES_FIO_FIELD & "]"
+        "%' ORDER BY [" & personnelAlfFioColumn & "]"
     ex_Helpers.LogDebug "Vacation candidate query SQL: " & sqlText
     Set candidateFieldNames = New Collection
-    candidateFieldNames.Add PERSONNEL_CANDIDATES_FIO_FIELD
-    candidateFieldNames.Add PERSONNEL_CANDIDATES_IPN_FIELD
+    candidateFieldNames.Add personnelAlfFioColumn
+    candidateFieldNames.Add personnelAlfIpnColumn
     If Not ex_PersonnelData.ex_TryExecuteShpoCandidateSql( _
         sqlText, candidateFieldNames, candidates) Then Exit Function
     Set fn_TryFindPersonnelCandidates = candidates
@@ -462,7 +488,7 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         donationTicketRowCreated = (donationTicketRow Is Nothing)
         If Not ex_Tickets.ex_TrySaveVacationRow( _
             ticketsTable, donationTicketRow, rankText, fioText, ipnText, personPositionCode, _
-            VACATION_KIND_DONATION_TICKETS_TEXT, donationOrderNo, finalReturnDate, _
+            vacationKindDonationTickets, donationOrderNo, finalReturnDate, _
             mainReturnDate, donationDays, 0, ticketNo, tvoFioText, tvoIpnText, _
             tvoPositionCode, ticketsStatusText) Then GoTo CleanExit
     End If
@@ -601,6 +627,32 @@ Private Function private_Initialize() As Boolean
     If Not private_Input_AddConfigCell(INPUT_ALIAS_STATUS, "wsVacation::input.status") Then Exit Function
     If Not private_Input_AddConfigCell(INPUT_ALIAS_TEMPLATE_PATH, "wsVacation::input.template_path") Then Exit Function
     If Not private_Input_AddConfigCell(INPUT_ALIAS_OUTPUT_FOLDER_PATH, "wsVacation::input.output_folder_path") Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_ANNUAL_INPUT, vacationKindAnnualInput) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_ANNUAL_WORD, vacationKindAnnualWord) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_ANNUAL_TICKETS, vacationKindAnnualTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_FAMILY_INPUT, vacationKindFamilyInput) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_FAMILY_WORD, vacationKindFamilyWord) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_FAMILY_TICKETS, vacationKindFamilyTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_TREATMENT_INPUT, vacationKindTreatmentInput) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_TREATMENT_WORD, vacationKindTreatmentWord) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_TREATMENT_TICKETS, vacationKindTreatmentTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_MATERNITY_INPUT, vacationKindMaternityInput) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_MATERNITY_WORD, vacationKindMaternityWord) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_MATERNITY_TICKETS, vacationKindMaternityTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_CHILDCARE_INPUT, vacationKindChildcareInput) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_CHILDCARE_WORD, vacationKindChildcareWord) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_CHILDCARE_TICKETS, vacationKindChildcareTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_KIND_DONATION_TICKETS, vacationKindDonationTickets) Then Exit Function
+    If Not private_LoadConfigText(CFG_WS_VACATION, vacationSheetName) Then Exit Function
+    If Not private_LoadConfigText(CFG_PERSONNEL_ALF_RANGE, personnelAlfRange) Then Exit Function
+    If Not private_LoadConfigText(CFG_PERSONNEL_ALF_FIO, personnelAlfFioColumn) Then Exit Function
+    If Not private_LoadConfigText(CFG_PERSONNEL_ALF_IPN, personnelAlfIpnColumn) Then Exit Function
+    If Not private_LoadConfigText(CFG_CANDIDATES_START, candidatesStartCellAddress) Then Exit Function
+    If Not private_LoadConfigLong(CFG_CANDIDATES_MAX_COUNT, candidatesMaxCount) Then Exit Function
+    If Not private_LoadConfigText(CFG_CANDIDATES_PERSON_LOOKUP_TITLE, candidatesPersonLookupTitle) Then Exit Function
+    If Not private_LoadConfigText(CFG_CANDIDATES_TVO_LOOKUP_TITLE, candidatesTvoLookupTitle) Then Exit Function
+    If Not private_LoadConfigText(CFG_CANDIDATES_TABLE_TITLE_PREFIX, candidatesTableTitlePrefix) Then Exit Function
+    If Not private_LoadConfigText(CFG_CANDIDATES_HIDE_COMMAND, candidatesHideCommand) Then Exit Function
     private_Initialize = True
 End Function
 
@@ -614,6 +666,16 @@ End Function
 Private Function private_ConfigText(ByVal configKey As String) As String
     Dim valueText As String
     If ex_Config.fn_TryGetText(configKey, valueText) Then private_ConfigText = valueText
+End Function
+
+Private Function private_LoadConfigText(ByVal configKey As String, ByRef outValue As String) As Boolean
+    outValue = VBA.vbNullString
+    private_LoadConfigText = ex_Config.fn_TryGetText(configKey, outValue)
+End Function
+
+Private Function private_LoadConfigLong(ByVal configKey As String, ByRef outValue As Long) As Boolean
+    outValue = 0
+    private_LoadConfigLong = ex_Config.fn_TryGetLong(configKey, outValue)
 End Function
 
 ' --------------------------------------
@@ -739,21 +801,21 @@ Private Function private_Vacation_TryMapKind( _
     ByRef outRegistryText As String _
 ) As Boolean
     Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationKind))
-        Case VBA.LCase$(VACATION_KIND_ANNUAL)
-            outWordText = VACATION_KIND_ANNUAL_WORD_TEXT
-            outRegistryText = VACATION_KIND_ANNUAL_TICKETS_TEXT
-        Case VBA.LCase$(VACATION_KIND_FAMILY)
-            outWordText = VACATION_KIND_FAMILY_WORD_TEXT
-            outRegistryText = VACATION_KIND_FAMILY_TICKETS_TEXT
-        Case VBA.LCase$(VACATION_KIND_TREATMENT)
-            outWordText = VACATION_KIND_TREATMENT_WORD_TEXT
-            outRegistryText = VACATION_KIND_TREATMENT_TICKETS_TEXT
-        Case VBA.LCase$(VACATION_KIND_MATERNITY)
-            outWordText = VACATION_KIND_MATERNITY_WORD_TEXT
-            outRegistryText = VACATION_KIND_MATERNITY_TICKETS_TEXT
-        Case VBA.LCase$(VACATION_KIND_CHILDCARE)
-            outWordText = VACATION_KIND_CHILDCARE_WORD_TEXT
-            outRegistryText = VACATION_KIND_CHILDCARE_TICKETS_TEXT
+        Case VBA.LCase$(vacationKindAnnualInput)
+            outWordText = vacationKindAnnualWord
+            outRegistryText = vacationKindAnnualTickets
+        Case VBA.LCase$(vacationKindFamilyInput)
+            outWordText = vacationKindFamilyWord
+            outRegistryText = vacationKindFamilyTickets
+        Case VBA.LCase$(vacationKindTreatmentInput)
+            outWordText = vacationKindTreatmentWord
+            outRegistryText = vacationKindTreatmentTickets
+        Case VBA.LCase$(vacationKindMaternityInput)
+            outWordText = vacationKindMaternityWord
+            outRegistryText = vacationKindMaternityTickets
+        Case VBA.LCase$(vacationKindChildcareInput)
+            outWordText = vacationKindChildcareWord
+            outRegistryText = vacationKindChildcareTickets
         Case Else
             ex_Helpers.LogError "Unsupported vacation kind: " & vacationKind
             ex_Helpers.ex_ShowErrorMessage "Unsupported vacation kind: " & vacationKind, _
