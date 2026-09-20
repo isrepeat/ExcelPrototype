@@ -3,7 +3,7 @@ Option Explicit
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-' Формирует имя документа по контексту и создаёт Word-файл из шаблона.
+' Builds a document name from context and creates a Word file from a template.
 Public Function ex_TryGenerateWordDocument( _
     ByVal templatePath As String, _
     ByVal documentNamePattern As String, _
@@ -34,7 +34,7 @@ Public Function ex_TryGenerateWordDocument( _
         failIfDocumentExists, renameUpdatedDocument)
 End Function
 
-' Читает обязательное поле по alias из карты адресов формы.
+' Reads a required field by alias from the form address map.
 Public Function ex_TryReadRequired( _
     ByVal inputSheetName As String, _
     ByVal inputCellMap As Object, _
@@ -67,7 +67,7 @@ Public Function ex_TryReadRequired( _
     ex_TryReadRequired = True
 End Function
 
-' Читает целое неотрицательное число; пустое optional-поле означает ноль.
+' Reads a non-negative integer. An empty optional field means zero.
 Public Function ex_TryReadNonNegativeDays( _
     ByVal inputSheetName As String, _
     ByVal inputCellMap As Object, _
@@ -107,7 +107,7 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Function
 
-' Читает optional-поле по alias; пустое значение возвращается как пустая строка.
+' Reads an optional field by alias. An empty value returns an empty string.
 Public Function ex_TryReadOptional( _
     ByVal inputSheetName As String, _
     ByVal inputCellMap As Object, _
@@ -118,7 +118,7 @@ Public Function ex_TryReadOptional( _
         inputSheetName, inputCellMap, fieldAlias, outValue)
 End Function
 
-' Находит единственную открытую умную таблицу по её имени во всех книгах Excel.
+' Finds the single open Excel table by name in all workbooks.
 Public Function ex_TryFindOpenTable( _
     ByVal tableName As String, _
     ByRef outTable As ListObject _
@@ -173,7 +173,7 @@ Public Function ex_TryFindOpenTable( _
     ex_TryFindOpenTable = True
 End Function
 
-' Добавляет строку в умную таблицу, записывая значения по именам её колонок.
+' Adds a row to an Excel table and writes values by column name.
 Public Function ex_TryAppendTableRow( _
     ByVal tableName As String, _
     ByVal columnValues As Object _
@@ -211,7 +211,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Логирует книгу, листы и фактические привязки конфигурационной формы.
+' Logs the workbook, worksheets, and form configuration bindings.
 Public Sub ex_LogWorkbookContext( _
     ByVal inputSheetName As String, _
     ByVal inputCellMap As Object _

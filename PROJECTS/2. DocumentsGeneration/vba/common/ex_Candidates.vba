@@ -25,8 +25,8 @@ Private areSelectionRoutesRegistered As Boolean
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-' Настраивает универсальный поиск кандидатов. SQL и предметная логика остаются
-' в callback, имя которого передаёт владелец формы.
+' Configures common candidate search. SQL and business logic stay in the
+' callback named by the form owner.
 Public Function fn_Configure(ByVal candidatesConfig As Object) As Boolean
     If isConfigured Then
         If Not private_Candidates_TryRestoreSavedStyles() Then Exit Function
@@ -103,7 +103,7 @@ Public Sub fn_OnCandidateSelected(ByVal changedSheet As Object, ByVal target As 
     private_Candidates_Accept sourceSheet, target
 End Sub
 
-' Демонтирует таблицу кандидатов по клику на команду «Сховати».
+' Removes the candidate table when the user clicks the hide command.
 Public Sub fn_OnClearCandidatesRequested(ByVal changedSheet As Object, ByVal target As Range)
     Dim sourceSheet As Worksheet
     Dim candidateRange As Range
@@ -425,8 +425,8 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Function
 
-' Единый контракт стиля ячейки. Роли таблицы задаются только ссылками на
-' именованные стили в конфигурации, а не специальными свойствами модуля.
+' Common cell style contract. Table roles use named styles from configuration,
+' not special module properties.
 Private Function private_Candidates_TryValidateConfiguredStyle( _
     ByVal styleName As String _
 ) As Boolean

@@ -27,19 +27,19 @@ Private Const POSITION_VALUE_SPIS As String = "СПИС"
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-' Находит единственную открытую таблицу реестра билетов.
+' Finds the single open ticket registry table.
 Public Function ex_TryGetOpenTable(ByRef outTicketsTable As ListObject) As Boolean
     ex_TryGetOpenTable = ex_Document.ex_TryFindOpenTable( _
         TICKETS_TABLE_NAME, outTicketsTable)
 End Function
 
-' Возвращает краткое представление кода должности для колонок реестра.
+' Returns a short position value for registry columns.
 Public Function ex_GetRegistryPosition(ByVal positionCode As String) As String
     ex_GetRegistryPosition = private_Position_ToRegistryValue(positionCode)
 End Function
 
-' Находит строку билета по ИПН, номеру приказа и виду события.
-' Пустой eventText означает основную строку, кроме отдельной строки донации.
+' Finds a ticket row by IPN, order number, and event type.
+' Empty eventText means the main row, except a separate donation row.
 Public Function ex_TryFindVacationRow( _
     ByVal ticketsTable As ListObject, _
     ByVal ipnText As String, _
@@ -94,7 +94,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Находит отдельную строку донации по ИПН, номеру билета и префиксу «(?)».
+' Finds a separate donation row by IPN, ticket number, and the "(?)" prefix.
 Public Function ex_TryFindDonationRow( _
     ByVal ticketsTable As ListObject, _
     ByVal ipnText As String, _
@@ -146,7 +146,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Возвращает сохранённый номер билета для режима обновления.
+' Returns the saved ticket number for update mode.
 Public Function ex_TryReadTicketNo( _
     ByVal ticketsTable As ListObject, _
     ByVal ticketRow As ListRow, _
@@ -173,7 +173,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Удаляет отдельную строку донации, когда дополнительные дни больше не указаны.
+' Removes the donation row when extra days are no longer set.
 Public Function ex_TryDeleteVacationRow( _
     ByVal ticketRow As ListRow _
 ) As Boolean
@@ -188,7 +188,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Формирует следующий номер билета для приказа по уже внесённым строкам tbTickets.
+' Builds the next ticket number for an order from existing tbTickets rows.
 Public Function ex_TryBuildNextTicketNo( _
     ByVal ticketsTable As ListObject, _
     ByVal orderNo As String, _
@@ -257,7 +257,7 @@ EH:
         Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
-' Добавляет новую либо обновляет найденную строку tbTickets.
+' Adds a new tbTickets row or updates the found row.
 Public Function ex_TrySaveVacationRow( _
     ByVal ticketsTable As ListObject, _
     ByRef ioTicketRow As ListRow, _
@@ -295,7 +295,7 @@ Public Function ex_TrySaveVacationRow( _
     tableValues.Add TICKETS_COL_OUT_DATE, departureDate
     tableValues.Add TICKETS_COL_DURATION, private_Value_ZeroToBlank(vacationDays)
     tableValues.Add TICKETS_COL_ROAD, private_Value_ZeroToBlank(roadDays)
-    ' Прибуття.План не заполняется: его рассчитывает формула таблицы tbTickets.
+    ' The arrival-plan field is calculated by the tbTickets table formula.
     tableValues.Add TICKETS_COL_DOCUMENT, ticketNo
     tableValues.Add TICKETS_COL_TVO_FIO, tvoFioText
     tableValues.Add TICKETS_COL_TVO_IPN, tvoIpnText
@@ -303,7 +303,7 @@ Public Function ex_TrySaveVacationRow( _
         private_Position_ToRegistryValue(tvoPositionCode)
     tableValues.Add TICKETS_COL_STATUS, statusText
 
-    ' Сначала проверяем все заголовки, чтобы не создать пустую строку при ошибке схемы.
+    ' Check all headers first to avoid adding an empty row for a schema error.
     For Each valueKey In tableValues.Keys
         columnIndex = ticketsTable.ListColumns(VBA.CStr(valueKey)).Index
     Next valueKey
@@ -328,7 +328,7 @@ End Function
 ' } // namespace API
 ' --------------------------------------
 
-' Берёт сохранённую формулу вычисляемой колонки из любой строки tbTickets.
+' Reads the saved calculated-column formula from any tbTickets row.
 Private Function private_Tickets_TryGetCalculatedFormula( _
     ByVal ticketsTable As ListObject, _
     ByVal columnName As String, _
@@ -364,7 +364,7 @@ EH:
         "Document Generation"
 End Function
 
-' Нормализует специальный код должности для краткого представления в реестре.
+' Normalizes a special position code for a short registry value.
 Private Function private_Position_ToRegistryValue( _
     ByVal positionCode As String _
 ) As String
@@ -385,7 +385,7 @@ Private Function private_Position_ToRegistryValue( _
     End If
 End Function
 
-' Не выводит техническое нулевое значение в ячейку реестра.
+' Does not write a technical zero value to a registry cell.
 Private Function private_Value_ZeroToBlank(ByVal valueData As Variant) As Variant
     If VBA.IsNumeric(valueData) Then
         If VBA.CDbl(valueData) = 0 Then

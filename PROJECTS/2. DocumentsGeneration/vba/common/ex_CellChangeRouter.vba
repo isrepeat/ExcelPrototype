@@ -9,7 +9,7 @@ Private isDispatchingSelection As Boolean
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-' Очищает runtime-маршруты перед их регистрацией функциями формы.
+' Clears runtime routes before form functions register them.
 Public Sub fn_Reset()
     Set changeRoutes = New Collection
     Set selectionRoutes = New Collection
@@ -38,7 +38,7 @@ Public Function fn_RegisterSelectionRoute( _
         "SelectionChange")
 End Function
 
-' Удаляет все selection-маршруты указанного callback на листе.
+' Removes all selection routes for this callback on the worksheet.
 Public Sub fn_UnregisterSelectionRoutes( _
     ByVal worksheetName As String, _
     ByVal callbackName As String _
@@ -50,7 +50,7 @@ Public Sub fn_UnregisterSelectionRoutes( _
     private_Routes_RemoveSelectionRoutes worksheetName, callbackName
 End Sub
 
-' Маршрутизирует изменение ячейки в зарегистрированный callback.
+' Sends a cell change to its registered callback.
 Public Sub fn_OnSheetChange( _
     ByVal changedSheet As Object, _
     ByVal target As Range _
@@ -81,7 +81,7 @@ EH:
         errorDescription
 End Sub
 
-' Маршрутизирует выбор ячейки в зарегистрированный callback.
+' Sends a cell selection to its registered callback.
 Public Sub fn_OnSheetSelectionChange( _
     ByVal changedSheet As Object, _
     ByVal target As Range _

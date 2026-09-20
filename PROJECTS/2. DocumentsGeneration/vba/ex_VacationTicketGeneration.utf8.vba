@@ -4,10 +4,10 @@ Option Explicit
 #Const ENABLE_DEBUG_LOGGING = True
 
 Private Const LOG_FILE_SUFFIX As String = ".log"
-Private Const INPUT_SHEET_NAME As String = "Відпустки"
-Private Const INPUT_MESSAGE_CELL_ADDRESS As String = "E7"
+Private Const CFG_WS_VACATION As String = "wsVacation"
+Private Const CFG_MESSAGE_TARGET As String = "wsVacation::message_target"
 
-' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
+' Stable form field aliases. Addresses stay inside the input mapper.
 Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
 Private Const INPUT_ALIAS_ORDER_REFERENCE As String = "OrderReference"
 Private Const INPUT_ALIAS_DEPARTURE_DATE As String = "DepartureDate"
@@ -21,13 +21,13 @@ Private Const INPUT_ALIAS_TVO_LOOKUP As String = "TvoLookup"
 Private Const INPUT_ALIAS_STATUS As String = "Status"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 Private Const INPUT_ALIAS_OUTPUT_FOLDER_PATH As String = "OutputFolderPath"
-Private Const PERSONNEL_CANDIDATES_START_CELL_ADDRESS As String = "J4"
-Private Const PERSONNEL_CANDIDATES_MAX_COUNT As Long = 20
-Private Const PERSONNEL_CANDIDATES_TABLE_REF As String = "[АЛФ$A1:J12000]"
-Private Const PERSONNEL_CANDIDATES_FIO_FIELD As String = "ПІБ"
-Private Const PERSONNEL_CANDIDATES_IPN_FIELD As String = "ІПН"
+Private Const CFG_CANDIDATES_START As String = "wsVacation::candidates.start"
+Private Const CFG_CANDIDATES_MAX_COUNT As String = "wsVacation::candidates.max_count"
+Private Const CFG_PERSONNEL_ALF_RANGE As String = "rangePersonnelAlf"
+Private Const CFG_PERSONNEL_ALF_FIO As String = "rangePersonnelAlf::column.fio"
+Private Const CFG_PERSONNEL_ALF_IPN As String = "rangePersonnelAlf::column.ipn"
 
-' Канонические типы отпусков и отдельные тексты для Word и реестра Квитки.
+' Canonical vacation types and separate text for Word and the ticket registry.
 Private Const VACATION_KIND_ANNUAL As String = "Щорічна відпустка"
 Private Const VACATION_KIND_ANNUAL_WORD_TEXT As String = "у частину щорічної основної відпустки"
 Private Const VACATION_KIND_ANNUAL_TICKETS_TEXT As String = VACATION_KIND_ANNUAL
@@ -50,26 +50,26 @@ Private Const VACATION_KIND_CHILDCARE_TICKETS_TEXT As String = VACATION_KIND_CHI
 
 Private Const VACATION_KIND_DONATION_TICKETS_TEXT As String = "Відпочинок за донацію крові"
 
-' Допустимые значения признака выезда за границу в форме.
+' Allowed values for the abroad flag in the form.
 Private Const VACATION_ABROAD_YES As String = "Так"
 Private Const VACATION_ABROAD_NO As String = "Ні"
 Private Const VACATION_ABROAD_TEXT_YES As String = "Дозволено виїзд за кордон"
 
-' Допустимые статусы отпускного билета и их представление в реестре.
+' Allowed vacation ticket statuses and their registry values.
 Private Const VACATION_STATUS_ACTIVE As String = "Активна"
 Private Const VACATION_STATUS_CANCELLED As String = "Скасовано"
 Private Const VACATION_STATUS_TICKETS_CANCELLED As String = "СКАСОВАНО"
 
-' Форматы дат для Word-шаблона. Текст «до 08:00 год.» находится в шаблоне.
+' Date formats for the Word template. The template has the fixed time text.
 Private Const DATE_FORMAT_PATTERN As String = """{dd}"" {month} {yyyy} р."
 
-' Стабильный шаблон имени созданного документа.
+' Stable pattern for the generated document name.
 Private Const DOCUMENT_NAME_PATTERN_ACTIVE As String = _
     "В.к. {TicketNo} {FIO} ({IPN})"
 Private Const DOCUMENT_NAME_PATTERN_CANCELLED As String = _
     "В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})"
 
-' Aliases контекста имени генерируемого документа.
+' Context aliases for the generated document name.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
 Private Const GENERATED_CONTEXT_ALIAS_IPN As String = "IPN"
 Private Const GENERATED_CONTEXT_ALIAS_TICKET_NO As String = "TicketNo"
@@ -83,18 +83,18 @@ Public Sub fn_VacationTicketGeneration_Create()
     private_Generate False
 End Sub
 
-' Обновляет существующий билет, найденный по ИПН и номеру приказа.
+' Updates an existing ticket found by IPN and order number.
 Public Sub fn_VacationTicketGeneration_Update()
     private_Generate True
 End Sub
 
-' Инициализирует зависимости формы, нужные до запуска генерации документа.
+' Initializes form dependencies before document generation.
 Public Function fn_TryInitializeUiRuntime() As Boolean
     fn_TryInitializeUiRuntime = ex_Helpers.ex_TryConfigureLogFileSuffix( _
         LOG_FILE_SUFFIX)
 End Function
 
-' Возвращает конфигурацию универсального поиска кандидатов формы отпуска.
+' Returns common candidate-search configuration for the vacation form.
 Public Function fn_TryGetCandidatesConfig( _
     ByRef outCandidatesConfig As Object _
 ) As Boolean
@@ -106,7 +106,7 @@ Public Function fn_TryGetCandidatesConfig( _
     Dim titleStyle As Object
 
     Set outCandidatesConfig = Nothing
-    private_Initialize
+    If Not private_Initialize() Then Exit Function
     If inputCellMap Is Nothing Then
         VBA.MsgBox "Vacation input cell map is not initialized.", _
             VBA.vbExclamation, "Document Generation"
@@ -130,9 +130,9 @@ Public Function fn_TryGetCandidatesConfig( _
         "ПІБ (чи ІПН)"
     lookupFieldTitles.Add VBA.CStr(inputCellMap(INPUT_ALIAS_TVO_LOOKUP)), _
         "Відпустка (ТВО ПІБ чи ІПН)"
-    ' CandidateStartCellAddress указывает левую ячейку строки команд.
-    ' Заголовки и данные начинаются на одну и две строки ниже соответственно.
-    ' SourceIndex — индекс значения в массиве, возвращённом query callback.
+    ' CandidateStartCellAddress points to the left cell of the command row.
+    ' Headers and data start one and two rows below it.
+    ' SourceIndex is the value index in the query-callback result array.
     Set columns = New Collection
     Set columnConfig = VBA.CreateObject("Scripting.Dictionary")
     columnConfig.CompareMode = VBA.vbBinaryCompare
@@ -186,7 +186,7 @@ Public Function fn_TryGetCandidatesConfig( _
     fn_TryGetCandidatesConfig = True
 End Function
 
-' Выполняет предметный SQL-запрос формы отпуска и возвращает пары ПІБ/ІПН.
+' Runs the vacation-form SQL query and returns FIO/IPN pairs.
 Public Function fn_TryFindPersonnelCandidates( _
     ByVal searchText As String, _
     ByVal maxCandidateCount As Long _
@@ -265,16 +265,16 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
 
     On Error GoTo EH
     If Not ex_Helpers.ex_TryConfigureLogFileSuffix(LOG_FILE_SUFFIX) Then Exit Sub
-    private_Initialize
+    If Not private_Initialize() Then Exit Sub
 
     If Not ex_Helpers.ex_TryConfigureMessageTarget( _
-        INPUT_SHEET_NAME, INPUT_MESSAGE_CELL_ADDRESS) Then Exit Sub
+        private_ConfigText(CFG_WS_VACATION), private_ConfigText(CFG_MESSAGE_TARGET)) Then Exit Sub
     ex_Helpers.ClearLog
     performanceStart = VBA.Timer
     private_Performance_LogCheckpoint performanceStart, "Start"
     ex_Helpers.LogDebug "Vacation ticket generation started | UpdateMode=" & _
         VBA.CStr(isUpdateMode)
-    Call ex_Document.ex_LogWorkbookContext(INPUT_SHEET_NAME, inputCellMap)
+    Call ex_Document.ex_LogWorkbookContext(private_ConfigText(CFG_WS_VACATION), inputCellMap)
 
     personLookup = private_Input_ReadRequired(INPUT_ALIAS_PERSON_LOOKUP, "ПІБ або ІПН")
     vacationKind = private_Input_ReadRequired(INPUT_ALIAS_VACATION_KIND, "вид відпустки")
@@ -323,7 +323,7 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     personnelSessionStarted = True
     private_Performance_LogCheckpoint performanceStart, "SHPO session opened"
     If Not ex_PersonnelData.ex_TryResolveIpn(personLookup, ipnText) Then GoTo CleanExit
-    ' ТВО не обязателен: пустое поле оставляет колонки ТВО реестра пустыми.
+    ' TVO is optional. An empty field keeps TVO registry columns empty.
     If VBA.Len(tvoLookup) > 0 Then
         If Not ex_PersonnelData.ex_TryResolveIpn(tvoLookup, tvoIpnText) Then GoTo CleanExit
         If Not ex_PersonnelData.ex_TryResolveFioNominative( _
@@ -381,7 +381,7 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     If Not ex_Tickets.ex_TryFindDonationRow( _
         ticketsTable, ipnText, ticketNo, donationTicketRow) Then GoTo CleanExit
 
-    ' Даты рассчитываются от указанной пользователем даты выбытия.
+    ' Dates are calculated from the departure date entered by the user.
     mainReturnDate = VBA.DateAdd("d", vacationDays + roadDays, departureDate)
     finalReturnDate = VBA.DateAdd("d", donationDays, mainReturnDate)
     dateArrival = VBA.DateAdd("d", 1, finalReturnDate)
@@ -405,11 +405,11 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         dateArrival, DATE_FORMAT_PATTERN, dateArrivalText) Then GoTo CleanExit
 
     personalLine = rankText & " " & fioText
-    ' Краткая запись используется в строке о возвращении из отпуска.
+    ' A short name is used in the return-from-vacation line.
     personalInitials = private_Person_BuildInitials(rankText, fioText)
     If VBA.Len(personalInitials) = 0 Then GoTo CleanExit
 
-    ' Имена должны точно совпадать с плейсхолдерами Word-шаблона.
+    ' Names must exactly match Word template placeholders.
     placeholderNames = Array( _
         "TicketDate", "TicketNum", "PersonalLine", "VacationKind", _
         "VacationPlace", "VacationDuration", "DateFrom", "DateTo", _
@@ -511,7 +511,7 @@ EH:
     Resume CleanExit
 End Sub
 
-' Удаляет только строки, добавленные в текущем запуске после неудачной генерации Word.
+' Removes only rows added in this run after failed Word generation.
 Private Sub private_TryRollbackCreatedTicketRows( _
     ByVal ticketRow As ListRow, _
     ByVal mainTicketRowCreated As Boolean, _
@@ -537,7 +537,7 @@ End Sub
 ' --------------------------------------
 ' namespace CandidatesConfig {
 ' --------------------------------------
-' Создаёт стиль ячейки в едином контракте, используемом общим модулем кандидатов.
+' Creates a cell style in the common contract used by the candidate module.
 Private Function private_CandidatesConfig_CreateCellStyle( _
     ByVal fontName As String, _
     ByVal fontSize As Double, _
@@ -567,7 +567,7 @@ End Function
 ' --------------------------------------
 ' namespace Performance {
 ' --------------------------------------
-' Временная диагностика длительности этапов генерации. Удалить после замеров.
+' Temporary timing diagnostics for generation steps. Remove after measurement.
 Private Sub private_Performance_LogCheckpoint( _
     ByVal startTime As Single, _
     ByVal checkpointName As String _
@@ -583,26 +583,38 @@ End Sub
 ' } // namespace Performance
 ' --------------------------------------
 
-' Инициализирует module-level состояние перед каждым запуском генерации.
-Private Sub private_Initialize()
+' Initializes module-level state before each generation run.
+Private Function private_Initialize() As Boolean
     Set inputCellMap = VBA.CreateObject("Scripting.Dictionary")
     inputCellMap.CompareMode = VBA.vbBinaryCompare
 
-    ' Адреса значений соответствуют строкам конфигурационной таблицы на листе.
-    inputCellMap.Add INPUT_ALIAS_PERSON_LOOKUP, "C4"
-    inputCellMap.Add INPUT_ALIAS_VACATION_KIND, "C5"
-    inputCellMap.Add INPUT_ALIAS_VACATION_PLACE, "C6"
-    inputCellMap.Add INPUT_ALIAS_VACATION_ABROAD, "C7"
-    inputCellMap.Add INPUT_ALIAS_ORDER_REFERENCE, "C8"
-    inputCellMap.Add INPUT_ALIAS_DEPARTURE_DATE, "C9"
-    inputCellMap.Add INPUT_ALIAS_VACATION_DAYS, "C10"
-    inputCellMap.Add INPUT_ALIAS_ROAD_DAYS, "C11"
-    inputCellMap.Add INPUT_ALIAS_DONATION_DAYS, "C12"
-    inputCellMap.Add INPUT_ALIAS_TVO_LOOKUP, "C13"
-    inputCellMap.Add INPUT_ALIAS_STATUS, "C14"
-    inputCellMap.Add INPUT_ALIAS_TEMPLATE_PATH, "C15"
-    inputCellMap.Add INPUT_ALIAS_OUTPUT_FOLDER_PATH, "C16"
-End Sub
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_PERSON_LOOKUP, "wsVacation::input.person_lookup") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_VACATION_KIND, "wsVacation::input.kind") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_VACATION_PLACE, "wsVacation::input.place") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_VACATION_ABROAD, "wsVacation::input.abroad") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_ORDER_REFERENCE, "wsVacation::input.order_reference") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_DEPARTURE_DATE, "wsVacation::input.departure_date") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_VACATION_DAYS, "wsVacation::input.days") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_ROAD_DAYS, "wsVacation::input.road_days") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_DONATION_DAYS, "wsVacation::input.donation_days") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_TVO_LOOKUP, "wsVacation::input.tvo_lookup") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_STATUS, "wsVacation::input.status") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_TEMPLATE_PATH, "wsVacation::input.template_path") Then Exit Function
+    If Not private_Input_AddConfigCell(INPUT_ALIAS_OUTPUT_FOLDER_PATH, "wsVacation::input.output_folder_path") Then Exit Function
+    private_Initialize = True
+End Function
+
+Private Function private_Input_AddConfigCell(ByVal fieldAlias As String, ByVal configKey As String) As Boolean
+    Dim cellAddress As String
+    If Not ex_Config.fn_TryGetText(configKey, cellAddress) Then Exit Function
+    inputCellMap.Add fieldAlias, cellAddress
+    private_Input_AddConfigCell = True
+End Function
+
+Private Function private_ConfigText(ByVal configKey As String) As String
+    Dim valueText As String
+    If ex_Config.fn_TryGetText(configKey, valueText) Then private_ConfigText = valueText
+End Function
 
 ' --------------------------------------
 ' namespace Input {
@@ -612,7 +624,7 @@ Private Function private_Input_ReadRequired( _
     ByVal fieldCaption As String _
 ) As String
     If Not ex_Document.ex_TryReadRequired( _
-        INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, _
+        private_ConfigText(CFG_WS_VACATION), inputCellMap, fieldAlias, fieldCaption, _
         private_Input_ReadRequired) Then Exit Function
 End Function
 
@@ -621,7 +633,7 @@ Private Function private_Input_TryReadOptional( _
     ByRef outValue As String _
 ) As Boolean
     private_Input_TryReadOptional = ex_Document.ex_TryReadOptional( _
-        INPUT_SHEET_NAME, inputCellMap, fieldAlias, outValue)
+        private_ConfigText(CFG_WS_VACATION), inputCellMap, fieldAlias, outValue)
 End Function
 
 Private Function private_Input_TryReadNonNegativeDays( _
@@ -631,7 +643,7 @@ Private Function private_Input_TryReadNonNegativeDays( _
 ) As Boolean
     private_Input_TryReadNonNegativeDays = _
         ex_Document.ex_TryReadNonNegativeDays( _
-            INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, _
+            private_ConfigText(CFG_WS_VACATION), inputCellMap, fieldAlias, fieldCaption, _
             False, outDays)
 End Function
 
@@ -643,7 +655,7 @@ Private Function private_Input_TryReadDate( _
     Dim dateText As String
 
     If Not ex_Document.ex_TryReadRequired( _
-        INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, dateText) Then Exit Function
+        private_ConfigText(CFG_WS_VACATION), inputCellMap, fieldAlias, fieldCaption, dateText) Then Exit Function
     If ex_Helpers.private_Date_TryParse(dateText, outDate) Then
         private_Input_TryReadDate = True
         Exit Function
@@ -661,7 +673,7 @@ Private Function private_Input_TryReadOptionalNonNegativeDays( _
 ) As Boolean
     private_Input_TryReadOptionalNonNegativeDays = _
         ex_Document.ex_TryReadNonNegativeDays( _
-            INPUT_SHEET_NAME, inputCellMap, fieldAlias, fieldCaption, _
+            private_ConfigText(CFG_WS_VACATION), inputCellMap, fieldAlias, fieldCaption, _
             True, outDays)
 End Function
 
@@ -759,7 +771,7 @@ Private Function private_Vacation_TryMapAbroad( _
         Case VBA.LCase$(VACATION_ABROAD_YES)
             outVacationAbroadText = VACATION_ABROAD_TEXT_YES
         Case VBA.LCase$(VACATION_ABROAD_NO)
-            ' Сохраняем отдельную строку шаблона при отсутствии разрешения.
+            ' Keep a separate template line when there is no permission.
             outVacationAbroadText = VBA.vbCr
         Case Else
             ex_Helpers.LogError "Unsupported vacation abroad value: " & vacationAbroad
@@ -777,7 +789,7 @@ Private Function private_Vacation_TryMapStatus( _
 ) As Boolean
     Select Case VBA.LCase$(ex_Helpers.private_Text_Normalize(vacationStatus))
         Case VBA.LCase$(VACATION_STATUS_ACTIVE)
-            ' Активный билет не требует отметки в реестре.
+            ' An active ticket does not need a registry mark.
             outTicketsStatusText = VBA.vbNullString
         Case VBA.LCase$(VACATION_STATUS_CANCELLED)
             outTicketsStatusText = VACATION_STATUS_TICKETS_CANCELLED

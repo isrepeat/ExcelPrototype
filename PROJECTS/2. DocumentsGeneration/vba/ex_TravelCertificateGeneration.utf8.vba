@@ -6,7 +6,7 @@
 Private Const LOG_FILE_SUFFIX As String = "_logs.txt"
 Private Const INPUT_SHEET_NAME As String = "Відрядження"
 
-' Стабильные aliases полей формы. Адреса инкапсулированы в Input mapper-е.
+' Stable form field aliases. Addresses stay inside the input mapper.
 Private Const INPUT_ALIAS_PERSON_LOOKUP As String = "PersonLookup"
 Private Const INPUT_ALIAS_POSITION_CODE As String = "PositionCode"
 Private Const INPUT_ALIAS_ORDER_REFERENCE As String = "OrderReference"
@@ -20,7 +20,7 @@ Private Const INPUT_ALIAS_DATE_FROM As String = "DateFrom"
 Private Const INPUT_ALIAS_DATE_TO As String = "DateTo"
 Private Const INPUT_ALIAS_TEMPLATE_PATH As String = "TemplatePath"
 
-' Aliases генерируемого контекста, могут использоваться для formatter-ов.
+' Generated context aliases can be used by formatters.
 Private Const GENERATED_CONTEXT_ALIAS_FIO As String = "FIO"
 Private Const GENERATED_CONTEXT_ALIAS_IPN As String = "IPN"
 Private Const GENERATED_CONTEXT_ALIAS_ORDER_NO As String = "OrderNo"
@@ -139,7 +139,7 @@ Public Sub fn_TravelCertificateGeneration_Create()
     End If
 
     If VBA.Len(dateToText) = 0 Then
-        ' В шаблоне слово "до" уже находится перед плейсхолдером DateTo.
+        ' The template already has the word before the DateTo placeholder.
         dateToText = "окремого розпорядження"
         ex_Helpers.LogDebug "End date is empty; fallback applied: " & _
             "до окремого розпорядження"
@@ -210,7 +210,7 @@ End Sub
 ' } // namespace API
 ' --------------------------------------
 
-' Инициализирует module-level состояние перед каждым запуском генерации.
+' Initializes module-level state before each generation run.
 Private Sub private_Initialize()
     If Not inputCellMap Is Nothing Then
         inputCellMap.RemoveAll

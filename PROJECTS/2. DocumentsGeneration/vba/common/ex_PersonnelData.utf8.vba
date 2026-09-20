@@ -72,8 +72,8 @@ Public Function ex_TryResolveIpn( _
         ALF_TABLE_REF, "ПІБ", personLookup, "ІПН", outIpnText)
 End Function
 
-' Выполняет переданный SQL к ШПО и возвращает массивы значений полей.
-' Структура запроса, наименования и порядок полей задаются вызывающим модулем.
+' Runs given SQL against SHPO and returns arrays of field values.
+' The caller defines the query shape, field names, and field order.
 Public Function ex_TryExecuteShpoCandidateSql( _
     ByVal sqlText As String, _
     ByVal candidateFieldNames As Collection, _
@@ -241,7 +241,7 @@ EH:
     Resume CleanExit
 End Function
 
-' Ищет единственный приказ по дате без ошибки, если приказ ещё не заведён.
+' Finds one order by date without an error when the order is not present yet.
 Public Function ex_TryFindOrderNoByDate( _
     ByVal orderDate As Date, _
     ByRef outOrderNo As String _

@@ -7,7 +7,7 @@ Private Sub Workbook_Open()
     ex_DocumentGenerationBootstrap.fn_Initialize
 End Sub
 
-' Единая точка входа для изменений ячеек во всей книге.
+' Main entry point for cell changes in this workbook.
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo EH
     ex_CellChangeRouter.fn_OnSheetChange Sh, Target
@@ -18,7 +18,7 @@ EH:
         VBA.vbExclamation, "Document Generation"
 End Sub
 
-' Единая точка входа для выбора ячеек во всей книге.
+' Main entry point for cell selection in this workbook.
 Private Sub Workbook_SheetSelectionChange( _
     ByVal Sh As Object, _
     ByVal Target As Range _
