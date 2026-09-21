@@ -13,7 +13,7 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     ex_CellChangeRouter.fn_OnSheetChange Sh, Target
     Exit Sub
 EH:
-    VBA.MsgBox "Cell-change dispatch failed: [" & _
+    ex_Helpers.ex_ShowMessage "Cell-change dispatch failed: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Sub
@@ -27,7 +27,7 @@ Private Sub Workbook_SheetSelectionChange( _
     ex_CellChangeRouter.fn_OnSheetSelectionChange Sh, Target
     Exit Sub
 EH:
-    VBA.MsgBox "Selection-change dispatch failed: [" & _
+    ex_Helpers.ex_ShowMessage "Selection-change dispatch failed: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Sub

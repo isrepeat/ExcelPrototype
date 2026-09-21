@@ -13,7 +13,7 @@ Public Sub fn_Initialize()
     If Not ex_Candidates.fn_Configure(candidatesConfig) Then Exit Sub
     ex_CellChangeRouter.fn_Reset
     If Not ex_Candidates.fn_RegisterRoutes() Then
-        VBA.MsgBox "Candidate routes were not initialized.", _
+        ex_Helpers.ex_ShowMessage "Candidate routes were not initialized.", _
             VBA.vbExclamation, "Document Generation"
         Exit Sub
     End If

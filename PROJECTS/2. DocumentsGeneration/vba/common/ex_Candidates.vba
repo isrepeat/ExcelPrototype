@@ -62,7 +62,7 @@ Public Function fn_RegisterRoutes() As Boolean
 EH:
     ex_Helpers.LogError "Failed to register candidate routes | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to register candidate routes: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to register candidate routes: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -74,7 +74,7 @@ Public Sub fn_OnInputChanged(ByVal changedSheet As Object, ByVal target As Range
     If Not TypeOf changedSheet Is Worksheet Then Exit Sub
     If Not private_Candidates_TryEnsureConfigured() Then Exit Sub
     If target.CountLarge <> 1 Then
-        VBA.MsgBox "Candidate search requires exactly one changed cell.", _
+        ex_Helpers.ex_ShowMessage "Candidate search requires exactly one changed cell.", _
             VBA.vbExclamation, "Document Generation"
         Exit Sub
     End If
@@ -96,7 +96,7 @@ Public Sub fn_OnCandidateSelected(ByVal changedSheet As Object, ByVal target As 
     If Not private_Candidates_TryValidateSourceSheet(sourceSheet) Then Exit Sub
     If VBA.Len(ex_Helpers.private_Text_Normalize(VBA.CStr(target.Value2))) = 0 Then Exit Sub
     If VBA.Len(activeLookupCellAddress) = 0 Then
-        VBA.MsgBox "Select a lookup field before choosing a candidate.", _
+        ex_Helpers.ex_ShowMessage "Select a lookup field before choosing a candidate.", _
             VBA.vbExclamation, "Document Generation"
         Exit Sub
     End If
@@ -143,7 +143,7 @@ EH:
     Application.ScreenUpdating = screenUpdatingWasEnabled
     ex_Helpers.LogError "Failed to hide candidate table | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to hide candidate table: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to hide candidate table: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Sub
@@ -175,7 +175,7 @@ Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Obje
     configuredTitleStyleName = VBA.vbNullString
     configuredSelectedStyleName = VBA.vbNullString
     If candidatesConfig Is Nothing Then
-        VBA.MsgBox "Candidate configuration was not provided.", VBA.vbExclamation, _
+        ex_Helpers.ex_ShowMessage "Candidate configuration was not provided.", VBA.vbExclamation, _
             "Document Generation"
         Exit Function
     End If
@@ -184,7 +184,7 @@ Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Obje
     If Not private_Candidates_TryGetRequiredCollection(candidatesConfig, _
         "LookupCellAddresses", lookupCellAddresses) Then Exit Function
     If lookupCellAddresses.Count = 0 Then
-        VBA.MsgBox "Candidate configuration has no lookup cell addresses.", _
+        ex_Helpers.ex_ShowMessage "Candidate configuration has no lookup cell addresses.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -201,7 +201,7 @@ Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Obje
     If Not private_Candidates_TryGetRequiredLong(candidatesConfig, _
         "MaxCandidateCount", configuredMaxCandidateCount) Then Exit Function
     If configuredMaxCandidateCount <= 0 Then
-        VBA.MsgBox "Candidate configuration MaxCandidateCount must be greater than zero.", _
+        ex_Helpers.ex_ShowMessage "Candidate configuration MaxCandidateCount must be greater than zero.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -210,7 +210,7 @@ Private Function private_Candidates_TryReadConfig(ByVal candidatesConfig As Obje
     If Not private_Candidates_TryGetRequiredLong(candidatesConfig, _
         "SelectedValueIndex", configuredSelectedValueIndex) Then Exit Function
     If configuredSelectedValueIndex < 0 Then
-        VBA.MsgBox "Candidate selected value index cannot be negative.", _
+        ex_Helpers.ex_ShowMessage "Candidate selected value index cannot be negative.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -253,11 +253,11 @@ Private Function private_Candidates_TryGetRequiredObject(ByVal candidatesConfig 
     private_Candidates_TryGetRequiredObject = True
     Exit Function
 MissingValue:
-    VBA.MsgBox "Candidate configuration object '" & keyName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration object '" & keyName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate configuration value '" & keyName & "' must be an object.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration value '" & keyName & "' must be an object.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -271,7 +271,7 @@ Private Function private_Candidates_TryValidateColumns( _
     Dim sourceIndexes As Object
 
     If columns.Count = 0 Then
-        VBA.MsgBox "Candidate configuration has no output columns.", _
+        ex_Helpers.ex_ShowMessage "Candidate configuration has no output columns.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -281,7 +281,7 @@ Private Function private_Candidates_TryValidateColumns( _
         If Not private_Candidates_TryGetRequiredLong( _
             columnConfig, "SourceIndex", sourceIndex) Then Exit Function
         If sourceIndex < 0 Then
-            VBA.MsgBox "Candidate column SourceIndex cannot be negative.", _
+            ex_Helpers.ex_ShowMessage "Candidate column SourceIndex cannot be negative.", _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
         End If
@@ -290,7 +290,7 @@ Private Function private_Candidates_TryValidateColumns( _
         If Not private_Candidates_TryGetRequiredText( _
             columnConfig, "Header", headerText) Then Exit Function
         If sourceIndexes.Exists(VBA.CStr(sourceIndex)) Then
-            VBA.MsgBox "Candidate column SourceIndex is duplicated: " & _
+            ex_Helpers.ex_ShowMessage "Candidate column SourceIndex is duplicated: " & _
                 VBA.CStr(sourceIndex) & ".", VBA.vbExclamation, _
                 "Document Generation"
             Exit Function
@@ -298,7 +298,7 @@ Private Function private_Candidates_TryValidateColumns( _
         sourceIndexes.Add VBA.CStr(sourceIndex), True
     Next columnConfig
     If Not sourceIndexes.Exists(VBA.CStr(configuredSelectedValueIndex)) Then
-        VBA.MsgBox "SelectedValueIndex is not included in candidate Columns.", _
+        ex_Helpers.ex_ShowMessage "SelectedValueIndex is not included in candidate Columns.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -314,7 +314,7 @@ Private Function private_Candidates_TryValidateLookupFieldTitles( _
     On Error GoTo EH
     For Each lookupCellAddress In lookupCellAddresses
         If Not configuredLookupFieldTitles.Exists(VBA.CStr(lookupCellAddress)) Then
-            VBA.MsgBox "Candidate title is not configured for lookup cell '" & _
+            ex_Helpers.ex_ShowMessage "Candidate title is not configured for lookup cell '" & _
                 VBA.CStr(lookupCellAddress) & "'.", VBA.vbExclamation, _
                 "Document Generation"
             Exit Function
@@ -322,7 +322,7 @@ Private Function private_Candidates_TryValidateLookupFieldTitles( _
         lookupFieldTitle = VBA.Trim$(VBA.CStr(configuredLookupFieldTitles.Item( _
             VBA.CStr(lookupCellAddress))))
         If VBA.Len(lookupFieldTitle) = 0 Then
-            VBA.MsgBox "Candidate title is empty for lookup cell '" & _
+            ex_Helpers.ex_ShowMessage "Candidate title is empty for lookup cell '" & _
                 VBA.CStr(lookupCellAddress) & "'.", VBA.vbExclamation, _
                 "Document Generation"
             Exit Function
@@ -331,7 +331,7 @@ Private Function private_Candidates_TryValidateLookupFieldTitles( _
     private_Candidates_TryValidateLookupFieldTitles = True
     Exit Function
 EH:
-    VBA.MsgBox "Candidate LookupFieldTitles must be a dictionary of text values.", _
+    ex_Helpers.ex_ShowMessage "Candidate LookupFieldTitles must be a dictionary of text values.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -345,11 +345,11 @@ Private Function private_Candidates_TryGetRequiredText(ByVal candidatesConfig As
     private_Candidates_TryGetRequiredText = True
     Exit Function
 MissingValue:
-    VBA.MsgBox "Candidate configuration value '" & keyName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration value '" & keyName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate configuration does not provide key '" & keyName & "'.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration does not provide key '" & keyName & "'.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -363,11 +363,11 @@ Private Function private_Candidates_TryGetRequiredCollection(ByVal candidatesCon
     private_Candidates_TryGetRequiredCollection = True
     Exit Function
 MissingValue:
-    VBA.MsgBox "Candidate configuration collection '" & keyName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration collection '" & keyName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate configuration value '" & keyName & "' must be a Collection.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration value '" & keyName & "' must be a Collection.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -381,11 +381,11 @@ Private Function private_Candidates_TryGetRequiredLong(ByVal candidatesConfig As
     private_Candidates_TryGetRequiredLong = True
     Exit Function
 MissingValue:
-    VBA.MsgBox "Candidate configuration numeric value '" & keyName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration numeric value '" & keyName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate configuration value '" & keyName & "' is invalid.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration value '" & keyName & "' is invalid.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -399,11 +399,11 @@ Private Function private_Candidates_TryGetRequiredBoolean(ByVal candidatesConfig
     private_Candidates_TryGetRequiredBoolean = True
     Exit Function
 MissingValue:
-    VBA.MsgBox "Candidate configuration Boolean value '" & keyName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration Boolean value '" & keyName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate configuration value '" & keyName & "' is invalid.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration value '" & keyName & "' is invalid.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -417,11 +417,11 @@ Private Function private_Candidates_TryGetRequiredDouble(ByVal candidatesConfig 
     private_Candidates_TryGetRequiredDouble = True
     Exit Function
 MissingValue:
-    VBA.MsgBox "Candidate configuration numeric value '" & keyName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration numeric value '" & keyName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate configuration value '" & keyName & "' is invalid.", _
+    ex_Helpers.ex_ShowMessage "Candidate configuration value '" & keyName & "' is invalid.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -435,14 +435,14 @@ Private Function private_Candidates_TryValidateConfiguredStyle( _
 
     If Not private_Candidates_TryGetConfiguredStyle(styleName, cellStyle) Then Exit Function
     If cellStyle.Count = 0 Then
-        VBA.MsgBox "Candidate style '" & styleName & "' must define at least one property.", _
+        ex_Helpers.ex_ShowMessage "Candidate style '" & styleName & "' must define at least one property.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     If cellStyle.Exists("FontSize") Then
         If Not private_Candidates_TryGetRequiredDouble(cellStyle, "FontSize", fontSize) Then Exit Function
         If fontSize <= 0 Then
-            VBA.MsgBox "Candidate style '" & styleName & "' FontSize must be greater than zero.", _
+            ex_Helpers.ex_ShowMessage "Candidate style '" & styleName & "' FontSize must be greater than zero.", _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
         End If
@@ -463,11 +463,11 @@ Private Function private_Candidates_TryGetConfiguredStyle( _
     private_Candidates_TryGetConfiguredStyle = True
     Exit Function
 MissingStyle:
-    VBA.MsgBox "Candidate cell style '" & styleName & "' is required.", _
+    ex_Helpers.ex_ShowMessage "Candidate cell style '" & styleName & "' is required.", _
         VBA.vbExclamation, "Document Generation"
     Exit Function
 EH:
-    VBA.MsgBox "Candidate cell style '" & styleName & "' must be an object.", _
+    ex_Helpers.ex_ShowMessage "Candidate cell style '" & styleName & "' must be an object.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -499,7 +499,7 @@ EH:
     ex_Helpers.LogError "Failed to apply candidate cell style | Style=" & _
         styleName & " | Number=" & VBA.CStr(VBA.Err.Number) & _
         " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to apply candidate cell style '" & styleName & "': [" & _
+    ex_Helpers.ex_ShowMessage "Failed to apply candidate cell style '" & styleName & "': [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -509,7 +509,7 @@ Private Function private_Candidates_TryEnsureConfigured() As Boolean
         private_Candidates_TryEnsureConfigured = True
         Exit Function
     End If
-    VBA.MsgBox "Candidate module is not configured.", VBA.vbExclamation, _
+    ex_Helpers.ex_ShowMessage "Candidate module is not configured.", VBA.vbExclamation, _
         "Document Generation"
 End Function
 
@@ -518,7 +518,7 @@ Private Function private_Candidates_TryValidateSourceSheet(ByVal sourceSheet As 
         private_Candidates_TryValidateSourceSheet = True
         Exit Function
     End If
-    VBA.MsgBox "Candidate callback was received from unexpected sheet '" & _
+    ex_Helpers.ex_ShowMessage "Candidate callback was received from unexpected sheet '" & _
         sourceSheet.Name & "'.", VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -533,7 +533,7 @@ Private Function private_Candidates_TryRegisterSelectionRoutes( _
         Exit Function
     End If
     If candidateRange.Row <= 2 Then
-        VBA.MsgBox "CandidateStartCellAddress must leave rows above for header and clear command.", _
+        ex_Helpers.ex_ShowMessage "CandidateStartCellAddress must leave rows above for header and clear command.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -578,7 +578,7 @@ Private Function private_Candidates_TryClearTable( _
 EH:
     ex_Helpers.LogError "Failed to clear candidate table | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to clear candidate table: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to clear candidate table: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -598,7 +598,7 @@ Private Function private_Candidates_TryApplyHeaders() As Boolean
     Set sourceSheet = ThisWorkbook.Worksheets(configuredInputSheetName)
     If Not private_Candidates_TryGetCandidateRange(sourceSheet, candidateRange) Then Exit Function
     If candidateRange.Row <= 2 Then
-        VBA.MsgBox "CandidateStartCellAddress must leave rows above for title, headers and command.", _
+        ex_Helpers.ex_ShowMessage "CandidateStartCellAddress must leave rows above for title, headers and command.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -606,14 +606,14 @@ Private Function private_Candidates_TryApplyHeaders() As Boolean
     Set commandCell = headerRange.Cells(1, 1).Offset(-1, 0)
     Set titleCell = commandCell.Offset(-1, 0)
     If Not configuredLookupFieldTitles.Exists(activeLookupCellAddress) Then
-        VBA.MsgBox "Candidate title is not configured for active lookup cell '" & _
+        ex_Helpers.ex_ShowMessage "Candidate title is not configured for active lookup cell '" & _
             activeLookupCellAddress & "'.", VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     lookupFieldTitle = VBA.CStr(configuredLookupFieldTitles.Item( _
         activeLookupCellAddress))
     If VBA.Len(VBA.Trim$(lookupFieldTitle)) = 0 Then
-        VBA.MsgBox "Candidate title is empty for active lookup cell '" & _
+        ex_Helpers.ex_ShowMessage "Candidate title is empty for active lookup cell '" & _
             activeLookupCellAddress & "'.", VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -643,7 +643,7 @@ Private Function private_Candidates_TryApplyHeaders() As Boolean
 EH:
     ex_Helpers.LogError "Failed to apply candidate headers | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to apply candidate headers: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to apply candidate headers: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -658,7 +658,7 @@ Private Function private_Candidates_TryGetCandidateRange( _
     Set outCandidateRange = Nothing
     Set candidateStartCell = sourceSheet.Range(configuredCandidateStartCellAddress)
     If candidateStartCell.Cells.CountLarge <> 1 Then
-        VBA.MsgBox "CandidateStartCellAddress must reference exactly one cell.", _
+        ex_Helpers.ex_ShowMessage "CandidateStartCellAddress must reference exactly one cell.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -667,7 +667,7 @@ Private Function private_Candidates_TryGetCandidateRange( _
     private_Candidates_TryGetCandidateRange = True
     Exit Function
 EH:
-    VBA.MsgBox "Failed to resolve candidate range from start cell '" & _
+    ex_Helpers.ex_ShowMessage "Failed to resolve candidate range from start cell '" & _
         configuredCandidateStartCellAddress & "': " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -696,7 +696,7 @@ Private Sub private_Candidates_Refresh(ByVal sourceSheet As Worksheet, ByVal loo
     queryStartedAt = VBA.Timer
     If Not private_Candidates_TryFindCandidates(inputText, candidates) Then GoTo CleanExit
     If candidates.Count > candidateRange.Rows.Count Then
-        VBA.MsgBox "Candidate query returned more rows than configured maximum.", _
+        ex_Helpers.ex_ShowMessage "Candidate query returned more rows than configured maximum.", _
             VBA.vbExclamation, "Document Generation"
         GoTo CleanExit
     End If
@@ -720,7 +720,7 @@ EH:
     Application.ScreenUpdating = screenUpdatingWasEnabled
     ex_Helpers.LogError "Failed to refresh candidate table | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to refresh candidate table: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to refresh candidate table: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Sub
@@ -745,7 +745,7 @@ Private Function private_Candidates_TryFindCandidates(ByVal searchText As String
         "'!" & configuredQueryCallbackName
     Set outCandidates = Application.Run(macroReference, searchText, configuredMaxCandidateCount)
     If outCandidates Is Nothing Then
-        VBA.MsgBox "Candidate query callback returned no result: " & _
+        ex_Helpers.ex_ShowMessage "Candidate query callback returned no result: " & _
             configuredQueryCallbackName, VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -755,7 +755,7 @@ EH:
     ex_Helpers.LogError "Candidate query callback failed | Callback=" & _
         configuredQueryCallbackName & " | Number=" & VBA.CStr(VBA.Err.Number) & _
         " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Candidate query callback failed: [" & VBA.CStr(VBA.Err.Number) & _
+    ex_Helpers.ex_ShowMessage "Candidate query callback failed: [" & VBA.CStr(VBA.Err.Number) & _
         "] " & VBA.Err.Description, VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -808,7 +808,7 @@ Private Function private_Candidates_TryRenderCandidates( _
     private_Candidates_TryRenderCandidates = True
     Exit Function
 InvalidCandidate:
-    VBA.MsgBox "Candidate has invalid data format for configured value indexes.", _
+    ex_Helpers.ex_ShowMessage "Candidate has invalid data format for configured value indexes.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -825,7 +825,7 @@ Private Sub private_Candidates_Accept(ByVal sourceSheet As Worksheet, ByVal cand
         candidateCell.Row, candidateRange.Columns( _
         selectedOutputColumnIndex).Column).Value2))
     If VBA.Len(selectedValue) = 0 Then
-        VBA.MsgBox "Candidate selected value is empty in " & candidateCell.Address(False, False) & ".", _
+        ex_Helpers.ex_ShowMessage "Candidate selected value is empty in " & candidateCell.Address(False, False) & ".", _
             VBA.vbExclamation, "Document Generation"
         Exit Sub
     End If
@@ -883,7 +883,7 @@ Private Function private_Candidates_TryGetOutputColumnIndex( _
             Exit Function
         End If
     Next columnConfig
-    VBA.MsgBox "Candidate selected source index is not mapped to an output column.", _
+    ex_Helpers.ex_ShowMessage "Candidate selected source index is not mapped to an output column.", _
         VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -895,7 +895,7 @@ Private Function private_Candidates_TrySaveCellStyle( _
 
     On Error GoTo EH
     If originalCandidateCellStyles Is Nothing Then
-        VBA.MsgBox "Candidate cell style storage is not initialized.", _
+        ex_Helpers.ex_ShowMessage "Candidate cell style storage is not initialized.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
@@ -922,7 +922,7 @@ Private Function private_Candidates_TrySaveCellStyle( _
 EH:
     ex_Helpers.LogError "Failed to save candidate cell style | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to save candidate cell style: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to save candidate cell style: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -957,7 +957,7 @@ Private Function private_Candidates_TryRestoreSavedStyles() As Boolean
 EH:
     ex_Helpers.LogError "Failed to restore candidate cell styles | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to restore candidate cell styles: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to restore candidate cell styles: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function
@@ -972,7 +972,7 @@ Private Function private_Candidates_TryClear(ByVal candidateRange As Range) As B
 EH:
     ex_Helpers.LogError "Failed to clear candidate range | Number=" & _
         VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to clear candidate range: [" & _
+    ex_Helpers.ex_ShowMessage "Failed to clear candidate range: [" & _
         VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
         VBA.vbExclamation, "Document Generation"
 End Function

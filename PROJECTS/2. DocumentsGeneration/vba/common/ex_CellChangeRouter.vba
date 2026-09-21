@@ -129,7 +129,7 @@ Private Function private_Routes_TryRegisterRoute( _
     callbackName = VBA.Trim$(callbackName)
     If VBA.Len(worksheetName) = 0 Or VBA.Len(rangeAddress) = 0 Or _
        VBA.Len(callbackName) = 0 Then
-        VBA.MsgBox "Invalid " & eventName & " route. Sheet, range, and callback " & _
+        ex_Helpers.ex_ShowMessage "Invalid " & eventName & " route. Sheet, range, and callback " & _
             "must be specified.", VBA.vbExclamation, "Document Generation"
         Exit Function
     End If

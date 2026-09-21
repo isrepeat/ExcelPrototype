@@ -25,7 +25,7 @@ Public Function fn_TryGetText(ByVal configKey As String, ByRef outValue As Strin
     outValue = VBA.vbNullString
     If Not private_TryEnsureLoaded() Then Exit Function
     If Not configValues.Exists(configKey) Then
-        VBA.MsgBox "Configuration key was not found: " & configKey, VBA.vbExclamation, "Document Generation"
+        ex_Helpers.ex_ShowMessage "Configuration key was not found: " & configKey, VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     outValue = VBA.CStr(configValues(configKey))
@@ -37,7 +37,7 @@ Public Function fn_TryGetLong(ByVal configKey As String, ByRef outValue As Long)
     outValue = 0
     If Not fn_TryGetText(configKey, valueText) Then Exit Function
     If Not VBA.IsNumeric(valueText) Then
-        VBA.MsgBox "Configuration key must contain a number: " & configKey, VBA.vbExclamation, "Document Generation"
+        ex_Helpers.ex_ShowMessage "Configuration key must contain a number: " & configKey, VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     outValue = VBA.CLng(valueText)
@@ -97,7 +97,7 @@ CleanFail:
     On Error GoTo 0
     Exit Function
 EH:
-    VBA.MsgBox "Cannot read configuration workbook '" & configWorkbook.Name & "': " & Err.Description, VBA.vbExclamation, "Document Generation"
+    ex_Helpers.ex_ShowMessage "Cannot read configuration workbook '" & configWorkbook.Name & "': " & Err.Description, VBA.vbExclamation, "Document Generation"
     Resume CleanFail
 End Function
 
@@ -106,7 +106,7 @@ Private Function private_TryOpenWorkbook(ByVal workbookPath As String, ByRef out
     outOpenedByLoader = False
     Set outWorkbook = Nothing
     If VBA.Len(VBA.Dir$(workbookPath)) = 0 Then
-        VBA.MsgBox "Configuration dependency was not found: " & workbookPath, VBA.vbExclamation, "Document Generation"
+        ex_Helpers.ex_ShowMessage "Configuration dependency was not found: " & workbookPath, VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     ' Do not reopen a dependency that the user already has open.
