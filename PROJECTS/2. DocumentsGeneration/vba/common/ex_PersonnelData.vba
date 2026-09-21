@@ -113,23 +113,23 @@ Public Function ex_TryExecuteShpoCandidateSql( _
     Set outCandidates = New Collection
     sqlText = VBA.Trim$(sqlText)
     If VBA.Len(sqlText) = 0 Then
-        VBA.MsgBox "Candidate SQL query is required.", VBA.vbExclamation, _
+        ex_Helpers.ex_ShowMessage "Candidate SQL query is required.", VBA.vbExclamation, _
             "Document Generation"
         Exit Function
     End If
     If candidateFieldNames Is Nothing Then
-        VBA.MsgBox "Candidate field names are required.", _
+        ex_Helpers.ex_ShowMessage "Candidate field names are required.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     If candidateFieldNames.Count = 0 Then
-        VBA.MsgBox "Candidate field names are required.", _
+        ex_Helpers.ex_ShowMessage "Candidate field names are required.", _
             VBA.vbExclamation, "Document Generation"
         Exit Function
     End If
     For Each fieldName In candidateFieldNames
         If VBA.Len(VBA.Trim$(VBA.CStr(fieldName))) = 0 Then
-            VBA.MsgBox "Candidate field name cannot be empty.", _
+            ex_Helpers.ex_ShowMessage "Candidate field name cannot be empty.", _
                 VBA.vbExclamation, "Document Generation"
             Exit Function
         End If

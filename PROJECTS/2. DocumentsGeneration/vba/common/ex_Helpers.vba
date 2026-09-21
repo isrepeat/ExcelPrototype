@@ -8,8 +8,10 @@ Private managedWordApp As Object
 Private messageTargetRange As Range
 Private configuredLogFileSuffix As String
 Private logWriteFailureNotified As Boolean
+Private logSessionStarted As Boolean
 
 Private Const LOG_FOLDER_NAME As String = "2. DocumentsGeneration"
+Private Const HELPERS_BUILD_ID As String = "2026-09-21.unicode-diagnostics.1"
 ' The log name is ASCII on purpose. VBA I/O on a PC with another ANSI locale
 ' may not read a workbook name with Cyrillic text correctly.
 Private Const LOG_FILE_BASE_NAME As String = "documents_generation"
@@ -885,7 +887,7 @@ EH:
     LogError "Message target is unavailable | Sheet=" & worksheetName & _
         " | Cell=" & cellAddress & " | Number=" & VBA.CStr(Err.Number) & _
         " | Description=" & Err.Description
-    VBA.MsgBox "Message area '" & cellAddress & "' was not found on sheet '" & _
+    ex_ShowMessage "Message area '" & cellAddress & "' was not found on sheet '" & _
         worksheetName & "'.", VBA.vbExclamation, "Document Generation"
 End Function
 
@@ -929,14 +931,30 @@ Public Function ex_ShowMessageBox( _
     Optional ByVal titleText As String = "Document Generation" _
 ) As VbMsgBoxResult
     Dim shell As Object
+    Dim errorNumber As Long
+    Dim errorDescription As String
 
     On Error GoTo Fallback
     Set shell = VBA.CreateObject("WScript.Shell")
+    LogDebug "DIALOG: Backend=WScript.Shell.Popup"
     ex_ShowMessageBox = shell.Popup(messageText, 0, titleText, VBA.CLng(buttons))
     Exit Function
 Fallback:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+    LogError "DIALOG: Backend=VBA.MsgBox fallback | Number=" & _
+        VBA.CStr(errorNumber) & " | Description=" & errorDescription
     ex_ShowMessageBox = VBA.MsgBox(messageText, buttons, titleText)
 End Function
+
+' Shows a message when the caller does not need the selected button.
+Public Sub ex_ShowMessage( _
+    ByVal messageText As String, _
+    Optional ByVal buttons As VbMsgBoxStyle = VBA.vbExclamation, _
+    Optional ByVal titleText As String = "Document Generation" _
+)
+    Call ex_ShowMessageBox(messageText, buttons, titleText)
+End Sub
 ' --------------------------------------
 ' } // namespace Dialogs
 ' --------------------------------------
@@ -956,12 +974,13 @@ Public Function ex_TryConfigureLogFileSuffix( _
 ) As Boolean
     logFileSuffix = private_Text_Normalize(logFileSuffix)
     If VBA.Len(logFileSuffix) = 0 Then
-        VBA.MsgBox "Log file suffix is not configured.", VBA.vbExclamation, _
+        ex_ShowMessage "Log file suffix is not configured.", VBA.vbExclamation, _
             "Document Generation"
         Exit Function
     End If
     configuredLogFileSuffix = logFileSuffix
     logWriteFailureNotified = False
+    private_Log_WriteSessionHeader
     private_Log_WriteSystemInfo
     ex_TryConfigureLogFileSuffix = True
 End Function
@@ -977,6 +996,9 @@ Public Sub ClearLog()
     ' TristateTrue creates a Unicode log without depending on the system ANSI code page.
     Set logStream = fileSystem.OpenTextFile(GetLogFilePath(), 2, True, -1)
     logStream.Close
+    logSessionStarted = False
+    private_Log_WriteSessionHeader
+    private_Log_WriteSystemInfo
     Exit Sub
 EH:
     On Error Resume Next
@@ -1003,6 +1025,21 @@ End Sub
 
 Public Sub WriteLog(ByVal messageText As String)
 #If ENABLE_LOGGING Then
+    private_Log_WriteLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
+        " | " & messageText
+#End If
+End Sub
+
+' Writes a log line without adding a timestamp or message type.
+Private Sub private_Log_WriteRaw(ByVal messageText As String)
+#If ENABLE_LOGGING Then
+    private_Log_WriteLine messageText
+#End If
+End Sub
+
+' Writes one prepared line to the configured Unicode log file.
+Private Sub private_Log_WriteLine(ByVal lineText As String)
+#If ENABLE_LOGGING Then
     Dim fileSystem As Object
     Dim logStream As Object
 
@@ -1010,8 +1047,7 @@ Public Sub WriteLog(ByVal messageText As String)
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     ' TristateTrue keeps Cyrillic text without depending on ACP.
     Set logStream = fileSystem.OpenTextFile(GetLogFilePath(), 8, True, -1)
-    logStream.WriteLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
-        " | " & messageText
+    logStream.WriteLine lineText
     logStream.Close
     Exit Sub
 EH:
@@ -1064,14 +1100,28 @@ EH:
     outFolderPath = VBA.vbNullString
 End Function
 
+' Writes an easy-to-find boundary between VBA sessions.
+Private Sub private_Log_WriteSessionHeader()
+    If logSessionStarted Then Exit Sub
+    private_Log_WriteRaw "=============================================================================================================================="
+    private_Log_WriteRaw "                                         New session started | " & _
+        VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
+    private_Log_WriteRaw "=============================================================================================================================="
+    logSessionStarted = True
+End Sub
+
 ' Writes environment data that can affect Unicode behavior in VBA.
 Private Sub private_Log_WriteSystemInfo()
     Dim officeUiLanguageId As Long
+    Dim scriptShell As Object
+    Dim scriptShellAvailable As Boolean
 
     On Error Resume Next
     officeUiLanguageId = Application.LanguageSettings.LanguageID(2)
     On Error GoTo 0
+    scriptShellAvailable = private_Log_TryCreateWScriptShell(scriptShell)
     WriteLog "SYSTEM: Environment"
+    WriteLog "SYSTEM: HelpersBuild=" & HELPERS_BUILD_ID
     WriteLog "SYSTEM: Windows=" & Application.OperatingSystem
     WriteLog "SYSTEM: OfficeVersion=" & Application.Version
     WriteLog "SYSTEM: OfficeBuild=" & VBA.CStr(Application.Build)
@@ -1088,7 +1138,46 @@ Private Sub private_Log_WriteSystemInfo()
         VBA.Environ$("PROCESSOR_ARCHITECTURE")
     WriteLog "SYSTEM: ProcessArchitectureWow64=" & _
         VBA.Environ$("PROCESSOR_ARCHITEW6432")
+    WriteLog "SYSTEM: VBA7=" & private_Log_GetVba7State()
+    WriteLog "SYSTEM: OfficeBitness=" & private_Log_GetOfficeBitness()
+    WriteLog "SYSTEM: WScriptShellAvailable=" & _
+        VBA.CStr(scriptShellAvailable)
+    WriteLog "SYSTEM: WScriptEnabledHKCU=" & private_Log_ReadRegistryValue( _
+        "HKCU\Software\Microsoft\Windows Script Host\Settings\Enabled")
+    WriteLog "SYSTEM: WScriptEnabledHKLM=" & private_Log_ReadRegistryValue( _
+        "HKLM\Software\Microsoft\Windows Script Host\Settings\Enabled")
+    WriteLog "SYSTEM: WshomSystem32Version=" & private_Log_ReadFileVersion( _
+        VBA.Environ$("SystemRoot") & "\System32\wshom.ocx")
+    WriteLog "SYSTEM: WshomSysWow64Version=" & private_Log_ReadFileVersion( _
+        VBA.Environ$("SystemRoot") & "\SysWOW64\wshom.ocx")
 End Sub
+
+Private Function private_Log_TryCreateWScriptShell( _
+    ByRef outShell As Object _
+) As Boolean
+    On Error GoTo EH
+    Set outShell = VBA.CreateObject("WScript.Shell")
+    private_Log_TryCreateWScriptShell = Not outShell Is Nothing
+    Exit Function
+EH:
+    Set outShell = Nothing
+End Function
+
+Private Function private_Log_GetVba7State() As String
+#If VBA7 Then
+    private_Log_GetVba7State = "True"
+#Else
+    private_Log_GetVba7State = "False"
+#End If
+End Function
+
+Private Function private_Log_GetOfficeBitness() As String
+#If Win64 Then
+    private_Log_GetOfficeBitness = "64-bit"
+#Else
+    private_Log_GetOfficeBitness = "32-bit"
+#End If
+End Function
 
 ' Reads a registry value without affecting the main logging flow.
 Private Function private_Log_ReadRegistryValue( _
@@ -1104,6 +1193,23 @@ EH:
     private_Log_ReadRegistryValue = "<unavailable>"
 End Function
 
+Private Function private_Log_ReadFileVersion( _
+    ByVal filePath As String _
+) As String
+    Dim fileSystem As Object
+
+    On Error GoTo EH
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(filePath) Then
+        private_Log_ReadFileVersion = "<not-found>"
+        Exit Function
+    End If
+    private_Log_ReadFileVersion = fileSystem.GetFileVersion(filePath)
+    Exit Function
+EH:
+    private_Log_ReadFileVersion = "<unavailable>"
+End Function
+
 ' Logging must not hide the main operation error.
 Private Sub private_Log_NotifyWriteFailure( _
     ByVal errorNumber As Long, _
@@ -1112,7 +1218,7 @@ Private Sub private_Log_NotifyWriteFailure( _
     If logWriteFailureNotified Then Exit Sub
 
     logWriteFailureNotified = True
-    VBA.MsgBox "Unable to write the log to '%TEMP%\" & LOG_FOLDER_NAME & _
+    ex_ShowMessage "Unable to write the log to '%TEMP%\" & LOG_FOLDER_NAME & _
         "'. Generation will continue without logging." & VBA.vbCrLf & _
         VBA.vbCrLf & "Error [" & VBA.CStr(errorNumber) & "]: " & _
         errorDescription, VBA.vbExclamation, "Document Generation"
