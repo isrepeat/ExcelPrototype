@@ -962,6 +962,7 @@ Public Function ex_TryConfigureLogFileSuffix( _
     End If
     configuredLogFileSuffix = logFileSuffix
     logWriteFailureNotified = False
+    private_Log_WriteSystemInfo
     ex_TryConfigureLogFileSuffix = True
 End Function
 
@@ -1061,6 +1062,46 @@ Private Function private_Log_TryEnsureFolder( _
     Exit Function
 EH:
     outFolderPath = VBA.vbNullString
+End Function
+
+' Writes environment data that can affect Unicode behavior in VBA.
+Private Sub private_Log_WriteSystemInfo()
+    Dim officeUiLanguageId As Long
+
+    On Error Resume Next
+    officeUiLanguageId = Application.LanguageSettings.LanguageID(2)
+    On Error GoTo 0
+    WriteLog "SYSTEM: Environment"
+    WriteLog "SYSTEM: Windows=" & Application.OperatingSystem
+    WriteLog "SYSTEM: OfficeVersion=" & Application.Version
+    WriteLog "SYSTEM: OfficeBuild=" & VBA.CStr(Application.Build)
+    WriteLog "SYSTEM: OfficeUILanguageId=" & VBA.CStr(officeUiLanguageId)
+    WriteLog "SYSTEM: ACP=" & private_Log_ReadRegistryValue( _
+        "HKLM\SYSTEM\CurrentControlSet\Control\Nls\CodePage\ACP")
+    WriteLog "SYSTEM: OEMCP=" & private_Log_ReadRegistryValue( _
+        "HKLM\SYSTEM\CurrentControlSet\Control\Nls\CodePage\OEMCP")
+    WriteLog "SYSTEM: UserLocale=" & private_Log_ReadRegistryValue( _
+        "HKCU\Control Panel\International\LocaleName")
+    WriteLog "SYSTEM: SystemLocale=" & private_Log_ReadRegistryValue( _
+        "HKLM\SYSTEM\CurrentControlSet\Control\Nls\Language\Default")
+    WriteLog "SYSTEM: ProcessArchitecture=" & _
+        VBA.Environ$("PROCESSOR_ARCHITECTURE")
+    WriteLog "SYSTEM: ProcessArchitectureWow64=" & _
+        VBA.Environ$("PROCESSOR_ARCHITEW6432")
+End Sub
+
+' Reads a registry value without affecting the main logging flow.
+Private Function private_Log_ReadRegistryValue( _
+    ByVal registryPath As String _
+) As String
+    Dim shell As Object
+
+    On Error GoTo EH
+    Set shell = VBA.CreateObject("WScript.Shell")
+    private_Log_ReadRegistryValue = VBA.CStr(shell.RegRead(registryPath))
+    Exit Function
+EH:
+    private_Log_ReadRegistryValue = "<unavailable>"
 End Function
 
 ' Logging must not hide the main operation error.
