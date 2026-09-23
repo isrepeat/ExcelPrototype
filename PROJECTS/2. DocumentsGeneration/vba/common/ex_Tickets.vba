@@ -4,6 +4,7 @@ Private Const CFG_TBTICKETS As String = "tbTickets"
 Private Const CFG_TBTICKETS_COLUMN_IPN As String = "tbTickets::column.ipn"
 Private Const CFG_TBTICKETS_COLUMN_OUT_ORDER As String = "tbTickets::column.out_order"
 Private Const CFG_TBTICKETS_COLUMN_EVENT As String = "tbTickets::column.event"
+Private Const CFG_TBTICKETS_COLUMN_DESTINATION As String = "tbTickets::column.destination"
 Private Const CFG_TBTICKETS_EVENT_DONATION As String = "tbTickets::event.donation"
 Private Const CFG_TBTICKETS_COLUMN_DOCUMENT As String = "tbTickets::column.document"
 Private Const CFG_TBTICKETS_COLUMN_RANK As String = "tbTickets::column.rank"
@@ -280,7 +281,8 @@ Public Function ex_TrySaveVacationRow( _
     ByVal tvoFioText As String, _
     ByVal tvoIpnText As String, _
     ByVal tvoPositionCode As String, _
-    ByVal statusText As String _
+    ByVal statusText As String, _
+    Optional ByVal destinationText As String = "" _
 ) As Boolean
     Dim tableValues As Object
     Dim valueKey As Variant
@@ -295,6 +297,8 @@ Public Function ex_TrySaveVacationRow( _
     tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_IPN), ipnText
     tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_POSITION), private_Position_ToRegistryValue(positionCode)
     tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_EVENT), eventText
+    tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_DESTINATION), _
+        destinationText
     tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_ORDER), orderNo
     tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_FOOD), foodDepartureDate
     tableValues.Add private_ConfigText(CFG_TBTICKETS_COLUMN_OUT_DATE), departureDate

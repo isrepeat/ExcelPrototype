@@ -14,6 +14,7 @@ column	tbTickets::column.fio	ПІБ
 column	tbTickets::column.ipn	ІПН
 column	tbTickets::column.position	Посада
 column	tbTickets::column.event	Подія
+column	tbTickets::column.destination	Куди
 column	tbTickets::column.out_order	Вибуття.Наказ
 column	tbTickets::column.out_food	Вибуття.Продовольче
 column	tbTickets::column.out_date	Вибуття
