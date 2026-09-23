@@ -56,6 +56,7 @@ Public Function private_Word_TryGenerateDocument( _
     Dim wordDoc As Object
     Dim fileSystem As Object
     Dim placeholderIndex As Long
+    Dim wordAppName As Variant
 
     On Error GoTo EH
     outDocumentPath = VBA.vbNullString
@@ -109,19 +110,30 @@ Public Function private_Word_TryGenerateDocument( _
         " | Target=" & temporaryDocumentPath
 
     If Not managedWordApp Is Nothing Then
+        On Error Resume Next
         Set wordApp = managedWordApp
-        LogDebug "Managed Word application reused"
-    Else
+        wordAppName = VBA.CallByName(wordApp, "Name", VBA.VbGet)
+        If Err.Number <> 0 Then
+            Err.Clear
+            Set wordApp = Nothing
+            Set managedWordApp = Nothing
+            LogDebug "Stale managed Word application was released"
+        End If
+        On Error GoTo EH
+    End If
+    If wordApp Is Nothing Then
         On Error Resume Next
         Set wordApp = VBA.GetObject(, "Word.Application")
         On Error GoTo EH
         If wordApp Is Nothing Then
             Set wordApp = VBA.CreateObject("Word.Application")
-            Set managedWordApp = wordApp
             LogDebug "Managed Word application started"
         Else
             LogDebug "Existing Word application used"
         End If
+        Set managedWordApp = wordApp
+    Else
+        LogDebug "Managed Word application reused"
     End If
 
     Set wordDoc = wordApp.Documents.Open(temporaryDocumentPath)

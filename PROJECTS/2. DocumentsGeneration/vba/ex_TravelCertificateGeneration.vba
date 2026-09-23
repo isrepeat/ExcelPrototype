@@ -121,9 +121,9 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
         GoTo CleanExit
     End If
     placeholderNames = Array( _
-        "TicketNum", "PersonalLine", "Position", "WeaponLine", "FooterSpacer")
+        "TicketNum", "PersonalLine", "Position", "WeaponLine")
     placeholderValues = Array(ticketNo, rankDative & " " & fioDative, _
-        positionText, weaponLine, VBA.vbCr)
+        positionText, weaponLine)
     Set documentNameValues = VBA.CreateObject("Scripting.Dictionary")
     documentNameValues.CompareMode = VBA.vbBinaryCompare
     documentNameValues.Add "FIO", fioText
