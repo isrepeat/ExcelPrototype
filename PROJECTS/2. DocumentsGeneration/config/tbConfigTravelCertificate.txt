@@ -1,0 +1,20 @@
+importCfg	cfgCommon	cfgDependencies.xlsx
+sheet	wsTravelCertificate	Відрядження
+cell	wsTravelCertificate::message_target	E7
+cell	wsTravelCertificate::input.person_lookup	C4
+cell	wsTravelCertificate::input.travel_place	C5
+cell	wsTravelCertificate::input.military_place	C6
+cell	wsTravelCertificate::input.order_reference	C7
+cell	wsTravelCertificate::input.date_from	C8
+cell	wsTravelCertificate::input.duration_days	C9
+cell	wsTravelCertificate::input.weapon_line	C10
+cell	wsTravelCertificate::input.template_path	C11
+cell	wsTravelCertificate::input.output_folder_path	C12
+cell	wsTravelCertificate::candidates.start	J4
+number	wsTravelCertificate::candidates.max_count	20
+value	wsTravelCertificate::candidates.title	ПІБ (чи ІПН)
+value	wsTravelCertificate::candidates.table_title	Кандидати -
+value	wsTravelCertificate::candidates.hide	Сховати
+value	wsTravelCertificate::document_name	В.к. {TicketNo} {FIO} ({IPN})
+value	wsTravelCertificate::tickets.event	Відрядження
+value	wsTravelCertificate::tickets.status	Активна

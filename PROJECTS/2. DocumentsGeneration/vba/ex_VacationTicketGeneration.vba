@@ -512,7 +512,8 @@ Private Sub private_Generate(ByVal isUpdateMode As Boolean)
     If Not ex_Tickets.ex_TrySaveVacationRow( _
         ticketsTable, ticketRow, rankText, fioText, ipnText, personPositionCode, _
         vacationRegistryText, orderNo, orderDate, departureDate, vacationDays, roadDays, _
-        ticketNo, tvoFioText, tvoIpnText, tvoPositionCode, ticketsStatusText) Then GoTo CleanExit
+        ticketNo, tvoFioText, tvoIpnText, tvoPositionCode, ticketsStatusText, _
+        vacationPlace) Then GoTo CleanExit
     If donationDays > 0 Then
         donationTicketRowCreated = (donationTicketRow Is Nothing)
         If Not ex_Tickets.ex_TrySaveVacationRow( _
