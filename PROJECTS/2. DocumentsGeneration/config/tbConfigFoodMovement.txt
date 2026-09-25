@@ -13,7 +13,7 @@ column	wsFoodMovement::column.target.end	Припинення
 column	wsFoodMovement::column.target.basis	Підстава
 column	wsFoodMovement::column.target.order	Наказ
 value	wsFoodMovement::key.action	Дія
-value	wsFoodMovement::key.start_date	Дата зарахування
+value	wsFoodMovement::key.start_date	Дата зарахування / зняття
 value	wsFoodMovement::key.duration	Термін
 value	wsFoodMovement::action.enroll	Зарахувати на сухпрод
 value	wsFoodMovement::message.target_external	Таблиця СУХПРОД має бути відкрита в іншій книзі Excel.
@@ -36,3 +36,13 @@ sheet	wsFoodMovement::sheet.form	Форма
 cell	wsFoodMovement::message.target	E7
 value	wsFoodMovement::message.previous_event_open_prefix	Не можна додати запис: попередній період ще не завершено для
 value	wsFoodMovement::message.previous_event_end_invalid_prefix	Не вдалося прочитати дату припинення попереднього періоду для
+table	wsFoodMovement::table.provisions	ЗІЧ
+column	wsFoodMovement::column.provisions.unit	Установа
+column	wsFoodMovement::column.provisions.start	Зарахування
+column	wsFoodMovement::column.provisions.end	Виключення
+value	wsFoodMovement::action.provisions.enroll	Зарахувати на продовольче
+value	wsFoodMovement::action.provisions.remove	Зняти з продовольчого
+value	wsFoodMovement::message.provisions_active_prefix	Не можна виконати операцію: існує незакритий період для
+value	wsFoodMovement::message.provisions_not_enrolled_prefix	Не можна зняти з продовольчого: особа не зарахована
+value	wsFoodMovement::message.provisions_already_closed_prefix	Не можна зняти з продовольчого: період уже закрито для
+value	wsFoodMovement::message.provisions_date_invalid_prefix	Дата операції раніше дати зарахування для
