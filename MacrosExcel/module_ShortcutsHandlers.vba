@@ -159,7 +159,8 @@ Public Sub fn_ReloadActiveWorkbookVba()
 
     Set importFiles = New Collection
     Set documentImportFiles = New Collection
-    private_CollectVbaFiles vbaFolderPath, importFiles, documentImportFiles
+    If Not private_TryCollectConfiguredVbaFiles( _
+            vbaFolderPath, targetWorkbook, importFiles, documentImportFiles) Then Exit Sub
     If importFiles.Count = 0 And documentImportFiles.Count = 0 Then
         VBA.MsgBox _
             "No .bas, .cls, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
@@ -186,6 +187,10 @@ Public Sub fn_ReloadActiveWorkbookVba()
     For Each componentName In componentNames
         vbProject.VBComponents.Remove vbProject.VBComponents(VBA.CStr(componentName))
     Next componentName
+
+    ' Профиль описывает полный набор исходников. Очищаем код книги и листов,
+    ' чтобы обработчики событий от предыдущего профиля не оставались активными.
+    private_ClearDocumentModules targetWorkbook
 
     For Each importFile In importFiles
         private_ImportVbaFile vbProject, VBA.CStr(importFile)
@@ -234,6 +239,7 @@ Private Sub private_InitializeReloadedWorkbook( _
         "ex_DocumentGenerationBootstrap")
     On Error GoTo EH
     If bootstrapComponent Is Nothing Then Exit Sub
+    If bootstrapComponent.CodeModule.CountOfLines = 0 Then Exit Sub
 
     macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
         "'!ex_DocumentGenerationBootstrap.fn_Initialize"
@@ -298,37 +304,219 @@ Private Function private_TryResolveVbaFolder( _
 End Function
 
 
-Private Sub private_CollectVbaFiles( _
-    ByVal folderPath As String, _
+Private Function private_TryCollectConfiguredVbaFiles( _
+    ByVal vbaFolderPath As String, _
+    ByVal targetWorkbook As Workbook, _
     ByRef outFiles As Collection, _
     ByRef outDocumentFiles As Collection _
-)
+) As Boolean
+    Const CONFIG_FILE_NAME As String = "modules.json"
+
     Dim fileSystem As Object
-    Dim folder As Object
-    Dim childFolder As Object
-    Dim file As Object
+    Dim configPath As String
+    Dim profileName As String
+    Dim configText As String
+    Dim relativeFiles As Collection
+    Dim relativeFile As Variant
+    Dim sourcePath As String
+    Dim lowerName As String
+    Dim importedPaths As Object
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    configPath = vbaFolderPath & Application.PathSeparator & CONFIG_FILE_NAME
+    If Not fileSystem.FileExists(configPath) Then
+        VBA.MsgBox "VBA import configuration was not found: " & configPath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    profileName = fileSystem.GetBaseName(targetWorkbook.Name)
+    configText = private_ReadUtf8TextFile(configPath)
+    Set relativeFiles = New Collection
+    If Not private_TryReadJsonStringArray(configText, profileName, relativeFiles) Then
+        VBA.MsgBox "No VBA import profile was found for workbook: " & _
+            targetWorkbook.Name, VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+    If relativeFiles.Count = 0 Then
+        VBA.MsgBox "The VBA import profile is empty for workbook: " & _
+            targetWorkbook.Name, VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    Set importedPaths = VBA.CreateObject("Scripting.Dictionary")
+    importedPaths.CompareMode = VBA.vbTextCompare
+    For Each relativeFile In relativeFiles
+        If Not private_TryResolveConfiguredSourcePath( _
+                vbaFolderPath, VBA.CStr(relativeFile), sourcePath) Then Exit Function
+        If importedPaths.Exists(sourcePath) Then
+            VBA.MsgBox "The VBA import profile contains a duplicate module: " & _
+                VBA.CStr(relativeFile), VBA.vbExclamation, "Reload VBA"
+            Exit Function
+        End If
+        importedPaths.Add sourcePath, True
+        lowerName = VBA.LCase$(fileSystem.GetFileName(sourcePath))
+        If private_IsDocumentModuleSource(lowerName) Then
+            outDocumentFiles.Add sourcePath
+        Else
+            outFiles.Add sourcePath
+        End If
+    Next relativeFile
+    private_TryCollectConfiguredVbaFiles = True
+End Function
+
+' Допускаются только относительные пути внутри папки vba из профиля книги.
+Private Function private_TryResolveConfiguredSourcePath( _
+    ByVal vbaFolderPath As String, _
+    ByVal relativePath As String, _
+    ByRef outSourcePath As String _
+) As Boolean
+    Dim fileSystem As Object
+    Dim normalizedRoot As String
+    Dim normalizedPath As String
     Dim lowerName As String
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    Set folder = fileSystem.GetFolder(folderPath)
+    relativePath = VBA.Replace$(VBA.Trim$(relativePath), "/", "\")
+    If VBA.Len(relativePath) = 0 Or VBA.InStr(relativePath, "..") > 0 Or _
+       VBA.InStr(relativePath, ":") > 0 Or VBA.Left$(relativePath, 1) = "\" Then
+        VBA.MsgBox "Invalid relative VBA module path: " & relativePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
 
-    For Each file In folder.Files
-        lowerName = VBA.LCase$(VBA.CStr(file.Name))
-        If private_IsDocumentModuleSource(lowerName) Then
-            outDocumentFiles.Add VBA.CStr(file.Path)
-        ElseIf VBA.Right$(lowerName, 4) = ".bas" Or _
-               VBA.Right$(lowerName, 4) = ".cls" Or _
-               VBA.Right$(lowerName, 4) = ".frm" Or _
-               VBA.Right$(lowerName, 4) = ".vba" Then
-            outFiles.Add VBA.CStr(file.Path)
+    normalizedRoot = fileSystem.GetAbsolutePathName(vbaFolderPath)
+    normalizedPath = fileSystem.GetAbsolutePathName( _
+        normalizedRoot & Application.PathSeparator & relativePath)
+    If VBA.StrComp(VBA.Left$(normalizedPath, VBA.Len(normalizedRoot) + 1), _
+            normalizedRoot & Application.PathSeparator, VBA.vbTextCompare) <> 0 Then
+        VBA.MsgBox "VBA module path is outside the vba folder: " & relativePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+    If Not fileSystem.FileExists(normalizedPath) Then
+        VBA.MsgBox "Configured VBA module was not found: " & relativePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+    lowerName = VBA.LCase$(normalizedPath)
+    If Not (VBA.Right$(lowerName, 4) = ".bas" Or _
+            VBA.Right$(lowerName, 4) = ".cls" Or _
+            VBA.Right$(lowerName, 4) = ".frm" Or _
+            VBA.Right$(lowerName, 4) = ".vba") Then
+        VBA.MsgBox "Configured file is not a VBA module: " & relativePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+    outSourcePath = normalizedPath
+    private_TryResolveConfiguredSourcePath = True
+End Function
+
+Private Sub private_ClearDocumentModules(ByVal targetWorkbook As Workbook)
+    Const VBEXT_CT_DOCUMENT As Long = 100
+
+    Dim vbComponent As Object
+
+    For Each vbComponent In targetWorkbook.VBProject.VBComponents
+        If CLng(vbComponent.Type) = VBEXT_CT_DOCUMENT Then
+            If vbComponent.CodeModule.CountOfLines > 0 Then _
+                vbComponent.CodeModule.DeleteLines 1, vbComponent.CodeModule.CountOfLines
         End If
-    Next file
-
-    For Each childFolder In folder.SubFolders
-        private_CollectVbaFiles VBA.CStr(childFolder.Path), outFiles, _
-            outDocumentFiles
-    Next childFolder
+    Next vbComponent
 End Sub
+
+Private Function private_TryReadJsonStringArray( _
+    ByVal jsonText As String, _
+    ByVal profileName As String, _
+    ByRef outValues As Collection _
+) As Boolean
+    Dim keyToken As String
+    Dim position As Long
+    Dim currentChar As String
+    Dim valueText As String
+
+    keyToken = """" & profileName & """"
+    position = VBA.InStr(1, jsonText, keyToken, VBA.vbBinaryCompare)
+    If position = 0 Then Exit Function
+    position = position + VBA.Len(keyToken)
+    private_SkipJsonWhitespace jsonText, position
+    If VBA.Mid$(jsonText, position, 1) <> ":" Then Exit Function
+    position = position + 1
+    private_SkipJsonWhitespace jsonText, position
+    If VBA.Mid$(jsonText, position, 1) <> "[" Then Exit Function
+    position = position + 1
+
+    Do
+        private_SkipJsonWhitespace jsonText, position
+        currentChar = VBA.Mid$(jsonText, position, 1)
+        If currentChar = "]" Then
+            private_TryReadJsonStringArray = True
+            Exit Function
+        End If
+        If outValues.Count > 0 Then
+            If currentChar <> "," Then Exit Function
+            position = position + 1
+            private_SkipJsonWhitespace jsonText, position
+        End If
+        If Not private_TryReadJsonString(jsonText, position, valueText) Then Exit Function
+        outValues.Add valueText
+    Loop
+End Function
+
+Private Sub private_SkipJsonWhitespace(ByVal jsonText As String, ByRef position As Long)
+    Do While position <= VBA.Len(jsonText)
+        Select Case VBA.Mid$(jsonText, position, 1)
+            Case " ", VBA.vbTab, VBA.vbCr, VBA.vbLf
+                position = position + 1
+            Case Else
+                Exit Do
+        End Select
+    Loop
+End Sub
+
+Private Function private_TryReadJsonString( _
+    ByVal jsonText As String, _
+    ByRef position As Long, _
+    ByRef outValue As String _
+) As Boolean
+    Dim currentChar As String
+    Dim escapedChar As String
+
+    outValue = VBA.vbNullString
+    If VBA.Mid$(jsonText, position, 1) <> """" Then Exit Function
+    position = position + 1
+    Do While position <= VBA.Len(jsonText)
+        currentChar = VBA.Mid$(jsonText, position, 1)
+        If currentChar = """" Then
+            position = position + 1
+            private_TryReadJsonString = True
+            Exit Function
+        End If
+        If currentChar = "\" Then
+            position = position + 1
+            escapedChar = VBA.Mid$(jsonText, position, 1)
+            Select Case escapedChar
+                Case """", "\", "/"
+                    outValue = outValue & escapedChar
+                Case "b"
+                    outValue = outValue & VBA.ChrW$(8)
+                Case "f"
+                    outValue = outValue & VBA.ChrW$(12)
+                Case "n"
+                    outValue = outValue & VBA.vbLf
+                Case "r"
+                    outValue = outValue & VBA.vbCr
+                Case "t"
+                    outValue = outValue & VBA.vbTab
+                Case Else
+                    Exit Function
+            End Select
+        Else
+            outValue = outValue & currentChar
+        End If
+        position = position + 1
+    Loop
+End Function
 
 Private Function private_IsDocumentModuleSource( _
     ByVal lowerFileName As String _
@@ -364,7 +552,7 @@ Private Sub private_ImportVbaFile( _
 
     Set vbComponent = vbProject.VBComponents.Add(componentType)
     vbComponent.Name = componentName
-    vbComponent.CodeModule.AddFromString private_RemoveExportMetadata(sourceText)
+    vbComponent.CodeModule.AddFromString private_PrepareSourceForVbe(sourceText)
     Exit Sub
 
 EH:
@@ -412,7 +600,7 @@ Private Sub private_ImportDocumentVbaFile( _
     Set vbComponent = targetWorkbook.VBProject.VBComponents(componentName)
     With vbComponent.CodeModule
         If .CountOfLines > 0 Then .DeleteLines 1, .CountOfLines
-        .AddFromString private_RemoveExportMetadata(sourceText)
+        .AddFromString private_PrepareSourceForVbe(sourceText)
     End With
     Exit Sub
 EH:
@@ -688,7 +876,7 @@ Private Sub private_AppendAsciiLiteralPart( _
 )
     If VBA.Len(asciiText) = 0 Then Exit Sub
 
-    expressionParts.Add """" & VBA.Replace$(asciiText, """", """"") & """"
+    expressionParts.Add """" & VBA.Replace$(asciiText, """", """""") & """"
 End Sub
 
 

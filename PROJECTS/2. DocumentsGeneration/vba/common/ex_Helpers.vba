@@ -16,6 +16,22 @@ Private Const HELPERS_BUILD_ID As String = "2026-09-21.unicode-diagnostics.1"
 ' may not read a workbook name with Cyrillic text correctly.
 Private Const LOG_FILE_BASE_NAME As String = "documents_generation"
 
+#If VBA7 Then
+Private Declare PtrSafe Function MessageBoxW Lib "user32.dll" ( _
+    ByVal hWnd As LongPtr, _
+    ByVal lpText As LongPtr, _
+    ByVal lpCaption As LongPtr, _
+    ByVal uType As Long _
+) As Long
+#Else
+Private Declare Function MessageBoxW Lib "user32.dll" ( _
+    ByVal hWnd As Long, _
+    ByVal lpText As Long, _
+    ByVal lpCaption As Long, _
+    ByVal uType As Long _
+) As Long
+#End If
+
 ' --------------------------------------
 ' namespace Unicode {
 ' --------------------------------------
@@ -936,27 +952,20 @@ End Sub
 ' --------------------------------------
 ' namespace Dialogs {
 ' --------------------------------------
-' Shows a Windows dialog that supports Unicode text.
+' Shows a native Windows Unicode dialog without depending on ACP or OEMCP.
 Public Function ex_ShowMessageBox( _
     ByVal messageText As String, _
     Optional ByVal buttons As VbMsgBoxStyle = VBA.vbExclamation, _
     Optional ByVal titleText As String = "Document Generation" _
 ) As VbMsgBoxResult
-    Dim shell As Object
-    Dim errorNumber As Long
-    Dim errorDescription As String
-
-    On Error GoTo Fallback
-    Set shell = VBA.CreateObject("WScript.Shell")
-    LogDebug "DIALOG: Backend=WScript.Shell.Popup"
-    ex_ShowMessageBox = shell.Popup(messageText, 0, titleText, VBA.CLng(buttons))
-    Exit Function
-Fallback:
-    errorNumber = Err.Number
-    errorDescription = Err.Description
-    LogError "DIALOG: Backend=VBA.MsgBox fallback | Number=" & _
-        VBA.CStr(errorNumber) & " | Description=" & errorDescription
-    ex_ShowMessageBox = VBA.MsgBox(messageText, buttons, titleText)
+    LogDebug "DIALOG: Backend=MessageBoxW"
+#If VBA7 Then
+    ex_ShowMessageBox = MessageBoxW(0, VBA.StrPtr(messageText), _
+        VBA.StrPtr(titleText), VBA.CLng(buttons))
+#Else
+    ex_ShowMessageBox = MessageBoxW(0, VBA.StrPtr(messageText), _
+        VBA.StrPtr(titleText), VBA.CLng(buttons))
+#End If
 End Function
 
 ' Shows a message when the caller does not need the selected button.
@@ -1055,6 +1064,9 @@ Private Sub private_Log_WriteLine(ByVal lineText As String)
     Dim fileSystem As Object
     Dim logStream As Object
 
+    ' Общий модуль может быть вызван до настройки журнала конкретной книгой.
+    ' В этом случае вывод диалога не должен порождать ошибку записи журнала.
+    If VBA.Len(configuredLogFileSuffix) = 0 Then Exit Sub
     On Error GoTo EH
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     ' TristateTrue keeps Cyrillic text without depending on ACP.
