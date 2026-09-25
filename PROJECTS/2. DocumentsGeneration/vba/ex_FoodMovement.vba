@@ -18,7 +18,6 @@ Private Const CFG_FORM_KEY_ACTION As String = "wsFoodMovement::key.action"
 Private Const CFG_FORM_KEY_START_DATE As String = "wsFoodMovement::key.start_date"
 Private Const CFG_FORM_KEY_DURATION As String = "wsFoodMovement::key.duration"
 Private Const CFG_ACTION_ENROLL As String = "wsFoodMovement::action.enroll"
-Private Const CFG_MESSAGE_TITLE As String = "wsFoodMovement::message.title"
 Private Const CFG_MESSAGE_TARGET_EXTERNAL As String = "wsFoodMovement::message.target_external"
 Private Const CFG_MESSAGE_ACTION_NOT_SUPPORTED As String = "wsFoodMovement::message.action_not_supported"
 Private Const CFG_MESSAGE_PEOPLE_EMPTY As String = "wsFoodMovement::message.people_empty"
@@ -34,7 +33,11 @@ Private Const CFG_MESSAGE_FORM_SCHEMA As String = "wsFoodMovement::message.form_
 Private Const CFG_MESSAGE_START_DATE_INVALID As String = "wsFoodMovement::message.start_date_invalid"
 Private Const CFG_MESSAGE_DURATION_INVALID As String = "wsFoodMovement::message.duration_invalid"
 Private Const CFG_MESSAGE_COLUMN_NOT_FOUND_PREFIX As String = "wsFoodMovement::message.column_not_found_prefix"
+Private Const CFG_MESSAGE_PREVIOUS_EVENT_OPEN_PREFIX As String = "wsFoodMovement::message.previous_event_open_prefix"
+Private Const CFG_MESSAGE_PREVIOUS_EVENT_END_INVALID_PREFIX As String = "wsFoodMovement::message.previous_event_end_invalid_prefix"
 Private Const CFG_LOG_FILE_SUFFIX As String = "wsFoodMovement::log.file_suffix"
+Private Const CFG_FORM_SHEET_NAME As String = "wsFoodMovement::sheet.form"
+Private Const CFG_MESSAGE_TARGET As String = "wsFoodMovement::message.target"
 Private Const CONFIG_SHEET_NAME As String = "wsConfig"
 Private Const CONFIG_TABLE_NAME As String = "tbConfig"
 Private Const CONFIG_KEY_COLUMN_NAME As String = "Key"
@@ -58,8 +61,9 @@ Private FORM_KEY_ACTION As String
 Private FORM_KEY_START_DATE As String
 Private FORM_KEY_DURATION As String
 Private ACTION_ENROLL As String
-Private MESSAGE_TITLE As String
 Private LOG_FILE_SUFFIX As String
+Private FORM_SHEET_NAME As String
+Private MESSAGE_TARGET As String
 
 ' --------------------------------------
 ' namespace API {
@@ -73,38 +77,57 @@ Public Sub fn_Execute()
     Dim startDate As Date
     Dim durationDays As Long
     Dim addedCount As Long
+    Dim performanceStart As Single
 
     On Error GoTo EH
+    performanceStart = VBA.Timer
     If Not private_InitializeTextValues() Then Exit Sub
     If Not ex_Helpers.ex_TryConfigureLogFileSuffix(LOG_FILE_SUFFIX) Then Exit Sub
     ex_Helpers.LogDebug "Food movement execution started"
+    private_Performance_LogCheckpoint performanceStart, "Configuration initialized"
     If Not private_TryGetLocalTable(FORM_TABLE_NAME, formTable) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Form table located"
     If Not private_TryGetLocalTable(PEOPLE_TABLE_NAME, peopleTable) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "People table located"
     If Not private_TryFindOpenTargetTable(targetTable) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Target table located"
+    ex_Helpers.LogDebug "Food movement target selected | Workbook=" & _
+        targetTable.Parent.Parent.Name & " | Worksheet=" & _
+        targetTable.Parent.Name & " | Table=" & targetTable.Name & _
+        " | Rows=" & VBA.CStr(targetTable.ListRows.Count)
     If targetTable.Parent.Parent Is ThisWorkbook Then
         private_ShowError private_Message(CFG_MESSAGE_TARGET_EXTERNAL)
         Exit Sub
     End If
     If Not private_TryReadForm(formTable, FORM_KEY_ACTION, actionText) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Action read"
     If VBA.StrComp(actionText, ACTION_ENROLL, VBA.vbTextCompare) <> 0 Then
         private_ShowError private_Message(CFG_MESSAGE_ACTION_NOT_SUPPORTED)
         Exit Sub
     End If
     If Not private_TryReadStartDate(formTable, startDate) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Start date read"
     If Not private_TryReadDuration(formTable, durationDays) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Duration read"
     If Not private_TryValidatePeopleTable(peopleTable) Then Exit Sub
     If Not private_TryValidateTargetTable(targetTable) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Table schema validated"
+    If Not private_TryValidatePeoplePreviousEvents( _
+        peopleTable, targetTable, startDate) Then Exit Sub
+    private_Performance_LogCheckpoint performanceStart, "Previous events validated"
 
     addedCount = private_AppendPeople(peopleTable, targetTable, startDate, durationDays)
+    private_Performance_LogCheckpoint performanceStart, "Rows appended"
     If addedCount = 0 Then
         private_ShowError private_Message(CFG_MESSAGE_PEOPLE_EMPTY)
         Exit Sub
     End If
-    private_ShowMessage private_Message(CFG_MESSAGE_SUCCESS_PREFIX) & _
-        " " & VBA.CStr(addedCount) & private_Message(CFG_MESSAGE_SUCCESS_SUFFIX), _
-        VBA.vbInformation
+    private_ShowSuccessStatus private_Message(CFG_MESSAGE_SUCCESS_PREFIX) & _
+        " " & VBA.CStr(addedCount) & private_Message(CFG_MESSAGE_SUCCESS_SUFFIX)
+    private_Performance_LogCheckpoint performanceStart, "Status written"
     ex_Helpers.LogDebug "Food movement execution completed | Added=" & _
         VBA.CStr(addedCount)
+    private_Performance_LogCheckpoint performanceStart, "Completed"
     Exit Sub
 EH:
     ex_Helpers.LogError "Food movement execution failed | Number=" & _
@@ -114,6 +137,25 @@ EH:
 End Sub
 ' --------------------------------------
 ' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace Performance {
+' --------------------------------------
+' Пише у журнал тривалість виконання від натискання кнопки.
+Private Sub private_Performance_LogCheckpoint( _
+    ByVal startTime As Single, _
+    ByVal checkpointName As String _
+)
+    Dim elapsedSeconds As Single
+
+    elapsedSeconds = VBA.Timer - startTime
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400!
+    ex_Helpers.WriteLog "PERF | ElapsedMs=" & _
+        VBA.Format$(elapsedSeconds * 1000!, "0") & " | Checkpoint=" & checkpointName
+End Sub
+' --------------------------------------
+' } // namespace Performance
 ' --------------------------------------
 
 Private Function private_InitializeTextValues() As Boolean
@@ -135,8 +177,9 @@ Private Function private_InitializeTextValues() As Boolean
     If Not private_LoadConfigText(CFG_FORM_KEY_START_DATE, FORM_KEY_START_DATE) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_KEY_DURATION, FORM_KEY_DURATION) Then Exit Function
     If Not private_LoadConfigText(CFG_ACTION_ENROLL, ACTION_ENROLL) Then Exit Function
-    If Not private_LoadConfigText(CFG_MESSAGE_TITLE, MESSAGE_TITLE) Then Exit Function
     If Not private_LoadConfigText(CFG_LOG_FILE_SUFFIX, LOG_FILE_SUFFIX) Then Exit Function
+    If Not private_LoadConfigText(CFG_FORM_SHEET_NAME, FORM_SHEET_NAME) Then Exit Function
+    If Not private_LoadConfigText(CFG_MESSAGE_TARGET, MESSAGE_TARGET) Then Exit Function
     private_InitializeTextValues = True
 End Function
 
@@ -358,6 +401,92 @@ EH:
         " " & tableObj.Name & ": " & columnName & "."
 End Function
 
+Private Function private_TryValidatePeoplePreviousEvents( _
+    ByVal peopleTable As ListObject, _
+    ByVal targetTable As ListObject, _
+    ByVal startDate As Date _
+) As Boolean
+    Dim personRow As ListRow
+    Dim targetRow As ListRow
+    Dim peopleFioIndex As Long
+    Dim targetFioIndex As Long
+    Dim targetEndIndex As Long
+    Dim fioText As String
+    Dim personKey As String
+    Dim targetFioText As String
+    Dim targetPersonKey As String
+    Dim endDate As Date
+    Dim latestEndDate As Date
+    Dim hasPreviousEvent As Boolean
+    Dim matchingEventsCount As Long
+
+    peopleFioIndex = peopleTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
+    targetFioIndex = targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
+    targetEndIndex = targetTable.ListColumns(TARGET_END_COLUMN_NAME).Index
+
+    For Each personRow In peopleTable.ListRows
+        fioText = private_Normalize(personRow.Range.Cells(1, peopleFioIndex).Value2)
+        If VBA.Len(fioText) > 0 Then
+            personKey = private_PersonKey(fioText)
+            hasPreviousEvent = False
+            matchingEventsCount = 0
+            For Each targetRow In targetTable.ListRows
+                targetFioText = private_Normalize( _
+                    targetRow.Range.Cells(1, targetFioIndex).Value2)
+                targetPersonKey = private_PersonKey(targetFioText)
+                If VBA.StrComp(targetPersonKey, personKey, VBA.vbBinaryCompare) = 0 Then
+                    If Not private_TryReadTargetEndDate( _
+                        targetRow.Range.Cells(1, targetEndIndex).Value2, _
+                        fioText, endDate) Then Exit Function
+                    matchingEventsCount = matchingEventsCount + 1
+                    If Not hasPreviousEvent Or endDate > latestEndDate Then
+                        latestEndDate = endDate
+                        hasPreviousEvent = True
+                    End If
+                End If
+            Next targetRow
+            ex_Helpers.LogDebug "Food movement previous-event validation | Person=" & _
+                fioText & " | Matches=" & VBA.CStr(matchingEventsCount) & _
+                " | LatestEnd=" & IIf(hasPreviousEvent, _
+                VBA.Format$(latestEndDate, "yyyy-mm-dd"), "<none>") & _
+                " | Start=" & VBA.Format$(startDate, "yyyy-mm-dd")
+            If hasPreviousEvent And startDate < latestEndDate Then
+                private_ShowError private_Message(CFG_MESSAGE_PREVIOUS_EVENT_OPEN_PREFIX) & _
+                    " " & fioText & "."
+                Exit Function
+            End If
+        End If
+    Next personRow
+    private_TryValidatePeoplePreviousEvents = True
+End Function
+
+Private Function private_PersonKey(ByVal valueInput As Variant) As String
+    Dim normalizedText As String
+
+    normalizedText = private_Normalize(valueInput)
+    normalizedText = VBA.Replace$(normalizedText, VBA.ChrW$(160), " ")
+    normalizedText = VBA.Replace$(normalizedText, VBA.vbCr, " ")
+    normalizedText = VBA.Replace$(normalizedText, VBA.vbLf, " ")
+    private_PersonKey = VBA.UCase$(Application.WorksheetFunction.Trim(normalizedText))
+End Function
+
+Private Function private_TryReadTargetEndDate( _
+    ByVal valueInput As Variant, _
+    ByVal fioText As String, _
+    ByRef outDate As Date _
+) As Boolean
+    If VBA.IsNumeric(valueInput) Then
+        outDate = VBA.CDate(VBA.CDbl(valueInput))
+    ElseIf VBA.IsDate(valueInput) Then
+        outDate = VBA.CDate(valueInput)
+    Else
+        private_ShowError private_Message( _
+            CFG_MESSAGE_PREVIOUS_EVENT_END_INVALID_PREFIX) & " " & fioText & "."
+        Exit Function
+    End If
+    private_TryReadTargetEndDate = True
+End Function
+
 Private Function private_AppendPeople( _
     ByVal peopleTable As ListObject, _
     ByVal targetTable As ListObject, _
@@ -365,31 +494,97 @@ Private Function private_AppendPeople( _
     ByVal durationDays As Long _
 ) As Long
     Dim personRow As ListRow
-    Dim targetRow As ListRow
     Dim rankIndex As Long
     Dim fioIndex As Long
     Dim unitIndex As Long
     Dim fioText As String
+    Dim peopleCount As Long
+    Dim valueRowIndex As Long
+    Dim firstTargetDataRow As Long
+    Dim rankValues() As Variant
+    Dim fioValues() As Variant
+    Dim unitValues() As Variant
+    Dim startValues() As Variant
+    Dim durationValues() As Variant
+    Dim endValues() As Variant
+    Dim screenUpdatingEnabled As Boolean
+    Dim eventsEnabled As Boolean
+    Dim originalCalculation As XlCalculation
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
 
     rankIndex = peopleTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index
     fioIndex = peopleTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
     unitIndex = peopleTable.ListColumns(PEOPLE_UNIT_COLUMN_NAME).Index
     For Each personRow In peopleTable.ListRows
         fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2)
+        If VBA.Len(fioText) > 0 Then peopleCount = peopleCount + 1
+    Next personRow
+    If peopleCount = 0 Then Exit Function
+
+    ReDim rankValues(1 To peopleCount, 1 To 1)
+    ReDim fioValues(1 To peopleCount, 1 To 1)
+    ReDim unitValues(1 To peopleCount, 1 To 1)
+    ReDim startValues(1 To peopleCount, 1 To 1)
+    ReDim durationValues(1 To peopleCount, 1 To 1)
+    ReDim endValues(1 To peopleCount, 1 To 1)
+    For Each personRow In peopleTable.ListRows
+        fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2)
         If VBA.Len(fioText) > 0 Then
-            Set targetRow = targetTable.ListRows.Add
-            targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index).Value = _
-                private_Normalize(personRow.Range.Cells(1, rankIndex).Value2)
-            targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index).Value = fioText
-            targetRow.Range.Cells(1, targetTable.ListColumns(TARGET_UNIT_COLUMN_NAME).Index).Value = _
-                private_Normalize(personRow.Range.Cells(1, unitIndex).Value2)
-            targetRow.Range.Cells(1, targetTable.ListColumns(TARGET_START_COLUMN_NAME).Index).Value = startDate
-            targetRow.Range.Cells(1, targetTable.ListColumns(TARGET_DURATION_COLUMN_NAME).Index).Value = durationDays
-            targetRow.Range.Cells(1, targetTable.ListColumns(TARGET_END_COLUMN_NAME).Index).Value = _
-                VBA.DateAdd("d", durationDays - 1, startDate)
-            private_AppendPeople = private_AppendPeople + 1
+            valueRowIndex = valueRowIndex + 1
+            rankValues(valueRowIndex, 1) = private_Normalize( _
+                personRow.Range.Cells(1, rankIndex).Value2)
+            fioValues(valueRowIndex, 1) = fioText
+            unitValues(valueRowIndex, 1) = private_Normalize( _
+                personRow.Range.Cells(1, unitIndex).Value2)
+            startValues(valueRowIndex, 1) = VBA.CDbl(startDate)
+            durationValues(valueRowIndex, 1) = durationDays
+            endValues(valueRowIndex, 1) = VBA.CDbl( _
+                VBA.DateAdd("d", durationDays - 1, startDate))
         End If
     Next personRow
+
+    screenUpdatingEnabled = Application.ScreenUpdating
+    eventsEnabled = Application.EnableEvents
+    originalCalculation = Application.Calculation
+    On Error GoTo EH
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+
+    firstTargetDataRow = targetTable.ListRows.Count + 1
+    targetTable.Resize targetTable.Range.Resize( _
+        targetTable.Range.Rows.Count + peopleCount, targetTable.Range.Columns.Count)
+    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
+        targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = rankValues
+    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
+        targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = fioValues
+    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
+        targetTable.ListColumns(TARGET_UNIT_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = unitValues
+    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
+        targetTable.ListColumns(TARGET_START_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = startValues
+    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
+        targetTable.ListColumns(TARGET_DURATION_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = durationValues
+    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
+        targetTable.ListColumns(TARGET_END_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = endValues
+    private_AppendPeople = peopleCount
+
+CleanExit:
+    Application.Calculation = originalCalculation
+    Application.EnableEvents = eventsEnabled
+    Application.ScreenUpdating = screenUpdatingEnabled
+    Exit Function
+EH:
+    errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
+    errorDescription = VBA.Err.Description
+    On Error Resume Next
+    Application.Calculation = originalCalculation
+    Application.EnableEvents = eventsEnabled
+    Application.ScreenUpdating = screenUpdatingEnabled
+    On Error GoTo 0
+    VBA.Err.Raise errorNumber, errorSource, errorDescription
 End Function
 
 Private Function private_Normalize(ByVal valueInput As Variant) As String
@@ -398,9 +593,20 @@ Private Function private_Normalize(ByVal valueInput As Variant) As String
 End Function
 
 Private Sub private_ShowError(ByVal messageText As String)
-    private_ShowMessage messageText, VBA.vbExclamation
+    private_ShowStatus messageText, True
 End Sub
 
-Private Sub private_ShowMessage(ByVal messageText As String, ByVal messageIcon As VbMsgBoxStyle)
-    Call ex_Helpers.ex_ShowMessage(messageText, messageIcon, MESSAGE_TITLE)
+Private Sub private_ShowSuccessStatus(ByVal messageText As String)
+    private_ShowStatus messageText, False
+End Sub
+
+Private Sub private_ShowStatus( _
+    ByVal messageText As String, _
+    ByVal isErrorMessage As Boolean _
+)
+    If Not ex_Helpers.ex_TryConfigureMessageTarget( _
+        FORM_SHEET_NAME, MESSAGE_TARGET) Then Exit Sub
+
+    ex_Helpers.ex_ShowStatusMessage messageText, isErrorMessage
+    ex_Helpers.ex_ClearMessageTarget
 End Sub
