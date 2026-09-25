@@ -16,7 +16,6 @@ value	wsFoodMovement::key.action	Дія
 value	wsFoodMovement::key.start_date	Дата зарахування
 value	wsFoodMovement::key.duration	Термін
 value	wsFoodMovement::action.enroll	Зарахувати на сухпрод
-value	wsFoodMovement::message.title	Рух продовольчого та сухпрода
 value	wsFoodMovement::message.target_external	Таблиця СУХПРОД має бути відкрита в іншій книзі Excel.
 value	wsFoodMovement::message.action_not_supported	Підтримується лише дія: Зарахувати на сухпрод.
 value	wsFoodMovement::message.people_empty	У таблиці tbPeopleList немає заповнених рядків.
@@ -33,3 +32,7 @@ value	wsFoodMovement::message.start_date_invalid	Дата зарахування
 value	wsFoodMovement::message.duration_invalid	Термін має бути цілим додатним числом днів.
 value	wsFoodMovement::message.column_not_found_prefix	У таблиці відсутній стовпець
 value	wsFoodMovement::log.file_suffix	.food_movement.log
+sheet	wsFoodMovement::sheet.form	Форма
+cell	wsFoodMovement::message.target	E7
+value	wsFoodMovement::message.previous_event_open_prefix	Не можна додати запис: попередній період ще не завершено для
+value	wsFoodMovement::message.previous_event_end_invalid_prefix	Не вдалося прочитати дату припинення попереднього періоду для
