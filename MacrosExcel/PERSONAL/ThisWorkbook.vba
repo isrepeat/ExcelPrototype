@@ -1,4 +1,10 @@
+Option Explicit
+
+Private m_filterInputEvents As cls_FilterInputEvents
+
+
 Private Sub Workbook_Open()
+    private_InitializeFilterInputEvents
     BindKeys
 End Sub
 
@@ -8,6 +14,7 @@ End Sub
 
 Public Sub BindKeys()
     On Error Resume Next
+    private_InitializeFilterInputEvents
 
     ' Application.OnKey действует глобально для всего экземпляра Excel.
     ' Явно указываем книгу с глобальными макросами, чтобы Excel не выбрал
@@ -40,6 +47,14 @@ Public Sub BindKeys()
     End If
 
     On Error GoTo 0
+End Sub
+
+
+Private Sub private_InitializeFilterInputEvents()
+    If m_filterInputEvents Is Nothing Then
+        Set m_filterInputEvents = New cls_FilterInputEvents
+        Set m_filterInputEvents.ExcelApplication = Application
+    End If
 End Sub
 
 Private Function private_GlobalMacroRef(ByVal macroName As String) As String
