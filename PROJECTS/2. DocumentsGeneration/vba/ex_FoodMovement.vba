@@ -484,10 +484,10 @@ Private Function private_AppendProvisions( _
         fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2)
         If VBA.Len(fioText) > 0 Then
             Set targetRow = targetTable.ListRows.Add
-            targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index).Value = private_Normalize(personRow.Range.Cells(1, rankIndex).Value2)
-            targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index).Value = fioText
-            targetRow.Range.Cells(1, targetTable.ListColumns(PROVISIONS_UNIT_COLUMN_NAME).Index).Value = private_Normalize(personRow.Range.Cells(1, unitIndex).Value2)
-            targetRow.Range.Cells(1, targetTable.ListColumns(PROVISIONS_START_COLUMN_NAME).Index).Value = operationDate
+            private_WriteValuePreservingFormula targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index), private_Normalize(personRow.Range.Cells(1, rankIndex).Value2)
+            private_WriteValuePreservingFormula targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index), fioText
+            private_WriteValuePreservingFormula targetRow.Range.Cells(1, targetTable.ListColumns(PROVISIONS_UNIT_COLUMN_NAME).Index), private_Normalize(personRow.Range.Cells(1, unitIndex).Value2)
+            private_WriteValuePreservingFormula targetRow.Range.Cells(1, targetTable.ListColumns(PROVISIONS_START_COLUMN_NAME).Index), operationDate
             private_AppendProvisions = private_AppendProvisions + 1
         End If
     Next personRow
@@ -503,7 +503,10 @@ Private Function private_CloseProvisions( _
         If VBA.Len(fioText) > 0 Then
             For Each targetRow In targetTable.ListRows
                 If VBA.StrComp(private_PersonKey(targetRow.Range.Cells(1, targetFioIndex).Value2), private_PersonKey(fioText), VBA.vbBinaryCompare) = 0 And VBA.Len(private_Normalize(targetRow.Range.Cells(1, endIndex).Value2)) = 0 Then
-                    targetRow.Range.Cells(1, endIndex).Value = operationDate: private_CloseProvisions = private_CloseProvisions + 1
+                    If Not targetRow.Range.Cells(1, endIndex).HasFormula Then
+                        targetRow.Range.Cells(1, endIndex).Value = operationDate
+                        private_CloseProvisions = private_CloseProvisions + 1
+                    End If
                 End If
             Next targetRow
         End If
@@ -634,6 +637,12 @@ Private Function private_AppendPeople( _
     Dim screenUpdatingEnabled As Boolean
     Dim eventsEnabled As Boolean
     Dim originalCalculation As XlCalculation
+    Dim rankFormula As String
+    Dim fioFormula As String
+    Dim unitFormula As String
+    Dim startFormula As String
+    Dim durationFormula As String
+    Dim endFormula As String
     Dim errorNumber As Long
     Dim errorSource As String
     Dim errorDescription As String
@@ -678,20 +687,20 @@ Private Function private_AppendPeople( _
     Application.Calculation = xlCalculationManual
 
     firstTargetDataRow = targetTable.ListRows.Count + 1
+    private_TryReadColumnFormula targetTable, targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index, rankFormula
+    private_TryReadColumnFormula targetTable, targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index, fioFormula
+    private_TryReadColumnFormula targetTable, targetTable.ListColumns(TARGET_UNIT_COLUMN_NAME).Index, unitFormula
+    private_TryReadColumnFormula targetTable, targetTable.ListColumns(TARGET_START_COLUMN_NAME).Index, startFormula
+    private_TryReadColumnFormula targetTable, targetTable.ListColumns(TARGET_DURATION_COLUMN_NAME).Index, durationFormula
+    private_TryReadColumnFormula targetTable, targetTable.ListColumns(TARGET_END_COLUMN_NAME).Index, endFormula
     targetTable.Resize targetTable.Range.Resize( _
         targetTable.Range.Rows.Count + peopleCount, targetTable.Range.Columns.Count)
-    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
-        targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = rankValues
-    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
-        targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = fioValues
-    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
-        targetTable.ListColumns(TARGET_UNIT_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = unitValues
-    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
-        targetTable.ListColumns(TARGET_START_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = startValues
-    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
-        targetTable.ListColumns(TARGET_DURATION_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = durationValues
-    targetTable.DataBodyRange.Cells(firstTargetDataRow, _
-        targetTable.ListColumns(TARGET_END_COLUMN_NAME).Index).Resize(peopleCount, 1).Value2 = endValues
+    private_WriteAppendedColumn targetTable, targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index, firstTargetDataRow, peopleCount, rankValues, rankFormula
+    private_WriteAppendedColumn targetTable, targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index, firstTargetDataRow, peopleCount, fioValues, fioFormula
+    private_WriteAppendedColumn targetTable, targetTable.ListColumns(TARGET_UNIT_COLUMN_NAME).Index, firstTargetDataRow, peopleCount, unitValues, unitFormula
+    private_WriteAppendedColumn targetTable, targetTable.ListColumns(TARGET_START_COLUMN_NAME).Index, firstTargetDataRow, peopleCount, startValues, startFormula
+    private_WriteAppendedColumn targetTable, targetTable.ListColumns(TARGET_DURATION_COLUMN_NAME).Index, firstTargetDataRow, peopleCount, durationValues, durationFormula
+    private_WriteAppendedColumn targetTable, targetTable.ListColumns(TARGET_END_COLUMN_NAME).Index, firstTargetDataRow, peopleCount, endValues, endFormula
     private_AppendPeople = peopleCount
 
 CleanExit:
@@ -710,6 +719,53 @@ EH:
     On Error GoTo 0
     VBA.Err.Raise errorNumber, errorSource, errorDescription
 End Function
+
+Private Sub private_WriteAppendedColumn( _
+    ByVal targetTable As ListObject, _
+    ByVal columnIndex As Long, _
+    ByVal firstDataRow As Long, _
+    ByVal rowCount As Long, _
+    ByVal values As Variant, _
+    ByVal formulaR1C1 As String _
+)
+    Dim targetRange As Range
+
+    Set targetRange = targetTable.DataBodyRange.Cells(firstDataRow, columnIndex).Resize(rowCount, 1)
+    If VBA.Len(formulaR1C1) > 0 Then
+        targetRange.FormulaR1C1 = formulaR1C1
+    Else
+        targetRange.Value2 = values
+    End If
+End Sub
+
+
+Private Function private_TryReadColumnFormula( _
+    ByVal targetTable As ListObject, _
+    ByVal columnIndex As Long, _
+    ByRef outFormulaR1C1 As String _
+) As Boolean
+    Dim targetCell As Range
+
+    outFormulaR1C1 = VBA.vbNullString
+    If targetTable.DataBodyRange Is Nothing Then Exit Function
+    For Each targetCell In targetTable.ListColumns(columnIndex).DataBodyRange.Cells
+        If targetCell.HasFormula Then
+            outFormulaR1C1 = targetCell.FormulaR1C1
+            private_TryReadColumnFormula = True
+            Exit Function
+        End If
+    Next targetCell
+End Function
+
+
+Private Sub private_WriteValuePreservingFormula( _
+    ByVal targetCell As Range, _
+    ByVal valueToWrite As Variant _
+)
+    If targetCell.HasFormula Then Exit Sub
+    targetCell.Value = valueToWrite
+End Sub
+
 
 Private Function private_Normalize(ByVal valueInput As Variant) As String
     If VBA.IsError(valueInput) Or VBA.IsNull(valueInput) Or VBA.IsEmpty(valueInput) Then Exit Function
