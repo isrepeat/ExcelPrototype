@@ -3,6 +3,7 @@ Option Explicit
 Private Const CFG_FORM_TABLE_NAME As String = "wsFoodMovement::table.form"
 Private Const CFG_PEOPLE_TABLE_NAME As String = "wsFoodMovement::table.people"
 Private Const CFG_TARGET_TABLE_NAME As String = "wsFoodMovement::table.target"
+Private Const CFG_PROVISIONS_TABLE_NAME As String = "wsFoodMovement::table.provisions"
 Private Const CFG_FORM_KEY_COLUMN_NAME As String = "wsFoodMovement::column.form.key"
 Private Const CFG_FORM_VALUE_COLUMN_NAME As String = "wsFoodMovement::column.form.value"
 Private Const CFG_PEOPLE_RANK_COLUMN_NAME As String = "wsFoodMovement::column.people.rank"
@@ -14,10 +15,15 @@ Private Const CFG_TARGET_DURATION_COLUMN_NAME As String = "wsFoodMovement::colum
 Private Const CFG_TARGET_END_COLUMN_NAME As String = "wsFoodMovement::column.target.end"
 Private Const CFG_TARGET_BASIS_COLUMN_NAME As String = "wsFoodMovement::column.target.basis"
 Private Const CFG_TARGET_ORDER_COLUMN_NAME As String = "wsFoodMovement::column.target.order"
+Private Const CFG_PROVISIONS_UNIT_COLUMN_NAME As String = "wsFoodMovement::column.provisions.unit"
+Private Const CFG_PROVISIONS_START_COLUMN_NAME As String = "wsFoodMovement::column.provisions.start"
+Private Const CFG_PROVISIONS_END_COLUMN_NAME As String = "wsFoodMovement::column.provisions.end"
 Private Const CFG_FORM_KEY_ACTION As String = "wsFoodMovement::key.action"
 Private Const CFG_FORM_KEY_START_DATE As String = "wsFoodMovement::key.start_date"
 Private Const CFG_FORM_KEY_DURATION As String = "wsFoodMovement::key.duration"
 Private Const CFG_ACTION_ENROLL As String = "wsFoodMovement::action.enroll"
+Private Const CFG_ACTION_PROVISIONS_ENROLL As String = "wsFoodMovement::action.provisions.enroll"
+Private Const CFG_ACTION_PROVISIONS_REMOVE As String = "wsFoodMovement::action.provisions.remove"
 Private Const CFG_MESSAGE_TARGET_EXTERNAL As String = "wsFoodMovement::message.target_external"
 Private Const CFG_MESSAGE_ACTION_NOT_SUPPORTED As String = "wsFoodMovement::message.action_not_supported"
 Private Const CFG_MESSAGE_PEOPLE_EMPTY As String = "wsFoodMovement::message.people_empty"
@@ -35,6 +41,10 @@ Private Const CFG_MESSAGE_DURATION_INVALID As String = "wsFoodMovement::message.
 Private Const CFG_MESSAGE_COLUMN_NOT_FOUND_PREFIX As String = "wsFoodMovement::message.column_not_found_prefix"
 Private Const CFG_MESSAGE_PREVIOUS_EVENT_OPEN_PREFIX As String = "wsFoodMovement::message.previous_event_open_prefix"
 Private Const CFG_MESSAGE_PREVIOUS_EVENT_END_INVALID_PREFIX As String = "wsFoodMovement::message.previous_event_end_invalid_prefix"
+Private Const CFG_MESSAGE_PROVISIONS_ACTIVE_PREFIX As String = "wsFoodMovement::message.provisions_active_prefix"
+Private Const CFG_MESSAGE_PROVISIONS_NOT_ENROLLED_PREFIX As String = "wsFoodMovement::message.provisions_not_enrolled_prefix"
+Private Const CFG_MESSAGE_PROVISIONS_ALREADY_CLOSED_PREFIX As String = "wsFoodMovement::message.provisions_already_closed_prefix"
+Private Const CFG_MESSAGE_PROVISIONS_DATE_INVALID_PREFIX As String = "wsFoodMovement::message.provisions_date_invalid_prefix"
 Private Const CFG_LOG_FILE_SUFFIX As String = "wsFoodMovement::log.file_suffix"
 Private Const CFG_FORM_SHEET_NAME As String = "wsFoodMovement::sheet.form"
 Private Const CFG_MESSAGE_TARGET As String = "wsFoodMovement::message.target"
@@ -46,6 +56,7 @@ Private Const CONFIG_VALUE_COLUMN_NAME As String = "Value"
 Private FORM_TABLE_NAME As String
 Private PEOPLE_TABLE_NAME As String
 Private TARGET_TABLE_NAME As String
+Private PROVISIONS_TABLE_NAME As String
 Private FORM_KEY_COLUMN_NAME As String
 Private FORM_VALUE_COLUMN_NAME As String
 Private PEOPLE_RANK_COLUMN_NAME As String
@@ -57,10 +68,15 @@ Private TARGET_DURATION_COLUMN_NAME As String
 Private TARGET_END_COLUMN_NAME As String
 Private TARGET_BASIS_COLUMN_NAME As String
 Private TARGET_ORDER_COLUMN_NAME As String
+Private PROVISIONS_UNIT_COLUMN_NAME As String
+Private PROVISIONS_START_COLUMN_NAME As String
+Private PROVISIONS_END_COLUMN_NAME As String
 Private FORM_KEY_ACTION As String
 Private FORM_KEY_START_DATE As String
 Private FORM_KEY_DURATION As String
 Private ACTION_ENROLL As String
+Private ACTION_PROVISIONS_ENROLL As String
+Private ACTION_PROVISIONS_REMOVE As String
 Private LOG_FILE_SUFFIX As String
 Private FORM_SHEET_NAME As String
 Private MESSAGE_TARGET As String
@@ -89,41 +105,36 @@ Public Sub fn_Execute()
     private_Performance_LogCheckpoint performanceStart, "Form table located"
     If Not private_TryGetLocalTable(PEOPLE_TABLE_NAME, peopleTable) Then Exit Sub
     private_Performance_LogCheckpoint performanceStart, "People table located"
-    If Not private_TryFindOpenTargetTable(targetTable) Then Exit Sub
-    private_Performance_LogCheckpoint performanceStart, "Target table located"
-    ex_Helpers.LogDebug "Food movement target selected | Workbook=" & _
-        targetTable.Parent.Parent.Name & " | Worksheet=" & _
-        targetTable.Parent.Name & " | Table=" & targetTable.Name & _
-        " | Rows=" & VBA.CStr(targetTable.ListRows.Count)
-    If targetTable.Parent.Parent Is ThisWorkbook Then
-        private_ShowError private_Message(CFG_MESSAGE_TARGET_EXTERNAL)
-        Exit Sub
-    End If
     If Not private_TryReadForm(formTable, FORM_KEY_ACTION, actionText) Then Exit Sub
     private_Performance_LogCheckpoint performanceStart, "Action read"
-    If VBA.StrComp(actionText, ACTION_ENROLL, VBA.vbTextCompare) <> 0 Then
-        private_ShowError private_Message(CFG_MESSAGE_ACTION_NOT_SUPPORTED)
-        Exit Sub
-    End If
     If Not private_TryReadStartDate(formTable, startDate) Then Exit Sub
     private_Performance_LogCheckpoint performanceStart, "Start date read"
-    If Not private_TryReadDuration(formTable, durationDays) Then Exit Sub
-    private_Performance_LogCheckpoint performanceStart, "Duration read"
     If Not private_TryValidatePeopleTable(peopleTable) Then Exit Sub
-    If Not private_TryValidateTargetTable(targetTable) Then Exit Sub
-    private_Performance_LogCheckpoint performanceStart, "Table schema validated"
-    If Not private_TryValidatePeoplePreviousEvents( _
-        peopleTable, targetTable, startDate) Then Exit Sub
-    private_Performance_LogCheckpoint performanceStart, "Previous events validated"
-
-    addedCount = private_AppendPeople(peopleTable, targetTable, startDate, durationDays)
-    private_Performance_LogCheckpoint performanceStart, "Rows appended"
-    If addedCount = 0 Then
-        private_ShowError private_Message(CFG_MESSAGE_PEOPLE_EMPTY)
-        Exit Sub
-    End If
-    private_ShowSuccessStatus private_Message(CFG_MESSAGE_SUCCESS_PREFIX) & _
-        " " & VBA.CStr(addedCount) & private_Message(CFG_MESSAGE_SUCCESS_SUFFIX)
+    Select Case VBA.LCase$(actionText)
+        Case VBA.LCase$(ACTION_ENROLL)
+            If Not private_TryFindOpenTargetTable(TARGET_TABLE_NAME, targetTable) Then Exit Sub
+            If Not private_TryValidateTargetTable(targetTable) Then Exit Sub
+            If Not private_TryReadDuration(formTable, durationDays) Then Exit Sub
+            If Not private_TryValidatePeoplePreviousEvents(peopleTable, targetTable, startDate) Then Exit Sub
+            addedCount = private_AppendPeople(peopleTable, targetTable, startDate, durationDays)
+        Case VBA.LCase$(ACTION_PROVISIONS_ENROLL)
+            If Not private_TryFindOpenTargetTable(PROVISIONS_TABLE_NAME, targetTable) Then Exit Sub
+            If Not private_TryValidateProvisionsTable(targetTable) Then Exit Sub
+            If Not private_TryValidateProvisionsEnroll(peopleTable, targetTable, startDate) Then Exit Sub
+            addedCount = private_AppendProvisions(peopleTable, targetTable, startDate)
+        Case VBA.LCase$(ACTION_PROVISIONS_REMOVE)
+            If Not private_TryFindOpenTargetTable(PROVISIONS_TABLE_NAME, targetTable) Then Exit Sub
+            If Not private_TryValidateProvisionsTable(targetTable) Then Exit Sub
+            If Not private_TryValidateProvisionsRemove(peopleTable, targetTable, startDate) Then Exit Sub
+            addedCount = private_CloseProvisions(peopleTable, targetTable, startDate)
+        Case Else
+            private_ShowError private_Message(CFG_MESSAGE_ACTION_NOT_SUPPORTED)
+            Exit Sub
+    End Select
+    private_Performance_LogCheckpoint performanceStart, "Target operation completed"
+    If addedCount = 0 Then private_ShowError private_Message(CFG_MESSAGE_PEOPLE_EMPTY): Exit Sub
+    private_ShowSuccessStatus private_Message(CFG_MESSAGE_SUCCESS_PREFIX) & " " & _
+        VBA.CStr(addedCount) & private_Message(CFG_MESSAGE_SUCCESS_SUFFIX)
     private_Performance_LogCheckpoint performanceStart, "Status written"
     ex_Helpers.LogDebug "Food movement execution completed | Added=" & _
         VBA.CStr(addedCount)
@@ -162,6 +173,7 @@ Private Function private_InitializeTextValues() As Boolean
     If Not private_LoadConfigText(CFG_FORM_TABLE_NAME, FORM_TABLE_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_PEOPLE_TABLE_NAME, PEOPLE_TABLE_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_TARGET_TABLE_NAME, TARGET_TABLE_NAME) Then Exit Function
+    If Not private_LoadConfigText(CFG_PROVISIONS_TABLE_NAME, PROVISIONS_TABLE_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_KEY_COLUMN_NAME, FORM_KEY_COLUMN_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_VALUE_COLUMN_NAME, FORM_VALUE_COLUMN_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_PEOPLE_RANK_COLUMN_NAME, PEOPLE_RANK_COLUMN_NAME) Then Exit Function
@@ -173,10 +185,15 @@ Private Function private_InitializeTextValues() As Boolean
     If Not private_LoadConfigText(CFG_TARGET_END_COLUMN_NAME, TARGET_END_COLUMN_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_TARGET_BASIS_COLUMN_NAME, TARGET_BASIS_COLUMN_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_TARGET_ORDER_COLUMN_NAME, TARGET_ORDER_COLUMN_NAME) Then Exit Function
+    If Not private_LoadConfigText(CFG_PROVISIONS_UNIT_COLUMN_NAME, PROVISIONS_UNIT_COLUMN_NAME) Then Exit Function
+    If Not private_LoadConfigText(CFG_PROVISIONS_START_COLUMN_NAME, PROVISIONS_START_COLUMN_NAME) Then Exit Function
+    If Not private_LoadConfigText(CFG_PROVISIONS_END_COLUMN_NAME, PROVISIONS_END_COLUMN_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_KEY_ACTION, FORM_KEY_ACTION) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_KEY_START_DATE, FORM_KEY_START_DATE) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_KEY_DURATION, FORM_KEY_DURATION) Then Exit Function
     If Not private_LoadConfigText(CFG_ACTION_ENROLL, ACTION_ENROLL) Then Exit Function
+    If Not private_LoadConfigText(CFG_ACTION_PROVISIONS_ENROLL, ACTION_PROVISIONS_ENROLL) Then Exit Function
+    If Not private_LoadConfigText(CFG_ACTION_PROVISIONS_REMOVE, ACTION_PROVISIONS_REMOVE) Then Exit Function
     If Not private_LoadConfigText(CFG_LOG_FILE_SUFFIX, LOG_FILE_SUFFIX) Then Exit Function
     If Not private_LoadConfigText(CFG_FORM_SHEET_NAME, FORM_SHEET_NAME) Then Exit Function
     If Not private_LoadConfigText(CFG_MESSAGE_TARGET, MESSAGE_TARGET) Then Exit Function
@@ -219,6 +236,7 @@ Private Function private_Message(ByVal configKey As String) As String
 End Function
 
 Private Function private_TryFindOpenTargetTable( _
+    ByVal tableName As String, _
     ByRef outTable As ListObject _
 ) As Boolean
     Dim workbookObj As Workbook
@@ -230,7 +248,7 @@ Private Function private_TryFindOpenTargetTable( _
     For Each workbookObj In Application.Workbooks
         For Each worksheetObj In workbookObj.Worksheets
             For Each tableObj In worksheetObj.ListObjects
-                If VBA.StrComp(tableObj.Name, TARGET_TABLE_NAME, VBA.vbTextCompare) = 0 Then
+                If VBA.StrComp(tableObj.Name, tableName, VBA.vbTextCompare) = 0 Then
                     matchCount = matchCount + 1
                     If matchCount = 1 Then Set outTable = tableObj
                 End If
@@ -384,6 +402,112 @@ Private Function private_TryValidateTargetTable(ByVal targetTable As ListObject)
         private_TableHasColumn(targetTable, TARGET_END_COLUMN_NAME) And _
         private_TableHasColumn(targetTable, TARGET_BASIS_COLUMN_NAME) And _
         private_TableHasColumn(targetTable, TARGET_ORDER_COLUMN_NAME)
+End Function
+
+Private Function private_TryValidateProvisionsTable(ByVal targetTable As ListObject) As Boolean
+    private_TryValidateProvisionsTable = private_TableHasColumn(targetTable, PEOPLE_RANK_COLUMN_NAME) And _
+        private_TableHasColumn(targetTable, PEOPLE_FIO_COLUMN_NAME) And _
+        private_TableHasColumn(targetTable, PROVISIONS_UNIT_COLUMN_NAME) And _
+        private_TableHasColumn(targetTable, PROVISIONS_START_COLUMN_NAME) And _
+        private_TableHasColumn(targetTable, PROVISIONS_END_COLUMN_NAME)
+End Function
+
+Private Function private_TryValidateProvisionsEnroll( _
+    ByVal peopleTable As ListObject, ByVal targetTable As ListObject, ByVal operationDate As Date _
+) As Boolean
+    Dim personRow As ListRow, targetRow As ListRow, fioIndex As Long, targetFioIndex As Long, endIndex As Long
+    Dim fioText As String, targetFioText As String, endValue As Variant, endDate As Date
+
+    fioIndex = peopleTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
+    targetFioIndex = targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
+    endIndex = targetTable.ListColumns(PROVISIONS_END_COLUMN_NAME).Index
+    For Each personRow In peopleTable.ListRows
+        fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2)
+        If VBA.Len(fioText) > 0 Then
+            For Each targetRow In targetTable.ListRows
+                targetFioText = private_Normalize(targetRow.Range.Cells(1, targetFioIndex).Value2)
+                If VBA.StrComp(private_PersonKey(targetFioText), private_PersonKey(fioText), VBA.vbBinaryCompare) = 0 Then
+                    endValue = targetRow.Range.Cells(1, endIndex).Value2
+                    If VBA.Len(private_Normalize(endValue)) = 0 Then
+                        private_ShowError private_Message(CFG_MESSAGE_PROVISIONS_ACTIVE_PREFIX) & " " & fioText & ".": Exit Function
+                    End If
+                    If Not private_TryReadTargetEndDate(endValue, fioText, endDate) Then Exit Function
+                    If operationDate < endDate Then
+                        private_ShowError private_Message(CFG_MESSAGE_PROVISIONS_ACTIVE_PREFIX) & " " & fioText & ".": Exit Function
+                    End If
+                End If
+            Next targetRow
+        End If
+    Next personRow
+    private_TryValidateProvisionsEnroll = True
+End Function
+
+Private Function private_TryValidateProvisionsRemove( _
+    ByVal peopleTable As ListObject, ByVal targetTable As ListObject, ByVal operationDate As Date _
+) As Boolean
+    Dim personRow As ListRow, targetRow As ListRow, fioIndex As Long, targetFioIndex As Long, startIndex As Long, endIndex As Long
+    Dim fioText As String, endText As String, startDate As Date, activeCount As Long, historyCount As Long
+
+    fioIndex = peopleTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
+    targetFioIndex = targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index
+    startIndex = targetTable.ListColumns(PROVISIONS_START_COLUMN_NAME).Index
+    endIndex = targetTable.ListColumns(PROVISIONS_END_COLUMN_NAME).Index
+    For Each personRow In peopleTable.ListRows
+        fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2): activeCount = 0: historyCount = 0
+        If VBA.Len(fioText) > 0 Then
+            For Each targetRow In targetTable.ListRows
+                If VBA.StrComp(private_PersonKey(targetRow.Range.Cells(1, targetFioIndex).Value2), private_PersonKey(fioText), VBA.vbBinaryCompare) = 0 Then
+                    historyCount = historyCount + 1: endText = private_Normalize(targetRow.Range.Cells(1, endIndex).Value2)
+                    If VBA.Len(endText) = 0 Then
+                        activeCount = activeCount + 1
+                        If Not private_TryReadTargetEndDate(targetRow.Range.Cells(1, startIndex).Value2, fioText, startDate) Then Exit Function
+                        If operationDate < startDate Then private_ShowError private_Message(CFG_MESSAGE_PROVISIONS_DATE_INVALID_PREFIX) & " " & fioText & ".": Exit Function
+                    End If
+                End If
+            Next targetRow
+            If activeCount = 0 Then
+                If historyCount = 0 Then private_ShowError private_Message(CFG_MESSAGE_PROVISIONS_NOT_ENROLLED_PREFIX) & " " & fioText & "." Else private_ShowError private_Message(CFG_MESSAGE_PROVISIONS_ALREADY_CLOSED_PREFIX) & " " & fioText & "."
+                Exit Function
+            End If
+            If activeCount > 1 Then private_ShowError private_Message(CFG_MESSAGE_PROVISIONS_ACTIVE_PREFIX) & " " & fioText & ".": Exit Function
+        End If
+    Next personRow
+    private_TryValidateProvisionsRemove = True
+End Function
+
+Private Function private_AppendProvisions( _
+    ByVal peopleTable As ListObject, ByVal targetTable As ListObject, ByVal operationDate As Date _
+) As Long
+    Dim personRow As ListRow, targetRow As ListRow, rankIndex As Long, fioIndex As Long, unitIndex As Long, fioText As String
+    rankIndex = peopleTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index: fioIndex = peopleTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index: unitIndex = peopleTable.ListColumns(PEOPLE_UNIT_COLUMN_NAME).Index
+    For Each personRow In peopleTable.ListRows
+        fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2)
+        If VBA.Len(fioText) > 0 Then
+            Set targetRow = targetTable.ListRows.Add
+            targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_RANK_COLUMN_NAME).Index).Value = private_Normalize(personRow.Range.Cells(1, rankIndex).Value2)
+            targetRow.Range.Cells(1, targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index).Value = fioText
+            targetRow.Range.Cells(1, targetTable.ListColumns(PROVISIONS_UNIT_COLUMN_NAME).Index).Value = private_Normalize(personRow.Range.Cells(1, unitIndex).Value2)
+            targetRow.Range.Cells(1, targetTable.ListColumns(PROVISIONS_START_COLUMN_NAME).Index).Value = operationDate
+            private_AppendProvisions = private_AppendProvisions + 1
+        End If
+    Next personRow
+End Function
+
+Private Function private_CloseProvisions( _
+    ByVal peopleTable As ListObject, ByVal targetTable As ListObject, ByVal operationDate As Date _
+) As Long
+    Dim personRow As ListRow, targetRow As ListRow, fioIndex As Long, targetFioIndex As Long, endIndex As Long, fioText As String
+    fioIndex = peopleTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index: targetFioIndex = targetTable.ListColumns(PEOPLE_FIO_COLUMN_NAME).Index: endIndex = targetTable.ListColumns(PROVISIONS_END_COLUMN_NAME).Index
+    For Each personRow In peopleTable.ListRows
+        fioText = private_Normalize(personRow.Range.Cells(1, fioIndex).Value2)
+        If VBA.Len(fioText) > 0 Then
+            For Each targetRow In targetTable.ListRows
+                If VBA.StrComp(private_PersonKey(targetRow.Range.Cells(1, targetFioIndex).Value2), private_PersonKey(fioText), VBA.vbBinaryCompare) = 0 And VBA.Len(private_Normalize(targetRow.Range.Cells(1, endIndex).Value2)) = 0 Then
+                    targetRow.Range.Cells(1, endIndex).Value = operationDate: private_CloseProvisions = private_CloseProvisions + 1
+                End If
+            Next targetRow
+        End If
+    Next personRow
 End Function
 
 Private Function private_TableHasColumn( _
