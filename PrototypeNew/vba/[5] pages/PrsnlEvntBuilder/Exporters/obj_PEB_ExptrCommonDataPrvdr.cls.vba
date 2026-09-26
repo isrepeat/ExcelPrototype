@@ -64,9 +64,9 @@ Private Const POSITIONS_GENITIVE_HEADER As String = "Родовий"
 Private Const POSITIONS_DATIVE_HEADER As String = "Давальний"
 Private Const POSITIONS_DEFAULT_HEADER As String = "Назва"
 Private Const OS_SHEET_NAME As String = "ОС"
-' В обновлённой ШПО лист ОС использует ту же трёхстрочную шапку. Основной ІПН
-' остаётся в пределах прежнего узкого диапазона A:AB.
-Private Const OS_RANGE_START As String = "A3"
+' На листе ОС заголовки находятся в первой строке, а данные начинаются со
+' второй строки. Основной ІПН остаётся в пределах прежнего узкого диапазона A:AB.
+Private Const OS_RANGE_START As String = "A1"
 Private Const OS_RANGE_END_COLUMN As String = "AB"
 Private Const OS_IPN_HEADER As String = "ІПН"
 Private Const OS_RANK_HEADER As String = "Військове звання фактично"
