@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<page>
-  <control type="Label" name="Title" text="PersonalEventBuilder" row="1" column="1" columnSpan="8" fontSize="16"/>
-  <control type="Button" name="HelloWorld" caption="Hello World" row="3" column="5" rowSpan="2" columnSpan="3" onClick="{Binding Module=ex_PersonalEventBuilder; Method=fn_HelloWorld}"/>
+<page xmlns="urn:excelprototype:profiles" version="1">
+  <grid anchorCell="A1">
+    <control
+      type="Label"
+      name="Title"
+      text="PersonalEventBuilder"
+      row="1"
+      column="1"
+      columnSpan="8"
+      fontSize="16"/>
+
+    <control
+      type="Button"
+      name="HelloWorld"
+      caption="Hello World"
+      row="3"
+      column="5"
+      rowSpan="2"
+      columnSpan="3"
+      onClick="{Binding Module=ex_PersonalEventBuilder; Method=fn_HelloWorld}"/>
+  </grid>
 </page>
