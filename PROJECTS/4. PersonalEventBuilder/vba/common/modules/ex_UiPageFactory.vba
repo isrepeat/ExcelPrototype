@@ -1,10 +1,10 @@
+Attribute VB_Name = "ex_UiPageFactory"
 Option Explicit
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
-    ex_UiPageManager.fn_Module_Dispose
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -13,14 +13,16 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_Initialize()
-    Dim profileId As String
-
-    If Not ex_Core.fn_TryGetWorkbookProfileId(profileId) Then Exit Sub
-    ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_STARTED | Workbook=" & ThisWorkbook.Name
-    If Not ex_UiPageManager.fn_ShowPage("PersonalEventBuilder", profileId) Then Exit Sub
-    ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_COMPLETED | Workbook=" & ThisWorkbook.Name
-End Sub
+Public Function fn_Create(ByVal pageId As String) As obj_IPage
+    pageId = VBA.LCase$(VBA.Trim$(pageId))
+    Select Case pageId
+        Case "personaleventbuilder"
+            Set fn_Create = New obj_PEB_PgMain
+        Case Else
+            VBA.MsgBox "The page is not registered: " & pageId, _
+                VBA.vbExclamation, "PersonalEventBuilder"
+    End Select
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
