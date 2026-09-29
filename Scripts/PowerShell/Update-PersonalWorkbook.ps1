@@ -22,7 +22,24 @@ function Get-ComponentName {
     if ($attribute) {
         return $attribute.Matches[0].Groups[1].Value
     }
-    return [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+    $componentName = [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+    if ($componentName.EndsWith('.utf8', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $componentName = $componentName.Substring(0, $componentName.Length - '.utf8'.Length)
+    }
+    if ($componentName.EndsWith('.cls', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $componentName = $componentName.Substring(0, $componentName.Length - '.cls'.Length)
+    }
+    return $componentName
+}
+
+function Test-IsClassSourceFile {
+    param([System.IO.FileInfo]$File)
+
+    $sourceStem = [System.IO.Path]::GetFileNameWithoutExtension($File.Name)
+    if ($sourceStem.EndsWith('.utf8', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $sourceStem = $sourceStem.Substring(0, $sourceStem.Length - '.utf8'.Length)
+    }
+    return $sourceStem.EndsWith('.cls', [System.StringComparison]::OrdinalIgnoreCase)
 }
 
 function Get-ImportText {
@@ -91,7 +108,7 @@ if (-not (Test-Path -LiteralPath $SourcePath -PathType Container)) {
 }
 
 $sourceFiles = @(Get-ChildItem -LiteralPath $SourcePath -File |
-    Where-Object { $_.Extension -in '.vba', '.cls' } |
+    Where-Object { $_.Extension -eq '.vba' } |
     Sort-Object Name)
 if ($sourceFiles.Count -eq 0) {
     throw "No VBA source files were found: $SourcePath"
@@ -124,7 +141,7 @@ foreach ($sourceFile in $sourceFiles) {
         if ($sourceFile.Name -eq 'ThisWorkbook.vba') {
             throw 'PERSONAL.XLSB has no document module for ThisWorkbook.vba.'
         }
-        $componentType = if ($sourceFile.Name.StartsWith('obj_')) {
+        $componentType = if (Test-IsClassSourceFile $sourceFile) {
             $vbextCtClassModule
         }
         else {

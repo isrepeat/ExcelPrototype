@@ -81,7 +81,7 @@ Private Sub private_ReloadActiveWorkbookVba( _
             vbaFolderPath, targetWorkbook, importFiles, documentImportFiles) Then Exit Sub
     If importFiles.Count = 0 And documentImportFiles.Count = 0 Then
         VBA.MsgBox _
-            "No .bas, .cls, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
+            "No .bas, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
     End If
@@ -596,7 +596,6 @@ Private Function private_VbaReload_IsVbaModulePath(ByVal filePath As String) As 
     lowerPath = VBA.LCase$(filePath)
     private_VbaReload_IsVbaModulePath = _
         VBA.Right$(lowerPath, 4) = ".bas" Or _
-        VBA.Right$(lowerPath, 4) = ".cls" Or _
         VBA.Right$(lowerPath, 4) = ".frm" Or _
         VBA.Right$(lowerPath, 4) = ".vba"
 End Function
@@ -656,7 +655,6 @@ Private Function private_VbaReload_TryResolveConfiguredSourcePath( _
     End If
     lowerName = VBA.LCase$(normalizedPath)
     If Not (VBA.Right$(lowerName, 4) = ".bas" Or _
-            VBA.Right$(lowerName, 4) = ".cls" Or _
             VBA.Right$(lowerName, 4) = ".frm" Or _
             VBA.Right$(lowerName, 4) = ".vba") Then
         VBA.MsgBox "Configured file is not a VBA module: " & relativePath, _
@@ -882,8 +880,7 @@ Private Function private_VbaReload_GetVbaComponentType( _
     Const VBEXT_CT_MS_FORM As Long = 3
 
     If VBA.Right$(lowerPath, 8) = ".cls.vba" Or _
-       VBA.Right$(lowerPath, 13) = ".cls.utf8.vba" Or _
-        VBA.InStr(1, sourceText, "VERSION 1.0 CLASS", VBA.vbTextCompare) > 0 Then
+       VBA.Right$(lowerPath, 13) = ".cls.utf8.vba" Then
         private_VbaReload_GetVbaComponentType = VBEXT_CT_CLASS_MODULE
     ElseIf VBA.Right$(lowerPath, 8) = ".frm.vba" Or _
            VBA.Right$(lowerPath, 13) = ".frm.utf8.vba" Or _
