@@ -60,6 +60,7 @@ Public Sub fn_ReloadActiveWorkbookVba()
     End If
 
     If Not private_VbaReload_TryResolveVbaFolder(targetWorkbook, vbaFolderPath) Then Exit Sub
+    If Not private_VbaReload_TrySyncUiFiles(targetWorkbook, vbaFolderPath) Then Exit Sub
 
     Set importFiles = New Collection
     Set documentImportFiles = New Collection
@@ -485,6 +486,16 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
     Dim macroReference As String
 
     On Error Resume Next
+    Set bootstrapComponent = targetWorkbook.VBProject.VBComponents( _
+        "ex_PersonalEventBuilder")
+    On Error GoTo EH
+    If Not bootstrapComponent Is Nothing Then
+        macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+            "'!ex_PersonalEventBuilder.fn_Initialize"
+        Application.Run macroReference
+        Exit Sub
+    End If
+    On Error Resume Next
     Set lifecycleComponent = targetWorkbook.VBProject.VBComponents( _
         "rt_Lifecycle")
     Set bootstrapComponent = targetWorkbook.VBProject.VBComponents( _
@@ -510,6 +521,30 @@ EH:
         "Failed to initialize reloaded workbook '" & targetWorkbook.Name & _
         "': " & VBA.Err.Description
 End Sub
+
+Private Function private_VbaReload_TrySyncUiFiles( _
+    ByVal targetWorkbook As Workbook, _
+    ByVal vbaFolderPath As String _
+) As Boolean
+    Dim fileSystem As Object
+    Dim sourceUiPath As String
+    Dim targetUiPath As String
+    Dim uiFile As Object
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    sourceUiPath = fileSystem.GetParentFolderName(vbaFolderPath) & "\ui"
+    If Not fileSystem.FolderExists(sourceUiPath) Then
+        private_VbaReload_TrySyncUiFiles = True
+        Exit Function
+    End If
+    targetUiPath = targetWorkbook.Path & "\ui"
+    If Not fileSystem.FolderExists(targetUiPath) Then fileSystem.CreateFolder targetUiPath
+    For Each uiFile In fileSystem.GetFolder(sourceUiPath).Files
+        If VBA.LCase$(fileSystem.GetExtensionName(uiFile.Name)) = "xaml" Then _
+            fileSystem.CopyFile uiFile.Path, targetUiPath & "\" & uiFile.Name, True
+    Next uiFile
+    private_VbaReload_TrySyncUiFiles = True
+End Function
 
 
 ' Source folder and profile resolution.
