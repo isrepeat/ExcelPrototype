@@ -30,7 +30,9 @@ Public Sub fn_RenderPages()
             ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_STARTED | Sheet=" & _
                 worksheet.Name & " | Path=" & xamlPath
             If Not ex_UiParser.fn_TryLoadPage(xamlPath, page) Then Exit Sub
+            ex_StylePipeline.fn_BeginPage worksheet, page, ThisWorkbook.Path & "\" & UI_FOLDER_NAME
             private_ClearUi worksheet
+            ex_StylePipeline.fn_ApplyPagePipeline worksheet
             private_RenderControls worksheet, page
             ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_COMPLETED | Sheet=" & _
                 worksheet.Name
@@ -75,13 +77,14 @@ Private Sub private_RenderControls(ByVal worksheet As Worksheet, ByVal page As O
             Case "label"
                 targetRange.Merge
                 targetRange.Value2 = caption
-                private_ApplyStyle targetRange, controlNode
+                ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, controlNode
             Case "button"
                 Set buttonShape = worksheet.Shapes.AddShape( _
                     msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, _
                     targetRange.Width, targetRange.Height)
                 buttonShape.Name = "btn_" & controlName
                 buttonShape.TextFrame2.TextRange.Text = caption
+                ex_StylePipeline.fn_ApplyControlStyle targetRange, buttonShape, controlNode
                 buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
                 callbackName = private_ReadCallback(controlNode)
                 If VBA.Len(callbackName) = 0 Then
@@ -145,13 +148,6 @@ Private Function private_ReadText(ByVal node As Object, ByVal attributeName As S
     If VBA.IsNull(attributeValue) Or VBA.IsEmpty(attributeValue) Then Exit Function
     private_ReadText = VBA.CStr(attributeValue)
 End Function
-
-Private Sub private_ApplyStyle(ByVal targetRange As Range, ByVal controlNode As Object)
-    targetRange.Font.Name = "Calibri"
-    targetRange.Font.Size = private_ReadLong(controlNode, "fontSize", 12)
-    targetRange.HorizontalAlignment = xlCenter
-    targetRange.VerticalAlignment = xlCenter
-End Sub
 
 Private Sub private_ClearUi(ByVal worksheet As Worksheet)
     Dim currentShape As Shape
