@@ -15,25 +15,25 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String)
+Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
     Dim targetWorksheet As Worksheet
 
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_STARTED | Workbook=" & ThisWorkbook.Name
     ex_UiBindings.fn_Reset
 
     For Each targetWorksheet In ThisWorkbook.Worksheets
-        If Not private_RenderPage(targetWorksheet, False, uiFolderRelativePath) Then Exit Sub
+        If Not private_RenderPage(targetWorksheet, False, uiFolderRelativePath, uiBindingContext) Then Exit Sub
     Next targetWorksheet
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_COMPLETED | Workbook=" & ThisWorkbook.Name
 End Sub
 
-Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String)
+Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
     Dim targetWorksheet As Worksheet
 
     If Not (TypeOf Application.ActiveSheet Is Worksheet) Then Exit Sub
     Set targetWorksheet = Application.ActiveSheet
     If Not (targetWorksheet.Parent Is ThisWorkbook) Then Exit Sub
-    private_RenderPage targetWorksheet, True, uiFolderRelativePath
+    private_RenderPage targetWorksheet, True, uiFolderRelativePath, uiBindingContext
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -42,7 +42,8 @@ End Sub
 Private Function private_RenderPage( _
     ByVal targetWorksheet As Worksheet, _
     ByVal notifyWhenMissing As Boolean, _
-    ByVal uiFolderRelativePath As String _
+    ByVal uiFolderRelativePath As String, _
+    ByVal uiBindingContext As obj_UiBindingContext _
 ) As Boolean
     Dim uiPageDefinition As obj_UiPageDefinition
     Dim uiRenderContext As obj_UiRenderContext
@@ -70,7 +71,7 @@ Private Function private_RenderPage( _
 
     Set uiRenderContext = New obj_UiRenderContext
     If Not uiRenderContext.fn_Initialize( _
-            targetWorksheet, uiPageDefinition, uiFolderPath) Then
+            targetWorksheet, uiPageDefinition, uiFolderPath, uiBindingContext) Then
         VBA.MsgBox "The UI render context cannot be initialized.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
