@@ -3,6 +3,16 @@ Option Explicit
 Private shapeActions As Object
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+    Set shapeActions = Nothing
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Sub fn_Reset()

@@ -1,6 +1,7 @@
 {
   "PersonalEventBuilder": [
     "ex_*.vba",
+    "obj_*.cls",
     "ThisWorkbook.vba"
   ]
 }

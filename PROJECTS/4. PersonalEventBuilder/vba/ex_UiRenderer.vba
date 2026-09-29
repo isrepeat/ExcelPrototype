@@ -3,6 +3,15 @@ Option Explicit
 Private Const UI_FOLDER_NAME As String = "ui"
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Sub fn_RenderPages()
