@@ -322,38 +322,60 @@ Private Sub private_ApplyProperties( _
         ElseIf Not private_TryParseColor(properties("fontcolor"), colorValue) Then
             Exit Sub
         End If
-        targetRange.Font.Color = colorValue
-        If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = colorValue
+        If targetShape Is Nothing Then
+            targetRange.Font.Color = colorValue
+        Else
+            targetShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = colorValue
+        End If
     End If
     If properties.Exists("fontbold") Then
-        targetRange.Font.Bold = private_ReadBoolean(properties("fontbold"))
-        If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.Font.Bold = _
-            IIf(private_ReadBoolean(properties("fontbold")), -1, 0)
+        If targetShape Is Nothing Then
+            targetRange.Font.Bold = private_ReadBoolean(properties("fontbold"))
+        Else
+            targetShape.TextFrame2.TextRange.Font.Bold = _
+                IIf(private_ReadBoolean(properties("fontbold")), -1, 0)
+        End If
     End If
     If properties.Exists("fontitalic") Then
-        targetRange.Font.Italic = private_ReadBoolean(properties("fontitalic"))
-        If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.Font.Italic = _
-            IIf(private_ReadBoolean(properties("fontitalic")), -1, 0)
+        If targetShape Is Nothing Then
+            targetRange.Font.Italic = private_ReadBoolean(properties("fontitalic"))
+        Else
+            targetShape.TextFrame2.TextRange.Font.Italic = _
+                IIf(private_ReadBoolean(properties("fontitalic")), -1, 0)
+        End If
     End If
-    If properties.Exists("fontsize") And VBA.IsNumeric(properties("fontsize")) Then
-        targetRange.Font.Size = VBA.CDbl(properties("fontsize"))
-        If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.Font.Size = _
-            VBA.CDbl(properties("fontsize"))
+    If properties.Exists("fontsize") Then
+        If VBA.IsNumeric(properties("fontsize")) Then
+            If targetShape Is Nothing Then
+                targetRange.Font.Size = VBA.CDbl(properties("fontsize"))
+            Else
+                targetShape.TextFrame2.TextRange.Font.Size = VBA.CDbl(properties("fontsize"))
+            End If
+        End If
     End If
     If properties.Exists("fontname") Then
-        targetRange.Font.Name = properties("fontname")
-        If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.Font.Name = properties("fontname")
+        If targetShape Is Nothing Then
+            targetRange.Font.Name = properties("fontname")
+        Else
+            targetShape.TextFrame2.TextRange.Font.Name = properties("fontname")
+        End If
     End If
     If properties.Exists("horizontal") Then private_ApplyHorizontalAlignment _
         targetRange, targetShape, properties("horizontal")
     If properties.Exists("vertical") Then private_ApplyVerticalAlignment _
         targetRange, targetShape, properties("vertical")
-    If properties.Exists("columnwidth") And VBA.IsNumeric(properties("columnwidth")) Then _
-        targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("columnwidth"))
-    If properties.Exists("width") And VBA.IsNumeric(properties("width")) Then _
-        targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("width"))
-    If properties.Exists("rowheight") And VBA.IsNumeric(properties("rowheight")) Then _
-        targetRange.EntireRow.RowHeight = VBA.CDbl(properties("rowheight"))
+    If properties.Exists("columnwidth") Then
+        If VBA.IsNumeric(properties("columnwidth")) Then _
+            targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("columnwidth"))
+    End If
+    If properties.Exists("width") Then
+        If VBA.IsNumeric(properties("width")) Then _
+            targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("width"))
+    End If
+    If properties.Exists("rowheight") Then
+        If VBA.IsNumeric(properties("rowheight")) Then _
+            targetRange.EntireRow.RowHeight = VBA.CDbl(properties("rowheight"))
+    End If
     If properties.Exists("overflow") Then private_ApplyOverflow targetRange, properties("overflow")
     private_ApplyBorders targetRange, targetShape, properties
 End Sub
@@ -466,14 +488,23 @@ Private Sub private_ApplyHorizontalAlignment( _
 )
     Select Case VBA.LCase$(alignmentText)
         Case "left"
-            targetRange.HorizontalAlignment = xlLeft
-            If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+            If targetShape Is Nothing Then
+                targetRange.HorizontalAlignment = xlLeft
+            Else
+                targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+            End If
         Case "right"
-            targetRange.HorizontalAlignment = xlRight
-            If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignRight
+            If targetShape Is Nothing Then
+                targetRange.HorizontalAlignment = xlRight
+            Else
+                targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignRight
+            End If
         Case Else
-            targetRange.HorizontalAlignment = xlCenter
-            If Not targetShape Is Nothing Then targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+            If targetShape Is Nothing Then
+                targetRange.HorizontalAlignment = xlCenter
+            Else
+                targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+            End If
     End Select
 End Sub
 
@@ -484,14 +515,23 @@ Private Sub private_ApplyVerticalAlignment( _
 )
     Select Case VBA.LCase$(alignmentText)
         Case "top"
-            targetRange.VerticalAlignment = xlTop
-            If Not targetShape Is Nothing Then targetShape.TextFrame2.VerticalAnchor = msoAnchorTop
+            If targetShape Is Nothing Then
+                targetRange.VerticalAlignment = xlTop
+            Else
+                targetShape.TextFrame2.VerticalAnchor = msoAnchorTop
+            End If
         Case "bottom"
-            targetRange.VerticalAlignment = xlBottom
-            If Not targetShape Is Nothing Then targetShape.TextFrame2.VerticalAnchor = msoAnchorBottom
+            If targetShape Is Nothing Then
+                targetRange.VerticalAlignment = xlBottom
+            Else
+                targetShape.TextFrame2.VerticalAnchor = msoAnchorBottom
+            End If
         Case Else
-            targetRange.VerticalAlignment = xlCenter
-            If Not targetShape Is Nothing Then targetShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
+            If targetShape Is Nothing Then
+                targetRange.VerticalAlignment = xlCenter
+            Else
+                targetShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
+            End If
     End Select
 End Sub
 

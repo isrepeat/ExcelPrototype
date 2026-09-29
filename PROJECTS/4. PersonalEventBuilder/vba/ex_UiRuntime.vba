@@ -18,54 +18,80 @@ End Sub
 ' --------------------------------------
 Public Sub fn_RenderPages()
     Dim targetWorksheet As Worksheet
+
+    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_STARTED | Workbook=" & ThisWorkbook.Name
+    ex_UiBindings.fn_Reset
+
+    For Each targetWorksheet In ThisWorkbook.Worksheets
+        If Not private_RenderPage(targetWorksheet, False) Then Exit Sub
+    Next targetWorksheet
+    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_COMPLETED | Workbook=" & ThisWorkbook.Name
+End Sub
+
+Public Sub fn_RenderActivePage()
+    Dim targetWorksheet As Worksheet
+
+    If Not (TypeOf Application.ActiveSheet Is Worksheet) Then Exit Sub
+    Set targetWorksheet = Application.ActiveSheet
+    If Not (targetWorksheet.Parent Is ThisWorkbook) Then Exit Sub
+    private_RenderPage targetWorksheet, True
+End Sub
+' --------------------------------------
+' } // namespace API
+' --------------------------------------
+
+Private Function private_RenderPage( _
+    ByVal targetWorksheet As Worksheet, _
+    ByVal notifyWhenMissing As Boolean _
+) As Boolean
     Dim uiPageDefinition As obj_UiPageDefinition
     Dim uiRenderContext As obj_UiRenderContext
     Dim xamlPath As String
     Dim uiFolderPath As String
     Dim fileSystem As Object
 
-    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_STARTED | Workbook=" & ThisWorkbook.Name
     uiFolderPath = ThisWorkbook.Path & "\" & UI_FOLDER_NAME
+    xamlPath = uiFolderPath & "\" & targetWorksheet.Name & ".xaml"
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    ex_UiBindings.fn_Reset
-
-    For Each targetWorksheet In ThisWorkbook.Worksheets
-        xamlPath = uiFolderPath & "\" & targetWorksheet.Name & ".xaml"
-        If fileSystem.FileExists(xamlPath) Then
-            ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_STARTED | Sheet=" & _
-                targetWorksheet.Name & " | Path=" & xamlPath
-            If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Sub
-
-            Set uiRenderContext = New obj_UiRenderContext
-            If Not uiRenderContext.fn_Initialize( _
-                    targetWorksheet, uiPageDefinition, uiFolderPath) Then
-                VBA.MsgBox "The UI render context cannot be initialized.", _
-                    VBA.vbExclamation, "PersonalEventBuilder"
-                Exit Sub
-            End If
-
-            ex_StylePipeline.fn_BeginPage targetWorksheet, _
-                uiPageDefinition.fn_Document, uiFolderPath
-            private_ClearUi targetWorksheet
-            ex_StylePipeline.fn_ApplyPagePipeline targetWorksheet
-            If Not private_RenderControls(uiRenderContext) Then Exit Sub
-
-            ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_COMPLETED | Sheet=" & _
-                targetWorksheet.Name
-            uiRenderContext.fn_Dispose
-            uiPageDefinition.fn_Dispose
-            Set uiRenderContext = Nothing
-            Set uiPageDefinition = Nothing
-        Else
-            ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_SKIPPED_NO_XAML | Sheet=" & _
-                targetWorksheet.Name & " | Path=" & xamlPath
+    If Not fileSystem.FileExists(xamlPath) Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_SKIPPED_NO_XAML | Sheet=" & _
+            targetWorksheet.Name & " | Path=" & xamlPath
+        If notifyWhenMissing Then
+            VBA.MsgBox "No XAML page was found for: " & targetWorksheet.Name, _
+                VBA.vbExclamation, "PersonalEventBuilder"
         End If
-    Next targetWorksheet
-    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_COMPLETED | Workbook=" & ThisWorkbook.Name
-End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------
+        private_RenderPage = True
+        Exit Function
+    End If
+
+    ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_STARTED | Sheet=" & _
+        targetWorksheet.Name & " | Path=" & xamlPath
+    If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Function
+
+    Set uiRenderContext = New obj_UiRenderContext
+    If Not uiRenderContext.fn_Initialize( _
+            targetWorksheet, uiPageDefinition, uiFolderPath) Then
+        VBA.MsgBox "The UI render context cannot be initialized.", _
+            VBA.vbExclamation, "PersonalEventBuilder"
+        Exit Function
+    End If
+
+    ex_StylePipeline.fn_BeginPage targetWorksheet, _
+        uiPageDefinition.fn_Document, uiFolderPath
+    private_ClearUi targetWorksheet
+    ex_StylePipeline.fn_ApplyPagePipeline targetWorksheet
+    private_LogUiScopeVisibility targetWorksheet, "after-pipeline"
+    private_RestoreUiScopeVisibility targetWorksheet
+    private_LogUiScopeVisibility targetWorksheet, "after-visibility-restore"
+    If Not private_RenderControls(uiRenderContext) Then Exit Function
+    private_LogUiScopeVisibility targetWorksheet, "after-controls"
+
+    ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_COMPLETED | Sheet=" & _
+        targetWorksheet.Name
+    uiRenderContext.fn_Dispose
+    uiPageDefinition.fn_Dispose
+    private_RenderPage = True
+End Function
 
 Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim controlNode As Object
@@ -95,11 +121,57 @@ End Function
 
 Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
     Dim currentShape As Shape
+    Dim uiScope As Range
 
     For Each currentShape In targetWorksheet.Shapes
         If VBA.Left$(currentShape.Name, VBA.Len(BUTTON_SHAPE_PREFIX)) = _
            BUTTON_SHAPE_PREFIX Then currentShape.Delete
     Next currentShape
-    targetWorksheet.Cells.UnMerge
-    targetWorksheet.Cells.Clear
+    Set uiScope = targetWorksheet.Range("A1:AN100")
+    private_LogUiScopeVisibility targetWorksheet, "before-clear"
+    private_RestoreUiScopeVisibility targetWorksheet
+    uiScope.UnMerge
+    uiScope.Clear
+    private_LogUiScopeVisibility targetWorksheet, "after-clear"
+    private_RestoreUiScopeVisibility targetWorksheet
+    private_LogUiScopeVisibility targetWorksheet, "after-clear-visibility-restore"
 End Sub
+
+Private Sub private_RestoreUiScopeVisibility(ByVal targetWorksheet As Worksheet)
+    Dim uiScope As Range
+
+    Set uiScope = targetWorksheet.Range("A1:AN100")
+    uiScope.EntireRow.Hidden = False
+    uiScope.EntireColumn.Hidden = False
+End Sub
+
+Private Sub private_LogUiScopeVisibility( _
+    ByVal targetWorksheet As Worksheet, _
+    ByVal stageName As String _
+)
+    Dim uiScope As Range
+
+    Set uiScope = targetWorksheet.Range("A1:AN100")
+    ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_VISIBILITY | Sheet=" & _
+        targetWorksheet.Name & " | Stage=" & stageName & _
+        " | HiddenRows=" & VBA.CStr(private_CountHiddenRows(uiScope)) & _
+        " | ZeroHeightRows=" & VBA.CStr(private_CountZeroHeightRows(uiScope))
+End Sub
+
+Private Function private_CountHiddenRows(ByVal targetRange As Range) As Long
+    Dim currentRow As Range
+
+    For Each currentRow In targetRange.Rows
+        If currentRow.EntireRow.Hidden Then _
+            private_CountHiddenRows = private_CountHiddenRows + 1
+    Next currentRow
+End Function
+
+Private Function private_CountZeroHeightRows(ByVal targetRange As Range) As Long
+    Dim currentRow As Range
+
+    For Each currentRow In targetRange.Rows
+        If currentRow.EntireRow.RowHeight = 0 Then _
+            private_CountZeroHeightRows = private_CountZeroHeightRows + 1
+    Next currentRow
+End Function

@@ -15,6 +15,17 @@ Public Sub fn_ReloadPersonalRuntime()
 End Sub
 
 Public Sub fn_ReloadActiveWorkbookVba()
+    private_ReloadActiveWorkbookVba False
+End Sub
+
+' Reloads the active workbook and schedules initialization after VBA reset.
+Public Sub fn_ReloadActiveWorkbookVbaDeferred()
+    private_ReloadActiveWorkbookVba True
+End Sub
+
+Private Sub private_ReloadActiveWorkbookVba( _
+    ByVal deferInitialization As Boolean _
+)
     Const VBEXT_CT_STD_MODULE As Long = 1
     Const VBEXT_CT_CLASS_MODULE As Long = 2
     Const VBEXT_CT_MS_FORM As Long = 3
@@ -110,7 +121,7 @@ Public Sub fn_ReloadActiveWorkbookVba()
         private_VbaReload_ImportDocumentVbaFile targetWorkbook, VBA.CStr(importFile)
         importedCount = importedCount + 1
     Next importFile
-    private_VbaReload_InitializeReloadedWorkbook targetWorkbook
+    private_VbaReload_InitializeReloadedWorkbook targetWorkbook, deferInitialization
 
     Application.StatusBar = "Imported VBA modules: " & _
         VBA.CStr(importedCount) & "; imported at: " & _
@@ -273,7 +284,8 @@ End Sub
 ' --------------------------------------
 ' Reinitializes runtime event handlers after a hot reload.
 Private Sub private_VbaReload_InitializeReloadedWorkbook( _
-    ByVal targetWorkbook As Workbook _
+    ByVal targetWorkbook As Workbook, _
+    ByVal deferInitialization As Boolean _
 )
     Dim bootstrapComponent As Object
     Dim lifecycleComponent As Object
@@ -286,9 +298,7 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
     If Not bootstrapComponent Is Nothing Then
         macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
             "'!ex_PersonalEventBuilder.fn_Initialize"
-        fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE | Macro=" & macroReference
-        Application.Run macroReference
-        fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_COMPLETED | Macro=" & macroReference
+        private_VbaReload_RunOrScheduleInitialization macroReference, deferInitialization
         Exit Sub
     End If
     On Error Resume Next
@@ -301,7 +311,15 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
         If lifecycleComponent.CodeModule.CountOfLines > 0 Then
             macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
                 "'!rt_Lifecycle.fn_InitializeRuntime"
-            Application.Run macroReference, "source-reload"
+            If deferInitialization Then
+                Application.OnTime VBA.Now + VBA.TimeSerial(0, 0, 1), macroReference
+                fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_SCHEDULED | Macro=" & _
+                    macroReference
+            Else
+                Application.Run macroReference, "source-reload"
+                fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_COMPLETED | Macro=" & _
+                    macroReference
+            End If
             Exit Sub
         End If
     End If
@@ -310,12 +328,27 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
 
     macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
         "'!ex_DocumentGenerationBootstrap.fn_Initialize"
-    Application.Run macroReference
+    private_VbaReload_RunOrScheduleInitialization macroReference, deferInitialization
     Exit Sub
 EH:
     VBA.Err.Raise VBA.Err.Number, "private_VbaReload_InitializeReloadedWorkbook", _
         "Failed to initialize reloaded workbook '" & targetWorkbook.Name & _
         "': " & VBA.Err.Description
+End Sub
+
+Private Sub private_VbaReload_RunOrScheduleInitialization( _
+    ByVal macroReference As String, _
+    ByVal deferInitialization As Boolean _
+)
+    fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE | Macro=" & macroReference
+    If deferInitialization Then
+        Application.OnTime VBA.Now + VBA.TimeSerial(0, 0, 1), macroReference
+        fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_SCHEDULED | Macro=" & _
+            macroReference
+        Exit Sub
+    End If
+    Application.Run macroReference
+    fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_COMPLETED | Macro=" & macroReference
 End Sub
 
 Private Function private_VbaReload_TrySyncUiFiles( _

@@ -18,6 +18,16 @@
              columnSpan="3"
              style="primaryButton"
              onClick="{Binding Module=ex_PersonalEventBuilder; Method=fn_HelloWorld}"/>
+
+    <control type="Button"
+             name="UpdatePage"
+             caption="Update page"
+             row="3"
+             column="2"
+             rowSpan="2"
+             columnSpan="2"
+             style="primaryButton"
+             onClick="{Binding Module=ex_PersonalEventBuilder; Method=fn_UpdatePage}"/>
   </grid>
 
   <styles>

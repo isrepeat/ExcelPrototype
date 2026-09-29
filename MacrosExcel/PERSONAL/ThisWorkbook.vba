@@ -11,6 +11,7 @@ End Sub
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Application.OnKey "^%r"
     Application.OnKey "^+%r"
+    Application.OnKey "^%d"
 End Sub
 
 Public Sub BindKeys()
@@ -23,8 +24,8 @@ Public Sub BindKeys()
     Application.OnKey "^q", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_FilterContainsCurrentColumn")
     Application.OnKey "^r", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_RecalculateActiveSheet")
     Application.OnKey "^%r", private_GlobalMacroRef("ex_Core.fn_ReloadActiveWorkbookVba")
-    Application.OnKey "^+%r", private_GlobalMacroRef("ex_Core.fn_ClearActiveWorkbookVba")
-    'Application.OnKey "^d", "PasteClipboardRowToVisibleCellsSkipTabs"
+    Application.OnKey "^+%r", private_GlobalMacroRef("ex_Core.fn_ReloadActiveWorkbookVbaDeferred")
+    Application.OnKey "^%d", private_GlobalMacroRef("ex_Core.fn_ClearActiveWorkbookVba")
 
     Application.OnKey "%{PGUP}", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_DatePlusOne")
     Application.OnKey "%{PGDN}", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_DateMinusOne")
