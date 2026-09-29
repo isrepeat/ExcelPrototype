@@ -21,11 +21,13 @@ End Function
 
 Public Function fn_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim targetRange As Range
+    Dim captionText As String
 
     Set targetRange = m_uiControlBase.fn_TargetRange(uiRenderContext)
+    If Not m_uiControlBase.fn_TryGetCaption(uiRenderContext.fn_BindingContext, captionText) Then Exit Function
     targetRange.Merge
-    targetRange.Value2 = m_uiControlBase.fn_Caption
-    ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, m_uiControlBase.fn_ControlNode
+    targetRange.Value2 = captionText
+    ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, m_uiControlBase.fn_ControlNode, uiRenderContext.fn_BindingContext
     fn_Render = True
 End Function
 

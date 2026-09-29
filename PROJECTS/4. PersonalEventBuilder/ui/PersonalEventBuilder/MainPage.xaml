@@ -3,31 +3,31 @@
   <grid anchorCell="A1">
     <control type="Label"
              name="Title"
-             text="PersonalEventBuilder"
+             text="{Binding Source=Text; Path=Title}"
              row="1"
              column="1"
              columnSpan="8"
-             style="pageTitle"/>
+             style="{Binding Source=Resources; Path=PageTitle}"/>
 
     <control type="Button"
              name="HelloWorld"
-             caption="Hello World"
+             caption="{Binding Source=Text; Path=HelloWorld}"
              row="3"
              column="5"
              rowSpan="2"
              columnSpan="3"
-             style="primaryButton"
-             onClick="{Binding Module=ex_PersonalEventBuilder; Method=fn_HelloWorld}"/>
+             style="{Binding Source=Resources; Path=PrimaryButton}"
+             command="{Binding Source=Commands; Path=HelloWorld}"/>
 
     <control type="Button"
              name="UpdatePage"
-             caption="Update page"
+             caption="{Binding Source=Text; Path=UpdatePage}"
              row="3"
              column="2"
              rowSpan="2"
              columnSpan="2"
-             style="primaryButton"
-             onClick="{Binding Module=ex_PersonalEventBuilder; Method=fn_UpdatePage}"/>
+             style="{Binding Source=Resources; Path=PrimaryButton}"
+             command="{Binding Source=Commands; Path=UpdatePage}"/>
   </grid>
 
   <styles>
@@ -43,31 +43,11 @@
     <stylePipelineStage name="default">
       <layer name="sheet-base">
         <rule target="sheet"
-              styles="{
-                backColor:#1F2329;
-                fontColor:#E5E7EB;
-                borderColor:#111827;
-                borderWeight:thin;
-                rowHeight:21;
-                overflow:wrap;
-                gridLines:false;
-                zoom:90%;
-              }"/>
-
-        <rule target="column"
-              selector="address=A:A"
-              styles="{
-                width:2;
-              }"/>
+              styles="{ backColor:#1F2329; fontColor:#E5E7EB; borderColor:#111827; borderWeight:thin; rowHeight:21; overflow:wrap; gridLines:false; zoom:90%; }"/>
+        <rule target="column" selector="address=A:A" styles="{ width:2; }"/>
       </layer>
-
       <layer name="layout">
-        <rule target="control"
-              selector="type=button"
-              styles="{
-                horizontal:center;
-                vertical:center;
-              }"/>
+        <rule target="control" selector="type=button" styles="{ horizontal:center; vertical:center; }"/>
       </layer>
     </stylePipelineStage>
   </styles>

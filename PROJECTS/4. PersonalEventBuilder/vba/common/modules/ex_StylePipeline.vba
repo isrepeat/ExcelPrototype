@@ -57,14 +57,16 @@ End Sub
 Public Sub fn_ApplyControlStyle( _
     ByVal targetRange As Range, _
     ByVal targetShape As Object, _
-    ByVal controlNode As Object _
+    ByVal controlNode As Object, _
+    ByVal uiBindingContext As obj_UiBindingContext _
 )
     Dim styleName As String
     Dim styleProperties As Object
     Dim directProperties As Object
 
     If m_stylesByName Is Nothing Then Exit Sub
-    styleName = private_ReadAttribute(controlNode, "style")
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+            private_ReadAttribute(controlNode, "style"), uiBindingContext, styleName) Then Exit Sub
     If VBA.Len(styleName) > 0 Then
         If m_stylesByName.Exists(styleName) Then
             Set styleProperties = m_stylesByName(styleName)
