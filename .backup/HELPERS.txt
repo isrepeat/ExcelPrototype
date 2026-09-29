@@ -1,0 +1,81 @@
+//
+// Git
+//
+git reset HEAD~1   // mixed by default
+
+git branch -d NAME   // delete local branch
+git push origin --delete NAME   // delete remote branch
+
+git branch -m new_name   // Переименовать текущую ветку
+git branch -m old_name new_name   // Переименовать любую локальную ветку
+
+git commit --amend -m "MESSAGE"   // Изменить сообщение последнего коммита
+git commit --amend --no-edit   // Добавить отслеживаемые изменения в последний коммит не меняя сообщение
+
+
+// После мерджа PR:
+// 1) принудительно синхронизировать локальный master с origin/master
+// 2) пересоздать ветку Last от актуального master
+git switch master
+git fetch --prune origin
+git reset --hard origin/master
+git switch -C Last master
+
+
+// Перенести из ветку из одного репозитория (1го аккаунта) в другой репозиторий (2го аккаунта):
+1) Убрать принудительный Codespaces GITHUB_TOKEN (чтобы gh дал залогиниться нормально)
+unset GITHUB_TOKEN
+
+2) Залогиниться в GitHub CLI как ЦЕЛЕВОЙ аккаунт (владелец репо назначения)
+rm -rf ~/.config/gh
+gh auth login -p https -h github.com
+gh auth setup-git
+gh auth status   # должно показать аккаунт-назначение и НЕ (GITHUB_TOKEN)
+
+3) В репозитории-источнике перейти на нужную ветку
+git fetch origin
+git checkout Last
+
+4) Добавить remote на целевой репозиторий и запушить ветку (тем же именем)
+git remote add target https://github.com/isrepeat/ExcelPrototype.git
+git push target HEAD:Last
+
+5) Удалить remote (опционально)
+git remote remove target
+
+
+// SSH:
+ssh-keygen -t ed25519 -C "github"
+[copy id_ed25519.pub to GitHub account]
+ssh -T git@github.com
+[type "yes"]
+git remote set-url origin git@github.com:isrepeat/UtilityHelpersLib.git
+
+
+//
+// Codex
+//
+npx @openai/codex login
+https://fuzzy-eureka-4j4pw44wx9rx37gqw-1455.app.github.dev/
+
+
+//
+// CMake
+//
+cmake --preset debug
+cmake --build --preset debug
+
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "debug",
+      "binaryDir": "${sourceDir}/build/debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "debug", "configurePreset": "debug" }  ]
+}
