@@ -13,8 +13,12 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_RenderPages()
-    ex_UiRuntime.fn_RenderPages
+Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String)
+    ex_UiRuntime.fn_RenderPages uiFolderRelativePath
+End Sub
+
+Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String)
+    ex_UiRuntime.fn_RenderActivePage uiFolderRelativePath
 End Sub
 ' --------------------------------------
 ' } // namespace API
