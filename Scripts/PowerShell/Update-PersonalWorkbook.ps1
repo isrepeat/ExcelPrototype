@@ -1,4 +1,6 @@
 param(
+    [ValidateSet('Update', 'Clear')]
+    [string]$Mode = 'Update',
     [string]$SourcePath = (Join-Path $PSScriptRoot '..\..\MacrosExcel\PERSONAL')
 )
 
@@ -47,8 +49,19 @@ function Set-ComponentCode {
     }
 }
 
-if (-not (Test-Path -LiteralPath $SourcePath -PathType Container)) {
-    throw "PERSONAL source folder was not found: $SourcePath"
+function Remove-StandardAndClassModules {
+    param([object]$Workbook)
+
+    $componentsToRemove = @($Workbook.VBProject.VBComponents | Where-Object {
+        $_.Type -in $vbextCtStdModule, $vbextCtClassModule
+    })
+    $componentIndex = 0
+    foreach ($component in $componentsToRemove) {
+        $componentIndex++
+        Write-Host "Removing component $componentIndex/$($componentsToRemove.Count): $($component.Name)"
+        $Workbook.VBProject.VBComponents.Remove($component)
+    }
+    return $componentsToRemove
 }
 
 $excel = $null
@@ -66,15 +79,29 @@ if ($null -eq $personalWorkbook) {
     throw 'PERSONAL.XLSB is not loaded in the active Excel instance.'
 }
 
-$sourceFiles = Get-ChildItem -LiteralPath $SourcePath -File |
+if ($Mode -eq 'Clear') {
+    $componentsToRemove = @(Remove-StandardAndClassModules $personalWorkbook)
+    $personalWorkbook.Save()
+    Write-Host "Removed PERSONAL.XLSB modules and classes: $($componentsToRemove.Count)"
+    exit 0
+}
+
+if (-not (Test-Path -LiteralPath $SourcePath -PathType Container)) {
+    throw "PERSONAL source folder was not found: $SourcePath"
+}
+
+$sourceFiles = @(Get-ChildItem -LiteralPath $SourcePath -File |
     Where-Object { $_.Extension -in '.vba', '.cls' } |
-    Sort-Object Name
+    Sort-Object Name)
 if ($sourceFiles.Count -eq 0) {
     throw "No VBA source files were found: $SourcePath"
 }
 
+$removedCount = @(Remove-StandardAndClassModules $personalWorkbook).Count
 $updatedCount = 0
+$sourceFileCount = $sourceFiles.Count
 foreach ($sourceFile in $sourceFiles) {
+    Write-Host "Importing component $($updatedCount + 1)/${sourceFileCount}: $($sourceFile.Name)"
     $componentName = Get-ComponentName $sourceFile
     $component = $null
     try {
@@ -83,6 +110,11 @@ foreach ($sourceFile in $sourceFiles) {
     catch {
         $component = $null
     }
+    if ($sourceFile.Name -eq 'ThisWorkbook.vba' -and $null -eq $component) {
+        $component = @($personalWorkbook.VBProject.VBComponents | Where-Object {
+            $_.Type -eq $vbextCtDocument
+        }) | Select-Object -First 1
+    }
 
     $sourceLines = @(Get-ImportText $sourceFile)
     if ($null -ne $component) {
@@ -90,9 +122,9 @@ foreach ($sourceFile in $sourceFiles) {
     }
     else {
         if ($sourceFile.Name -eq 'ThisWorkbook.vba') {
-            throw 'ThisWorkbook source exists, but PERSONAL.XLSB has no ThisWorkbook component.'
+            throw 'PERSONAL.XLSB has no document module for ThisWorkbook.vba.'
         }
-        $componentType = if ($sourceFile.Name.StartsWith('cls_')) {
+        $componentType = if ($sourceFile.Name.StartsWith('obj_')) {
             $vbextCtClassModule
         }
         else {
@@ -106,4 +138,12 @@ foreach ($sourceFile in $sourceFiles) {
 }
 
 $personalWorkbook.Save()
+try {
+    $excel.Run("'PERSONAL.XLSB'!ex_Core.fn_ReloadPersonalRuntime")
+}
+catch {
+    throw "PERSONAL.XLSB was updated, but runtime reload failed: $($_.Exception.Message)"
+}
+Write-Host "Removed PERSONAL.XLSB modules and classes: $removedCount"
 Write-Host "Updated PERSONAL.XLSB components: $updatedCount"
+Write-Host 'PERSONAL.XLSB runtime reloaded.'
