@@ -2263,15 +2263,14 @@ Private Sub private_Dev_ImportFolder( _
     Set fso = VBA.CreateObject("Scripting.FileSystemObject")
     Set rootFolder = fso.GetFolder(folderPath)
 
-    ' Глобальные два прохода по всему дереву:
-    ' 1) сначала все компоненты кроме интерфейсов obj_I*;
-    ' 2) затем интерфейсы.
-    ' Важно: при импорте VBA сразу проверяет/компилирует сигнатуры членов класса.
-    ' Поэтому если интерфейс ссылается на тип (например As obj_PageBase), а этот
-    ' тип еще не импортирован, импорт падает с "User-defined type not defined".
-    ' Так интерфейсы всегда импортируются после потенциально зависимых классов
-    ' даже если они лежат в разных подпапках.
-    For importPass = 1 To 2
+    ' Perform the global import in dependency order:
+    ' 1) .interface.cls.vba classes;
+    ' 2) .base.cls.vba classes;
+    ' 3) all remaining modules and classes.
+    ' VBA validates an Implements contract while replacing module code. Updating
+    ' an implementing class before its interface can leave the project with a
+    ' stale contract and fail compilation after the import completes.
+    For importPass = 1 To 3
         private_Dev_ImportFolderRecursive rootFolder, 0, failed, updateMode, prevCache, nextCache, includeComponentPattern, excludeComponentPattern, importPass, updatedComponents
     Next importPass
 
@@ -2427,8 +2426,7 @@ Private Function private_Dev_ShouldImportFileInPass(ByVal fileName As String, By
     Dim normalizedName As String
     Dim baseName As String
     Dim componentStem As String
-    Dim markerChar As String
-    Dim isInterfaceClass As Boolean
+    Dim classImportPass As Long
 
     normalizedName = VBA.LCase$(VBA.Trim$(fileName))
     If fn_Helpers_EndsWith(normalizedName, ".utf8.vba") Then
@@ -2441,21 +2439,27 @@ Private Function private_Dev_ShouldImportFileInPass(ByVal fileName As String, By
     End If
 
     normalizedName = VBA.LCase$(VBA.Trim$(baseName))
-    isInterfaceClass = False
     If fn_Helpers_EndsWith(normalizedName, ".cls") Then
         componentStem = VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls"))
-        If VBA.Left$(componentStem, 5) = "obj_I" Then
-            markerChar = VBA.Mid$(componentStem, 6, 1)
-            If markerChar >= "A" And markerChar <= "Z" Then
-                isInterfaceClass = True
-            End If
-        End If
+        classImportPass = private_Dev_GetClassImportPass(componentStem)
+    Else
+        classImportPass = 3
     End If
 
-    If importPass <= 1 Then
-        private_Dev_ShouldImportFileInPass = Not isInterfaceClass
+    private_Dev_ShouldImportFileInPass = (importPass = classImportPass)
+End Function
+
+
+Private Function private_Dev_GetClassImportPass(ByVal componentStem As String) As Long
+    Dim normalizedStem As String
+
+    normalizedStem = VBA.LCase$(VBA.Trim$(componentStem))
+    If fn_Helpers_EndsWith(normalizedStem, ".interface") Then
+        private_Dev_GetClassImportPass = 1
+    ElseIf fn_Helpers_EndsWith(normalizedStem, ".base") Then
+        private_Dev_GetClassImportPass = 2
     Else
-        private_Dev_ShouldImportFileInPass = isInterfaceClass
+        private_Dev_GetClassImportPass = 3
     End If
 End Function
 
@@ -2736,10 +2740,25 @@ Private Function private_Dev_TryResolveFileComponentType( _
         outFallbackName = baseName
     ElseIf fn_Helpers_EndsWith(normalizedName, ".cls") Then
         outCompType = COMP_TYPE_CLASS
-        outFallbackName = VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls"))
+        outFallbackName = private_Dev_RemoveClassFileRoleSuffix( _
+            VBA.Left$(baseName, VBA.Len(baseName) - VBA.Len(".cls")))
     End If
 
     private_Dev_TryResolveFileComponentType = (VBA.Len(VBA.Trim$(outCompType)) > 0 And VBA.Len(VBA.Trim$(outFallbackName)) > 0)
+End Function
+
+
+Private Function private_Dev_RemoveClassFileRoleSuffix(ByVal componentStem As String) As String
+    Dim normalizedStem As String
+
+    normalizedStem = VBA.LCase$(VBA.Trim$(componentStem))
+    If fn_Helpers_EndsWith(normalizedStem, ".interface") Then
+        private_Dev_RemoveClassFileRoleSuffix = VBA.Left$(componentStem, VBA.Len(componentStem) - VBA.Len(".interface"))
+    ElseIf fn_Helpers_EndsWith(normalizedStem, ".base") Then
+        private_Dev_RemoveClassFileRoleSuffix = VBA.Left$(componentStem, VBA.Len(componentStem) - VBA.Len(".base"))
+    Else
+        private_Dev_RemoveClassFileRoleSuffix = componentStem
+    End If
 End Function
 
 
