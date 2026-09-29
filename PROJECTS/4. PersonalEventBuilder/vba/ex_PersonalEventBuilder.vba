@@ -25,9 +25,23 @@ Public Sub fn_HelloWorld()
 End Sub
 
 Public Sub fn_UpdatePage()
+    Dim previousScreenUpdating As Boolean
+
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH
+    Application.ScreenUpdating = False
     ex_Core.fn_Diagnostic_WriteLog "UPDATE_PAGE_CLICKED | Sheet=" & _
         Application.ActiveSheet.Name
     ex_UiRuntime.fn_RenderActivePage
+CleanExit:
+    Application.ScreenUpdating = previousScreenUpdating
+    Exit Sub
+EH:
+    ex_Core.fn_Diagnostic_WriteLog "UPDATE_PAGE_ERROR | Number=" & _
+        VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
+    VBA.MsgBox "The page cannot be updated: " & VBA.Err.Description, _
+        VBA.vbExclamation, "PersonalEventBuilder"
+    Resume CleanExit
 End Sub
 ' --------------------------------------
 ' } // namespace API
