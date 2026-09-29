@@ -481,12 +481,23 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
     ByVal targetWorkbook As Workbook _
 )
     Dim bootstrapComponent As Object
+    Dim lifecycleComponent As Object
     Dim macroReference As String
 
     On Error Resume Next
+    Set lifecycleComponent = targetWorkbook.VBProject.VBComponents( _
+        "rt_Lifecycle")
     Set bootstrapComponent = targetWorkbook.VBProject.VBComponents( _
         "ex_DocumentGenerationBootstrap")
     On Error GoTo EH
+    If Not lifecycleComponent Is Nothing Then
+        If lifecycleComponent.CodeModule.CountOfLines > 0 Then
+            macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+                "'!rt_Lifecycle.fn_InitializeRuntime"
+            Application.Run macroReference, "source-reload"
+            Exit Sub
+        End If
+    End If
     If bootstrapComponent Is Nothing Then Exit Sub
     If bootstrapComponent.CodeModule.CountOfLines = 0 Then Exit Sub
 
@@ -521,18 +532,16 @@ Private Function private_VbaReload_TryResolveVbaFolder( _
     If private_VbaReload_FolderExists(VBA.CStr(candidatePath)) Then _
         candidatePaths.Add VBA.CStr(candidatePath)
 
-    ' Книга DocumentsGeneration хранится в MacrosExcel/2. DocumentsGeneration,
-    ' а редактируемые исходники — в PROJECTS/2. DocumentsGeneration/vba.
-    If VBA.StrComp(fileSystem.GetFileName(workbookFolderPath), _
-            "2. DocumentsGeneration", VBA.vbTextCompare) = 0 And _
-       VBA.StrComp(fileSystem.GetFileName( _
+    ' A workbook in MacrosExcel/<project> uses PROJECTS/<project>/vba.
+    If VBA.StrComp(fileSystem.GetFileName( _
             fileSystem.GetParentFolderName(workbookFolderPath)), _
             "MacrosExcel", VBA.vbTextCompare) = 0 Then
         workspaceRootPath = fileSystem.GetParentFolderName( _
             fileSystem.GetParentFolderName(workbookFolderPath))
         candidatePath = workspaceRootPath & Application.PathSeparator & _
             "PROJECTS" & Application.PathSeparator & _
-            "2. DocumentsGeneration" & Application.PathSeparator & "vba"
+            fileSystem.GetFileName(workbookFolderPath) & _
+            Application.PathSeparator & "vba"
         If private_VbaReload_FolderExists(VBA.CStr(candidatePath)) Then _
             candidatePaths.Add VBA.CStr(candidatePath)
     End If
