@@ -1,6 +1,6 @@
 Option Explicit
 
-Private m_filterInputEvents As cls_FilterInputEvents
+Private m_filterInputEvents As obj_FilterInputEvents
 
 
 Private Sub Workbook_Open()
@@ -16,43 +16,53 @@ Public Sub BindKeys()
     On Error Resume Next
     private_InitializeFilterInputEvents
 
-    ' Application.OnKey действует глобально для всего экземпляра Excel.
-    ' Явно указываем книгу с глобальными макросами, чтобы Excel не выбрал
-    ' одноимённую процедуру из активной книги.
-    Application.OnKey "+%{UP}", private_GlobalMacroRef("module_Tools.fn_MoveTableRowsUp")
-    Application.OnKey "+%{DOWN}", private_GlobalMacroRef("module_Tools.fn_MoveTableRowsDown")
-
-    Application.OnKey "^q", private_GlobalMacroRef("module_ShortcutsHandlers.fn_FilterContainsCurrentColumn")
-    Application.OnKey "^r", private_GlobalMacroRef("module_ShortcutsHandlers.fn_RecalculateActiveSheet")
-    Application.OnKey "^%r", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ReloadActiveWorkbookVba")
+    ' Application.OnKey applies to the entire Excel instance.
+    ' Explicitly use the workbook that owns the global macros so that Excel
+    ' does not resolve an identically named procedure in the active workbook.
+    Application.OnKey "^q", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_FilterContainsCurrentColumn")
+    Application.OnKey "^r", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_RecalculateActiveSheet")
+    Application.OnKey "^%r", private_GlobalMacroRef("ex_Core.fn_ReloadActiveWorkbookVba")
     'Application.OnKey "^d", "PasteClipboardRowToVisibleCellsSkipTabs"
 
-    Application.OnKey "%{PGUP}", private_GlobalMacroRef("module_ShortcutsHandlers.fn_DatePlusOne")
-    Application.OnKey "%{PGDN}", private_GlobalMacroRef("module_ShortcutsHandlers.fn_DateMinusOne")
+    Application.OnKey "%{PGUP}", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_DatePlusOne")
+    Application.OnKey "%{PGDN}", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_DateMinusOne")
 
     ' EN: Ctrl + `
     Err.Clear
-    Application.OnKey "^`", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ToggleFirstTwoRows")
+    Application.OnKey "^`", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_ToggleFirstTwoRows")
 
     ' RU/UKR fallback: Ctrl + '
     If Err.Number <> 0 Then
         Err.Clear
-        Application.OnKey "^'", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ToggleFirstTwoRows")
+        Application.OnKey "^'", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_ToggleFirstTwoRows")
     End If
 
     ' RU fallback: Ctrl + ¸
     If Err.Number <> 0 Then
         Err.Clear
-        Application.OnKey "^¸", private_GlobalMacroRef("module_ShortcutsHandlers.fn_ToggleFirstTwoRows")
+        Application.OnKey "^¸", private_GlobalMacroRef("ex_ShortcutsHandlers.fn_ToggleFirstTwoRows")
     End If
 
     On Error GoTo 0
 End Sub
 
+' --------------------------------------
+' namespace Runtime {
+' --------------------------------------
+' Recreates runtime event handlers and global keyboard bindings after a code update.
+Public Sub fn_ReloadRuntime()
+    Set m_filterInputEvents = Nothing
+    private_InitializeFilterInputEvents
+    BindKeys
+End Sub
+' --------------------------------------
+' } // namespace Runtime
+' --------------------------------------
+
 
 Private Sub private_InitializeFilterInputEvents()
     If m_filterInputEvents Is Nothing Then
-        Set m_filterInputEvents = New cls_FilterInputEvents
+        Set m_filterInputEvents = New obj_FilterInputEvents
         Set m_filterInputEvents.ExcelApplication = Application
     End If
 End Sub
