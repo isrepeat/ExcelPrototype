@@ -44,6 +44,7 @@ Public Sub fn_ReloadActiveWorkbookVba()
 
     Set targetWorkbook = Application.ActiveWorkbook
     targetWorkbookName = targetWorkbook.Name
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STARTED | Workbook=" & targetWorkbookName
     If targetWorkbook Is ThisWorkbook Then
         VBA.MsgBox _
             "The workbook containing the shortcut handler cannot reload itself. " & _
@@ -114,6 +115,8 @@ Public Sub fn_ReloadActiveWorkbookVba()
     Application.StatusBar = "Imported VBA modules: " & _
         VBA.CStr(importedCount) & "; imported at: " & _
         VBA.Format$(VBA.Now, "dd.mm.yyyy HH:nn:ss")
+    fn_Diagnostic_WriteLog "VBA_RELOAD_COMPLETED | Workbook=" & targetWorkbookName & _
+        " | ModuleCount=" & VBA.CStr(importedCount)
 
 CleanExit:
     If applicationStateChanged Then
@@ -124,12 +127,94 @@ CleanExit:
 
 EH:
     Application.StatusBar = False
+    fn_Diagnostic_WriteLog "VBA_RELOAD_ERROR | Workbook=" & targetWorkbookName & _
+        " | Number=" & VBA.CStr(VBA.Err.Number) & _
+        " | Description=" & VBA.Err.Description
     VBA.MsgBox "Failed to reload VBA modules in workbook '" & _
         targetWorkbookName & _
         "': [" & VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description & VBA.vbCrLf & _
         "Make sure 'Trust access to the VBA project object model' is enabled.", _
         VBA.vbCritical, "Reload VBA"
     Resume CleanExit
+End Sub
+
+
+' Removes standard modules and class modules from the active workbook.
+Public Sub fn_ClearActiveWorkbookVba()
+    Const VBEXT_CT_STD_MODULE As Long = 1
+    Const VBEXT_CT_CLASS_MODULE As Long = 2
+    Const VBEXT_CT_DOCUMENT As Long = 100
+
+    Dim targetWorkbook As Workbook
+    Dim vbProject As Object
+    Dim vbComponent As Object
+    Dim componentNames As Collection
+    Dim componentName As Variant
+    Dim removedCount As Long
+    Dim clearedDocumentModuleCount As Long
+
+    On Error GoTo EH
+    If Application.ActiveWorkbook Is Nothing Then
+        VBA.MsgBox "There is no active workbook whose VBA modules can be cleared.", _
+            VBA.vbExclamation, "Clear VBA"
+        Exit Sub
+    End If
+
+    Set targetWorkbook = Application.ActiveWorkbook
+    If targetWorkbook Is ThisWorkbook Then
+        VBA.MsgBox "PERSONAL.XLSB cannot clear its own modules.", _
+            VBA.vbExclamation, "Clear VBA"
+        Exit Sub
+    End If
+
+    fn_Diagnostic_WriteLog "VBA_CLEAR_STARTED | Workbook=" & targetWorkbook.Name
+    Set vbProject = targetWorkbook.VBProject
+    Set componentNames = New Collection
+    For Each vbComponent In vbProject.VBComponents
+        Select Case CLng(vbComponent.Type)
+            Case VBEXT_CT_STD_MODULE, VBEXT_CT_CLASS_MODULE
+                componentNames.Add VBA.CStr(vbComponent.Name)
+        End Select
+    Next vbComponent
+
+    For Each componentName In componentNames
+        On Error Resume Next
+        Application.Run "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+            "'!" & VBA.CStr(componentName) & ".fn_Module_Dispose"
+        On Error GoTo EH
+        vbProject.VBComponents.Remove vbProject.VBComponents(VBA.CStr(componentName))
+        removedCount = removedCount + 1
+    Next componentName
+
+    For Each vbComponent In vbProject.VBComponents
+        If CLng(vbComponent.Type) = VBEXT_CT_DOCUMENT Then
+            If vbComponent.CodeModule.CountOfLines > 0 Then
+                vbComponent.CodeModule.DeleteLines 1, vbComponent.CodeModule.CountOfLines
+                clearedDocumentModuleCount = clearedDocumentModuleCount + 1
+            End If
+        End If
+    Next vbComponent
+
+    targetWorkbook.Save
+    Application.StatusBar = "Removed VBA modules and classes: " & VBA.CStr(removedCount) & _
+        "; cleared document modules: " & VBA.CStr(clearedDocumentModuleCount)
+    fn_Diagnostic_WriteLog "VBA_CLEAR_COMPLETED | Workbook=" & targetWorkbook.Name & _
+        " | ModuleCount=" & VBA.CStr(removedCount) & _
+        " | ClearedDocumentModuleCount=" & VBA.CStr(clearedDocumentModuleCount)
+    VBA.MsgBox "Removed VBA modules and classes: " & VBA.CStr(removedCount) & _
+        VBA.vbCrLf & "Cleared document modules: " & _
+        VBA.CStr(clearedDocumentModuleCount), _
+        VBA.vbInformation, "Clear VBA"
+    Exit Sub
+
+EH:
+    fn_Diagnostic_WriteLog "VBA_CLEAR_ERROR | Workbook=" & targetWorkbook.Name & _
+        " | Number=" & VBA.CStr(VBA.Err.Number) & _
+        " | Description=" & VBA.Err.Description
+    VBA.MsgBox "Failed to clear VBA modules in workbook '" & targetWorkbook.Name & _
+        "': [" & VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description & VBA.vbCrLf & _
+        "Make sure 'Trust access to the VBA project object model' is enabled.", _
+        VBA.vbCritical, "Clear VBA"
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -201,7 +286,9 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
     If Not bootstrapComponent Is Nothing Then
         macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
             "'!ex_PersonalEventBuilder.fn_Initialize"
+        fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE | Macro=" & macroReference
         Application.Run macroReference
+        fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_COMPLETED | Macro=" & macroReference
         Exit Sub
     End If
     On Error Resume Next
@@ -409,8 +496,7 @@ Private Function private_VbaReload_TryExpandConfiguredSourcePaths( _
         fileSystem.GetAbsolutePathName(vbaFolderPath), _
         fileSystem.GetAbsolutePathName(vbaFolderPath), normalizedPattern, matchedPaths
     If matchedPaths.Count = 0 Then
-        VBA.MsgBox "No VBA modules match pattern: " & configuredPath, _
-            VBA.vbExclamation, "Reload VBA"
+        private_VbaReload_TryExpandConfiguredSourcePaths = True
         Exit Function
     End If
 
