@@ -1,7 +1,6 @@
 Attribute VB_Name = "ex_UiRuntime"
 Option Explicit
 
-Private Const UI_FOLDER_NAME As String = "ui"
 Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
 
 ' --------------------------------------
@@ -16,25 +15,25 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_RenderPages()
+Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String)
     Dim targetWorksheet As Worksheet
 
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_STARTED | Workbook=" & ThisWorkbook.Name
     ex_UiBindings.fn_Reset
 
     For Each targetWorksheet In ThisWorkbook.Worksheets
-        If Not private_RenderPage(targetWorksheet, False) Then Exit Sub
+        If Not private_RenderPage(targetWorksheet, False, uiFolderRelativePath) Then Exit Sub
     Next targetWorksheet
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_COMPLETED | Workbook=" & ThisWorkbook.Name
 End Sub
 
-Public Sub fn_RenderActivePage()
+Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String)
     Dim targetWorksheet As Worksheet
 
     If Not (TypeOf Application.ActiveSheet Is Worksheet) Then Exit Sub
     Set targetWorksheet = Application.ActiveSheet
     If Not (targetWorksheet.Parent Is ThisWorkbook) Then Exit Sub
-    private_RenderPage targetWorksheet, True
+    private_RenderPage targetWorksheet, True, uiFolderRelativePath
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -42,7 +41,8 @@ End Sub
 
 Private Function private_RenderPage( _
     ByVal targetWorksheet As Worksheet, _
-    ByVal notifyWhenMissing As Boolean _
+    ByVal notifyWhenMissing As Boolean, _
+    ByVal uiFolderRelativePath As String _
 ) As Boolean
     Dim uiPageDefinition As obj_UiPageDefinition
     Dim uiRenderContext As obj_UiRenderContext
@@ -50,7 +50,7 @@ Private Function private_RenderPage( _
     Dim uiFolderPath As String
     Dim fileSystem As Object
 
-    uiFolderPath = ThisWorkbook.Path & "\" & UI_FOLDER_NAME
+    uiFolderPath = ThisWorkbook.Path & "\" & uiFolderRelativePath
     xamlPath = uiFolderPath & "\" & targetWorksheet.Name & ".xaml"
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fileSystem.FileExists(xamlPath) Then

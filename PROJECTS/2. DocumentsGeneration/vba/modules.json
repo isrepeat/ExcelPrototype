@@ -1,5 +1,5 @@
 {
-  "Рух продовольчого та сухпрода": [
+  "DocumentsGeneration": [
     "ex_FoodMovement.vba",
     "common/ex_Helpers.vba"
   ]

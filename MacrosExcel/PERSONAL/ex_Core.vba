@@ -73,7 +73,6 @@ Private Sub private_ReloadActiveWorkbookVba( _
     End If
 
     If Not private_VbaReload_TryResolveVbaFolder(targetWorkbook, vbaFolderPath) Then Exit Sub
-    If Not private_VbaReload_TrySyncUiFiles(targetWorkbook, vbaFolderPath) Then Exit Sub
 
     Set importFiles = New Collection
     Set documentImportFiles = New Collection
@@ -287,25 +286,13 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
     ByVal targetWorkbook As Workbook, _
     ByVal deferInitialization As Boolean _
 )
-    Dim bootstrapComponent As Object
     Dim lifecycleComponent As Object
+    Dim initializerName As String
     Dim macroReference As String
 
     On Error Resume Next
-    Set bootstrapComponent = targetWorkbook.VBProject.VBComponents( _
-        "ex_PersonalEventBuilder")
-    On Error GoTo EH
-    If Not bootstrapComponent Is Nothing Then
-        macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
-            "'!ex_PersonalEventBuilder.fn_Initialize"
-        private_VbaReload_RunOrScheduleInitialization macroReference, deferInitialization
-        Exit Sub
-    End If
-    On Error Resume Next
     Set lifecycleComponent = targetWorkbook.VBProject.VBComponents( _
         "rt_Lifecycle")
-    Set bootstrapComponent = targetWorkbook.VBProject.VBComponents( _
-        "ex_DocumentGenerationBootstrap")
     On Error GoTo EH
     If Not lifecycleComponent Is Nothing Then
         If lifecycleComponent.CodeModule.CountOfLines > 0 Then
@@ -323,11 +310,9 @@ Private Sub private_VbaReload_InitializeReloadedWorkbook( _
             Exit Sub
         End If
     End If
-    If bootstrapComponent Is Nothing Then Exit Sub
-    If bootstrapComponent.CodeModule.CountOfLines = 0 Then Exit Sub
-
+    If Not private_VbaReload_TryFindInitializerName(targetWorkbook, initializerName) Then Exit Sub
     macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
-        "'!ex_DocumentGenerationBootstrap.fn_Initialize"
+        "'!" & initializerName & ".fn_Initialize"
     private_VbaReload_RunOrScheduleInitialization macroReference, deferInitialization
     Exit Sub
 EH:
@@ -335,6 +320,34 @@ EH:
         "Failed to initialize reloaded workbook '" & targetWorkbook.Name & _
         "': " & VBA.Err.Description
 End Sub
+
+Private Function private_VbaReload_TryFindInitializerName( _
+    ByVal targetWorkbook As Workbook, _
+    ByRef outInitializerName As String _
+) As Boolean
+    Const VBEXT_CT_STD_MODULE As Long = 1
+    Dim vbComponent As Object
+    Dim sourceText As String
+
+    outInitializerName = VBA.vbNullString
+    For Each vbComponent In targetWorkbook.VBProject.VBComponents
+        If CLng(vbComponent.Type) = VBEXT_CT_STD_MODULE Then
+            If vbComponent.CodeModule.CountOfLines > 0 Then
+                sourceText = vbComponent.CodeModule.Lines(1, vbComponent.CodeModule.CountOfLines)
+                If VBA.InStr(1, sourceText, "Public Sub fn_Initialize", VBA.vbTextCompare) > 0 Or _
+                   VBA.InStr(1, sourceText, "Public Function fn_Initialize", VBA.vbTextCompare) > 0 Then
+                    If VBA.Len(outInitializerName) > 0 Then
+                        VBA.MsgBox "More than one public fn_Initialize procedure was found.", _
+                            VBA.vbExclamation, "Reload VBA"
+                        Exit Function
+                    End If
+                    outInitializerName = VBA.CStr(vbComponent.Name)
+                End If
+            End If
+        End If
+    Next vbComponent
+    private_VbaReload_TryFindInitializerName = VBA.Len(outInitializerName) > 0
+End Function
 
 Private Sub private_VbaReload_RunOrScheduleInitialization( _
     ByVal macroReference As String, _
@@ -351,79 +364,28 @@ Private Sub private_VbaReload_RunOrScheduleInitialization( _
     fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_COMPLETED | Macro=" & macroReference
 End Sub
 
-Private Function private_VbaReload_TrySyncUiFiles( _
-    ByVal targetWorkbook As Workbook, _
-    ByVal vbaFolderPath As String _
-) As Boolean
-    Dim fileSystem As Object
-    Dim sourceUiPath As String
-    Dim targetUiPath As String
-    Dim uiFile As Object
-
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    sourceUiPath = fileSystem.GetParentFolderName(vbaFolderPath) & "\ui"
-    If Not fileSystem.FolderExists(sourceUiPath) Then
-        private_VbaReload_TrySyncUiFiles = True
-        Exit Function
-    End If
-    targetUiPath = targetWorkbook.Path & "\ui"
-    If Not fileSystem.FolderExists(targetUiPath) Then fileSystem.CreateFolder targetUiPath
-    For Each uiFile In fileSystem.GetFolder(sourceUiPath).Files
-        If VBA.LCase$(fileSystem.GetExtensionName(uiFile.Name)) = "xaml" Then _
-            fileSystem.CopyFile uiFile.Path, targetUiPath & "\" & uiFile.Name, True
-    Next uiFile
-    private_VbaReload_TrySyncUiFiles = True
-End Function
-
-
 ' Source folder and profile resolution.
 Private Function private_VbaReload_TryResolveVbaFolder( _
     ByVal targetWorkbook As Workbook, _
     ByRef outVbaFolderPath As String _
 ) As Boolean
     Dim fileSystem As Object
-    Dim candidatePaths As Collection
     Dim workbookFolderPath As String
-    Dim workspaceRootPath As String
-    Dim candidatePath As Variant
+    Dim candidatePath As String
 
     outVbaFolderPath = VBA.vbNullString
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    Set candidatePaths = New Collection
     workbookFolderPath = targetWorkbook.Path
 
     candidatePath = workbookFolderPath & Application.PathSeparator & "vba"
-    If private_VbaReload_FolderExists(VBA.CStr(candidatePath)) Then _
-        candidatePaths.Add VBA.CStr(candidatePath)
-
-    ' A workbook in MacrosExcel/<project> uses PROJECTS/<project>/vba.
-    If VBA.StrComp(fileSystem.GetFileName( _
-            fileSystem.GetParentFolderName(workbookFolderPath)), _
-            "MacrosExcel", VBA.vbTextCompare) = 0 Then
-        workspaceRootPath = fileSystem.GetParentFolderName( _
-            fileSystem.GetParentFolderName(workbookFolderPath))
-        candidatePath = workspaceRootPath & Application.PathSeparator & _
-            "PROJECTS" & Application.PathSeparator & _
-            fileSystem.GetFileName(workbookFolderPath) & _
-            Application.PathSeparator & "vba"
-        If private_VbaReload_FolderExists(VBA.CStr(candidatePath)) Then _
-            candidatePaths.Add VBA.CStr(candidatePath)
-    End If
-
-    If candidatePaths.Count = 0 Then
-        VBA.MsgBox "The VBA modules folder was not found beside the workbook " & _
-            "or in PROJECTS\2. DocumentsGeneration\vba.", _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Function
-    End If
-    If candidatePaths.Count > 1 Then
-        VBA.MsgBox "More than one VBA source folder was found. Keep only one " & _
-            "source location to avoid importing an unexpected version.", _
+    If Not private_VbaReload_FolderExists(candidatePath) Then
+        VBA.MsgBox "The VBA modules folder was not found beside the workbook: " & _
+            candidatePath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
 
-    outVbaFolderPath = VBA.CStr(candidatePaths.Item(1))
+    outVbaFolderPath = candidatePath
     private_VbaReload_TryResolveVbaFolder = True
 End Function
 
@@ -455,7 +417,7 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
         Exit Function
     End If
 
-    profileName = fileSystem.GetBaseName(targetWorkbook.Name)
+    If Not private_VbaReload_TryGetWorkbookProfileId(targetWorkbook, profileName) Then Exit Function
     configText = private_VbaReload_ReadUtf8TextFile(configPath)
     Set relativeFiles = New Collection
     If Not private_VbaReload_TryReadJsonStringArray(configText, profileName, relativeFiles) Then
@@ -491,6 +453,47 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
         Next sourcePath
     Next relativeFile
     private_VbaReload_TryCollectConfiguredVbaFiles = True
+End Function
+
+Private Function private_VbaReload_TryGetWorkbookProfileId( _
+    ByVal targetWorkbook As Workbook, _
+    ByRef outProfileId As String _
+) As Boolean
+    Const CONFIG_TABLE_NAME As String = "tbConfig"
+    Const CONFIG_KEY_COLUMN_NAME As String = "Key"
+    Const PROFILE_ID_KEY As String = "ThisWorkbook::id"
+    Dim targetWorksheet As Worksheet
+    Dim configTable As ListObject
+    Dim configRow As ListRow
+    Dim keyColumnIndex As Long
+
+    outProfileId = VBA.vbNullString
+    On Error GoTo EH
+    For Each targetWorksheet In targetWorkbook.Worksheets
+        For Each configTable In targetWorksheet.ListObjects
+            If VBA.StrComp(configTable.Name, CONFIG_TABLE_NAME, VBA.vbTextCompare) = 0 Then
+                keyColumnIndex = configTable.ListColumns(CONFIG_KEY_COLUMN_NAME).Index
+                If keyColumnIndex = configTable.ListColumns.Count Then GoTo EH
+                For Each configRow In configTable.ListRows
+                    If VBA.StrComp( _
+                            VBA.CStr(configRow.Range.Cells(1, keyColumnIndex).Value2), _
+                            PROFILE_ID_KEY, VBA.vbTextCompare) = 0 Then
+                        outProfileId = VBA.Trim$(VBA.CStr( _
+                            configRow.Range.Cells(1, keyColumnIndex + 1).Value2))
+                        If VBA.Len(outProfileId) > 0 Then
+                            private_VbaReload_TryGetWorkbookProfileId = True
+                            Exit Function
+                        End If
+                    End If
+                Next configRow
+            End If
+        Next configTable
+    Next targetWorksheet
+EH:
+    VBA.MsgBox "Configuration table '" & CONFIG_TABLE_NAME & _
+        "' must contain key '" & PROFILE_ID_KEY & _
+        "' with a profile ID in the next column.", _
+        VBA.vbExclamation, "Reload VBA"
 End Function
 
 
