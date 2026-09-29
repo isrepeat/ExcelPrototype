@@ -1,10 +1,6 @@
 {
   "PersonalEventBuilder": [
-    "ex_PersonalEventBuilder.vba",
-    "ex_UiParser.vba",
-    "ex_UiBindings.vba",
-    "ex_UiBridge.vba",
-    "ex_UiRenderer.vba",
+    "ex_*.vba",
     "ThisWorkbook.vba"
   ]
 }
