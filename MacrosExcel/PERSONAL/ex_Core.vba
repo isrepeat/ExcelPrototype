@@ -1,5 +1,11 @@
 Option Explicit
 
+#Const ENABLE_LOGGING = True
+
+Private Const DIAGNOSTIC_FOLDER_NAME As String = "PERSONAL.EXCEL"
+Private Const DIAGNOSTIC_FILE_NAME As String = "diagnostic.log"
+Private m_diagnosticSessionStarted As Boolean
+
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
@@ -125,10 +131,24 @@ EH:
         VBA.vbCritical, "Reload VBA"
     Resume CleanExit
 End Sub
-
-' namespace Logging {
 ' --------------------------------------
-Public Sub fn_WriteLog(ByVal messageText As String)
+' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace Diagnostic {
+' --------------------------------------
+Public Sub fn_Diagnostic_WriteLog(ByVal messageText As String)
+#If ENABLE_LOGGING Then
+    private_Diagnostic_WriteSessionHeader
+    private_Diagnostic_WriteRawLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
+        " | " & messageText
+#End If
+End Sub
+
+
+' Writes a prepared diagnostic line to the session log.
+Private Sub private_Diagnostic_WriteRawLine(ByVal lineText As String)
     Const FOR_APPENDING As Long = 8
     Const TRISTATE_TRUE As Long = -1
     Dim fileSystem As Object
@@ -139,17 +159,30 @@ Public Sub fn_WriteLog(ByVal messageText As String)
     On Error Resume Next
     tempPath = VBA.Environ$("TEMP")
     If VBA.Len(tempPath) = 0 Then Exit Sub
-    logFolderPath = tempPath & "\PERSONAL.EXCEL"
+    logFolderPath = tempPath & "\" & DIAGNOSTIC_FOLDER_NAME
     Set fileSystem = CreateObject("Scripting.FileSystemObject")
     If Not fileSystem.FolderExists(logFolderPath) Then fileSystem.CreateFolder logFolderPath
     Set logFile = fileSystem.OpenTextFile( _
-        logFolderPath & "\filter.log", FOR_APPENDING, True, TRISTATE_TRUE)
-    logFile.WriteLine VBA.Format$(Now, "yyyy-mm-dd hh:nn:ss") & " | " & messageText
+        logFolderPath & "\" & DIAGNOSTIC_FILE_NAME, FOR_APPENDING, True, TRISTATE_TRUE)
+    logFile.WriteLine lineText
     logFile.Close
 End Sub
+
+
+' Adds a visible boundary before the first diagnostic record of this VBA session.
+Private Sub private_Diagnostic_WriteSessionHeader()
+    If m_diagnosticSessionStarted Then Exit Sub
+
+    private_Diagnostic_WriteRawLine String$(96, "=")
+    private_Diagnostic_WriteRawLine "New session started | " & _
+        VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
+    private_Diagnostic_WriteRawLine String$(96, "=")
+    m_diagnosticSessionStarted = True
+End Sub
 ' --------------------------------------
-' } // namespace Logging
+' } // namespace Diagnostic
 ' --------------------------------------
+
 ' --------------------------------------
 ' namespace VbaReload {
 ' --------------------------------------
@@ -289,7 +322,8 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
     Dim configText As String
     Dim relativeFiles As Collection
     Dim relativeFile As Variant
-    Dim sourcePath As String
+    Dim sourcePaths As Collection
+    Dim sourcePath As Variant
     Dim lowerName As String
     Dim importedPaths As Object
 
@@ -318,23 +352,153 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
     Set importedPaths = VBA.CreateObject("Scripting.Dictionary")
     importedPaths.CompareMode = VBA.vbTextCompare
     For Each relativeFile In relativeFiles
-        If Not private_VbaReload_TryResolveConfiguredSourcePath( _
-                vbaFolderPath, VBA.CStr(relativeFile), sourcePath) Then Exit Function
-        If importedPaths.Exists(sourcePath) Then
-            VBA.MsgBox "The VBA import profile contains a duplicate module: " & _
-                VBA.CStr(relativeFile), VBA.vbExclamation, "Reload VBA"
-            Exit Function
-        End If
-        importedPaths.Add sourcePath, True
-        lowerName = VBA.LCase$(fileSystem.GetFileName(sourcePath))
-        If private_VbaReload_IsDocumentModuleSource(lowerName) Then
-            outDocumentFiles.Add sourcePath
-        Else
-            outFiles.Add sourcePath
-        End If
+        Set sourcePaths = New Collection
+        If Not private_VbaReload_TryExpandConfiguredSourcePaths( _
+                vbaFolderPath, VBA.CStr(relativeFile), sourcePaths) Then Exit Function
+        For Each sourcePath In sourcePaths
+            If importedPaths.Exists(sourcePath) Then
+                VBA.MsgBox "The VBA import profile contains a duplicate module: " & _
+                    VBA.CStr(relativeFile), VBA.vbExclamation, "Reload VBA"
+                Exit Function
+            End If
+            importedPaths.Add sourcePath, True
+            lowerName = VBA.LCase$(fileSystem.GetFileName(sourcePath))
+            If private_VbaReload_IsDocumentModuleSource(lowerName) Then
+                outDocumentFiles.Add sourcePath
+            Else
+                outFiles.Add sourcePath
+            End If
+        Next sourcePath
     Next relativeFile
     private_VbaReload_TryCollectConfiguredVbaFiles = True
 End Function
+
+
+' Expands * and ? patterns recursively under the workbook profile vba folder.
+Private Function private_VbaReload_TryExpandConfiguredSourcePaths( _
+    ByVal vbaFolderPath As String, _
+    ByVal configuredPath As String, _
+    ByRef outPaths As Collection _
+) As Boolean
+    Dim fileSystem As Object
+    Dim normalizedPattern As String
+    Dim matchedPaths As Object
+    Dim sortedPaths() As String
+    Dim pathIndex As Long
+    Dim pathKey As Variant
+
+    If VBA.InStr(configuredPath, "*") = 0 And VBA.InStr(configuredPath, "?") = 0 Then
+        If Not private_VbaReload_TryResolveConfiguredSourcePath( _
+                vbaFolderPath, configuredPath, configuredPath) Then Exit Function
+        outPaths.Add configuredPath
+        private_VbaReload_TryExpandConfiguredSourcePaths = True
+        Exit Function
+    End If
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    normalizedPattern = VBA.Replace$(VBA.Trim$(configuredPath), "/", "\")
+    If Not private_VbaReload_IsValidRelativeModulePattern(normalizedPattern) Then
+        VBA.MsgBox "Invalid relative VBA module pattern: " & configuredPath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    Set matchedPaths = VBA.CreateObject("Scripting.Dictionary")
+    matchedPaths.CompareMode = VBA.vbTextCompare
+    private_VbaReload_CollectMatchingModulePaths _
+        fileSystem.GetAbsolutePathName(vbaFolderPath), _
+        fileSystem.GetAbsolutePathName(vbaFolderPath), normalizedPattern, matchedPaths
+    If matchedPaths.Count = 0 Then
+        VBA.MsgBox "No VBA modules match pattern: " & configuredPath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    ReDim sortedPaths(1 To matchedPaths.Count)
+    For Each pathKey In matchedPaths.Keys
+        pathIndex = pathIndex + 1
+        sortedPaths(pathIndex) = VBA.CStr(pathKey)
+    Next pathKey
+    private_VbaReload_SortTextArray sortedPaths
+    For pathIndex = LBound(sortedPaths) To UBound(sortedPaths)
+        outPaths.Add sortedPaths(pathIndex)
+    Next pathIndex
+    private_VbaReload_TryExpandConfiguredSourcePaths = True
+End Function
+
+
+' Collects matching module files from a folder and every nested folder.
+Private Sub private_VbaReload_CollectMatchingModulePaths( _
+    ByVal rootFolderPath As String, _
+    ByVal folderPath As String, _
+    ByVal relativePattern As String, _
+    ByVal matchedPaths As Object _
+)
+    Dim fileSystem As Object
+    Dim folderObject As Object
+    Dim fileObject As Object
+    Dim childFolder As Object
+    Dim relativePath As String
+    Dim candidateText As String
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    Set folderObject = fileSystem.GetFolder(folderPath)
+    For Each fileObject In folderObject.Files
+        If private_VbaReload_IsVbaModulePath(VBA.CStr(fileObject.Path)) Then
+            relativePath = VBA.Mid$(VBA.CStr(fileObject.Path), VBA.Len(rootFolderPath) + 2)
+            candidateText = VBA.CStr(fileObject.Name)
+            If VBA.InStr(relativePattern, "\") > 0 Then candidateText = relativePath
+            If VBA.LCase$(candidateText) Like VBA.LCase$(relativePattern) Then _
+                matchedPaths.Add VBA.CStr(fileObject.Path), True
+        End If
+    Next fileObject
+    For Each childFolder In folderObject.SubFolders
+        private_VbaReload_CollectMatchingModulePaths _
+            rootFolderPath, VBA.CStr(childFolder.Path), relativePattern, matchedPaths
+    Next childFolder
+End Sub
+
+
+' Validates a wildcard pattern before scanning the workbook profile folder.
+Private Function private_VbaReload_IsValidRelativeModulePattern( _
+    ByVal relativePattern As String _
+) As Boolean
+    If VBA.Len(relativePattern) = 0 Or VBA.InStr(relativePattern, "..") > 0 Or _
+       VBA.InStr(relativePattern, ":") > 0 Or VBA.Left$(relativePattern, 1) = "\" Then Exit Function
+    If Not private_VbaReload_IsVbaModulePath(relativePattern) Then Exit Function
+    private_VbaReload_IsValidRelativeModulePattern = True
+End Function
+
+
+' Returns whether a file name or path uses a supported VBA module extension.
+Private Function private_VbaReload_IsVbaModulePath(ByVal filePath As String) As Boolean
+    Dim lowerPath As String
+
+    lowerPath = VBA.LCase$(filePath)
+    private_VbaReload_IsVbaModulePath = _
+        VBA.Right$(lowerPath, 4) = ".bas" Or _
+        VBA.Right$(lowerPath, 4) = ".cls" Or _
+        VBA.Right$(lowerPath, 4) = ".frm" Or _
+        VBA.Right$(lowerPath, 4) = ".vba"
+End Function
+
+
+' Sorts paths so wildcard imports produce the same component order every time.
+Private Sub private_VbaReload_SortTextArray(ByRef values() As String)
+    Dim leftIndex As Long
+    Dim rightIndex As Long
+    Dim temporaryValue As String
+
+    For leftIndex = LBound(values) To UBound(values) - 1
+        For rightIndex = leftIndex + 1 To UBound(values)
+            If VBA.StrComp(values(leftIndex), values(rightIndex), VBA.vbTextCompare) > 0 Then
+                temporaryValue = values(leftIndex)
+                values(leftIndex) = values(rightIndex)
+                values(rightIndex) = temporaryValue
+            End If
+        Next rightIndex
+    Next leftIndex
+End Sub
 
 
 ' Only relative paths inside the workbook profile vba folder are allowed.

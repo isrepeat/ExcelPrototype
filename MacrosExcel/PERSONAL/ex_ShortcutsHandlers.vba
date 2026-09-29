@@ -74,7 +74,7 @@ Public Sub fn_FilterContainsCurrentColumn()
     Dim headerCell As Range
     Dim inputCell As Range
 
-    ex_Core.fn_WriteLog "START | Workbook=" & ActiveWorkbook.Name & _
+    ex_Core.fn_Diagnostic_WriteLog "START | Workbook=" & ActiveWorkbook.Name & _
         " | Sheet=" & ActiveSheet.Name & " | Cell=" & ActiveCell.Address(False, False)
 
     ' Use the free cell immediately above the active column header as the input field.
@@ -92,7 +92,7 @@ Public Sub fn_FilterContainsCurrentColumn()
         Else
             Set inputCell = headerCell.Offset(-1, 0)
         End If
-        ex_Core.fn_WriteLog "TABLE | Name=" & tableObj.Name & _
+        ex_Core.fn_Diagnostic_WriteLog "TABLE | Name=" & tableObj.Name & _
             " | Range=" & tableObj.Range.Address(False, False) & _
             " | Field=" & VBA.CStr(columnIndex) & _
             " | Header=" & tableObj.ListColumns(columnIndex).Name
@@ -104,7 +104,7 @@ Public Sub fn_FilterContainsCurrentColumn()
         VBA.vbExclamation, "Filter contains"
     Exit Sub
 EH:
-    ex_Core.fn_WriteLog "ERROR | Number=" & VBA.CStr(VBA.Err.Number) & _
+    ex_Core.fn_Diagnostic_WriteLog "ERROR | Number=" & VBA.CStr(VBA.Err.Number) & _
         " | Description=" & VBA.Err.Description
     VBA.MsgBox "Filtering failed: [" & VBA.CStr(VBA.Err.Number) & "] " & _
         VBA.Err.Description, VBA.vbExclamation, "Filter contains"
@@ -173,7 +173,7 @@ Private Sub private_Filter_BeginFilterInput( _
     inputCell.Interior.Color = RGB(16, 72, 97)
     ' Goto moves the active cell without cancelling a pending copy operation.
     Application.Goto inputCell, False
-    ex_Core.fn_WriteLog "INPUT_STARTED | Address=" & m_filterInputAddress
+    ex_Core.fn_Diagnostic_WriteLog "INPUT_STARTED | Address=" & m_filterInputAddress
 End Sub
 
 Private Function private_Filter_IsPendingFilterSheet(ByVal sheetObject As Object) As Boolean
@@ -214,13 +214,13 @@ Private Sub private_Filter_ApplyPendingFilter()
                 Criteria1:=">=" & VBA.CStr(VBA.CLng(filterDate)), _
                 Operator:=xlAnd, _
                 Criteria2:="<" & VBA.CStr(VBA.CLng(filterDate) + 1)
-            ex_Core.fn_WriteLog "DATE_FILTER_APPLIED | Field=" & _
+            ex_Core.fn_Diagnostic_WriteLog "DATE_FILTER_APPLIED | Field=" & _
                 VBA.CStr(m_filterFieldIndex) & " | Date=" & _
                 VBA.Format$(filterDate, "yyyy-mm-dd")
         Else
             m_filterTable.Range.AutoFilter Field:=m_filterFieldIndex, _
                 Criteria1:="*" & query & "*"
-            ex_Core.fn_WriteLog "TEXT_FILTER_APPLIED | Field=" & _
+            ex_Core.fn_Diagnostic_WriteLog "TEXT_FILTER_APPLIED | Field=" & _
                 VBA.CStr(m_filterFieldIndex) & " | Query=" & query
         End If
     End If
@@ -232,7 +232,7 @@ CleanExit:
     private_Filter_ClearPendingFilterInput
     Exit Sub
 EH:
-    ex_Core.fn_WriteLog "FILTER_ERROR | Number=" & VBA.CStr(VBA.Err.Number) & _
+    ex_Core.fn_Diagnostic_WriteLog "FILTER_ERROR | Number=" & VBA.CStr(VBA.Err.Number) & _
         " | Description=" & VBA.Err.Description
     private_Filter_RestoreFilterInputCell
     Resume CleanExit
