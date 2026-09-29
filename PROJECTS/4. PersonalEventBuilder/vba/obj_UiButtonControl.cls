@@ -34,10 +34,14 @@ Public Function fn_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boole
         msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, _
         targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
+    private_LogTargetRangeVisibility targetRange, shapeName, "after-shape-create"
     m_buttonShape.TextFrame2.TextRange.Text = m_uiControlBase.fn_Caption
+    private_LogTargetRangeVisibility targetRange, shapeName, "after-text"
     ex_StylePipeline.fn_ApplyControlStyle targetRange, m_buttonShape, _
         m_uiControlBase.fn_ControlNode
+    private_LogTargetRangeVisibility targetRange, shapeName, "after-style"
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+    private_LogTargetRangeVisibility targetRange, shapeName, "after-on-action"
 
     callbackName = private_ReadCallback(m_uiControlBase.fn_ControlNode)
     If VBA.Len(callbackName) = 0 Then
@@ -46,6 +50,7 @@ Public Function fn_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boole
         Exit Function
     End If
     ex_UiBindings.fn_Register shapeName, callbackName
+    private_LogTargetRangeVisibility targetRange, shapeName, "after-binding-register"
     fn_Render = True
 End Function
 
@@ -86,3 +91,23 @@ Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName
     If VBA.IsNull(attributeValue) Or VBA.IsEmpty(attributeValue) Then Exit Function
     private_ReadAttribute = VBA.CStr(attributeValue)
 End Function
+
+Private Sub private_LogTargetRangeVisibility( _
+    ByVal targetRange As Range, _
+    ByVal shapeName As String, _
+    ByVal stageName As String _
+)
+    Dim currentRow As Range
+    Dim hiddenRowCount As Long
+    Dim zeroHeightRowCount As Long
+
+    For Each currentRow In targetRange.Rows
+        If currentRow.EntireRow.Hidden Then hiddenRowCount = hiddenRowCount + 1
+        If currentRow.EntireRow.RowHeight = 0 Then _
+            zeroHeightRowCount = zeroHeightRowCount + 1
+    Next currentRow
+    ex_Core.fn_Diagnostic_WriteLog "UI_BUTTON_VISIBILITY | Shape=" & shapeName & _
+        " | Stage=" & stageName & _
+        " | HiddenRows=" & VBA.CStr(hiddenRowCount) & _
+        " | ZeroHeightRows=" & VBA.CStr(zeroHeightRowCount)
+End Sub

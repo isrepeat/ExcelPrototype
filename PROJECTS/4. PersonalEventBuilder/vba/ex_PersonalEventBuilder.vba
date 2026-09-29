@@ -23,6 +23,12 @@ Public Sub fn_HelloWorld()
     VBA.MsgBox "Hello World from PersonalEventBuilder.", VBA.vbInformation, _
         "PersonalEventBuilder"
 End Sub
+
+Public Sub fn_UpdatePage()
+    ex_Core.fn_Diagnostic_WriteLog "UPDATE_PAGE_CLICKED | Sheet=" & _
+        Application.ActiveSheet.Name
+    ex_UiRuntime.fn_RenderActivePage
+End Sub
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
