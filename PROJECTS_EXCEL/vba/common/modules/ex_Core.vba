@@ -49,7 +49,7 @@ Public Sub fn_StatusBar_Clear()
 
     If Not m_statusBarOwned Then Exit Sub
     currentMessage = Application.StatusBar
-    ' Строка состояния общая для Excel: не удаляем более новое чужое сообщение.
+    ' Excel shares the status bar: do not clear a newer message from another owner.
     If VBA.VarType(currentMessage) = VBA.vbString Then
         If VBA.StrComp(VBA.CStr(currentMessage), m_statusBarMessage, VBA.vbBinaryCompare) = 0 Then
             Application.StatusBar = False
@@ -254,7 +254,7 @@ Public Function fn_TrySetWorkbookConfigValue( _
         End If
     Next configRow
 
-    ' Отключаем события только на время записи, сохраняя исходное состояние Excel.
+    ' Disable events only while writing and preserve the original Excel state.
     previousEnableEvents = Application.EnableEvents
     eventsCaptured = True
     Application.EnableEvents = False
@@ -387,7 +387,7 @@ Private Function private_Diagnostic_TryEnsureFolder( _
     private_Diagnostic_TryEnsureFolder = fileSystem.FolderExists(folderPath)
 End Function
 
-' Добавляет границу перед первой диагностической записью сессии.
+' Adds a separator before the first diagnostic entry of the session.
 Private Sub private_Diagnostic_WriteSessionHeader()
     If m_diagnosticSessionStarted Then Exit Sub
 

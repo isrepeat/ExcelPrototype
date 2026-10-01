@@ -13,7 +13,7 @@ Public Function fn_PrepareReload() As Boolean
     If Not context("StopRequested") Or VBA.CLng(context("ActiveCalls")) <> 0 Then _
         VBA.Err.Raise VBA.vbObjectError + 2204, "fn_PrepareReload", "Runtime is not quiescent."
 
-    ' Сначала отключаем внешние точки входа, затем освобождаем корни объектов.
+    ' Detach external entry points before releasing object roots.
     ex_AppHotkeys.fn_PrepareReload
     If Not ex_Core.fn_Diagnostic_Flush() Then _
         VBA.Err.Raise VBA.vbObjectError + 2205, "fn_PrepareReload", "Diagnostic log flush failed."
@@ -72,7 +72,7 @@ Public Function fn_Context() As Object
         m_context.Add "ActiveCalls", 0&
         m_context.Add "Phase", "Running"
         m_context.Add "Generation", 0&
-        ' Маркер книги сохраняет запрет запуска даже при сбросе VBA-переменных.
+        ' The workbook marker preserves the execution block even after VBA variables are reset.
         On Error Resume Next
         Set blockedMarker = ThisWorkbook.Names("_RuntimeReloadBlocked")
         On Error GoTo 0

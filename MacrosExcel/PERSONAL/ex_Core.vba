@@ -94,12 +94,12 @@ Public Sub fn_ReloadActiveWorkbookVba()
     private_VbaReload_RequestSafeReload
 End Sub
 
-' Совместимое имя для прежнего сочетания клавиш.
+' Compatibility alias for the previous keyboard shortcut.
 Public Sub fn_ReloadActiveWorkbookVbaDeferred()
     private_VbaReload_RequestSafeReload
 End Sub
 
-' Останавливает runtime перед удалением модулей и очисткой кода объектов книги.
+' Stops the runtime before removing modules and clearing workbook document code.
 Public Sub fn_ClearActiveWorkbookVba()
     private_VbaReload_RequestSafeReload "ex_WorkbookUpdater.fn_RequestClear"
 End Sub
@@ -454,7 +454,7 @@ EH:
     Resume CleanExit
 End Sub
 
-' Перезагружает VBA-проект во внешнем процессе Excel.
+' Reloads the VBA project in an external Excel process.
 Private Sub private_VbaReload_RequestSafeReload( _
     Optional ByVal requestMethod As String = "ex_WorkbookUpdater.fn_RequestReload" _
 )
@@ -481,20 +481,20 @@ Private Sub private_VbaReload_RequestSafeReload( _
     If updaterWorkbook Is Nothing Then Set updaterWorkbook = Application.Workbooks.Open(updaterPath)
     If VBA.StrComp(updaterWorkbook.FullName, updaterPath, VBA.vbTextCompare) <> 0 Then _
         VBA.Err.Raise VBA.vbObjectError + 2403, , "A different WorkbookUpdater.xlam is already loaded."
-    ' Передаём конкретную книгу: активное окно может измениться до OnTime.
+    ' Pass the specific workbook: the active window may change before OnTime runs.
     Application.Run "'WorkbookUpdater.xlam'!" & requestMethod, targetWorkbook
     Exit Sub
 EH:
     VBA.MsgBox "Could not request VBA reload: " & VBA.Err.Description, VBA.vbExclamation, "Workbook updater"
 End Sub
 
-' Экранирует один аргумент командной строки Windows.
+' Escapes a single Windows command-line argument.
 Private Function private_VbaReload_QuoteCommandArgument(ByVal valueText As String) As String
     private_VbaReload_QuoteCommandArgument = """" & _
         VBA.Replace$(valueText, """", """""") & """"
 End Function
 
-' Проверяет доступность файла без исключения для вызывающего кода.
+' Checks file availability without raising an exception to the caller.
 Private Function private_VbaReload_FileExists(ByVal filePath As String) As Boolean
     Dim fileSystem As Object
 
