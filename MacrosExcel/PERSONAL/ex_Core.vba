@@ -91,12 +91,12 @@ EH:
 End Function
 
 Public Sub fn_ReloadActiveWorkbookVba()
-    private_VbaReload_ReloadActiveWorkbookVbaExternally
+    private_VbaReload_RequestSafeReload
 End Sub
 
 ' Совместимое имя для прежнего сочетания клавиш.
 Public Sub fn_ReloadActiveWorkbookVbaDeferred()
-    private_VbaReload_ReloadActiveWorkbookVbaExternally
+    private_VbaReload_RequestSafeReload
 End Sub
 
 Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
@@ -287,80 +287,7 @@ End Sub
 
 ' Removes standard modules and class modules from the active workbook.
 Public Sub fn_ClearActiveWorkbookVba()
-    Const VBEXT_CT_STD_MODULE As Long = 1
-    Const VBEXT_CT_CLASS_MODULE As Long = 2
-    Const VBEXT_CT_DOCUMENT As Long = 100
-
-    Dim targetWorkbook As Workbook
-    Dim vbProject As Object
-    Dim vbComponent As Object
-    Dim componentNames As Collection
-    Dim componentName As Variant
-    Dim removedCount As Long
-    Dim clearedDocumentModuleCount As Long
-
-    On Error GoTo EH
-    If Application.ActiveWorkbook Is Nothing Then
-        VBA.MsgBox "There is no active workbook whose VBA modules can be cleared.", _
-            VBA.vbExclamation, "Clear VBA"
-        Exit Sub
-    End If
-
-    Set targetWorkbook = Application.ActiveWorkbook
-    If targetWorkbook Is ThisWorkbook Then
-        VBA.MsgBox "PERSONAL.XLSB cannot clear its own modules.", _
-            VBA.vbExclamation, "Clear VBA"
-        Exit Sub
-    End If
-
-    fn_Diagnostic_WriteLog "VBA_CLEAR_STARTED | Workbook=" & targetWorkbook.Name
-    Set vbProject = targetWorkbook.VBProject
-    Set componentNames = New Collection
-    For Each vbComponent In vbProject.VBComponents
-        Select Case CLng(vbComponent.Type)
-            Case VBEXT_CT_STD_MODULE, VBEXT_CT_CLASS_MODULE
-                componentNames.Add VBA.CStr(vbComponent.Name)
-        End Select
-    Next vbComponent
-
-    For Each componentName In componentNames
-        On Error Resume Next
-        Application.Run "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
-            "'!" & VBA.CStr(componentName) & ".fn_Module_Dispose"
-        On Error GoTo EH
-        vbProject.VBComponents.Remove vbProject.VBComponents(VBA.CStr(componentName))
-        removedCount = removedCount + 1
-    Next componentName
-
-    For Each vbComponent In vbProject.VBComponents
-        If CLng(vbComponent.Type) = VBEXT_CT_DOCUMENT Then
-            If vbComponent.CodeModule.CountOfLines > 0 Then
-                vbComponent.CodeModule.DeleteLines 1, vbComponent.CodeModule.CountOfLines
-                clearedDocumentModuleCount = clearedDocumentModuleCount + 1
-            End If
-        End If
-    Next vbComponent
-
-    targetWorkbook.Save
-    Application.StatusBar = "Removed VBA modules and classes: " & VBA.CStr(removedCount) & _
-        "; cleared document modules: " & VBA.CStr(clearedDocumentModuleCount)
-    fn_Diagnostic_WriteLog "VBA_CLEAR_COMPLETED | Workbook=" & targetWorkbook.Name & _
-        " | ModuleCount=" & VBA.CStr(removedCount) & _
-        " | ClearedDocumentModuleCount=" & VBA.CStr(clearedDocumentModuleCount)
-    VBA.MsgBox "Removed VBA modules and classes: " & VBA.CStr(removedCount) & _
-        VBA.vbCrLf & "Cleared document modules: " & _
-        VBA.CStr(clearedDocumentModuleCount), _
-        VBA.vbInformation, "Clear VBA"
-    Exit Sub
-
-EH:
-    fn_Diagnostic_WriteLog "VBA_CLEAR_ERROR | Workbook=" & targetWorkbook.Name & _
-        " | Number=" & VBA.CStr(VBA.Err.Number) & _
-        " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to clear VBA modules in workbook '" & targetWorkbook.Name & _
-        "': [" & VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description & VBA.vbCrLf & _
-        "Make sure 'Trust access to the VBA project object model' is enabled.", _
-        VBA.vbCritical, "Clear VBA"
+    private_VbaReload_RequestSafeReload "ex_WorkbookUpdater.fn_RequestClear"
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -530,67 +457,33 @@ End Sub
 ' namespace VbaReload {
 ' --------------------------------------
 ' Перезагружает VBA-проект во внешнем процессе Excel.
-Private Sub private_VbaReload_ReloadActiveWorkbookVbaExternally()
+Private Sub private_VbaReload_RequestSafeReload(Optional ByVal requestMethod As String = "ex_WorkbookUpdater.fn_RequestReload")
     Dim targetWorkbook As Workbook
+    Dim updaterWorkbook As Workbook
     Dim vbaFolderPath As String
-    Dim reloadScriptPath As String
-    Dim reloadLogPath As String
-    Dim shellObject As Object
-    Dim commandLine As String
-
+    Dim updaterPath As String
+    Dim fileSystem As Object
     On Error GoTo EH
-    If Application.ActiveWorkbook Is Nothing Then
-        VBA.MsgBox "There is no active workbook whose VBA modules can be reloaded.", _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Sub
-    End If
     Set targetWorkbook = Application.ActiveWorkbook
-    If targetWorkbook Is ThisWorkbook Then
-        VBA.MsgBox _
-            "The workbook containing the shortcut handler cannot reload itself. " & _
-            "Activate the target workbook and press Ctrl+Alt+R again.", _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Sub
-    End If
-    If VBA.Len(targetWorkbook.Path) = 0 Then
-        VBA.MsgBox "Save the active workbook before reloading its VBA project.", _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Sub
-    End If
+    If targetWorkbook Is Nothing Then Err.Raise vbObjectError + 2400, , "No active workbook."
+    If targetWorkbook Is ThisWorkbook Then Err.Raise vbObjectError + 2401, , "Activate the target workbook first."
     If Not private_VbaReload_TryResolveConfiguredFolder( _
             targetWorkbook, "ThisWorkbook::vbaPath", vbaFolderPath) Then Exit Sub
-
-    reloadScriptPath = vbaFolderPath & "\Reload-Workbook.ps1"
-    If Not private_VbaReload_FileExists(reloadScriptPath) Then
-        VBA.MsgBox "The external VBA reload script was not found: " & reloadScriptPath, _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Sub
-    End If
-
-    targetWorkbook.Save
-    reloadLogPath = VBA.Environ$("TEMP") & "\" & _
-        DIAGNOSTIC_FOLDER_NAME & "\external-reload.log"
-    commandLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File " & _
-        private_VbaReload_QuoteCommandArgument(reloadScriptPath) & _
-        " -WorkbookPath " & _
-        private_VbaReload_QuoteCommandArgument(targetWorkbook.FullName) & _
-        " -VbaFolderPath " & _
-        private_VbaReload_QuoteCommandArgument(vbaFolderPath) & _
-        " -LogPath " & private_VbaReload_QuoteCommandArgument(reloadLogPath)
-    fn_Diagnostic_WriteLog "VBA_EXTERNAL_RELOAD_STARTED | Workbook=" & _
-        targetWorkbook.Name & " | Script=" & reloadScriptPath
-    Set shellObject = VBA.CreateObject("WScript.Shell")
-    shellObject.Run commandLine, 0, False
-    fn_Diagnostic_WriteLog "VBA_EXTERNAL_RELOAD_CLOSE_REQUESTED | Workbook=" & _
-        targetWorkbook.Name
-    targetWorkbook.Close False
+    Set fileSystem = CreateObject("Scripting.FileSystemObject")
+    updaterPath = fileSystem.GetParentFolderName(vbaFolderPath) & "\WorkbookUpdater\WorkbookUpdater.xlam"
+    If Not fileSystem.FileExists(updaterPath) Then _
+        Err.Raise vbObjectError + 2402, , "Build WorkbookUpdater.xlam first: " & updaterPath
+    On Error Resume Next
+    Set updaterWorkbook = Application.Workbooks("WorkbookUpdater.xlam")
+    On Error GoTo EH
+    If updaterWorkbook Is Nothing Then Set updaterWorkbook = Application.Workbooks.Open(updaterPath)
+    If StrComp(updaterWorkbook.FullName, updaterPath, vbTextCompare) <> 0 Then _
+        Err.Raise vbObjectError + 2403, , "A different WorkbookUpdater.xlam is already loaded."
+    ' Передаём конкретную книгу: активное окно может измениться до OnTime.
+    Application.Run "'WorkbookUpdater.xlam'!" & requestMethod, targetWorkbook
     Exit Sub
 EH:
-    fn_Diagnostic_WriteLog "VBA_EXTERNAL_RELOAD_ERROR | Number=" & _
-        VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Failed to start the external VBA reload: [" & _
-        VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
-        VBA.vbCritical, "Reload VBA"
+    MsgBox "Could not request VBA reload: " & Err.Description, vbExclamation, "Workbook updater"
 End Sub
 
 

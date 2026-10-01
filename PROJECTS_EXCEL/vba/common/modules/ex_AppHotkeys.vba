@@ -13,6 +13,20 @@ Private m_isBrokerManaged As Boolean
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
+Public Sub fn_PrepareReload()
+    Dim keySequence As Variant
+    If m_isBrokerManaged Then
+        If Not private_TryDeactivateThroughPersonal() Then _
+            Err.Raise vbObjectError + 2210, "fn_PrepareReload", "Could not detach the PERSONAL hotkey broker."
+    ElseIf Not m_hotkeyHandlers Is Nothing Then
+        For Each keySequence In m_hotkeyHandlers.Keys
+            Application.OnKey VBA.CStr(keySequence)
+        Next keySequence
+    End If
+    m_isActive = False
+    m_isBrokerManaged = False
+End Sub
+
 Public Sub fn_Module_Dispose()
     fn_Deactivate
     Set m_hotkeyHandlers = Nothing
@@ -84,9 +98,14 @@ Public Sub fn_Deactivate()
 End Sub
 
 Public Sub fn_ToggleDiagnosticMode()
+    Dim runtimeContext As Object
+    Dim errorNumber As Long
+    Dim errorDescription As String
     Dim currentMode As String
     Dim nextMode As String
 
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    On Error GoTo EH_TOGGLE
     currentMode = ex_Core.fn_Diagnostic_GetMode()
     If VBA.StrComp(currentMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) = 0 Then
         nextMode = DIAGNOSTIC_MODE_IMMEDIATE
@@ -97,11 +116,19 @@ Public Sub fn_ToggleDiagnosticMode()
     If Not ex_Core.fn_Diagnostic_SetMode(nextMode) Then
         VBA.MsgBox "Could not change diagnostic logging mode.", _
             VBA.vbExclamation, "Diagnostic logging"
-        Exit Sub
+        GoTo CleanToggle
     End If
     ex_Core.fn_Diagnostic_WriteLog "DIAGNOSTIC_MODE_CHANGED | Mode=" & nextMode
     VBA.MsgBox "Diagnostic logging mode: " & nextMode, _
         VBA.vbInformation, "Diagnostic logging"
+CleanToggle:
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_TOGGLE:
+    errorNumber = Err.Number
+    errorDescription = Err.Description
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Err.Raise errorNumber, "fn_ToggleDiagnosticMode", errorDescription
 End Sub
 ' --------------------------------------
 ' } // namespace API

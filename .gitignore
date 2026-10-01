@@ -4,3 +4,7 @@ Codex/logs/
 Codex/sessions/
 .codex
 .vs
+PROJECTS_EXCEL/WorkbookUpdater/WorkbookUpdater.xlam
+.reload-*/
+.modules-backup-*/
+PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
