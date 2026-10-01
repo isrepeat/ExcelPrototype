@@ -49,6 +49,7 @@ Public Function fn_Diagnostic_SetMode(ByVal modeName As String) As Boolean
        VBA.StrComp(modeName, DIAGNOSTIC_MODE_IMMEDIATE, VBA.vbTextCompare) = 0 Then
         If Not fn_Diagnostic_Flush() Then Exit Function
     End If
+    If Not fn_TrySetWorkbookConfigValue(DIAGNOSTIC_MODE_CONFIG_KEY, modeName) Then Exit Function
     m_diagnosticMode = modeName
     fn_Diagnostic_SetMode = True
 End Function
@@ -162,6 +163,74 @@ ContinueTable:
     Next targetWorksheet
 CleanExit:
 End Function
+Public Function fn_TrySetWorkbookConfigValue( _
+    ByVal keyName As String, _
+    ByVal newValue As String _
+) As Boolean
+    Const CONFIG_TABLE_NAME As String = "tbConfig"
+    Const CONFIG_KEY_COLUMN_NAME As String = "Key"
+    Dim targetWorksheet As Worksheet
+    Dim candidateTable As ListObject
+    Dim configTable As ListObject
+    Dim configRow As ListRow
+    Dim matchedRow As ListRow
+    Dim addedRow As ListRow
+    Dim keyColumnIndex As Long
+    Dim previousEnableEvents As Boolean
+    Dim eventsCaptured As Boolean
+    Dim errorDescription As String
+
+    On Error GoTo EH
+    keyName = VBA.Trim$(keyName)
+    If VBA.Len(keyName) = 0 Then _
+        Err.Raise vbObjectError + 2210, "fn_TrySetWorkbookConfigValue", "Configuration key must not be empty."
+    For Each targetWorksheet In ThisWorkbook.Worksheets
+        For Each candidateTable In targetWorksheet.ListObjects
+            If VBA.StrComp(candidateTable.Name, CONFIG_TABLE_NAME, VBA.vbTextCompare) = 0 Then
+                If Not configTable Is Nothing Then _
+                    Err.Raise vbObjectError + 2211, "fn_TrySetWorkbookConfigValue", "Multiple tbConfig tables were found."
+                Set configTable = candidateTable
+            End If
+        Next candidateTable
+    Next targetWorksheet
+    If configTable Is Nothing Then _
+        Err.Raise vbObjectError + 2212, "fn_TrySetWorkbookConfigValue", "Configuration table tbConfig was not found."
+    keyColumnIndex = configTable.ListColumns(CONFIG_KEY_COLUMN_NAME).Index
+    If keyColumnIndex = configTable.ListColumns.Count Then _
+        Err.Raise vbObjectError + 2213, "fn_TrySetWorkbookConfigValue", "tbConfig must have a value column after Key."
+    For Each configRow In configTable.ListRows
+        If VBA.StrComp(VBA.CStr(configRow.Range.Cells(1, keyColumnIndex).Value2), _
+                keyName, VBA.vbTextCompare) = 0 Then
+            If Not matchedRow Is Nothing Then _
+                Err.Raise vbObjectError + 2214, "fn_TrySetWorkbookConfigValue", "Duplicate configuration key: " & keyName
+            Set matchedRow = configRow
+        End If
+    Next configRow
+
+    ' Отключаем события только на время записи, сохраняя исходное состояние Excel.
+    previousEnableEvents = Application.EnableEvents
+    eventsCaptured = True
+    Application.EnableEvents = False
+    If matchedRow Is Nothing Then
+        Set addedRow = configTable.ListRows.Add
+        addedRow.Range.Cells(1, keyColumnIndex).Value2 = keyName
+        Set matchedRow = addedRow
+    End If
+    matchedRow.Range.Cells(1, keyColumnIndex + 1).Value2 = newValue
+    Application.EnableEvents = previousEnableEvents
+    eventsCaptured = False
+    fn_TrySetWorkbookConfigValue = True
+    Exit Function
+EH:
+    errorDescription = Err.Description
+    On Error Resume Next
+    If Not addedRow Is Nothing Then addedRow.Delete
+    If eventsCaptured Then Application.EnableEvents = previousEnableEvents
+    On Error GoTo 0
+    VBA.MsgBox "Could not write configuration key '" & keyName & "': " & errorDescription, _
+        VBA.vbExclamation, "Workbook configuration"
+End Function
+
 Public Function fn_TryGetWorkbookConfigFolder( _
     ByVal keyName As String, _
     ByRef outFolderPath As String _

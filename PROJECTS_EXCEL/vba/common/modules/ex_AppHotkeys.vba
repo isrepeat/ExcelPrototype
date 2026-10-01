@@ -2,8 +2,7 @@ Option Explicit
 
 Private Const DIAGNOSTIC_MODE_IMMEDIATE As String = "Immediate"
 Private Const DIAGNOSTIC_MODE_BUFFERED As String = "Buffered"
-' Private Const DIAGNOSTIC_MODE_HOTKEY As String = "^%l"
-Private Const DIAGNOSTIC_MODE_HOTKEY As String = "^q"
+Private Const DIAGNOSTIC_MODE_HOTKEY As String = "^%l"
 Private Const PERSONAL_WORKBOOK_NAME As String = "PERSONAL.XLSB"
 Private Const PERSONAL_RESTORE_MACRO As String = "ex_Core.fn_RestorePersonalHotkeys"
 Private m_hotkeyHandlers As Object
