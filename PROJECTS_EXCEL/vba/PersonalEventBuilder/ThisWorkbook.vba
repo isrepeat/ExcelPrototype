@@ -1,5 +1,8 @@
 Option Explicit
 
+' --------------------------------------
+' namespace Events {
+' --------------------------------------
 Private Sub Workbook_Open()
     Dim runtimeContext As Object
     Dim runtimeEntered As Boolean
@@ -37,7 +40,7 @@ EH:
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_OPEN_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    Err.Raise errorNumber, "PersonalEventBuilder.Workbook_Open", _
+    VBA.Err.Raise errorNumber, "PersonalEventBuilder.Workbook_Open", _
         errorDescription
 End Sub
 
@@ -64,7 +67,7 @@ EH:
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_ACTIVATE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    Err.Raise errorNumber, "PersonalEventBuilder.Workbook_Activate", _
+    VBA.Err.Raise errorNumber, "PersonalEventBuilder.Workbook_Activate", _
         errorDescription
 End Sub
 
@@ -91,7 +94,7 @@ EH:
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_DEACTIVATE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    Err.Raise errorNumber, "PersonalEventBuilder.Workbook_Deactivate", _
+    VBA.Err.Raise errorNumber, "PersonalEventBuilder.Workbook_Deactivate", _
         errorDescription
 End Sub
 
@@ -116,7 +119,7 @@ EH:
         " | Number=" & VBA.CStr(errorNumber) & _
         " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    Err.Raise errorNumber, "PersonalEventBuilder.Workbook_SheetChange", _
+    VBA.Err.Raise errorNumber, "PersonalEventBuilder.Workbook_SheetChange", _
         errorDescription
 End Sub
 
@@ -141,7 +144,7 @@ EH:
         " | Number=" & VBA.CStr(errorNumber) & _
         " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    Err.Raise errorNumber, _
+    VBA.Err.Raise errorNumber, _
         "PersonalEventBuilder.Workbook_SheetSelectionChange", _
         errorDescription
 End Sub
@@ -206,8 +209,13 @@ EH:
         VBA.vbExclamation, "PersonalEventBuilder"
 End Sub
 
+' --------------------------------------
+' } // namespace Events
+' --------------------------------------
+
 Private Sub private_ForgetReloadContext()
     Dim updater As Workbook
+
     On Error Resume Next
     Set updater = Application.Workbooks("WorkbookUpdater.xlam")
     On Error GoTo 0

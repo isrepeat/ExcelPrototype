@@ -11,11 +11,14 @@ Private m_diagnosticSessionStarted As Boolean
 Private m_diagnosticConfigurationLoaded As Boolean
 Private m_diagnosticMode As String
 Private m_diagnosticBuffer As Collection
+Private m_statusBarMessage As String
+Private m_statusBarOwned As Boolean
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    fn_StatusBar_Clear
     If fn_Diagnostic_Flush() Then
         m_diagnosticSessionStarted = False
         m_diagnosticConfigurationLoaded = False
@@ -25,6 +28,38 @@ Public Sub fn_Module_Dispose()
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
+' namespace StatusBar {
+' --------------------------------------
+Public Sub fn_StatusBar_Show(ByVal messageText As String)
+    If VBA.Len(VBA.Trim$(messageText)) = 0 Then
+        fn_StatusBar_Clear
+        Exit Sub
+    End If
+    Application.DisplayStatusBar = True
+    Application.StatusBar = messageText
+    m_statusBarMessage = messageText
+    m_statusBarOwned = True
+End Sub
+
+Public Sub fn_StatusBar_Clear()
+    Dim currentMessage As Variant
+
+    If Not m_statusBarOwned Then Exit Sub
+    currentMessage = Application.StatusBar
+    ' Строка состояния общая для Excel: не удаляем более новое чужое сообщение.
+    If VBA.VarType(currentMessage) = VBA.vbString Then
+        If VBA.StrComp(VBA.CStr(currentMessage), m_statusBarMessage, VBA.vbBinaryCompare) = 0 Then
+            Application.StatusBar = False
+        End If
+    End If
+    m_statusBarOwned = False
+    m_statusBarMessage = VBA.vbNullString
+End Sub
+' --------------------------------------
+' } // namespace StatusBar
 ' --------------------------------------
 
 ' --------------------------------------
@@ -114,6 +149,13 @@ Public Sub fn_Diagnostic_WritePerf(ByVal stageName As String, ByVal startedAt As
         " | ElapsedMs=" & VBA.Format$(elapsedMilliseconds * 1000#, "0.0")
 End Sub
 
+' --------------------------------------
+' } // namespace Diagnostic
+' --------------------------------------
+
+' --------------------------------------
+' namespace Configuration {
+' --------------------------------------
 Public Function fn_TryGetWorkbookProfileId(ByRef outProfileId As String) As Boolean
     Const PROFILE_ID_KEY As String = "ThisWorkbook::id"
     If fn_TryGetWorkbookConfigValue(PROFILE_ID_KEY, outProfileId) Then
@@ -183,26 +225,31 @@ Public Function fn_TrySetWorkbookConfigValue( _
     On Error GoTo EH
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then _
-        Err.Raise vbObjectError + 2210, "fn_TrySetWorkbookConfigValue", "Configuration key must not be empty."
+        VBA.Err.Raise VBA.vbObjectError + 2210, _
+            "fn_TrySetWorkbookConfigValue", "Configuration key must not be empty."
     For Each targetWorksheet In ThisWorkbook.Worksheets
         For Each candidateTable In targetWorksheet.ListObjects
             If VBA.StrComp(candidateTable.Name, CONFIG_TABLE_NAME, VBA.vbTextCompare) = 0 Then
                 If Not configTable Is Nothing Then _
-                    Err.Raise vbObjectError + 2211, "fn_TrySetWorkbookConfigValue", "Multiple tbConfig tables were found."
+                    VBA.Err.Raise VBA.vbObjectError + 2211, _
+            "fn_TrySetWorkbookConfigValue", "Multiple tbConfig tables were found."
                 Set configTable = candidateTable
             End If
         Next candidateTable
     Next targetWorksheet
     If configTable Is Nothing Then _
-        Err.Raise vbObjectError + 2212, "fn_TrySetWorkbookConfigValue", "Configuration table tbConfig was not found."
+        VBA.Err.Raise VBA.vbObjectError + 2212, _
+            "fn_TrySetWorkbookConfigValue", "Configuration table tbConfig was not found."
     keyColumnIndex = configTable.ListColumns(CONFIG_KEY_COLUMN_NAME).Index
     If keyColumnIndex = configTable.ListColumns.Count Then _
-        Err.Raise vbObjectError + 2213, "fn_TrySetWorkbookConfigValue", "tbConfig must have a value column after Key."
+        VBA.Err.Raise VBA.vbObjectError + 2213, _
+            "fn_TrySetWorkbookConfigValue", "tbConfig must have a value column after Key."
     For Each configRow In configTable.ListRows
         If VBA.StrComp(VBA.CStr(configRow.Range.Cells(1, keyColumnIndex).Value2), _
                 keyName, VBA.vbTextCompare) = 0 Then
             If Not matchedRow Is Nothing Then _
-                Err.Raise vbObjectError + 2214, "fn_TrySetWorkbookConfigValue", "Duplicate configuration key: " & keyName
+                VBA.Err.Raise VBA.vbObjectError + 2214, _
+            "fn_TrySetWorkbookConfigValue", "Duplicate configuration key: " & keyName
             Set matchedRow = configRow
         End If
     Next configRow
@@ -222,7 +269,7 @@ Public Function fn_TrySetWorkbookConfigValue( _
     fn_TrySetWorkbookConfigValue = True
     Exit Function
 EH:
-    errorDescription = Err.Description
+    errorDescription = VBA.Err.Description
     On Error Resume Next
     If Not addedRow Is Nothing Then addedRow.Delete
     If eventsCaptured Then Application.EnableEvents = previousEnableEvents
@@ -253,12 +300,9 @@ Public Function fn_TryGetWorkbookConfigFolder( _
     fn_TryGetWorkbookConfigFolder = True
 End Function
 ' --------------------------------------
-' } // namespace Diagnostic
+' } // namespace Configuration
 ' --------------------------------------
 
-' //
-' // Private
-' //
 Private Sub private_Diagnostic_EnsureConfiguration()
     Dim configuredMode As String
 
@@ -353,6 +397,3 @@ Private Sub private_Diagnostic_WriteSessionHeader()
     private_Diagnostic_WriteLine String$(96, "=")
     m_diagnosticSessionStarted = True
 End Sub
-' --------------------------------------
-' } // namespace Private
-' --------------------------------------

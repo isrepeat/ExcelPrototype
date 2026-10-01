@@ -2,7 +2,9 @@ Option Explicit
 
 Private m_filterInputEvents As obj_FilterInputEvents
 
-
+' --------------------------------------
+' namespace Events {
+' --------------------------------------
 Private Sub Workbook_Open()
     Dim startedAt As Double
     Dim errorNumber As Long
@@ -24,7 +26,7 @@ EH:
     errorDescription = VBA.Err.Description
     ex_Core.fn_Diagnostic_WriteLog "PERSONAL_WORKBOOK_OPEN_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
-    Err.Raise errorNumber, "PERSONAL.Workbook_Open", errorDescription
+    VBA.Err.Raise errorNumber, "PERSONAL.Workbook_Open", errorDescription
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
@@ -40,6 +42,13 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
         private_FormatElapsedMilliseconds(startedAt)
 End Sub
 
+' --------------------------------------
+' } // namespace Events
+' --------------------------------------
+
+' --------------------------------------
+' namespace API {
+' --------------------------------------
 Public Sub BindKeys()
     Dim startedAt As Double
     Dim boundCount As Long
@@ -137,6 +146,10 @@ EH:
 End Sub
 
 ' --------------------------------------
+' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
 ' namespace Runtime {
 ' --------------------------------------
 ' Recreates runtime event handlers and global keyboard bindings after a code update.
@@ -159,12 +172,11 @@ EH:
     errorDescription = VBA.Err.Description
     ex_Core.fn_Diagnostic_WriteLog "PERSONAL_RUNTIME_RELOAD_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
-    Err.Raise errorNumber, "PERSONAL.fn_ReloadRuntime", errorDescription
+    VBA.Err.Raise errorNumber, "PERSONAL.fn_ReloadRuntime", errorDescription
 End Sub
 ' --------------------------------------
 ' } // namespace Runtime
 ' --------------------------------------
-
 
 Private Sub private_InitializeFilterInputEvents()
     If m_filterInputEvents Is Nothing Then

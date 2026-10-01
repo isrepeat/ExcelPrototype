@@ -16,7 +16,10 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
+Public Sub fn_RenderPages( _
+    ByVal uiFolderRelativePath As String, _
+    ByVal uiBindingContext As obj_UiBindingContext _
+)
     Dim targetWorksheet As Worksheet
     Dim controlRange As Range
     Dim startedAt As Double
@@ -32,7 +35,10 @@ Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String, ByVal uiBindingC
     ex_Core.fn_Diagnostic_WritePerf "RenderPages", startedAt
 End Sub
 
-Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
+Public Sub fn_RenderActivePage( _
+    ByVal uiFolderRelativePath As String, _
+    ByVal uiBindingContext As obj_UiBindingContext _
+)
     Dim targetWorksheet As Worksheet
     Dim controlRange As Range
 
@@ -45,9 +51,6 @@ End Sub
 ' } // namespace API
 ' --------------------------------------
 
-' --------------------------------------
-' namespace Private {
-' --------------------------------------
 Private Function private_RenderPage( _
     ByVal targetWorksheet As Worksheet, _
     ByVal notifyWhenMissing As Boolean, _
@@ -367,6 +370,3 @@ Private Function private_CountZeroHeightRows(ByVal targetRange As Range) As Long
             private_CountZeroHeightRows = private_CountZeroHeightRows + 1
     Next currentRow
 End Function
-' --------------------------------------
-' } // namespace Private
-' --------------------------------------
