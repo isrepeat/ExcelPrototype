@@ -92,6 +92,31 @@ Public Sub fn_ApplyControlStyle( _
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyControl", startedAt
 End Sub
 
+Public Sub fn_ApplyControlPartStyle( _
+    ByVal targetShape As Object, _
+    ByVal controlNode As Object, _
+    ByVal uiBindingContext As obj_UiBindingContext, _
+    ByVal styleAttributeName As String _
+)
+    Dim styleName As String
+    Dim styleProperties As Object
+
+    If targetShape Is Nothing Or m_stylesByName Is Nothing Then Exit Sub
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+            private_ReadAttribute(controlNode, styleAttributeName), _
+            uiBindingContext, styleName) Then Exit Sub
+    If VBA.Len(styleName) = 0 Then Exit Sub
+    If Not m_stylesByName.Exists(styleName) Then
+        ex_Core.fn_Diagnostic_WriteLog "STYLE_NOT_FOUND | Sheet=" & _
+            m_targetWorksheet.Name & " | Style=" & styleName
+        VBA.MsgBox "Control style is not declared: " & styleName, _
+            VBA.vbExclamation, "PersonalEventBuilder / Styles"
+        Exit Sub
+    End If
+    Set styleProperties = m_stylesByName(styleName)
+    private_ApplyProperties Nothing, targetShape, styleProperties
+End Sub
+
 Public Sub fn_ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
     Dim stageNode As Object
     Dim layerNode As Object
@@ -196,8 +221,10 @@ Private Sub private_ApplyControlPartRule( _
     Set properties = private_ParseStyleDeclarations(private_ReadAttribute(ruleNode, "styles"))
     If private_MatchesSelector(controlNode, selectorText, "control") Then _
         private_ApplyProperties targetRange, targetShape, properties
-    If private_MatchesSelector(controlNode, selectorText, "cell") Then _
-        private_ApplyProperties targetRange, Nothing, properties
+    If Not targetRange Is Nothing Then
+        If private_MatchesSelector(controlNode, selectorText, "cell") Then _
+            private_ApplyProperties targetRange, Nothing, properties
+    End If
     If Not targetShape Is Nothing Then
         If private_MatchesSelector(controlNode, selectorText, "shape") Then _
             private_ApplyProperties targetRange, targetShape, properties
@@ -376,18 +403,19 @@ Private Sub private_ApplyProperties( _
     If properties.Exists("vertical") Then private_ApplyVerticalAlignment _
         targetRange, targetShape, properties("vertical")
     If properties.Exists("columnwidth") Then
-        If VBA.IsNumeric(properties("columnwidth")) Then _
+        If Not targetRange Is Nothing And VBA.IsNumeric(properties("columnwidth")) Then _
             targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("columnwidth"))
     End If
     If properties.Exists("width") Then
-        If VBA.IsNumeric(properties("width")) Then _
+        If Not targetRange Is Nothing And VBA.IsNumeric(properties("width")) Then _
             targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("width"))
     End If
     If properties.Exists("rowheight") Then
-        If VBA.IsNumeric(properties("rowheight")) Then _
+        If Not targetRange Is Nothing And VBA.IsNumeric(properties("rowheight")) Then _
             targetRange.EntireRow.RowHeight = VBA.CDbl(properties("rowheight"))
     End If
-    If properties.Exists("overflow") Then private_ApplyOverflow targetRange, properties("overflow")
+    If properties.Exists("overflow") And Not targetRange Is Nothing Then _
+        private_ApplyOverflow targetRange, properties("overflow")
     private_ApplyBorders targetRange, targetShape, properties
 End Sub
 

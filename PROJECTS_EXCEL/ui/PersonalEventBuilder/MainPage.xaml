@@ -69,7 +69,9 @@
         <control type="Select"
                  name="EventCategorySelect"
                  value="{Binding Path=Category}"
-               itemsSource="{Binding Source=Data; Path=EventTypes}"
+                 itemsSource="{Binding Source=Data; Path=EventTypes}"
+                 panelStyle="formSelectPanel"
+                 itemStyle="formSelectItem"
                  columnSpan="4"
                  style="formField"
                  onChange="{Binding Source=Commands; Path=FormChangedCommand}"/>
@@ -121,6 +123,18 @@
                   fontSize="11"
                   borderColor="#64748B"
                   borderWeight="thin"
+                  vertical="center"/>
+
+    <controlStyle name="formSelectPanel"
+                  backColor="#FFFFFF"
+                  borderColor="#64748B"
+                  borderWeight="thin"/>
+
+    <controlStyle name="formSelectItem"
+                  backColor="#FFFFFF"
+                  textColor="#111827"
+                  fontName="Calibri"
+                  fontSize="11"
                   vertical="center"/>
 
     <stylePipelineStage name="default">

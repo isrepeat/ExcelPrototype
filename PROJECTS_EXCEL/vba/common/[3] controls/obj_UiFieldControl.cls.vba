@@ -11,6 +11,7 @@ Option Explicit
 
 Implements obj_IUiControl
 
+Private Const SELECT_SHAPE_PREFIX As String = "sel_"
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
 Private m_sourceName As String
@@ -86,7 +87,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     Dim isObject As Boolean
     Dim uiCellBinding As obj_UiCellBinding
     Dim targetCell As Range
-    Dim listText As String
+    Dim selectItems As Collection
 
     If m_targetRange Is Nothing Then Set m_targetRange = obj_IUiControl_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
@@ -94,17 +95,22 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     If Not uiRenderContext.BindingContext.TryGetValue( _
             m_sourceName, m_bindingPath, value, sourceObject, isObject) Then Exit Function
     If isObject Then Exit Function
+    If m_isSelect Then
+        On Error Resume Next
+        m_targetRange.Cells(1, 1).Validation.Delete
+        On Error GoTo 0
+    End If
     If VBA.Len(m_changeCommandRaw) > 0 Then
         If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
                 m_changeCommandRaw, uiRenderContext.BindingContext, m_changeCommand) Then Exit Function
     End If
     m_targetRange.Value2 = value
-    ex_StylePipeline.fn_ApplyControlStyle m_targetRange, Nothing, _
-        m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     If m_isSelect Then
-        If Not private_TryResolveItems(uiRenderContext, listText) Then Exit Function
-        If Not private_ApplyListValidation(m_targetRange.Cells(1, 1), listText) Then Exit Function
+        m_targetRange.NumberFormat = ";;;"
+        If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
     Else
+        ex_StylePipeline.fn_ApplyControlStyle m_targetRange, Nothing, _
+            m_uiControlBase.ControlNode, uiRenderContext.BindingContext
         On Error Resume Next
         m_targetRange.Cells(1, 1).Validation.Delete
         On Error GoTo 0
@@ -116,6 +122,10 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
             targetCell.Parent.Name, targetCell.Address(False, False), _
             uiRenderContext.BindingContext, m_sourceName, m_bindingPath, m_changeCommand) Then Exit Function
     If Not ex_UiBindings.fn_RegisterCellBinding(uiCellBinding) Then Exit Function
+    If m_isSelect Then
+        If Not private_RenderSelectShapes( _
+                uiRenderContext, selectItems, VBA.CStr(value), uiCellBinding) Then Exit Function
+    End If
     obj_IUiControl_Render = True
 End Function
 
@@ -126,37 +136,19 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_ApplyListValidation( _
-    ByVal targetCell As Range, _
-    ByVal listText As String _
-) As Boolean
-    listText = VBA.Trim$(listText)
-    If VBA.Len(listText) = 0 Or VBA.Len(listText) > 255 Then Exit Function
-    On Error GoTo EH
-    targetCell.Validation.Delete
-    targetCell.Validation.Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, _
-        Operator:=xlBetween, Formula1:=listText
-    targetCell.Validation.IgnoreBlank = True
-    targetCell.Validation.InCellDropdown = True
-    private_ApplyListValidation = True
-    Exit Function
-EH:
-    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALIDATION_ERROR | Name=" & _
-        m_uiControlBase.ControlName & " | Description=" & VBA.Err.Description
-End Function
-
 Private Function private_TryResolveItems( _
     ByVal uiRenderContext As obj_UiRenderContext, _
-    ByRef outListText As String _
+    ByRef outItems As Collection _
 ) As Boolean
     Dim value As Variant
     Dim sourceObject As Object
     Dim isObject As Boolean
     Dim item As Variant
 
-    outListText = m_items
+    Set outItems = New Collection
     If VBA.Len(VBA.Trim$(m_itemsSourceRaw)) = 0 Then
-        private_TryResolveItems = (VBA.Len(VBA.Trim$(outListText)) > 0)
+        private_AddDelimitedItems m_items, outItems
+        private_TryResolveItems = (outItems.Count > 0)
         Exit Function
     End If
     If Not ex_UiBindingRuntime.fn_TryResolveValue( _
@@ -164,19 +156,140 @@ Private Function private_TryResolveItems( _
     If isObject Then
         If TypeName(sourceObject) <> "Collection" Then Exit Function
         For Each item In sourceObject
-            If VBA.Len(outListText) > 0 Then outListText = outListText & ","
-            outListText = outListText & VBA.CStr(item)
+            outItems.Add VBA.CStr(item)
         Next item
     ElseIf VBA.IsArray(value) Then
         For Each item In value
-            If VBA.Len(outListText) > 0 Then outListText = outListText & ","
-            outListText = outListText & VBA.CStr(item)
+            outItems.Add VBA.CStr(item)
         Next item
     Else
-        outListText = VBA.CStr(value)
+        private_AddDelimitedItems VBA.CStr(value), outItems
     End If
-    private_TryResolveItems = (VBA.Len(VBA.Trim$(outListText)) > 0)
+    private_TryResolveItems = (outItems.Count > 0)
 End Function
+
+Private Sub private_AddDelimitedItems(ByVal listText As String, ByVal outItems As Collection)
+    Dim item As Variant
+    Dim itemText As String
+
+    For Each item In VBA.Split(listText, ",")
+        itemText = VBA.Trim$(VBA.CStr(item))
+        If VBA.Len(itemText) > 0 Then outItems.Add itemText
+    Next item
+End Sub
+
+Private Function private_RenderSelectShapes( _
+    ByVal uiRenderContext As obj_UiRenderContext, _
+    ByVal items As Collection, _
+    ByVal selectedValue As String, _
+    ByVal uiCellBinding As obj_UiCellBinding _
+) As Boolean
+    Dim targetWorksheet As Worksheet
+    Dim headerShape As Shape
+    Dim panelShape As Shape
+    Dim itemShape As Shape
+    Dim itemShapeNames As Collection
+    Dim shapeNames As Collection
+    Dim uiSelectAction As obj_UiSelectShapeAction
+    Dim controlId As Long
+    Dim headerShapeName As String
+    Dim panelShapeName As String
+    Dim itemShapeName As String
+    Dim itemText As String
+    Dim arrowText As String
+    Dim itemHeight As Double
+    Dim itemMargin As Double
+    Dim itemTop As Double
+    Dim itemIndex As Long
+
+    If items Is Nothing Or uiCellBinding Is Nothing Then Exit Function
+    If items.Count = 0 Then Exit Function
+    Set targetWorksheet = uiRenderContext.TargetWorksheet
+    controlId = ex_UiBindings.fn_NextSelectControlId()
+    headerShapeName = SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId)
+    panelShapeName = SELECT_SHAPE_PREFIX & "p_" & VBA.CStr(controlId)
+    itemHeight = m_targetRange.Height
+    itemMargin = 0
+    If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight")) Then
+        itemHeight = VBA.CDbl(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight"))
+    End If
+    If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemMargin")) Then
+        itemMargin = VBA.CDbl(private_ReadAttribute(m_uiControlBase.ControlNode, "itemMargin"))
+    End If
+    If itemHeight <= 0 Or itemMargin < 0 Then Exit Function
+
+    Set headerShape = targetWorksheet.Shapes.AddShape( _
+        msoShapeRectangle, m_targetRange.Left, m_targetRange.Top, _
+        m_targetRange.Width, m_targetRange.Height)
+    headerShape.Name = headerShapeName
+    private_ApplyDefaultShapeStyle headerShape
+    arrowText = VBA.ChrW(&H25BC)
+    headerShape.TextFrame2.TextRange.Text = selectedValue & " " & arrowText
+    headerShape.TextFrame2.MarginLeft = 5
+    headerShape.TextFrame2.MarginRight = 5
+    headerShape.TextFrame2.MarginTop = 0
+    headerShape.TextFrame2.MarginBottom = 0
+    ex_StylePipeline.fn_ApplyControlStyle Nothing, headerShape, _
+        m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    headerShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+
+    Set panelShape = targetWorksheet.Shapes.AddShape( _
+        msoShapeRectangle, m_targetRange.Left, m_targetRange.Top + m_targetRange.Height, _
+        m_targetRange.Width, items.Count * itemHeight + (items.Count - 1) * itemMargin)
+    panelShape.Name = panelShapeName
+    private_ApplyDefaultShapeStyle panelShape
+    ex_StylePipeline.fn_ApplyControlPartStyle panelShape, _
+        m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "panelStyle"
+    panelShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+    panelShape.Visible = msoFalse
+
+    Set itemShapeNames = New Collection
+    Set shapeNames = New Collection
+    shapeNames.Add headerShapeName
+    shapeNames.Add panelShapeName
+    For itemIndex = 1 To items.Count
+        itemShapeName = SELECT_SHAPE_PREFIX & "i_" & VBA.CStr(controlId) & "_" & VBA.CStr(itemIndex)
+        itemTop = panelShape.Top + (itemIndex - 1) * (itemHeight + itemMargin)
+        Set itemShape = targetWorksheet.Shapes.AddShape( _
+            msoShapeRectangle, panelShape.Left, itemTop, panelShape.Width, itemHeight)
+        itemShape.Name = itemShapeName
+        private_ApplyDefaultShapeStyle itemShape
+        itemText = VBA.CStr(items(itemIndex))
+        itemShape.TextFrame2.TextRange.Text = itemText
+        itemShape.TextFrame2.MarginLeft = 5
+        itemShape.TextFrame2.MarginRight = 5
+        itemShape.TextFrame2.MarginTop = 0
+        itemShape.TextFrame2.MarginBottom = 0
+        ex_StylePipeline.fn_ApplyControlPartStyle itemShape, _
+            m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "itemStyle"
+        itemShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+        itemShape.Visible = msoFalse
+        itemShapeNames.Add itemShapeName
+        shapeNames.Add itemShapeName
+    Next itemIndex
+
+    Set uiSelectAction = New obj_UiSelectShapeAction
+    If Not uiSelectAction.Initialize( _
+            controlId, m_targetRange.Cells(1, 1), headerShapeName, panelShapeName, _
+            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding) Then Exit Function
+    If Not ex_UiBindings.fn_RegisterSelectControl(uiSelectAction) Then Exit Function
+    private_RenderSelectShapes = True
+End Function
+
+Private Sub private_ApplyDefaultShapeStyle(ByVal targetShape As Shape)
+    On Error Resume Next
+    targetShape.Fill.Solid
+    targetShape.Fill.ForeColor.RGB = VBA.RGB(255, 255, 255)
+    targetShape.Line.Visible = msoTrue
+    targetShape.Line.ForeColor.RGB = VBA.RGB(100, 116, 139)
+    targetShape.Line.Weight = 0.75
+    targetShape.TextFrame2.TextRange.Font.Name = "Calibri"
+    targetShape.TextFrame2.TextRange.Font.Size = 11
+    targetShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = VBA.RGB(17, 24, 39)
+    targetShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
+    targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
+    On Error GoTo 0
+End Sub
 
 Private Function private_TryParseBinding( _
     ByVal rawBinding As String, _
