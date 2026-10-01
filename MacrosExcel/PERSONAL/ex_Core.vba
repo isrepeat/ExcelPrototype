@@ -5,25 +5,101 @@ Option Explicit
 Private Const DIAGNOSTIC_FOLDER_NAME As String = "PERSONAL.EXCEL"
 Private Const DIAGNOSTIC_FILE_NAME As String = "diagnostic.log"
 Private m_diagnosticSessionStarted As Boolean
+Private m_hotkeyBrokerBindingsByWorkbook As Object
+Private m_hotkeyBrokerLegacyCleanupCompleted As Boolean
 
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 ' Recreates PERSONAL.XLSB runtime state after source modules are reloaded.
 Public Sub fn_ReloadPersonalRuntime()
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    fn_Diagnostic_WriteLog "PERSONAL_RUNTIME_RELOAD_REQUESTED"
+    On Error GoTo EH
     ThisWorkbook.fn_ReloadRuntime
+    fn_Diagnostic_WriteLog "PERSONAL_RUNTIME_RELOAD_REQUEST_COMPLETED"
+    Exit Sub
+EH:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    fn_Diagnostic_WriteLog "PERSONAL_RUNTIME_RELOAD_REQUEST_ERROR | Number=" & _
+        VBA.CStr(errorNumber) & " | Description=" & errorDescription
+    Err.Raise errorNumber, "ex_Core.fn_ReloadPersonalRuntime", errorDescription
 End Sub
+
+Public Sub fn_RestorePersonalHotkeys()
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_RESTORE_REQUESTED"
+    On Error GoTo EH
+    ThisWorkbook.BindKeys
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_RESTORE_REQUEST_COMPLETED"
+    Exit Sub
+EH:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_RESTORE_REQUEST_ERROR | Number=" & _
+        VBA.CStr(errorNumber) & " | Description=" & errorDescription
+    Err.Raise errorNumber, "ex_Core.fn_RestorePersonalHotkeys", errorDescription
+End Sub
+
+Public Function fn_HotkeyBroker_Activate( _
+    ByVal workbookFullName As String, _
+    ByVal bindingsText As String _
+) As Boolean
+    Dim targetWorkbook As Workbook
+    Dim bindingsByKey As Object
+
+    On Error GoTo EH
+    Set targetWorkbook = private_HotkeyBroker_FindWorkbook(workbookFullName)
+    If targetWorkbook Is Nothing Then Exit Function
+    If Not private_HotkeyBroker_TryParseBindings(bindingsText, bindingsByKey) Then Exit Function
+    private_HotkeyBroker_EnsureRegistry
+    private_HotkeyBroker_ClearLegacyBindings
+    private_HotkeyBroker_UnbindAll
+    ThisWorkbook.BindKeys
+    private_HotkeyBroker_BindWorkbook targetWorkbook, bindingsByKey
+    Set m_hotkeyBrokerBindingsByWorkbook(workbookFullName) = bindingsByKey
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_ACTIVATED | Workbook=" & _
+        targetWorkbook.Name & " | KeyCount=" & VBA.CStr(bindingsByKey.Count)
+    fn_HotkeyBroker_Activate = True
+    Exit Function
+EH:
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_ACTIVATE_ERROR | Number=" & _
+        VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
+    private_HotkeyBroker_UnbindAll
+    ThisWorkbook.BindKeys
+End Function
+
+Public Function fn_HotkeyBroker_Deactivate( _
+    ByVal workbookFullName As String _
+) As Boolean
+    On Error GoTo EH
+    private_HotkeyBroker_EnsureRegistry
+    private_HotkeyBroker_UnbindWorkbook workbookFullName
+    ThisWorkbook.BindKeys
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_DEACTIVATED | Workbook=" & _
+        workbookFullName
+    fn_HotkeyBroker_Deactivate = True
+    Exit Function
+EH:
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_DEACTIVATE_ERROR | Number=" & _
+        VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
+End Function
 
 Public Sub fn_ReloadActiveWorkbookVba()
-    private_ReloadActiveWorkbookVba False
+    private_VbaReload_ReloadActiveWorkbookVbaExternally
 End Sub
 
-' Reloads the active workbook and schedules initialization after VBA reset.
+' Совместимое имя для прежнего сочетания клавиш.
 Public Sub fn_ReloadActiveWorkbookVbaDeferred()
-    private_ReloadActiveWorkbookVba True
+    private_VbaReload_ReloadActiveWorkbookVbaExternally
 End Sub
 
-Private Sub private_ReloadActiveWorkbookVba( _
+Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
     ByVal deferInitialization As Boolean _
 )
     Const VBEXT_CT_STD_MODULE As Long = 1
@@ -43,12 +119,19 @@ Private Sub private_ReloadActiveWorkbookVba( _
     Dim previousEnableEvents As Boolean
     Dim previousScreenUpdating As Boolean
     Dim applicationStateChanged As Boolean
+    Dim reloadSucceeded As Boolean
     Dim componentName As Variant
     Dim importFile As Variant
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
     On Error GoTo EH
+    fn_Diagnostic_WriteLog "VBA_RELOAD_ENTRY | DeferredInitialization=" & _
+        VBA.CStr(deferInitialization) & " | ExcelVersion=" & Application.Version & _
+        " | Workbooks=" & VBA.CStr(Application.Workbooks.Count)
 
     If Application.ActiveWorkbook Is Nothing Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=NoActiveWorkbook"
         VBA.MsgBox "There is no active workbook whose VBA modules can be reloaded.", _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
@@ -57,7 +140,10 @@ Private Sub private_ReloadActiveWorkbookVba( _
     Set targetWorkbook = Application.ActiveWorkbook
     targetWorkbookName = targetWorkbook.Name
     fn_Diagnostic_WriteLog "VBA_RELOAD_STARTED | Workbook=" & targetWorkbookName
+    fn_Diagnostic_WriteLog "VBA_RELOAD_CONTEXT | DeferredInitialization=" & _
+        VBA.CStr(deferInitialization) & " | Path=" & targetWorkbook.FullName
     If targetWorkbook Is ThisWorkbook Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=TargetIsPersonalWorkbook"
         VBA.MsgBox _
             "The workbook containing the shortcut handler cannot reload itself. " & _
             "Activate the target workbook and press Ctrl+Alt+R again.", _
@@ -66,6 +152,7 @@ Private Sub private_ReloadActiveWorkbookVba( _
     End If
 
     If VBA.Len(targetWorkbook.Path) = 0 Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=TargetWorkbookUnsaved"
         VBA.MsgBox _
             "Save the active workbook first. The vba folder must be located " & _
             "next to the workbook file.", _
@@ -73,20 +160,38 @@ Private Sub private_ReloadActiveWorkbookVba( _
         Exit Sub
     End If
 
-    If Not private_VbaReload_TryResolveConfiguredFolder(targetWorkbook, "ThisWorkbook::vbaPath", vbaFolderPath) Then Exit Sub
-    If Not private_VbaReload_TryResolveConfiguredFolder(targetWorkbook, "ThisWorkbook::uiPath", uiFolderPath) Then Exit Sub
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=ResolveSourceFolders"
+    If Not private_VbaReload_TryResolveConfiguredFolder(targetWorkbook, "ThisWorkbook::vbaPath", vbaFolderPath) Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Stage=ResolveSourceFolders | Key=ThisWorkbook::vbaPath"
+        Exit Sub
+    End If
+    If Not private_VbaReload_TryResolveConfiguredFolder(targetWorkbook, "ThisWorkbook::uiPath", uiFolderPath) Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Stage=ResolveSourceFolders | Key=ThisWorkbook::uiPath"
+        Exit Sub
+    End If
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=ResolveSourceFolders" & _
+        " | VbaPath=" & vbaFolderPath & " | UiPath=" & uiFolderPath
 
     Set importFiles = New Collection
     Set documentImportFiles = New Collection
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=CollectSourceFiles"
     If Not private_VbaReload_TryCollectConfiguredVbaFiles( _
-            vbaFolderPath, targetWorkbook, importFiles, documentImportFiles) Then Exit Sub
+            vbaFolderPath, targetWorkbook, importFiles, documentImportFiles) Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Stage=CollectSourceFiles"
+        Exit Sub
+    End If
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=CollectSourceFiles" & _
+        " | ModuleFiles=" & VBA.CStr(importFiles.Count) & _
+        " | DocumentFiles=" & VBA.CStr(documentImportFiles.Count)
     If importFiles.Count = 0 And documentImportFiles.Count = 0 Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=NoSourceFiles"
         VBA.MsgBox _
             "No .bas, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
     End If
 
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=ReadExistingComponents"
     Set vbProject = targetWorkbook.VBProject
     Set componentNames = New Collection
     For Each vbComponent In vbProject.VBComponents
@@ -95,6 +200,8 @@ Private Sub private_ReloadActiveWorkbookVba( _
                 componentNames.Add VBA.CStr(vbComponent.Name)
         End Select
     Next vbComponent
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=ReadExistingComponents" & _
+        " | RemovableComponents=" & VBA.CStr(componentNames.Count)
 
     previousScreenUpdating = Application.ScreenUpdating
     previousEnableEvents = Application.EnableEvents
@@ -102,47 +209,73 @@ Private Sub private_ReloadActiveWorkbookVba( _
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.StatusBar = "Reloading VBA modules..."
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=RemoveExistingComponents"
 
     For Each componentName In componentNames
+        fn_Diagnostic_WriteLog "VBA_RELOAD_COMPONENT_REMOVE_STARTED | Name=" & _
+            VBA.CStr(componentName)
         vbProject.VBComponents.Remove vbProject.VBComponents(VBA.CStr(componentName))
+        fn_Diagnostic_WriteLog "VBA_RELOAD_COMPONENT_REMOVE_COMPLETED | Name=" & _
+            VBA.CStr(componentName)
     Next componentName
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=RemoveExistingComponents"
 
     ' The profile defines the complete source set. Clear workbook and worksheet
     ' code so that event handlers from the previous profile do not stay active.
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=ClearDocumentModules"
     private_VbaReload_ClearDocumentModules targetWorkbook
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=ClearDocumentModules"
 
     For Each importFile In importFiles
+        fn_Diagnostic_WriteLog "VBA_RELOAD_MODULE_IMPORT_STARTED | File=" & _
+            VBA.CStr(importFile)
         private_VbaReload_ImportVbaFile vbProject, VBA.CStr(importFile)
         importedCount = importedCount + 1
+        fn_Diagnostic_WriteLog "VBA_RELOAD_MODULE_IMPORT_COMPLETED | File=" & _
+            VBA.CStr(importFile)
     Next importFile
 
     ' Document modules cannot be imported as standard modules because Excel
     ' would create a separate module and Workbook/Worksheet events would not run.
     For Each importFile In documentImportFiles
+        fn_Diagnostic_WriteLog "VBA_RELOAD_DOCUMENT_IMPORT_STARTED | File=" & _
+            VBA.CStr(importFile)
         private_VbaReload_ImportDocumentVbaFile targetWorkbook, VBA.CStr(importFile)
         importedCount = importedCount + 1
+        fn_Diagnostic_WriteLog "VBA_RELOAD_DOCUMENT_IMPORT_COMPLETED | File=" & _
+            VBA.CStr(importFile)
     Next importFile
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=SetRuntimePaths"
     private_VbaReload_SetRuntimePaths targetWorkbook, uiFolderPath
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=SetRuntimePaths"
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_STARTED | Name=InitializeReloadedWorkbook"
     private_VbaReload_InitializeReloadedWorkbook targetWorkbook, deferInitialization
+    fn_Diagnostic_WriteLog "VBA_RELOAD_STAGE_COMPLETED | Name=InitializeReloadedWorkbook"
 
     Application.StatusBar = "Imported VBA modules: " & _
         VBA.CStr(importedCount) & "; imported at: " & _
         VBA.Format$(VBA.Now, "dd.mm.yyyy HH:nn:ss")
-    fn_Diagnostic_WriteLog "VBA_RELOAD_COMPLETED | Workbook=" & targetWorkbookName & _
-        " | ModuleCount=" & VBA.CStr(importedCount)
+    reloadSucceeded = True
 
 CleanExit:
     If applicationStateChanged Then
         Application.EnableEvents = previousEnableEvents
         Application.ScreenUpdating = previousScreenUpdating
     End If
+    If reloadSucceeded Then
+        fn_Diagnostic_WriteLog "VBA_RELOAD_COMPLETED | Workbook=" & _
+            targetWorkbookName & " | ModuleCount=" & VBA.CStr(importedCount) & _
+            " | ElapsedMs=" & private_VbaReload_FormatElapsedMilliseconds(startedAt)
+    End If
     Exit Sub
 
 EH:
+    reloadSucceeded = False
     Application.StatusBar = False
     fn_Diagnostic_WriteLog "VBA_RELOAD_ERROR | Workbook=" & targetWorkbookName & _
         " | Number=" & VBA.CStr(VBA.Err.Number) & _
-        " | Description=" & VBA.Err.Description
+        " | Description=" & VBA.Err.Description & _
+        " | ElapsedMs=" & private_VbaReload_FormatElapsedMilliseconds(startedAt)
     VBA.MsgBox "Failed to reload VBA modules in workbook '" & _
         targetWorkbookName & _
         "': [" & VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description & VBA.vbCrLf & _
@@ -282,8 +415,201 @@ End Sub
 ' --------------------------------------
 
 ' --------------------------------------
+' namespace HotkeyBroker {
+' --------------------------------------
+Private Sub private_HotkeyBroker_EnsureRegistry()
+    If Not m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
+
+    Set m_hotkeyBrokerBindingsByWorkbook = VBA.CreateObject("Scripting.Dictionary")
+    m_hotkeyBrokerBindingsByWorkbook.CompareMode = VBA.vbTextCompare
+End Sub
+
+
+Private Sub private_HotkeyBroker_ClearLegacyBindings()
+    If m_hotkeyBrokerLegacyCleanupCompleted Then Exit Sub
+
+    On Error Resume Next
+    Application.OnKey "^%l"
+    On Error GoTo 0
+    m_hotkeyBrokerLegacyCleanupCompleted = True
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_LEGACY_KEY_CLEARED | Key=^%l"
+End Sub
+
+
+Private Function private_HotkeyBroker_FindWorkbook( _
+    ByVal workbookFullName As String _
+) As Workbook
+    Dim targetWorkbook As Workbook
+
+    For Each targetWorkbook In Application.Workbooks
+        If VBA.StrComp(targetWorkbook.FullName, workbookFullName, _
+                VBA.vbTextCompare) = 0 Then
+            Set private_HotkeyBroker_FindWorkbook = targetWorkbook
+            Exit Function
+        End If
+    Next targetWorkbook
+End Function
+
+
+Private Function private_HotkeyBroker_TryParseBindings( _
+    ByVal bindingsText As String, _
+    ByRef outBindingsByKey As Object _
+) As Boolean
+    Dim entryText As Variant
+    Dim entryParts As Variant
+    Dim keySequence As String
+    Dim macroName As String
+
+    Set outBindingsByKey = VBA.CreateObject("Scripting.Dictionary")
+    outBindingsByKey.CompareMode = VBA.vbTextCompare
+    If VBA.Len(bindingsText) = 0 Then
+        private_HotkeyBroker_TryParseBindings = True
+        Exit Function
+    End If
+    For Each entryText In VBA.Split(bindingsText, VBA.ChrW$(31))
+        entryParts = VBA.Split(VBA.CStr(entryText), VBA.ChrW$(30))
+        If UBound(entryParts) <> 1 Then Exit Function
+        keySequence = VBA.Trim$(VBA.CStr(entryParts(0)))
+        macroName = VBA.Trim$(VBA.CStr(entryParts(1)))
+        If VBA.Len(keySequence) = 0 Or VBA.Len(macroName) = 0 Then Exit Function
+        outBindingsByKey(keySequence) = macroName
+    Next entryText
+    private_HotkeyBroker_TryParseBindings = True
+End Function
+
+
+Private Sub private_HotkeyBroker_BindWorkbook( _
+    ByVal targetWorkbook As Workbook, _
+    ByVal bindingsByKey As Object _
+)
+    Dim keySequence As Variant
+    Dim macroReference As String
+
+    For Each keySequence In bindingsByKey.Keys
+        macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+            "'!" & VBA.CStr(bindingsByKey(keySequence))
+        Application.OnKey VBA.CStr(keySequence), macroReference
+    Next keySequence
+End Sub
+
+
+Private Sub private_HotkeyBroker_UnbindAll()
+    Dim workbookIdentity As Variant
+    Dim workbookIdentities As Collection
+
+    If m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
+    Set workbookIdentities = New Collection
+    For Each workbookIdentity In m_hotkeyBrokerBindingsByWorkbook.Keys
+        workbookIdentities.Add VBA.CStr(workbookIdentity)
+    Next workbookIdentity
+    For Each workbookIdentity In workbookIdentities
+        private_HotkeyBroker_UnbindWorkbook VBA.CStr(workbookIdentity)
+    Next workbookIdentity
+End Sub
+
+
+Private Sub private_HotkeyBroker_UnbindWorkbook(ByVal workbookFullName As String)
+    Dim bindingsByKey As Object
+    Dim keySequence As Variant
+
+    If m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
+    If Not m_hotkeyBrokerBindingsByWorkbook.Exists(workbookFullName) Then Exit Sub
+    Set bindingsByKey = m_hotkeyBrokerBindingsByWorkbook(workbookFullName)
+    On Error Resume Next
+    For Each keySequence In bindingsByKey.Keys
+        Application.OnKey VBA.CStr(keySequence)
+    Next keySequence
+    On Error GoTo 0
+    m_hotkeyBrokerBindingsByWorkbook.Remove workbookFullName
+End Sub
+' --------------------------------------
+' } // namespace HotkeyBroker
+' --------------------------------------
+
+' --------------------------------------
 ' namespace VbaReload {
 ' --------------------------------------
+' Перезагружает VBA-проект во внешнем процессе Excel.
+Private Sub private_VbaReload_ReloadActiveWorkbookVbaExternally()
+    Dim targetWorkbook As Workbook
+    Dim vbaFolderPath As String
+    Dim reloadScriptPath As String
+    Dim reloadLogPath As String
+    Dim shellObject As Object
+    Dim commandLine As String
+
+    On Error GoTo EH
+    If Application.ActiveWorkbook Is Nothing Then
+        VBA.MsgBox "There is no active workbook whose VBA modules can be reloaded.", _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Sub
+    End If
+    Set targetWorkbook = Application.ActiveWorkbook
+    If targetWorkbook Is ThisWorkbook Then
+        VBA.MsgBox _
+            "The workbook containing the shortcut handler cannot reload itself. " & _
+            "Activate the target workbook and press Ctrl+Alt+R again.", _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Sub
+    End If
+    If VBA.Len(targetWorkbook.Path) = 0 Then
+        VBA.MsgBox "Save the active workbook before reloading its VBA project.", _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Sub
+    End If
+    If Not private_VbaReload_TryResolveConfiguredFolder( _
+            targetWorkbook, "ThisWorkbook::vbaPath", vbaFolderPath) Then Exit Sub
+
+    reloadScriptPath = vbaFolderPath & "\Reload-Workbook.ps1"
+    If Not private_VbaReload_FileExists(reloadScriptPath) Then
+        VBA.MsgBox "The external VBA reload script was not found: " & reloadScriptPath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Sub
+    End If
+
+    targetWorkbook.Save
+    reloadLogPath = VBA.Environ$("TEMP") & "\" & _
+        DIAGNOSTIC_FOLDER_NAME & "\external-reload.log"
+    commandLine = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File " & _
+        private_VbaReload_QuoteCommandArgument(reloadScriptPath) & _
+        " -WorkbookPath " & _
+        private_VbaReload_QuoteCommandArgument(targetWorkbook.FullName) & _
+        " -VbaFolderPath " & _
+        private_VbaReload_QuoteCommandArgument(vbaFolderPath) & _
+        " -LogPath " & private_VbaReload_QuoteCommandArgument(reloadLogPath)
+    fn_Diagnostic_WriteLog "VBA_EXTERNAL_RELOAD_STARTED | Workbook=" & _
+        targetWorkbook.Name & " | Script=" & reloadScriptPath
+    Set shellObject = VBA.CreateObject("WScript.Shell")
+    shellObject.Run commandLine, 0, False
+    fn_Diagnostic_WriteLog "VBA_EXTERNAL_RELOAD_CLOSE_REQUESTED | Workbook=" & _
+        targetWorkbook.Name
+    targetWorkbook.Close False
+    Exit Sub
+EH:
+    fn_Diagnostic_WriteLog "VBA_EXTERNAL_RELOAD_ERROR | Number=" & _
+        VBA.CStr(VBA.Err.Number) & " | Description=" & VBA.Err.Description
+    VBA.MsgBox "Failed to start the external VBA reload: [" & _
+        VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description, _
+        VBA.vbCritical, "Reload VBA"
+End Sub
+
+
+' Экранирует один аргумент командной строки Windows.
+Private Function private_VbaReload_QuoteCommandArgument(ByVal valueText As String) As String
+    private_VbaReload_QuoteCommandArgument = """" & _
+        VBA.Replace$(valueText, """", """""") & """"
+End Function
+
+
+' Проверяет доступность файла без исключения для вызывающего кода.
+Private Function private_VbaReload_FileExists(ByVal filePath As String) As Boolean
+    Dim fileSystem As Object
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    private_VbaReload_FileExists = fileSystem.FileExists(filePath)
+End Function
+
+
 ' Reinitializes runtime event handlers after a hot reload.
 Private Sub private_VbaReload_InitializeReloadedWorkbook( _
     ByVal targetWorkbook As Workbook, _
@@ -954,6 +1280,18 @@ Private Function private_VbaReload_GetComponentName( _
         fileName = VBA.Left$(fileName, VBA.Len(fileName) - 4)
     End If
     private_VbaReload_GetComponentName = fileName
+End Function
+
+
+Private Function private_VbaReload_FormatElapsedMilliseconds( _
+    ByVal startedAt As Double _
+) As String
+    Dim elapsedSeconds As Double
+
+    elapsedSeconds = VBA.Timer - startedAt
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
+    private_VbaReload_FormatElapsedMilliseconds = _
+        VBA.Format$(elapsedSeconds * 1000#, "0.0")
 End Function
 
 

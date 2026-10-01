@@ -120,19 +120,53 @@ Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderCon
     Dim targetWorksheet As Worksheet
     Dim controlRange As Range
     Dim startedAt As Double
+    Dim controlName As String
+    Dim controlType As String
+    Dim renderStage As String
+    Dim errorNumber As Long
+    Dim errorDescription As String
 
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     On Error GoTo EH
+    renderStage = "ApplyFormLayouts"
     If Not private_ApplyFormLayouts(uiRenderContext.PageDefinition.Document) Then Exit Function
     For Each controlNode In uiRenderContext.PageDefinition.Document.SelectNodes( _
             "//*[local-name()='control']")
+        controlName = private_ReadAttribute(controlNode, "name")
+        controlType = private_ReadAttribute(controlNode, "type")
+        renderStage = "Create"
+        ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_RENDER_STARTED | Sheet=" & _
+            targetWorksheet.Name & " | Name=" & controlName & " | Type=" & controlType
         startedAt = VBA.Timer
         Set uiControl = ex_UiControlFactory.fn_Create(controlNode)
-        If uiControl Is Nothing Then Exit Function
-        If Not uiControl.Configure(controlNode) Then Exit Function
+        If uiControl Is Nothing Then
+            ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_RENDER_FAILED | Sheet=" & _
+                targetWorksheet.Name & " | Name=" & controlName & " | Type=" & _
+                controlType & " | Stage=" & renderStage & " | Reason=FactoryReturnedNothing"
+            Exit Function
+        End If
+        renderStage = "Configure"
+        If Not uiControl.Configure(controlNode) Then
+            ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_RENDER_FAILED | Sheet=" & _
+                targetWorksheet.Name & " | Name=" & controlName & " | Type=" & _
+                controlType & " | Stage=" & renderStage & " | Reason=ConfigureReturnedFalse"
+            Exit Function
+        End If
+        renderStage = "Measure"
         Set controlRange = uiControl.Measure(uiRenderContext)
-        If controlRange Is Nothing Then Exit Function
-        If Not uiControl.Render(uiRenderContext) Then Exit Function
+        If controlRange Is Nothing Then
+            ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_RENDER_FAILED | Sheet=" & _
+                targetWorksheet.Name & " | Name=" & controlName & " | Type=" & _
+                controlType & " | Stage=" & renderStage & " | Reason=MeasureReturnedNothing"
+            Exit Function
+        End If
+        renderStage = "Render"
+        If Not uiControl.Render(uiRenderContext) Then
+            ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_RENDER_FAILED | Sheet=" & _
+                targetWorksheet.Name & " | Name=" & controlName & " | Type=" & _
+                controlType & " | Stage=" & renderStage & " | Reason=RenderReturnedFalse"
+            Exit Function
+        End If
         ex_Core.fn_Diagnostic_WritePerf "Control.Render | Type=" & VBA.TypeName(uiControl), startedAt
         uiRenderContext.AddControl uiControl
     Next controlNode
@@ -140,10 +174,13 @@ Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderCon
     Exit Function
 
 EH:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_RENDER_ERROR | Sheet=" & _
-        targetWorksheet.Name & " | Number=" & VBA.CStr(VBA.Err.Number) & _
-        " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Cannot render a UI control: " & VBA.Err.Description, _
+        targetWorksheet.Name & " | Name=" & controlName & " | Type=" & controlType & _
+        " | Stage=" & renderStage & " | Number=" & VBA.CStr(errorNumber) & _
+        " | Description=" & errorDescription
+    VBA.MsgBox "Cannot render a UI control: " & errorDescription, _
         VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 
