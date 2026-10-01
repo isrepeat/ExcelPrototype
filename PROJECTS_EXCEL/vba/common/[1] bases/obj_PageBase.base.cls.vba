@@ -45,6 +45,23 @@ Public Function fn_RenderActivePage() As Boolean
     fn_RenderActivePage = True
 End Function
 
+Public Function fn_UpdatePage() As Boolean
+    Dim previousScreenUpdating As Boolean
+
+    If m_uiBindingContext Is Nothing Then Exit Function
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH
+    Application.ScreenUpdating = False
+    fn_UpdatePage = fn_RenderActivePage()
+CleanExit:
+    Application.ScreenUpdating = previousScreenUpdating
+    Exit Function
+EH:
+    VBA.MsgBox "The page cannot be updated: " & VBA.Err.Description, _
+        VBA.vbExclamation, "Page update"
+    Resume CleanExit
+End Function
+
 Public Property Get fn_ProfileId() As String
     fn_ProfileId = m_profileId
 End Property

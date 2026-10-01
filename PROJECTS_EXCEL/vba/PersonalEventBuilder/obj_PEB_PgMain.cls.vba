@@ -14,15 +14,22 @@ Implements obj_IPage
 Private m_pageBase As obj_PageBase
 Private m_controller As obj_PEB_PgMainController
 
-' --------------------------------------
-' namespace API {
-' --------------------------------------
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.obj_IPage_Dispose
+End Sub
+
+' //
+' // Interface
+' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
     Set m_pageBase = New obj_PageBase
     If Not m_pageBase.fn_Initialize(profileId, "ui\" & VBA.Trim$(profileId)) Then Exit Function
     If Not private_TryRegisterBindings() Then Exit Function
     Set m_controller = New obj_PEB_PgMainController
-    If Not m_controller.fn_Initialize(m_pageBase) Then Exit Function
+    If Not m_controller.Initialize(m_pageBase) Then Exit Function
     If Not private_TryRegisterCommands() Then Exit Function
     obj_IPage_Initialize = True
 End Function
@@ -38,15 +45,23 @@ Private Function obj_IPage_HandleCellChange(ByVal target As Range) As Boolean
 End Function
 
 Private Sub obj_IPage_Dispose()
-    If Not m_controller Is Nothing Then m_controller.fn_Dispose
+    If Not m_controller Is Nothing Then m_controller.Dispose
     Set m_controller = Nothing
     If Not m_pageBase Is Nothing Then m_pageBase.fn_Dispose
     Set m_pageBase = Nothing
 End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------
 
+' //
+' // Properties
+' //
+
+' //
+' // API
+' //
+
+' //
+' // Private
+' //
 Private Function private_TryRegisterBindings() As Boolean
     Dim uiBindingContext As obj_UiBindingContext
 
@@ -71,10 +86,10 @@ Private Function private_TryRegisterCommands() As Boolean
     Set uiBindingContext = m_pageBase.fn_BindingContext
     If uiBindingContext Is Nothing Then Exit Function
     Set helloWorldCommand = New obj_UiCommand
-    If Not helloWorldCommand.fn_Initialize(m_controller, "fn_HelloWorld") Then Exit Function
+    If Not helloWorldCommand.fn_Initialize(m_controller, "HelloWorld") Then Exit Function
     If Not uiBindingContext.fn_SetObject("Commands", "HelloWorld", helloWorldCommand) Then Exit Function
     Set updatePageCommand = New obj_UiCommand
-    If Not updatePageCommand.fn_Initialize(m_controller, "fn_UpdatePage") Then Exit Function
+    If Not updatePageCommand.fn_Initialize(m_controller, "UpdatePage") Then Exit Function
     If Not uiBindingContext.fn_SetObject("Commands", "UpdatePage", updatePageCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function
