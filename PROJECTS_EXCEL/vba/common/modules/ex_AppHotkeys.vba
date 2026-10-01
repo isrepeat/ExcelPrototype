@@ -14,9 +14,11 @@ Private m_isBrokerManaged As Boolean
 ' --------------------------------------
 Public Sub fn_PrepareReload()
     Dim keySequence As Variant
+
     If m_isBrokerManaged Then
         If Not private_TryDeactivateThroughPersonal() Then _
-            Err.Raise vbObjectError + 2210, "fn_PrepareReload", "Could not detach the PERSONAL hotkey broker."
+            VBA.Err.Raise VBA.vbObjectError + 2210, _
+            "fn_PrepareReload", "Could not detach the PERSONAL hotkey broker."
     ElseIf Not m_hotkeyHandlers Is Nothing Then
         For Each keySequence In m_hotkeyHandlers.Keys
             Application.OnKey VBA.CStr(keySequence)
@@ -118,16 +120,15 @@ Public Sub fn_ToggleDiagnosticMode()
         GoTo CleanToggle
     End If
     ex_Core.fn_Diagnostic_WriteLog "DIAGNOSTIC_MODE_CHANGED | Mode=" & nextMode
-    VBA.MsgBox "Diagnostic logging mode: " & nextMode, _
-        VBA.vbInformation, "Diagnostic logging"
+    ex_Core.fn_StatusBar_Show "Diagnostic logging mode: " & nextMode & " | Save the workbook to keep this setting."
 CleanToggle:
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH_TOGGLE:
-    errorNumber = Err.Number
-    errorDescription = Err.Description
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
     ex_RuntimeLifecycle.fn_Leave runtimeContext
-    Err.Raise errorNumber, "fn_ToggleDiagnosticMode", errorDescription
+    VBA.Err.Raise errorNumber, "fn_ToggleDiagnosticMode", errorDescription
 End Sub
 ' --------------------------------------
 ' } // namespace API

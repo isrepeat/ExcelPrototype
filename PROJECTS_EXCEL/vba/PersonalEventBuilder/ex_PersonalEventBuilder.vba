@@ -56,7 +56,7 @@ EH:
     ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_Initialize", _
+    VBA.Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_Initialize", _
         errorDescription
 End Function
 ' --------------------------------------

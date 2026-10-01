@@ -15,33 +15,46 @@ Private m_contexts As Object
 Private m_initialInstall As Boolean
 Private m_clearOnly As Boolean
 
+' --------------------------------------
 ' namespace API {
-Public Function fn_RequestReload(ByVal target As Workbook, Optional ByVal showErrors As Boolean = True, Optional ByVal clearOnly As Boolean = False) As Boolean
+' --------------------------------------
+Public Function fn_RequestReload( _
+    ByVal target As Workbook, _
+    Optional ByVal showErrors As Boolean = True, _
+    Optional ByVal clearOnly As Boolean = False _
+) As Boolean
     Dim errorText As String
     Dim lifecycleStarted As Boolean
     Dim ownsOperation As Boolean
+
     On Error GoTo EH
-    If Not m_target Is Nothing Then Err.Raise vbObjectError + 2300, , "An update is already pending."
-    If target Is ThisWorkbook Then Err.Raise vbObjectError + 2301, , "The updater cannot reload itself."
-    If Len(target.Path) = 0 Or target.ReadOnly Then Err.Raise vbObjectError + 2302, , "A saved writable workbook is required."
-    If target.VBProject.Protection <> 0 Then Err.Raise vbObjectError + 2303, , "The VBA project is protected."
+    If Not m_target Is Nothing Then _
+        VBA.Err.Raise VBA.vbObjectError + 2300, , "An update is already pending."
+    If target Is ThisWorkbook Then _
+        VBA.Err.Raise VBA.vbObjectError + 2301, , "The updater cannot reload itself."
+    If VBA.Len(target.Path) = 0 Or target.ReadOnly Then _
+        VBA.Err.Raise VBA.vbObjectError + 2302, , "A saved writable workbook is required."
+    If target.VBProject.Protection <> 0 Then _
+        VBA.Err.Raise VBA.vbObjectError + 2303, , "The VBA project is protected."
     Set m_target = target
     ownsOperation = True
     m_clearOnly = clearOnly
     m_showErrors = showErrors
     m_lastResult = "Preparing"
-    m_lastError = vbNullString
+    m_lastError = VBA.vbNullString
     m_initialInstall = private_IsEmptyProject(target)
     If m_initialInstall Then
         If private_HasBlockedMarker(target) Then _
-            Err.Raise vbObjectError + 2322, , "The empty project is blocked after a failed update. Recover it before installing."
+            VBA.Err.Raise VBA.vbObjectError + 2322, , _
+            "The empty project is blocked after a failed update. Recover it before installing."
         Set m_context = fn_FindContext(target)
         If Not m_context Is Nothing Then
-            If CLng(m_context("Generation")) <> 0 Then _
-                Err.Raise vbObjectError + 2325, , "An initialized runtime lost its code. Recover the workbook before installing."
+            If VBA.CLng(m_context("Generation")) <> 0 Then _
+                VBA.Err.Raise VBA.vbObjectError + 2325, , _
+            "An initialized runtime lost its code. Recover the workbook before installing."
         End If
         If m_context Is Nothing Then
-            Set m_context = CreateObject("Scripting.Dictionary")
+            Set m_context = VBA.CreateObject("Scripting.Dictionary")
             m_context.Add "StopRequested", False
             m_context.Add "ActiveCalls", 0&
             m_context.Add "Phase", "Running"
@@ -49,11 +62,12 @@ Public Function fn_RequestReload(ByVal target As Workbook, Optional ByVal showEr
         End If
     Else
         If Not private_HasLifecycle(target) Then _
-            Err.Raise vbObjectError + 2323, , "The project contains code but has no ex_RuntimeLifecycle. Only empty projects can skip shutdown."
+            VBA.Err.Raise VBA.vbObjectError + 2323, , _
+            "The project contains code but has no ex_RuntimeLifecycle. Only empty projects can skip shutdown."
         Set m_context = Application.Run(private_Macro("ex_RuntimeLifecycle.fn_Context"))
     End If
     If m_context("Phase") <> "Running" Or m_context("StopRequested") Then _
-        Err.Raise vbObjectError + 2304, , "The runtime is already stopped or faulted."
+        VBA.Err.Raise VBA.vbObjectError + 2304, , "The runtime is already stopped or faulted."
     private_RegisterContext target, m_context
 
     ' План полностью читается до остановки; последующие правки исходников его не меняют.
@@ -66,13 +80,13 @@ Public Function fn_RequestReload(ByVal target As Workbook, Optional ByVal showEr
     m_context("StopRequested") = True
     m_context("Phase") = "Requested"
     lifecycleStarted = True
-    m_deadline = Now + TimeSerial(0, 0, 30)
+    m_deadline = VBA.Now + VBA.TimeSerial(0, 0, 30)
     private_Schedule
     m_lastResult = "Pending"
     fn_RequestReload = True
     Exit Function
 EH:
-    errorText = Err.Description
+    errorText = VBA.Err.Description
     If lifecycleStarted Then
         m_context("StopRequested") = False
         m_context("Phase") = "Running"
@@ -83,10 +97,13 @@ EH:
         m_lastError = errorText
         m_lastResult = "Rejected"
     End If
-    If showErrors Then MsgBox "Reload request failed: " & errorText, vbExclamation, "Workbook updater"
+    If showErrors Then VBA.MsgBox "Reload request failed: " & errorText, VBA.vbExclamation, "Workbook updater"
 End Function
 
-Public Function fn_RequestClear(ByVal target As Workbook, Optional ByVal showErrors As Boolean = True) As Boolean
+Public Function fn_RequestClear( _
+    ByVal target As Workbook, _
+    Optional ByVal showErrors As Boolean = True _
+) As Boolean
     fn_RequestClear = fn_RequestReload(target, showErrors, True)
 End Function
 
@@ -106,6 +123,7 @@ Public Function fn_FindContext(ByVal target As Workbook) As Object
     Dim entry As Object
     Dim registeredBook As Workbook
     Dim key As Variant
+
     If m_contexts Is Nothing Then Exit Function
     For Each key In m_contexts.Keys
         Set entry = m_contexts(key)
@@ -121,6 +139,7 @@ Public Sub fn_ForgetContext(ByVal target As Workbook)
     Dim entry As Object
     Dim registeredBook As Workbook
     Dim key As Variant
+
     If m_contexts Is Nothing Then Exit Sub
     For Each key In m_contexts.Keys
         Set entry = m_contexts(key)
@@ -140,19 +159,22 @@ Public Sub fn_RunPending()
     Dim stateCaptured As Boolean
     Dim errorText As String
     Dim clearedTarget As Workbook
+
     On Error GoTo EH
     m_scheduledAt = 0
     If m_target Is Nothing Then Exit Sub
-    If Not private_IsTargetOpen() Then Err.Raise vbObjectError + 2305, , "The target workbook was closed."
+    If Not private_IsTargetOpen() Then _
+        VBA.Err.Raise VBA.vbObjectError + 2305, , "The target workbook was closed."
     ' Во время callback Excel возвращает Run даже для целевого проекта.
     ' Завершение его вызовов подтверждаем счётчиком, а не требованием Design.
-    If CLng(m_context("ActiveCalls")) <> 0 Then
-        m_lastError = "Waiting: project mode=" & CStr(m_target.VBProject.Mode) & "; active calls=" & CStr(m_context("ActiveCalls"))
-        If Now >= m_deadline Then Err.Raise vbObjectError + 2306, , "Runtime did not stop within 30 seconds."
+    If VBA.CLng(m_context("ActiveCalls")) <> 0 Then
+        m_lastError = "Waiting: project mode=" & VBA.CStr(m_target.VBProject.Mode) & "; active calls=" & VBA.CStr(m_context("ActiveCalls"))
+        If VBA.Now >= m_deadline Then _
+        VBA.Err.Raise VBA.vbObjectError + 2306, , "Runtime did not stop within 30 seconds."
         private_Schedule
         Exit Sub
     End If
-    m_lastError = vbNullString
+    m_lastError = VBA.vbNullString
     previousEvents = Application.EnableEvents
     previousScreenUpdating = Application.ScreenUpdating
     previousCalculation = Application.Calculation
@@ -165,7 +187,8 @@ Public Sub fn_RunPending()
 
     ' Повторно проверяем пустоту: проект могли изменить во время ожидания callback.
     If m_initialInstall And Not private_IsEmptyProject(m_target) Then _
-        Err.Raise vbObjectError + 2324, , "The project is no longer empty. Initial installation was cancelled."
+        VBA.Err.Raise VBA.vbObjectError + 2324, , _
+            "The project is no longer empty. Initial installation was cancelled."
     m_backupPath = m_operationFolder & "\" & m_target.Name
     m_target.SaveCopyAs m_backupPath
     m_target.Names.Add Name:="_RuntimeReloadBlocked", RefersTo:="=TRUE", Visible:=False
@@ -173,11 +196,14 @@ Public Sub fn_RunPending()
         ' У пустого проекта нет старого runtime; новый lifecycle поступит вместе с исходниками.
         m_context("Phase") = "Prepared"
     Else
-        If Not CBool(Application.Run(private_Macro("ex_RuntimeLifecycle.fn_PrepareReload"))) Then _
-            Err.Raise vbObjectError + 2320, , "Runtime preparation failed: " & CStr(m_context("Error"))
+        If Not VBA.CBool(Application.Run(private_Macro("ex_RuntimeLifecycle.fn_PrepareReload"))) Then _
+            VBA.Err.Raise VBA.vbObjectError + 2320, , _
+            "Runtime preparation failed: " & VBA.CStr(m_context("Error"))
     End If
-    If m_context("Phase") <> "Prepared" Then Err.Raise vbObjectError + 2307, , "Runtime preparation was not acknowledged."
-    If CLng(m_context("ActiveCalls")) <> 0 Then Err.Raise vbObjectError + 2308, , "A target runtime call is still active."
+    If m_context("Phase") <> "Prepared" Then _
+        VBA.Err.Raise VBA.vbObjectError + 2307, , "Runtime preparation was not acknowledged."
+    If VBA.CLng(m_context("ActiveCalls")) <> 0 Then _
+        VBA.Err.Raise VBA.vbObjectError + 2308, , "A target runtime call is still active."
     m_context("Phase") = "Importing"
     private_ApplyPlan m_target, m_plan
 
@@ -210,10 +236,11 @@ Public Sub fn_RunPending()
     Exit Sub
 
 InitializeRuntime:
-    If Not CBool(Application.Run(private_Macro("ex_RuntimeLifecycle.fn_InitializeReloaded"), m_context, m_uiFolder)) Then _
-        Err.Raise vbObjectError + 2321, , "Runtime initialization failed: " & CStr(m_context("Error"))
+    If Not VBA.CBool(Application.Run(private_Macro("ex_RuntimeLifecycle.fn_InitializeReloaded"), m_context, m_uiFolder)) Then _
+        VBA.Err.Raise VBA.vbObjectError + 2321, , _
+            "Runtime initialization failed: " & VBA.CStr(m_context("Error"))
     m_target.Names("_RuntimeReloadBlocked").Delete
-    m_context("Generation") = CLng(m_context("Generation")) + 1
+    m_context("Generation") = VBA.CLng(m_context("Generation")) + 1
     m_context("Phase") = "Running"
     m_context("StopRequested") = False
     Application.Calculation = previousCalculation
@@ -225,7 +252,7 @@ InitializeRuntime:
     private_ClearOperation
     Exit Sub
 EH:
-    errorText = Err.Description
+    errorText = VBA.Err.Description
     m_lastResult = "Faulted"
     m_lastError = errorText
     If Not m_context Is Nothing Then
@@ -243,18 +270,19 @@ EH:
         Application.EnableEvents = previousEvents
     End If
     On Error GoTo 0
-    If m_showErrors Then MsgBox "VBA reload stopped: " & errorText & vbCrLf & _
+    If m_showErrors Then VBA.MsgBox "VBA reload stopped: " & errorText & VBA.vbCrLf & _
         "The runtime remains blocked. Close without saving and recover the backup if necessary." & _
-        vbCrLf & "Backup: " & m_backupPath, vbCritical, "Workbook updater"
+        VBA.vbCrLf & "Backup: " & m_backupPath, VBA.vbCritical, "Workbook updater"
     private_ClearOperation
 End Sub
 
 Public Sub fn_CancelPending(ByVal target As Workbook)
     If m_target Is Nothing Then Exit Sub
     If Not target Is m_target Then Exit Sub
-    If m_scheduledAt = 0 Then Err.Raise vbObjectError + 2309, , "An update is executing."
+    If m_scheduledAt = 0 Then VBA.Err.Raise VBA.vbObjectError + 2309, , "An update is executing."
     If m_context("Phase") <> "Requested" Then _
-        Err.Raise vbObjectError + 2326, , "Import has already started. Wait for initialization before closing or cancelling."
+        VBA.Err.Raise VBA.vbObjectError + 2326, , _
+            "Import has already started. Wait for initialization before closing or cancelling."
     Application.OnTime EarliestTime:=m_scheduledAt, Procedure:=private_Callback(), Schedule:=False
     m_scheduledAt = 0
     m_context("StopRequested") = False
@@ -262,7 +290,9 @@ Public Sub fn_CancelPending(ByVal target As Workbook)
     m_lastResult = "Cancelled"
     private_ClearOperation
 End Sub
+' --------------------------------------
 ' } // namespace API
+' --------------------------------------
 
 Private Function private_Macro(ByVal methodName As String) As String
     private_Macro = "'" & Replace$(m_target.Name, "'", "''") & "'!" & methodName
@@ -274,13 +304,15 @@ End Function
 
 Private Sub private_Schedule()
     Dim scheduleAt As Date
-    scheduleAt = Now + TimeSerial(0, 0, 1)
+
+    scheduleAt = VBA.Now + VBA.TimeSerial(0, 0, 1)
     Application.OnTime EarliestTime:=scheduleAt, Procedure:=private_Callback()
     m_scheduledAt = scheduleAt
 End Sub
 
 Private Function private_IsTargetOpen() As Boolean
     Dim book As Workbook
+
     For Each book In Application.Workbooks
         If book Is m_target Then
             private_IsTargetOpen = True
@@ -295,9 +327,9 @@ Private Sub private_ClearOperation()
     Set m_plan = Nothing
     m_scheduledAt = 0
     m_deadline = 0
-    m_backupPath = vbNullString
-    m_operationFolder = vbNullString
-    m_uiFolder = vbNullString
+    m_backupPath = VBA.vbNullString
+    m_operationFolder = VBA.vbNullString
+    m_uiFolder = VBA.vbNullString
     m_initialInstall = False
     m_clearOnly = False
 End Sub
@@ -307,13 +339,14 @@ Private Function private_CreateOperationFolder(ByVal target As Workbook) As Stri
     Dim folder As String
     Dim backupRoot As String
     Dim suffix As Long
-    Set fileSystem = CreateObject("Scripting.FileSystemObject")
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     backupRoot = target.Path & "\.backup"
     If Not fileSystem.FolderExists(backupRoot) Then fileSystem.CreateFolder backupRoot
-    folder = backupRoot & "\reload-" & Format$(Now, "yyyymmdd-hhnnss")
+    folder = backupRoot & "\reload-" & Format$(VBA.Now, "yyyymmdd-hhnnss")
     Do While fileSystem.FolderExists(folder)
         suffix = suffix + 1
-        folder = backupRoot & "\reload-" & Format$(Now, "yyyymmdd-hhnnss") & "-" & CStr(suffix)
+        folder = backupRoot & "\reload-" & Format$(VBA.Now, "yyyymmdd-hhnnss") & "-" & VBA.CStr(suffix)
     Loop
     fileSystem.CreateFolder folder
     private_CreateOperationFolder = folder
@@ -321,6 +354,7 @@ End Function
 
 Private Function private_IsEmptyProject(ByVal target As Workbook) As Boolean
     Dim component As Object
+
     For Each component In target.VBProject.VBComponents
         If component.Type <> 100 And component.Type <> 1 And component.Type <> 2 Then Exit Function
         If component.CodeModule.CountOfLines <> 0 Then Exit Function
@@ -330,8 +364,9 @@ End Function
 
 Private Function private_HasLifecycle(ByVal target As Workbook) As Boolean
     Dim component As Object
+
     For Each component In target.VBProject.VBComponents
-        If StrComp(component.Name, "ex_RuntimeLifecycle", vbTextCompare) = 0 And component.Type = 1 Then
+        If VBA.StrComp(component.Name, "ex_RuntimeLifecycle", VBA.vbTextCompare) = 0 And component.Type = 1 Then
             private_HasLifecycle = True
             Exit Function
         End If
@@ -341,10 +376,11 @@ End Function
 Private Function private_HasBlockedMarker(ByVal target As Workbook) As Boolean
     Dim marker As Name
     Dim markerName As String
+
     For Each marker In target.Names
         markerName = marker.Name
-        If InStrRev(markerName, "!") > 0 Then markerName = Mid$(markerName, InStrRev(markerName, "!") + 1)
-        If StrComp(markerName, "_RuntimeReloadBlocked", vbTextCompare) = 0 Then
+        If VBA.InStrRev(markerName, "!") > 0 Then markerName = Mid$(markerName, VBA.InStrRev(markerName, "!") + 1)
+        If VBA.StrComp(markerName, "_RuntimeReloadBlocked", VBA.vbTextCompare) = 0 Then
             private_HasBlockedMarker = True
             Exit Function
         End If
@@ -355,13 +391,14 @@ Private Sub private_RegisterContext(ByVal target As Workbook, ByVal context As O
     Dim entry As Object
     Dim registeredBook As Workbook
     Dim key As Variant
-    If m_contexts Is Nothing Then Set m_contexts = CreateObject("Scripting.Dictionary")
+
+    If m_contexts Is Nothing Then Set m_contexts = VBA.CreateObject("Scripting.Dictionary")
     For Each key In m_contexts.Keys
         Set entry = m_contexts(key)
         Set registeredBook = entry("Workbook")
         If registeredBook Is target Then m_contexts.Remove key
     Next key
-    Set entry = CreateObject("Scripting.Dictionary")
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
     entry.Add "Workbook", target
     entry.Add "Context", context
     If m_contexts.Exists(target.FullName) Then m_contexts.Remove target.FullName
@@ -380,24 +417,26 @@ Private Function private_ReadPlan(ByVal target As Workbook, ByRef uiFolder As St
     Dim code As String
     Dim fileName As String
     Dim sheetName As String
+
     If Not private_VbaReload_TryResolveConfiguredFolder(target, "ThisWorkbook::vbaPath", root) Then _
-        Err.Raise vbObjectError + 2310, , "The VBA source folder is invalid."
+        VBA.Err.Raise VBA.vbObjectError + 2310, , "The VBA source folder is invalid."
     If Not private_VbaReload_TryResolveConfiguredFolder(target, "ThisWorkbook::uiPath", uiFolder) Then _
-        Err.Raise vbObjectError + 2311, , "The UI source folder is invalid."
+        VBA.Err.Raise VBA.vbObjectError + 2311, , "The UI source folder is invalid."
     If Not private_VbaReload_TryCollectConfiguredVbaFiles(root, target, files, documents) Then _
-        Err.Raise vbObjectError + 2312, , "The source profile is invalid."
-    Set fileSystem = CreateObject("Scripting.FileSystemObject")
-    Set names = CreateObject("Scripting.Dictionary")
-    names.CompareMode = vbTextCompare
+        VBA.Err.Raise VBA.vbObjectError + 2312, , "The source profile is invalid."
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    Set names = VBA.CreateObject("Scripting.Dictionary")
+    names.CompareMode = VBA.vbTextCompare
     m_operationFolder = private_CreateOperationFolder(target)
     For Each sourcePath In documents
         files.Add sourcePath
     Next sourcePath
     For Each sourcePath In files
-        Set item = CreateObject("Scripting.Dictionary")
-        fileName = fileSystem.GetFileName(CStr(sourcePath))
-        code = private_VbaReload_ReadUtf8TextFile(CStr(sourcePath))
-        If Len(Trim$(code)) = 0 Then Err.Raise vbObjectError + 2313, , "Empty source: " & CStr(sourcePath)
+        Set item = VBA.CreateObject("Scripting.Dictionary")
+        fileName = fileSystem.GetFileName(VBA.CStr(sourcePath))
+        code = private_VbaReload_ReadUtf8TextFile(VBA.CStr(sourcePath))
+        If VBA.Len(Trim$(code)) = 0 Then _
+        VBA.Err.Raise VBA.vbObjectError + 2313, , "Empty source: " & VBA.CStr(sourcePath)
         item.Add "Document", private_VbaReload_IsDocumentModuleSource(LCase$(fileName))
         If item("Document") Then
             If private_VbaReload_IsThisWorkbookModuleSource(fileName) Then
@@ -408,31 +447,34 @@ Private Function private_ReadPlan(ByVal target As Workbook, ByRef uiFolder As St
             End If
             item.Add "Type", 100&
         Else
-            item.Add "Name", private_VbaReload_GetComponentName(CStr(sourcePath), code)
-            item.Add "Type", private_VbaReload_GetVbaComponentType(LCase$(CStr(sourcePath)), code)
-            If item("Type") = 3 And LCase$(fileSystem.GetExtensionName(CStr(sourcePath))) = "vba" Then _
-                Err.Raise vbObjectError + 2314, , "UserForms require a native .frm/.frx export: " & CStr(sourcePath)
+            item.Add "Name", private_VbaReload_GetComponentName(VBA.CStr(sourcePath), code)
+            item.Add "Type", private_VbaReload_GetVbaComponentType(LCase$(VBA.CStr(sourcePath)), code)
+            If item("Type") = 3 And LCase$(fileSystem.GetExtensionName(VBA.CStr(sourcePath))) = "vba" Then _
+                VBA.Err.Raise VBA.vbObjectError + 2314, , _
+            "UserForms require a native .frm/.frx export: " & VBA.CStr(sourcePath)
         End If
-        If names.Exists(item("Name")) Then Err.Raise vbObjectError + 2315, , "Duplicate component: " & item("Name")
+        If names.Exists(item("Name")) Then _
+        VBA.Err.Raise VBA.vbObjectError + 2315, , "Duplicate component: " & item("Name")
         names.Add item("Name"), True
         item.Add "Code", private_VbaReload_PrepareSourceForVbe(code)
-        item.Add "Native", LCase$(fileSystem.GetExtensionName(CStr(sourcePath))) <> "vba"
-        item.Add "Path", CStr(sourcePath)
+        item.Add "Native", LCase$(fileSystem.GetExtensionName(VBA.CStr(sourcePath))) <> "vba"
+        item.Add "Path", VBA.CStr(sourcePath)
         If item("Native") And Not item("Document") Then
             item("Path") = m_operationFolder & "\" & fileName
-            fileSystem.CopyFile CStr(sourcePath), CStr(item("Path")), False
+            fileSystem.CopyFile VBA.CStr(sourcePath), VBA.CStr(item("Path")), False
             If item("Type") = 3 Then
-                If fileSystem.FileExists(fileSystem.BuildPath(fileSystem.GetParentFolderName(CStr(sourcePath)), fileSystem.GetBaseName(CStr(sourcePath)) & ".frx")) Then
-                    fileSystem.CopyFile fileSystem.BuildPath(fileSystem.GetParentFolderName(CStr(sourcePath)), fileSystem.GetBaseName(CStr(sourcePath)) & ".frx"), m_operationFolder & "\", False
-                ElseIf InStr(1, code, ".frx", vbTextCompare) > 0 Then
-                    Err.Raise vbObjectError + 2316, , "Missing .frx resource: " & CStr(sourcePath)
+                If fileSystem.FileExists(fileSystem.BuildPath(fileSystem.GetParentFolderName(VBA.CStr(sourcePath)), fileSystem.GetBaseName(VBA.CStr(sourcePath)) & ".frx")) Then
+                    fileSystem.CopyFile fileSystem.BuildPath(fileSystem.GetParentFolderName(VBA.CStr(sourcePath)), fileSystem.GetBaseName(VBA.CStr(sourcePath)) & ".frx"), m_operationFolder & "\", False
+                ElseIf InStr(1, code, ".frx", VBA.vbTextCompare) > 0 Then
+                    VBA.Err.Raise VBA.vbObjectError + 2316, , "Missing .frx resource: " & VBA.CStr(sourcePath)
                 End If
             End If
         End If
         plan.Add item
     Next sourcePath
     If Not names.Exists("ex_RuntimeLifecycle") Or Not names.Exists(target.CodeName) Then _
-        Err.Raise vbObjectError + 2317, , "The profile must include the runtime lifecycle and workbook event module."
+        VBA.Err.Raise VBA.vbObjectError + 2317, , _
+            "The profile must include the runtime lifecycle and workbook event module."
     Set private_ReadPlan = plan
 End Function
 
@@ -441,6 +483,7 @@ Private Sub private_ApplyPlan(ByVal target As Workbook, ByVal plan As Collection
     Dim component As Object
     Dim item As Object
     Dim index As Long
+
     Set project = target.VBProject
     For index = project.VBComponents.Count To 1 Step -1
         Set component = project.VBComponents(index)
@@ -449,22 +492,23 @@ Private Sub private_ApplyPlan(ByVal target As Workbook, ByVal plan As Collection
         ElseIf component.Type = 1 Or component.Type = 2 Or component.Type = 3 Then
             project.VBComponents.Remove component
         Else
-            Err.Raise vbObjectError + 2318, , "Unsupported component type: " & CStr(component.Type)
+            VBA.Err.Raise VBA.vbObjectError + 2318, , _
+            "Unsupported component type: " & VBA.CStr(component.Type)
         End If
     Next index
     Set component = Nothing
     For Each item In plan
         If item("Document") Then
-            Set component = project.VBComponents(CStr(item("Name")))
+            Set component = project.VBComponents(VBA.CStr(item("Name")))
         ElseIf item("Native") Then
-            Set component = project.VBComponents.Import(CStr(item("Path")))
+            Set component = project.VBComponents.Import(VBA.CStr(item("Path")))
         Else
-            Set component = project.VBComponents.Add(CLng(item("Type")))
-            component.Name = CStr(item("Name"))
+            Set component = project.VBComponents.Add(VBA.CLng(item("Type")))
+            component.Name = VBA.CStr(item("Name"))
         End If
-        If Not item("Native") Or item("Document") Then component.CodeModule.AddFromString CStr(item("Code"))
+        If Not item("Native") Or item("Document") Then component.CodeModule.AddFromString VBA.CStr(item("Code"))
         If component.Name <> item("Name") Or component.Type <> item("Type") Then _
-            Err.Raise vbObjectError + 2319, , "Imported component identity mismatch: " & item("Name")
+            VBA.Err.Raise VBA.vbObjectError + 2319, , "Imported component identity mismatch: " & item("Name")
     Next item
 End Sub
 

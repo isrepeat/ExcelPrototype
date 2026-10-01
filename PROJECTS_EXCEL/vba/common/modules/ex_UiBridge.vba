@@ -37,11 +37,11 @@ CleanExit:
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
-    errorNumber = Err.Number
-    errorDescription = Err.Description
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
     Set uiCommand = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext
-    Err.Raise errorNumber, "ex_UiBridge.fn_OnShapeClick", errorDescription
+    VBA.Err.Raise errorNumber, "ex_UiBridge.fn_OnShapeClick", errorDescription
 End Sub
 ' --------------------------------------
 ' } // namespace API

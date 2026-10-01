@@ -26,7 +26,7 @@ EH:
     errorDescription = VBA.Err.Description
     fn_Diagnostic_WriteLog "PERSONAL_RUNTIME_RELOAD_REQUEST_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
-    Err.Raise errorNumber, "ex_Core.fn_ReloadPersonalRuntime", errorDescription
+    VBA.Err.Raise errorNumber, "ex_Core.fn_ReloadPersonalRuntime", errorDescription
 End Sub
 
 Public Sub fn_RestorePersonalHotkeys()
@@ -43,7 +43,7 @@ EH:
     errorDescription = VBA.Err.Description
     fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_RESTORE_REQUEST_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
-    Err.Raise errorNumber, "ex_Core.fn_RestorePersonalHotkeys", errorDescription
+    VBA.Err.Raise errorNumber, "ex_Core.fn_RestorePersonalHotkeys", errorDescription
 End Sub
 
 Public Function fn_HotkeyBroker_Activate( _
@@ -99,6 +99,176 @@ Public Sub fn_ReloadActiveWorkbookVbaDeferred()
     private_VbaReload_RequestSafeReload
 End Sub
 
+' Останавливает runtime перед удалением модулей и очисткой кода объектов книги.
+Public Sub fn_ClearActiveWorkbookVba()
+    private_VbaReload_RequestSafeReload "ex_WorkbookUpdater.fn_RequestClear"
+End Sub
+' --------------------------------------
+' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace Diagnostic {
+' --------------------------------------
+Public Sub fn_Diagnostic_WriteLog(ByVal messageText As String)
+#If ENABLE_LOGGING Then
+    private_Diagnostic_WriteSessionHeader
+    private_Diagnostic_WriteRawLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
+        " | " & messageText
+#End If
+End Sub
+
+' --------------------------------------
+' } // namespace Diagnostic
+' --------------------------------------
+
+' --------------------------------------
+' namespace PrivateDiagnostic {
+' --------------------------------------
+' Writes a prepared diagnostic line to the session log.
+Private Sub private_Diagnostic_WriteRawLine(ByVal lineText As String)
+    Const FOR_APPENDING As Long = 8
+    Const TRISTATE_TRUE As Long = -1
+    Dim fileSystem As Object
+    Dim logFile As Object
+    Dim tempPath As String
+    Dim logFolderPath As String
+
+    On Error Resume Next
+    tempPath = VBA.Environ$("TEMP")
+    If VBA.Len(tempPath) = 0 Then Exit Sub
+    logFolderPath = tempPath & "\" & DIAGNOSTIC_FOLDER_NAME
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FolderExists(logFolderPath) Then fileSystem.CreateFolder logFolderPath
+    Set logFile = fileSystem.OpenTextFile( _
+        logFolderPath & "\" & DIAGNOSTIC_FILE_NAME, FOR_APPENDING, True, TRISTATE_TRUE)
+    logFile.WriteLine lineText
+    logFile.Close
+End Sub
+
+' Adds a visible boundary before the first diagnostic record of this VBA session.
+Private Sub private_Diagnostic_WriteSessionHeader()
+    If m_diagnosticSessionStarted Then Exit Sub
+
+    private_Diagnostic_WriteRawLine String$(96, "=")
+    private_Diagnostic_WriteRawLine "New session started | " & _
+        VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
+    private_Diagnostic_WriteRawLine String$(96, "=")
+    m_diagnosticSessionStarted = True
+End Sub
+' --------------------------------------
+' } // namespace PrivateDiagnostic
+' --------------------------------------
+
+' --------------------------------------
+' namespace HotkeyBroker {
+' --------------------------------------
+Private Sub private_HotkeyBroker_EnsureRegistry()
+    If Not m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
+
+    Set m_hotkeyBrokerBindingsByWorkbook = VBA.CreateObject("Scripting.Dictionary")
+    m_hotkeyBrokerBindingsByWorkbook.CompareMode = VBA.vbTextCompare
+End Sub
+
+Private Sub private_HotkeyBroker_ClearLegacyBindings()
+    If m_hotkeyBrokerLegacyCleanupCompleted Then Exit Sub
+
+    On Error Resume Next
+    Application.OnKey "^%l"
+    On Error GoTo 0
+    m_hotkeyBrokerLegacyCleanupCompleted = True
+    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_LEGACY_KEY_CLEARED | Key=^%l"
+End Sub
+
+Private Function private_HotkeyBroker_FindWorkbook( _
+    ByVal workbookFullName As String _
+) As Workbook
+    Dim targetWorkbook As Workbook
+
+    For Each targetWorkbook In Application.Workbooks
+        If VBA.StrComp(targetWorkbook.FullName, workbookFullName, _
+                VBA.vbTextCompare) = 0 Then
+            Set private_HotkeyBroker_FindWorkbook = targetWorkbook
+            Exit Function
+        End If
+    Next targetWorkbook
+End Function
+
+Private Function private_HotkeyBroker_TryParseBindings( _
+    ByVal bindingsText As String, _
+    ByRef outBindingsByKey As Object _
+) As Boolean
+    Dim entryText As Variant
+    Dim entryParts As Variant
+    Dim keySequence As String
+    Dim macroName As String
+
+    Set outBindingsByKey = VBA.CreateObject("Scripting.Dictionary")
+    outBindingsByKey.CompareMode = VBA.vbTextCompare
+    If VBA.Len(bindingsText) = 0 Then
+        private_HotkeyBroker_TryParseBindings = True
+        Exit Function
+    End If
+    For Each entryText In VBA.Split(bindingsText, VBA.ChrW$(31))
+        entryParts = VBA.Split(VBA.CStr(entryText), VBA.ChrW$(30))
+        If UBound(entryParts) <> 1 Then Exit Function
+        keySequence = VBA.Trim$(VBA.CStr(entryParts(0)))
+        macroName = VBA.Trim$(VBA.CStr(entryParts(1)))
+        If VBA.Len(keySequence) = 0 Or VBA.Len(macroName) = 0 Then Exit Function
+        outBindingsByKey(keySequence) = macroName
+    Next entryText
+    private_HotkeyBroker_TryParseBindings = True
+End Function
+
+Private Sub private_HotkeyBroker_BindWorkbook( _
+    ByVal targetWorkbook As Workbook, _
+    ByVal bindingsByKey As Object _
+)
+    Dim keySequence As Variant
+    Dim macroReference As String
+
+    For Each keySequence In bindingsByKey.Keys
+        macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+            "'!" & VBA.CStr(bindingsByKey(keySequence))
+        Application.OnKey VBA.CStr(keySequence), macroReference
+    Next keySequence
+End Sub
+
+Private Sub private_HotkeyBroker_UnbindAll()
+    Dim workbookIdentity As Variant
+    Dim workbookIdentities As Collection
+
+    If m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
+    Set workbookIdentities = New Collection
+    For Each workbookIdentity In m_hotkeyBrokerBindingsByWorkbook.Keys
+        workbookIdentities.Add VBA.CStr(workbookIdentity)
+    Next workbookIdentity
+    For Each workbookIdentity In workbookIdentities
+        private_HotkeyBroker_UnbindWorkbook VBA.CStr(workbookIdentity)
+    Next workbookIdentity
+End Sub
+
+Private Sub private_HotkeyBroker_UnbindWorkbook(ByVal workbookFullName As String)
+    Dim bindingsByKey As Object
+    Dim keySequence As Variant
+
+    If m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
+    If Not m_hotkeyBrokerBindingsByWorkbook.Exists(workbookFullName) Then Exit Sub
+    Set bindingsByKey = m_hotkeyBrokerBindingsByWorkbook(workbookFullName)
+    On Error Resume Next
+    For Each keySequence In bindingsByKey.Keys
+        Application.OnKey VBA.CStr(keySequence)
+    Next keySequence
+    On Error GoTo 0
+    m_hotkeyBrokerBindingsByWorkbook.Remove workbookFullName
+End Sub
+' --------------------------------------
+' } // namespace HotkeyBroker
+' --------------------------------------
+
+' --------------------------------------
+' namespace VbaReload {
+' --------------------------------------
 Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
     ByVal deferInitialization As Boolean _
 )
@@ -195,7 +365,7 @@ Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
     Set vbProject = targetWorkbook.VBProject
     Set componentNames = New Collection
     For Each vbComponent In vbProject.VBComponents
-        Select Case CLng(vbComponent.Type)
+        Select Case VBA.CLng(vbComponent.Type)
             Case VBEXT_CT_STD_MODULE, VBEXT_CT_CLASS_MODULE, VBEXT_CT_MS_FORM
                 componentNames.Add VBA.CStr(vbComponent.Name)
         End Select
@@ -284,215 +454,45 @@ EH:
     Resume CleanExit
 End Sub
 
-
-' Removes standard modules and class modules from the active workbook.
-Public Sub fn_ClearActiveWorkbookVba()
-    private_VbaReload_RequestSafeReload "ex_WorkbookUpdater.fn_RequestClear"
-End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------
-
-' --------------------------------------
-' namespace Diagnostic {
-' --------------------------------------
-Public Sub fn_Diagnostic_WriteLog(ByVal messageText As String)
-#If ENABLE_LOGGING Then
-    private_Diagnostic_WriteSessionHeader
-    private_Diagnostic_WriteRawLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
-        " | " & messageText
-#End If
-End Sub
-
-
-' Writes a prepared diagnostic line to the session log.
-Private Sub private_Diagnostic_WriteRawLine(ByVal lineText As String)
-    Const FOR_APPENDING As Long = 8
-    Const TRISTATE_TRUE As Long = -1
-    Dim fileSystem As Object
-    Dim logFile As Object
-    Dim tempPath As String
-    Dim logFolderPath As String
-
-    On Error Resume Next
-    tempPath = VBA.Environ$("TEMP")
-    If VBA.Len(tempPath) = 0 Then Exit Sub
-    logFolderPath = tempPath & "\" & DIAGNOSTIC_FOLDER_NAME
-    Set fileSystem = CreateObject("Scripting.FileSystemObject")
-    If Not fileSystem.FolderExists(logFolderPath) Then fileSystem.CreateFolder logFolderPath
-    Set logFile = fileSystem.OpenTextFile( _
-        logFolderPath & "\" & DIAGNOSTIC_FILE_NAME, FOR_APPENDING, True, TRISTATE_TRUE)
-    logFile.WriteLine lineText
-    logFile.Close
-End Sub
-
-
-' Adds a visible boundary before the first diagnostic record of this VBA session.
-Private Sub private_Diagnostic_WriteSessionHeader()
-    If m_diagnosticSessionStarted Then Exit Sub
-
-    private_Diagnostic_WriteRawLine String$(96, "=")
-    private_Diagnostic_WriteRawLine "New session started | " & _
-        VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
-    private_Diagnostic_WriteRawLine String$(96, "=")
-    m_diagnosticSessionStarted = True
-End Sub
-' --------------------------------------
-' } // namespace Diagnostic
-' --------------------------------------
-
-' --------------------------------------
-' namespace HotkeyBroker {
-' --------------------------------------
-Private Sub private_HotkeyBroker_EnsureRegistry()
-    If Not m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
-
-    Set m_hotkeyBrokerBindingsByWorkbook = VBA.CreateObject("Scripting.Dictionary")
-    m_hotkeyBrokerBindingsByWorkbook.CompareMode = VBA.vbTextCompare
-End Sub
-
-
-Private Sub private_HotkeyBroker_ClearLegacyBindings()
-    If m_hotkeyBrokerLegacyCleanupCompleted Then Exit Sub
-
-    On Error Resume Next
-    Application.OnKey "^%l"
-    On Error GoTo 0
-    m_hotkeyBrokerLegacyCleanupCompleted = True
-    fn_Diagnostic_WriteLog "PERSONAL_HOTKEY_BROKER_LEGACY_KEY_CLEARED | Key=^%l"
-End Sub
-
-
-Private Function private_HotkeyBroker_FindWorkbook( _
-    ByVal workbookFullName As String _
-) As Workbook
-    Dim targetWorkbook As Workbook
-
-    For Each targetWorkbook In Application.Workbooks
-        If VBA.StrComp(targetWorkbook.FullName, workbookFullName, _
-                VBA.vbTextCompare) = 0 Then
-            Set private_HotkeyBroker_FindWorkbook = targetWorkbook
-            Exit Function
-        End If
-    Next targetWorkbook
-End Function
-
-
-Private Function private_HotkeyBroker_TryParseBindings( _
-    ByVal bindingsText As String, _
-    ByRef outBindingsByKey As Object _
-) As Boolean
-    Dim entryText As Variant
-    Dim entryParts As Variant
-    Dim keySequence As String
-    Dim macroName As String
-
-    Set outBindingsByKey = VBA.CreateObject("Scripting.Dictionary")
-    outBindingsByKey.CompareMode = VBA.vbTextCompare
-    If VBA.Len(bindingsText) = 0 Then
-        private_HotkeyBroker_TryParseBindings = True
-        Exit Function
-    End If
-    For Each entryText In VBA.Split(bindingsText, VBA.ChrW$(31))
-        entryParts = VBA.Split(VBA.CStr(entryText), VBA.ChrW$(30))
-        If UBound(entryParts) <> 1 Then Exit Function
-        keySequence = VBA.Trim$(VBA.CStr(entryParts(0)))
-        macroName = VBA.Trim$(VBA.CStr(entryParts(1)))
-        If VBA.Len(keySequence) = 0 Or VBA.Len(macroName) = 0 Then Exit Function
-        outBindingsByKey(keySequence) = macroName
-    Next entryText
-    private_HotkeyBroker_TryParseBindings = True
-End Function
-
-
-Private Sub private_HotkeyBroker_BindWorkbook( _
-    ByVal targetWorkbook As Workbook, _
-    ByVal bindingsByKey As Object _
-)
-    Dim keySequence As Variant
-    Dim macroReference As String
-
-    For Each keySequence In bindingsByKey.Keys
-        macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
-            "'!" & VBA.CStr(bindingsByKey(keySequence))
-        Application.OnKey VBA.CStr(keySequence), macroReference
-    Next keySequence
-End Sub
-
-
-Private Sub private_HotkeyBroker_UnbindAll()
-    Dim workbookIdentity As Variant
-    Dim workbookIdentities As Collection
-
-    If m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
-    Set workbookIdentities = New Collection
-    For Each workbookIdentity In m_hotkeyBrokerBindingsByWorkbook.Keys
-        workbookIdentities.Add VBA.CStr(workbookIdentity)
-    Next workbookIdentity
-    For Each workbookIdentity In workbookIdentities
-        private_HotkeyBroker_UnbindWorkbook VBA.CStr(workbookIdentity)
-    Next workbookIdentity
-End Sub
-
-
-Private Sub private_HotkeyBroker_UnbindWorkbook(ByVal workbookFullName As String)
-    Dim bindingsByKey As Object
-    Dim keySequence As Variant
-
-    If m_hotkeyBrokerBindingsByWorkbook Is Nothing Then Exit Sub
-    If Not m_hotkeyBrokerBindingsByWorkbook.Exists(workbookFullName) Then Exit Sub
-    Set bindingsByKey = m_hotkeyBrokerBindingsByWorkbook(workbookFullName)
-    On Error Resume Next
-    For Each keySequence In bindingsByKey.Keys
-        Application.OnKey VBA.CStr(keySequence)
-    Next keySequence
-    On Error GoTo 0
-    m_hotkeyBrokerBindingsByWorkbook.Remove workbookFullName
-End Sub
-' --------------------------------------
-' } // namespace HotkeyBroker
-' --------------------------------------
-
-' --------------------------------------
-' namespace VbaReload {
-' --------------------------------------
 ' Перезагружает VBA-проект во внешнем процессе Excel.
-Private Sub private_VbaReload_RequestSafeReload(Optional ByVal requestMethod As String = "ex_WorkbookUpdater.fn_RequestReload")
+Private Sub private_VbaReload_RequestSafeReload( _
+    Optional ByVal requestMethod As String = "ex_WorkbookUpdater.fn_RequestReload" _
+)
     Dim targetWorkbook As Workbook
     Dim updaterWorkbook As Workbook
     Dim vbaFolderPath As String
     Dim updaterPath As String
     Dim fileSystem As Object
+
     On Error GoTo EH
     Set targetWorkbook = Application.ActiveWorkbook
-    If targetWorkbook Is Nothing Then Err.Raise vbObjectError + 2400, , "No active workbook."
-    If targetWorkbook Is ThisWorkbook Then Err.Raise vbObjectError + 2401, , "Activate the target workbook first."
+    If targetWorkbook Is Nothing Then VBA.Err.Raise VBA.vbObjectError + 2400, , "No active workbook."
+    If targetWorkbook Is ThisWorkbook Then _
+        VBA.Err.Raise VBA.vbObjectError + 2401, , "Activate the target workbook first."
     If Not private_VbaReload_TryResolveConfiguredFolder( _
             targetWorkbook, "ThisWorkbook::vbaPath", vbaFolderPath) Then Exit Sub
-    Set fileSystem = CreateObject("Scripting.FileSystemObject")
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     updaterPath = fileSystem.GetParentFolderName(vbaFolderPath) & "\WorkbookUpdater\WorkbookUpdater.xlam"
     If Not fileSystem.FileExists(updaterPath) Then _
-        Err.Raise vbObjectError + 2402, , "Build WorkbookUpdater.xlam first: " & updaterPath
+        VBA.Err.Raise VBA.vbObjectError + 2402, , "Build WorkbookUpdater.xlam first: " & updaterPath
     On Error Resume Next
     Set updaterWorkbook = Application.Workbooks("WorkbookUpdater.xlam")
     On Error GoTo EH
     If updaterWorkbook Is Nothing Then Set updaterWorkbook = Application.Workbooks.Open(updaterPath)
-    If StrComp(updaterWorkbook.FullName, updaterPath, vbTextCompare) <> 0 Then _
-        Err.Raise vbObjectError + 2403, , "A different WorkbookUpdater.xlam is already loaded."
+    If VBA.StrComp(updaterWorkbook.FullName, updaterPath, VBA.vbTextCompare) <> 0 Then _
+        VBA.Err.Raise VBA.vbObjectError + 2403, , "A different WorkbookUpdater.xlam is already loaded."
     ' Передаём конкретную книгу: активное окно может измениться до OnTime.
     Application.Run "'WorkbookUpdater.xlam'!" & requestMethod, targetWorkbook
     Exit Sub
 EH:
-    MsgBox "Could not request VBA reload: " & Err.Description, vbExclamation, "Workbook updater"
+    VBA.MsgBox "Could not request VBA reload: " & VBA.Err.Description, VBA.vbExclamation, "Workbook updater"
 End Sub
-
 
 ' Экранирует один аргумент командной строки Windows.
 Private Function private_VbaReload_QuoteCommandArgument(ByVal valueText As String) As String
     private_VbaReload_QuoteCommandArgument = """" & _
         VBA.Replace$(valueText, """", """""") & """"
 End Function
-
 
 ' Проверяет доступность файла без исключения для вызывающего кода.
 Private Function private_VbaReload_FileExists(ByVal filePath As String) As Boolean
@@ -501,7 +501,6 @@ Private Function private_VbaReload_FileExists(ByVal filePath As String) As Boole
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     private_VbaReload_FileExists = fileSystem.FileExists(filePath)
 End Function
-
 
 ' Reinitializes runtime event handlers after a hot reload.
 Private Sub private_VbaReload_InitializeReloadedWorkbook( _
@@ -553,7 +552,7 @@ Private Function private_VbaReload_TryFindInitializerName( _
 
     outInitializerName = VBA.vbNullString
     For Each vbComponent In targetWorkbook.VBProject.VBComponents
-        If CLng(vbComponent.Type) = VBEXT_CT_STD_MODULE Then
+        If VBA.CLng(vbComponent.Type) = VBEXT_CT_STD_MODULE Then
             If vbComponent.CodeModule.CountOfLines > 0 Then
                 sourceText = vbComponent.CodeModule.Lines(1, vbComponent.CodeModule.CountOfLines)
                 If VBA.InStr(1, sourceText, "Public Sub fn_Initialize", VBA.vbTextCompare) > 0 Or _
@@ -794,7 +793,6 @@ Private Function private_VbaReload_TryExpandConfiguredSourcePaths( _
     private_VbaReload_TryExpandConfiguredSourcePaths = True
 End Function
 
-
 ' Collects matching module files from a folder and every nested folder.
 Private Sub private_VbaReload_CollectMatchingModulePaths( _
     ByVal rootFolderPath As String, _
@@ -826,7 +824,6 @@ Private Sub private_VbaReload_CollectMatchingModulePaths( _
     Next childFolder
 End Sub
 
-
 ' Validates a wildcard pattern before scanning the workbook profile folder.
 Private Function private_VbaReload_IsValidRelativeModulePattern( _
     ByVal relativePattern As String _
@@ -836,7 +833,6 @@ Private Function private_VbaReload_IsValidRelativeModulePattern( _
     If Not private_VbaReload_IsVbaModulePath(relativePattern) Then Exit Function
     private_VbaReload_IsValidRelativeModulePattern = True
 End Function
-
 
 ' Returns whether a file name or path uses a supported VBA module extension.
 Private Function private_VbaReload_IsVbaModulePath(ByVal filePath As String) As Boolean
@@ -848,7 +844,6 @@ Private Function private_VbaReload_IsVbaModulePath(ByVal filePath As String) As 
         VBA.Right$(lowerPath, 4) = ".frm" Or _
         VBA.Right$(lowerPath, 4) = ".vba"
 End Function
-
 
 ' Sorts paths so wildcard imports produce the same component order every time.
 Private Sub private_VbaReload_SortTextArray(ByRef values() As String)
@@ -866,7 +861,6 @@ Private Sub private_VbaReload_SortTextArray(ByRef values() As String)
         Next rightIndex
     Next leftIndex
 End Sub
-
 
 ' Only relative paths inside the workbook profile vba folder are allowed.
 Private Function private_VbaReload_TryResolveConfiguredSourcePath( _
@@ -914,20 +908,18 @@ Private Function private_VbaReload_TryResolveConfiguredSourcePath( _
     private_VbaReload_TryResolveConfiguredSourcePath = True
 End Function
 
-
 Private Sub private_VbaReload_ClearDocumentModules(ByVal targetWorkbook As Workbook)
     Const VBEXT_CT_DOCUMENT As Long = 100
 
     Dim vbComponent As Object
 
     For Each vbComponent In targetWorkbook.VBProject.VBComponents
-        If CLng(vbComponent.Type) = VBEXT_CT_DOCUMENT Then
+        If VBA.CLng(vbComponent.Type) = VBEXT_CT_DOCUMENT Then
             If vbComponent.CodeModule.CountOfLines > 0 Then _
                 vbComponent.CodeModule.DeleteLines 1, vbComponent.CodeModule.CountOfLines
         End If
     Next vbComponent
 End Sub
-
 
 ' Minimal JSON parsing for modules.json.
 Private Function private_VbaReload_TryReadJsonStringArray( _
@@ -968,7 +960,6 @@ Private Function private_VbaReload_TryReadJsonStringArray( _
     Loop
 End Function
 
-
 Private Sub private_VbaReload_SkipJsonWhitespace(ByVal jsonText As String, ByRef position As Long)
     Do While position <= VBA.Len(jsonText)
         Select Case VBA.Mid$(jsonText, position, 1)
@@ -979,7 +970,6 @@ Private Sub private_VbaReload_SkipJsonWhitespace(ByVal jsonText As String, ByRef
         End Select
     Loop
 End Sub
-
 
 ' Reads one string property from a small JSON object.
 Private Function private_VbaReload_TryReadJsonString( _
@@ -1026,7 +1016,6 @@ Private Function private_VbaReload_TryReadJsonString( _
     Loop
 End Function
 
-
 Private Function private_VbaReload_IsDocumentModuleSource( _
     ByVal lowerFileName As String _
 ) As Boolean
@@ -1035,7 +1024,6 @@ Private Function private_VbaReload_IsDocumentModuleSource( _
         (VBA.Left$(lowerFileName, 3) = "ws_" And _
          private_VbaReload_IsVbaSourceFile(lowerFileName)))
 End Function
-
 
 ' VBA project import operations.
 Private Sub private_VbaReload_ImportVbaFile( _
@@ -1069,7 +1057,6 @@ EH:
     VBA.Err.Raise VBA.Err.Number, "private_VbaReload_ImportVbaFile", _
         "Failed to import '" & sourcePath & "': " & VBA.Err.Description
 End Sub
-
 
 ' Replaces source code in an existing workbook or worksheet module.
 Private Sub private_VbaReload_ImportDocumentVbaFile( _
@@ -1120,7 +1107,6 @@ EH:
         VBA.Err.Description
 End Sub
 
-
 Private Function private_VbaReload_GetVbaComponentType( _
     ByVal lowerPath As String, _
     ByVal sourceText As String _
@@ -1140,7 +1126,6 @@ Private Function private_VbaReload_GetVbaComponentType( _
         private_VbaReload_GetVbaComponentType = VBEXT_CT_STD_MODULE
     End If
 End Function
-
 
 Private Function private_VbaReload_GetComponentName( _
     ByVal sourcePath As String, _
@@ -1175,7 +1160,6 @@ Private Function private_VbaReload_GetComponentName( _
     private_VbaReload_GetComponentName = fileName
 End Function
 
-
 Private Function private_VbaReload_FormatElapsedMilliseconds( _
     ByVal startedAt As Double _
 ) As String
@@ -1186,7 +1170,6 @@ Private Function private_VbaReload_FormatElapsedMilliseconds( _
     private_VbaReload_FormatElapsedMilliseconds = _
         VBA.Format$(elapsedSeconds * 1000#, "0.0")
 End Function
-
 
 ' Source preparation for VBE import.
 Private Function private_VbaReload_RemoveExportMetadata(ByVal sourceText As String) As String
@@ -1211,7 +1194,6 @@ Private Function private_VbaReload_RemoveExportMetadata(ByVal sourceText As Stri
     private_VbaReload_RemoveExportMetadata = result
 End Function
 
-
 Private Function private_VbaReload_ReadUtf8TextFile(ByVal filePath As String) As String
     Const AD_TYPE_TEXT As Long = 2
     Const AD_READ_ALL As Long = -1
@@ -1232,20 +1214,17 @@ Private Function private_VbaReload_ReadUtf8TextFile(ByVal filePath As String) As
     End If
 End Function
 
-
 ' A .utf8.vba source must be read as UTF-8 and passed to
 ' CodeModule.AddFromString as a Unicode String without VBComponents.Import.
 Private Function private_VbaReload_IsVbaSourceFile(ByVal lowerFileName As String) As Boolean
     private_VbaReload_IsVbaSourceFile = (VBA.Right$(lowerFileName, 4) = ".vba")
 End Function
 
-
 Private Function private_VbaReload_IsThisWorkbookModuleSource(ByVal fileName As String) As Boolean
     private_VbaReload_IsThisWorkbookModuleSource = ( _
         VBA.StrComp(fileName, "ThisWorkbook.vba", VBA.vbTextCompare) = 0 Or _
         VBA.StrComp(fileName, "ThisWorkbook.utf8.vba", VBA.vbTextCompare) = 0)
 End Function
-
 
 Private Function private_VbaReload_GetDocumentModuleSourceName( _
     ByVal fileName As String, _
@@ -1272,14 +1251,12 @@ Private Function private_VbaReload_GetDocumentModuleSourceName( _
         VBA.Len(requiredPrefix) + 1)
 End Function
 
-
 Private Function private_VbaReload_FolderExists(ByVal folderPath As String) As Boolean
     Dim fileSystem As Object
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     private_VbaReload_FolderExists = fileSystem.FolderExists(folderPath)
 End Function
-
 
 ' The classic VBE stores source code using the current system code page.
 ' Convert only non-ASCII string literals into ChrW$ expressions before adding
@@ -1288,7 +1265,6 @@ Private Function private_VbaReload_PrepareSourceForVbe(ByVal sourceText As Strin
     private_VbaReload_PrepareSourceForVbe = private_VbaReload_RemoveExportMetadata( _
         private_VbaReload_EncodeUnicodeStringLiterals(sourceText))
 End Function
-
 
 Private Function private_VbaReload_EncodeUnicodeStringLiterals( _
     ByVal sourceText As String _
@@ -1306,7 +1282,6 @@ Private Function private_VbaReload_EncodeUnicodeStringLiterals( _
 
     private_VbaReload_EncodeUnicodeStringLiterals = resultText
 End Function
-
 
 Private Function private_VbaReload_EncodeUnicodeStringLiteralsOnLine( _
     ByVal sourceLine As String _
@@ -1366,7 +1341,6 @@ Private Function private_VbaReload_EncodeUnicodeStringLiteralsOnLine( _
     private_VbaReload_EncodeUnicodeStringLiteralsOnLine = resultText
 End Function
 
-
 Private Function private_VbaReload_EncodeUnicodeLiteral( _
     ByVal literalText As String _
 ) As String
@@ -1392,7 +1366,6 @@ Private Function private_VbaReload_EncodeUnicodeLiteral( _
     private_VbaReload_EncodeUnicodeLiteral = private_VbaReload_JoinExpressionParts(expressionParts)
 End Function
 
-
 Private Sub private_VbaReload_AppendAsciiLiteralPart( _
     ByVal expressionParts As Collection, _
     ByVal asciiText As String _
@@ -1401,7 +1374,6 @@ Private Sub private_VbaReload_AppendAsciiLiteralPart( _
 
     expressionParts.Add """" & VBA.Replace$(asciiText, """", """""") & """"
 End Sub
-
 
 Private Function private_VbaReload_JoinExpressionParts( _
     ByVal expressionParts As Collection _
