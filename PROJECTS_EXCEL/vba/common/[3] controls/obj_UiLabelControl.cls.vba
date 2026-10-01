@@ -13,25 +13,29 @@ Implements obj_IUiControl
 
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
 
 Private Sub Class_Terminate()
-    Me.obj_IUiControl_Dispose
+    obj_IUiControl_Dispose
 End Sub
 
 ' //
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
+    m_isDisposed = False
     If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
     obj_IUiControl_Initialize = m_uiControlBase.Initialize()
 End Function
 
 Private Sub obj_IUiControl_Dispose()
-    m_uiControlBase.Dispose
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
+    If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_targetRange = Nothing
 End Sub
@@ -41,17 +45,21 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
 End Function
 
 Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+    Dim startedAt As Double
     Dim targetRange As Range
+    startedAt = VBA.Timer
     Dim captionText As String
 
     Set targetRange = m_targetRange
-    If targetRange Is Nothing Then Set targetRange = Me.obj_IUiControl_Measure(uiRenderContext)
+    If targetRange Is Nothing Then Set targetRange = obj_IUiControl_Measure(uiRenderContext)
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
     targetRange.Merge
     targetRange.Value2 = captionText
     ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     obj_IUiControl_Render = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Label.Render", startedAt
 End Function
+
 Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
     If m_uiControlBase Is Nothing Then Exit Function
     Set m_targetRange = m_uiControlBase.Measure(uiRenderContext)

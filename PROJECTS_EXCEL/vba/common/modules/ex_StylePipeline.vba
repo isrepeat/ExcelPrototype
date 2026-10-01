@@ -30,7 +30,9 @@ Public Sub fn_BeginPage( _
     Dim fileSystem As Object
     Dim commonStyleDocument As Object
     Dim commonStylePath As String
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
     Set m_stylesByName = VBA.CreateObject("Scripting.Dictionary")
     m_stylesByName.CompareMode = VBA.vbTextCompare
     Set m_targetWorksheet = targetWorksheet
@@ -52,6 +54,7 @@ Public Sub fn_BeginPage( _
     private_RegisterStyleNodes pageDocument
     ex_Core.fn_Diagnostic_WriteLog "STYLE_PAGE_READY | Sheet=" & targetWorksheet.Name & _
         " | StyleCount=" & VBA.CStr(m_stylesByName.Count)
+    ex_Core.fn_Diagnostic_WritePerf "Style.BeginPage | Sheet=" & targetWorksheet.Name, startedAt
 End Sub
 
 Public Sub fn_ApplyControlStyle( _
@@ -63,7 +66,9 @@ Public Sub fn_ApplyControlStyle( _
     Dim styleName As String
     Dim styleProperties As Object
     Dim directProperties As Object
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
     If m_stylesByName Is Nothing Then Exit Sub
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
             private_ReadAttribute(controlNode, "style"), uiBindingContext, styleName) Then Exit Sub
@@ -84,6 +89,7 @@ Public Sub fn_ApplyControlStyle( _
     Set directProperties = private_ReadVisualAttributes(controlNode)
     private_ApplyProperties targetRange, targetShape, directProperties
     private_ApplyPipelineRules targetRange, targetShape, controlNode
+    ex_Core.fn_Diagnostic_WritePerf "Style.ApplyControl", startedAt
 End Sub
 
 Public Sub fn_ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
@@ -93,7 +99,9 @@ Public Sub fn_ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
     Dim targetName As String
     Dim properties As Object
     Dim sheetScope As Range
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
     If m_pageDocument Is Nothing Then Exit Sub
     ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_STARTED | Sheet=" & targetWorksheet.Name
     For Each stageNode In m_pageDocument.SelectNodes( _
@@ -127,6 +135,7 @@ Public Sub fn_ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
         End If
     Next stageNode
     ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_COMPLETED | Sheet=" & targetWorksheet.Name
+    ex_Core.fn_Diagnostic_WritePerf "Style.ApplyPagePipeline | Sheet=" & targetWorksheet.Name, startedAt
 End Sub
 ' --------------------------------------
 ' } // namespace API

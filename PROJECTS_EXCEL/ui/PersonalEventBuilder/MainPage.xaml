@@ -28,6 +28,24 @@
              columnSpan="2"
              style="{Binding Source=Resources; Path=PrimaryButton}"
              command="{Binding Source=Commands; Path=UpdatePage}"/>
+
+    <control type="Button"
+             name="GenerateTables"
+             caption="{Binding Source=Text; Path=GenerateTables}"
+             row="3"
+             column="8"
+             rowSpan="2"
+             columnSpan="3"
+             style="{Binding Source=Resources; Path=PrimaryButton}"
+             command="{Binding Source=Commands; Path=GenerateTables}"/>
+
+    <control type="table"
+             name="GeneratedTables"
+             source="{Binding Source=Data; Path=Tables}"
+             row="7"
+             column="2"
+             showHeaders="true"
+             gapRows="1"/>
   </grid>
 
   <styles>

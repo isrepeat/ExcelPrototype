@@ -13,20 +13,22 @@ Implements obj_IPage
 
 Private m_pageBase As obj_PageBase
 Private m_controller As obj_PEB_PgMainController
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    Me.obj_IPage_Dispose
+    obj_IPage_Dispose
 End Sub
 
 ' //
 ' // Interface
 ' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
+    m_isDisposed = False
     Set m_pageBase = New obj_PageBase
-    If Not m_pageBase.Initialize(profileId, "ui\" & VBA.Trim$(profileId)) Then Exit Function
+    If Not m_pageBase.Initialize(profileId, VBA.Trim$(profileId)) Then Exit Function
     If Not private_TryRegisterBindings() Then Exit Function
     Set m_controller = New obj_PEB_PgMainController
     If Not m_controller.Initialize(m_pageBase) Then Exit Function
@@ -45,6 +47,8 @@ Private Function obj_IPage_HandleCellChange(ByVal target As Range) As Boolean
 End Function
 
 Private Sub obj_IPage_Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     If Not m_controller Is Nothing Then m_controller.Dispose
     Set m_controller = Nothing
     If Not m_pageBase Is Nothing Then m_pageBase.Dispose
@@ -67,6 +71,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Text", "Title", "PersonalEventBuilder") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "HelloWorld", "Hello World") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "UpdatePage", "Update page") Then Exit Function
+    If Not uiBindingContext.SetValue("Text", "GenerateTables", "Generate tables") Then Exit Function
     If Not uiBindingContext.SetValue("Resources", "PrimaryButton", "primaryButton") Then Exit Function
     If Not uiBindingContext.SetValue("Resources", "PageTitle", "pageTitle") Then Exit Function
     private_TryRegisterBindings = True
@@ -75,6 +80,7 @@ End Function
 Private Function private_TryRegisterCommands() As Boolean
     Dim helloWorldCommand As obj_UiCommand
     Dim updatePageCommand As obj_UiCommand
+    Dim generateTablesCommand As obj_UiCommand
     Dim uiBindingContext As obj_UiBindingContext
 
     If m_controller Is Nothing Then Exit Function
@@ -87,5 +93,8 @@ Private Function private_TryRegisterCommands() As Boolean
     Set updatePageCommand = New obj_UiCommand
     If Not updatePageCommand.Initialize(m_controller, "UpdatePage") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "UpdatePage", updatePageCommand) Then Exit Function
+    Set generateTablesCommand = New obj_UiCommand
+    If Not generateTablesCommand.Initialize(m_controller, "GenerateTables") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "GenerateTables", generateTablesCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function
