@@ -15,23 +15,35 @@ Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
 
-Public Function fn_Configure(ByVal controlNode As Object) As Boolean
-    fn_Configure = m_uiControlBase.fn_Configure(controlNode)
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // API
+' //
+Public Function Initialize() As Boolean
+    If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
+    Initialize = m_uiControlBase.Initialize()
 End Function
 
-Public Function fn_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+Public Sub Dispose()
+    m_uiControlBase.Dispose
+    Set m_uiControlBase = Nothing
+End Sub
+
+Public Function Configure(ByVal controlNode As Object) As Boolean
+    Configure = m_uiControlBase.Configure(controlNode)
+End Function
+
+Public Function Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim targetRange As Range
     Dim captionText As String
 
-    Set targetRange = m_uiControlBase.fn_TargetRange(uiRenderContext)
-    If Not m_uiControlBase.fn_TryGetCaption(uiRenderContext.fn_BindingContext, captionText) Then Exit Function
+    Set targetRange = m_uiControlBase.TargetRange(uiRenderContext)
+    If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
     targetRange.Merge
     targetRange.Value2 = captionText
-    ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, m_uiControlBase.fn_ControlNode, uiRenderContext.fn_BindingContext
-    fn_Render = True
+    ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    Render = True
 End Function
-
-Public Sub fn_Dispose()
-    m_uiControlBase.fn_Dispose
-    Set m_uiControlBase = Nothing
-End Sub

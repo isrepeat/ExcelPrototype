@@ -84,7 +84,7 @@ Public Function fn_TryResolveValue( _
         VBA.MsgBox "Binding Path is required: " & rawText, VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
-    If Not uiBindingContext.fn_TryGetValue(sourceName, bindingPath, outValue, outObject, outIsObject) Then
+    If Not uiBindingContext.TryGetValue(sourceName, bindingPath, outValue, outObject, outIsObject) Then
         VBA.MsgBox "Binding was not found: Source=" & sourceName & "; Path=" & bindingPath, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function

@@ -11,16 +11,27 @@ Option Explicit
 
 Private m_sources As Object
 
-' --------------------------------------
-' namespace API {
-' --------------------------------------
-Public Function fn_Initialize() As Boolean
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // API
+' //
+Public Function Initialize() As Boolean
     Set m_sources = VBA.CreateObject("Scripting.Dictionary")
     m_sources.CompareMode = VBA.vbTextCompare
-    fn_Initialize = True
+    Initialize = True
 End Function
 
-Public Function fn_SetValue( _
+Public Sub Dispose()
+    Set m_sources = Nothing
+End Sub
+
+Public Function SetValue( _
     ByVal sourceName As String, _
     ByVal keyName As String, _
     ByVal value As Variant _
@@ -31,10 +42,10 @@ Public Function fn_SetValue( _
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
     sourceMap(keyName) = value
-    fn_SetValue = True
+    SetValue = True
 End Function
 
-Public Function fn_SetObject( _
+Public Function SetObject( _
     ByVal sourceName As String, _
     ByVal keyName As String, _
     ByVal sourceObject As Object _
@@ -46,10 +57,10 @@ Public Function fn_SetObject( _
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
     Set sourceMap(keyName) = sourceObject
-    fn_SetObject = True
+    SetObject = True
 End Function
 
-Public Function fn_TryGetValue( _
+Public Function TryGetValue( _
     ByVal sourceName As String, _
     ByVal bindingPath As String, _
     ByRef outValue As Variant, _
@@ -76,20 +87,16 @@ Public Function fn_TryGetValue( _
             Set currentObject = outObject
         End If
     Next pathIndex
-    fn_TryGetValue = True
+    TryGetValue = True
 End Function
 
-Public Sub fn_Dispose()
-    Set m_sources = Nothing
-End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------
-
+' //
+' // Private
+' //
 Private Function private_TryGetOrCreateSource(ByVal sourceName As String, ByRef outSourceMap As Object) As Boolean
     sourceName = VBA.Trim$(sourceName)
     If VBA.Len(sourceName) = 0 Then Exit Function
-    If m_sources Is Nothing Then If Not fn_Initialize() Then Exit Function
+    If m_sources Is Nothing Then If Not Initialize() Then Exit Function
     If Not m_sources.Exists(sourceName) Then
         Set outSourceMap = VBA.CreateObject("Scripting.Dictionary")
         outSourceMap.CompareMode = VBA.vbTextCompare

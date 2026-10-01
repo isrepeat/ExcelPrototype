@@ -12,39 +12,46 @@ Option Explicit
 Private m_target As Object
 Private m_methodName As String
 
-' --------------------------------------
-' namespace API {
-' --------------------------------------
-Public Function fn_Initialize(ByVal target As Object, ByVal methodName As String) As Boolean
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // Properties
+' //
+Public Property Get CallbackName() As String
+    CallbackName = VBA.TypeName(m_target) & "." & m_methodName
+End Property
+
+' //
+' // API
+' //
+Public Function Initialize(ByVal target As Object, ByVal methodName As String) As Boolean
     Set m_target = target
     m_methodName = VBA.Trim$(methodName)
     If m_target Is Nothing Or VBA.Len(m_methodName) = 0 Then
         VBA.MsgBox "A command target and method are required.", VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
-    fn_Initialize = True
+    Initialize = True
 End Function
 
-Public Function fn_Execute() As Boolean
+Public Sub Dispose()
+    Set m_target = Nothing
+    m_methodName = VBA.vbNullString
+End Sub
+
+Public Function Execute() As Boolean
     Dim callbackResult As Variant
 
     On Error GoTo EH
     callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod)
-    fn_Execute = CBool(callbackResult)
+    Execute = CBool(callbackResult)
     Exit Function
 EH:
     VBA.MsgBox "The command cannot be executed: " & m_methodName & _
         " | " & VBA.Err.Description, VBA.vbExclamation, "PersonalEventBuilder"
 End Function
-
-Public Property Get fn_CallbackName() As String
-    fn_CallbackName = VBA.TypeName(m_target) & "." & m_methodName
-End Property
-
-Public Sub fn_Dispose()
-    Set m_target = Nothing
-    m_methodName = VBA.vbNullString
-End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------

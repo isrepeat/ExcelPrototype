@@ -15,10 +15,36 @@ Private m_uiFolderPath As String
 Private m_controls As Collection
 Private m_uiBindingContext As obj_UiBindingContext
 
-' --------------------------------------
-' namespace API {
-' --------------------------------------
-Public Function fn_Initialize( _
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // Properties
+' //
+Public Property Get TargetWorksheet() As Worksheet
+    Set TargetWorksheet = m_targetWorksheet
+End Property
+
+Public Property Get PageDefinition() As obj_UiPageDefinition
+    Set PageDefinition = m_uiPageDefinition
+End Property
+
+Public Property Get BindingContext() As obj_UiBindingContext
+    Set BindingContext = m_uiBindingContext
+End Property
+
+Public Property Get UiFolderPath() As String
+    UiFolderPath = m_uiFolderPath
+End Property
+
+' //
+' // API
+' //
+Public Function Initialize( _
     ByVal targetWorksheet As Worksheet, _
     ByVal uiPageDefinition As obj_UiPageDefinition, _
     ByVal uiFolderPath As String, _
@@ -31,34 +57,13 @@ Public Function fn_Initialize( _
     m_uiFolderPath = uiFolderPath
     Set m_uiBindingContext = uiBindingContext
     Set m_controls = New Collection
-    fn_Initialize = True
+    Initialize = True
 End Function
 
-Public Sub fn_AddControl(ByVal uiControl As Object)
-    If uiControl Is Nothing Then Exit Sub
-    m_controls.Add uiControl
-End Sub
-
-Public Property Get fn_TargetWorksheet() As Worksheet
-    Set fn_TargetWorksheet = m_targetWorksheet
-End Property
-
-Public Property Get fn_PageDefinition() As obj_UiPageDefinition
-    Set fn_PageDefinition = m_uiPageDefinition
-End Property
-
-Public Property Get fn_BindingContext() As obj_UiBindingContext
-    Set fn_BindingContext = m_uiBindingContext
-End Property
-
-Public Property Get fn_UiFolderPath() As String
-    fn_UiFolderPath = m_uiFolderPath
-End Property
-
-Public Sub fn_Dispose()
+Public Sub Dispose()
     Dim uiControl As Object
     For Each uiControl In m_controls
-        uiControl.fn_Dispose
+        uiControl.Dispose
     Next uiControl
     Set m_controls = Nothing
     Set m_uiBindingContext = Nothing
@@ -66,6 +71,8 @@ Public Sub fn_Dispose()
     Set m_targetWorksheet = Nothing
     m_uiFolderPath = VBA.vbNullString
 End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------
+
+Public Sub AddControl(ByVal uiControl As Object)
+    If uiControl Is Nothing Then Exit Sub
+    m_controls.Add uiControl
+End Sub

@@ -23,8 +23,8 @@ Public Sub fn_OnShapeClick()
         Exit Sub
     End If
     ex_Core.fn_Diagnostic_WriteLog "UI_CLICK | Shape=" & shapeName & _
-        " | Command=" & uiCommand.fn_CallbackName
-    uiCommand.fn_Execute
+        " | Command=" & uiCommand.CallbackName
+    uiCommand.Execute
 End Sub
 ' --------------------------------------
 ' } // namespace API
