@@ -1,0 +1,9 @@
+{
+  "PersonalEventBuilder": [
+    "common/modules/ex_*.vba",
+    "common/[[]0] interfaces/*.cls.vba",
+    "common/[[]1] bases/*.cls.vba",
+    "common/[[]2] classes/*.cls.vba",
+    "PersonalEventBuilder/*.vba"
+  ]
+}

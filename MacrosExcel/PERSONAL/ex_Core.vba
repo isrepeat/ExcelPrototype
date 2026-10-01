@@ -369,17 +369,38 @@ Private Function private_VbaReload_TryResolveVbaFolder( _
     ByVal targetWorkbook As Workbook, _
     ByRef outVbaFolderPath As String _
 ) As Boolean
+    Const LOADER_SCHEME_FILE_NAME As String = "vbaLoaderScheme.json"
     Dim fileSystem As Object
     Dim workbookFolderPath As String
+    Dim schemeFolderPath As String
+    Dim schemePath As String
     Dim candidatePath As String
 
     outVbaFolderPath = VBA.vbNullString
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     workbookFolderPath = targetWorkbook.Path
 
+    schemeFolderPath = workbookFolderPath
+    Do
+        schemePath = schemeFolderPath & Application.PathSeparator & _
+            LOADER_SCHEME_FILE_NAME
+        If fileSystem.FileExists(schemePath) Then
+            If Not private_VbaReload_TryResolveVbaFolderFromScheme( _
+                    schemePath, outVbaFolderPath) Then Exit Function
+            private_VbaReload_TryResolveVbaFolder = True
+            Exit Function
+        End If
+
+        candidatePath = fileSystem.GetParentFolderName(schemeFolderPath)
+        If VBA.Len(candidatePath) = 0 Or _
+           VBA.StrComp(candidatePath, schemeFolderPath, VBA.vbTextCompare) = 0 Then Exit Do
+        schemeFolderPath = candidatePath
+    Loop
+
     candidatePath = workbookFolderPath & Application.PathSeparator & "vba"
     If Not private_VbaReload_FolderExists(candidatePath) Then
-        VBA.MsgBox "The VBA modules folder was not found beside the workbook: " & _
+        VBA.MsgBox "No '" & LOADER_SCHEME_FILE_NAME & "' file was found in the workbook " & _
+            "folder hierarchy, and the fallback VBA modules folder was not found: " & _
             candidatePath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
@@ -387,6 +408,52 @@ Private Function private_VbaReload_TryResolveVbaFolder( _
 
     outVbaFolderPath = candidatePath
     private_VbaReload_TryResolveVbaFolder = True
+End Function
+
+
+' Resolves a vba folder specified by a vbaLoaderScheme.json file.
+Private Function private_VbaReload_TryResolveVbaFolderFromScheme( _
+    ByVal schemePath As String, _
+    ByRef outVbaFolderPath As String _
+) As Boolean
+    Const VBA_FOLDER_PROPERTY_NAME As String = "vbaFolderPath"
+    Dim fileSystem As Object
+    Dim schemeText As String
+    Dim configuredPath As String
+    Dim schemeFolderPath As String
+    Dim resolvedPath As String
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    schemeText = private_VbaReload_ReadUtf8TextFile(schemePath)
+    If Not private_VbaReload_TryReadJsonStringProperty( _
+            schemeText, VBA_FOLDER_PROPERTY_NAME, configuredPath) Then
+        VBA.MsgBox "VBA loader scheme must contain the string property '" & _
+            VBA_FOLDER_PROPERTY_NAME & "': " & schemePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    configuredPath = VBA.Replace$(VBA.Trim$(configuredPath), "/", "\")
+    If VBA.Len(configuredPath) = 0 Or VBA.InStr(configuredPath, "..") > 0 Or _
+       VBA.InStr(configuredPath, ":") > 0 Or VBA.Left$(configuredPath, 1) = "\" Then
+        VBA.MsgBox "VBA loader scheme contains an invalid relative vbaFolderPath: " & _
+            configuredPath & VBA.vbCrLf & schemePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    schemeFolderPath = fileSystem.GetParentFolderName(schemePath)
+    resolvedPath = fileSystem.GetAbsolutePathName( _
+        schemeFolderPath & Application.PathSeparator & configuredPath)
+    If Not fileSystem.FolderExists(resolvedPath) Then
+        VBA.MsgBox "VBA modules folder from loader scheme was not found: " & _
+            resolvedPath & VBA.vbCrLf & schemePath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
+
+    outVbaFolderPath = resolvedPath
+    private_VbaReload_TryResolveVbaFolderFromScheme = True
 End Function
 
 
@@ -733,6 +800,30 @@ Private Sub private_VbaReload_SkipJsonWhitespace(ByVal jsonText As String, ByRef
         End Select
     Loop
 End Sub
+
+
+' Reads one string property from a small JSON object.
+Private Function private_VbaReload_TryReadJsonStringProperty( _
+    ByVal jsonText As String, _
+    ByVal propertyName As String, _
+    ByRef outValue As String _
+) As Boolean
+    Dim propertyToken As String
+    Dim position As Long
+
+    outValue = VBA.vbNullString
+    propertyToken = """" & propertyName & """"
+    position = VBA.InStr(1, jsonText, propertyToken, VBA.vbBinaryCompare)
+    If position = 0 Then Exit Function
+
+    position = position + VBA.Len(propertyToken)
+    private_VbaReload_SkipJsonWhitespace jsonText, position
+    If VBA.Mid$(jsonText, position, 1) <> ":" Then Exit Function
+    position = position + 1
+    private_VbaReload_SkipJsonWhitespace jsonText, position
+    private_VbaReload_TryReadJsonStringProperty = _
+        private_VbaReload_TryReadJsonString(jsonText, position, outValue)
+End Function
 
 
 Private Function private_VbaReload_TryReadJsonString( _
