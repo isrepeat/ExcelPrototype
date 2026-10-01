@@ -88,13 +88,13 @@ Private Function private_TryRegisterCommands() As Boolean
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
     Set helloWorldCommand = New obj_UiCommand
-    If Not helloWorldCommand.Initialize(m_controller, "HelloWorld") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "HelloWorld", helloWorldCommand) Then Exit Function
+    If Not helloWorldCommand.Initialize(m_controller, "HelloWorldCommandHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "HelloWorldCommand", helloWorldCommand) Then Exit Function
     Set updatePageCommand = New obj_UiCommand
-    If Not updatePageCommand.Initialize(m_controller, "UpdatePage") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "UpdatePage", updatePageCommand) Then Exit Function
+    If Not updatePageCommand.Initialize(m_controller, "UpdatePageCommandHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "UpdatePageCommand", updatePageCommand) Then Exit Function
     Set generateTablesCommand = New obj_UiCommand
-    If Not generateTablesCommand.Initialize(m_controller, "GenerateTables") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "GenerateTables", generateTablesCommand) Then Exit Function
+    If Not generateTablesCommand.Initialize(m_controller, "GenerateTablesCommandHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "GenerateTablesCommand", generateTablesCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function

@@ -17,7 +17,7 @@
              rowSpan="2"
              columnSpan="3"
              style="{Binding Source=Resources; Path=PrimaryButton}"
-             command="{Binding Source=Commands; Path=HelloWorld}"/>
+             command="{Binding Source=Commands; Path=HelloWorldCommand}"/>
 
     <control type="Button"
              name="UpdatePage"
@@ -27,7 +27,7 @@
              rowSpan="2"
              columnSpan="2"
              style="{Binding Source=Resources; Path=PrimaryButton}"
-             command="{Binding Source=Commands; Path=UpdatePage}"/>
+             command="{Binding Source=Commands; Path=UpdatePageCommand}"/>
 
     <control type="Button"
              name="GenerateTables"
@@ -37,7 +37,7 @@
              rowSpan="2"
              columnSpan="3"
              style="{Binding Source=Resources; Path=PrimaryButton}"
-             command="{Binding Source=Commands; Path=GenerateTables}"/>
+             command="{Binding Source=Commands; Path=GenerateTablesCommand}"/>
 
     <control type="table"
              name="GeneratedTables"

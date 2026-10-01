@@ -45,7 +45,7 @@ Public Sub Dispose()
     Set m_pageBase = Nothing
 End Sub
 
-Public Function GenerateTables() As Boolean
+Public Function GenerateTablesCommandHandler() As Boolean
     Dim tableIndex As Long
     Dim rowIndex As Long
     Dim values As Variant
@@ -67,16 +67,16 @@ Public Function GenerateTables() As Boolean
         If Not rawTable.Initialize(values, headers, "Table " & VBA.CStr(tableIndex)) Then Exit Function
         If Not m_tableList.Add(rawTable) Then Exit Function
     Next tableIndex
-    GenerateTables = m_pageBase.UpdatePage()
+    GenerateTablesCommandHandler = m_pageBase.UpdatePage()
 End Function
 
-Public Function HelloWorld() As Boolean
+Public Function HelloWorldCommandHandler() As Boolean
     ex_Core.fn_Diagnostic_WriteLog "HELLO_WORLD_CLICKED"
     VBA.MsgBox "Hello World from PersonalEventBuilder.", VBA.vbInformation, "PersonalEventBuilder"
-    HelloWorld = True
+    HelloWorldCommandHandler = True
 End Function
 
-Public Function UpdatePage() As Boolean
+Public Function UpdatePageCommandHandler() As Boolean
     If m_pageBase Is Nothing Then Exit Function
-    UpdatePage = m_pageBase.UpdatePage()
+    UpdatePageCommandHandler = m_pageBase.UpdatePage()
 End Function
