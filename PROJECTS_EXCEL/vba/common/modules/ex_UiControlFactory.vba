@@ -13,9 +13,9 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_Create(ByVal controlNode As Object) As Object
+Public Function fn_Create(ByVal controlNode As Object) As obj_IUiControl
     Dim controlType As String
-    Dim uiControl As Object
+    Dim uiControl As obj_IUiControl
 
     controlType = private_ReadAttribute(controlNode, "type")
     Select Case VBA.LCase$(controlType)

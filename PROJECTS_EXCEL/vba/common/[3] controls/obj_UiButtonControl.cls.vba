@@ -9,8 +9,11 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Implements obj_IUiControl
+
 Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
 Private m_uiControlBase As obj_UiControlBase
+Private m_targetRange As Range
 Private m_buttonShape As Shape
 
 Private Sub Class_Initialize()
@@ -18,34 +21,36 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    Me.Dispose
+    Me.obj_IUiControl_Dispose
 End Sub
 
 ' //
-' // API
+' // Interface
 ' //
-Public Function Initialize() As Boolean
+Private Function obj_IUiControl_Initialize() As Boolean
     If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
-    Initialize = m_uiControlBase.Initialize()
+    obj_IUiControl_Initialize = m_uiControlBase.Initialize()
 End Function
 
-Public Sub Dispose()
+Private Sub obj_IUiControl_Dispose()
     Set m_buttonShape = Nothing
     m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
+    Set m_targetRange = Nothing
 End Sub
 
-Public Function Configure(ByVal controlNode As Object) As Boolean
-    Configure = m_uiControlBase.Configure(controlNode)
+Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolean
+    obj_IUiControl_Configure = m_uiControlBase.Configure(controlNode)
 End Function
 
-Public Function Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim targetRange As Range
     Dim shapeName As String
     Dim captionText As String
     Dim uiCommand As obj_UiCommand
 
-    Set targetRange = m_uiControlBase.TargetRange(uiRenderContext)
+    Set targetRange = m_targetRange
+    If targetRange Is Nothing Then Set targetRange = Me.obj_IUiControl_Measure(uiRenderContext)
     shapeName = m_uiControlBase.ShapeName(BUTTON_SHAPE_PREFIX)
     If VBA.Len(shapeName) = 0 Then Exit Function
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
@@ -58,9 +63,18 @@ Public Function Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     ex_StylePipeline.fn_ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
     ex_UiBindings.fn_Register shapeName, uiCommand
-    Render = True
+    obj_IUiControl_Render = True
 End Function
 
+Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
+    If m_uiControlBase Is Nothing Then Exit Function
+    Set m_targetRange = m_uiControlBase.Measure(uiRenderContext)
+    Set obj_IUiControl_Measure = m_targetRange
+End Function
+
+Private Function obj_IUiControl_HandleCellChange(ByVal target As Range) As Boolean
+    obj_IUiControl_HandleCellChange = False
+End Function
 ' //
 ' // Private
 ' //
