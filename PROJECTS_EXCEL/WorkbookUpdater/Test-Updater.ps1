@@ -171,7 +171,7 @@ End Function
     Assert-Equal $true ($excel.Run("'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_CanUnload")) 'Completed updater can unload'
     Assert-Equal $baselineBookCount $excel.Workbooks.Count 'Does not close target or other workbook'
     Assert-Equal $false $excel.EnableEvents 'Restores original event setting'
-    $backups = @(Get-ChildItem -LiteralPath $fixtureRoot -Directory -Filter '.reload-*')
+    $backups = @(Get-ChildItem -LiteralPath (Join-Path $fixtureRoot '.backup') -Directory -Filter 'reload-*')
     $targetBackups = @($backups | Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'Target.xlsm') })
     Assert-Equal $true ($targetBackups.Count -ge 2) 'Creates initial-install and reload backups'
     Assert-Equal $true ($excel.Run("'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_RequestReload", $book, $false)) 'Second request accepted'

@@ -305,12 +305,15 @@ End Sub
 Private Function private_CreateOperationFolder(ByVal target As Workbook) As String
     Dim fileSystem As Object
     Dim folder As String
+    Dim backupRoot As String
     Dim suffix As Long
     Set fileSystem = CreateObject("Scripting.FileSystemObject")
-    folder = target.Path & "\.reload-" & Format$(Now, "yyyymmdd-hhnnss")
+    backupRoot = target.Path & "\.backup"
+    If Not fileSystem.FolderExists(backupRoot) Then fileSystem.CreateFolder backupRoot
+    folder = backupRoot & "\reload-" & Format$(Now, "yyyymmdd-hhnnss")
     Do While fileSystem.FolderExists(folder)
         suffix = suffix + 1
-        folder = target.Path & "\.reload-" & Format$(Now, "yyyymmdd-hhnnss") & "-" & CStr(suffix)
+        folder = backupRoot & "\reload-" & Format$(Now, "yyyymmdd-hhnnss") & "-" & CStr(suffix)
     Loop
     fileSystem.CreateFolder folder
     private_CreateOperationFolder = folder

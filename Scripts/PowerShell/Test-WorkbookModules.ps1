@@ -104,7 +104,7 @@ try {
     catch { $rejected = $true }
     Assert-Equal $true $rejected 'Missing source rejected'
     Assert-Equal $originalHash (Get-FileHash -LiteralPath $bookPath).Hash 'Preflight did not alter workbook'
-    if (@(Get-ChildItem -LiteralPath $root -Directory -Filter '.modules-backup-*').Count -ne 1) { throw 'Backup was not created.' }
+    if (@(Get-ChildItem -LiteralPath (Join-Path $root '.backup') -Directory -Filter 'modules-*').Count -ne 1) { throw 'Backup was not created.' }
     # Проверяем поиск vba относительно скрипта независимо от текущей папки.
     Copy-Item -LiteralPath $updater -Destination $root
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'WorkbookModules.ps1') -Destination $root
