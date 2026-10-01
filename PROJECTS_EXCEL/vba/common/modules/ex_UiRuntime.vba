@@ -2,6 +2,7 @@ Attribute VB_Name = "ex_UiRuntime"
 Option Explicit
 
 Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
+Private Const SELECT_SHAPE_PREFIX As String = "sel_"
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -80,6 +81,7 @@ Private Function private_RenderPage( _
     ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_STARTED | Sheet=" & _
         targetWorksheet.Name & " | Path=" & xamlPath
     If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Function
+    ex_UiBindings.fn_ClearSelectControls targetWorksheet.Name
     ex_UiBindings.fn_ClearCellBindings targetWorksheet.Name
     ex_Core.fn_Diagnostic_WritePerf "Page.LoadXaml | Sheet=" & targetWorksheet.Name, startedAt
 
@@ -271,11 +273,15 @@ End Function
 Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
     Dim currentShape As Shape
     Dim uiScope As Range
+    Dim shapeIndex As Long
 
-    For Each currentShape In targetWorksheet.Shapes
+    For shapeIndex = targetWorksheet.Shapes.Count To 1 Step -1
+        Set currentShape = targetWorksheet.Shapes(shapeIndex)
         If VBA.Left$(currentShape.Name, VBA.Len(BUTTON_SHAPE_PREFIX)) = _
-           BUTTON_SHAPE_PREFIX Then currentShape.Delete
-    Next currentShape
+           BUTTON_SHAPE_PREFIX Or VBA.Left$(currentShape.Name, VBA.Len(SELECT_SHAPE_PREFIX)) = _
+           SELECT_SHAPE_PREFIX Then _
+            currentShape.Delete
+    Next shapeIndex
     Set uiScope = targetWorksheet.Range("A1:AN100")
     private_LogUiScopeVisibility targetWorksheet, "before-clear"
     private_RestoreUiScopeVisibility targetWorksheet
