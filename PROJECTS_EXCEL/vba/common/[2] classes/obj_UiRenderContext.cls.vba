@@ -61,7 +61,7 @@ Public Function Initialize( _
 End Function
 
 Public Sub Dispose()
-    Dim uiControl As Object
+    Dim uiControl As obj_IUiControl
     For Each uiControl In m_controls
         uiControl.Dispose
     Next uiControl
@@ -72,7 +72,7 @@ Public Sub Dispose()
     m_uiFolderPath = VBA.vbNullString
 End Sub
 
-Public Sub AddControl(ByVal uiControl As Object)
+Public Sub AddControl(ByVal uiControl As obj_IUiControl)
     If uiControl Is Nothing Then Exit Sub
     m_controls.Add uiControl
 End Sub

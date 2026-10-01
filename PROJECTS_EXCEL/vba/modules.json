@@ -4,6 +4,7 @@
     "common/[[]0] interfaces/*.cls.vba",
     "common/[[]1] bases/*.cls.vba",
     "common/[[]2] classes/*.cls.vba",
+    "common/[[]3] controls/*.cls.vba",
     "PersonalEventBuilder/*.vba"
   ]
 }

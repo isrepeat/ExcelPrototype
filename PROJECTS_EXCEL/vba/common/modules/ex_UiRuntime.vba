@@ -17,6 +17,7 @@ End Sub
 ' --------------------------------------
 Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
     Dim targetWorksheet As Worksheet
+    Dim controlRange As Range
 
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_STARTED | Workbook=" & ThisWorkbook.Name
     ex_UiBindings.fn_Reset
@@ -29,6 +30,7 @@ End Sub
 
 Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
     Dim targetWorksheet As Worksheet
+    Dim controlRange As Range
 
     If Not (TypeOf Application.ActiveSheet Is Worksheet) Then Exit Sub
     Set targetWorksheet = Application.ActiveSheet
@@ -96,8 +98,9 @@ End Function
 
 Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim controlNode As Object
-    Dim uiControl As Object
+    Dim uiControl As obj_IUiControl
     Dim targetWorksheet As Worksheet
+    Dim controlRange As Range
 
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     On Error GoTo EH
@@ -106,6 +109,8 @@ Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderCon
         Set uiControl = ex_UiControlFactory.fn_Create(controlNode)
         If uiControl Is Nothing Then Exit Function
         If Not uiControl.Configure(controlNode) Then Exit Function
+        Set controlRange = uiControl.Measure(uiRenderContext)
+        If controlRange Is Nothing Then Exit Function
         If Not uiControl.Render(uiRenderContext) Then Exit Function
         uiRenderContext.AddControl uiControl
     Next controlNode

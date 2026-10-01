@@ -53,7 +53,7 @@ Public Function Configure(ByVal controlNode As Object) As Boolean
     Configure = True
 End Function
 
-Public Function TargetRange(ByVal uiRenderContext As obj_UiRenderContext) As Range
+Public Function Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
     Dim targetWorksheet As Worksheet
     Dim rowNo As Long
     Dim columnNo As Long
@@ -66,7 +66,8 @@ Public Function TargetRange(ByVal uiRenderContext As obj_UiRenderContext) As Ran
     columnNo = private_ReadLong("column", 1)
     rowSpan = private_ReadLong("rowSpan", 1)
     columnSpan = private_ReadLong("columnSpan", 1)
-    Set TargetRange = targetWorksheet.Range(targetWorksheet.Cells(rowNo, columnNo), _
+    If rowNo <= 0 Or columnNo <= 0 Or rowSpan <= 0 Or columnSpan <= 0 Then Exit Function
+    Set Measure = targetWorksheet.Range(targetWorksheet.Cells(rowNo, columnNo), _
         targetWorksheet.Cells(rowNo + rowSpan - 1, columnNo + columnSpan - 1))
 End Function
 
