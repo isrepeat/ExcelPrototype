@@ -11,6 +11,7 @@ Option Explicit
 
 Private m_document As Object
 Private m_xamlPath As String
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -34,6 +35,7 @@ End Property
 ' // API
 ' //
 Public Function Initialize(ByVal document As Object, ByVal xamlPath As String) As Boolean
+    m_isDisposed = False
     If document Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(xamlPath)) = 0 Then Exit Function
 
@@ -43,6 +45,8 @@ Public Function Initialize(ByVal document As Object, ByVal xamlPath As String) A
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     Set m_document = Nothing
     m_xamlPath = VBA.vbNullString
 End Sub

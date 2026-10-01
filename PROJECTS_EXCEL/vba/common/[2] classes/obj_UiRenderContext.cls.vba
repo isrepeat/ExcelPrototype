@@ -14,6 +14,7 @@ Private m_uiPageDefinition As obj_UiPageDefinition
 Private m_uiFolderPath As String
 Private m_controls As Collection
 Private m_uiBindingContext As obj_UiBindingContext
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -50,6 +51,7 @@ Public Function Initialize( _
     ByVal uiFolderPath As String, _
     ByVal uiBindingContext As obj_UiBindingContext _
 ) As Boolean
+    m_isDisposed = False
     If targetWorksheet Is Nothing Or uiPageDefinition Is Nothing Or uiBindingContext Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(uiFolderPath)) = 0 Then Exit Function
     Set m_targetWorksheet = targetWorksheet
@@ -61,10 +63,15 @@ Public Function Initialize( _
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     Dim uiControl As obj_IUiControl
-    For Each uiControl In m_controls
-        uiControl.Dispose
-    Next uiControl
+
+    If Not m_controls Is Nothing Then
+        For Each uiControl In m_controls
+            uiControl.Dispose
+        Next uiControl
+    End If
     Set m_controls = Nothing
     Set m_uiBindingContext = Nothing
     Set m_uiPageDefinition = Nothing

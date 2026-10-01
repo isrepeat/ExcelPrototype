@@ -10,6 +10,8 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private m_pageBase As obj_PageBase
+Private m_tableList As obj_UiRawTableList
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -22,18 +24,51 @@ End Sub
 ' // API
 ' //
 Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
+    m_isDisposed = False
     Set m_pageBase = pageBase
     If m_pageBase Is Nothing Then
         VBA.MsgBox "The PersonalEventBuilder page controller requires a page base.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
+    Set m_tableList = New obj_UiRawTableList
+    If Not m_tableList.Initialize() Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "Tables", m_tableList) Then Exit Function
     Initialize = True
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
+    If Not m_tableList Is Nothing Then m_tableList.Dispose
+    Set m_tableList = Nothing
     Set m_pageBase = Nothing
 End Sub
+
+Public Function GenerateTables() As Boolean
+    Dim tableIndex As Long
+    Dim rowIndex As Long
+    Dim values As Variant
+    Dim headers As Variant
+    Dim rawTable As obj_UiRawTable
+
+    If m_tableList Is Nothing Then Exit Function
+    m_tableList.Dispose
+    If Not m_tableList.Initialize() Then Exit Function
+    headers = VBA.Array("Candidate", "Category", "Status")
+    For tableIndex = 1 To 10
+        ReDim values(1 To 3, 1 To 3)
+        For rowIndex = 1 To 3
+            values(rowIndex, 1) = "Candidate " & VBA.CStr(tableIndex) & "." & VBA.CStr(rowIndex)
+            values(rowIndex, 2) = "Group " & VBA.CStr(tableIndex)
+            values(rowIndex, 3) = "Ready"
+        Next rowIndex
+        Set rawTable = New obj_UiRawTable
+        If Not rawTable.Initialize(values, headers, "Table " & VBA.CStr(tableIndex)) Then Exit Function
+        If Not m_tableList.Add(rawTable) Then Exit Function
+    Next tableIndex
+    GenerateTables = m_pageBase.UpdatePage()
+End Function
 
 Public Function HelloWorld() As Boolean
     ex_Core.fn_Diagnostic_WriteLog "HELLO_WORLD_CLICKED"

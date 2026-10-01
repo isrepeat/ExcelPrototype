@@ -37,6 +37,7 @@ Private Sub private_ReloadActiveWorkbookVba( _
     Dim importFiles As Collection
     Dim documentImportFiles As Collection
     Dim vbaFolderPath As String
+    Dim uiFolderPath As String
     Dim targetWorkbookName As String
     Dim importedCount As Long
     Dim previousEnableEvents As Boolean
@@ -72,7 +73,8 @@ Private Sub private_ReloadActiveWorkbookVba( _
         Exit Sub
     End If
 
-    If Not private_VbaReload_TryResolveVbaFolder(targetWorkbook, vbaFolderPath) Then Exit Sub
+    If Not private_VbaReload_TryResolveConfiguredFolder(targetWorkbook, "ThisWorkbook::vbaPath", vbaFolderPath) Then Exit Sub
+    If Not private_VbaReload_TryResolveConfiguredFolder(targetWorkbook, "ThisWorkbook::uiPath", uiFolderPath) Then Exit Sub
 
     Set importFiles = New Collection
     Set documentImportFiles = New Collection
@@ -120,6 +122,7 @@ Private Sub private_ReloadActiveWorkbookVba( _
         private_VbaReload_ImportDocumentVbaFile targetWorkbook, VBA.CStr(importFile)
         importedCount = importedCount + 1
     Next importFile
+    private_VbaReload_SetRuntimePaths targetWorkbook, uiFolderPath
     private_VbaReload_InitializeReloadedWorkbook targetWorkbook, deferInitialization
 
     Application.StatusBar = "Imported VBA modules: " & _
@@ -364,99 +367,50 @@ Private Sub private_VbaReload_RunOrScheduleInitialization( _
     fn_Diagnostic_WriteLog "VBA_RELOAD_INITIALIZE_COMPLETED | Macro=" & macroReference
 End Sub
 
-' Source folder and profile resolution.
-Private Function private_VbaReload_TryResolveVbaFolder( _
+' Workbook configuration resolution.
+Private Function private_VbaReload_TryResolveConfiguredFolder( _
     ByVal targetWorkbook As Workbook, _
-    ByRef outVbaFolderPath As String _
+    ByVal keyName As String, _
+    ByRef outFolderPath As String _
 ) As Boolean
-    Const LOADER_SCHEME_FILE_NAME As String = "vbaLoaderScheme.json"
-    Dim fileSystem As Object
-    Dim workbookFolderPath As String
-    Dim schemeFolderPath As String
-    Dim schemePath As String
-    Dim candidatePath As String
-
-    outVbaFolderPath = VBA.vbNullString
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    workbookFolderPath = targetWorkbook.Path
-
-    schemeFolderPath = workbookFolderPath
-    Do
-        schemePath = schemeFolderPath & Application.PathSeparator & _
-            LOADER_SCHEME_FILE_NAME
-        If fileSystem.FileExists(schemePath) Then
-            If Not private_VbaReload_TryResolveVbaFolderFromScheme( _
-                    schemePath, outVbaFolderPath) Then Exit Function
-            private_VbaReload_TryResolveVbaFolder = True
-            Exit Function
-        End If
-
-        candidatePath = fileSystem.GetParentFolderName(schemeFolderPath)
-        If VBA.Len(candidatePath) = 0 Or _
-           VBA.StrComp(candidatePath, schemeFolderPath, VBA.vbTextCompare) = 0 Then Exit Do
-        schemeFolderPath = candidatePath
-    Loop
-
-    candidatePath = workbookFolderPath & Application.PathSeparator & "vba"
-    If Not private_VbaReload_FolderExists(candidatePath) Then
-        VBA.MsgBox "No '" & LOADER_SCHEME_FILE_NAME & "' file was found in the workbook " & _
-            "folder hierarchy, and the fallback VBA modules folder was not found: " & _
-            candidatePath, _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Function
-    End If
-
-    outVbaFolderPath = candidatePath
-    private_VbaReload_TryResolveVbaFolder = True
-End Function
-
-
-' Resolves a vba folder specified by a vbaLoaderScheme.json file.
-Private Function private_VbaReload_TryResolveVbaFolderFromScheme( _
-    ByVal schemePath As String, _
-    ByRef outVbaFolderPath As String _
-) As Boolean
-    Const VBA_FOLDER_PROPERTY_NAME As String = "vbaFolderPath"
-    Dim fileSystem As Object
-    Dim schemeText As String
     Dim configuredPath As String
-    Dim schemeFolderPath As String
-    Dim resolvedPath As String
+    Dim fileSystem As Object
+
+    outFolderPath = VBA.vbNullString
+    If Not private_VbaReload_TryGetWorkbookConfigValue( _
+            targetWorkbook, keyName, configuredPath) Then Exit Function
+    configuredPath = VBA.Replace$(VBA.Trim$(configuredPath), "/", "\")
+    If VBA.Len(configuredPath) = 0 Or VBA.InStr(configuredPath, ":") > 0 Or _
+       VBA.Left$(configuredPath, 1) = "\" Then
+        VBA.MsgBox "The configuration key '" & keyName & _
+            "' must contain a relative folder path: " & configuredPath, _
+            VBA.vbExclamation, "Reload VBA"
+        Exit Function
+    End If
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    schemeText = private_VbaReload_ReadUtf8TextFile(schemePath)
-    If Not private_VbaReload_TryReadJsonStringProperty( _
-            schemeText, VBA_FOLDER_PROPERTY_NAME, configuredPath) Then
-        VBA.MsgBox "VBA loader scheme must contain the string property '" & _
-            VBA_FOLDER_PROPERTY_NAME & "': " & schemePath, _
+    outFolderPath = fileSystem.GetAbsolutePathName( _
+        targetWorkbook.Path & Application.PathSeparator & configuredPath)
+    If Not fileSystem.FolderExists(outFolderPath) Then
+        VBA.MsgBox "The folder from configuration key '" & keyName & _
+            "' was not found: " & outFolderPath, _
             VBA.vbExclamation, "Reload VBA"
+        outFolderPath = VBA.vbNullString
         Exit Function
     End If
-
-    configuredPath = VBA.Replace$(VBA.Trim$(configuredPath), "/", "\")
-    If VBA.Len(configuredPath) = 0 Or VBA.InStr(configuredPath, "..") > 0 Or _
-       VBA.InStr(configuredPath, ":") > 0 Or VBA.Left$(configuredPath, 1) = "\" Then
-        VBA.MsgBox "VBA loader scheme contains an invalid relative vbaFolderPath: " & _
-            configuredPath & VBA.vbCrLf & schemePath, _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Function
-    End If
-
-    schemeFolderPath = fileSystem.GetParentFolderName(schemePath)
-    resolvedPath = fileSystem.GetAbsolutePathName( _
-        schemeFolderPath & Application.PathSeparator & configuredPath)
-    If Not fileSystem.FolderExists(resolvedPath) Then
-        VBA.MsgBox "VBA modules folder from loader scheme was not found: " & _
-            resolvedPath & VBA.vbCrLf & schemePath, _
-            VBA.vbExclamation, "Reload VBA"
-        Exit Function
-    End If
-
-    outVbaFolderPath = resolvedPath
-    private_VbaReload_TryResolveVbaFolderFromScheme = True
+    private_VbaReload_TryResolveConfiguredFolder = True
 End Function
 
+Private Sub private_VbaReload_SetRuntimePaths( _
+    ByVal targetWorkbook As Workbook, _
+    ByVal uiFolderPath As String _
+)
+    Dim macroReference As String
 
+    macroReference = "'" & VBA.Replace$(targetWorkbook.Name, "'", "''") & _
+        "'!ex_RuntimePaths.fn_SetUiFolder"
+    Application.Run macroReference, uiFolderPath
+End Sub
 Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
     ByVal vbaFolderPath As String, _
     ByVal targetWorkbook As Workbook, _
@@ -526,44 +480,50 @@ Private Function private_VbaReload_TryGetWorkbookProfileId( _
     ByVal targetWorkbook As Workbook, _
     ByRef outProfileId As String _
 ) As Boolean
+    private_VbaReload_TryGetWorkbookProfileId = _
+        private_VbaReload_TryGetWorkbookConfigValue( _
+            targetWorkbook, "ThisWorkbook::id", outProfileId)
+End Function
+
+Private Function private_VbaReload_TryGetWorkbookConfigValue( _
+    ByVal targetWorkbook As Workbook, _
+    ByVal keyName As String, _
+    ByRef outValue As String _
+) As Boolean
     Const CONFIG_TABLE_NAME As String = "tbConfig"
     Const CONFIG_KEY_COLUMN_NAME As String = "Key"
-    Const PROFILE_ID_KEY As String = "ThisWorkbook::id"
     Dim targetWorksheet As Worksheet
     Dim configTable As ListObject
     Dim configRow As ListRow
     Dim keyColumnIndex As Long
 
-    outProfileId = VBA.vbNullString
-    On Error GoTo EH
+    outValue = VBA.vbNullString
+    On Error GoTo MissingConfiguration
     For Each targetWorksheet In targetWorkbook.Worksheets
         For Each configTable In targetWorksheet.ListObjects
             If VBA.StrComp(configTable.Name, CONFIG_TABLE_NAME, VBA.vbTextCompare) = 0 Then
                 keyColumnIndex = configTable.ListColumns(CONFIG_KEY_COLUMN_NAME).Index
-                If keyColumnIndex = configTable.ListColumns.Count Then GoTo EH
+                If keyColumnIndex = configTable.ListColumns.Count Then GoTo ContinueTable
                 For Each configRow In configTable.ListRows
                     If VBA.StrComp( _
                             VBA.CStr(configRow.Range.Cells(1, keyColumnIndex).Value2), _
-                            PROFILE_ID_KEY, VBA.vbTextCompare) = 0 Then
-                        outProfileId = VBA.Trim$(VBA.CStr( _
+                            keyName, VBA.vbTextCompare) = 0 Then
+                        outValue = VBA.Trim$(VBA.CStr( _
                             configRow.Range.Cells(1, keyColumnIndex + 1).Value2))
-                        If VBA.Len(outProfileId) > 0 Then
-                            private_VbaReload_TryGetWorkbookProfileId = True
-                            Exit Function
-                        End If
+                        private_VbaReload_TryGetWorkbookConfigValue = VBA.Len(outValue) > 0
+                        Exit Function
                     End If
                 Next configRow
             End If
+ContinueTable:
         Next configTable
     Next targetWorksheet
-EH:
+MissingConfiguration:
     VBA.MsgBox "Configuration table '" & CONFIG_TABLE_NAME & _
-        "' must contain key '" & PROFILE_ID_KEY & _
-        "' with a profile ID in the next column.", _
+        "' must contain key '" & keyName & _
+        "' with a value in the next column.", _
         VBA.vbExclamation, "Reload VBA"
 End Function
-
-
 ' Expands * and ? patterns recursively under the workbook profile vba folder.
 Private Function private_VbaReload_TryExpandConfiguredSourcePaths( _
     ByVal vbaFolderPath As String, _
@@ -803,29 +763,6 @@ End Sub
 
 
 ' Reads one string property from a small JSON object.
-Private Function private_VbaReload_TryReadJsonStringProperty( _
-    ByVal jsonText As String, _
-    ByVal propertyName As String, _
-    ByRef outValue As String _
-) As Boolean
-    Dim propertyToken As String
-    Dim position As Long
-
-    outValue = VBA.vbNullString
-    propertyToken = """" & propertyName & """"
-    position = VBA.InStr(1, jsonText, propertyToken, VBA.vbBinaryCompare)
-    If position = 0 Then Exit Function
-
-    position = position + VBA.Len(propertyToken)
-    private_VbaReload_SkipJsonWhitespace jsonText, position
-    If VBA.Mid$(jsonText, position, 1) <> ":" Then Exit Function
-    position = position + 1
-    private_VbaReload_SkipJsonWhitespace jsonText, position
-    private_VbaReload_TryReadJsonStringProperty = _
-        private_VbaReload_TryReadJsonString(jsonText, position, outValue)
-End Function
-
-
 Private Function private_VbaReload_TryReadJsonString( _
     ByVal jsonText As String, _
     ByRef position As Long, _

@@ -10,6 +10,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private m_sources As Object
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -22,12 +23,15 @@ End Sub
 ' // API
 ' //
 Public Function Initialize() As Boolean
+    m_isDisposed = False
     Set m_sources = VBA.CreateObject("Scripting.Dictionary")
     m_sources.CompareMode = VBA.vbTextCompare
     Initialize = True
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     Set m_sources = Nothing
 End Sub
 

@@ -11,6 +11,7 @@ Option Explicit
 
 Private m_target As Object
 Private m_methodName As String
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -30,6 +31,7 @@ End Property
 ' // API
 ' //
 Public Function Initialize(ByVal target As Object, ByVal methodName As String) As Boolean
+    m_isDisposed = False
     Set m_target = target
     m_methodName = VBA.Trim$(methodName)
     If m_target Is Nothing Or VBA.Len(m_methodName) = 0 Then
@@ -40,6 +42,8 @@ Public Function Initialize(ByVal target As Object, ByVal methodName As String) A
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     Set m_target = Nothing
     m_methodName = VBA.vbNullString
 End Sub

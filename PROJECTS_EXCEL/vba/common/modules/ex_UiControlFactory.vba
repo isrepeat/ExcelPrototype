@@ -23,6 +23,8 @@ Public Function fn_Create(ByVal controlNode As Object) As obj_IUiControl
             Set uiControl = New obj_UiLabelControl
         Case "button"
             Set uiControl = New obj_UiButtonControl
+        Case "table"
+            Set uiControl = New obj_UiTableControl
         Case Else
             VBA.MsgBox "Unsupported control type: " & controlType, _
                 VBA.vbExclamation, "PersonalEventBuilder"

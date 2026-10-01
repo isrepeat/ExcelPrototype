@@ -12,6 +12,7 @@ Option Explicit
 Private m_profileId As String
 Private m_uiFolderRelativePath As String
 Private m_uiBindingContext As obj_UiBindingContext
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -38,6 +39,7 @@ Public Function Initialize( _
     ByVal profileId As String, _
     ByVal uiFolderRelativePath As String _
 ) As Boolean
+    m_isDisposed = False
     m_profileId = VBA.Trim$(profileId)
     m_uiFolderRelativePath = VBA.Trim$(uiFolderRelativePath)
     If VBA.Len(m_profileId) = 0 Or VBA.Len(m_uiFolderRelativePath) = 0 Then
@@ -52,6 +54,8 @@ Public Function Initialize( _
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     If Not m_uiBindingContext Is Nothing Then m_uiBindingContext.Dispose
     Set m_uiBindingContext = Nothing
     m_profileId = VBA.vbNullString
@@ -59,15 +63,23 @@ Public Sub Dispose()
 End Sub
 
 Public Function Render() As Boolean
+    Dim startedAt As Double
+
     If m_uiBindingContext Is Nothing Then Exit Function
+    startedAt = VBA.Timer
     ex_UiRenderer.fn_RenderPages m_uiFolderRelativePath, m_uiBindingContext
     Render = True
+    ex_Core.fn_Diagnostic_WritePerf "PageBase.Render | Profile=" & m_profileId, startedAt
 End Function
 
 Public Function RenderActivePage() As Boolean
+    Dim startedAt As Double
+
     If m_uiBindingContext Is Nothing Then Exit Function
+    startedAt = VBA.Timer
     ex_UiRenderer.fn_RenderActivePage m_uiFolderRelativePath, m_uiBindingContext
     RenderActivePage = True
+    ex_Core.fn_Diagnostic_WritePerf "PageBase.RenderActivePage | Profile=" & m_profileId, startedAt
 End Function
 
 Public Function UpdatePage() As Boolean

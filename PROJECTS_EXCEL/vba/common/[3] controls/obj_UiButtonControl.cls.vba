@@ -15,26 +15,30 @@ Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
 Private m_buttonShape As Shape
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
 
 Private Sub Class_Terminate()
-    Me.obj_IUiControl_Dispose
+    obj_IUiControl_Dispose
 End Sub
 
 ' //
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
+    m_isDisposed = False
     If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
     obj_IUiControl_Initialize = m_uiControlBase.Initialize()
 End Function
 
 Private Sub obj_IUiControl_Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     Set m_buttonShape = Nothing
-    m_uiControlBase.Dispose
+    If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_targetRange = Nothing
 End Sub
@@ -44,13 +48,15 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
 End Function
 
 Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+    Dim startedAt As Double
     Dim targetRange As Range
+    startedAt = VBA.Timer
     Dim shapeName As String
     Dim captionText As String
     Dim uiCommand As obj_UiCommand
 
     Set targetRange = m_targetRange
-    If targetRange Is Nothing Then Set targetRange = Me.obj_IUiControl_Measure(uiRenderContext)
+    If targetRange Is Nothing Then Set targetRange = obj_IUiControl_Measure(uiRenderContext)
     shapeName = m_uiControlBase.ShapeName(BUTTON_SHAPE_PREFIX)
     If VBA.Len(shapeName) = 0 Then Exit Function
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
@@ -64,6 +70,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
     ex_UiBindings.fn_Register shapeName, uiCommand
     obj_IUiControl_Render = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Button.Render", startedAt
 End Function
 
 Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
@@ -75,6 +82,7 @@ End Function
 Private Function obj_IUiControl_HandleCellChange(ByVal target As Range) As Boolean
     obj_IUiControl_HandleCellChange = False
 End Function
+
 ' //
 ' // Private
 ' //

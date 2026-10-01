@@ -1,1 +1,4 @@
 value	ThisWorkbook::id	PersonalEventBuilder
+value	ThisWorkbook::vbaPath	..\..\vba
+value	ThisWorkbook::uiPath	..\..\ui
+value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonalEventBuilder

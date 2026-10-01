@@ -11,6 +11,7 @@ Option Explicit
 
 Private m_controlNode As Object
 Private m_controlName As String
+Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
 End Sub
@@ -34,10 +35,13 @@ End Property
 ' // API
 ' //
 Public Function Initialize() As Boolean
+    m_isDisposed = False
     Initialize = True
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then Exit Sub
+    m_isDisposed = True
     Set m_controlNode = Nothing
     m_controlName = VBA.vbNullString
 End Sub
