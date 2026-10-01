@@ -49,3 +49,12 @@ For WorkbookUpdater, first complete or cancel the pending operation, ensure its 
 Existing workbooks are backed up, including unsaved edits, in `.backup/modules-<id>` beside the workbook before cleanup. Hot reload uses the same `.backup` root with `reload-<timestamp>` operation directories. An import or initialization failure does not save the partial result. Loaded workbooks can remain partially modified in memory: recover from the reported backup rather than saving them. There is no automatic rollback or full-project compile assertion. The original Excel event, screen-update and calculation settings are restored.
 
 Run `Test-WorkbookModules.ps1` for isolated Excel checks of Unicode, class headers, native imports, schema masks, document routing, obsolete-module removal, backups and preflight rejection. Run `Test-Updater.ps1` against a newly built add-in to verify the hot-reload lifecycle. Tests do not modify user workbooks.
+## Контракт кодировки
+
+`modules.json` и исходники `.vba` читаются как строгий UTF-8 (BOM допустим). Некорректные последовательности и символ замены U+FFFD прекращают операцию до изменения VBA-проекта. Строковые литералы преобразуются в выражения `ChrW$`, включая UTF-16 surrogate pairs. Comments are passed through unchanged; new and modified code comments must be in English. Идентификаторы VBA должны быть ASCII. Unicode-литералы в `Const` нужно заменить инициализацией переменной во время выполнения: вызов `ChrW$` не является константным выражением.
+
+Нативные текстовые экспорты `.bas`, `.cls`, `.frm` принимаются только в ASCII, без BOM. Это исключает зависимость текстового импорта VBE от системной ANSI-кодировки. Для Unicode-кода используйте `.vba`; подписи элементов UserForm задавайте из Unicode-кода после создания формы. Бинарные `.frx` сохраняются без перекодирования; содержимое стороннего бинарного ресурса не проверяется на переносимость текста.
+
+Сообщения Excel и `Err.Description` передаются как Unicode-строки напрямую, без промежуточной ANSI-конвертации. Диагностические логи VBA уже используют UTF-16 (`TristateTrue`), а не UTF-8: читать их нужно как UTF-16. Кодировку существующих логов не меняем при дописывании. Повреждённые ранее символы `?` автоматически не восстанавливаются.
+
+Проверка: `Test-SourceEncoding.ps1` проверяет оба импортёра, некорректный UTF-8, Unicode-литералы, статус-бар и запись/чтение UTF-16 лога. Проверки `Test-WorkbookModules.ps1` и `Test-Updater.ps1` проверяют импорт и жизненный цикл.

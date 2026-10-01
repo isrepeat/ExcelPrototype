@@ -1,6 +1,6 @@
 # Agent Instructions
 
-Write all new or modified code comments and developer-facing documentation in English. Do not add Cyrillic text to source code, comments, or configuration keys. Keep technical identifiers, API names, and DSL keywords in English.
+Write all new or modified code comments and developer-facing documentation in English. Do not add Cyrillic comments. Keep technical identifiers, API names, and configuration keys in English. Unicode user-facing string literals are allowed. Existing comments can be translated in a separate change.
 
 Wrap every module's public VBA procedures in a comment-delimited namespace block, following the established format: `namespace API {` and `} // namespace API`. Group public procedures by a more specific namespace when the module already uses one.
 

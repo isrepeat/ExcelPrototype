@@ -70,7 +70,7 @@ Public Function fn_RequestReload( _
         VBA.Err.Raise VBA.vbObjectError + 2304, , "The runtime is already stopped or faulted."
     private_RegisterContext target, m_context
 
-    ' План полностью читается до остановки; последующие правки исходников его не меняют.
+    ' Read the entire plan before shutdown; subsequent source edits do not change it.
     If m_clearOnly Then
         Set m_plan = New Collection
         m_operationFolder = private_CreateOperationFolder(target)
@@ -91,7 +91,7 @@ EH:
         m_context("StopRequested") = False
         m_context("Phase") = "Running"
     End If
-    ' Повторный запрос не должен уничтожить уже существующую очередь.
+    ' A repeated request must not discard an existing queued operation.
     If ownsOperation And m_scheduledAt = 0 Then private_ClearOperation
     If ownsOperation Then
         m_lastError = errorText
@@ -165,8 +165,8 @@ Public Sub fn_RunPending()
     If m_target Is Nothing Then Exit Sub
     If Not private_IsTargetOpen() Then _
         VBA.Err.Raise VBA.vbObjectError + 2305, , "The target workbook was closed."
-    ' Во время callback Excel возвращает Run даже для целевого проекта.
-    ' Завершение его вызовов подтверждаем счётчиком, а не требованием Design.
+    ' During a callback, Excel reports Run even for the target project.
+    ' Confirm completed calls using the counter rather than requiring Design mode.
     If VBA.CLng(m_context("ActiveCalls")) <> 0 Then
         m_lastError = "Waiting: project mode=" & VBA.CStr(m_target.VBProject.Mode) & "; active calls=" & VBA.CStr(m_context("ActiveCalls"))
         If VBA.Now >= m_deadline Then _
@@ -185,7 +185,7 @@ Public Sub fn_RunPending()
 
     If m_context("Phase") = "Initializing" Then GoTo InitializeRuntime
 
-    ' Повторно проверяем пустоту: проект могли изменить во время ожидания callback.
+    ' Recheck whether the project is empty: it may have changed while the callback was pending.
     If m_initialInstall And Not private_IsEmptyProject(m_target) Then _
         VBA.Err.Raise VBA.vbObjectError + 2324, , _
             "The project is no longer empty. Initial installation was cancelled."
@@ -193,7 +193,7 @@ Public Sub fn_RunPending()
     m_target.SaveCopyAs m_backupPath
     m_target.Names.Add Name:="_RuntimeReloadBlocked", RefersTo:="=TRUE", Visible:=False
     If m_initialInstall Then
-        ' У пустого проекта нет старого runtime; новый lifecycle поступит вместе с исходниками.
+        ' An empty project has no existing runtime; the new lifecycle arrives with the source modules.
         m_context("Phase") = "Prepared"
     Else
         If Not VBA.CBool(Application.Run(private_Macro("ex_RuntimeLifecycle.fn_PrepareReload"))) Then _
@@ -224,10 +224,10 @@ Public Sub fn_RunPending()
         Exit Sub
     End If
 
-    ' Контекст удерживается надстройкой и переживает сброс переменных целевого проекта.
+    ' The add-in retains the context across resets of the target project variables.
     m_context("Phase") = "Initializing"
-    ' Excel сбрасывает переменные проекта после возврата из callback, изменившего код.
-    ' Создаём новый runtime только в следующем callback, когда этот сброс уже завершён.
+    ' Excel resets project variables after the callback that modified code returns.
+    ' Create the new runtime in the next callback, after the reset has completed.
     private_Schedule
     Application.Calculation = previousCalculation
     Application.ScreenUpdating = previousScreenUpdating
@@ -260,7 +260,7 @@ EH:
         m_context("Phase") = "Faulted"
         m_context("Error") = errorText
     End If
-    ' После ошибки проект не допускается к работе; автоматического продолжения нет.
+    ' After an error, the project remains blocked; execution does not resume automatically.
     On Error Resume Next
     If Not m_target Is Nothing And Not m_context Is Nothing Then _
         Application.Run private_Macro("ex_RuntimeLifecycle.fn_AttachContext"), m_context
@@ -434,6 +434,7 @@ Private Function private_ReadPlan(ByVal target As Workbook, ByRef uiFolder As St
     For Each sourcePath In files
         Set item = VBA.CreateObject("Scripting.Dictionary")
         fileName = fileSystem.GetFileName(VBA.CStr(sourcePath))
+        private_ValidateSourceEncoding VBA.CStr(sourcePath), LCase$(fileSystem.GetExtensionName(VBA.CStr(sourcePath))) <> "vba"
         code = private_VbaReload_ReadUtf8TextFile(VBA.CStr(sourcePath))
         If VBA.Len(Trim$(code)) = 0 Then _
         VBA.Err.Raise VBA.vbObjectError + 2313, , "Empty source: " & VBA.CStr(sourcePath)
@@ -1000,13 +1001,71 @@ Private Function private_VbaReload_RemoveExportMetadata(ByVal sourceText As Stri
     private_VbaReload_RemoveExportMetadata = result
 End Function
 
+Private Sub private_ValidateSourceEncoding(ByVal filePath As String, ByVal nativeSource As Boolean)
+    Dim stream As Object
+    Dim bytes As Variant
+    Dim index As Long
+    Dim lastIndex As Long
+    Dim value As Long
+    Dim continuation As Long
+    Dim minimum As Long
+    Dim codePoint As Long
+    Dim offset As Long
+
+    Set stream = VBA.CreateObject("ADODB.Stream")
+    stream.Type = 1
+    stream.Open
+    stream.LoadFromFile filePath
+    If stream.Size = 0 Then
+        stream.Close
+        Exit Sub
+    End If
+    bytes = stream.Read
+    stream.Close
+    lastIndex = UBound(bytes)
+    index = LBound(bytes)
+    Do While index <= lastIndex
+        value = CLng(bytes(index))
+        If nativeSource And value > 127 Then _
+            Err.Raise vbObjectError + 2340, , "Native source must be ASCII; use UTF-8 .vba for Unicode code: " & filePath
+        continuation = 0
+        If value <= 127 Then
+            codePoint = value
+        ElseIf value >= 194 And value <= 223 Then
+            continuation = 1: minimum = 128: codePoint = value And 31
+        ElseIf value >= 224 And value <= 239 Then
+            continuation = 2: minimum = 2048: codePoint = value And 15
+        ElseIf value >= 240 And value <= 244 Then
+            continuation = 3: minimum = 65536: codePoint = value And 7
+        Else
+            GoTo InvalidEncoding
+        End If
+        If index + continuation > lastIndex Then GoTo InvalidEncoding
+        For offset = 1 To continuation
+            value = CLng(bytes(index + offset))
+            If value < 128 Or value > 191 Then GoTo InvalidEncoding
+            codePoint = codePoint * 64 + (value And 63)
+        Next offset
+        If continuation > 0 Then
+            If codePoint < minimum Or codePoint > 1114111 Then GoTo InvalidEncoding
+            If codePoint >= 55296 And codePoint <= 57343 Then GoTo InvalidEncoding
+            If codePoint = 65533 Then GoTo InvalidEncoding
+        End If
+        index = index + continuation + 1
+    Loop
+    Exit Sub
+InvalidEncoding:
+    Err.Raise vbObjectError + 2341, , "Invalid UTF-8 source at byte " & CStr(index) & ": " & filePath
+End Sub
+
 Private Function private_VbaReload_ReadUtf8TextFile(ByVal filePath As String) As String
     Const AD_TYPE_TEXT As Long = 2
     Const AD_READ_ALL As Long = -1
 
     Dim textStream As Object
 
-    ' Исходники читаются как UTF-8: системная ANSI-кодировка повреждает Unicode.
+    ' Read sources as UTF-8: the system ANSI code page can corrupt Unicode.
+    private_ValidateSourceEncoding filePath, False
     Set textStream = VBA.CreateObject("ADODB.Stream")
     textStream.Type = AD_TYPE_TEXT
     textStream.Charset = "utf-8"
@@ -1076,6 +1135,18 @@ Private Function private_VbaReload_EncodeUnicodeStringLiterals( _
     private_VbaReload_EncodeUnicodeStringLiterals = resultText
 End Function
 
+Private Function private_HasUnicode(ByVal text As String) As Boolean
+    Dim index As Long
+    Dim value As Long
+    For index = 1 To Len(text)
+        value = AscW(Mid$(text, index, 1))
+        If value < 0 Or value > 127 Then
+            private_HasUnicode = True
+            Exit Function
+        End If
+    Next index
+End Function
+
 Private Function private_VbaReload_EncodeUnicodeStringLiteralsOnLine( _
     ByVal sourceLine As String _
 ) As String
@@ -1090,13 +1161,18 @@ Private Function private_VbaReload_EncodeUnicodeStringLiteralsOnLine( _
     Do While charIndex <= VBA.Len(sourceLine)
         currentCharacter = VBA.Mid$(sourceLine, charIndex, 1)
 
-        If currentCharacter = "'" Then
-            ' Апостроф вне строкового литерала начинает комментарий.
+        If currentCharacter = "'" Or _
+           (LCase$(Mid$(sourceLine, charIndex, 3)) = "rem" And _
+            (InStr(" " & vbTab & ":", Mid$(" " & sourceLine, charIndex, 1)) > 0) And _
+            (charIndex + 3 > Len(sourceLine) Or InStr(" " & vbTab, Mid$(sourceLine, charIndex + 3, 1)) > 0)) Then
+            ' An apostrophe outside a string literal starts a comment.
             resultText = resultText & VBA.Mid$(sourceLine, charIndex)
             Exit Do
         End If
 
         If currentCharacter <> """" Then
+            If AscW(currentCharacter) < 0 Or AscW(currentCharacter) > 127 Then _
+                Err.Raise vbObjectError + 2342, , "Non-ASCII VBA identifier is not portable. Use ASCII identifiers."
             resultText = resultText & currentCharacter
             charIndex = charIndex + 1
         Else
@@ -1122,11 +1198,13 @@ Private Function private_VbaReload_EncodeUnicodeStringLiteralsOnLine( _
             Loop
 
             If Not literalClosed Then
-                ' Незакрытый литерал сохраняем, чтобы VBE показал ошибку исходника.
+                Err.Raise vbObjectError + 2343, , "Unterminated VBA string literal."
                 resultText = resultText & VBA.Mid$(sourceLine, literalStartIndex)
                 Exit Do
             End If
 
+            If InStr(1, sourceLine, "Const ", vbTextCompare) > 0 And private_HasUnicode(literalText) Then _
+                Err.Raise vbObjectError + 2344, , "Unicode Const literals require runtime initialization; ChrW is not a constant expression."
             resultText = resultText & private_VbaReload_EncodeUnicodeLiteral(literalText)
         End If
     Loop

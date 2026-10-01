@@ -105,7 +105,7 @@ try {
     Assert-Equal $true $rejected 'Missing source rejected'
     Assert-Equal $originalHash (Get-FileHash -LiteralPath $bookPath).Hash 'Preflight did not alter workbook'
     if (@(Get-ChildItem -LiteralPath (Join-Path $root '.backup') -Directory -Filter 'modules-*').Count -ne 1) { throw 'Backup was not created.' }
-    # Проверяем поиск vba относительно скрипта независимо от текущей папки.
+    # Verify that vba is resolved relative to the script regardless of the current directory.
     Copy-Item -LiteralPath $updater -Destination $root
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'WorkbookModules.ps1') -Destination $root
     Write-Fixture 'modules.json' '{"Fixture":["Main.vba"]}'

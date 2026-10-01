@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function Find-LoadedExcelWorkbook([string]$Name) {
     if (-not ('WorkbookModules.ExcelWindows' -as [type])) {
@@ -61,7 +61,7 @@ namespace WorkbookModules {
         foreach ($workbook in $application.Workbooks) {
             $availableBooks.Add($workbook.Name)
         }
-        # Загруженные надстройки доступны по имени, но не всегда входят в перечисление Workbooks.
+        # Loaded add-ins are accessible by name but may be absent from the Workbooks enumeration.
         try {
             $namedWorkbook = $application.Workbooks.Item($Name)
             $matches.Add([pscustomobject]@{ Excel = $application; Workbook = $namedWorkbook })
@@ -73,6 +73,22 @@ namespace WorkbookModules {
         throw "Workbook is not loaded: $Name. Available workbooks: $($availableBooks -join ', ')"
     }
     return $matches[0]
+}
+
+function Read-WorkbookSourceText([string]$Path, [bool]$Native = $false) {
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    if ($Native) {
+        # Native VBE import depends on ANSI: accept only portable ASCII text.
+        foreach ($value in $bytes) {
+            if ($value -gt 127) { throw "Native source must be ASCII; convert code to UTF-8 .vba or remove non-ASCII designer text: $Path" }
+        }
+    }
+    $encoding = New-Object Text.UTF8Encoding($false, $true)
+    try { $text = $encoding.GetString($bytes) }
+    catch { throw "Invalid UTF-8 source: $Path. $($_.Exception.Message)" }
+    if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) { $text = $text.Substring(1) }
+    if ($text.Contains([string][char]0xFFFD)) { throw "Source contains Unicode replacement character: $Path" }
+    return $text
 }
 
 function Get-WorkbookProfile([object]$Workbook) {
@@ -104,7 +120,7 @@ function ConvertTo-WorkbookModuleCode([string]$Text) {
             continue
         }
         if ($trimmed -match '^Attribute\s') { continue }
-        # Unicode в строковых литералах передаём через ChrW$, независимо от кодовой страницы VBE.
+        # Encode Unicode string literals with ChrW$, independently of the VBE code page.
         $result = New-Object Text.StringBuilder
         $index = 0
         while ($index -lt $line.Length) {
@@ -112,7 +128,10 @@ function ConvertTo-WorkbookModuleCode([string]$Text) {
             if ($character -eq "'" -or ($line.Substring($index) -match '^Rem(?:\s|$)' -and ($index -eq 0 -or $line[$index - 1] -match '[\s:]'))) {
                 [void]$result.Append($line.Substring($index)); break
             }
-            if ($character -ne '"') { [void]$result.Append($character); $index++; continue }
+            if ($character -ne '"') {
+                if ([int]$character -gt 127) { throw 'Non-ASCII VBA identifier is not portable. Use ASCII identifiers.' }
+                [void]$result.Append($character); $index++; continue
+            }
             $start = $index
             $index++
             $literal = New-Object Text.StringBuilder
@@ -130,6 +149,7 @@ function ConvertTo-WorkbookModuleCode([string]$Text) {
             if ($literal.ToString() -notmatch '[^\x00-\x7F]') {
                 [void]$result.Append($line.Substring($start, $index - $start)); continue
             }
+            if ($line -match '(?i)\bConst\s') { throw 'Unicode Const literals require runtime initialization; ChrW is not a constant expression.' }
             $parts = New-Object 'System.Collections.Generic.List[string]'
             $ascii = New-Object Text.StringBuilder
             foreach ($unit in $literal.ToString().ToCharArray()) {
@@ -151,7 +171,7 @@ function ConvertTo-WorkbookModuleCode([string]$Text) {
 function Get-WorkbookModulePlan([string]$SourceFolder, [string]$Profile) {
     $root = (Resolve-Path -LiteralPath $SourceFolder -ErrorAction Stop).Path.TrimEnd('\', '/')
     $schemaPath = Join-Path $root 'modules.json'
-    $schema = [IO.File]::ReadAllText($schemaPath, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    $schema = (Read-WorkbookSourceText $schemaPath) | ConvertFrom-Json
     $property = $schema.PSObject.Properties[$Profile]
     if ($null -eq $property -or $property.Value -isnot [Array] -or $property.Value.Count -eq 0) {
         throw "Profile '$Profile' must contain a nonempty array in $schemaPath"
@@ -166,7 +186,7 @@ function Get-WorkbookModulePlan([string]$SourceFolder, [string]$Profile) {
             throw "Invalid relative module path: $pattern"
         }
         if ([IO.Path]::GetExtension($normalized) -notin @('.vba', '.bas', '.cls', '.frm')) { throw "Unsupported module pattern: $pattern" }
-        # Тот же синтаксис масок, включая [[] для буквального открывающего bracket.
+        # Use the same wildcard syntax, including [[] for a literal opening bracket.
         $matcher = New-Object Management.Automation.WildcardPattern($normalized, [Management.Automation.WildcardOptions]::IgnoreCase)
         $matches = @($candidates | Where-Object {
             $matcher.IsMatch($_.FullName.Substring($root.Length + 1))
@@ -179,7 +199,7 @@ function Get-WorkbookModulePlan([string]$SourceFolder, [string]$Profile) {
     $seenNames = @{}
     foreach ($file in $selected) {
         $native = $file.Extension -ine '.vba'
-        $text = [IO.File]::ReadAllText($file.FullName, [Text.Encoding]::UTF8)
+        $text = (Read-WorkbookSourceText $file.FullName $native)
         if ([string]::IsNullOrWhiteSpace($text)) { throw "Empty source: $($file.FullName)" }
         $stem = $file.Name -replace '(?i)\.(vba|bas|cls|frm)$', '' -replace '(?i)\.utf8$', '' -replace '(?i)\.(cls|bas|frm)$', ''
         $document = $stem -ieq 'ThisWorkbook' -or ($file.Extension -ieq '.vba' -and $stem.StartsWith('ws_', [StringComparison]::OrdinalIgnoreCase))
@@ -232,7 +252,7 @@ function Set-WorkbookModulePlan([object]$Workbook, [object[]]$Plan, [string]$Mod
     $stagedFiles = New-Object 'System.Collections.Generic.List[string]'
     $stagedFolders = New-Object 'System.Collections.Generic.List[string]'
     try {
-        # Нативный импорт использует снимок байтов, а не изменяемый исходный файл.
+        # Native import uses a byte snapshot instead of the mutable source file.
         foreach ($item in $Plan) {
             if (-not $item.Native -or $item.Document) { continue }
             $folder = Join-Path ([IO.Path]::GetTempPath()) ('WorkbookModules-' + [Guid]::NewGuid().ToString('N'))

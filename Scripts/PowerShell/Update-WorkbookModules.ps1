@@ -34,7 +34,7 @@ $previousScreenUpdating = $null
 $previousCalculation = $null
 $backupPath = $null
 try {
-    # Проверяем схему до подключения к Excel, если профиль задан явно.
+    # Validate the schema before connecting to Excel when the profile is explicitly specified.
     $plan = $null
     if ($Mode -eq 'Update' -and $Profile) { $plan = @(Get-WorkbookModulePlan $VbaFolderPath $Profile) }
     if ($PlanOnly) {
@@ -89,7 +89,7 @@ try {
         $Profile = Get-WorkbookProfile $book
         $plan = @(Get-WorkbookModulePlan $VbaFolderPath $Profile)
     }
-    # Все документные компоненты проверяются до удаления любого кода.
+    # Validate all document components before removing any code.
     if ($Mode -eq 'Update') { Assert-WorkbookModulePlan $book $plan }
     if ($CanUpdateMacro) {
         $macro = "'" + $book.Name.Replace("'", "''") + "'!" + $CanUpdateMacro
