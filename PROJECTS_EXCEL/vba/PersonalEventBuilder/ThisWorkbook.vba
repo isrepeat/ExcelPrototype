@@ -11,3 +11,10 @@ End Sub
 Private Sub Workbook_SheetSelectionChange(ByVal sheet As Object, ByVal target As Range)
     ex_UiBindings.fn_CollapseSelectControls
 End Sub
+
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    If ex_Core.fn_Diagnostic_Flush() Then Exit Sub
+    Cancel = True
+    VBA.MsgBox "The diagnostic log buffer could not be written. The workbook will remain open.", _
+        VBA.vbExclamation, "PersonalEventBuilder"
+End Sub

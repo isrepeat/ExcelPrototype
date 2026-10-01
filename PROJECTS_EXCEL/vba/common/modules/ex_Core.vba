@@ -4,13 +4,24 @@ Option Explicit
 
 Private Const DIAGNOSTIC_FOLDER_NAME As String = "PROJECTS_EXCEL"
 Private Const DIAGNOSTIC_FILE_NAME As String = "diagnostic.log"
+Private Const DIAGNOSTIC_MODE_IMMEDIATE As String = "Immediate"
+Private Const DIAGNOSTIC_MODE_BUFFERED As String = "Buffered"
+Private Const DIAGNOSTIC_MODE_CONFIG_KEY As String = "ThisWorkbook::logMode"
 Private m_diagnosticSessionStarted As Boolean
+Private m_diagnosticConfigurationLoaded As Boolean
+Private m_diagnosticMode As String
+Private m_diagnosticBuffer As Collection
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
-    m_diagnosticSessionStarted = False
+    If fn_Diagnostic_Flush() Then
+        m_diagnosticSessionStarted = False
+        m_diagnosticConfigurationLoaded = False
+        m_diagnosticMode = VBA.vbNullString
+        Set m_diagnosticBuffer = Nothing
+    End If
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -21,11 +32,77 @@ End Sub
 ' --------------------------------------
 Public Sub fn_Diagnostic_WriteLog(ByVal messageText As String)
 #If ENABLE_LOGGING Then
+    private_Diagnostic_EnsureConfiguration
     private_Diagnostic_WriteSessionHeader
-    private_Diagnostic_WriteRawLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
+    private_Diagnostic_WriteLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
         " | " & messageText
 #End If
 End Sub
+
+Public Function fn_Diagnostic_SetMode(ByVal modeName As String) As Boolean
+    modeName = VBA.Trim$(modeName)
+    If VBA.StrComp(modeName, DIAGNOSTIC_MODE_IMMEDIATE, VBA.vbTextCompare) <> 0 And _
+       VBA.StrComp(modeName, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) <> 0 Then Exit Function
+
+    private_Diagnostic_EnsureConfiguration
+    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) = 0 And _
+       VBA.StrComp(modeName, DIAGNOSTIC_MODE_IMMEDIATE, VBA.vbTextCompare) = 0 Then
+        If Not fn_Diagnostic_Flush() Then Exit Function
+    End If
+    m_diagnosticMode = modeName
+    fn_Diagnostic_SetMode = True
+End Function
+
+Public Function fn_Diagnostic_GetMode() As String
+    private_Diagnostic_EnsureConfiguration
+    fn_Diagnostic_GetMode = m_diagnosticMode
+End Function
+
+Public Function fn_Diagnostic_Flush() As Boolean
+#If ENABLE_LOGGING Then
+    Const FOR_APPENDING As Long = 8
+    Const TRISTATE_TRUE As Long = -1
+    Dim fileSystem As Object
+    Dim logFile As Object
+    Dim logFolderPath As String
+    Dim lineText As String
+
+    private_Diagnostic_EnsureConfiguration
+    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) <> 0 Then
+        fn_Diagnostic_Flush = True
+        Exit Function
+    End If
+    If m_diagnosticBuffer Is Nothing Then
+        fn_Diagnostic_Flush = True
+        Exit Function
+    End If
+    If m_diagnosticBuffer.Count = 0 Then
+        fn_Diagnostic_Flush = True
+        Exit Function
+    End If
+
+    On Error GoTo EH
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    logFolderPath = private_Diagnostic_GetLogFolderPath(fileSystem)
+    If VBA.Len(logFolderPath) = 0 Then GoTo EH
+    Set logFile = fileSystem.OpenTextFile( _
+        logFolderPath & "\" & DIAGNOSTIC_FILE_NAME, FOR_APPENDING, True, TRISTATE_TRUE)
+    Do While m_diagnosticBuffer.Count > 0
+        lineText = VBA.CStr(m_diagnosticBuffer(1))
+        logFile.WriteLine lineText
+        m_diagnosticBuffer.Remove 1
+    Loop
+    logFile.Close
+    Set logFile = Nothing
+    fn_Diagnostic_Flush = True
+    Exit Function
+EH:
+    On Error Resume Next
+    If Not logFile Is Nothing Then logFile.Close
+#Else
+    fn_Diagnostic_Flush = True
+#End If
+End Function
 
 Public Sub fn_Diagnostic_WritePerf(ByVal stageName As String, ByVal startedAt As Double)
     Dim elapsedMilliseconds As Double
@@ -110,23 +187,54 @@ End Function
 ' } // namespace Diagnostic
 ' --------------------------------------
 
-' Writes a prepared diagnostic line to the session log.
-Private Sub private_Diagnostic_WriteRawLine(ByVal lineText As String)
+' //
+' // Private
+' //
+Private Sub private_Diagnostic_EnsureConfiguration()
+    Dim configuredMode As String
+
+    If m_diagnosticConfigurationLoaded Then Exit Sub
+    m_diagnosticConfigurationLoaded = True
+    m_diagnosticMode = DIAGNOSTIC_MODE_IMMEDIATE
+    If Not fn_TryGetWorkbookConfigValue(DIAGNOSTIC_MODE_CONFIG_KEY, configuredMode) Then Exit Sub
+    configuredMode = VBA.Trim$(configuredMode)
+    If VBA.StrComp(configuredMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) = 0 Then
+        m_diagnosticMode = DIAGNOSTIC_MODE_BUFFERED
+    ElseIf VBA.StrComp(configuredMode, DIAGNOSTIC_MODE_IMMEDIATE, VBA.vbTextCompare) = 0 Then
+        m_diagnosticMode = DIAGNOSTIC_MODE_IMMEDIATE
+    End If
+End Sub
+
+Private Sub private_Diagnostic_WriteLine(ByVal lineText As String)
+    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) = 0 Then
+        If m_diagnosticBuffer Is Nothing Then Set m_diagnosticBuffer = New Collection
+        m_diagnosticBuffer.Add lineText
+    Else
+        private_Diagnostic_WriteRawLine lineText
+    End If
+End Sub
+
+Private Function private_Diagnostic_WriteRawLine(ByVal lineText As String) As Boolean
     Const FOR_APPENDING As Long = 8
     Const TRISTATE_TRUE As Long = -1
     Dim fileSystem As Object
     Dim logFile As Object
     Dim logFolderPath As String
 
-    On Error Resume Next
+    On Error GoTo EH
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     logFolderPath = private_Diagnostic_GetLogFolderPath(fileSystem)
-    If VBA.Len(logFolderPath) = 0 Then Exit Sub
+    If VBA.Len(logFolderPath) = 0 Then Exit Function
     Set logFile = fileSystem.OpenTextFile( _
         logFolderPath & "\" & DIAGNOSTIC_FILE_NAME, FOR_APPENDING, True, TRISTATE_TRUE)
     logFile.WriteLine lineText
     logFile.Close
-End Sub
+    private_Diagnostic_WriteRawLine = True
+    Exit Function
+EH:
+    On Error Resume Next
+    If Not logFile Is Nothing Then logFile.Close
+End Function
 
 Private Function private_Diagnostic_GetLogFolderPath(ByVal fileSystem As Object) As String
     Const LOG_PATH_KEY As String = "ThisWorkbook::logPath"
@@ -166,13 +274,16 @@ Private Function private_Diagnostic_TryEnsureFolder( _
     private_Diagnostic_TryEnsureFolder = fileSystem.FolderExists(folderPath)
 End Function
 
-' Adds a visible boundary before the first diagnostic record of this VBA session.
+' Добавляет границу перед первой диагностической записью сессии.
 Private Sub private_Diagnostic_WriteSessionHeader()
     If m_diagnosticSessionStarted Then Exit Sub
 
-    private_Diagnostic_WriteRawLine String$(96, "=")
-    private_Diagnostic_WriteRawLine "New session started | " & _
+    private_Diagnostic_WriteLine String$(96, "=")
+    private_Diagnostic_WriteLine "New session started | " & _
         VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
-    private_Diagnostic_WriteRawLine String$(96, "=")
+    private_Diagnostic_WriteLine String$(96, "=")
     m_diagnosticSessionStarted = True
 End Sub
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------
