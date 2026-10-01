@@ -42,10 +42,58 @@
     <control type="table"
              name="GeneratedTables"
              source="{Binding Source=Data; Path=Tables}"
-             row="7"
+             row="14"
              column="2"
              showHeaders="true"
              gapRows="1"/>
+
+    <form name="EventDraftForm" source="Form" row="7" column="2">
+      <stackPanel orientation="horizontal">
+        <control type="Label"
+                 name="EventNameLabel"
+                 text="Event name"
+                 style="formLabel"/>
+        <control type="Input"
+                 name="EventNameInput"
+                 value="{Binding Path=EventName}"
+                 columnSpan="4"
+                 style="formField"
+                 onChange="{Binding Source=Commands; Path=FormChangedCommand}"/>
+      </stackPanel>
+
+      <stackPanel orientation="horizontal">
+        <control type="Label"
+                 name="EventCategoryLabel"
+                 text="Category"
+                 style="formLabel"/>
+        <control type="Select"
+                 name="EventCategorySelect"
+                 value="{Binding Path=Category}"
+               itemsSource="{Binding Source=Data; Path=EventTypes}"
+                 columnSpan="4"
+                 style="formField"
+                 onChange="{Binding Source=Commands; Path=FormChangedCommand}"/>
+      </stackPanel>
+
+      <stackPanel orientation="horizontal">
+        <control type="Label"
+                 name="EventNotesLabel"
+                 text="Notes"
+                 style="formLabel"/>
+        <control type="Input"
+                 name="EventNotesInput"
+                 value="{Binding Path=Notes}"
+                 columnSpan="4"
+                 style="formField"/>
+      </stackPanel>
+
+      <control type="Button"
+               name="SubmitEventDraft"
+               caption="Submit form"
+               columnSpan="2"
+               style="primaryButton"
+               command="{Binding Source=Commands; Path=SubmitFormCommand}"/>
+    </form>
   </grid>
 
   <styles>
@@ -56,6 +104,23 @@
                   fontSize="16"
                   fontBold="true"
                   horizontal="center"
+                  vertical="center"/>
+
+    <controlStyle name="formLabel"
+                  backColor="#273244"
+                  textColor="#E5E7EB"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="true"
+                  vertical="center"/>
+
+    <controlStyle name="formField"
+                  backColor="#FFFFFF"
+                  textColor="#111827"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#64748B"
+                  borderWeight="thin"
                   vertical="center"/>
 
     <stylePipelineStage name="default">

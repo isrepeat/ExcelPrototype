@@ -72,6 +72,10 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Text", "HelloWorld", "Hello World") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "UpdatePage", "Update page") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "GenerateTables", "Generate tables") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "Category", "Meeting") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "Notes", VBA.vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Data", "EventTypes", "Meeting,Training,Leave") Then Exit Function
     If Not uiBindingContext.SetValue("Resources", "PrimaryButton", "primaryButton") Then Exit Function
     If Not uiBindingContext.SetValue("Resources", "PageTitle", "pageTitle") Then Exit Function
     private_TryRegisterBindings = True
@@ -81,6 +85,8 @@ Private Function private_TryRegisterCommands() As Boolean
     Dim helloWorldCommand As obj_UiCommand
     Dim updatePageCommand As obj_UiCommand
     Dim generateTablesCommand As obj_UiCommand
+    Dim formChangedCommand As obj_UiCommand
+    Dim submitFormCommand As obj_UiCommand
     Dim uiBindingContext As obj_UiBindingContext
 
     If m_controller Is Nothing Then Exit Function
@@ -96,5 +102,11 @@ Private Function private_TryRegisterCommands() As Boolean
     Set generateTablesCommand = New obj_UiCommand
     If Not generateTablesCommand.Initialize(m_controller, "GenerateTablesCommandHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "GenerateTablesCommand", generateTablesCommand) Then Exit Function
+    Set formChangedCommand = New obj_UiCommand
+    If Not formChangedCommand.Initialize(m_controller, "FormChangedCommandHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FormChangedCommand", formChangedCommand) Then Exit Function
+    Set submitFormCommand = New obj_UiCommand
+    If Not submitFormCommand.Initialize(m_controller, "SubmitFormCommandHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "SubmitFormCommand", submitFormCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function
