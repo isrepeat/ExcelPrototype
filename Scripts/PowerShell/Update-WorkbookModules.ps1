@@ -96,7 +96,7 @@ try {
         if ($excel.Run($macro) -ne $true) { throw 'The workbook lifecycle rejected the update.' }
     }
     if (-not $Create) {
-        $backupPath = Join-Path $book.Path ('.modules-backup-' + [Guid]::NewGuid().ToString('N'))
+        $backupPath = Join-Path (Join-Path $book.Path '.backup') ('modules-' + [Guid]::NewGuid().ToString('N'))
         [IO.Directory]::CreateDirectory($backupPath) | Out-Null
         $backupPath = Join-Path $backupPath $book.Name
         $book.SaveCopyAs($backupPath)

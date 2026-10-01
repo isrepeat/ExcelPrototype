@@ -7,4 +7,5 @@ Codex/sessions/
 PROJECTS_EXCEL/WorkbookUpdater/WorkbookUpdater.xlam
 .reload-*/
 .modules-backup-*/
+.backup/
 PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
