@@ -1,3 +1,3 @@
 @echo off
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0PowerShell\Update-PersonalWorkbook.ps1" -Mode Clear
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0PowerShell\Update-WorkbookModules.ps1" -WorkbookName PERSONAL.XLSB -Mode Clear
 pause
