@@ -33,9 +33,13 @@ Public Function fn_ShowPage(ByVal pageId As String, ByVal profileId As String) A
 End Function
 
 Public Function fn_HandleCellChange(ByVal target As Range) As Boolean
-    If m_activePage Is Nothing Then Exit Function
+    Dim bindingHandled As Boolean
+    Dim pageHandled As Boolean
+
     If target Is Nothing Then Exit Function
-    fn_HandleCellChange = m_activePage.HandleCellChange(target)
+    bindingHandled = ex_UiBindings.fn_HandleCellChange(target)
+    If Not m_activePage Is Nothing Then pageHandled = m_activePage.HandleCellChange(target)
+    fn_HandleCellChange = bindingHandled Or pageHandled
 End Function
 ' --------------------------------------
 ' } // namespace API

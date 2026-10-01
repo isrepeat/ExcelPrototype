@@ -64,6 +64,71 @@ Public Function SetObject( _
     SetObject = True
 End Function
 
+Public Function TrySetPathValue( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String, _
+    ByVal value As Variant _
+) As Boolean
+    Dim sourceMap As Object
+    Dim currentObject As Object
+    Dim childObject As Object
+    Dim pathParts As Variant
+    Dim pathIndex As Long
+    Dim memberName As String
+    Dim childMap As Object
+
+    If Not private_TryGetOrCreateSource(sourceName, sourceMap) Then Exit Function
+    bindingPath = VBA.Trim$(bindingPath)
+    If VBA.Len(bindingPath) = 0 Then Exit Function
+    pathParts = VBA.Split(bindingPath, ".")
+    Set currentObject = sourceMap
+    For pathIndex = LBound(pathParts) To UBound(pathParts) - 1
+        memberName = VBA.Trim$(VBA.CStr(pathParts(pathIndex)))
+        If VBA.Len(memberName) = 0 Then Exit Function
+        Set childObject = Nothing
+        If ex_Helpers.fn_RTTI_IsDictionary(currentObject) Then
+            If Not currentObject.Exists(memberName) Then
+                Set childMap = VBA.CreateObject("Scripting.Dictionary")
+                childMap.CompareMode = VBA.vbTextCompare
+                Set currentObject(memberName) = childMap
+                Set childObject = childMap
+            Else
+                On Error Resume Next
+                Set childObject = currentObject(memberName)
+                VBA.Err.Clear
+                On Error GoTo 0
+            End If
+            If childObject Is Nothing Then Exit Function
+        Else
+            On Error Resume Next
+            Set childObject = VBA.CallByName(currentObject, memberName, VbGet)
+            If VBA.Err.Number <> 0 Then
+                VBA.Err.Clear
+                On Error GoTo 0
+                Exit Function
+            End If
+            On Error GoTo 0
+        End If
+        If childObject Is Nothing Then Exit Function
+        Set currentObject = childObject
+    Next pathIndex
+    memberName = VBA.Trim$(VBA.CStr(pathParts(UBound(pathParts))))
+    If VBA.Len(memberName) = 0 Then Exit Function
+    If ex_Helpers.fn_RTTI_IsDictionary(currentObject) Then
+        currentObject(memberName) = value
+    Else
+        On Error Resume Next
+        VBA.CallByName currentObject, memberName, VbLet, value
+        If VBA.Err.Number <> 0 Then
+            VBA.Err.Clear
+            On Error GoTo 0
+            Exit Function
+        End If
+        On Error GoTo 0
+    End If
+    TrySetPathValue = True
+End Function
+
 Public Function TryGetValue( _
     ByVal sourceName As String, _
     ByVal bindingPath As String, _
@@ -122,7 +187,7 @@ Private Function private_TryReadMember( _
     Set outObject = Nothing
     outIsObject = False
     If sourceObject Is Nothing Or VBA.Len(memberName) = 0 Then Exit Function
-    If TypeName(sourceObject) = "Dictionary" Or TypeName(sourceObject) = "Scripting.Dictionary" Then
+    If ex_Helpers.fn_RTTI_IsDictionary(sourceObject) Then
         If Not sourceObject.Exists(memberName) Then Exit Function
         On Error Resume Next
         Set outObject = sourceObject(memberName)

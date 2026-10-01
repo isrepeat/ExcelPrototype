@@ -80,3 +80,47 @@ Public Function UpdatePageCommandHandler() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     UpdatePageCommandHandler = m_pageBase.UpdatePage()
 End Function
+
+Public Function FormChangedCommandHandler() As Boolean
+    Dim eventName As Variant
+    Dim category As Variant
+    Dim notes As Variant
+
+    If m_pageBase Is Nothing Then Exit Function
+    If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
+    If Not private_TryReadFormValue("Category", category) Then Exit Function
+    If Not private_TryReadFormValue("Notes", notes) Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "FORM_CHANGED | EventName=" & VBA.CStr(eventName) & _
+        " | Category=" & VBA.CStr(category) & " | Notes=" & VBA.CStr(notes)
+    FormChangedCommandHandler = True
+End Function
+
+Public Function SubmitFormCommandHandler() As Boolean
+    Dim eventName As Variant
+    Dim category As Variant
+    Dim notes As Variant
+
+    If Not FormChangedCommandHandler() Then Exit Function
+    If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
+    If Not private_TryReadFormValue("Category", category) Then Exit Function
+    If Not private_TryReadFormValue("Notes", notes) Then Exit Function
+    VBA.MsgBox "Event: " & VBA.CStr(eventName) & VBA.vbCrLf & _
+        "Category: " & VBA.CStr(category) & VBA.vbCrLf & _
+        "Notes: " & VBA.CStr(notes), VBA.vbInformation, "Form data"
+    SubmitFormCommandHandler = True
+End Function
+
+' //
+' // Private
+' //
+Private Function private_TryReadFormValue( _
+    ByVal fieldName As String, _
+    ByRef outValue As Variant _
+) As Boolean
+    Dim outObject As Object
+    Dim isObject As Boolean
+
+    If m_pageBase Is Nothing Then Exit Function
+    private_TryReadFormValue = m_pageBase.BindingContext.TryGetValue( _
+        "Form", fieldName, outValue, outObject, isObject)
+End Function

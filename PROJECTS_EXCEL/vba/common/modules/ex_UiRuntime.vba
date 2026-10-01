@@ -44,6 +44,9 @@ End Sub
 ' } // namespace API
 ' --------------------------------------
 
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
 Private Function private_RenderPage( _
     ByVal targetWorksheet As Worksheet, _
     ByVal notifyWhenMissing As Boolean, _
@@ -77,6 +80,7 @@ Private Function private_RenderPage( _
     ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_STARTED | Sheet=" & _
         targetWorksheet.Name & " | Path=" & xamlPath
     If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Function
+    ex_UiBindings.fn_ClearCellBindings targetWorksheet.Name
     ex_Core.fn_Diagnostic_WritePerf "Page.LoadXaml | Sheet=" & targetWorksheet.Name, startedAt
 
     Set uiRenderContext = New obj_UiRenderContext
@@ -117,6 +121,7 @@ Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderCon
 
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     On Error GoTo EH
+    If Not private_ApplyFormLayouts(uiRenderContext.PageDefinition.Document) Then Exit Function
     For Each controlNode In uiRenderContext.PageDefinition.Document.SelectNodes( _
             "//*[local-name()='control']")
         startedAt = VBA.Timer
@@ -138,6 +143,129 @@ EH:
         " | Description=" & VBA.Err.Description
     VBA.MsgBox "Cannot render a UI control: " & VBA.Err.Description, _
         VBA.vbExclamation, "PersonalEventBuilder"
+End Function
+
+Private Function private_ApplyFormLayouts(ByVal pageDocument As Object) As Boolean
+    Dim formNode As Object
+    Dim parentNode As Object
+    Dim hasFormAncestor As Boolean
+    Dim usedRows As Long
+    Dim usedColumns As Long
+    Dim rowStart As Long
+    Dim columnStart As Long
+    Dim formName As String
+
+    If pageDocument Is Nothing Then Exit Function
+    For Each formNode In pageDocument.SelectNodes("//*[local-name()='form']")
+        hasFormAncestor = False
+        Set parentNode = formNode.parentNode
+        Do While Not parentNode Is Nothing
+            If VBA.LCase$(VBA.CStr(parentNode.baseName)) = "form" Then
+                hasFormAncestor = True
+                Exit Do
+            End If
+            Set parentNode = parentNode.parentNode
+        Loop
+        If Not hasFormAncestor Then
+            formName = VBA.Trim$(private_ReadAttribute(formNode, "name"))
+            If VBA.Len(formName) = 0 Then
+                VBA.MsgBox "A form container requires a name.", _
+                    VBA.vbExclamation, "PersonalEventBuilder"
+                Exit Function
+            End If
+            rowStart = private_ReadLayoutLong(formNode, "row", 1)
+            columnStart = private_ReadLayoutLong(formNode, "column", 1)
+            If rowStart <= 0 Or columnStart <= 0 Then Exit Function
+            If Not private_LayoutContainer(formNode, rowStart, columnStart, usedRows, usedColumns) Then Exit Function
+        End If
+    Next formNode
+    private_ApplyFormLayouts = True
+End Function
+
+Private Function private_LayoutContainer( _
+    ByVal containerNode As Object, _
+    ByVal rowStart As Long, _
+    ByVal columnStart As Long, _
+    ByRef outRows As Long, _
+    ByRef outColumns As Long _
+) As Boolean
+    Dim childNode As Object
+    Dim childKind As String
+    Dim orientation As String
+    Dim rowCursor As Long
+    Dim columnCursor As Long
+    Dim childRow As Long
+    Dim childColumn As Long
+    Dim childRows As Long
+    Dim childColumns As Long
+
+    orientation = VBA.LCase$(private_ReadAttribute(containerNode, "orientation"))
+    If orientation <> "horizontal" Then orientation = "vertical"
+    outRows = 0
+    outColumns = 0
+    rowCursor = rowStart
+    columnCursor = columnStart
+    For Each childNode In containerNode.ChildNodes
+        If childNode.NodeType <> 1 Then GoTo ContinueChild
+        childKind = VBA.LCase$(VBA.CStr(childNode.baseName))
+        If childKind <> "control" And childKind <> "stackpanel" And childKind <> "form" Then GoTo ContinueChild
+        If orientation = "horizontal" Then
+            childRow = rowStart
+            childColumn = columnCursor
+        Else
+            childRow = rowCursor
+            childColumn = columnStart
+        End If
+        If childKind = "control" Then
+            childRows = private_ReadLayoutLong(childNode, "rowSpan", 1)
+            childColumns = private_ReadLayoutLong(childNode, "columnSpan", 1)
+            If childRows <= 0 Or childColumns <= 0 Then Exit Function
+            childNode.setAttribute "row", VBA.CStr(childRow)
+            childNode.setAttribute "column", VBA.CStr(childColumn)
+        Else
+            If Not private_LayoutContainer(childNode, childRow, childColumn, childRows, childColumns) Then Exit Function
+        End If
+        If orientation = "horizontal" Then
+            columnCursor = columnCursor + childColumns
+            If childRows > outRows Then outRows = childRows
+        Else
+            rowCursor = rowCursor + childRows
+            If childColumns > outColumns Then outColumns = childColumns
+        End If
+ContinueChild:
+    Next childNode
+    If orientation = "horizontal" Then
+        outColumns = columnCursor - columnStart
+        If outRows = 0 Then outRows = 1
+    Else
+        outRows = rowCursor - rowStart
+        If outColumns = 0 Then outColumns = 1
+    End If
+    private_LayoutContainer = True
+End Function
+
+Private Function private_ReadLayoutLong( _
+    ByVal node As Object, _
+    ByVal attributeName As String, _
+    ByVal defaultValue As Long _
+) As Long
+    Dim valueText As String
+
+    valueText = private_ReadAttribute(node, attributeName)
+    If VBA.IsNumeric(valueText) Then
+        private_ReadLayoutLong = VBA.CLng(valueText)
+    Else
+        private_ReadLayoutLong = defaultValue
+    End If
+End Function
+
+Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName As String) As String
+    Dim value As Variant
+
+    If node Is Nothing Then Exit Function
+    value = node.getAttribute(attributeName)
+    If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit Function
+    private_ReadAttribute = VBA.CStr(value)
 End Function
 
 Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
@@ -196,3 +324,6 @@ Private Function private_CountZeroHeightRows(ByVal targetRange As Range) As Long
             private_CountZeroHeightRows = private_CountZeroHeightRows + 1
     Next currentRow
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

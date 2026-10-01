@@ -25,6 +25,8 @@ Public Function fn_Create(ByVal controlNode As Object) As obj_IUiControl
             Set uiControl = New obj_UiButtonControl
         Case "table"
             Set uiControl = New obj_UiTableControl
+        Case "input", "select"
+            Set uiControl = New obj_UiFieldControl
         Case Else
             VBA.MsgBox "Unsupported control type: " & controlType, _
                 VBA.vbExclamation, "PersonalEventBuilder"
@@ -37,6 +39,9 @@ End Function
 ' } // namespace API
 ' --------------------------------------
 
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
 Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName As String) As String
     Dim attributeValue As Variant
 
@@ -44,3 +49,6 @@ Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName
     If VBA.IsNull(attributeValue) Or VBA.IsEmpty(attributeValue) Then Exit Function
     private_ReadAttribute = VBA.CStr(attributeValue)
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------
