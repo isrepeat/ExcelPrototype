@@ -19,10 +19,6 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // Properties
-' //
-
-' //
 ' // API
 ' //
 Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
@@ -47,9 +43,5 @@ End Function
 
 Public Function UpdatePage() As Boolean
     If m_pageBase Is Nothing Then Exit Function
-    UpdatePage = m_pageBase.fn_UpdatePage()
+    UpdatePage = m_pageBase.UpdatePage()
 End Function
-
-' //
-' // Private
-' //

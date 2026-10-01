@@ -13,10 +13,28 @@ Private m_profileId As String
 Private m_uiFolderRelativePath As String
 Private m_uiBindingContext As obj_UiBindingContext
 
-' --------------------------------------
-' namespace API {
-' --------------------------------------
-Public Function fn_Initialize( _
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // Properties
+' //
+Public Property Get ProfileId() As String
+    ProfileId = m_profileId
+End Property
+
+Public Property Get BindingContext() As obj_UiBindingContext
+    Set BindingContext = m_uiBindingContext
+End Property
+
+' //
+' // API
+' //
+Public Function Initialize( _
     ByVal profileId As String, _
     ByVal uiFolderRelativePath As String _
 ) As Boolean
@@ -29,30 +47,37 @@ Public Function fn_Initialize( _
     End If
 
     Set m_uiBindingContext = New obj_UiBindingContext
-    If Not m_uiBindingContext.fn_Initialize() Then Exit Function
-    fn_Initialize = True
+    If Not m_uiBindingContext.Initialize() Then Exit Function
+    Initialize = True
 End Function
 
-Public Function fn_Render() As Boolean
+Public Sub Dispose()
+    If Not m_uiBindingContext Is Nothing Then m_uiBindingContext.Dispose
+    Set m_uiBindingContext = Nothing
+    m_profileId = VBA.vbNullString
+    m_uiFolderRelativePath = VBA.vbNullString
+End Sub
+
+Public Function Render() As Boolean
     If m_uiBindingContext Is Nothing Then Exit Function
     ex_UiRenderer.fn_RenderPages m_uiFolderRelativePath, m_uiBindingContext
-    fn_Render = True
+    Render = True
 End Function
 
-Public Function fn_RenderActivePage() As Boolean
+Public Function RenderActivePage() As Boolean
     If m_uiBindingContext Is Nothing Then Exit Function
     ex_UiRenderer.fn_RenderActivePage m_uiFolderRelativePath, m_uiBindingContext
-    fn_RenderActivePage = True
+    RenderActivePage = True
 End Function
 
-Public Function fn_UpdatePage() As Boolean
+Public Function UpdatePage() As Boolean
     Dim previousScreenUpdating As Boolean
 
     If m_uiBindingContext Is Nothing Then Exit Function
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
     Application.ScreenUpdating = False
-    fn_UpdatePage = fn_RenderActivePage()
+    UpdatePage = Me.RenderActivePage()
 CleanExit:
     Application.ScreenUpdating = previousScreenUpdating
     Exit Function
@@ -61,21 +86,3 @@ EH:
         VBA.vbExclamation, "Page update"
     Resume CleanExit
 End Function
-
-Public Property Get fn_ProfileId() As String
-    fn_ProfileId = m_profileId
-End Property
-
-Public Property Get fn_BindingContext() As obj_UiBindingContext
-    Set fn_BindingContext = m_uiBindingContext
-End Property
-
-Public Sub fn_Dispose()
-    If Not m_uiBindingContext Is Nothing Then m_uiBindingContext.fn_Dispose
-    Set m_uiBindingContext = Nothing
-    m_profileId = VBA.vbNullString
-    m_uiFolderRelativePath = VBA.vbNullString
-End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------

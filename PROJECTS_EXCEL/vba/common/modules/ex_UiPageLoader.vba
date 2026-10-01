@@ -24,7 +24,7 @@ Public Function fn_TryLoad( _
     If Not ex_UiParser.fn_TryLoadPage(xamlPath, document) Then Exit Function
 
     Set uiPageDefinition = New obj_UiPageDefinition
-    If Not uiPageDefinition.fn_Initialize(document, xamlPath) Then
+    If Not uiPageDefinition.Initialize(document, xamlPath) Then
         VBA.MsgBox "The XAML page definition is invalid: " & xamlPath, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function

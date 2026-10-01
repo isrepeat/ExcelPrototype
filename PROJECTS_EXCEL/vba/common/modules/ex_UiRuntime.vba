@@ -70,7 +70,7 @@ Private Function private_RenderPage( _
     If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Function
 
     Set uiRenderContext = New obj_UiRenderContext
-    If Not uiRenderContext.fn_Initialize( _
+    If Not uiRenderContext.Initialize( _
             targetWorksheet, uiPageDefinition, uiFolderPath, uiBindingContext) Then
         VBA.MsgBox "The UI render context cannot be initialized.", _
             VBA.vbExclamation, "PersonalEventBuilder"
@@ -78,7 +78,7 @@ Private Function private_RenderPage( _
     End If
 
     ex_StylePipeline.fn_BeginPage targetWorksheet, _
-        uiPageDefinition.fn_Document, uiFolderPath
+        uiPageDefinition.Document, uiFolderPath
     private_ClearUi targetWorksheet
     ex_StylePipeline.fn_ApplyPagePipeline targetWorksheet
     private_LogUiScopeVisibility targetWorksheet, "after-pipeline"
@@ -89,8 +89,8 @@ Private Function private_RenderPage( _
 
     ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_COMPLETED | Sheet=" & _
         targetWorksheet.Name
-    uiRenderContext.fn_Dispose
-    uiPageDefinition.fn_Dispose
+    uiRenderContext.Dispose
+    uiPageDefinition.Dispose
     private_RenderPage = True
 End Function
 
@@ -99,15 +99,15 @@ Private Function private_RenderControls(ByVal uiRenderContext As obj_UiRenderCon
     Dim uiControl As Object
     Dim targetWorksheet As Worksheet
 
-    Set targetWorksheet = uiRenderContext.fn_TargetWorksheet
+    Set targetWorksheet = uiRenderContext.TargetWorksheet
     On Error GoTo EH
-    For Each controlNode In uiRenderContext.fn_PageDefinition.fn_Document.SelectNodes( _
+    For Each controlNode In uiRenderContext.PageDefinition.Document.SelectNodes( _
             "//*[local-name()='control']")
         Set uiControl = ex_UiControlFactory.fn_Create(controlNode)
         If uiControl Is Nothing Then Exit Function
-        If Not uiControl.fn_Configure(controlNode) Then Exit Function
-        If Not uiControl.fn_Render(uiRenderContext) Then Exit Function
-        uiRenderContext.fn_AddControl uiControl
+        If Not uiControl.Configure(controlNode) Then Exit Function
+        If Not uiControl.Render(uiRenderContext) Then Exit Function
+        uiRenderContext.AddControl uiControl
     Next controlNode
     private_RenderControls = True
     Exit Function

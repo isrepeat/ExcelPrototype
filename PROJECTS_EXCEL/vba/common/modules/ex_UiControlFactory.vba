@@ -15,17 +15,21 @@ End Sub
 ' --------------------------------------
 Public Function fn_Create(ByVal controlNode As Object) As Object
     Dim controlType As String
+    Dim uiControl As Object
 
     controlType = private_ReadAttribute(controlNode, "type")
     Select Case VBA.LCase$(controlType)
         Case "label"
-            Set fn_Create = New obj_UiLabelControl
+            Set uiControl = New obj_UiLabelControl
         Case "button"
-            Set fn_Create = New obj_UiButtonControl
+            Set uiControl = New obj_UiButtonControl
         Case Else
             VBA.MsgBox "Unsupported control type: " & controlType, _
                 VBA.vbExclamation, "PersonalEventBuilder"
+            Exit Function
     End Select
+    If Not uiControl.Initialize() Then Exit Function
+    Set fn_Create = uiControl
 End Function
 ' --------------------------------------
 ' } // namespace API
