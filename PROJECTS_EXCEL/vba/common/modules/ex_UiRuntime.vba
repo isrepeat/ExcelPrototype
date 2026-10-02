@@ -183,7 +183,13 @@ EH:
         targetWorksheet.Name & " | Name=" & controlName & " | Type=" & controlType & _
         " | Stage=" & renderStage & " | Number=" & VBA.CStr(errorNumber) & _
         " | Description=" & errorDescription
-    VBA.MsgBox "Cannot render a UI control: " & errorDescription, _
+    ' Persist buffered diagnostics before a modal dialog or a possible Excel crash.
+    If Not ex_Core.fn_Diagnostic_Flush() Then
+        errorDescription = errorDescription & VBA.vbCrLf & "Diagnostic log flush failed."
+    End If
+    VBA.MsgBox "Cannot render a UI control: " & errorDescription & VBA.vbCrLf & _
+        "Control=" & controlName & " | Type=" & controlType & _
+        " | Stage=" & renderStage & " | Error=" & VBA.CStr(errorNumber), _
         VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 

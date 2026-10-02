@@ -28,7 +28,7 @@ Private Property Get obj_IUiTableSource_TableCount() As Long
     obj_IUiTableSource_TableCount = 1
 End Property
 
-Private Function obj_IUiTableSource_GetTable(ByVal index As Long) As obj_UiRawTable
+Private Function obj_IUiTableSource_GetTable(ByVal index As Long) As Object
     If index <> 1 Then Exit Function
     Set obj_IUiTableSource_GetTable = Me
 End Function
