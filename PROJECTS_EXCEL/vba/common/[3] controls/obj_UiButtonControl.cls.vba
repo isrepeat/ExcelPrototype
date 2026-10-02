@@ -151,7 +151,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             m_uiControlBase.ControlNode, "command"), uiRenderContext.BindingContext, uiCommand) Then Exit Function
     If Not m_buttonShape Is Nothing Then m_buttonShape.Delete
     Set m_buttonShape = uiRenderContext.TargetWorksheet.Shapes.AddShape( _
-        msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
+        msoShapeRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
