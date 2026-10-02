@@ -1257,6 +1257,6 @@ Private Function private_VbaReload_JoinExpressionParts( _
         resultText = resultText & VBA.CStr(expressionParts(partIndex))
     Next partIndex
 
-    If expressionParts.Count = 0 Then resultText = """"
+    If expressionParts.Count = 0 Then resultText = """"""
     private_VbaReload_JoinExpressionParts = resultText
 End Function

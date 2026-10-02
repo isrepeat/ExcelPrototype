@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Public Event ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
+
 Private m_sources As Object
 Private m_isDisposed As Boolean
 
@@ -46,6 +48,7 @@ Public Function SetValue( _
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
     sourceMap(keyName) = value
+    RaiseEvent ValueChanged(VBA.Trim$(sourceName), keyName)
     SetValue = True
 End Function
 
@@ -61,6 +64,7 @@ Public Function SetObject( _
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
     Set sourceMap(keyName) = sourceObject
+    RaiseEvent ValueChanged(VBA.Trim$(sourceName), keyName)
     SetObject = True
 End Function
 
@@ -126,6 +130,7 @@ Public Function TrySetPathValue( _
         End If
         On Error GoTo 0
     End If
+    RaiseEvent ValueChanged(VBA.Trim$(sourceName), bindingPath)
     TrySetPathValue = True
 End Function
 

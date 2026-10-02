@@ -70,7 +70,12 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
        VBA.Len(VBA.Trim$(m_itemsSourceRaw)) = 0 Then Exit Function
     rawValue = private_ReadAttribute(controlNode, "value")
     defaultSource = private_GetFormSource(controlNode)
-    If Not private_TryParseBinding(rawValue, defaultSource, m_sourceName, m_bindingPath) Then Exit Function
+    If Not private_TryParseBinding(rawValue, defaultSource, m_sourceName, m_bindingPath) Then
+        ex_WindowsUi.fn_ShowMessage "Invalid field binding. Specify Source or a qualified Path; " & _
+            "an unqualified Path requires source on the nearest form: " & rawValue, _
+            VBA.vbExclamation, "PersonalEventBuilder"
+        Exit Function
+    End If
     m_changeCommandRaw = private_ReadAttribute(controlNode, "onChange")
     obj_IUiControl_Configure = True
 End Function
@@ -297,29 +302,8 @@ Private Function private_TryParseBinding( _
     ByRef outSourceName As String, _
     ByRef outBindingPath As String _
 ) As Boolean
-    Dim body As String
-    Dim argument As Variant
-    Dim separatorPosition As Long
-    Dim argumentName As String
-
-    rawBinding = VBA.Trim$(rawBinding)
-    If VBA.Left$(rawBinding, 9) <> "{Binding " Or VBA.Right$(rawBinding, 1) <> "}" Then Exit Function
-    body = VBA.Mid$(rawBinding, 10, VBA.Len(rawBinding) - 10)
-    For Each argument In VBA.Split(body, ";")
-        separatorPosition = VBA.InStr(1, VBA.CStr(argument), "=", VBA.vbBinaryCompare)
-        If separatorPosition <= 0 Then GoTo ContinueArgument
-        argumentName = VBA.Trim$(VBA.Left$(VBA.CStr(argument), separatorPosition - 1))
-        Select Case VBA.LCase$(argumentName)
-            Case "source"
-                outSourceName = VBA.Trim$(VBA.Mid$(VBA.CStr(argument), separatorPosition + 1))
-            Case "path"
-                outBindingPath = VBA.Trim$(VBA.Mid$(VBA.CStr(argument), separatorPosition + 1))
-        End Select
-ContinueArgument:
-    Next argument
-    If VBA.Len(outSourceName) = 0 Then outSourceName = defaultSource
-    If VBA.Len(outSourceName) = 0 Then outSourceName = "Form"
-    private_TryParseBinding = (VBA.Len(outBindingPath) > 0)
+    private_TryParseBinding = ex_UiBindingRuntime.fn_TryParseBinding( _
+        rawBinding, defaultSource, outSourceName, outBindingPath)
 End Function
 
 Private Function private_GetFormSource(ByVal controlNode As Object) As String
