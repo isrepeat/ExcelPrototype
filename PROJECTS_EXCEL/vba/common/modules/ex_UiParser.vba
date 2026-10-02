@@ -22,7 +22,7 @@ Public Function fn_TryLoadPage(ByVal xamlPath As String, ByRef outPage As Object
     If Not document.Load(xamlPath) Then
         ex_Core.fn_Diagnostic_WriteLog "XAML_LOAD_ERROR | Path=" & xamlPath & _
             " | Description=" & document.parseError.reason
-        VBA.MsgBox "Cannot load XAML: " & document.parseError.reason, _
+        ex_WindowsUi.fn_ShowMessage "Cannot load XAML: " & document.parseError.reason, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If

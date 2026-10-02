@@ -185,7 +185,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_CANCELLED | Reason=FinalLogFlushFailed"
     ex_Core.fn_Diagnostic_Flush
     Cancel = True
-    VBA.MsgBox "The diagnostic log buffer could not be written. The workbook will remain open.", _
+    ex_WindowsUi.fn_ShowMessage "The diagnostic log buffer could not be written. The workbook will remain open.", _
         VBA.vbExclamation, "PersonalEventBuilder"
     Exit Sub
 
@@ -193,7 +193,7 @@ CancelClose:
     Cancel = True
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_CANCELLED | Reason=InitialLogFlushFailed"
     ex_Core.fn_Diagnostic_Flush
-    VBA.MsgBox "The diagnostic log buffer could not be written. The workbook will remain open.", _
+    ex_WindowsUi.fn_ShowMessage "The diagnostic log buffer could not be written. The workbook will remain open.", _
         VBA.vbExclamation, "PersonalEventBuilder"
     Exit Sub
 EH:
@@ -205,7 +205,7 @@ EH:
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
-    VBA.MsgBox "Workbook close diagnostics failed. The workbook will remain open.", _
+    ex_WindowsUi.fn_ShowMessage "Workbook close diagnostics failed. The workbook will remain open.", _
         VBA.vbExclamation, "PersonalEventBuilder"
 End Sub
 

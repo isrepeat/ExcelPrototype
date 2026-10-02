@@ -79,7 +79,7 @@ Public Sub fn_ApplyControlStyle( _
         Else
             ex_Core.fn_Diagnostic_WriteLog "STYLE_NOT_FOUND | Sheet=" & _
                 m_targetWorksheet.Name & " | Style=" & styleName
-            VBA.MsgBox "Control style is not declared: " & styleName, _
+            ex_WindowsUi.fn_ShowMessage "Control style is not declared: " & styleName, _
                 VBA.vbExclamation, "PersonalEventBuilder / Styles"
             VBA.Err.Raise 5, "ex_StylePipeline.fn_ApplyControlStyle", _
                 "Control style is not declared: " & styleName
@@ -109,7 +109,7 @@ Public Sub fn_ApplyControlPartStyle( _
     If Not m_stylesByName.Exists(styleName) Then
         ex_Core.fn_Diagnostic_WriteLog "STYLE_NOT_FOUND | Sheet=" & _
             m_targetWorksheet.Name & " | Style=" & styleName
-        VBA.MsgBox "Control style is not declared: " & styleName, _
+        ex_WindowsUi.fn_ShowMessage "Control style is not declared: " & styleName, _
             VBA.vbExclamation, "PersonalEventBuilder / Styles"
         Exit Sub
     End If
@@ -495,7 +495,7 @@ Private Sub private_ApplyColumnRule( _
     selectorText = private_ReadAttribute(ruleNode, "selector")
     addressText = private_ReadSelectorValue(selectorText, "address")
     If VBA.Len(addressText) = 0 Then
-        VBA.MsgBox "Column style rule requires selector address=... .", _
+        ex_WindowsUi.fn_ShowMessage "Column style rule requires selector address=... .", _
             VBA.vbExclamation, "PersonalEventBuilder / Styles"
         Exit Sub
     End If
@@ -504,7 +504,7 @@ Private Sub private_ApplyColumnRule( _
     private_ApplyProperties targetRange, Nothing, properties
     Exit Sub
 EH:
-    VBA.MsgBox "Column style rule address is invalid: " & addressText, _
+    ex_WindowsUi.fn_ShowMessage "Column style rule address is invalid: " & addressText, _
         VBA.vbExclamation, "PersonalEventBuilder / Styles"
 End Sub
 
@@ -515,7 +515,7 @@ Private Sub private_ApplyOverflow(ByVal targetRange As Range, ByVal overflowText
         Case "clip"
             targetRange.WrapText = False
         Case Else
-            VBA.MsgBox "Unsupported overflow value: " & overflowText, _
+            ex_WindowsUi.fn_ShowMessage "Unsupported overflow value: " & overflowText, _
                 VBA.vbExclamation, "PersonalEventBuilder / Styles"
     End Select
 End Sub

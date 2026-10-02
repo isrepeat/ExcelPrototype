@@ -27,7 +27,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     m_isDisposed = False
     Set m_pageBase = pageBase
     If m_pageBase Is Nothing Then
-        VBA.MsgBox "The PersonalEventBuilder page controller requires a page base.", _
+        ex_WindowsUi.fn_ShowMessage "The PersonalEventBuilder page controller requires a page base.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
@@ -72,7 +72,7 @@ End Function
 
 Public Function HelloWorldCommandHandler() As Boolean
     ex_Core.fn_Diagnostic_WriteLog "HELLO_WORLD_CLICKED"
-    VBA.MsgBox "Hello World from PersonalEventBuilder.", VBA.vbInformation, "PersonalEventBuilder"
+    ex_WindowsUi.fn_ShowMessage "Hello World from PersonalEventBuilder.", VBA.vbInformation, "PersonalEventBuilder"
     HelloWorldCommandHandler = True
 End Function
 

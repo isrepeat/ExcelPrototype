@@ -51,7 +51,7 @@ Public Function Configure(ByVal controlNode As Object) As Boolean
     Set m_controlNode = controlNode
     m_controlName = private_ReadAttribute(controlNode, "name")
     If VBA.Len(m_controlName) = 0 Then
-        VBA.MsgBox "A control name is required.", VBA.vbExclamation, "PersonalEventBuilder"
+        ex_WindowsUi.fn_ShowMessage "A control name is required.", VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
     Configure = True
@@ -81,7 +81,7 @@ Public Function TryGetCaption(ByVal uiBindingContext As obj_UiBindingContext, By
     rawCaption = private_ReadAttribute(m_controlNode, "text")
     If VBA.Len(rawCaption) = 0 Then rawCaption = private_ReadAttribute(m_controlNode, "caption")
     If VBA.Len(rawCaption) = 0 Then
-        VBA.MsgBox "A control caption is required: " & m_controlName, VBA.vbExclamation, "PersonalEventBuilder"
+        ex_WindowsUi.fn_ShowMessage "A control caption is required: " & m_controlName, VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
     TryGetCaption = ex_UiBindingRuntime.fn_TryResolveText(rawCaption, uiBindingContext, outCaption)
@@ -90,7 +90,7 @@ End Function
 Public Function ShapeName(ByVal prefix As String) As String
     ShapeName = prefix & m_controlName
     If VBA.Len(ShapeName) <= 31 Then Exit Function
-    VBA.MsgBox "The generated Shape name exceeds 31 characters: " & ShapeName, _
+    ex_WindowsUi.fn_ShowMessage "The generated Shape name exceeds 31 characters: " & ShapeName, _
         VBA.vbExclamation, "PersonalEventBuilder"
     ShapeName = VBA.vbNullString
 End Function

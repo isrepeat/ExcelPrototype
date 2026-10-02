@@ -28,14 +28,6 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_ShowInformation( _
-    ByVal messageText As String, _
-    ByVal captionText As String _
-) As Long
-    fn_ShowInformation = fn_ShowMessage( _
-        messageText, VBA.vbOKOnly Or VBA.vbInformation, captionText)
-End Function
-
 Public Function fn_ShowMessage( _
     ByVal messageText As String, _
     Optional ByVal buttonsStyle As VbMsgBoxStyle = VBA.vbOKOnly, _

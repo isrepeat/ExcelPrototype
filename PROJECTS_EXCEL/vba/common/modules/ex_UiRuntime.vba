@@ -74,7 +74,7 @@ Private Function private_RenderPage( _
         ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_SKIPPED_NO_XAML | Sheet=" & _
             targetWorksheet.Name & " | Path=" & xamlPath
         If notifyWhenMissing Then
-            VBA.MsgBox "No XAML page was found for: " & targetWorksheet.Name, _
+            ex_WindowsUi.fn_ShowMessage "No XAML page was found for: " & targetWorksheet.Name, _
                 VBA.vbExclamation, "PersonalEventBuilder"
         End If
         private_RenderPage = True
@@ -91,7 +91,7 @@ Private Function private_RenderPage( _
     Set uiRenderContext = New obj_UiRenderContext
     If Not uiRenderContext.Initialize( _
             targetWorksheet, uiPageDefinition, uiFolderPath, uiBindingContext) Then
-        VBA.MsgBox "The UI render context cannot be initialized.", _
+        ex_WindowsUi.fn_ShowMessage "The UI render context cannot be initialized.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
@@ -187,7 +187,7 @@ EH:
     If Not ex_Core.fn_Diagnostic_Flush() Then
         errorDescription = errorDescription & VBA.vbCrLf & "Diagnostic log flush failed."
     End If
-    VBA.MsgBox "Cannot render a UI control: " & errorDescription & VBA.vbCrLf & _
+    ex_WindowsUi.fn_ShowMessage "Cannot render a UI control: " & errorDescription & VBA.vbCrLf & _
         "Control=" & controlName & " | Type=" & controlType & _
         " | Stage=" & renderStage & " | Error=" & VBA.CStr(errorNumber), _
         VBA.vbExclamation, "PersonalEventBuilder"
@@ -217,7 +217,7 @@ Private Function private_ApplyFormLayouts(ByVal pageDocument As Object) As Boole
         If Not hasFormAncestor Then
             formName = VBA.Trim$(private_ReadAttribute(formNode, "name"))
             If VBA.Len(formName) = 0 Then
-                VBA.MsgBox "A form container requires a name.", _
+                ex_WindowsUi.fn_ShowMessage "A form container requires a name.", _
                     VBA.vbExclamation, "PersonalEventBuilder"
                 Exit Function
             End If

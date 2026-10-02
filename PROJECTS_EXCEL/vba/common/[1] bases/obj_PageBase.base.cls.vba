@@ -43,7 +43,7 @@ Public Function Initialize( _
     m_profileId = VBA.Trim$(profileId)
     m_uiFolderRelativePath = VBA.Trim$(uiFolderRelativePath)
     If VBA.Len(m_profileId) = 0 Or VBA.Len(m_uiFolderRelativePath) = 0 Then
-        VBA.MsgBox "A page requires a profile and UI folder.", _
+        ex_WindowsUi.fn_ShowMessage "A page requires a profile and UI folder.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
@@ -94,7 +94,7 @@ CleanExit:
     Application.ScreenUpdating = previousScreenUpdating
     Exit Function
 EH:
-    VBA.MsgBox "The page cannot be updated: " & VBA.Err.Description, _
+    ex_WindowsUi.fn_ShowMessage "The page cannot be updated: " & VBA.Err.Description, _
         VBA.vbExclamation, "Page update"
     Resume CleanExit
 End Function

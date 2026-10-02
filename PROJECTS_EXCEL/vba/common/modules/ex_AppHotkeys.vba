@@ -115,7 +115,7 @@ Public Sub fn_ToggleDiagnosticMode()
     End If
 
     If Not ex_Core.fn_Diagnostic_SetMode(nextMode) Then
-        VBA.MsgBox "Could not change diagnostic logging mode.", _
+        ex_WindowsUi.fn_ShowMessage "Could not change diagnostic logging mode.", _
             VBA.vbExclamation, "Diagnostic logging"
         GoTo CleanToggle
     End If

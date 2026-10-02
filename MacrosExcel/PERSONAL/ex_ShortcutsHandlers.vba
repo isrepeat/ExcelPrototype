@@ -100,13 +100,13 @@ Public Sub fn_FilterContainsCurrentColumn()
         Exit Sub
     End If
 
-    VBA.MsgBox "Select a cell inside an Excel Table before using Ctrl+Q.", _
+    ex_WindowsUi.fn_ShowMessage "Select a cell inside an Excel Table before using Ctrl+Q.", _
         VBA.vbExclamation, "Filter contains"
     Exit Sub
 EH:
     ex_Core.fn_Diagnostic_WriteLog "ERROR | Number=" & VBA.CStr(VBA.Err.Number) & _
         " | Description=" & VBA.Err.Description
-    VBA.MsgBox "Filtering failed: [" & VBA.CStr(VBA.Err.Number) & "] " & _
+    ex_WindowsUi.fn_ShowMessage "Filtering failed: [" & VBA.CStr(VBA.Err.Number) & "] " & _
         VBA.Err.Description, VBA.vbExclamation, "Filter contains"
 End Sub
 
@@ -149,7 +149,7 @@ Private Sub private_Filter_BeginFilterInput( _
     private_Filter_CancelPendingFilterInput
 
     If inputCell.HasFormula Or Not IsEmpty(inputCell.Value2) Then
-        VBA.MsgBox "The cell above the table header must be empty for Ctrl+Q filtering.", _
+        ex_WindowsUi.fn_ShowMessage "The cell above the table header must be empty for Ctrl+Q filtering.", _
             VBA.vbExclamation, "Filter contains"
         Exit Sub
     End If

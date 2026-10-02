@@ -28,7 +28,7 @@ Public Function fn_Create(ByVal controlNode As Object) As obj_IUiControl
         Case "input", "select"
             Set uiControl = New obj_UiFieldControl
         Case Else
-            VBA.MsgBox "Unsupported control type: " & controlType, _
+            ex_WindowsUi.fn_ShowMessage "Unsupported control type: " & controlType, _
                 VBA.vbExclamation, "PersonalEventBuilder"
             Exit Function
     End Select

@@ -162,7 +162,7 @@ Public Function fn_TryGetWorkbookProfileId(ByRef outProfileId As String) As Bool
         fn_TryGetWorkbookProfileId = True
         Exit Function
     End If
-    VBA.MsgBox "Configuration key '" & PROFILE_ID_KEY & _
+    ex_WindowsUi.fn_ShowMessage "Configuration key '" & PROFILE_ID_KEY & _
         "' must contain a profile ID in the next column.", _
         VBA.vbExclamation, "Workbook profile"
 End Function
@@ -274,7 +274,7 @@ EH:
     If Not addedRow Is Nothing Then addedRow.Delete
     If eventsCaptured Then Application.EnableEvents = previousEnableEvents
     On Error GoTo 0
-    VBA.MsgBox "Could not write configuration key '" & keyName & "': " & errorDescription, _
+    ex_WindowsUi.fn_ShowMessage "Could not write configuration key '" & keyName & "': " & errorDescription, _
         VBA.vbExclamation, "Workbook configuration"
 End Function
 

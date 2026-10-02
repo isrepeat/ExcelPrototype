@@ -1,5 +1,6 @@
 {
   "WorkbookUpdater": [
+    "ex_WindowsUi.vba",
     "ex_WorkbookUpdater.vba",
     "ThisWorkbook.vba"
   ]
