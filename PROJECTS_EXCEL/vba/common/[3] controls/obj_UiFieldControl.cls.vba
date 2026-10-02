@@ -21,6 +21,10 @@ Private m_itemsSourceRaw As String
 Private m_changeCommandRaw As String
 Private m_changeCommand As obj_UiCommand
 Private m_isSelect As Boolean
+Private m_isCheckbox As Boolean
+Private m_readOnly As Boolean
+Private m_required As Boolean
+Private m_formName As String
 Private m_isDisposed As Boolean
 
 Private Sub Class_Initialize()
@@ -64,6 +68,10 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
     controlType = VBA.LCase$(private_ReadAttribute(controlNode, "type"))
     inputType = VBA.LCase$(private_ReadAttribute(controlNode, "inputType"))
     m_isSelect = (controlType = "select" Or inputType = "select")
+    m_isCheckbox = (inputType = "checkbox")
+    m_readOnly = (VBA.LCase$(private_ReadAttribute(controlNode, "readOnly")) = "true")
+    m_required = (VBA.LCase$(private_ReadAttribute(controlNode, "required")) = "true")
+    m_formName = private_ReadAttribute(controlNode, "formName")
     m_items = private_ReadAttribute(controlNode, "items")
     m_itemsSourceRaw = private_ReadAttribute(controlNode, "itemsSource")
     If m_isSelect And VBA.Len(VBA.Trim$(m_items)) = 0 And _
@@ -109,7 +117,13 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
         If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
                 m_changeCommandRaw, uiRenderContext.BindingContext, m_changeCommand) Then Exit Function
     End If
+    If m_isCheckbox And VBA.VarType(value) <> VBA.vbBoolean Then
+        ex_WindowsUi.fn_ShowMessage "A checkbox binding requires a Boolean value.", VBA.vbExclamation, "Field"
+        Exit Function
+    End If
     m_targetRange.Value2 = value
+    m_targetRange.Locked = m_readOnly
+    If Not m_isSelect And Not m_isCheckbox Then m_targetRange.WrapText = True
     If m_isSelect Then
         m_targetRange.NumberFormat = ";;;"
         If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
@@ -126,6 +140,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     If Not uiCellBinding.Initialize( _
             targetCell.Parent.Name, targetCell.Address(False, False), _
             uiRenderContext.BindingContext, m_sourceName, m_bindingPath, m_changeCommand) Then Exit Function
+    uiCellBinding.ConfigureField m_formName, m_required, m_readOnly, m_isCheckbox
     If Not ex_UiBindings.fn_RegisterCellBinding(uiCellBinding) Then Exit Function
     If m_isSelect Then
         If Not private_RenderSelectShapes( _

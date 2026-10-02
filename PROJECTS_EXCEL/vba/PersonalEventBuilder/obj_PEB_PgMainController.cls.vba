@@ -100,6 +100,7 @@ Public Function SubmitFormCommandHandler() As Boolean
     Dim category As Variant
     Dim notes As Variant
 
+    If Not ex_UiBindings.fn_ValidateForm("EventDraftForm") Then Exit Function
     If Not FormChangedCommandHandler() Then Exit Function
     If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
     If Not private_TryReadFormValue("Category", category) Then Exit Function

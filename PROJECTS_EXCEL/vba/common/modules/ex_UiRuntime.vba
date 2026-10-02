@@ -205,12 +205,10 @@ Private Function private_ApplyFormLayouts(ByVal pageDocument As Object) As Boole
     Dim validationError As String
 
     If pageDocument Is Nothing Then Exit Function
-    For Each formNode In pageDocument.SelectNodes("//*[local-name()='form']")
-        If Not private_ValidateFormRoot(formNode, validationError) Then
-            ex_WindowsUi.fn_ShowMessage validationError, VBA.vbExclamation, "PersonalEventBuilder"
-            Exit Function
-        End If
-    Next formNode
+    If Not ex_UiFormMarkup.fn_Prepare(pageDocument, validationError) Then
+        ex_WindowsUi.fn_ShowMessage validationError, VBA.vbExclamation, "PersonalEventBuilder"
+        Exit Function
+    End If
     For Each formNode In pageDocument.SelectNodes("//*[local-name()='form']")
         hasFormAncestor = False
         Set parentNode = formNode.parentNode
@@ -235,41 +233,6 @@ Private Function private_ApplyFormLayouts(ByVal pageDocument As Object) As Boole
         End If
     Next formNode
     private_ApplyFormLayouts = True
-End Function
-
-Private Function private_ValidateFormRoot(ByVal formNode As Object, ByRef outError As String) As Boolean
-    Dim childNode As Object
-    Dim elementCount As Long
-    Dim formName As String
-    Dim childText As String
-
-    outError = VBA.vbNullString
-    formName = private_ReadAttribute(formNode, "name")
-    For Each childNode In formNode.ChildNodes
-        If childNode.NodeType = 1 Then
-            elementCount = elementCount + 1
-            If VBA.LCase$(VBA.CStr(childNode.baseName)) <> "stackpanel" Then
-                outError = "Form '" & formName & "' requires exactly one root stackPanel. " & _
-                    "Unexpected element: " & VBA.CStr(childNode.nodeName)
-                Exit Function
-            End If
-        ElseIf childNode.NodeType = 3 Or childNode.NodeType = 4 Then
-            childText = VBA.CStr(childNode.Text)
-            childText = VBA.Replace$(childText, VBA.vbCr, VBA.vbNullString)
-            childText = VBA.Replace$(childText, VBA.vbLf, VBA.vbNullString)
-            childText = VBA.Replace$(childText, VBA.vbTab, VBA.vbNullString)
-            If VBA.Len(VBA.Trim$(childText)) > 0 Then
-                outError = "Form '" & formName & "' cannot contain text outside its root stackPanel."
-                Exit Function
-            End If
-        End If
-    Next childNode
-    If elementCount <> 1 Then
-        outError = "Form '" & formName & "' requires exactly one root stackPanel; found " & _
-            VBA.CStr(elementCount) & "."
-        Exit Function
-    End If
-    private_ValidateFormRoot = True
 End Function
 
 Private Function private_LayoutContainer( _
@@ -367,7 +330,7 @@ Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
         Set currentShape = targetWorksheet.Shapes(shapeIndex)
         If VBA.Left$(currentShape.Name, VBA.Len(BUTTON_SHAPE_PREFIX)) = _
            BUTTON_SHAPE_PREFIX Or VBA.Left$(currentShape.Name, VBA.Len(SELECT_SHAPE_PREFIX)) = _
-           SELECT_SHAPE_PREFIX Then _
+           SELECT_SHAPE_PREFIX Or VBA.Left$(currentShape.Name, 4) = "chk_" Then _
             currentShape.Delete
     Next shapeIndex
     Set uiScope = targetWorksheet.Range("A1:AN100")

@@ -51,6 +51,32 @@ Public Function fn_TryGetCommand(ByVal shapeName As String, ByRef outUiCommand A
     fn_TryGetCommand = True
 End Function
 
+Public Function fn_HandleCheckboxClick(ByVal shapeName As String) As Boolean
+    Dim key As Variant
+    Dim binding As obj_UiCellBinding
+
+    If cellBindings Is Nothing Then Exit Function
+    For Each key In cellBindings.Keys
+        Set binding = cellBindings(key)
+        If binding.HandleCheckboxClick(shapeName) Then
+            fn_HandleCheckboxClick = True
+            Exit Function
+        End If
+    Next key
+End Function
+
+Public Function fn_ValidateForm(ByVal formName As String) As Boolean
+    Dim key As Variant
+    Dim binding As obj_UiCellBinding
+
+    If cellBindings Is Nothing Then Exit Function
+    For Each key In cellBindings.Keys
+        Set binding = cellBindings(key)
+        If Not binding.ValidateForm(formName) Then Exit Function
+    Next key
+    fn_ValidateForm = True
+End Function
+
 Public Sub fn_ClearCellBindings(ByVal worksheetName As String)
     Dim bindingKey As Variant
     Dim uiCellBinding As obj_UiCellBinding
