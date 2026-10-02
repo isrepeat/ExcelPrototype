@@ -35,7 +35,7 @@ Public Function Initialize(ByVal target As Object, ByVal methodName As String) A
     Set m_target = target
     m_methodName = VBA.Trim$(methodName)
     If m_target Is Nothing Or VBA.Len(m_methodName) = 0 Then
-        VBA.MsgBox "A command target and method are required.", VBA.vbExclamation, "PersonalEventBuilder"
+        ex_WindowsUi.fn_ShowMessage "A command target and method are required.", VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
     Initialize = True
@@ -56,6 +56,6 @@ Public Function Execute() As Boolean
     Execute = CBool(callbackResult)
     Exit Function
 EH:
-    VBA.MsgBox "The command cannot be executed: " & m_methodName & _
+    ex_WindowsUi.fn_ShowMessage "The command cannot be executed: " & m_methodName & _
         " | " & VBA.Err.Description, VBA.vbExclamation, "PersonalEventBuilder"
 End Function

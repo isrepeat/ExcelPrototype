@@ -25,7 +25,7 @@ Public Sub fn_OnShapeClick()
     If ex_UiBindings.fn_HandleSelectShapeClick(shapeName) Then GoTo CleanExit
     ex_UiBindings.fn_CollapseSelectControls
     If Not ex_UiBindings.fn_TryGetCommand(shapeName, uiCommand) Then
-        VBA.MsgBox "No command is registered for the selected button.", _
+        ex_WindowsUi.fn_ShowMessage "No command is registered for the selected button.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         GoTo CleanExit
     End If

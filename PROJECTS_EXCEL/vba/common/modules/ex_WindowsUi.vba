@@ -16,9 +16,6 @@ Private Declare Function private_MessageBoxW Lib "user32" Alias "MessageBoxW" ( 
 ) As Long
 #End If
 
-Private Const MESSAGE_BOX_OK As Long = &H0&
-Private Const MESSAGE_BOX_INFORMATION As Long = &H40&
-
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
@@ -35,14 +32,21 @@ Public Function fn_ShowInformation( _
     ByVal messageText As String, _
     ByVal captionText As String _
 ) As Long
+    fn_ShowInformation = fn_ShowMessage( _
+        messageText, VBA.vbOKOnly Or VBA.vbInformation, captionText)
+End Function
+
+Public Function fn_ShowMessage( _
+    ByVal messageText As String, _
+    Optional ByVal buttonsStyle As VbMsgBoxStyle = VBA.vbOKOnly, _
+    Optional ByVal captionText As String = VBA.vbNullString _
+) As VbMsgBoxResult
 #If VBA7 Then
-    fn_ShowInformation = private_MessageBoxW( _
-        0, StrPtr(messageText), StrPtr(captionText), _
-        MESSAGE_BOX_OK Or MESSAGE_BOX_INFORMATION)
+    fn_ShowMessage = private_MessageBoxW( _
+        0, StrPtr(messageText), StrPtr(captionText), VBA.CLng(buttonsStyle))
 #Else
-    fn_ShowInformation = private_MessageBoxW( _
-        0, StrPtr(messageText), StrPtr(captionText), _
-        MESSAGE_BOX_OK Or MESSAGE_BOX_INFORMATION)
+    fn_ShowMessage = private_MessageBoxW( _
+        0, StrPtr(messageText), StrPtr(captionText), VBA.CLng(buttonsStyle))
 #End If
 End Function
 ' --------------------------------------

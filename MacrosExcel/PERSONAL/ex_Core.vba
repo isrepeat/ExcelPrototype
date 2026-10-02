@@ -302,7 +302,7 @@ Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
 
     If Application.ActiveWorkbook Is Nothing Then
         fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=NoActiveWorkbook"
-        VBA.MsgBox "There is no active workbook whose VBA modules can be reloaded.", _
+        ex_WindowsUi.fn_ShowMessage "There is no active workbook whose VBA modules can be reloaded.", _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
     End If
@@ -314,7 +314,7 @@ Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
         VBA.CStr(deferInitialization) & " | Path=" & targetWorkbook.FullName
     If targetWorkbook Is ThisWorkbook Then
         fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=TargetIsPersonalWorkbook"
-        VBA.MsgBox _
+        ex_WindowsUi.fn_ShowMessage _
             "The workbook containing the shortcut handler cannot reload itself. " & _
             "Activate the target workbook and press Ctrl+Alt+R again.", _
             VBA.vbExclamation, "Reload VBA"
@@ -323,7 +323,7 @@ Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
 
     If VBA.Len(targetWorkbook.Path) = 0 Then
         fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=TargetWorkbookUnsaved"
-        VBA.MsgBox _
+        ex_WindowsUi.fn_ShowMessage _
             "Save the active workbook first. The vba folder must be located " & _
             "next to the workbook file.", _
             VBA.vbExclamation, "Reload VBA"
@@ -355,7 +355,7 @@ Private Sub private_VbaReload_ReloadActiveWorkbookVba( _
         " | DocumentFiles=" & VBA.CStr(documentImportFiles.Count)
     If importFiles.Count = 0 And documentImportFiles.Count = 0 Then
         fn_Diagnostic_WriteLog "VBA_RELOAD_ABORTED | Reason=NoSourceFiles"
-        VBA.MsgBox _
+        ex_WindowsUi.fn_ShowMessage _
             "No .bas, .frm, .vba, or .utf8.vba files were found in: " & vbaFolderPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Sub
@@ -446,7 +446,7 @@ EH:
         " | Number=" & VBA.CStr(VBA.Err.Number) & _
         " | Description=" & VBA.Err.Description & _
         " | ElapsedMs=" & private_VbaReload_FormatElapsedMilliseconds(startedAt)
-    VBA.MsgBox "Failed to reload VBA modules in workbook '" & _
+    ex_WindowsUi.fn_ShowMessage "Failed to reload VBA modules in workbook '" & _
         targetWorkbookName & _
         "': [" & VBA.CStr(VBA.Err.Number) & "] " & VBA.Err.Description & VBA.vbCrLf & _
         "Make sure 'Trust access to the VBA project object model' is enabled.", _
@@ -485,7 +485,7 @@ Private Sub private_VbaReload_RequestSafeReload( _
     Application.Run "'WorkbookUpdater.xlam'!" & requestMethod, targetWorkbook
     Exit Sub
 EH:
-    VBA.MsgBox "Could not request VBA reload: " & VBA.Err.Description, VBA.vbExclamation, "Workbook updater"
+    ex_WindowsUi.fn_ShowMessage "Could not request VBA reload: " & VBA.Err.Description, VBA.vbExclamation, "Workbook updater"
 End Sub
 
 ' Escapes a single Windows command-line argument.
@@ -558,7 +558,7 @@ Private Function private_VbaReload_TryFindInitializerName( _
                 If VBA.InStr(1, sourceText, "Public Sub fn_Initialize", VBA.vbTextCompare) > 0 Or _
                    VBA.InStr(1, sourceText, "Public Function fn_Initialize", VBA.vbTextCompare) > 0 Then
                     If VBA.Len(outInitializerName) > 0 Then
-                        VBA.MsgBox "More than one public fn_Initialize procedure was found.", _
+                        ex_WindowsUi.fn_ShowMessage "More than one public fn_Initialize procedure was found.", _
                             VBA.vbExclamation, "Reload VBA"
                         Exit Function
                     End If
@@ -600,7 +600,7 @@ Private Function private_VbaReload_TryResolveConfiguredFolder( _
     configuredPath = VBA.Replace$(VBA.Trim$(configuredPath), "/", "\")
     If VBA.Len(configuredPath) = 0 Or VBA.InStr(configuredPath, ":") > 0 Or _
        VBA.Left$(configuredPath, 1) = "\" Then
-        VBA.MsgBox "The configuration key '" & keyName & _
+        ex_WindowsUi.fn_ShowMessage "The configuration key '" & keyName & _
             "' must contain a relative folder path: " & configuredPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
@@ -610,7 +610,7 @@ Private Function private_VbaReload_TryResolveConfiguredFolder( _
     outFolderPath = fileSystem.GetAbsolutePathName( _
         targetWorkbook.Path & Application.PathSeparator & configuredPath)
     If Not fileSystem.FolderExists(outFolderPath) Then
-        VBA.MsgBox "The folder from configuration key '" & keyName & _
+        ex_WindowsUi.fn_ShowMessage "The folder from configuration key '" & keyName & _
             "' was not found: " & outFolderPath, _
             VBA.vbExclamation, "Reload VBA"
         outFolderPath = VBA.vbNullString
@@ -651,7 +651,7 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     configPath = vbaFolderPath & Application.PathSeparator & CONFIG_FILE_NAME
     If Not fileSystem.FileExists(configPath) Then
-        VBA.MsgBox "VBA import configuration was not found: " & configPath, _
+        ex_WindowsUi.fn_ShowMessage "VBA import configuration was not found: " & configPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
@@ -660,12 +660,12 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
     configText = private_VbaReload_ReadUtf8TextFile(configPath)
     Set relativeFiles = New Collection
     If Not private_VbaReload_TryReadJsonStringArray(configText, profileName, relativeFiles) Then
-        VBA.MsgBox "No VBA import profile was found for workbook: " & _
+        ex_WindowsUi.fn_ShowMessage "No VBA import profile was found for workbook: " & _
             targetWorkbook.Name, VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
     If relativeFiles.Count = 0 Then
-        VBA.MsgBox "The VBA import profile is empty for workbook: " & _
+        ex_WindowsUi.fn_ShowMessage "The VBA import profile is empty for workbook: " & _
             targetWorkbook.Name, VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
@@ -678,7 +678,7 @@ Private Function private_VbaReload_TryCollectConfiguredVbaFiles( _
                 vbaFolderPath, VBA.CStr(relativeFile), sourcePaths) Then Exit Function
         For Each sourcePath In sourcePaths
             If importedPaths.Exists(sourcePath) Then
-                VBA.MsgBox "The VBA import profile contains a duplicate module: " & _
+                ex_WindowsUi.fn_ShowMessage "The VBA import profile contains a duplicate module: " & _
                     VBA.CStr(relativeFile), VBA.vbExclamation, "Reload VBA"
                 Exit Function
             End If
@@ -737,7 +737,7 @@ ContinueTable:
         Next configTable
     Next targetWorksheet
 MissingConfiguration:
-    VBA.MsgBox "Configuration table '" & CONFIG_TABLE_NAME & _
+    ex_WindowsUi.fn_ShowMessage "Configuration table '" & CONFIG_TABLE_NAME & _
         "' must contain key '" & keyName & _
         "' with a value in the next column.", _
         VBA.vbExclamation, "Reload VBA"
@@ -766,7 +766,7 @@ Private Function private_VbaReload_TryExpandConfiguredSourcePaths( _
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     normalizedPattern = VBA.Replace$(VBA.Trim$(configuredPath), "/", "\")
     If Not private_VbaReload_IsValidRelativeModulePattern(normalizedPattern) Then
-        VBA.MsgBox "Invalid relative VBA module pattern: " & configuredPath, _
+        ex_WindowsUi.fn_ShowMessage "Invalid relative VBA module pattern: " & configuredPath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
@@ -877,7 +877,7 @@ Private Function private_VbaReload_TryResolveConfiguredSourcePath( _
     relativePath = VBA.Replace$(VBA.Trim$(relativePath), "/", "\")
     If VBA.Len(relativePath) = 0 Or VBA.InStr(relativePath, "..") > 0 Or _
        VBA.InStr(relativePath, ":") > 0 Or VBA.Left$(relativePath, 1) = "\" Then
-        VBA.MsgBox "Invalid relative VBA module path: " & relativePath, _
+        ex_WindowsUi.fn_ShowMessage "Invalid relative VBA module path: " & relativePath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
@@ -887,12 +887,12 @@ Private Function private_VbaReload_TryResolveConfiguredSourcePath( _
         normalizedRoot & Application.PathSeparator & relativePath)
     If VBA.StrComp(VBA.Left$(normalizedPath, VBA.Len(normalizedRoot) + 1), _
             normalizedRoot & Application.PathSeparator, VBA.vbTextCompare) <> 0 Then
-        VBA.MsgBox "VBA module path is outside the vba folder: " & relativePath, _
+        ex_WindowsUi.fn_ShowMessage "VBA module path is outside the vba folder: " & relativePath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
     If Not fileSystem.FileExists(normalizedPath) Then
-        VBA.MsgBox "Configured VBA module was not found: " & relativePath, _
+        ex_WindowsUi.fn_ShowMessage "Configured VBA module was not found: " & relativePath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If
@@ -900,7 +900,7 @@ Private Function private_VbaReload_TryResolveConfiguredSourcePath( _
     If Not (VBA.Right$(lowerName, 4) = ".bas" Or _
             VBA.Right$(lowerName, 4) = ".frm" Or _
             VBA.Right$(lowerName, 4) = ".vba") Then
-        VBA.MsgBox "Configured file is not a VBA module: " & relativePath, _
+        ex_WindowsUi.fn_ShowMessage "Configured file is not a VBA module: " & relativePath, _
             VBA.vbExclamation, "Reload VBA"
         Exit Function
     End If

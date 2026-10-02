@@ -27,7 +27,7 @@ Public Function fn_TryResolveText( _
 
     If Not fn_TryResolveValue(rawText, uiBindingContext, resolvedValue, resolvedObject, isObject) Then Exit Function
     If isObject Then
-        VBA.MsgBox "A text binding must resolve to a scalar value: " & rawText, _
+        ex_WindowsUi.fn_ShowMessage "A text binding must resolve to a scalar value: " & rawText, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
@@ -47,7 +47,7 @@ Public Function fn_TryResolveCommand( _
     Set outUiCommand = Nothing
     If Not fn_TryResolveValue(rawText, uiBindingContext, resolvedValue, resolvedObject, isObject) Then Exit Function
     If Not isObject Or Not TypeOf resolvedObject Is obj_UiCommand Then
-        VBA.MsgBox "A command binding must resolve to obj_UiCommand: " & rawText, _
+        ex_WindowsUi.fn_ShowMessage "A command binding must resolve to obj_UiCommand: " & rawText, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
@@ -75,17 +75,17 @@ Public Function fn_TryResolveValue( _
         Exit Function
     End If
     If uiBindingContext Is Nothing Then
-        VBA.MsgBox "A binding context is required for: " & rawText, _
+        ex_WindowsUi.fn_ShowMessage "A binding context is required for: " & rawText, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
     If Not private_TryReadArgument(bindingBody, "Source", sourceName) Then sourceName = "Text"
     If Not private_TryReadArgument(bindingBody, "Path", bindingPath) Then
-        VBA.MsgBox "Binding Path is required: " & rawText, VBA.vbExclamation, "PersonalEventBuilder"
+        ex_WindowsUi.fn_ShowMessage "Binding Path is required: " & rawText, VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
     If Not uiBindingContext.TryGetValue(sourceName, bindingPath, outValue, outObject, outIsObject) Then
-        VBA.MsgBox "Binding was not found: Source=" & sourceName & "; Path=" & bindingPath, _
+        ex_WindowsUi.fn_ShowMessage "Binding was not found: Source=" & sourceName & "; Path=" & bindingPath, _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If

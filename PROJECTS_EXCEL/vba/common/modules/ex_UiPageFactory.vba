@@ -19,7 +19,7 @@ Public Function fn_Create(ByVal pageId As String) As obj_IPage
         Case "personaleventbuilder"
             Set fn_Create = New obj_PEB_PgMain
         Case Else
-            VBA.MsgBox "The page is not registered: " & pageId, _
+            ex_WindowsUi.fn_ShowMessage "The page is not registered: " & pageId, _
                 VBA.vbExclamation, "PersonalEventBuilder"
     End Select
 End Function
