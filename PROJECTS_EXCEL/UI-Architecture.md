@@ -105,17 +105,16 @@ ex_UiElementFactory сопоставляет имя тега объекту obj_
 
 | Тег | Объект |
 | --- | --- |
-| page | obj_UiPanel в режиме grid |
-| grid | obj_UiPanel в режиме grid |
-| stackPanel | obj_UiPanel с orientation horizontal или vertical |
-| form | obj_UiForm |
+| page | obj_UiPageElement |
+| grid | obj_UiGridElement |
+| stackPanel | obj_UiStackPanelElement с orientation horizontal или vertical |
 | control | obj_UiControlElement |
 
 obj_UiElementFactory создаёт объект, вызывает Configure и возвращает obj_IUiElement. При неудачной настройке освобождает созданный объект.
 
 styles — метаданные оформления. Панель пропускает этот узел при создании визуальных детей, а каталог стилей читает его отдельно.
 
-field обрабатывается самой формой. Это специальное описание поля внутри form, а не универсальный тег общей фабрики.
+field обрабатывается самой формой. Это специальное описание поля внутри контрола Form, а не универсальный тег общей фабрики.
 
 ### Фабрика типа контрола
 
@@ -128,6 +127,7 @@ obj_UiControlElement передаёт type в ex_UiControlFactory. Реестр 
 | Table | obj_UiTableControl |
 | Input | obj_UiFieldControl |
 | Select | obj_UiFieldControl |
+| Form | obj_UiFormControl |
 
 ~~~text
 <control type="Button">
@@ -142,7 +142,7 @@ obj_UiControlElement передаёт type в ex_UiControlFactory. Реестр 
       → obj_IUiControl.Configure
 ~~~
 
-Адаптер obj_UiControlElement соединяет существующий контракт obj_IUiControl с контрактом дерева obj_IUiElement. Конкретный контрол создаётся один раз для элемента и повторно используется при проходах рендера.
+obj_IUiElement и obj_IUiControl имеют одинаковые сигнатуры Configure, Measure, Arrange, Render, Validate и Dispose. У obj_IUiControl дополнительно есть Initialize. Тег obj_UiControlElement делегирует этот цикл конкретному контролу; старый контракт, возвращавший Range из Measure, удалён. Диапазоны остаются внутренней деталью листовых контролов. Конкретный контрол создаётся один раз для элемента и повторно используется при проходах рендера.
 
 Адаптер хранит изолированную копию описания. В ней нормализует привязки и меняет рассчитанные координаты. Исходный DOM страницы не изменяется.
 
@@ -184,7 +184,7 @@ RenderTree измеряет дерево, назначает координат�
 
 ### grid и page
 
-Панель в режиме grid передаёт всем детям одну базовую точку. Каждый ребёнок добавляет свои row и column. Размер контейнера определяется максимумом размеров детей с учётом смещений.
+obj_UiGridElement передаёт всем детям одну базовую точку. Каждый ребёнок добавляет свои row и column. Размер контейнера определяется максимумом размеров детей с учётом смещений.
 
 Это размещение по координатам ячеек, без определений строк и столбцов WPF Grid.
 
@@ -215,14 +215,14 @@ RenderTree измеряет дерево, назначает координат�
 
 ArrangePanel повторно измеряет детей, передаёт каждому текущую точку и сдвигает её на размер ребёнка. Поэтому Measure может вызываться несколько раз за один проход страницы.
 
-## 7. Форма и поля
+## 7. Контрол Form и поля
 
-form требует name, source и orientation. Непосредственные дети — field и control. Вложенный stackPanel не нужен: obj_UiForm использует obj_UiPanel внутри как алгоритм последовательного расположения.
+Контрол type="Form" требует name, source и orientation. Отдельного визуального тега form больше нет. Непосредственные дети — field и control. Вложенный stackPanel не нужен: obj_UiFormControl использует obj_UiStackPanelElement внутри как алгоритм последовательного расположения.
 
 source="Form" выбирает источник коротких привязок детей. Атрибут не создаёт источник и не заполняет данные.
 
 ~~~xml
-<form name="EventDraftForm"
+<control type="Form" name="EventDraftForm"
       source="Form"
       row="7"
       column="2"
@@ -242,27 +242,27 @@ source="Form" выбирает источник коротких привязо�
            name="SubmitEventDraft"
            caption="Сохранить"
            command="{Binding Path=Commands.SubmitFormCommand}"/>
-</form>
+</control>
 ~~~
 
 Поле obj_UiFormField создаёт внутреннюю панель, подпись и редактор. Описания подписи и редактора — отдельные копии XML-узла. Они не добавляются в документ страницы.
 
 ~~~text
-obj_UiForm
-  └─ внутренняя вертикальная obj_UiPanel
+obj_UiFormControl
+  └─ внутренняя вертикальная obj_UiStackPanelElement
       ├─ obj_UiFormField: EventName
-      │   └─ горизонтальная obj_UiPanel
+      │   └─ горизонтальная obj_UiStackPanelElement
       │       ├─ obj_UiControlElement → Label
       │       └─ obj_UiControlElement → Input
       ├─ obj_UiFormField: Notes
-      │   └─ obj_UiPanel → Label + Input
+      │   └─ obj_UiStackPanelElement → Label + Input
       └─ obj_UiControlElement → Button
 ~~~
 
 ~~~text
-obj_UiForm.obj_IUiElement_Configure
+obj_UiFormControl.obj_IUiControl_Configure
   → New obj_UiFormField
-  → ConfigureField(fieldNode, formNode, context, source, diagnostic)
+  → obj_IUiElement.Configure(fieldNode, context, source, diagnostic)
       → проверить имя, type, labelPosition, label и Boolean-атрибуты
       → определить value; по умолчанию "{Binding Path=имяПоля}"
       → разобрать источник и путь
@@ -289,18 +289,18 @@ Checkbox Shape создаёт и обслуживает obj_UiFieldControl. obj_
 
 ~~~text
 RenderTree
-  → obj_UiPanel.MeasurePanel
+  → obj_IUiElement.Measure
     → obj_UiControlElement.obj_IUiElement_Measure
-      → Button.Configure(копия описания)
-      → Button.Measure(context): Range
-  → obj_UiPanel.ArrangePanel
+      → Button.obj_IUiControl_Measure(rows, columns, diagnostic)
+      → внутреннее измерение диапазона Excel
+  → obj_IUiElement.Arrange
     → obj_UiControlElement.obj_IUiElement_Arrange
-      → записать абсолютные row / column в копию описания
-      → Button.Configure
-      → Button.Measure(context)
-  → obj_UiPanel.RenderPanel
+      → Button.obj_IUiControl_Arrange(row, column, diagnostic)
+      → obj_UiControlBase.ArrangePosition
+      → внутреннее обновление описания и диапазона
+  → obj_IUiElement.Render
     → obj_UiControlElement.obj_IUiElement_Render
-      → Button.Render(context)
+      → Button.Render(diagnostic)
         → оформить диапазон и создать Shape
         → разрешить привязку команды
         → зарегистрировать обработчик Shape в context.Router
@@ -451,9 +451,9 @@ End If
 
 ~~~text
 RenderContext.ValidateForm
-  → найти obj_UiForm по имени
+  → найти зарегистрированный obj_IUiControl по имени
   → Form.Validate
-  → Panel.ValidatePanel
+  → obj_IUiElement.Validate
   → Field.Validate
   → прочитать значение через BindingContext
   → добавить ошибку required при незаполненном поле
@@ -511,7 +511,7 @@ Class_Terminate не заменяет явный Dispose: взаимные сс�
 
 Для событий контрол или отдельный объект действия реализует obj_IUiEventHandler и регистрирует маршрут в Router. Для непосредственного обновления связанных свойств можно реализовать obj_IUiBindingTarget.
 
-Встроенные теги регистрируются лениво: замена встроенного тега до первого fn_Create сейчас может быть перезаписана инициализацией. Реестр типов контролов проверяет наличие регистрации перед добавлением встроенного типа. Это различие нужно учитывать при настройке расширений.
+Оба реестра создают встроенные фабрики лениво и сохраняют предварительно зарегистрированные реализации. Поэтому новый тег или тип и замена стандартной фабрики могут быть зарегистрированы до первого построения страницы.
 
 Новый контрол самостоятельно владеет Shapes, подписками и дополнительными объектами. Его Dispose освобождает их. Общему мосту не требуется ветка с названием нового контрола.
 
@@ -519,9 +519,9 @@ Class_Terminate не заменяет явный Dispose: взаимные сс�
 
 - Рендер работает в координатах ячеек Excel; это не полный набор возможностей WPF/XAML.
 - Сохраняется дерево объектов, но при полном пересчёте обновляется вся страница.
-- Существующие контролы подключены через адаптер; прямой перевод всех контролов на obj_IUiElement ещё не выполнен.
+- Теги и контролы имеют одинаковый протокол рендера, но разные интерфейсы: тег control соединяет дерево элементов с конкретным контролом.
 - Реактивность основана на ValueChanged от BindingContext, а не на наблюдении произвольных объектов VBA.
-- Формы принимают field и control; field создаёт сама форма.
+- Контрол Form принимает field и control; field создаёт сам контрол, а общая фабрика тегов его не интерпретирует.
 - Проверка обязательных полей есть, отдельного расширяемого контракта валидаторов пока нет.
 - Measure используется также при Arrange; реализация не гарантирует один вызов измерения за проход.
 - Render не является транзакцией Excel: ошибка после начала записи может оставить частично изменённое представление.
@@ -537,3 +537,44 @@ Class_Terminate не заменяет явный Dispose: взаимные сс�
 Сценарий импортирует реальные VBA-исходники в новую временную книгу. Проверяет текущую страницу, неизменность XML, расположение, реактивные привязки, маршруты событий, обязательные поля, Checkbox, readOnly, независимость контекстов страниц, повторный рендер и освобождение подписок. Пользовательские книги не изменяются.
 
 Test-Updater.ps1 отдельно проверяет установку и обновление VBA-модулей. Успех установщика не заменяет проверку поведения UI.
+
+## 19. Разделение тегов и контролов в исходниках
+
+Классы тегов находятся в vba/common/[4] elements: obj_UiPageElement, obj_UiGridElement, obj_UiStackPanelElement и obj_UiControlElement. Каждый реализует obj_IUiElement; контейнеры также реализуют obj_IUiContainer.AddChild. Общего переключателя режима grid/stack больше нет: каждый класс отвечает за свой алгоритм.
+
+Готовые контролы находятся в vba/common/[3] controls и реализуют obj_IUiControl. Form — такой же зарегистрированный тип, как Button или Table. Его внутреннее дерево использует obj_UiStackPanelElement как кирпичик расположения. obj_UiFormField — внутренний элемент формы; его описание создаёт Form.
+
+~~~text
+<page>                              obj_UiPageElement
+  <stackPanel>                      obj_UiStackPanelElement
+    <control type="Form">           obj_UiControlElement
+      внутренний контрол            obj_UiFormControl
+        внутренняя панель           obj_UiStackPanelElement
+          поле                      obj_UiFormField
+            подпись и редактор      obj_UiControlElement → Label / Input
+~~~
+
+Контекст хранит формы через obj_IUiControl, а не через конкретный класс. RegisterForm и ValidateForm не знают внутреннего устройства Form и вызывают общий Validate. События по-прежнему идут через obj_IUiEventHandler; прежний HandleCellChange удалён из контракта контролов.
+
+Для листовых контролов obj_UiControlBase предоставляет ConfigurePosition, SetPosition, ArrangePosition и GetSize. Measure возвращает числовые размеры, а Arrange назначает окончательные координаты. Работа с Range скрыта внутри контролов. Нормализация Binding остаётся у тега control; поведение рендера и валидации принадлежит выбранному контролу.
+
+Пример регистрации дополнительного имени для имеющейся реализации:
+
+~~~vba
+Dim tagFactory As New obj_UiElementFactory
+Dim controlFactory As New obj_UiControlFactory
+
+tagFactory.Initialize "stackpanel"
+ex_UiElementFactory.fn_Register "flow", tagFactory
+
+controlFactory.Initialize "form"
+ex_UiControlFactory.fn_Register "DraftForm", controlFactory
+~~~
+
+Теперь flow создаёт стандартную панель, а control type="DraftForm" — стандартную форму. Для собственного поведения вместо этих фабрик регистрируются классы, реализующие соответствующий интерфейс фабрики. Runtime и мост событий менять не требуется.
+
+## 20. Вызовы составных элементов через интерфейсы
+
+Page, Form и FormField хранят внутренние панели как obj_IUiElement и вызывают только Configure, Measure, Arrange, Render, Validate и Dispose. Добавление детей выполняется через obj_IUiContainer.AddChild. Публичные ConfigurePanel, MeasurePanel, ArrangePanel, RenderPanel, ValidatePanel, DisposePanel и ConfigureField удалены; внутренние алгоритмы имеют префикс private_.
+
+Чтобы собрать контейнер вручную, владелец создаёт изолированное описание без детей через cloneNode(False), задаёт внутренние row и column равными 1, вызывает интерфейсный Configure и добавляет детей через obj_IUiContainer. Дополнительный режим buildChildren не требуется. Form учитывает своё смещение один раз, а внутренняя панель работает от переданного начала. Поле получает настройки владельца из parentNode своего описания; настройка самого поля выполняется через obj_IUiElement.Configure. Исходный документ страницы сохраняется неизменным.

@@ -26,6 +26,16 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Interface
+' //
+Private Function obj_IUiEventHandler_HandleEvent( _
+    ByVal kind As String, _
+    ByVal payload As Variant _
+) As Boolean
+    If kind = "click" Then obj_IUiEventHandler_HandleEvent = Me.Execute()
+End Function
+
+' //
 ' // Properties
 ' //
 Public Property Get CallbackName() As String
@@ -63,14 +73,4 @@ Public Function Execute() As Boolean
 EH:
     ex_WindowsUi.fn_ShowMessage "The command cannot be executed: " & m_methodName & _
         " | " & VBA.Err.Description, VBA.vbExclamation, "PersonalEventBuilder"
-End Function
-
-' //
-' // Interface
-' //
-Private Function obj_IUiEventHandler_HandleEvent( _
-    ByVal kind As String, _
-    ByVal payload As Variant _
-) As Boolean
-    If kind = "click" Then obj_IUiEventHandler_HandleEvent = Me.Execute()
 End Function

@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1
 END
-Attribute VB_Name = "obj_UiPanel"
+Attribute VB_Name = "obj_UiStackPanelElement"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
@@ -10,6 +10,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiElement
+Implements obj_IUiContainer
 
 Private m_children As Collection
 Private m_definition As Object
@@ -25,6 +26,7 @@ Private m_column As Long
 ' // Lifecycle
 ' //
 Private Sub Class_Initialize()
+    Set m_children = New Collection
 End Sub
 
 Private Sub Class_Terminate()
@@ -32,28 +34,68 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // API
+' // Interface
 ' //
-Public Sub Dispose()
-    DisposePanel
-End Sub
-
-Public Function Initialize(ByVal mode As String) As Boolean
-    m_mode = mode
-    Set m_children = New Collection
-    Initialize = True
-End Function
-
-Public Sub AddChild(ByVal child As obj_IUiElement)
-    m_children.Add child
-End Sub
-
-Public Function ConfigurePanel( _
+Private Function obj_IUiElement_Configure( _
     ByVal definition As Object, _
     ByVal context As obj_UiRenderContext, _
     ByVal source As String, _
-    ByRef diagnostic As String, _
-    Optional ByVal buildChildren As Boolean = True _
+    ByRef diagnostic As String _
+) As Boolean
+    obj_IUiElement_Configure = private_ConfigurePanel(definition, context, source, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Measure( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    obj_IUiElement_Measure = private_MeasurePanel(rows, columns, diagnostic)
+    rows = rows + m_row - 1
+    columns = columns + m_column - 1
+End Function
+
+Private Function obj_IUiElement_Arrange( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    row = row + m_row - 1
+    column = column + m_column - 1
+    obj_IUiElement_Arrange = private_ArrangePanel(row, column, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    obj_IUiElement_Render = private_RenderPanel(diagnostic)
+End Function
+
+Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
+    obj_IUiElement_Validate = private_ValidatePanel(errors)
+End Function
+
+Private Sub obj_IUiElement_Dispose()
+    Me.Dispose
+End Sub
+
+Private Sub obj_IUiContainer_AddChild(ByVal child As obj_IUiElement)
+    m_children.Add child
+End Sub
+
+' //
+' // API
+' //
+Public Sub Dispose()
+    private_DisposePanel
+End Sub
+
+' //
+' // Private
+' //
+Private Function private_ConfigurePanel( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
 ) As Boolean
     Dim node As Object
     Dim child As obj_IUiElement
@@ -65,14 +107,11 @@ Public Function ConfigurePanel( _
     m_source = source
     If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "source")) > 0 Then _
         m_source = ex_UiElementFactory.fn_Attribute(definition, "source")
-    If m_mode = "stack" Then
-        m_mode = VBA.LCase$(ex_UiElementFactory.fn_Attribute(definition, "orientation"))
-        If m_mode <> "horizontal" And m_mode <> "vertical" Then
-            diagnostic = "A stack container requires orientation=horizontal or vertical."
-            Exit Function
-        End If
+    m_mode = VBA.LCase$(ex_UiElementFactory.fn_Attribute(definition, "orientation"))
+    If m_mode <> "horizontal" And m_mode <> "vertical" Then
+        diagnostic = "A stack container requires orientation=horizontal or vertical."
+        Exit Function
     End If
-    If buildChildren Then
         For Each node In definition.ChildNodes
             If node.NodeType = 1 Then
                 If VBA.LCase$(VBA.CStr(node.baseName)) <> "styles" Then
@@ -82,11 +121,10 @@ Public Function ConfigurePanel( _
                 End If
             End If
         Next node
-    End If
-    ConfigurePanel = True
+    private_ConfigurePanel = True
 End Function
 
-Public Function MeasurePanel( _
+Private Function private_MeasurePanel( _
     ByRef rows As Long, _
     ByRef columns As Long, _
     ByRef diagnostic As String _
@@ -105,19 +143,16 @@ Public Function MeasurePanel( _
         ElseIf m_mode = "vertical" Then
             rows = rows + height
             If width > columns Then columns = width
-        Else
-            If height > rows Then rows = height
-            If width > columns Then columns = width
         End If
     Next child
     If rows = 0 Then rows = 1
     If columns = 0 Then columns = 1
     m_rows = rows
     m_columns = columns
-    MeasurePanel = True
+    private_MeasurePanel = True
 End Function
 
-Public Function ArrangePanel( _
+Private Function private_ArrangePanel( _
     ByVal row As Long, _
     ByVal column As Long, _
     ByRef diagnostic As String _
@@ -136,28 +171,28 @@ Public Function ArrangePanel( _
         If m_mode = "horizontal" Then nextColumn = nextColumn + width
         If m_mode = "vertical" Then nextRow = nextRow + height
     Next child
-    ArrangePanel = True
+    private_ArrangePanel = True
 End Function
 
-Public Function RenderPanel(ByRef diagnostic As String) As Boolean
+Private Function private_RenderPanel(ByRef diagnostic As String) As Boolean
     Dim child As obj_IUiElement
 
     For Each child In m_children
         If Not child.Render(diagnostic) Then Exit Function
     Next child
-    RenderPanel = True
+    private_RenderPanel = True
 End Function
 
-Public Function ValidatePanel(ByVal errors As Collection) As Boolean
+Private Function private_ValidatePanel(ByVal errors As Collection) As Boolean
     Dim child As obj_IUiElement
 
-    ValidatePanel = True
+    private_ValidatePanel = True
     For Each child In m_children
-        If Not child.Validate(errors) Then ValidatePanel = False
+        If Not child.Validate(errors) Then private_ValidatePanel = False
     Next child
 End Function
 
-Public Sub DisposePanel()
+Private Sub private_DisposePanel()
     Dim child As obj_IUiElement
 
     If Not m_children Is Nothing Then
@@ -168,48 +203,4 @@ Public Sub DisposePanel()
     Set m_children = Nothing
     Set m_definition = Nothing
     Set m_context = Nothing
-End Sub
-
-' //
-' // Interface
-' //
-Private Function obj_IUiElement_Configure( _
-    ByVal definition As Object, _
-    ByVal context As obj_UiRenderContext, _
-    ByVal source As String, _
-    ByRef diagnostic As String _
-) As Boolean
-    obj_IUiElement_Configure = ConfigurePanel(definition, context, source, diagnostic)
-End Function
-
-Private Function obj_IUiElement_Measure( _
-    ByRef rows As Long, _
-    ByRef columns As Long, _
-    ByRef diagnostic As String _
-) As Boolean
-    obj_IUiElement_Measure = MeasurePanel(rows, columns, diagnostic)
-    rows = rows + m_row - 1
-    columns = columns + m_column - 1
-End Function
-
-Private Function obj_IUiElement_Arrange( _
-    ByVal row As Long, _
-    ByVal column As Long, _
-    ByRef diagnostic As String _
-) As Boolean
-    row = row + m_row - 1
-    column = column + m_column - 1
-    obj_IUiElement_Arrange = ArrangePanel(row, column, diagnostic)
-End Function
-
-Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
-    obj_IUiElement_Render = RenderPanel(diagnostic)
-End Function
-
-Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
-    obj_IUiElement_Validate = ValidatePanel(errors)
-End Function
-
-Private Sub obj_IUiElement_Dispose()
-    Me.Dispose
 End Sub

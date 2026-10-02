@@ -24,6 +24,18 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Interface
+' //
+Private Function obj_IUiElementFactory_Create( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
+) As obj_IUiElement
+    Set obj_IUiElementFactory_Create = Me.Create(definition, context, source, diagnostic)
+End Function
+
+' //
 ' // API
 ' //
 Public Sub Dispose()
@@ -41,20 +53,15 @@ Public Function Create( _
     ByRef diagnostic As String _
 ) As obj_IUiElement
     Dim element As obj_IUiElement
-    Dim panel As obj_UiPanel
 
     On Error GoTo EH_CONFIGURE
     Select Case m_kind
-        Case "page", "grid"
-            Set panel = New obj_UiPanel
-            panel.Initialize "grid"
-            Set element = panel
+        Case "page"
+            Set element = New obj_UiPageElement
+        Case "grid"
+            Set element = New obj_UiGridElement
         Case "stackpanel"
-            Set panel = New obj_UiPanel
-            panel.Initialize "stack"
-            Set element = panel
-        Case "form"
-            Set element = New obj_UiForm
+            Set element = New obj_UiStackPanelElement
         Case "control"
             Set element = New obj_UiControlElement
     End Select
@@ -69,16 +76,4 @@ Public Function Create( _
 EH_CONFIGURE:
     diagnostic = VBA.Err.Description
     If Not element Is Nothing Then element.Dispose
-End Function
-
-' //
-' // Interface
-' //
-Private Function obj_IUiElementFactory_Create( _
-    ByVal definition As Object, _
-    ByVal context As obj_UiRenderContext, _
-    ByVal source As String, _
-    ByRef diagnostic As String _
-) As obj_IUiElement
-    Set obj_IUiElementFactory_Create = Me.Create(definition, context, source, diagnostic)
 End Function

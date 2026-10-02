@@ -181,7 +181,7 @@ Private Function private_TryGetOrCreateSource( _
 ) As Boolean
     sourceName = VBA.Trim$(sourceName)
     If VBA.Len(sourceName) = 0 Then Exit Function
-    If m_sources Is Nothing Then If Not Initialize() Then Exit Function
+    If m_sources Is Nothing Then If Not Me.Initialize() Then Exit Function
     If Not m_sources.Exists(sourceName) Then
         Set outSourceMap = VBA.CreateObject("Scripting.Dictionary")
         outSourceMap.CompareMode = VBA.vbTextCompare

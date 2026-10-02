@@ -112,7 +112,7 @@ Public Function SubmitFormCommandHandler() As Boolean
         ex_WindowsUi.fn_ShowMessage VBA.CStr(errors(1)), VBA.vbExclamation, "Form validation"
         Exit Function
     End If
-    If Not FormChangedCommandHandler() Then Exit Function
+    If Not Me.FormChangedCommandHandler() Then Exit Function
     If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
     If Not private_TryReadFormValue("Category", category) Then Exit Function
     If Not private_TryReadFormValue("Notes", notes) Then Exit Function

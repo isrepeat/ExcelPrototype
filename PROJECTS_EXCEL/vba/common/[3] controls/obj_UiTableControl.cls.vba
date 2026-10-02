@@ -11,6 +11,7 @@ Option Explicit
 
 Implements obj_IUiControl
 
+Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_source As obj_IUiTableSource
 Private m_targetRange As Range
@@ -27,7 +28,7 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    obj_IUiControl_Dispose
+    Me.Dispose
 End Sub
 
 ' //
@@ -40,15 +41,79 @@ Private Function obj_IUiControl_Initialize() As Boolean
 End Function
 
 Private Sub obj_IUiControl_Dispose()
+    Me.Dispose
+End Sub
+
+Private Function obj_IUiControl_Configure( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Set m_renderContext = context
+    m_uiControlBase.ConfigurePosition definition
+    obj_IUiControl_Configure = private_Configure(definition)
+    If Not obj_IUiControl_Configure Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
+End Function
+
+Private Function obj_IUiControl_Measure( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim target As Range
+
+    m_uiControlBase.SetPosition 1, 1
+    If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
+    Set target = private_Measure(m_renderContext)
+    If target Is Nothing Then
+        diagnostic = "Cannot measure control: " & m_uiControlBase.ControlName
+        Exit Function
+    End If
+    m_uiControlBase.GetSize target, rows, columns
+    obj_IUiControl_Measure = True
+End Function
+
+Private Function obj_IUiControl_Arrange( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim target As Range
+
+    m_uiControlBase.ArrangePosition row, column
+    If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
+    Set target = private_Measure(m_renderContext)
+    obj_IUiControl_Arrange = Not target Is Nothing
+    If target Is Nothing Then diagnostic = "Cannot arrange control: " & m_uiControlBase.ControlName
+End Function
+
+Private Function obj_IUiControl_Render(ByRef diagnostic As String) As Boolean
+    obj_IUiControl_Render = private_Render(m_renderContext)
+    If Not obj_IUiControl_Render Then diagnostic = "Cannot render control: " & m_uiControlBase.ControlName
+End Function
+
+Private Function obj_IUiControl_Validate(ByVal errors As Collection) As Boolean
+    obj_IUiControl_Validate = True
+End Function
+
+' //
+' // API
+' //
+Public Sub Dispose()
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
     Set m_source = Nothing
     Set m_targetRange = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
+    Set m_renderContext = Nothing
 End Sub
 
-Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolean
+' //
+' // Private
+' //
+Private Function private_Configure(ByVal controlNode As Object) As Boolean
     If Not m_uiControlBase.Configure(controlNode) Then Exit Function
     Set m_source = Nothing
     m_sourceRaw = private_ReadAttribute(controlNode, "source")
@@ -56,10 +121,10 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
     If VBA.Len(m_sourceRaw) = 0 Then Exit Function
     m_gapRows = private_ReadLong(controlNode, "gapRows", 1)
     m_showHeaders = private_ReadBoolean(controlNode, "showHeaders", True)
-    obj_IUiControl_Configure = True
+    private_Configure = True
 End Function
 
-Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
+Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
     Dim tableIndex As Long, rows As Long, columns As Long
     Dim rawTable As obj_UiRawTable
     Dim value As Variant, sourceObject As Object, isObject As Boolean
@@ -75,7 +140,7 @@ Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderCon
         Set m_targetRange = uiRenderContext.TargetWorksheet.Cells(1, 1).Offset( _
             private_ReadLong(m_uiControlBase.ControlNode, "row", 1) - 1, _
             private_ReadLong(m_uiControlBase.ControlNode, "column", 1) - 1)
-        Set obj_IUiControl_Measure = m_targetRange
+        Set private_Measure = m_targetRange
         Exit Function
     End If
     For tableIndex = 1 To m_source.TableCount
@@ -91,16 +156,16 @@ Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderCon
     Set m_targetRange = uiRenderContext.TargetWorksheet.Cells(1, 1).Offset( _
         private_ReadLong(m_uiControlBase.ControlNode, "row", 1) - 1, _
         private_ReadLong(m_uiControlBase.ControlNode, "column", 1) - 1).Resize(rows, columns)
-    Set obj_IUiControl_Measure = m_targetRange
+    Set private_Measure = m_targetRange
 End Function
 
-Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim startedAt As Double
     Dim tableIndex As Long, rowIndex As Long, columnIndex As Long, targetRow As Long
     Dim rawTable As obj_UiRawTable, buffer As Variant
 
     startedAt = VBA.Timer
-    If m_targetRange Is Nothing Then Set m_targetRange = obj_IUiControl_Measure(uiRenderContext)
+    If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
     If m_source Is Nothing Then
         ex_Core.fn_Diagnostic_WriteLog "UI_TABLE_RENDER_SKIPPED_NO_SOURCE | Source=" & m_sourceRaw
@@ -123,11 +188,8 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     Next tableIndex
     m_targetRange.ClearContents
     m_targetRange.Value2 = buffer
-    obj_IUiControl_Render = True
+    private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.Render", startedAt
-End Function
-
-Private Function obj_IUiControl_HandleCellChange(ByVal target As Range) As Boolean
 End Function
 
 ' //

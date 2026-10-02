@@ -24,17 +24,6 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // API
-' //
-Public Sub Dispose()
-    m_type = VBA.vbNullString
-End Sub
-
-Public Sub Initialize(ByVal controlType As String)
-    m_type = VBA.LCase$(controlType)
-End Sub
-
-' //
 ' // Interface
 ' //
 Private Function obj_IUiControlFactory_Create() As obj_IUiControl
@@ -47,6 +36,8 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
             Set control = New obj_UiButtonControl
         Case "table"
             Set control = New obj_UiTableControl
+        Case "form"
+            Set control = New obj_UiFormControl
         Case "input", "select"
             Set control = New obj_UiFieldControl
     End Select
@@ -54,3 +45,14 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
     If Not control.Initialize() Then Exit Function
     Set obj_IUiControlFactory_Create = control
 End Function
+
+' //
+' // API
+' //
+Public Sub Dispose()
+    m_type = VBA.vbNullString
+End Sub
+
+Public Sub Initialize(ByVal controlType As String)
+    m_type = VBA.LCase$(controlType)
+End Sub

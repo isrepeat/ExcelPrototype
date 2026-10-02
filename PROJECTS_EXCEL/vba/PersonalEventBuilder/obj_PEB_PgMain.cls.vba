@@ -56,10 +56,6 @@ Private Sub obj_IPage_Dispose()
 End Sub
 
 ' //
-' // API
-' //
-
-' //
 ' // Private
 ' //
 Private Function private_TryRegisterBindings() As Boolean

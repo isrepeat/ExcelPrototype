@@ -35,6 +35,20 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Interface
+' //
+Private Function obj_IUiEventHandler_HandleEvent( _
+    ByVal kind As String, _
+    ByVal payload As Variant _
+) As Boolean
+    If kind = "dismiss" Then
+        obj_IUiEventHandler_HandleEvent = Me.CollapseDropdown()
+    Else
+        obj_IUiEventHandler_HandleEvent = Me.HandleShapeClick(VBA.CStr(payload))
+    End If
+End Function
+
+' //
 ' // Properties
 ' //
 Public Property Get ControlId() As Long
@@ -211,21 +225,11 @@ Private Sub private_UpdateHeader()
 End Sub
 
 Private Sub m_uiCellBinding_ValueRefreshed()
+    private_uiCellBinding_ValueRefreshed
+End Sub
+
+Private Sub private_uiCellBinding_ValueRefreshed()
     If m_isDisposed Or m_targetCell Is Nothing Then Exit Sub
     m_selectedValue = VBA.CStr(m_targetCell.Value2)
     private_UpdateHeader
 End Sub
-
-' //
-' // Interface
-' //
-Private Function obj_IUiEventHandler_HandleEvent( _
-    ByVal kind As String, _
-    ByVal payload As Variant _
-) As Boolean
-    If kind = "dismiss" Then
-        obj_IUiEventHandler_HandleEvent = Me.CollapseDropdown()
-    Else
-        obj_IUiEventHandler_HandleEvent = Me.HandleShapeClick(VBA.CStr(payload))
-    End If
-End Function
