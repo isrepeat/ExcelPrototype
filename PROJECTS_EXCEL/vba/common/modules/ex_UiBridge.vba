@@ -22,6 +22,7 @@ Public Sub fn_OnShapeClick()
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
     On Error GoTo EH
     shapeName = VBA.CStr(Application.Caller)
+    If ex_UiBindings.fn_HandleCheckboxClick(shapeName) Then GoTo CleanExit
     If ex_UiBindings.fn_HandleSelectShapeClick(shapeName) Then GoTo CleanExit
     ex_UiBindings.fn_CollapseSelectControls
     If Not ex_UiBindings.fn_TryGetCommand(shapeName, uiCommand) Then

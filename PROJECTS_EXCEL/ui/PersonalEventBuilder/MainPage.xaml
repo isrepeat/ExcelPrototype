@@ -47,56 +47,37 @@
              showHeaders="true"
              gapRows="1"/>
 
-    <form name="EventDraftForm" source="Form" row="7" column="2">
-      <stackPanel orientation="vertical">
-        <stackPanel orientation="horizontal">
-          <control type="Label"
-                   name="EventNameLabel"
-                   text="Event name"
-                   style="formLabel"/>
-          <control type="Input"
-                   name="EventNameInput"
-                   value="{Binding Path=EventName}"
-                   columnSpan="4"
-                   style="formField"
-                   onChange="{Binding Path=Commands.FormChangedCommand}"/>
-        </stackPanel>
-
-        <stackPanel orientation="horizontal">
-          <control type="Label"
-                   name="EventCategoryLabel"
-                   text="Category"
-                   style="formLabel"/>
-          <control type="Select"
-                   name="EventCategorySelect"
-                   value="{Binding Path=Category}"
-                   itemsSource="{Binding Path=Data.EventTypes}"
-                   panelStyle="formSelectPanel"
-                   itemStyle="formSelectItem"
-                   columnSpan="4"
-                   style="formField"
-                   onChange="{Binding Path=Commands.FormChangedCommand}"/>
-        </stackPanel>
-
-        <stackPanel orientation="horizontal">
-          <control type="Label"
-                   name="EventNotesLabel"
-                   text="Notes"
-                   style="formLabel"/>
-          <control type="Input"
-                   name="EventNotesInput"
-                   value="{Binding Path=Notes}"
-                   columnSpan="4"
-                   style="formField"/>
-        </stackPanel>
-
-        <control type="Button"
-                 name="SubmitEventDraft"
-                 caption="Submit form"
-                 columnSpan="2"
-                 style="primaryButton"
-                 command="{Binding Path=Commands.SubmitFormCommand}"/>
-      </stackPanel>
+    <form name="EventDraftForm"
+          source="Form"
+          row="7"
+          column="2"
+          orientation="vertical"
+          labelPosition="left"
+          labelColumnSpan="2"
+          fieldWidth="4"
+          labelStyle="formLabel"
+          fieldStyle="formField"
+          onChange="{Binding Path=Commands.FormChangedCommand}">
+      <field name="EventName"
+             label="Event name"
+             type="text"
+             required="true"/>
+      <field name="Category"
+             label="Category"
+             type="select"
+             itemsSource="{Binding Path=Data.EventTypes}"
+             panelStyle="formSelectPanel"
+             itemStyle="formSelectItem"/>
+      <field name="Notes"
+             label="Notes"
+             type="text"
+             height="3"/>
+      <control type="Button"
+               name="SubmitEventDraft"
+               caption="Submit form"
+               columnSpan="2"
+               style="primaryButton"
+               command="{Binding Path=Commands.SubmitFormCommand}"/>
     </form>
   </grid>
 
