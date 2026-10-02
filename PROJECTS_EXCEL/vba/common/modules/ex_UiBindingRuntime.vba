@@ -55,6 +55,31 @@ Public Function fn_TryResolveCommand( _
     fn_TryResolveCommand = True
 End Function
 
+Public Function fn_TryParseBinding( _
+    ByVal rawBinding As String, _
+    ByVal defaultSource As String, _
+    ByRef outSourceName As String, _
+    ByRef outBindingPath As String _
+) As Boolean
+    Dim bindingBody As String
+    Dim separatorPosition As Long
+
+    outSourceName = VBA.vbNullString
+    outBindingPath = VBA.vbNullString
+    If Not private_TryExtractBindingBody(VBA.Trim$(rawBinding), bindingBody) Then Exit Function
+    If Not private_TryReadArgument(bindingBody, "Path", outBindingPath) Then Exit Function
+    If Not private_TryReadArgument(bindingBody, "Source", outSourceName) Then
+        separatorPosition = VBA.InStr(1, outBindingPath, ".", VBA.vbBinaryCompare)
+        If separatorPosition > 0 Then
+            outSourceName = VBA.Trim$(VBA.Left$(outBindingPath, separatorPosition - 1))
+            outBindingPath = VBA.Trim$(VBA.Mid$(outBindingPath, separatorPosition + 1))
+        Else
+            outSourceName = defaultSource
+        End If
+    End If
+    fn_TryParseBinding = (VBA.Len(outSourceName) > 0 And VBA.Len(outBindingPath) > 0)
+End Function
+
 Public Function fn_TryResolveValue( _
     ByVal rawText As String, _
     ByVal uiBindingContext As obj_UiBindingContext, _
@@ -79,8 +104,7 @@ Public Function fn_TryResolveValue( _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
-    If Not private_TryReadArgument(bindingBody, "Source", sourceName) Then sourceName = "Text"
-    If Not private_TryReadArgument(bindingBody, "Path", bindingPath) Then
+    If Not fn_TryParseBinding(rawText, "Text", sourceName, bindingPath) Then
         ex_WindowsUi.fn_ShowMessage "Binding Path is required: " & rawText, VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If

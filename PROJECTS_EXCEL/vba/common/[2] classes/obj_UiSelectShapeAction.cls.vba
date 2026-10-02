@@ -18,7 +18,7 @@ Private m_itemShapeNames As Collection
 Private m_shapeNames As Collection
 Private m_items As Collection
 Private m_selectedValue As String
-Private m_uiCellBinding As obj_UiCellBinding
+Private WithEvents m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 Private m_isDisposed As Boolean
 
@@ -203,4 +203,10 @@ Private Sub private_UpdateHeader()
     End If
     headerShape.TextFrame2.TextRange.Text = m_selectedValue & " " & arrowText
     On Error GoTo 0
+End Sub
+
+Private Sub m_uiCellBinding_ValueRefreshed()
+    If m_isDisposed Or m_targetCell Is Nothing Then Exit Sub
+    m_selectedValue = VBA.CStr(m_targetCell.Value2)
+    private_UpdateHeader
 End Sub

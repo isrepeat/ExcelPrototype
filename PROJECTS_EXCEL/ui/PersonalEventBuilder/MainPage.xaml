@@ -3,98 +3,100 @@
   <grid anchorCell="A1">
     <control type="Label"
              name="Title"
-             text="{Binding Source=Text; Path=Title}"
+             text="{Binding Path=Text.Title}"
              row="1"
              column="1"
              columnSpan="8"
-             style="{Binding Source=Resources; Path=PageTitle}"/>
+             style="{Binding Path=Resources.PageTitle}"/>
 
     <control type="Button"
              name="HelloWorld"
-             caption="{Binding Source=Text; Path=HelloWorld}"
+             caption="{Binding Path=Text.HelloWorld}"
              row="3"
              column="5"
              rowSpan="2"
              columnSpan="3"
-             style="{Binding Source=Resources; Path=PrimaryButton}"
-             command="{Binding Source=Commands; Path=HelloWorldCommand}"/>
+             style="{Binding Path=Resources.PrimaryButton}"
+             command="{Binding Path=Commands.HelloWorldCommand}"/>
 
     <control type="Button"
              name="UpdatePage"
-             caption="{Binding Source=Text; Path=UpdatePage}"
+             caption="{Binding Path=Text.UpdatePage}"
              row="3"
              column="2"
              rowSpan="2"
              columnSpan="2"
-             style="{Binding Source=Resources; Path=PrimaryButton}"
-             command="{Binding Source=Commands; Path=UpdatePageCommand}"/>
+             style="{Binding Path=Resources.PrimaryButton}"
+             command="{Binding Path=Commands.UpdatePageCommand}"/>
 
     <control type="Button"
              name="GenerateTables"
-             caption="{Binding Source=Text; Path=GenerateTables}"
+             caption="{Binding Path=Text.GenerateTables}"
              row="3"
              column="8"
              rowSpan="2"
              columnSpan="3"
-             style="{Binding Source=Resources; Path=PrimaryButton}"
-             command="{Binding Source=Commands; Path=GenerateTablesCommand}"/>
+             style="{Binding Path=Resources.PrimaryButton}"
+             command="{Binding Path=Commands.GenerateTablesCommand}"/>
 
     <control type="table"
              name="GeneratedTables"
-             source="{Binding Source=Data; Path=Tables}"
+             source="{Binding Path=Data.Tables}"
              row="14"
              column="2"
              showHeaders="true"
              gapRows="1"/>
 
     <form name="EventDraftForm" source="Form" row="7" column="2">
-      <stackPanel orientation="horizontal">
-        <control type="Label"
-                 name="EventNameLabel"
-                 text="Event name"
-                 style="formLabel"/>
-        <control type="Input"
-                 name="EventNameInput"
-                 value="{Binding Path=EventName}"
-                 columnSpan="4"
-                 style="formField"
-                 onChange="{Binding Source=Commands; Path=FormChangedCommand}"/>
-      </stackPanel>
+      <stackPanel orientation="vertical">
+        <stackPanel orientation="horizontal">
+          <control type="Label"
+                   name="EventNameLabel"
+                   text="Event name"
+                   style="formLabel"/>
+          <control type="Input"
+                   name="EventNameInput"
+                   value="{Binding Path=EventName}"
+                   columnSpan="4"
+                   style="formField"
+                   onChange="{Binding Path=Commands.FormChangedCommand}"/>
+        </stackPanel>
 
-      <stackPanel orientation="horizontal">
-        <control type="Label"
-                 name="EventCategoryLabel"
-                 text="Category"
-                 style="formLabel"/>
-        <control type="Select"
-                 name="EventCategorySelect"
-                 value="{Binding Path=Category}"
-                 itemsSource="{Binding Source=Data; Path=EventTypes}"
-                 panelStyle="formSelectPanel"
-                 itemStyle="formSelectItem"
-                 columnSpan="4"
-                 style="formField"
-                 onChange="{Binding Source=Commands; Path=FormChangedCommand}"/>
-      </stackPanel>
+        <stackPanel orientation="horizontal">
+          <control type="Label"
+                   name="EventCategoryLabel"
+                   text="Category"
+                   style="formLabel"/>
+          <control type="Select"
+                   name="EventCategorySelect"
+                   value="{Binding Path=Category}"
+                   itemsSource="{Binding Path=Data.EventTypes}"
+                   panelStyle="formSelectPanel"
+                   itemStyle="formSelectItem"
+                   columnSpan="4"
+                   style="formField"
+                   onChange="{Binding Path=Commands.FormChangedCommand}"/>
+        </stackPanel>
 
-      <stackPanel orientation="horizontal">
-        <control type="Label"
-                 name="EventNotesLabel"
-                 text="Notes"
-                 style="formLabel"/>
-        <control type="Input"
-                 name="EventNotesInput"
-                 value="{Binding Path=Notes}"
-                 columnSpan="4"
-                 style="formField"/>
-      </stackPanel>
+        <stackPanel orientation="horizontal">
+          <control type="Label"
+                   name="EventNotesLabel"
+                   text="Notes"
+                   style="formLabel"/>
+          <control type="Input"
+                   name="EventNotesInput"
+                   value="{Binding Path=Notes}"
+                   columnSpan="4"
+                   style="formField"/>
+        </stackPanel>
 
-      <control type="Button"
-               name="SubmitEventDraft"
-               caption="Submit form"
-               columnSpan="2"
-               style="primaryButton"
-               command="{Binding Source=Commands; Path=SubmitFormCommand}"/>
+        <control type="Button"
+                 name="SubmitEventDraft"
+                 caption="Submit form"
+                 columnSpan="2"
+                 style="primaryButton"
+                 command="{Binding Path=Commands.SubmitFormCommand}"/>
+      </stackPanel>
     </form>
   </grid>
 
@@ -140,11 +142,29 @@
     <stylePipelineStage name="default">
       <layer name="sheet-base">
         <rule target="sheet"
-              styles="{ backColor:#1F2329; fontColor:#E5E7EB; borderColor:#111827; borderWeight:thin; rowHeight:21; overflow:wrap; gridLines:false; zoom:90%; }"/>
-        <rule target="column" selector="address=A:A" styles="{ width:2; }"/>
+              styles="{
+                backColor:#1F2329;
+                fontColor:#E5E7EB;
+                borderColor:#111827;
+                borderWeight:thin;
+                rowHeight:21;
+                overflow:wrap;
+                gridLines:false;
+                zoom:90%;
+              }"/>
+        <rule target="column"
+              selector="address=A:A"
+              styles="{
+                width:2;
+              }"/>
       </layer>
       <layer name="layout">
-        <rule target="control" selector="type=button" styles="{ horizontal:center; vertical:center; }"/>
+        <rule target="control"
+              selector="type=button"
+              styles="{
+                horizontal:center;
+                vertical:center;
+              }"/>
       </layer>
     </stylePipelineStage>
   </styles>

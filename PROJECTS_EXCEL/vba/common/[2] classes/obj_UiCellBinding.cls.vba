@@ -9,9 +9,11 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Public Event ValueRefreshed()
+
 Private m_worksheetName As String
 Private m_cellAddress As String
-Private m_bindingContext As obj_UiBindingContext
+Private WithEvents m_bindingContext As obj_UiBindingContext
 Private m_sourceName As String
 Private m_bindingPath As String
 Private m_command As obj_UiCommand
@@ -83,3 +85,39 @@ Public Function HandleCellChange(ByVal target As Range) As Boolean
     End If
     HandleCellChange = True
 End Function
+
+Private Sub m_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
+    Dim value As Variant
+    Dim sourceObject As Object
+    Dim isObject As Boolean
+    Dim previousEnableEvents As Boolean
+    Dim target As Range
+
+    If m_isDisposed Then Exit Sub
+    If VBA.StrComp(sourceName, m_sourceName, VBA.vbTextCompare) <> 0 Then Exit Sub
+    If VBA.StrComp(bindingPath, m_bindingPath, VBA.vbTextCompare) <> 0 Then
+        If VBA.StrComp(VBA.Left$(m_bindingPath, VBA.Len(bindingPath) + 1), _
+                bindingPath & ".", VBA.vbTextCompare) <> 0 Then Exit Sub
+    End If
+    previousEnableEvents = Application.EnableEvents
+    On Error GoTo EH
+    If Not m_bindingContext.TryGetValue(m_sourceName, m_bindingPath, _
+            value, sourceObject, isObject) Then
+        Err.Raise vbObjectError + 2101, "obj_UiCellBinding", _
+            "Binding value was not found: " & m_sourceName & "." & m_bindingPath
+    End If
+    If isObject Then
+        Err.Raise vbObjectError + 2102, "obj_UiCellBinding", _
+            "A cell binding requires a scalar value: " & m_sourceName & "." & m_bindingPath
+    End If
+    Set target = ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress)
+    Application.EnableEvents = False
+    target.Value2 = value
+    Application.EnableEvents = previousEnableEvents
+    RaiseEvent ValueRefreshed
+    Exit Sub
+EH:
+    Application.EnableEvents = previousEnableEvents
+    MsgBox "Cannot refresh bound cell " & m_worksheetName & "!" & m_cellAddress & _
+        ": " & VBA.Err.Description, VBA.vbExclamation, "Binding"
+End Sub
