@@ -8,6 +8,9 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_shapes As Object
 Private m_cells As Object
 Private m_seed As Long
@@ -26,10 +29,14 @@ End Sub
 ' // API
 ' //
 Public Sub Initialize()
+    If m_isDisposed Or m_isInitialized Then
+        Err.Raise VBA.vbObjectError + 2166, , "Object is already initialized or disposed."
+    End If
     Set m_shapes = VBA.CreateObject("Scripting.Dictionary")
     m_shapes.CompareMode = VBA.vbTextCompare
     Set m_cells = VBA.CreateObject("Scripting.Dictionary")
     m_cells.CompareMode = VBA.vbTextCompare
+    m_isInitialized = True
 End Sub
 
 Public Function NextId() As Long
@@ -86,6 +93,11 @@ Public Sub Broadcast(ByVal kind As String)
 End Sub
 
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     Set m_shapes = Nothing
     Set m_cells = Nothing
 End Sub

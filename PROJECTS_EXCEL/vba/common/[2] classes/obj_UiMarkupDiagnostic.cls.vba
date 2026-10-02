@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_path As String
 Private m_member As String
 Private m_message As String
@@ -42,9 +45,13 @@ End Property
 ' // API
 ' //
 Public Sub Initialize(ByVal path As String, ByVal member As String, ByVal message As String)
+    If m_isDisposed Or m_isInitialized Then
+        Err.Raise VBA.vbObjectError + 2166, , "Object is already initialized or disposed."
+    End If
     m_path = path
     m_member = member
     m_message = message
+    m_isInitialized = True
 End Sub
 
 Public Function Describe() As String
@@ -53,6 +60,11 @@ Public Function Describe() As String
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     m_path = VBA.vbNullString
     m_member = VBA.vbNullString
     m_message = VBA.vbNullString

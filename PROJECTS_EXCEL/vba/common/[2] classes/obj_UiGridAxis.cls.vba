@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_specs As Collection
 Private m_sizes() As Long
 Private m_available As Long
@@ -44,6 +47,10 @@ End Property
 Public Function Initialize(ByVal definition As Object, ByVal groupName As String, ByVal itemName As String, ByVal extentName As String, ByRef diagnostic As String) As Boolean
     Dim group As Object, node As Object
     Dim spec As String
+    If m_isDisposed Or m_isInitialized Then
+        diagnostic = "Object is already initialized or disposed."
+        Exit Function
+    End If
     Set m_specs = New Collection
     m_available = 0
     spec = ex_UiElementFactory.fn_Attribute(definition, extentName)
@@ -68,9 +75,15 @@ Public Function Initialize(ByVal definition As Object, ByVal groupName As String
     If Not m_explicit Then m_specs.Add "auto"
     Me.Reset
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     Set m_specs = Nothing
     Erase m_sizes
     m_available = 0

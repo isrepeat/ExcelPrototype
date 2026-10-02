@@ -9,10 +9,12 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Public Event ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
 
 Private m_sources As Object
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -28,15 +30,21 @@ End Sub
 ' // API
 ' //
 Public Function Initialize() As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Set m_sources = VBA.CreateObject("Scripting.Dictionary")
     m_sources.CompareMode = VBA.vbTextCompare
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_sources = Nothing
 End Sub
 

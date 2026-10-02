@@ -11,13 +11,15 @@ Option Explicit
 
 Public Event ValueRefreshed()
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_worksheetName As String
 Private m_cellAddress As String
 Private WithEvents m_bindingContext As obj_UiBindingContext
 Private m_sourceName As String
 Private m_bindingPath As String
 Private m_command As obj_UiCommand
-Private m_isDisposed As Boolean
 Private m_twoWay As Boolean
 
 ' //
@@ -52,6 +54,9 @@ Public Function Initialize( _
     ByVal bindingPath As String, _
     ByVal command As obj_UiCommand _
 ) As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If VBA.Len(VBA.Trim$(worksheetName)) = 0 Or _
        VBA.Len(VBA.Trim$(cellAddress)) = 0 Then Exit Function
     If bindingContext Is Nothing Then Exit Function
@@ -63,14 +68,17 @@ Public Function Initialize( _
     m_sourceName = sourceName
     m_bindingPath = bindingPath
     Set m_command = command
-    m_isDisposed = False
     m_twoWay = True
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_command = Nothing
     Set m_bindingContext = Nothing
     m_worksheetName = VBA.vbNullString
@@ -139,6 +147,6 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
     Exit Sub
 EH:
     Application.EnableEvents = previousEnableEvents
-    MsgBox "Cannot refresh bound cell " & m_worksheetName & "!" & m_cellAddress & _
+    ex_WindowsUi.fn_ShowMessage "Cannot refresh bound cell " & m_worksheetName & "!" & m_cellAddress & _
         ": " & VBA.Err.Description, VBA.vbExclamation, "Binding"
 End Sub

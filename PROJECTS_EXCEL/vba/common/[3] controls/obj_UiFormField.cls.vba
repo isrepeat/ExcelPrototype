@@ -11,6 +11,9 @@ Option Explicit
 
 Implements obj_IUiElement
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_panel As obj_IUiElement
 Private m_context As obj_UiRenderContext
 Private m_source As String
@@ -38,11 +41,16 @@ Private Function obj_IUiElement_Configure( _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        diagnostic = "Element is already initialized or disposed."
+        Exit Function
+    End If
     If definition.parentNode Is Nothing Then
         diagnostic = "Field must be configured by its owning form."
         Exit Function
     End If
     obj_IUiElement_Configure = private_ConfigureField(definition, definition.parentNode, context, source, diagnostic)
+    m_isInitialized = obj_IUiElement_Configure
 End Function
 
 Private Function obj_IUiElement_Measure( _
@@ -93,6 +101,11 @@ End Sub
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     If Not m_panel Is Nothing Then m_panel.Dispose
     Set m_panel = Nothing
     Set m_context = Nothing

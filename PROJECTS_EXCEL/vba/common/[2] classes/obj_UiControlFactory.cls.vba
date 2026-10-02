@@ -12,6 +12,9 @@ Option Explicit
 Implements obj_IUiControlFactory
 Implements obj_IUiMarkupSchemaProvider
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_type As String
 
 ' //
@@ -57,11 +60,20 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     m_type = VBA.vbNullString
 End Sub
 
 Public Sub Initialize(ByVal controlType As String)
+    If m_isDisposed Or m_isInitialized Then
+        Err.Raise VBA.vbObjectError + 2166, , "Object is already initialized or disposed."
+    End If
     m_type = VBA.LCase$(controlType)
+    m_isInitialized = True
 End Sub
 
 ' //
@@ -71,6 +83,9 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
     Dim field As obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddAttribute "name", "string", False, "", False, 0
     schema.AddAttribute "dataContext", "context", False, "", True, 0
     schema.AddAttribute "row", "positive", False, "", False, 0
@@ -131,6 +146,9 @@ End Function
 Private Function private_FieldSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddAttribute "label", "string", True, "", False, 0
     schema.AddAttribute "type", "enum", True, "text|select|checkbox", False, 0

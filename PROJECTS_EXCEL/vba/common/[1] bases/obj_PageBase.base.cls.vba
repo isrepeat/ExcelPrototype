@@ -9,10 +9,12 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_profileId As String
 Private m_uiFolderRelativePath As String
 Private m_uiBindingContext As obj_UiBindingContext
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -42,7 +44,9 @@ Public Function Initialize( _
     ByVal profileId As String, _
     ByVal uiFolderRelativePath As String _
 ) As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     m_profileId = VBA.Trim$(profileId)
     m_uiFolderRelativePath = VBA.Trim$(uiFolderRelativePath)
     If VBA.Len(m_profileId) = 0 Or VBA.Len(m_uiFolderRelativePath) = 0 Then
@@ -54,11 +58,15 @@ Public Function Initialize( _
     Set m_uiBindingContext = New obj_UiBindingContext
     If Not m_uiBindingContext.Initialize() Then Exit Function
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     If Not m_uiBindingContext Is Nothing Then m_uiBindingContext.Dispose
     Set m_uiBindingContext = Nothing
     m_profileId = VBA.vbNullString

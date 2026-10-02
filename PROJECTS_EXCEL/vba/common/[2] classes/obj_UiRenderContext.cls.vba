@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_rendering As Boolean
 Private m_needsMeasure As Boolean
 Private m_rows As Long
@@ -22,7 +25,6 @@ Private m_targetWorksheet As Worksheet
 Private m_uiPageDefinition As obj_UiPageDefinition
 Private m_uiFolderPath As String
 Private m_uiBindingContext As obj_UiBindingContext
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -96,6 +98,9 @@ Public Function Build(ByRef diagnostic As String) As Boolean
     Dim errors As New Collection
     Dim markupError As obj_UiMarkupDiagnostic
 
+    If Not validator.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     If Not validator.Validate(m_uiPageDefinition.Document.documentElement, errors) Then
         diagnostic = VBA.vbNullString
         For Each markupError In errors
@@ -125,6 +130,7 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Application.EnableEvents = False
     m_needsMeasure = False
     m_router.Dispose
+    Set m_router = New obj_UiEventRouter
     m_router.Initialize
     If m_rows > 0 And m_columns > 0 Then
         With m_targetWorksheet.Cells(1, 1).Resize(m_rows, m_columns)
@@ -193,7 +199,9 @@ Public Function Initialize( _
     ByVal uiFolderPath As String, _
     ByVal uiBindingContext As obj_UiBindingContext _
 ) As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If targetWorksheet Is Nothing Or uiPageDefinition Is Nothing Or uiBindingContext Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(uiFolderPath)) = 0 Then Exit Function
     Set m_targetWorksheet = targetWorksheet
@@ -201,6 +209,7 @@ Public Function Initialize( _
     m_uiFolderPath = uiFolderPath
     Set m_uiBindingContext = uiBindingContext
     Set m_styles = New obj_UiStyleCatalog
+    If Not m_styles.Initialize() Then Exit Function
     Set m_router = New obj_UiEventRouter
     m_router.Initialize
     Set m_forms = VBA.CreateObject("Scripting.Dictionary")
@@ -208,14 +217,19 @@ Public Function Initialize( _
     Set m_elements = VBA.CreateObject("Scripting.Dictionary")
     m_elements.CompareMode = VBA.vbTextCompare
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
     Dim key As Variant
     Dim element As obj_IUiElement
 
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
+
     If Not m_router Is Nothing Then m_router.Dispose
     If Not m_root Is Nothing Then m_root.Dispose
     If Not m_elements Is Nothing Then

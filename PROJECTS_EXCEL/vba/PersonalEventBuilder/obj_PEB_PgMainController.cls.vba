@@ -9,9 +9,11 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_pageBase As obj_PageBase
 Private m_tableList As obj_UiRawTableList
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -27,7 +29,9 @@ End Sub
 ' // API
 ' //
 Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Set m_pageBase = pageBase
     If m_pageBase Is Nothing Then
         ex_WindowsUi.fn_ShowMessage "The PersonalEventBuilder page controller requires a page base.", _
@@ -38,11 +42,15 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not m_tableList.Initialize() Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "Tables", m_tableList) Then Exit Function
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     If Not m_tableList Is Nothing Then m_tableList.Dispose
     Set m_tableList = Nothing
     Set m_pageBase = Nothing
@@ -56,8 +64,7 @@ Public Function GenerateTablesCommandHandler() As Boolean
     Dim rawTable As obj_UiRawTable
 
     If m_tableList Is Nothing Then Exit Function
-    m_tableList.Dispose
-    If Not m_tableList.Initialize() Then Exit Function
+    m_tableList.Clear
     headers = VBA.Array("Candidate", "Category", "Status")
     For tableIndex = 1 To 10
         ReDim values(1 To 3, 1 To 3)
@@ -81,8 +88,7 @@ Public Function ResetCommandHandler() As Boolean
     If Not bindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
     If Not bindingContext.SetValue("Form", "Category", "Meeting") Then Exit Function
     If Not bindingContext.SetValue("Form", "Notes", VBA.vbNullString) Then Exit Function
-    m_tableList.Dispose
-    If Not m_tableList.Initialize() Then Exit Function
+    m_tableList.Clear
     ResetCommandHandler = m_pageBase.UpdatePage()
 End Function
 

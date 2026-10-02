@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_attributes As Object
 Private m_requiredAny As Collection
 Private m_children As Object
@@ -55,7 +58,19 @@ End Property
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    m_isInitialized = True
+    Initialize = True
+End Function
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     Set m_requiredAny = Nothing
     Set m_attributes = Nothing
     Set m_children = Nothing
@@ -85,7 +100,6 @@ End Sub
 Public Sub AllowVisualChildren()
     m_visualChildren = True
 End Sub
-
 
 Public Sub RequireAnyAttribute(ByVal names As String)
     m_requiredAny.Add names
