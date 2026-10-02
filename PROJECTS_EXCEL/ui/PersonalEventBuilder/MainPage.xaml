@@ -16,7 +16,7 @@
              column="5"
              rowSpan="2"
              columnSpan="3"
-             style="{Binding Path=Resources.PrimaryButton}"
+             style="secondaryButton"
              command="{Binding Path=Commands.HelloWorldCommand}"/>
 
     <control type="Button"
@@ -26,7 +26,7 @@
              column="2"
              rowSpan="2"
              columnSpan="2"
-             style="{Binding Path=Resources.PrimaryButton}"
+             style="secondaryButton"
              command="{Binding Path=Commands.UpdatePageCommand}"/>
 
     <control type="Button"
@@ -83,8 +83,8 @@
 
   <styles>
     <controlStyle name="pageTitle"
-                  backColor="#1F2937"
-                  textColor="#F9FAFB"
+                  backColor="#262626"
+                  textColor="#FFFFFF"
                   fontName="Calibri"
                   fontSize="16"
                   fontBold="true"
@@ -92,30 +92,31 @@
                   vertical="center"/>
 
     <controlStyle name="formLabel"
-                  backColor="#273244"
-                  textColor="#E5E7EB"
+                  backColor="#2D2D2D"
+                  textColor="#FFFFFF"
                   fontName="Calibri"
                   fontSize="11"
-                  fontBold="true"
+                  fontBold="false"
+                  horizontal="right"
                   vertical="center"/>
 
     <controlStyle name="formField"
-                  backColor="#FFFFFF"
-                  textColor="#111827"
+                  backColor="#2D2D2D"
+                  textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
-                  borderColor="#64748B"
+                  borderColor="#000000"
                   borderWeight="thin"
                   vertical="center"/>
 
     <controlStyle name="formSelectPanel"
-                  backColor="#FFFFFF"
-                  borderColor="#64748B"
+                  backColor="#2D2D2D"
+                  borderColor="#000000"
                   borderWeight="thin"/>
 
     <controlStyle name="formSelectItem"
-                  backColor="#FFFFFF"
-                  textColor="#111827"
+                  backColor="#2D2D2D"
+                  textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
                   vertical="center"/>
@@ -124,11 +125,11 @@
       <layer name="sheet-base">
         <rule target="sheet"
               styles="{
-                backColor:#1F2329;
-                fontColor:#E5E7EB;
-                borderColor:#111827;
+                backColor:#262626;
+                fontColor:#FFFFFF;
+                borderColor:#000000;
                 borderWeight:thin;
-                rowHeight:21;
+                rowHeight:25;
                 overflow:wrap;
                 gridLines:false;
                 zoom:90%;
