@@ -104,11 +104,9 @@ Private Function private_ConfigurePanel( _
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     Set m_context = context
     m_source = source
-    If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "source")) > 0 Then _
-        m_source = ex_UiElementFactory.fn_Attribute(definition, "source")
         For Each node In definition.ChildNodes
             If node.NodeType = 1 Then
-                If VBA.LCase$(VBA.CStr(node.baseName)) <> "styles" Then
+                If Not (VBA.CStr(node.namespaceURI) = "urn:excelprototype:profiles" And VBA.LCase$(VBA.CStr(node.baseName)) = "styles") Then
                     Set child = ex_UiElementFactory.fn_Create(node, context, m_source, diagnostic)
                     If child Is Nothing Then Exit Function
                     m_children.Add child

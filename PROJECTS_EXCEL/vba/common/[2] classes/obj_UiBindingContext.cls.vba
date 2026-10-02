@@ -158,9 +158,15 @@ Public Function TryGetValue( _
     If m_sources Is Nothing Then Exit Function
     sourceName = VBA.Trim$(sourceName)
     bindingPath = VBA.Trim$(bindingPath)
-    If VBA.Len(sourceName) = 0 Or VBA.Len(bindingPath) = 0 Then Exit Function
+    If VBA.Len(sourceName) = 0 Then Exit Function
     If Not m_sources.Exists(sourceName) Then Exit Function
     Set currentObject = m_sources(sourceName)
+    If VBA.Len(bindingPath) = 0 Then
+        Set outObject = currentObject
+        outIsObject = True
+        TryGetValue = True
+        Exit Function
+    End If
     pathParts = VBA.Split(bindingPath, ".")
     For pathIndex = LBound(pathParts) To UBound(pathParts)
         If Not private_TryReadMember(currentObject, VBA.CStr(pathParts(pathIndex)), outValue, outObject, outIsObject) Then Exit Function

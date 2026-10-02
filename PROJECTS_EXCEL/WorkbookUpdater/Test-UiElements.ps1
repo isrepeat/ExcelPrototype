@@ -77,25 +77,33 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     ex_UiElementFactory.fn_Register "flow", tagFactory
     controlFactory.Initialize "form"
     ex_UiControlFactory.fn_Register "DraftForm", controlFactory
-    CheckMarkup "<page><grid><control type='Label' name='Bad' text='Title' columnSapn='2'/></grid></page>", False, "columnSapn"
-    CheckMarkup "<page><grid><stackPanel/></grid></page>", False, "orientation"
-    CheckMarkup "<page><grid><page/></grid></page>", False, "page"
-    CheckMarkup "<page><grid><control type='Button' name='Bad' caption='Title'><grid/></control></grid></page>", False, "Child element"
-    CheckMarkup "<page><grid><control type='Form' name='Bad' source='Form' orientation='vertical'><grid/></control></grid></page>", False, "Child element"
-    CheckMarkup "<page><grid><control type='Unknown' name='Bad'/></grid></page>", False, "Unknown Control"
-    CheckMarkup "<page><grid><control type='Label' name='Bad' text='Title' row='1.5'/></grid></page>", False, "row"
-    CheckMarkup "<page><grid><control type='Input' name='Bad' value='{Binding Path=Name}' readOnly='yes'/></grid></page>", False, "readOnly"
-    CheckMarkup "<page><grid/>unexpected text</page>", False, "Text content"
-    CheckMarkup "<page><grid/><styles/><styles/></page>", False, "Invalid child count"
-    CheckMarkup "<page><grid><styles/></grid></page>", False, "styles"
-    CheckMarkup "<page><grid><control type='Label' name='Bad'/></grid></page>", False, "text|caption"
-    CheckMarkup "<page><grid><control type='Input' name='Bad' value='{Binding Path=}'/></grid></page>", False, "value"
-    CheckMarkup "<page><grid><flow orientation='horizontal'><control type='Label' name='Good' text='Title'/></flow></grid></page>", True, ""
-    CheckMarkup "<page/>", False, "Invalid child count"
-    CheckMarkup "<page><grid/><grid/></page>", False, "Invalid child count"
-    CheckMarkup "<page><grid/><stackPanel orientation='vertical'/></page>", False, "Child element"
-    CheckMarkup "<page><grid/><styles><controlStyle/></styles></page>", False, "name"
-    CheckMarkup "<page><grid/><styles/></page>", True, ""
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:label name='Bad' text='Title' columnSapn='2'/></grid></page>", False, "columnSapn"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><stackPanel/></grid></page>", False, "orientation"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><page xmlns='urn:excelprototype:profiles'/></grid></page>", False, "page"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:button name='Bad' caption='Title'><grid/></controls:button></grid></page>", False, "Child element"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:form name='Bad' dataContext='{Binding Path=Form}' orientation='vertical'><grid/></controls:form></grid></page>", False, "Child element"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:unknown name='Bad'/></grid></page>", False, "Unknown Control"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:label name='Bad' text='Title' row='1.5'/></grid></page>", False, "row"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:input name='Bad' value='{Binding Path=Name}' readOnly='yes'/></grid></page>", False, "readOnly"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid/>unexpected text</page>", False, "Text content"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid/><styles/><styles/></page>", False, "Invalid child count"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><styles/></grid></page>", False, "styles"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:label name='Bad'/></grid></page>", False, "text|caption"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><controls:input name='Bad' value='{Binding Path=}'/></grid></page>", False, "value"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><flow orientation='horizontal'><controls:label name='Good' text='Title'/></flow></grid></page>", True, ""
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles'/>", False, "Invalid child count"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid/><grid/></page>", False, "Invalid child count"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid/><stackPanel orientation='vertical'/></page>", False, "Child element"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid/><styles><controlStyle/></styles></page>", False, "name"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid/><styles/></page>", True, ""
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:label name='Alias' text='OK'/></grid></page>", True, ""
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:other'><grid><c:label name='Bad' text='Title'/></grid></page>", False, "Unknown Element"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles'><grid><form name='Bad'/></grid></page>", False, "Unknown Element"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles'><grid><control type='Label' name='Bad' text='Title'/></grid></page>", False, "Unknown Element"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:form name='Bad' dataContext='{Binding Path=Form}' orientation='vertical'><c:field name='Title' label='Title' type='text'/></c:form></grid></page>", False, "Unknown Control"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid source='Draft'/></page>", False, "source"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid dataContext='Draft'/></page>", False, "dataContext"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:tableList name='Old' source='{Binding Path=Data.Tables}'/></grid></page>", False, "source"
     Set sheet = ThisWorkbook.Worksheets("MainPage")
     bindingContext.Initialize
     bindingContext.SetValue "Text", "Title", "Test page"
@@ -122,8 +130,8 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If definition.Document.xml <> snapshot Then Err.Raise 5, , "Page DOM changed during Build"
     context.Styles.BeginPage sheet, definition.Document, uiFolder
     If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
-    If sheet.Range("D7").Value2 <> "Initial" Then Err.Raise 5, , "Field layout or binding"
-    If sheet.Range("D9").MergeArea.Rows.Count <> 3 Then Err.Raise 5, , "Field height"
+    If sheet.Range("C2").Value2 <> "Initial" Then Err.Raise 5, , "Field layout or binding"
+    If sheet.Range("C4").MergeArea.Cells.Count <> 1 Then Err.Raise 5, , "Single-cell field"
     bindingContext.SetValue "Text", "Title", "Changed title"
     If sheet.Range("A1").Value2 <> "Changed title" Then Err.Raise 5, , "Label refresh"
     bindingContext.SetValue "Text", "HelloWorld", "Changed button"
@@ -133,9 +141,9 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
     If sheet.Shapes.Count <> shapeCount Then Err.Raise 5, , "Shapes leaked after reflow"
     bindingContext.SetValue "Form", "EventName", "Updated"
-    If sheet.Range("D7").Value2 <> "Updated" Then Err.Raise 5, , "Reactive update"
-    sheet.Range("D7").Value2 = "User"
-    If Not context.Router.DispatchCells(sheet.Range("D7")) Then Err.Raise 5, , "Cell dispatch"
+    If sheet.Range("C2").Value2 <> "Updated" Then Err.Raise 5, , "Reactive update"
+    sheet.Range("C2").Value2 = "User"
+    If Not context.Router.DispatchCells(sheet.Range("C2")) Then Err.Raise 5, , "Cell dispatch"
     If callbacks.Count <> 1 Then Err.Raise 5, , "Change command"
     If Not context.Router.DispatchShape("btn_HelloWorld") Then Err.Raise 5, , "Shape dispatch"
     If callbacks.Count <> 2 Then Err.Raise 5, , "Button command"
@@ -148,32 +156,32 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     Set otherSheet = ThisWorkbook.Worksheets.Add()
     otherSheet.Name = "OtherPage"
     Set otherDocument = CreateObject("MSXML2.DOMDocument.6.0")
-    If Not otherDocument.LoadXML("<page><grid><flow orientation='vertical'><control type='DraftForm' name='OtherForm' source='Draft' orientation='horizontal'>" & _
+    If Not otherDocument.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><flow orientation='vertical' dataContext='{Binding Path=Draft.Person}'><controls:draftform name='OtherForm' orientation='horizontal'>" & _
         "<field name='Accepted' label='Accepted' type='checkbox' required='true'/>" & _
-        "<field name='Name' label='Name' type='text' readOnly='true'/></control><stackPanel orientation='horizontal'><control type='Label' name='Tail1' text='Left' columnSpan='2'/><control type='Label' name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></grid></page>") Then Err.Raise 5, , "Test XML"
+        "<field name='Name' label='Name' type='text' readOnly='true'/></controls:draftform><stackPanel orientation='horizontal'><controls:label name='Tail1' text='Left' columnSpan='2'/><controls:label name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></grid></page>") Then Err.Raise 5, , "Test XML"
     otherDefinition.Initialize otherDocument, "OtherPage.xaml"
     otherBinding.Initialize
     otherBinding.TrySetPathValue "Draft", "Person.Name", "Nested"
     If Not ex_UiBindingRuntime.fn_TryParseBinding("{Binding Path=Person.Name}", _
         "Draft", resolvedSource, resolvedPath, otherBinding) Then Err.Raise 5, , "Nested parse"
     If resolvedSource <> "Draft" Or resolvedPath <> "Person.Name" Then Err.Raise 5, , "Nested source"
-    otherBinding.SetValue "Draft", "Accepted", False
-    otherBinding.SetValue "Draft", "Name", "Read only"
+    otherBinding.TrySetPathValue "Draft", "Person.Accepted", False
+    otherBinding.TrySetPathValue "Draft", "Person.Name", "Read only"
     otherContext.Initialize otherSheet, otherDefinition, uiFolder, otherBinding
     If Not otherContext.Build(diagnostic) Then Err.Raise 5, , diagnostic
     otherContext.Styles.BeginPage otherSheet, otherDocument, uiFolder
     If Not otherContext.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
     If otherSheet.Range("A2").Value2 <> "Left" Or otherSheet.Range("C2").Value2 <> "Right" Then Err.Raise 5, , "Nested stack layout"
-    If otherSheet.Range("I1").Value2 <> "Read only" Then Err.Raise 5, , "Horizontal layout"
-    otherBinding.SetValue "Draft", "Accepted", True
+    If otherSheet.Range("D1").Value2 <> "Read only" Then Err.Raise 5, , "Horizontal layout"
+    otherBinding.TrySetPathValue "Draft", "Person.Accepted", True
     If otherSheet.Shapes("chk_1").ControlFormat.Value <> xlOn Then Err.Raise 5, , "Checkbox refresh"
     otherSheet.Shapes("chk_1").ControlFormat.Value = xlOff
     If Not otherContext.Router.DispatchShape("chk_1") Then Err.Raise 5, , "Checkbox dispatch"
-    If otherSheet.Range("C1").Value2 <> False Then Err.Raise 5, , "Checkbox reverse binding"
-    otherSheet.Range("I1").Value2 = "Attempt"
-    If Not otherContext.Router.DispatchCells(otherSheet.Range("I1")) Then Err.Raise 5, , "Readonly dispatch"
+    If otherSheet.Range("B1").Value2 <> False Then Err.Raise 5, , "Checkbox reverse binding"
+    otherSheet.Range("D1").Value2 = "Attempt"
+    If Not otherContext.Router.DispatchCells(otherSheet.Range("D1")) Then Err.Raise 5, , "Readonly dispatch"
     If otherSheet.Range("A2").Value2 <> "Left" Or otherSheet.Range("C2").Value2 <> "Right" Then Err.Raise 5, , "Nested stack layout"
-    If otherSheet.Range("I1").Value2 <> "Read only" Then Err.Raise 5, , "Readonly restore"
+    If otherSheet.Range("D1").Value2 <> "Read only" Then Err.Raise 5, , "Readonly restore"
     Set errors = New Collection
     If otherContext.ValidateForm("OtherForm", errors) Or errors.Count <> 1 Then Err.Raise 5, , "Checkbox validation"
     bindingContext.SetValue "Text", "Title", "First page"
@@ -184,9 +192,58 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     context.Dispose
     context.Dispose
     bindingContext.SetValue "Form", "EventName", "After disposal"
-    If sheet.Range("D7").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"
+    If sheet.Range("C2").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"
+    CheckTables uiFolder
     Run = True
 End Function
+
+Private Sub CheckTables(ByVal uiFolder As String)
+    Dim binding As New obj_UiBindingContext
+    Dim context As New obj_UiRenderContext
+    Dim definition As New obj_UiPageDefinition
+    Dim first As New obj_UiRawTable
+    Dim second As New obj_UiRawTable
+    Dim tables As New obj_UiRawTableList
+    Dim document As Object
+    Dim sheet As Worksheet
+    Dim values(1 To 1, 1 To 2) As Variant
+    Dim diagnostic As String
+    Dim control As obj_IUiControl
+    Dim node As Object
+    Dim rows As Long, columns As Long
+
+    values(1, 1) = "One"
+    values(1, 2) = 10
+    first.Initialize values, Array("Name", "Value"), "First"
+    values(1, 1) = "Two"
+    second.Initialize values, Array("Name", "Value"), "Second"
+    tables.Initialize
+    tables.Add first
+    tables.Add second
+    binding.Initialize
+    binding.SetObject "Data", "Single", first
+    binding.SetObject "Data", "Many", tables
+    Set sheet = ThisWorkbook.Worksheets.Add()
+    Set document = CreateObject("MSXML2.DOMDocument.6.0")
+    If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:table name='Single' itemsSource='{Binding Path=Data.Single}' row='2' column='2'/><c:tableList name='Many' itemsSource='{Binding Path=Data.Many}' row='2' column='5' gapRows='2'/></grid></page>") Then Err.Raise 5, , "Table XML"
+    definition.Initialize document, "Tables.xaml"
+    context.Initialize sheet, definition, uiFolder, binding
+    If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
+    context.Styles.BeginPage sheet, document, uiFolder
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Range("B2").Value2 <> "First" Or sheet.Range("B4").Value2 <> "One" Then Err.Raise 5, , "Single table"
+    If sheet.Range("E2").Value2 <> "First" Or sheet.Range("E7").Value2 <> "Second" Or sheet.Range("E9").Value2 <> "Two" Then Err.Raise 5, , "Table list placement"
+    If sheet.Range("E5").Value2 <> "" Or sheet.Range("E6").Value2 <> "" Then Err.Raise 5, , "Table list gap"
+    Set node = document.documentElement.firstChild.firstChild.cloneNode(False)
+    node.setAttribute "itemsSource", "{Binding Path=Data.Many}"
+    node.setAttribute "type", "Table"
+    Set control = ex_UiControlFactory.fn_Create(node)
+    If Not control.Configure(node, context, "", diagnostic) Then Err.Raise 5, , diagnostic
+    If control.Measure(rows, columns, diagnostic) Then Err.Raise 5, , "Single table accepted multiple tables"
+    control.Dispose
+    context.Dispose
+    binding.Dispose
+End Sub
 
 Private Sub CheckMarkup(ByVal markup As String, ByVal expected As Boolean, ByVal member As String)
     Dim document As Object

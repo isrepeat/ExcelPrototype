@@ -169,7 +169,7 @@ Private Function private_ConfigureField( _
     labelNode.setAttribute "rowSpan", "1"
     labelNode.setAttribute "name", m_name & "_label"
     labelNode.setAttribute "text", ex_UiElementFactory.fn_Attribute(fieldNode, "label")
-    labelNode.setAttribute "columnSpan", private_Inherit(fieldNode, formNode, "labelColumnSpan", "2")
+    labelNode.setAttribute "columnSpan", private_Inherit(fieldNode, formNode, "labelColumnSpan", "1")
     labelNode.setAttribute "style", private_Inherit(fieldNode, formNode, "labelStyle", VBA.vbNullString)
     Set label = New obj_UiControlElement
     If Not label.Configure(labelNode, context, source, diagnostic) Then Exit Function
@@ -179,7 +179,7 @@ Private Function private_ConfigureField( _
     editorNode.setAttribute "inputType", kind
     editorNode.setAttribute "name", m_name & "_input"
     editorNode.setAttribute "value", rawValue
-    editorNode.setAttribute "columnSpan", private_Inherit(fieldNode, formNode, "columnSpan", "4")
+    editorNode.setAttribute "columnSpan", private_Inherit(fieldNode, formNode, "columnSpan", "1")
     editorNode.setAttribute "rowSpan", private_Inherit(fieldNode, formNode, "rowSpan", "1")
     editorNode.setAttribute "style", private_Inherit(fieldNode, formNode, "fieldStyle", VBA.vbNullString)
     editorNode.setAttribute "onChange", private_Inherit(fieldNode, formNode, "onChange", VBA.vbNullString)

@@ -17,20 +17,25 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_Register(ByVal tag As String, ByVal factory As obj_IUiElementFactory)
+Public Sub fn_Register(ByVal tag As String, ByVal factory As obj_IUiElementFactory, Optional ByVal namespaceUri As String = "urn:excelprototype:profiles")
     If m_factories Is Nothing Then
         Set m_factories = VBA.CreateObject("Scripting.Dictionary")
-        m_factories.CompareMode = VBA.vbTextCompare
+        m_factories.CompareMode = VBA.vbBinaryCompare
     End If
-    Set m_factories(tag) = factory
+    Set m_factories(namespaceUri & "|" & VBA.LCase$(tag)) = factory
 End Sub
 
-Public Function fn_TryGetSchema(ByVal name As String, ByRef schema As obj_UiMarkupSchema, ByRef diagnostic As String) As Boolean
+Public Function fn_TryGetSchema(ByVal name As String, ByRef schema As obj_UiMarkupSchema, ByRef diagnostic As String, Optional ByVal namespaceUri As String = "urn:excelprototype:profiles") As Boolean
     Dim provider As obj_IUiMarkupSchemaProvider
     Dim factory As obj_IUiElementFactory
 
     Set schema = Nothing
     private_Initialize
+    If namespaceUri = "urn:excelprototype:controls" Then
+        fn_TryGetSchema = ex_UiControlFactory.fn_TryGetSchema(name, schema, diagnostic, namespaceUri)
+        Exit Function
+    End If
+    name = namespaceUri & "|" & VBA.LCase$(name)
     If Not m_factories.Exists(name) Then
         diagnostic = "Unknown Element: " & name
         Exit Function
@@ -57,7 +62,19 @@ Public Function fn_Create( _
     Dim builtInFactory As obj_UiElementFactory
 
     private_Initialize
-    tag = VBA.CStr(definition.baseName)
+    If Not ex_UiBindingRuntime.fn_TryDataContext(fn_Attribute(definition, "dataContext"), _
+            source, context.BindingContext, source, diagnostic) Then Exit Function
+    If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then
+        Dim element As obj_IUiElement
+        Set element = New obj_UiControlElement
+        If element.Configure(definition, context, source, diagnostic) Then
+            Set fn_Create = element
+        Else
+            element.Dispose
+        End If
+        Exit Function
+    End If
+    tag = VBA.CStr(definition.namespaceURI) & "|" & VBA.LCase$(VBA.CStr(definition.baseName))
     If Not m_factories.Exists(tag) Then
         diagnostic = "Unsupported visual tag: " & tag
         Exit Function
@@ -107,12 +124,12 @@ Private Sub private_Initialize()
     If Not m_initialized Then
         If m_factories Is Nothing Then
             Set m_factories = VBA.CreateObject("Scripting.Dictionary")
-            m_factories.CompareMode = VBA.vbTextCompare
+            m_factories.CompareMode = VBA.vbBinaryCompare
         End If
-        For Each tag In VBA.Array("page", "grid", "stackPanel", "control")
+        For Each tag In VBA.Array("page", "grid", "stackPanel")
             Set builtInFactory = New obj_UiElementFactory
             builtInFactory.Initialize VBA.LCase$(VBA.CStr(tag))
-            If Not m_factories.Exists(VBA.CStr(tag)) Then fn_Register VBA.CStr(tag), builtInFactory
+            If Not m_factories.Exists("urn:excelprototype:profiles|" & VBA.LCase$(VBA.CStr(tag))) Then fn_Register VBA.CStr(tag), builtInFactory
         Next tag
         m_initialized = True
     End If

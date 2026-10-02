@@ -12,8 +12,8 @@ Option Explicit
 Private m_attributes As Object
 Private m_requiredAny As Collection
 Private m_children As Object
+Private m_controlChildren As Boolean
 Private m_visualChildren As Boolean
-Private m_dispatchControls As Boolean
 
 ' //
 ' // Lifecycle
@@ -22,7 +22,7 @@ Private Sub Class_Initialize()
     Set m_requiredAny = New Collection
     Set m_attributes = VBA.CreateObject("Scripting.Dictionary")
     Set m_children = VBA.CreateObject("Scripting.Dictionary")
-    m_children.CompareMode = VBA.vbTextCompare
+    m_children.CompareMode = VBA.vbBinaryCompare
 End Sub
 
 Private Sub Class_Terminate()
@@ -44,12 +44,12 @@ Public Property Get Children() As Object
     Set Children = m_children
 End Property
 
-Public Property Get VisualChildren() As Boolean
-    VisualChildren = m_visualChildren
+Public Property Get ControlChildren() As Boolean
+    ControlChildren = m_controlChildren
 End Property
 
-Public Property Get DispatchControls() As Boolean
-    DispatchControls = m_dispatchControls
+Public Property Get VisualChildren() As Boolean
+    VisualChildren = m_visualChildren
 End Property
 
 ' //
@@ -76,19 +76,21 @@ Public Sub AddChild( _
     ByVal tag As String, _
     ByVal schema As obj_UiMarkupSchema, _
     Optional ByVal minimum As Long = 0, _
-    Optional ByVal maximum As Long = -1 _
+    Optional ByVal maximum As Long = -1, _
+    Optional ByVal namespaceUri As String = "urn:excelprototype:profiles" _
 )
-    m_children(tag) = VBA.Array(schema, minimum, maximum)
+    m_children(namespaceUri & "|" & VBA.LCase$(tag)) = VBA.Array(schema, minimum, maximum)
 End Sub
 
 Public Sub AllowVisualChildren()
     m_visualChildren = True
 End Sub
 
-Public Sub ResolveControlType()
-    m_dispatchControls = True
-End Sub
 
 Public Sub RequireAnyAttribute(ByVal names As String)
     m_requiredAny.Add names
+End Sub
+
+Public Sub AllowControlChildren()
+    m_controlChildren = True
 End Sub
