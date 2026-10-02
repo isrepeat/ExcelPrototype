@@ -17,20 +17,21 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_Register(ByVal controlType As String, ByVal factory As obj_IUiControlFactory)
+Public Sub fn_Register(ByVal controlType As String, ByVal factory As obj_IUiControlFactory, Optional ByVal namespaceUri As String = "urn:excelprototype:controls")
     If m_factories Is Nothing Then
         Set m_factories = VBA.CreateObject("Scripting.Dictionary")
-        m_factories.CompareMode = VBA.vbTextCompare
+        m_factories.CompareMode = VBA.vbBinaryCompare
     End If
-    Set m_factories(controlType) = factory
+    Set m_factories(namespaceUri & "|" & VBA.LCase$(controlType)) = factory
 End Sub
 
-Public Function fn_TryGetSchema(ByVal name As String, ByRef schema As obj_UiMarkupSchema, ByRef diagnostic As String) As Boolean
+Public Function fn_TryGetSchema(ByVal name As String, ByRef schema As obj_UiMarkupSchema, ByRef diagnostic As String, Optional ByVal namespaceUri As String = "urn:excelprototype:controls") As Boolean
     Dim provider As obj_IUiMarkupSchemaProvider
     Dim factory As obj_IUiControlFactory
 
     Set schema = Nothing
     private_Initialize
+    name = namespaceUri & "|" & VBA.LCase$(name)
     If Not m_factories.Exists(name) Then
         diagnostic = "Unknown Control: " & name
         Exit Function
@@ -53,7 +54,7 @@ Public Function fn_Create(ByVal controlNode As Object) As obj_IUiControl
     Dim factory As obj_IUiControlFactory
 
     private_Initialize
-    controlType = ex_UiElementFactory.fn_Attribute(controlNode, "type")
+    controlType = "urn:excelprototype:controls|" & VBA.LCase$(ex_UiElementFactory.fn_Attribute(controlNode, "type"))
     If Not m_factories.Exists(controlType) Then Exit Function
     Set factory = m_factories(controlType)
     Set fn_Create = factory.Create()
@@ -70,12 +71,12 @@ Private Sub private_Initialize()
     Dim builtInFactory As obj_UiControlFactory
 
     If Not m_initialized Then
-        For Each builtInType In VBA.Array("Label", "Button", "Table", "Input", "Select", "Form")
+        For Each builtInType In VBA.Array("Label", "Button", "Table", "TableList", "Input", "Select", "Form")
             If m_factories Is Nothing Then
                 Set m_factories = VBA.CreateObject("Scripting.Dictionary")
-                m_factories.CompareMode = VBA.vbTextCompare
+                m_factories.CompareMode = VBA.vbBinaryCompare
             End If
-            If Not m_factories.Exists(builtInType) Then
+            If Not m_factories.Exists("urn:excelprototype:controls|" & VBA.LCase$(VBA.CStr(builtInType))) Then
                 Set builtInFactory = New obj_UiControlFactory
                 builtInFactory.Initialize VBA.CStr(builtInType)
                 fn_Register VBA.CStr(builtInType), builtInFactory

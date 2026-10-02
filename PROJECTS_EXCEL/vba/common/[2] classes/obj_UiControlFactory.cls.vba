@@ -37,6 +37,8 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
             Set control = New obj_UiButtonControl
         Case "table"
             Set control = New obj_UiTableControl
+        Case "tablelist"
+            Set control = New obj_UiTableListControl
         Case "form"
             Set control = New obj_UiFormControl
         Case "input", "select"
@@ -70,13 +72,12 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     Dim field As obj_UiMarkupSchema
 
     schema.AddAttribute "name", "string", False, "", False, 0
-    schema.AddAttribute "source", "string", False, "", True, 0
+    schema.AddAttribute "dataContext", "context", False, "", True, 0
     schema.AddAttribute "row", "positive", False, "", False, 0
     schema.AddAttribute "column", "positive", False, "", False, 0
     schema.AddAttribute "rowSpan", "positive", False, "", False, 0
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "name", "string", True, "", False, 0
-    schema.AddAttribute "type", "string", True, "", False, 0
     schema.AddAttribute "style", "string", False, "", True, 0
 
     Select Case m_type
@@ -87,10 +88,10 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             If m_type = "button" Then
                 schema.AddAttribute "command", "string", False, "", True
             End If
-        Case "table"
-            schema.RequireAnyAttribute "source|itemsSource"
+        Case "table", "tablelist"
+            schema.RequireAnyAttribute "itemsSource"
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
-            schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
+            If m_type = "tablelist" Then schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
             schema.AddAttribute "showHeaders", "boolean", False, "", False, 0
 
         Case "input", "select"
@@ -109,7 +110,6 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemMargin", "number", False, "", False, 0
 
         Case "form"
-            schema.AddAttribute "source", "string", True, "", False, 0
             schema.AddAttribute "orientation", "enum", True, "horizontal|vertical", False, 0
             schema.AddAttribute "labelColumnSpan", "positive", False, "", False, 0
             schema.AddAttribute "columnSpan", "positive", False, "", False, 0
@@ -121,7 +121,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "readOnly", "boolean", False, "", False, 0
             Set field = private_FieldSchema()
             schema.AddChild "field", field
-            schema.AddChild "control", Nothing
+            schema.AllowControlChildren
         Case Else
             Exit Function
     End Select

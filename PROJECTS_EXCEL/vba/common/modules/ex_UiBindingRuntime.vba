@@ -64,12 +64,16 @@ Public Function fn_TryParseBinding( _
 ) As Boolean
     Dim bindingBody As String
     Dim separatorPosition As Long
+    Dim rootSource As Boolean
     Dim qualified As Boolean
+    Dim contextPosition As Long
+    Dim contextPath As String
 
     outSourceName = VBA.vbNullString
     outBindingPath = VBA.vbNullString
     If Not private_TryExtractBindingBody(VBA.Trim$(rawBinding), bindingBody) Then Exit Function
     If Not private_TryReadArgument(bindingBody, "Path", outBindingPath) Then Exit Function
+    If Not context Is Nothing Then rootSource = context.HasSource(outBindingPath)
     If Not private_TryReadArgument(bindingBody, "Source", outSourceName) Then
         separatorPosition = VBA.InStr(1, outBindingPath, ".", VBA.vbBinaryCompare)
         qualified = (separatorPosition > 0)
@@ -79,11 +83,53 @@ Public Function fn_TryParseBinding( _
         If qualified Then
             outSourceName = VBA.Trim$(VBA.Left$(outBindingPath, separatorPosition - 1))
             outBindingPath = VBA.Trim$(VBA.Mid$(outBindingPath, separatorPosition + 1))
+        ElseIf rootSource Then
+            outSourceName = outBindingPath
+            outBindingPath = VBA.vbNullString
         Else
-            outSourceName = defaultSource
+            contextPosition = VBA.InStr(1, defaultSource, ".", VBA.vbBinaryCompare)
+            If contextPosition > 0 Then
+                outSourceName = VBA.Left$(defaultSource, contextPosition - 1)
+                contextPath = VBA.Mid$(defaultSource, contextPosition + 1)
+                outBindingPath = contextPath & "." & outBindingPath
+            Else
+                outSourceName = defaultSource
+            End If
         End If
     End If
-    fn_TryParseBinding = (VBA.Len(outSourceName) > 0 And VBA.Len(outBindingPath) > 0)
+    fn_TryParseBinding = (VBA.Len(outSourceName) > 0)
+End Function
+
+Public Function fn_TryDataContext( _
+    ByVal raw As String, _
+    ByVal inheritedContext As String, _
+    ByVal context As obj_UiBindingContext, _
+    ByRef resolvedContext As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim source As String, path As String
+    Dim value As Variant, sourceObject As Object, isObject As Boolean
+
+    resolvedContext = inheritedContext
+    If VBA.Len(raw) = 0 Then
+        fn_TryDataContext = True
+        Exit Function
+    End If
+    If Not fn_TryParseBinding(raw, inheritedContext, source, path, context) Then
+        diagnostic = "dataContext requires a Binding expression: " & raw
+        Exit Function
+    End If
+    If Not context.TryGetValue(source, path, value, sourceObject, isObject) Then
+        diagnostic = "dataContext was not found: " & raw
+        Exit Function
+    End If
+    If Not isObject Then
+        diagnostic = "dataContext must resolve to an object: " & raw
+        Exit Function
+    End If
+    resolvedContext = source
+    If VBA.Len(path) > 0 Then resolvedContext = source & "." & path
+    fn_TryDataContext = True
 End Function
 
 Public Function fn_TryResolveValue( _

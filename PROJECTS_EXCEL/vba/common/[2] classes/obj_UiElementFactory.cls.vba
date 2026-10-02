@@ -67,15 +67,13 @@ Public Function Create( _
             Set element = New obj_UiGridElement
         Case "stackpanel"
             Set element = New obj_UiStackPanelElement
-        Case "control"
-            Set element = New obj_UiControlElement
     End Select
     If element Is Nothing Then Exit Function
     If Not element.Configure(definition, context, source, diagnostic) Then
         element.Dispose
         Exit Function
     End If
-    If m_kind <> "control" Then context.RegisterElement ex_UiElementFactory.fn_Attribute(definition, "name"), element
+    context.RegisterElement ex_UiElementFactory.fn_Attribute(definition, "name"), element
     Set Create = element
     Exit Function
 EH_CONFIGURE:
@@ -92,7 +90,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     Select Case m_kind
         Case "page"
             schema.AddAttribute "name", "string", False, "", False, 0
-            schema.AddAttribute "source", "string", False, "", True, 0
+            schema.AddAttribute "dataContext", "context", False, "", True, 0
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "version", "positive", False, "", False, 0
@@ -100,21 +98,18 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddChild "styles", private_StylesSchema(), 0, 1
         Case "grid"
             schema.AddAttribute "name", "string", False, "", False, 0
-            schema.AddAttribute "source", "string", False, "", True, 0
+            schema.AddAttribute "dataContext", "context", False, "", True, 0
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "anchorCell", "string", False, "", False, 0
             schema.AllowVisualChildren
         Case "stackpanel"
             schema.AddAttribute "name", "string", False, "", False, 0
-            schema.AddAttribute "source", "string", False, "", True, 0
+            schema.AddAttribute "dataContext", "context", False, "", True, 0
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "orientation", "enum", True, "horizontal|vertical", False, 0
             schema.AllowVisualChildren
-        Case "control"
-            schema.AddAttribute "type", "string", True
-            schema.ResolveControlType
         Case Else
             Exit Function
     End Select

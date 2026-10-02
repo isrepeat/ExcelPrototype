@@ -1,84 +1,79 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<page xmlns="urn:excelprototype:profiles" version="1">
+<page xmlns="urn:excelprototype:profiles"
+      xmlns:controls="
+      urn:excelprototype:controls" version="1">
   <grid anchorCell="A1">
-    <control type="Label"
-             name="Title"
-             text="{Binding Path=Text.Title}"
-             row="1"
-             column="1"
-             columnSpan="8"
-             style="{Binding Path=Resources.PageTitle}"/>
+    <controls:label name="Title"
+                    text="{Binding Path=Text.Title}"
+                    row="1"
+                    column="1"
+                    columnSpan="8"
+                    style="{Binding Path=Resources.PageTitle}"/>
 
-    <control type="Button"
-             name="HelloWorld"
-             caption="{Binding Path=Text.HelloWorld}"
-             row="3"
-             column="5"
-             rowSpan="2"
-             columnSpan="3"
-             style="secondaryButton"
-             command="{Binding Path=Commands.HelloWorldCommand}"/>
+    <controls:button name="HelloWorld"
+                     row="3"
+                     column="8"
+                     rowSpan="2"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.HelloWorld}"
+                     command="{Binding Path=Commands.HelloWorldCommand}"/>
 
-    <control type="Button"
-             name="UpdatePage"
-             caption="{Binding Path=Text.UpdatePage}"
-             row="3"
-             column="2"
-             rowSpan="2"
-             columnSpan="2"
-             style="secondaryButton"
-             command="{Binding Path=Commands.UpdatePageCommand}"/>
+    <controls:button name="UpdatePage"
+                     row="3"
+                     column="5"
+                     rowSpan="2"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.UpdatePage}"
+                     command="{Binding Path=Commands.UpdatePageCommand}"/>
 
-    <control type="Button"
-             name="GenerateTables"
-             caption="{Binding Path=Text.GenerateTables}"
-             row="3"
-             column="8"
-             rowSpan="2"
-             columnSpan="3"
-             style="{Binding Path=Resources.PrimaryButton}"
-             command="{Binding Path=Commands.GenerateTablesCommand}"/>
+    <controls:button name="GenerateTables"
+                     row="3"
+                     column="11"
+                     rowSpan="2"
+                     columnSpan="3"
+                     style="{Binding Path=Resources.PrimaryButton}"
+                     caption="{Binding Path=Text.GenerateTables}"
+                     command="{Binding Path=Commands.GenerateTablesCommand}"/>
 
-    <control type="table"
-             name="GeneratedTables"
-             source="{Binding Path=Data.Tables}"
-             row="14"
-             column="2"
-             showHeaders="true"
-             gapRows="1"/>
+    <controls:tableList name="GeneratedTables"
+                        itemsSource="{Binding Path=Data.Tables}"
+                        row="14"
+                        column="2"
+                        showHeaders="true"
+                        gapRows="1"/>
 
-    <control type="Form" name="EventDraftForm"
-          source="Form"
-          row="7"
-          column="2"
-          orientation="vertical"
-          labelPosition="left"
-          labelColumnSpan="2"
-          columnSpan="4"
-          labelStyle="formLabel"
-          fieldStyle="formField"
-          onChange="{Binding Path=Commands.FormChangedCommand}">
+    <controls:form name="EventDraftForm"
+                   dataContext="{Binding Path=Form}"
+                   row="2"
+                   column="2"
+                   orientation="horizontal"
+                   labelPosition="left"
+                   labelStyle="formLabel"
+                   fieldStyle="formField"
+                   onChange="{Binding Path=Commands.FormChangedCommand}">
       <field name="EventName"
              label="Event name"
              type="text"
              required="true"/>
+
       <field name="Category"
              label="Category"
              type="select"
              itemsSource="{Binding Path=Data.EventTypes}"
              panelStyle="formSelectPanel"
              itemStyle="formSelectItem"/>
+
       <field name="Notes"
              label="Notes"
-             type="text"
-             rowSpan="3"/>
-      <control type="Button"
-               name="SubmitEventDraft"
-               caption="Submit form"
-               columnSpan="2"
-               style="primaryButton"
-               command="{Binding Path=Commands.SubmitFormCommand}"/>
-    </control>
+             type="text"/>
+
+      <controls:button name="SubmitEventDraft"
+                       caption="Submit form"
+                       style="primaryButton"
+                       command="{Binding Path=Commands.SubmitFormCommand}"/>
+    </controls:form>
   </grid>
 
   <styles>

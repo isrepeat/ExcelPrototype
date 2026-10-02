@@ -50,9 +50,8 @@ Private Function obj_IUiControl_Configure( _
     Dim panelNode As Object
 
     m_name = ex_UiElementFactory.fn_Attribute(definition, "name")
-    source = ex_UiElementFactory.fn_Attribute(definition, "source")
     If VBA.Len(m_name) = 0 Or VBA.Len(source) = 0 Then
-        diagnostic = "Form requires name and source."
+        diagnostic = "Form requires name and dataContext (local or inherited)."
         Exit Function
     End If
     Set m_context = context
@@ -66,19 +65,20 @@ Private Function obj_IUiControl_Configure( _
     If Not m_panel.Configure(panelNode, context, source, diagnostic) Then Exit Function
     For Each node In definition.ChildNodes
         If node.NodeType = 1 Then
-            Select Case VBA.LCase$(VBA.CStr(node.baseName))
-                Case "field"
+            Select Case VBA.CStr(node.namespaceURI) & "|" & VBA.LCase$(VBA.CStr(node.baseName))
+                Case "urn:excelprototype:profiles|field"
                     Set child = New obj_UiFormField
                     If Not child.Configure(node, context, source, diagnostic) Then
                         child.Dispose
                         Exit Function
                     End If
-                Case "control"
+                Case Else
+                    If VBA.CStr(node.namespaceURI) <> "urn:excelprototype:controls" Then
+                        diagnostic = "Form only accepts field and controls namespace children: " & m_name
+                        Exit Function
+                    End If
                     Set child = ex_UiElementFactory.fn_Create(node, context, source, diagnostic)
                     If child Is Nothing Then Exit Function
-                Case Else
-                    diagnostic = "Form only accepts field and control children: " & m_name
-                    Exit Function
             End Select
             container.AddChild child
         End If

@@ -33,9 +33,9 @@ Public Function Validate(ByVal root As Object, ByVal errors As Collection) As Bo
     initialCount = errors.Count
     If root Is Nothing Then
         private_AddError errors, "/", "", "Root element is required."
-    ElseIf VBA.LCase$(VBA.CStr(root.baseName)) <> "page" Then
+    ElseIf VBA.LCase$(VBA.CStr(root.baseName)) <> "page" Or VBA.CStr(root.namespaceURI) <> "urn:excelprototype:profiles" Then
         private_AddError errors, "/", VBA.CStr(root.baseName), "Root must be page."
-    ElseIf Not ex_UiElementFactory.fn_TryGetSchema(VBA.CStr(root.baseName), schema, diagnostic) Then
+    ElseIf Not ex_UiElementFactory.fn_TryGetSchema(VBA.CStr(root.baseName), schema, diagnostic, VBA.CStr(root.namespaceURI)) Then
         private_AddError errors, "/page", "", diagnostic
     Else
         private_ValidateNode root, schema, "/page", errors
@@ -64,18 +64,12 @@ Private Sub private_ValidateNode(ByVal node As Object, ByVal schema As obj_UiMar
     Dim key As Variant
     Dim rule As Variant
     Dim value As String
+    Dim namespaceUri As String
+    Dim localName As String
     Dim tag As String
     Dim childPath As String
     Dim diagnostic As String
 
-    If schema.DispatchControls Then
-        value = ex_UiElementFactory.fn_Attribute(node, "type")
-        If Not ex_UiControlFactory.fn_TryGetSchema(value, childSchema, diagnostic) Then
-            private_AddError errors, path, "type", diagnostic
-            Exit Sub
-        End If
-        Set schema = childSchema
-    End If
     For Each attributeNode In node.Attributes
         key = VBA.CStr(attributeNode.nodeName)
         If key <> "xmlns" And VBA.Left$(key, 6) <> "xmlns:" Then
@@ -103,13 +97,15 @@ Private Sub private_ValidateNode(ByVal node As Object, ByVal schema As obj_UiMar
         If Not found Then private_AddError errors, path, VBA.CStr(alternative), "At least one attribute is required."
     Next alternative
     Set counts = VBA.CreateObject("Scripting.Dictionary")
-    counts.CompareMode = VBA.vbTextCompare
+    counts.CompareMode = VBA.vbBinaryCompare
     For Each child In node.ChildNodes
         If child.NodeType = 1 Then
-            tag = VBA.CStr(child.baseName)
+            localName = VBA.CStr(child.baseName)
+            namespaceUri = VBA.CStr(child.namespaceURI)
+            tag = namespaceUri & "|" & VBA.LCase$(localName)
             If Not counts.Exists(tag) Then counts(tag) = 0
             counts(tag) = counts(tag) + 1
-            childPath = path & "/" & tag & "[" & VBA.CStr(counts(tag)) & "]"
+            childPath = path & "/" & VBA.CStr(child.nodeName) & "[" & VBA.CStr(counts(tag)) & "]"
             value = ex_UiElementFactory.fn_Attribute(child, "name")
             If VBA.Len(value) > 0 Then childPath = childPath & "[@name='" & value & "']"
             Set childSchema = Nothing
@@ -117,10 +113,10 @@ Private Sub private_ValidateNode(ByVal node As Object, ByVal schema As obj_UiMar
                 rule = schema.Children(tag)
                 Set childSchema = rule(0)
                 If childSchema Is Nothing Then
-                    If Not ex_UiElementFactory.fn_TryGetSchema(tag, childSchema, diagnostic) Then private_AddError errors, childPath, tag, diagnostic
+                    If Not ex_UiElementFactory.fn_TryGetSchema(localName, childSchema, diagnostic, namespaceUri) Then private_AddError errors, childPath, tag, diagnostic
                 End If
-            ElseIf schema.VisualChildren And VBA.LCase$(tag) <> "page" Then
-                If Not ex_UiElementFactory.fn_TryGetSchema(tag, childSchema, diagnostic) Then private_AddError errors, childPath, tag, diagnostic
+            ElseIf (schema.VisualChildren And Not (namespaceUri = "urn:excelprototype:profiles" And localName = "page")) Or (schema.ControlChildren And namespaceUri = "urn:excelprototype:controls") Then
+                If Not ex_UiElementFactory.fn_TryGetSchema(localName, childSchema, diagnostic, namespaceUri) Then private_AddError errors, childPath, tag, diagnostic
             Else
                 private_AddError errors, childPath, tag, "Child element is not allowed here."
             End If
@@ -150,6 +146,7 @@ Private Function private_AttributeValid(ByVal value As String, ByVal rule As Var
         private_AttributeValid = ex_UiBindingRuntime.fn_TryParseBinding(value, "__scope", source, path)
         Exit Function
     End If
+    If rule(0) = "context" Then Exit Function
     If rule(4) > 0 Then
         If VBA.Len(value) > rule(4) Then Exit Function
     End If

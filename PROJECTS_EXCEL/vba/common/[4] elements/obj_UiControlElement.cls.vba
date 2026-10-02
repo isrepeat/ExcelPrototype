@@ -40,10 +40,12 @@ Private Function obj_IUiElement_Configure( _
     Dim bindingPath As String
 
     Set m_definition = definition.cloneNode(True)
+    If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then _
+        m_definition.setAttribute "type", VBA.CStr(definition.baseName)
     Set m_context = context
     Set m_bindingContext = context.BindingContext
     For Each attributeNode In m_definition.Attributes
-        If VBA.StrComp(VBA.Left$(VBA.Trim$(VBA.CStr(attributeNode.Text)), 9), _
+        If attributeNode.nodeName <> "dataContext" And VBA.StrComp(VBA.Left$(VBA.Trim$(VBA.CStr(attributeNode.Text)), 9), _
                 "{Binding ", VBA.vbTextCompare) = 0 Then
             If Not ex_UiBindingRuntime.fn_TryParseBinding(VBA.CStr(attributeNode.Text), _
                     source, bindingSource, bindingPath, context.BindingContext) Then

@@ -219,11 +219,11 @@ ArrangePanel повторно измеряет детей, передаёт ка
 
 Контрол type="Form" требует name, source и orientation. Отдельного визуального тега form больше нет. Непосредственные дети — field и control. Вложенный stackPanel не нужен: obj_UiFormControl использует obj_UiStackPanelElement внутри как алгоритм последовательного расположения.
 
-source="Form" выбирает источник коротких привязок детей. Атрибут не создаёт источник и не заполняет данные.
+dataContext="{Binding Path=Form}" выбирает источник коротких привязок детей. Атрибут не создаёт источник и не заполняет данные.
 
 ~~~xml
 <control type="Form" name="EventDraftForm"
-      source="Form"
+      dataContext="{Binding Path=Form}"
       row="7"
       column="2"
       orientation="vertical"
@@ -320,7 +320,7 @@ command="{Binding Path=Commands.GenerateTablesCommand}"
 value="{Binding Path=Form.EventName}"
 ~~~
 
-Внутри source="Form" доступен короткий путь:
+Внутри dataContext="{Binding Path=Form}" доступен короткий путь:
 
 ~~~xml
 value="{Binding Path=EventName}"
@@ -623,3 +623,76 @@ Page разрешает ровно один grid и не более одного
 Схема Page содержит AddChild "grid", Nothing, 1, 1 и AddChild "styles", metadata, 0, 1. Первый аргумент обозначает дочерний тег, второй — объект правил для этого узла, последние два — минимальное и максимальное количество непосредственных детей. Nothing для grid означает получение схемы из зарегистрированной фабрики Grid. metadata — локальная схема, возвращаемая private_StylesSchema: она разрешает controlStyle и stylePipelineStage, а вложенные схемы описывают layer и rule с их атрибутами. Это объект правил, а не содержимое XML или данные стилей.
 
 При встрече styles валидатор берёт metadata из правила Page, передаёт её вместе с XML-узлом styles в рекурсивную проверку и повторяет тот же алгоритм для его детей. XML остаётся неизменным; привязки Binding здесь не используются. Ограничение name для самой Page снято, поскольку она не создаёт Shape с префиксом btn_.
+
+## 23. Теги контролов в XML namespace
+
+В актуальной разметке общий control с атрибутом type заменён тегами controls:form, controls:button, controls:label, controls:input, controls:select и controls:table. В XML используется одно двоеточие. Префикс controls связан с urn:excelprototype:controls; стандартные page, grid, stackPanel, field и styles используют urn:excelprototype:profiles.
+
+~~~xml
+<page xmlns="urn:excelprototype:profiles"
+      xmlns:controls="urn:excelprototype:controls">
+  <grid>
+    <controls:form name="Draft" dataContext="{Binding Path=Form}" orientation="vertical">
+      <field name="Title" label="Название" type="text"/>
+      <controls:button name="Save" caption="Сохранить"/>
+    </controls:form>
+  </grid>
+</page>
+~~~
+
+Фабрика выбирается по namespaceURI и localName. Префикс можно заменить любым другим, связанным с тем же URI. URI сравнивается с учётом регистра. Имена зарегистрированных тегов сохраняют прежнюю нечувствительность к регистру. fn_Register у фабрик принимает необязательный namespaceUri; по умолчанию используются URI соответствующего реестра.
+
+Для namespace контролов ex_UiElementFactory создаёт obj_UiControlElement. Тот записывает localName во внутренний атрибут type изолированной копии описания, чтобы конкретные контролы и селекторы стилей могли использовать своё внутреннее представление. Исходная разметка type не содержит. Общая схема control и механизм DispatchControls удалены: схема запрашивается непосредственно у фабрики именованного контрола.
+
+Правила AddChild содержат namespaceUri, по умолчанию profiles. Валидатор считает детей и разрешает локальные схемы по паре URI и имени. Form разрешает field из profiles и зарегистрированные теги namespace controls. Старый control type и неизвестные namespace отвергаются. Предыдущие примеры с control type в этом документе описывают этап до миграции; для текущей разметки используется синтаксис этого раздела.
+
+## 24. Одиночная таблица и список таблиц
+
+`controls:table` (`obj_UiTableControl`) отрисовывает ровно одну таблицу из источника `obj_IUiTableSource`. Источник `obj_UiRawTable` возвращает одну таблицу; источник с нулём или несколькими таблицами отклоняется при измерении.
+
+`controls:tableList` (`obj_UiTableListControl`) принимает тот же контракт источника, включая `obj_UiRawTableList`. Атрибут `gapRows` определяет число пустых строк между таблицами и поддерживается только списком. Пустой список занимает одну ячейку и ничего не выводит.
+
+```xml
+<controls:table name="EventTable"
+                itemsSource="{Binding Path=Data.EventTable}"
+                showHeaders="true"/>
+
+<controls:tableList name="GeneratedTables"
+                    itemsSource="{Binding Path=Data.Tables}"
+                    gapRows="1"
+                    showHeaders="true"/>
+```
+
+Стек вызовов списка: `obj_IUiControl.Measure` → разрешение источника → `GetTable(index)` → фабрика одиночного `table` → `obj_IUiTableTarget.SetTable` → `obj_IUiControl.Configure` → `Measure`. Список хранит дочерние контролы и их высоты. `Arrange` размещает их сверху вниз с учётом `gapRows`; `Render` и `Validate` делегируются каждому дочернему контролу. При повторном измерении старые дочерние контролы освобождаются и список строится заново из текущего источника. `Dispose` освобождает детей, но не уничтожает принадлежащие приложению таблицы данных.
+
+`obj_IUiTableTarget` — отдельный интерфейс передачи одной таблицы внутреннему контролу. Он позволяет обходиться без временных источников в общем binding-контексте. Все операции жизненного цикла и рендера проходят через `obj_IUiControl`.
+
+Каждый дочерний `table` самостоятельно пишет название, заголовки и значения и применяет стиль через каталог страницы. `style` и `showHeaders` списка наследуются его дочерними таблицами; отдельные шаблоны для каждого элемента списка пока не предусмотрены. Исходный XML не изменяется: список создаёт копии определения для своих детей.
+
+## 25. Контекст данных и источник элементов
+
+Атрибут `source` удалён из схем визуальных тегов и контролов: валидатор отклоняет старую разметку. Вместо него используются `dataContext` и `itemsSource`.
+
+`dataContext` задаёт объект, относительно которого разрешаются короткие пути привязок. Значение задаётся выражением Binding, например `{Binding Path=Form}` или `{Binding Path=Data.Draft}`. Контекст наследуется через `page`, `grid`, `stackPanel` и составные контролы. Собственный `dataContext` заменяет унаследованный для элемента и его детей. Форме достаточно унаследованного контекста; обязательного локального атрибута нет. При построении дерева проверяется, что заданный контекст существует и является объектом.
+
+```xml
+<grid dataContext="{Binding Path=Data.Draft}">
+    <controls:form name="DraftForm"
+                   orientation="vertical">
+        <field name="EventName"
+               label="Название"
+               type="text"
+               value="{Binding Path=EventName}"/>
+    </controls:form>
+</grid>
+```
+
+Здесь `EventName` разрешается как источник `Data`, путь `Draft.EventName`. Вложенный путь `Person.Name` разрешается как `Draft.Person.Name`. Если первый сегмент пути совпадает с зарегистрированным runtime-источником (например, `Commands` или `Resources`), путь считается абсолютным. Привязки команд и ресурсов поэтому работают внутри формы независимо от её контекста.
+
+`itemsSource` задаёт данные конкретного контрола и не меняет контекст его детей. Для `table` требуется одна таблица, для `tableList` допускается коллекция, для `select` — источник вариантов выбора. Контролы по-прежнему сохраняют собственные контракты этих данных.
+
+Разрешение контекста централизовано в `ex_UiElementFactory.fn_Create` → `ex_UiBindingRuntime.fn_TryDataContext`, до вызова `Configure`. Внутри текущего контракта Configure унаследованный контекст передаётся строкой полного пути; runtime-парсер разделяет имя зарегистрированного источника и вложенный путь. Это не создаёт дополнительных runtime-источников. Чтение объекта зарегистрированного источника без вложенного пути поддерживает `BindingContext.TryGetValue`.
+
+При изменении поля обратная привязка записывает полный разрешённый путь, а уведомления BindingContext обновляют отображаемые значения. Прямые изменения произвольного VBA-объекта без уведомления BindingContext автоматически не наблюдаются. Смена самого атрибута dataContext в XML требует повторного построения дерева.
+
+`Source` внутри внутреннего нормализованного выражения `{Binding Source=Data; Path=Draft.EventName}` обозначает имя runtime-источника и не является атрибутом разметки. Более ранние описания архитектуры с атрибутом `source` следует читать как историю реализации; актуальные правила приведены в этом разделе.
