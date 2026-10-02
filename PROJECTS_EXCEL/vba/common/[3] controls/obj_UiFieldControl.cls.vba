@@ -12,6 +12,9 @@ Option Explicit
 Implements obj_IUiControl
 Implements obj_IUiEventHandler
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private Const SELECT_SHAPE_PREFIX As String = "sel_"
 Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
@@ -28,7 +31,6 @@ Private m_readOnly As Boolean
 Private WithEvents m_cellBinding As obj_UiCellBinding
 Private m_selectAction As obj_UiSelectShapeAction
 Private m_checkboxShape As Shape
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -45,9 +47,12 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
     obj_IUiControl_Initialize = m_uiControlBase.Initialize()
+    m_isInitialized = obj_IUiControl_Initialize
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -147,8 +152,11 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
     If Not m_selectAction Is Nothing Then m_selectAction.Dispose
     Set m_cellBinding = Nothing

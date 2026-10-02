@@ -11,9 +11,11 @@ Option Explicit
 
 Implements obj_IUiEventHandler
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_target As Object
 Private m_methodName As String
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -46,7 +48,9 @@ End Property
 ' // API
 ' //
 Public Function Initialize(ByVal target As Object, ByVal methodName As String) As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Set m_target = target
     m_methodName = VBA.Trim$(methodName)
     If m_target Is Nothing Or VBA.Len(m_methodName) = 0 Then
@@ -54,11 +58,15 @@ Public Function Initialize(ByVal target As Object, ByVal methodName As String) A
         Exit Function
     End If
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_target = Nothing
     m_methodName = VBA.vbNullString
 End Sub

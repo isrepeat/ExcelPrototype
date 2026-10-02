@@ -9,10 +9,15 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-Private m_document As Object
-Private m_xamlPath As String
+Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_document As Object
+Private m_xamlPath As String
+
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -35,18 +40,24 @@ End Property
 ' // API
 ' //
 Public Function Initialize(ByVal document As Object, ByVal xamlPath As String) As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If document Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(xamlPath)) = 0 Then Exit Function
 
     Set m_document = document
     m_xamlPath = xamlPath
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_document = Nothing
     m_xamlPath = VBA.vbNullString
 End Sub

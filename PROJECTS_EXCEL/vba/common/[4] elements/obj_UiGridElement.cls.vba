@@ -12,6 +12,9 @@ Option Explicit
 Implements obj_IUiElement
 Implements obj_IUiContainer
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_axisRows As obj_UiGridAxis
 Private m_axisColumns As obj_UiGridAxis
 Private m_slots As Collection
@@ -46,7 +49,12 @@ Private Function obj_IUiElement_Configure( _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        diagnostic = "Element is already initialized or disposed."
+        Exit Function
+    End If
     obj_IUiElement_Configure = private_ConfigurePanel(definition, context, source, diagnostic)
+    m_isInitialized = obj_IUiElement_Configure
 End Function
 
 Private Function obj_IUiElement_Measure( _
@@ -89,6 +97,11 @@ End Sub
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     private_DisposePanel
 End Sub
 

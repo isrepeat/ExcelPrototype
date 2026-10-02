@@ -11,6 +11,9 @@ Option Explicit
 
 Implements obj_IUiEventHandler
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_controlId As Long
 Private m_worksheet As Worksheet
 Private m_targetCell As Range
@@ -22,7 +25,6 @@ Private m_items As Collection
 Private m_selectedValue As String
 Private WithEvents m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -77,6 +79,9 @@ Public Function Initialize( _
     ByVal selectedValue As String, _
     ByVal uiCellBinding As obj_UiCellBinding _
 ) As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If controlId <= 0 Or targetCell Is Nothing Then Exit Function
     If itemShapeNames Is Nothing Or shapeNames Is Nothing Or items Is Nothing Then Exit Function
     If uiCellBinding Is Nothing Then Exit Function
@@ -95,13 +100,16 @@ Public Function Initialize( _
     m_selectedValue = selectedValue
     Set m_uiCellBinding = uiCellBinding
     m_isExpanded = False
-    m_isDisposed = False
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_uiCellBinding = Nothing
     Set m_items = Nothing
     Set m_shapeNames = Nothing

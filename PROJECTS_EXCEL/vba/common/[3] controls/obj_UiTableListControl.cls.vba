@@ -11,6 +11,9 @@ Option Explicit
 
 Implements obj_IUiControl
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_context As obj_UiRenderContext
 Private m_definition As Object
 Private m_base As obj_UiControlBase
@@ -32,10 +35,14 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Set m_base = New obj_UiControlBase
     Set m_children = New Collection
     Set m_sizes = New Collection
     obj_IUiControl_Initialize = m_base.Initialize()
+    m_isInitialized = obj_IUiControl_Initialize
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -138,6 +145,11 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     private_ClearChildren
     Set m_children = Nothing
     Set m_sizes = Nothing

@@ -11,22 +11,29 @@ Option Explicit
 
 Implements obj_IPage
 
-Private m_pageBase As obj_PageBase
-Private m_controller As obj_PEB_PgMainController
+Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_pageBase As obj_PageBase
+Private m_controller As obj_PEB_PgMainController
+
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    obj_IPage_Dispose
+    Me.Dispose
 End Sub
 
 ' //
 ' // Interface
 ' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Set m_pageBase = New obj_PageBase
     If Not m_pageBase.Initialize(profileId, VBA.Trim$(profileId)) Then Exit Function
     If Not private_TryRegisterBindings() Then Exit Function
@@ -34,6 +41,7 @@ Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
     If Not m_controller.Initialize(m_pageBase) Then Exit Function
     If Not private_TryRegisterCommands() Then Exit Function
     obj_IPage_Initialize = True
+    m_isInitialized = obj_IPage_Initialize
 End Function
 
 Private Function obj_IPage_Render() As Boolean
@@ -47,8 +55,18 @@ Private Function obj_IPage_HandleCellChange(ByVal target As Range) As Boolean
 End Function
 
 Private Sub obj_IPage_Dispose()
-    If m_isDisposed Then Exit Sub
+    Me.Dispose
+End Sub
+
+' //
+' // API
+' //
+Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     If Not m_controller Is Nothing Then m_controller.Dispose
     Set m_controller = Nothing
     If Not m_pageBase Is Nothing Then m_pageBase.Dispose

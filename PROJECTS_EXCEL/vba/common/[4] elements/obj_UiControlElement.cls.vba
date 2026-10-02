@@ -12,6 +12,9 @@ Option Explicit
 Implements obj_IUiElement
 Implements obj_IUiLayoutSlot
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_definition As Object
 Private m_intrinsicRows As String
 Private m_intrinsicColumns As String
@@ -42,6 +45,10 @@ Private Function obj_IUiElement_Configure( _
     Dim bindingSource As String
     Dim bindingPath As String
 
+    If m_isDisposed Or m_isInitialized Then
+        diagnostic = "Element is already initialized or disposed."
+        Exit Function
+    End If
     Set m_definition = definition.cloneNode(True)
     m_intrinsicRows = ex_UiElementFactory.fn_Attribute(definition, "rowSpan")
     m_intrinsicColumns = ex_UiElementFactory.fn_Attribute(definition, "columnSpan")
@@ -71,6 +78,7 @@ Private Function obj_IUiElement_Configure( _
     End If
     context.RegisterElement ex_UiElementFactory.fn_Attribute(definition, "name"), Me
     obj_IUiElement_Configure = True
+    m_isInitialized = obj_IUiElement_Configure
 End Function
 
 Private Function obj_IUiElement_Measure( _
@@ -124,6 +132,11 @@ End Sub
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     If Not m_control Is Nothing Then m_control.Dispose
     Set m_control = Nothing
     Set m_bindingContext = Nothing

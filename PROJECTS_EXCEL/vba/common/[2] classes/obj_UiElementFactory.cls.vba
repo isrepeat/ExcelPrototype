@@ -12,6 +12,9 @@ Option Explicit
 Implements obj_IUiElementFactory
 Implements obj_IUiMarkupSchemaProvider
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_kind As String
 
 ' //
@@ -44,11 +47,20 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     m_kind = VBA.vbNullString
 End Sub
 
 Public Sub Initialize(ByVal kind As String)
+    If m_isDisposed Or m_isInitialized Then
+        Err.Raise VBA.vbObjectError + 2166, , "Object is already initialized or disposed."
+    End If
     m_kind = kind
+    m_isInitialized = True
 End Sub
 
 Public Function Create( _
@@ -87,6 +99,9 @@ End Function
 Private Function private_CreateSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     Select Case m_kind
         Case "page"
             schema.AddAttribute "name", "string", False, "", False, 0
@@ -125,6 +140,13 @@ End Function
 Private Function private_TrackSchema(ByVal itemName As String) As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
     Dim track As New obj_UiMarkupSchema
+
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
+    If Not track.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     track.AddAttribute "size", "gridsize", True, "", False, 0
     schema.AddChild itemName, track, 1
     Set private_TrackSchema = schema
@@ -133,6 +155,9 @@ End Function
 Private Function private_StylesSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddChild "controlStyle", private_ControlStyleSchema()
     schema.AddChild "stylePipelineStage", private_StylePipelineStageSchema()
     Set private_StylesSchema = schema
@@ -141,6 +166,9 @@ End Function
 Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddAttribute "backColor", "string", False, "", False, 0
     schema.AddAttribute "textColor", "string", False, "", False, 0
@@ -166,6 +194,9 @@ End Function
 Private Function private_StylePipelineStageSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddAttribute "enabled", "boolean", False, "", False, 0
     schema.AddChild "layer", private_StyleLayerSchema()
@@ -175,6 +206,9 @@ End Function
 Private Function private_StyleLayerSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddChild "rule", private_StyleRuleSchema()
     Set private_StyleLayerSchema = schema
@@ -183,6 +217,9 @@ End Function
 Private Function private_StyleRuleSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
+    If Not schema.Initialize() Then
+        Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
+    End If
     schema.AddAttribute "target", "enum", True, "sheet|column|cell|control|controlPart|shape", False, 0
     schema.AddAttribute "selector", "string", False, "", False, 0
     schema.AddAttribute "styles", "styleblock", True, "", False, 0

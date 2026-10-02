@@ -7,9 +7,14 @@ Option Explicit
 
 Implements obj_IUiTableSource
 
-Private m_tables As Collection
+Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_tables As Collection
+
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
     Set m_tables = New Collection
 End Sub
@@ -35,18 +40,32 @@ End Function
 ' // API
 ' //
 Public Function Initialize() As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If m_tables Is Nothing Then Set m_tables = New Collection
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_tables = Nothing
 End Sub
 
+Public Sub Clear()
+    If m_isDisposed Or Not m_isInitialized Then
+        Err.Raise VBA.vbObjectError + 2165, , "Table list is not initialized or is disposed."
+    End If
+    Set m_tables = New Collection
+End Sub
+
 Public Function Add(ByVal table As obj_UiRawTable) As Boolean
+    If m_isDisposed Or Not m_isInitialized Then Exit Function
     If table Is Nothing Then Exit Function
     If m_tables Is Nothing Then Set m_tables = New Collection
     m_tables.Add table

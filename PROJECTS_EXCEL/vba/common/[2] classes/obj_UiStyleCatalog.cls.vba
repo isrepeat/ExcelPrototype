@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private Const COMMON_STYLE_CATALOG_FILE_NAME As String = "CommonControlStyles.xaml"
 Private Const SHEET_SCOPE_MIN_COLUMN As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
@@ -29,7 +32,19 @@ End Sub
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    m_isInitialized = True
+    Initialize = True
+End Function
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     Set m_stylesByName = Nothing
     Set m_pageDocument = Nothing
     Set m_targetWorksheet = Nothing

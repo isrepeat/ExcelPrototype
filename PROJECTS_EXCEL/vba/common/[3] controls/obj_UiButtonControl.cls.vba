@@ -12,12 +12,14 @@ Option Explicit
 Implements obj_IUiControl
 Implements obj_IUiBindingTarget
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
 Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
 Private m_buttonShape As Shape
-Private m_isDisposed As Boolean
 
 ' //
 ' // Lifecycle
@@ -34,9 +36,12 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
     obj_IUiControl_Initialize = m_uiControlBase.Initialize()
+    m_isInitialized = obj_IUiControl_Initialize
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -117,8 +122,11 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_buttonShape = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing

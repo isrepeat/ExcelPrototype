@@ -9,12 +9,17 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_controlNode As Object
 Private m_rowOffset As Long
 Private m_columnOffset As Long
 Private m_controlName As String
-Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -37,13 +42,19 @@ End Property
 ' // API
 ' //
 Public Function Initialize() As Boolean
-    m_isDisposed = False
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Initialize = True
+    m_isInitialized = Initialize
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
+    m_isInitialized = False
     Set m_controlNode = Nothing
     m_controlName = VBA.vbNullString
 End Sub

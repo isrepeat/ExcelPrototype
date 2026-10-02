@@ -11,6 +11,9 @@ Option Explicit
 
 Implements obj_IUiControl
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 Private m_panel As obj_IUiElement
 Private m_name As String
 Private m_context As obj_UiRenderContext
@@ -31,7 +34,11 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     obj_IUiControl_Initialize = True
+    m_isInitialized = obj_IUiControl_Initialize
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -117,6 +124,11 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
     If Not m_panel Is Nothing Then m_panel.Dispose
     Set m_panel = Nothing
     Set m_context = Nothing

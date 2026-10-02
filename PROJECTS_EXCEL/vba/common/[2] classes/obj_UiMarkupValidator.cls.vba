@@ -9,6 +9,9 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Private m_isInitialized As Boolean
+Private m_isDisposed As Boolean
+
 ' //
 ' // Lifecycle
 ' //
@@ -22,7 +25,19 @@ End Sub
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    m_isInitialized = True
+    Initialize = True
+End Function
 Public Sub Dispose()
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
 End Sub
 
 Public Function Validate(ByVal root As Object, ByVal errors As Collection) As Boolean
