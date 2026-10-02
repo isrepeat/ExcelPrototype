@@ -47,7 +47,7 @@
              showHeaders="true"
              gapRows="1"/>
 
-    <form name="EventDraftForm"
+    <control type="Form" name="EventDraftForm"
           source="Form"
           row="7"
           column="2"
@@ -78,7 +78,7 @@
                columnSpan="2"
                style="primaryButton"
                command="{Binding Path=Commands.SubmitFormCommand}"/>
-    </form>
+    </control>
   </grid>
 
   <styles>

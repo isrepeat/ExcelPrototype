@@ -15,10 +15,6 @@ Private m_definition As Object
 Private m_context As obj_UiRenderContext
 Private WithEvents m_bindingContext As obj_UiBindingContext
 Private m_control As obj_IUiControl
-Private m_rows As Long
-Private m_columns As Long
-Private m_row As Long
-Private m_column As Long
 
 ' //
 ' // Lifecycle
@@ -28,17 +24,6 @@ End Sub
 
 Private Sub Class_Terminate()
     Me.Dispose
-End Sub
-
-' //
-' // API
-' //
-Public Sub Dispose()
-    If Not m_control Is Nothing Then m_control.Dispose
-    Set m_control = Nothing
-    Set m_bindingContext = Nothing
-    Set m_context = Nothing
-    Set m_definition = Nothing
 End Sub
 
 ' //
@@ -54,8 +39,6 @@ Private Function obj_IUiElement_Configure( _
     Dim bindingSource As String
     Dim bindingPath As String
 
-    m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
-    m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     Set m_definition = definition.cloneNode(True)
     Set m_context = context
     Set m_bindingContext = context.BindingContext
@@ -70,14 +53,12 @@ Private Function obj_IUiElement_Configure( _
             attributeNode.Text = "{Binding Source=" & bindingSource & "; Path=" & bindingPath & "}"
         End If
     Next attributeNode
-    m_definition.setAttribute "row", "1"
-    m_definition.setAttribute "column", "1"
     Set m_control = ex_UiControlFactory.fn_Create(m_definition)
     If m_control Is Nothing Then
         diagnostic = "Cannot create control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
-    If Not m_control.Configure(m_definition) Then
+    If Not m_control.Configure(m_definition, context, source, diagnostic) Then
         diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
@@ -90,25 +71,7 @@ Private Function obj_IUiElement_Measure( _
     ByRef columns As Long, _
     ByRef diagnostic As String _
 ) As Boolean
-    Dim range As Range
-
-    If Not m_control.Configure(m_definition) Then Exit Function
-    Set range = m_control.Measure(m_context)
-    If range Is Nothing Then
-        diagnostic = "Cannot measure control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
-        Exit Function
-    End If
-    rows = range.Rows.Count
-    columns = range.Columns.Count
-    If rows < 1 Or columns < 1 Then
-        diagnostic = "Control spans must be positive."
-        Exit Function
-    End If
-    m_rows = rows
-    m_columns = columns
-    rows = rows + m_row - 1
-    columns = columns + m_column - 1
-    obj_IUiElement_Measure = True
+    obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
 End Function
 
 Private Function obj_IUiElement_Arrange( _
@@ -116,22 +79,16 @@ Private Function obj_IUiElement_Arrange( _
     ByVal column As Long, _
     ByRef diagnostic As String _
 ) As Boolean
-    Dim range As Range
-
-    m_definition.setAttribute "row", VBA.CStr(row + m_row - 1)
-    m_definition.setAttribute "column", VBA.CStr(column + m_column - 1)
-    If Not m_control.Configure(m_definition) Then Exit Function
-    Set range = m_control.Measure(m_context)
-    obj_IUiElement_Arrange = Not range Is Nothing
+    obj_IUiElement_Arrange = m_control.Arrange(row, column, diagnostic)
 End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
-    obj_IUiElement_Render = m_control.Render(m_context)
+    obj_IUiElement_Render = m_control.Render(diagnostic)
     If Not obj_IUiElement_Render Then diagnostic = "Cannot render control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
 End Function
 
 Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
-    obj_IUiElement_Validate = True
+    obj_IUiElement_Validate = m_control.Validate(errors)
 End Function
 
 Private Sub obj_IUiElement_Dispose()
@@ -139,9 +96,24 @@ Private Sub obj_IUiElement_Dispose()
 End Sub
 
 ' //
+' // API
+' //
+Public Sub Dispose()
+    If Not m_control Is Nothing Then m_control.Dispose
+    Set m_control = Nothing
+    Set m_bindingContext = Nothing
+    Set m_context = Nothing
+    Set m_definition = Nothing
+End Sub
+
+' //
 ' // Private
 ' //
 Private Sub m_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
+    private_bindingContext_ValueChanged sourceName, bindingPath
+End Sub
+
+Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
     Dim nodeAttribute As Object
     Dim source As String
     Dim path As String

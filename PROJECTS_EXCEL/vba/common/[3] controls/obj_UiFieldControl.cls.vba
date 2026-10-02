@@ -13,6 +13,7 @@ Implements obj_IUiControl
 Implements obj_IUiEventHandler
 
 Private Const SELECT_SHAPE_PREFIX As String = "sel_"
+Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
 Private m_sourceName As String
@@ -37,7 +38,7 @@ Private Sub Class_Initialize()
 End Sub
 
 Private Sub Class_Terminate()
-    obj_IUiControl_Dispose
+    Me.Dispose
 End Sub
 
 ' //
@@ -50,6 +51,102 @@ Private Function obj_IUiControl_Initialize() As Boolean
 End Function
 
 Private Sub obj_IUiControl_Dispose()
+    Me.Dispose
+End Sub
+
+Private Function obj_IUiControl_Configure( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Set m_renderContext = context
+    m_uiControlBase.ConfigurePosition definition
+    obj_IUiControl_Configure = private_Configure(definition)
+    If Not obj_IUiControl_Configure Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
+End Function
+
+Private Function obj_IUiControl_Measure( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim target As Range
+
+    m_uiControlBase.SetPosition 1, 1
+    If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
+    Set target = private_Measure(m_renderContext)
+    If target Is Nothing Then
+        diagnostic = "Cannot measure control: " & m_uiControlBase.ControlName
+        Exit Function
+    End If
+    m_uiControlBase.GetSize target, rows, columns
+    obj_IUiControl_Measure = True
+End Function
+
+Private Function obj_IUiControl_Arrange( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim target As Range
+
+    m_uiControlBase.ArrangePosition row, column
+    If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
+    Set target = private_Measure(m_renderContext)
+    obj_IUiControl_Arrange = Not target Is Nothing
+    If target Is Nothing Then diagnostic = "Cannot arrange control: " & m_uiControlBase.ControlName
+End Function
+
+Private Function obj_IUiControl_Render(ByRef diagnostic As String) As Boolean
+    obj_IUiControl_Render = private_Render(m_renderContext)
+    If Not obj_IUiControl_Render Then diagnostic = "Cannot render control: " & m_uiControlBase.ControlName
+End Function
+
+Private Function obj_IUiControl_Validate(ByVal errors As Collection) As Boolean
+    obj_IUiControl_Validate = True
+End Function
+
+Private Function obj_IUiEventHandler_HandleEvent( _
+    ByVal kind As String, _
+    ByVal payload As Variant _
+) As Boolean
+    Dim target As Range
+    Dim previousEvents As Boolean
+
+    If kind <> "click" And kind <> "change" Then Exit Function
+    If kind = "click" Then
+        If m_checkboxShape Is Nothing Then Exit Function
+        If m_readOnly Then
+            obj_IUiEventHandler_HandleEvent = True
+            Exit Function
+        End If
+        Set target = m_targetRange.Cells(1, 1)
+        previousEvents = Application.EnableEvents
+        On Error GoTo EH
+        Application.EnableEvents = False
+        target.Value2 = (m_checkboxShape.ControlFormat.Value = xlOn)
+        Application.EnableEvents = previousEvents
+    Else
+        Set target = payload
+        If m_isCheckbox And VBA.VarType(target.Value2) <> VBA.vbBoolean Then
+            m_cellBinding.SetTwoWay False
+            m_cellBinding.HandleCellChange target
+            m_cellBinding.SetTwoWay Not m_readOnly
+            Exit Function
+        End If
+    End If
+    obj_IUiEventHandler_HandleEvent = m_cellBinding.HandleCellChange(target)
+    Exit Function
+EH:
+    Application.EnableEvents = previousEvents
+    VBA.Err.Raise VBA.Err.Number, "Input.HandleEvent", VBA.Err.Description
+End Function
+
+' //
+' // API
+' //
+Public Sub Dispose()
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
     If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
@@ -59,6 +156,7 @@ Private Sub obj_IUiControl_Dispose()
     Set m_checkboxShape = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
+    Set m_renderContext = Nothing
     Set m_targetRange = Nothing
     m_sourceName = VBA.vbNullString
     m_bindingPath = VBA.vbNullString
@@ -68,7 +166,10 @@ Private Sub obj_IUiControl_Dispose()
     Set m_changeCommand = Nothing
 End Sub
 
-Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolean
+' //
+' // Private
+' //
+Private Function private_Configure(ByVal controlNode As Object) As Boolean
     Dim controlType As String
     Dim inputType As String
     Dim rawValue As String
@@ -93,16 +194,16 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
         Exit Function
     End If
     m_changeCommandRaw = private_ReadAttribute(controlNode, "onChange")
-    obj_IUiControl_Configure = True
+    private_Configure = True
 End Function
 
-Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
+Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
     If m_uiControlBase Is Nothing Then Exit Function
     Set m_targetRange = m_uiControlBase.Measure(uiRenderContext)
-    Set obj_IUiControl_Measure = m_targetRange
+    Set private_Measure = m_targetRange
 End Function
 
-Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim value As Variant
     Dim sourceObject As Object
     Dim isObject As Boolean
@@ -127,7 +228,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
         m_checkboxShape.Delete
         Set m_checkboxShape = Nothing
     End If
-    If m_targetRange Is Nothing Then Set m_targetRange = obj_IUiControl_Measure(uiRenderContext)
+    If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
     If m_targetRange.Cells.CountLarge > 1 Then m_targetRange.Merge
     If Not uiRenderContext.BindingContext.TryGetValue( _
@@ -183,11 +284,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
         m_targetRange.NumberFormat = ";;;"
         uiRenderContext.Router.RegisterShape m_checkboxShape.Name, Me
     End If
-    obj_IUiControl_Render = True
-End Function
-
-Private Function obj_IUiControl_HandleCellChange(ByVal target As Range) As Boolean
-    obj_IUiControl_HandleCellChange = False
+    private_Render = True
 End Function
 
 ' //
@@ -374,45 +471,10 @@ Private Function private_ReadAttribute( _
 End Function
 
 Private Sub m_cellBinding_ValueRefreshed()
+    private_cellBinding_ValueRefreshed
+End Sub
+
+Private Sub private_cellBinding_ValueRefreshed()
     If Not m_checkboxShape Is Nothing Then _
         m_checkboxShape.ControlFormat.Value = VBA.IIf(VBA.CBool(m_targetRange.Cells(1, 1).Value2), xlOn, xlOff)
 End Sub
-
-' //
-' // Interface
-' //
-Private Function obj_IUiEventHandler_HandleEvent( _
-    ByVal kind As String, _
-    ByVal payload As Variant _
-) As Boolean
-    Dim target As Range
-    Dim previousEvents As Boolean
-
-    If kind <> "click" And kind <> "change" Then Exit Function
-    If kind = "click" Then
-        If m_checkboxShape Is Nothing Then Exit Function
-        If m_readOnly Then
-            obj_IUiEventHandler_HandleEvent = True
-            Exit Function
-        End If
-        Set target = m_targetRange.Cells(1, 1)
-        previousEvents = Application.EnableEvents
-        On Error GoTo EH
-        Application.EnableEvents = False
-        target.Value2 = (m_checkboxShape.ControlFormat.Value = xlOn)
-        Application.EnableEvents = previousEvents
-    Else
-        Set target = payload
-        If m_isCheckbox And VBA.VarType(target.Value2) <> VBA.vbBoolean Then
-            m_cellBinding.SetTwoWay False
-            m_cellBinding.HandleCellChange target
-            m_cellBinding.SetTwoWay Not m_readOnly
-            Exit Function
-        End If
-    End If
-    obj_IUiEventHandler_HandleEvent = m_cellBinding.HandleCellChange(target)
-    Exit Function
-EH:
-    Application.EnableEvents = previousEvents
-    VBA.Err.Raise VBA.Err.Number, "Input.HandleEvent", VBA.Err.Description
-End Function

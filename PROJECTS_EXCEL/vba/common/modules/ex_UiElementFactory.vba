@@ -36,10 +36,14 @@ Public Function fn_Create( _
     Dim builtInFactory As obj_UiElementFactory
 
     If Not m_initialized Then
-        For Each tag In VBA.Array("page", "grid", "stackPanel", "form", "control")
+        If m_factories Is Nothing Then
+            Set m_factories = VBA.CreateObject("Scripting.Dictionary")
+            m_factories.CompareMode = VBA.vbTextCompare
+        End If
+        For Each tag In VBA.Array("page", "grid", "stackPanel", "control")
             Set builtInFactory = New obj_UiElementFactory
             builtInFactory.Initialize VBA.LCase$(VBA.CStr(tag))
-            fn_Register VBA.CStr(tag), builtInFactory
+            If Not m_factories.Exists(VBA.CStr(tag)) Then fn_Register VBA.CStr(tag), builtInFactory
         Next tag
         m_initialized = True
     End If

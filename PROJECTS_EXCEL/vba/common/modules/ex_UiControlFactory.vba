@@ -32,7 +32,7 @@ Public Function fn_Create(ByVal controlNode As Object) As obj_IUiControl
     Dim factory As obj_IUiControlFactory
 
     If Not m_initialized Then
-        For Each builtInType In VBA.Array("Label", "Button", "Table", "Input", "Select")
+        For Each builtInType In VBA.Array("Label", "Button", "Table", "Input", "Select", "Form")
             If m_factories Is Nothing Then
                 Set m_factories = VBA.CreateObject("Scripting.Dictionary")
                 m_factories.CompareMode = VBA.vbTextCompare

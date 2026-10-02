@@ -58,9 +58,15 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     Dim otherDefinition As New obj_UiPageDefinition
     Dim otherDocument As Object
     Dim otherSheet As Worksheet
+    Dim tagFactory As New obj_UiElementFactory
+    Dim controlFactory As New obj_UiControlFactory
     Dim resolvedSource As String
     Dim resolvedPath As String
 
+    tagFactory.Initialize "stackpanel"
+    ex_UiElementFactory.fn_Register "flow", tagFactory
+    controlFactory.Initialize "form"
+    ex_UiControlFactory.fn_Register "DraftForm", controlFactory
     Set sheet = ThisWorkbook.Worksheets("MainPage")
     bindingContext.Initialize
     bindingContext.SetValue "Text", "Title", "Test page"
@@ -113,9 +119,9 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     Set otherSheet = ThisWorkbook.Worksheets.Add()
     otherSheet.Name = "OtherPage"
     Set otherDocument = CreateObject("MSXML2.DOMDocument.6.0")
-    If Not otherDocument.LoadXML("<page><form name='OtherForm' source='Draft' orientation='horizontal'>" & _
+    If Not otherDocument.LoadXML("<page><flow orientation='vertical'><control type='DraftForm' name='OtherForm' source='Draft' orientation='horizontal'>" & _
         "<field name='Accepted' label='Accepted' type='checkbox' required='true'/>" & _
-        "<field name='Name' label='Name' type='text' readOnly='true'/></form></page>") Then Err.Raise 5, , "Test XML"
+        "<field name='Name' label='Name' type='text' readOnly='true'/></control><stackPanel orientation='horizontal'><control type='Label' name='Tail1' text='Left' columnSpan='2'/><control type='Label' name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></page>") Then Err.Raise 5, , "Test XML"
     otherDefinition.Initialize otherDocument, "OtherPage.xaml"
     otherBinding.Initialize
     otherBinding.TrySetPathValue "Draft", "Person.Name", "Nested"
@@ -128,6 +134,7 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If Not otherContext.Build(diagnostic) Then Err.Raise 5, , diagnostic
     otherContext.Styles.BeginPage otherSheet, otherDocument, uiFolder
     If Not otherContext.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If otherSheet.Range("A2").Value2 <> "Left" Or otherSheet.Range("C2").Value2 <> "Right" Then Err.Raise 5, , "Nested stack layout"
     If otherSheet.Range("I1").Value2 <> "Read only" Then Err.Raise 5, , "Horizontal layout"
     otherBinding.SetValue "Draft", "Accepted", True
     If otherSheet.Shapes("chk_1").ControlFormat.Value <> xlOn Then Err.Raise 5, , "Checkbox refresh"
@@ -136,6 +143,7 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If otherSheet.Range("C1").Value2 <> False Then Err.Raise 5, , "Checkbox reverse binding"
     otherSheet.Range("I1").Value2 = "Attempt"
     If Not otherContext.Router.DispatchCells(otherSheet.Range("I1")) Then Err.Raise 5, , "Readonly dispatch"
+    If otherSheet.Range("A2").Value2 <> "Left" Or otherSheet.Range("C2").Value2 <> "Right" Then Err.Raise 5, , "Nested stack layout"
     If otherSheet.Range("I1").Value2 <> "Read only" Then Err.Raise 5, , "Readonly restore"
     Set errors = New Collection
     If otherContext.ValidateForm("OtherForm", errors) Or errors.Count <> 1 Then Err.Raise 5, , "Checkbox validation"
@@ -143,6 +151,8 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If sheet.Range("A1").Value2 <> "First page" Then Err.Raise 5, , "Page binding isolation"
     If Not context.InvalidateVisual("HelloWorld", diagnostic) Then Err.Raise 5, , diagnostic
     otherContext.Dispose
+    otherContext.Dispose
+    context.Dispose
     context.Dispose
     bindingContext.SetValue "Form", "EventName", "After disposal"
     If sheet.Range("D7").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"

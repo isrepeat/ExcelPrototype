@@ -10,6 +10,8 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private m_controlNode As Object
+Private m_rowOffset As Long
+Private m_columnOffset As Long
 Private m_controlName As String
 Private m_isDisposed As Boolean
 
@@ -56,6 +58,25 @@ Public Function Configure(ByVal controlNode As Object) As Boolean
     End If
     Configure = True
 End Function
+
+Public Sub ConfigurePosition(ByVal definition As Object)
+    m_rowOffset = ex_UiElementFactory.fn_Long(definition, "row", 1)
+    m_columnOffset = ex_UiElementFactory.fn_Long(definition, "column", 1)
+End Sub
+
+Public Sub SetPosition(ByVal row As Long, ByVal column As Long)
+    m_controlNode.setAttribute "row", VBA.CStr(row)
+    m_controlNode.setAttribute "column", VBA.CStr(column)
+End Sub
+
+Public Sub ArrangePosition(ByVal row As Long, ByVal column As Long)
+    Me.SetPosition row + m_rowOffset - 1, column + m_columnOffset - 1
+End Sub
+
+Public Sub GetSize(ByVal target As Range, ByRef rows As Long, ByRef columns As Long)
+    rows = target.Rows.Count + m_rowOffset - 1
+    columns = target.Columns.Count + m_columnOffset - 1
+End Sub
 
 Public Function Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
     Dim targetWorksheet As Worksheet

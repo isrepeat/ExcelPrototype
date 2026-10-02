@@ -75,13 +75,13 @@ EH_VISUAL:
     Resume CleanVisual
 End Function
 
-Public Sub RegisterForm(ByVal name As String, ByVal form As obj_UiForm)
+Public Sub RegisterForm(ByVal name As String, ByVal form As obj_IUiControl)
     If m_forms.Exists(name) Then VBA.Err.Raise VBA.vbObjectError + 2223, , "Duplicate form: " & name
     Set m_forms(name) = form
 End Sub
 
 Public Function ValidateForm(ByVal name As String, ByVal errors As Collection) As Boolean
-    Dim form As obj_UiForm
+    Dim form As obj_IUiControl
 
     If Not m_forms.Exists(name) Then
         errors.Add "Form was not found: " & name
@@ -120,7 +120,7 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
             .ClearContents
         End With
     End If
-    FlushLayout = RenderTree(diagnostic)
+    FlushLayout = Me.RenderTree(diagnostic)
 CleanLayout:
     Application.EnableEvents = previousEvents
     Exit Function

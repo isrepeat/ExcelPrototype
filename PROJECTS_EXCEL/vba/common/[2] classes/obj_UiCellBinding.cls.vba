@@ -104,6 +104,10 @@ End Function
 ' // Private
 ' //
 Private Sub m_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
+    private_bindingContext_ValueChanged sourceName, bindingPath
+End Sub
+
+Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
     Dim value As Variant
     Dim sourceObject As Object
     Dim isObject As Boolean

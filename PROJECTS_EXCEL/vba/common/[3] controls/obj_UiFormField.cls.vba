@@ -11,7 +11,7 @@ Option Explicit
 
 Implements obj_IUiElement
 
-Private m_panel As obj_UiPanel
+Private m_panel As obj_IUiElement
 Private m_context As obj_UiRenderContext
 Private m_source As String
 Private m_path As String
@@ -30,21 +30,85 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Interface
+' //
+Private Function obj_IUiElement_Configure( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    If definition.parentNode Is Nothing Then
+        diagnostic = "Field must be configured by its owning form."
+        Exit Function
+    End If
+    obj_IUiElement_Configure = private_ConfigureField(definition, definition.parentNode, context, source, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Measure( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    obj_IUiElement_Measure = m_panel.Measure(rows, columns, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Arrange( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    obj_IUiElement_Arrange = m_panel.Arrange(row, column, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    obj_IUiElement_Render = m_panel.Render(diagnostic)
+End Function
+
+Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
+    Dim value As Variant
+    Dim sourceObject As Object
+    Dim isObject As Boolean
+
+    obj_IUiElement_Validate = True
+    If Not m_required Then Exit Function
+    If Not m_context.BindingContext.TryGetValue(m_source, m_path, value, sourceObject, isObject) Then
+        obj_IUiElement_Validate = False
+    ElseIf isObject Or VBA.IsNull(value) Or VBA.IsError(value) Then
+        obj_IUiElement_Validate = False
+    ElseIf m_checkbox Then
+        obj_IUiElement_Validate = (VBA.VarType(value) = VBA.vbBoolean)
+        If obj_IUiElement_Validate Then obj_IUiElement_Validate = VBA.CBool(value)
+    Else
+        obj_IUiElement_Validate = (VBA.Len(VBA.Trim$(VBA.CStr(value))) > 0)
+    End If
+    If Not obj_IUiElement_Validate Then errors.Add "Required field: " & m_name
+End Function
+
+Private Sub obj_IUiElement_Dispose()
+    Me.Dispose
+End Sub
+
+' //
 ' // API
 ' //
 Public Sub Dispose()
-    If Not m_panel Is Nothing Then m_panel.DisposePanel
+    If Not m_panel Is Nothing Then m_panel.Dispose
     Set m_panel = Nothing
     Set m_context = Nothing
 End Sub
 
-Public Function ConfigureField( _
+' //
+' // Private
+' //
+Private Function private_ConfigureField( _
     ByVal fieldNode As Object, _
     ByVal formNode As Object, _
     ByVal context As obj_UiRenderContext, _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    Dim container As obj_IUiContainer
     Dim labelNode As Object
     Dim editorNode As Object
     Dim panelNode As Object
@@ -95,9 +159,11 @@ Public Function ConfigureField( _
     ' Изолированные описания для адаптера существующих контролов; DOM страницы не изменяется.
     Set panelNode = fieldNode.cloneNode(False)
     panelNode.setAttribute "orientation", VBA.IIf(position = "left", "horizontal", "vertical")
-    Set m_panel = New obj_UiPanel
-    m_panel.Initialize "stack"
-    If Not m_panel.ConfigurePanel(panelNode, context, source, diagnostic, False) Then Exit Function
+    Set m_panel = New obj_UiStackPanelElement
+    Set container = m_panel
+    panelNode.setAttribute "row", "1"
+    panelNode.setAttribute "column", "1"
+    If Not m_panel.Configure(panelNode, context, source, diagnostic) Then Exit Function
     Set labelNode = fieldNode.cloneNode(False)
     labelNode.setAttribute "type", "Label"
     labelNode.setAttribute "name", m_name & "_label"
@@ -106,7 +172,7 @@ Public Function ConfigureField( _
     labelNode.setAttribute "style", private_Inherit(fieldNode, formNode, "labelStyle", VBA.vbNullString)
     Set label = New obj_UiControlElement
     If Not label.Configure(labelNode, context, source, diagnostic) Then Exit Function
-    m_panel.AddChild label
+    container.AddChild label
     Set editorNode = fieldNode.cloneNode(False)
     editorNode.setAttribute "type", VBA.IIf(kind = "select", "Select", "Input")
     editorNode.setAttribute "inputType", kind
@@ -119,8 +185,8 @@ Public Function ConfigureField( _
     editorNode.setAttribute "readOnly", private_Inherit(fieldNode, formNode, "readOnly", "false")
     Set editor = New obj_UiControlElement
     If Not editor.Configure(editorNode, context, source, diagnostic) Then Exit Function
-    m_panel.AddChild editor
-    ConfigureField = True
+    container.AddChild editor
+    private_ConfigureField = True
 End Function
 
 ' //
@@ -136,59 +202,3 @@ Private Function private_Inherit( _
     If VBA.Len(private_Inherit) = 0 Then private_Inherit = ex_UiElementFactory.fn_Attribute(formNode, name)
     If VBA.Len(private_Inherit) = 0 Then private_Inherit = defaultValue
 End Function
-
-' //
-' // Interface
-' //
-Private Function obj_IUiElement_Configure( _
-    ByVal definition As Object, _
-    ByVal context As obj_UiRenderContext, _
-    ByVal source As String, _
-    ByRef diagnostic As String _
-) As Boolean
-    diagnostic = "Field must be configured by its owning form."
-End Function
-
-Private Function obj_IUiElement_Measure( _
-    ByRef rows As Long, _
-    ByRef columns As Long, _
-    ByRef diagnostic As String _
-) As Boolean
-    obj_IUiElement_Measure = m_panel.MeasurePanel(rows, columns, diagnostic)
-End Function
-
-Private Function obj_IUiElement_Arrange( _
-    ByVal row As Long, _
-    ByVal column As Long, _
-    ByRef diagnostic As String _
-) As Boolean
-    obj_IUiElement_Arrange = m_panel.ArrangePanel(row, column, diagnostic)
-End Function
-
-Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
-    obj_IUiElement_Render = m_panel.RenderPanel(diagnostic)
-End Function
-
-Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
-    Dim value As Variant
-    Dim sourceObject As Object
-    Dim isObject As Boolean
-
-    obj_IUiElement_Validate = True
-    If Not m_required Then Exit Function
-    If Not m_context.BindingContext.TryGetValue(m_source, m_path, value, sourceObject, isObject) Then
-        obj_IUiElement_Validate = False
-    ElseIf isObject Or VBA.IsNull(value) Or VBA.IsError(value) Then
-        obj_IUiElement_Validate = False
-    ElseIf m_checkbox Then
-        obj_IUiElement_Validate = (VBA.VarType(value) = VBA.vbBoolean)
-        If obj_IUiElement_Validate Then obj_IUiElement_Validate = VBA.CBool(value)
-    Else
-        obj_IUiElement_Validate = (VBA.Len(VBA.Trim$(VBA.CStr(value))) > 0)
-    End If
-    If Not obj_IUiElement_Validate Then errors.Add "Required field: " & m_name
-End Function
-
-Private Sub obj_IUiElement_Dispose()
-    Me.Dispose
-End Sub
