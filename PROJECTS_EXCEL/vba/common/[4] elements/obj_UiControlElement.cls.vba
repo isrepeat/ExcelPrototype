@@ -10,8 +10,11 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiElement
+Implements obj_IUiLayoutSlot
 
 Private m_definition As Object
+Private m_intrinsicRows As String
+Private m_intrinsicColumns As String
 Private m_context As obj_UiRenderContext
 Private WithEvents m_bindingContext As obj_UiBindingContext
 Private m_control As obj_IUiControl
@@ -40,6 +43,8 @@ Private Function obj_IUiElement_Configure( _
     Dim bindingPath As String
 
     Set m_definition = definition.cloneNode(True)
+    m_intrinsicRows = ex_UiElementFactory.fn_Attribute(definition, "rowSpan")
+    m_intrinsicColumns = ex_UiElementFactory.fn_Attribute(definition, "columnSpan")
     If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then _
         m_definition.setAttribute "type", VBA.CStr(definition.baseName)
     Set m_context = context
@@ -73,6 +78,16 @@ Private Function obj_IUiElement_Measure( _
     ByRef columns As Long, _
     ByRef diagnostic As String _
 ) As Boolean
+    If VBA.Len(m_intrinsicRows) = 0 Then
+        m_definition.removeAttribute "rowSpan"
+    Else
+        m_definition.setAttribute "rowSpan", m_intrinsicRows
+    End If
+    If VBA.Len(m_intrinsicColumns) = 0 Then
+        m_definition.removeAttribute "columnSpan"
+    Else
+        m_definition.setAttribute "columnSpan", m_intrinsicColumns
+    End If
     obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
 End Function
 
@@ -95,6 +110,14 @@ End Function
 
 Private Sub obj_IUiElement_Dispose()
     Me.Dispose
+End Sub
+
+Private Sub obj_IUiLayoutSlot_SetSize(ByVal rows As Long, ByVal columns As Long)
+    Select Case VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type"))
+        Case "label", "button", "input", "select"
+            m_definition.setAttribute "rowSpan", VBA.CStr(rows)
+            m_definition.setAttribute "columnSpan", VBA.CStr(columns)
+    End Select
 End Sub
 
 ' //

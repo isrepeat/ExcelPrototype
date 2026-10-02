@@ -102,6 +102,10 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "anchorCell", "string", False, "", False, 0
+            schema.AddChild "grid.rowDefinitions", private_TrackSchema("rowDefinition"), 0, 1
+            schema.AddChild "grid.columnDefinitions", private_TrackSchema("columnDefinition"), 0, 1
+            schema.AddAttribute "rowSpan", "positive", False, "", False, 0
+            schema.AddAttribute "columnSpan", "positive", False, "", False, 0
             schema.AllowVisualChildren
         Case "stackpanel"
             schema.AddAttribute "name", "string", False, "", False, 0
@@ -109,11 +113,21 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "orientation", "enum", True, "horizontal|vertical", False, 0
+            schema.AddAttribute "rowSpan", "positive", False, "", False, 0
+            schema.AddAttribute "columnSpan", "positive", False, "", False, 0
             schema.AllowVisualChildren
         Case Else
             Exit Function
     End Select
     Set private_CreateSchema = schema
+End Function
+
+Private Function private_TrackSchema(ByVal itemName As String) As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+    Dim track As New obj_UiMarkupSchema
+    track.AddAttribute "size", "gridsize", True, "", False, 0
+    schema.AddChild itemName, track, 1
+    Set private_TrackSchema = schema
 End Function
 
 Private Function private_StylesSchema() As obj_UiMarkupSchema

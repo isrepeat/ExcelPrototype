@@ -104,14 +104,17 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid source='Draft'/></page>", False, "source"
     CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid dataContext='Draft'/></page>", False, "dataContext"
     CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:tableList name='Old' source='{Binding Path=Data.Tables}'/></grid></page>", False, "source"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:form name='MissingValue' dataContext='{Binding Path=Form}' orientation='vertical'><field name='Notes' label='Notes' type='text'/></c:form></grid></page>", False, "value"
     Set sheet = ThisWorkbook.Worksheets("MainPage")
     bindingContext.Initialize
     bindingContext.SetValue "Text", "Title", "Test page"
-    bindingContext.SetValue "Text", "HelloWorld", "Hello"
+    bindingContext.SetValue "Text", "Reset", "Hello"
     bindingContext.SetValue "Text", "UpdatePage", "Update"
     bindingContext.SetValue "Text", "GenerateTables", "Generate"
     bindingContext.SetValue "Form", "EventName", "Initial"
     bindingContext.SetValue "Form", "Category", "Meeting"
+    bindingContext.SetValue "Form", "Notes2", vbNullString
+    bindingContext.SetValue "Form", "Notes3", vbNullString
     bindingContext.SetValue "Form", "Notes", "Notes"
     bindingContext.SetValue "Data", "EventTypes", "Meeting,Training,Leave"
     bindingContext.SetValue "Resources", "PrimaryButton", "primaryButton"
@@ -119,7 +122,7 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     tables.Initialize
     bindingContext.SetObject "Data", "Tables", tables
     command.Initialize callbacks, "Execute"
-    For Each name In Array("HelloWorldCommand", "UpdatePageCommand", "GenerateTablesCommand", _
+    For Each name In Array("ResetCommand", "UpdatePageCommand", "GenerateTablesCommand", _
         "FormChangedCommand", "SubmitFormCommand")
         bindingContext.SetObject "Commands", CStr(name), command
     Next name
@@ -130,12 +133,17 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If definition.Document.xml <> snapshot Then Err.Raise 5, , "Page DOM changed during Build"
     context.Styles.BeginPage sheet, definition.Document, uiFolder
     If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Shapes("btn_UpdatePage").TopLeftCell.Row <> 2 Then Err.Raise 5, , "Update button position"
+    If sheet.Shapes("btn_Reset").TopLeftCell.Row <> 4 Then Err.Raise 5, , "Reset button position"
+    If sheet.Shapes("btn_GenerateTables").TopLeftCell.Row <> 6 Then Err.Raise 5, , "Generate button position"
+    If sheet.Shapes("btn_UpdatePage").TopLeftCell.Column <= 3 Then Err.Raise 5, , "Buttons must be right of form"
+
     If sheet.Range("C2").Value2 <> "Initial" Then Err.Raise 5, , "Field layout or binding"
     If sheet.Range("C4").MergeArea.Cells.Count <> 1 Then Err.Raise 5, , "Single-cell field"
     bindingContext.SetValue "Text", "Title", "Changed title"
-    If sheet.Range("A1").Value2 <> "Changed title" Then Err.Raise 5, , "Label refresh"
-    bindingContext.SetValue "Text", "HelloWorld", "Changed button"
-    If sheet.Shapes("btn_HelloWorld").TextFrame2.TextRange.Text <> "Changed button" Then Err.Raise 5, , "Button refresh"
+    If sheet.Range("B1").Value2 <> "Changed title" Then Err.Raise 5, , "Label refresh"
+    bindingContext.SetValue "Text", "Reset", "Changed button"
+    If sheet.Shapes("btn_Reset").TextFrame2.TextRange.Text <> "Changed button" Then Err.Raise 5, , "Button refresh"
     shapeCount = sheet.Shapes.Count
     context.InvalidateMeasure
     If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
@@ -145,7 +153,7 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     sheet.Range("C2").Value2 = "User"
     If Not context.Router.DispatchCells(sheet.Range("C2")) Then Err.Raise 5, , "Cell dispatch"
     If callbacks.Count <> 1 Then Err.Raise 5, , "Change command"
-    If Not context.Router.DispatchShape("btn_HelloWorld") Then Err.Raise 5, , "Shape dispatch"
+    If Not context.Router.DispatchShape("btn_Reset") Then Err.Raise 5, , "Shape dispatch"
     If callbacks.Count <> 2 Then Err.Raise 5, , "Button command"
     Set errors = New Collection
     If Not context.ValidateForm("EventDraftForm", errors) Then Err.Raise 5, , "Valid form"
@@ -157,8 +165,8 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     otherSheet.Name = "OtherPage"
     Set otherDocument = CreateObject("MSXML2.DOMDocument.6.0")
     If Not otherDocument.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><flow orientation='vertical' dataContext='{Binding Path=Draft.Person}'><controls:draftform name='OtherForm' orientation='horizontal'>" & _
-        "<field name='Accepted' label='Accepted' type='checkbox' required='true'/>" & _
-        "<field name='Name' label='Name' type='text' readOnly='true'/></controls:draftform><stackPanel orientation='horizontal'><controls:label name='Tail1' text='Left' columnSpan='2'/><controls:label name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></grid></page>") Then Err.Raise 5, , "Test XML"
+        "<field name='Accepted' value='{Binding Path=Accepted}' label='Accepted' type='checkbox' required='true'/>" & _
+        "<field name='Name' value='{Binding Path=Name}' label='Name' type='text' readOnly='true'/></controls:draftform><stackPanel orientation='horizontal'><controls:label name='Tail1' text='Left' columnSpan='2'/><controls:label name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></grid></page>") Then Err.Raise 5, , "Test XML"
     otherDefinition.Initialize otherDocument, "OtherPage.xaml"
     otherBinding.Initialize
     otherBinding.TrySetPathValue "Draft", "Person.Name", "Nested"
@@ -185,17 +193,92 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     Set errors = New Collection
     If otherContext.ValidateForm("OtherForm", errors) Or errors.Count <> 1 Then Err.Raise 5, , "Checkbox validation"
     bindingContext.SetValue "Text", "Title", "First page"
-    If sheet.Range("A1").Value2 <> "First page" Then Err.Raise 5, , "Page binding isolation"
-    If Not context.InvalidateVisual("HelloWorld", diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Range("B1").Value2 <> "First page" Then Err.Raise 5, , "Page binding isolation"
+    If Not context.InvalidateVisual("Reset", diagnostic) Then Err.Raise 5, , diagnostic
     otherContext.Dispose
     otherContext.Dispose
     context.Dispose
     context.Dispose
     bindingContext.SetValue "Form", "EventName", "After disposal"
     If sheet.Range("C2").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"
+    CheckGrid uiFolder
     CheckTables uiFolder
     Run = True
 End Function
+
+Private Sub CheckGrid(ByVal uiFolder As String)
+    Dim document As Object
+    Dim definition As New obj_UiPageDefinition
+    Dim binding As New obj_UiBindingContext
+    Dim context As New obj_UiRenderContext
+    Dim sheet As Worksheet
+    Dim diagnostic As String
+    Dim tables As New obj_UiRawTableList
+    Dim table As New obj_UiRawTable
+    Dim values(1 To 1, 1 To 2) As Variant
+
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles'><grid><grid.rowDefinitions><rowDefinition size='bad'/></grid.rowDefinitions></grid></page>", False, "size"
+    CheckMarkup "<page xmlns='urn:excelprototype:profiles'><grid><grid.rowDefinitions/></grid></page>", False, "Invalid child count"
+    Set document = CreateObject("MSXML2.DOMDocument.6.0")
+    If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><grid.columnDefinitions><columnDefinition size='auto'/><columnDefinition size='1'/><columnDefinition size='auto'/></grid.columnDefinitions><grid.rowDefinitions><rowDefinition size='auto'/><rowDefinition size='1'/><rowDefinition size='auto'/></grid.rowDefinitions><c:form name='GridForm' dataContext='{Binding Path=Draft}' orientation='vertical'><field name='Name' value='{Binding Path=Name}' label='Name' type='text'/><field name='Notes' value='{Binding Path=Notes}' label='Notes' type='text'/></c:form><c:label name='Right' text='Right' column='3'/><c:tableList name='Tables' itemsSource='{Binding Path=Data.Tables}' row='3'/></grid></page>") Then Err.Raise 5, , "Grid XML"
+    binding.Initialize
+    binding.SetValue "Draft", "Name", "Name value"
+    binding.SetValue "Draft", "Notes", "Notes value"
+    values(1, 1) = "Row"
+    values(1, 2) = "Value"
+    table.Initialize values, Array("A", "B"), "Table"
+    tables.Initialize
+    tables.Add table
+    binding.SetObject "Data", "Tables", tables
+    Set sheet = ThisWorkbook.Worksheets.Add()
+    definition.Initialize document, "Grid.xaml"
+    context.Initialize sheet, definition, uiFolder, binding
+    If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
+    context.Styles.BeginPage sheet, document, uiFolder
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Range("D1").Value2 <> "Right" Or sheet.Range("A4").Value2 <> "Table" Then Err.Raise 5, , "Auto grid positioning"
+    If sheet.Range("D1").MergeArea.Rows.Count <> 2 Then Err.Raise 5, , "Grid slot height"
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Range("D1").Value2 <> "Right" Then Err.Raise 5, , "Repeated grid measure"
+    document.documentElement.firstChild.lastChild.setAttribute "column", "4"
+    definition.Initialize document, "OutOfBounds.xaml"
+    Dim invalidContext As New obj_UiRenderContext
+    invalidContext.Initialize sheet, definition, uiFolder, binding
+    If invalidContext.Build(diagnostic) Then Err.Raise 5, , "Grid accepted invalid track index"
+    invalidContext.Dispose
+    document.documentElement.firstChild.lastChild.setAttribute "column", "1"
+    context.Dispose
+
+    If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><grid.columnDefinitions><columnDefinition size='2'/><columnDefinition size='3'/><columnDefinition size='1'/></grid.columnDefinitions><c:label name='Span' text='Span' columnSpan='2'/><c:label name='After' text='After' column='3'/></grid></page>") Then Err.Raise 5, , "Span XML"
+    sheet.Cells.UnMerge
+    sheet.Cells.ClearContents
+    definition.Initialize document, "Span.xaml"
+    context.Initialize sheet, definition, uiFolder, binding
+    If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
+    context.Styles.BeginPage sheet, document, uiFolder
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Range("A1").MergeArea.Columns.Count <> 5 Or sheet.Range("F1").Value2 <> "After" Then Err.Raise 5, , "Grid track span"
+    context.Dispose
+
+    If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid rowSpan='2' columnSpan='9'><grid.columnDefinitions><columnDefinition size='*'/><columnDefinition size='2*'/></grid.columnDefinitions><grid.rowDefinitions><rowDefinition size='*'/></grid.rowDefinitions><c:label name='Star' text='Star' column='2'/></grid></page>") Then Err.Raise 5, , "Star XML"
+    sheet.Cells.UnMerge
+    sheet.Cells.ClearContents
+    definition.Initialize document, "Star.xaml"
+    context.Initialize sheet, definition, uiFolder, binding
+    If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
+    context.Styles.BeginPage sheet, document, uiFolder
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.Range("D1").Value2 <> "Star" Or sheet.Range("D1").MergeArea.Columns.Count <> 6 Then Err.Raise 5, , "Weighted star grid"
+    context.Dispose
+
+    document.documentElement.firstChild.removeAttribute "columnSpan"
+    definition.Initialize document, "InvalidStar.xaml"
+    context.Initialize sheet, definition, uiFolder, binding
+    If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
+    If context.RenderTree(diagnostic) Then Err.Raise 5, , "Unbounded star grid accepted"
+    context.Dispose
+    binding.Dispose
+End Sub
 
 Private Sub CheckTables(ByVal uiFolder As String)
     Dim binding As New obj_UiBindingContext

@@ -65,7 +65,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
     If Not uiBindingContext.SetValue("Text", "Title", "PersonalEventBuilder") Then Exit Function
-    If Not uiBindingContext.SetValue("Text", "HelloWorld", "Hello World") Then Exit Function
+    If Not uiBindingContext.SetValue("Text", "Reset", "Reset") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "UpdatePage", "Update page") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "GenerateTables", "Generate tables") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
@@ -78,7 +78,7 @@ Private Function private_TryRegisterBindings() As Boolean
 End Function
 
 Private Function private_TryRegisterCommands() As Boolean
-    Dim helloWorldCommand As obj_UiCommand
+    Dim resetCommand As obj_UiCommand
     Dim updatePageCommand As obj_UiCommand
     Dim generateTablesCommand As obj_UiCommand
     Dim formChangedCommand As obj_UiCommand
@@ -89,9 +89,9 @@ Private Function private_TryRegisterCommands() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
-    Set helloWorldCommand = New obj_UiCommand
-    If Not helloWorldCommand.Initialize(m_controller, "HelloWorldCommandHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "HelloWorldCommand", helloWorldCommand) Then Exit Function
+    Set resetCommand = New obj_UiCommand
+    If Not resetCommand.Initialize(m_controller, "ResetCommandHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ResetCommand", resetCommand) Then Exit Function
     Set updatePageCommand = New obj_UiCommand
     If Not updatePageCommand.Initialize(m_controller, "UpdatePageCommandHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "UpdatePageCommand", updatePageCommand) Then Exit Function
