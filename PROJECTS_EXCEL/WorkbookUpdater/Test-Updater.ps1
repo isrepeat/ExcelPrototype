@@ -1,4 +1,4 @@
-﻿param([string]$UpdaterPath = (Join-Path $PSScriptRoot 'WorkbookUpdater.xlam'))
+param([string]$UpdaterPath = (Join-Path $PSScriptRoot 'WorkbookUpdater.xlam'))
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -45,7 +45,7 @@ function Wait-Result([string]$Expected) {
 try {
     $lifecycle = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\vba\common\modules\ex_RuntimeLifecycle.vba'))
     Write-Source 'ex_RuntimeLifecycle' $lifecycle
-    foreach ($name in @('ex_AppHotkeys', 'ex_UiPageManager', 'ex_UiBindings', 'ex_UiRuntime', 'ex_StylePipeline')) {
+    foreach ($name in @('ex_AppHotkeys', 'ex_UiPageManager', 'ex_UiBindings', 'ex_UiRuntime', 'ex_UiElementFactory', 'ex_UiControlFactory')) {
         Write-Source $name @'
 Option Explicit
 Public Sub fn_Module_Dispose()

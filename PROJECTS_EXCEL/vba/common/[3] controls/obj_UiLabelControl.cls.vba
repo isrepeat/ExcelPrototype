@@ -10,11 +10,15 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiControl
+Implements obj_IUiBindingTarget
 
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
@@ -47,6 +51,7 @@ End Function
 Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim startedAt As Double
     Dim targetRange As Range
+
     startedAt = VBA.Timer
     Dim captionText As String
 
@@ -55,7 +60,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
     targetRange.Merge
     targetRange.Value2 = captionText
-    ex_StylePipeline.fn_ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    uiRenderContext.Styles.ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     obj_IUiControl_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Label.Render", startedAt
 End Function
@@ -68,4 +73,10 @@ End Function
 
 Private Function obj_IUiControl_HandleCellChange(ByVal target As Range) As Boolean
     obj_IUiControl_HandleCellChange = False
+End Function
+
+Private Function obj_IUiBindingTarget_RefreshBindings( _
+    ByVal context As obj_UiRenderContext _
+) As Boolean
+    obj_IUiBindingTarget_RefreshBindings = obj_IUiControl_Render(context)
 End Function

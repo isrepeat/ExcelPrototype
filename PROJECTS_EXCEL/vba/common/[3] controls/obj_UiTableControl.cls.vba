@@ -3,6 +3,10 @@ BEGIN
   MultiUse = -1  'True
 END
 Attribute VB_Name = "obj_UiTableControl"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiControl
@@ -15,6 +19,9 @@ Private m_gapRows As Long
 Private m_showHeaders As Boolean
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
@@ -43,6 +50,7 @@ End Sub
 
 Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolean
     If Not m_uiControlBase.Configure(controlNode) Then Exit Function
+    Set m_source = Nothing
     m_sourceRaw = private_ReadAttribute(controlNode, "source")
     If VBA.Len(m_sourceRaw) = 0 Then m_sourceRaw = private_ReadAttribute(controlNode, "itemsSource")
     If VBA.Len(m_sourceRaw) = 0 Then Exit Function
@@ -55,6 +63,7 @@ Private Function obj_IUiControl_Measure(ByVal uiRenderContext As obj_UiRenderCon
     Dim tableIndex As Long, rows As Long, columns As Long
     Dim rawTable As obj_UiRawTable
     Dim value As Variant, sourceObject As Object, isObject As Boolean
+
     If uiRenderContext Is Nothing Then Exit Function
     If m_source Is Nothing Then
         If Not ex_UiBindingRuntime.fn_TryResolveValue( _
@@ -126,16 +135,27 @@ End Function
 ' //
 Private Function private_ReadAttribute(ByVal node As Object, ByVal name As String) As String
     Dim value As Variant: value = node.getAttribute(name)
+
     If Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then private_ReadAttribute = VBA.CStr(value)
 End Function
 
-Private Function private_ReadLong(ByVal node As Object, ByVal name As String, ByVal defaultValue As Long) As Long
+Private Function private_ReadLong( _
+    ByVal node As Object, _
+    ByVal name As String, _
+    ByVal defaultValue As Long _
+) As Long
     Dim value As String: value = private_ReadAttribute(node, name)
+
     If VBA.IsNumeric(value) Then private_ReadLong = VBA.CLng(value) Else private_ReadLong = defaultValue
 End Function
 
-Private Function private_ReadBoolean(ByVal node As Object, ByVal name As String, ByVal defaultValue As Boolean) As Boolean
+Private Function private_ReadBoolean( _
+    ByVal node As Object, _
+    ByVal name As String, _
+    ByVal defaultValue As Boolean _
+) As Boolean
     Dim value As String: value = VBA.LCase$(private_ReadAttribute(node, name))
+
     If value = "true" Then
         private_ReadBoolean = True
     ElseIf value = "false" Then

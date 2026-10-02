@@ -7,6 +7,7 @@ Private m_activePage As obj_IPage
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    ex_UiRuntime.fn_Module_Dispose
     If Not m_activePage Is Nothing Then m_activePage.Dispose
     Set m_activePage = Nothing
 End Sub
@@ -27,6 +28,7 @@ Public Function fn_ShowPage(ByVal pageId As String, ByVal profileId As String) A
         Exit Function
     End If
 
+    ex_UiRuntime.fn_Module_Dispose
     If Not m_activePage Is Nothing Then m_activePage.Dispose
     Set m_activePage = nextPage
     fn_ShowPage = m_activePage.Render()

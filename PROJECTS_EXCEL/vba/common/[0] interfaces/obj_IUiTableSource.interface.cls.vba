@@ -5,9 +5,6 @@ END
 Attribute VB_Name = "obj_IUiTableSource"
 Option Explicit
 
-' //
-' // Interface
-' //
 Public Property Get TableCount() As Long
 End Property
 

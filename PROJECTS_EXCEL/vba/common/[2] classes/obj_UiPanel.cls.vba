@@ -1,0 +1,215 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1
+END
+Attribute VB_Name = "obj_UiPanel"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
+Option Explicit
+
+Implements obj_IUiElement
+
+Private m_children As Collection
+Private m_definition As Object
+Private m_context As obj_UiRenderContext
+Private m_source As String
+Private m_mode As String
+Private m_rows As Long
+Private m_columns As Long
+Private m_row As Long
+Private m_column As Long
+
+' //
+' // Lifecycle
+' //
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // API
+' //
+Public Sub Dispose()
+    DisposePanel
+End Sub
+
+Public Function Initialize(ByVal mode As String) As Boolean
+    m_mode = mode
+    Set m_children = New Collection
+    Initialize = True
+End Function
+
+Public Sub AddChild(ByVal child As obj_IUiElement)
+    m_children.Add child
+End Sub
+
+Public Function ConfigurePanel( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String, _
+    Optional ByVal buildChildren As Boolean = True _
+) As Boolean
+    Dim node As Object
+    Dim child As obj_IUiElement
+
+    Set m_definition = definition
+    m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
+    m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
+    Set m_context = context
+    m_source = source
+    If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "source")) > 0 Then _
+        m_source = ex_UiElementFactory.fn_Attribute(definition, "source")
+    If m_mode = "stack" Then
+        m_mode = VBA.LCase$(ex_UiElementFactory.fn_Attribute(definition, "orientation"))
+        If m_mode <> "horizontal" And m_mode <> "vertical" Then
+            diagnostic = "A stack container requires orientation=horizontal or vertical."
+            Exit Function
+        End If
+    End If
+    If buildChildren Then
+        For Each node In definition.ChildNodes
+            If node.NodeType = 1 Then
+                If VBA.LCase$(VBA.CStr(node.baseName)) <> "styles" Then
+                    Set child = ex_UiElementFactory.fn_Create(node, context, m_source, diagnostic)
+                    If child Is Nothing Then Exit Function
+                    m_children.Add child
+                End If
+            End If
+        Next node
+    End If
+    ConfigurePanel = True
+End Function
+
+Public Function MeasurePanel( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim child As obj_IUiElement
+    Dim height As Long
+    Dim width As Long
+
+    rows = 0
+    columns = 0
+    For Each child In m_children
+        If Not child.Measure(height, width, diagnostic) Then Exit Function
+        If m_mode = "horizontal" Then
+            columns = columns + width
+            If height > rows Then rows = height
+        ElseIf m_mode = "vertical" Then
+            rows = rows + height
+            If width > columns Then columns = width
+        Else
+            If height > rows Then rows = height
+            If width > columns Then columns = width
+        End If
+    Next child
+    If rows = 0 Then rows = 1
+    If columns = 0 Then columns = 1
+    m_rows = rows
+    m_columns = columns
+    MeasurePanel = True
+End Function
+
+Public Function ArrangePanel( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim child As obj_IUiElement
+    Dim height As Long
+    Dim width As Long
+    Dim nextRow As Long
+    Dim nextColumn As Long
+
+    nextRow = row
+    nextColumn = column
+    For Each child In m_children
+        If Not child.Measure(height, width, diagnostic) Then Exit Function
+        If Not child.Arrange(nextRow, nextColumn, diagnostic) Then Exit Function
+        If m_mode = "horizontal" Then nextColumn = nextColumn + width
+        If m_mode = "vertical" Then nextRow = nextRow + height
+    Next child
+    ArrangePanel = True
+End Function
+
+Public Function RenderPanel(ByRef diagnostic As String) As Boolean
+    Dim child As obj_IUiElement
+
+    For Each child In m_children
+        If Not child.Render(diagnostic) Then Exit Function
+    Next child
+    RenderPanel = True
+End Function
+
+Public Function ValidatePanel(ByVal errors As Collection) As Boolean
+    Dim child As obj_IUiElement
+
+    ValidatePanel = True
+    For Each child In m_children
+        If Not child.Validate(errors) Then ValidatePanel = False
+    Next child
+End Function
+
+Public Sub DisposePanel()
+    Dim child As obj_IUiElement
+
+    If Not m_children Is Nothing Then
+        For Each child In m_children
+            child.Dispose
+        Next child
+    End If
+    Set m_children = Nothing
+    Set m_definition = Nothing
+    Set m_context = Nothing
+End Sub
+
+' //
+' // Interface
+' //
+Private Function obj_IUiElement_Configure( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    obj_IUiElement_Configure = ConfigurePanel(definition, context, source, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Measure( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    obj_IUiElement_Measure = MeasurePanel(rows, columns, diagnostic)
+    rows = rows + m_row - 1
+    columns = columns + m_column - 1
+End Function
+
+Private Function obj_IUiElement_Arrange( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    row = row + m_row - 1
+    column = column + m_column - 1
+    obj_IUiElement_Arrange = ArrangePanel(row, column, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    obj_IUiElement_Render = RenderPanel(diagnostic)
+End Function
+
+Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
+    obj_IUiElement_Validate = ValidatePanel(errors)
+End Function
+
+Private Sub obj_IUiElement_Dispose()
+    Me.Dispose
+End Sub

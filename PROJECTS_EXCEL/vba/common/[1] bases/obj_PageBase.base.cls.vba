@@ -14,6 +14,9 @@ Private m_uiFolderRelativePath As String
 Private m_uiBindingContext As obj_UiBindingContext
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -67,8 +70,7 @@ Public Function Render() As Boolean
 
     If m_uiBindingContext Is Nothing Then Exit Function
     startedAt = VBA.Timer
-    ex_UiRenderer.fn_RenderPages m_uiFolderRelativePath, m_uiBindingContext
-    Render = True
+    Render = ex_UiRenderer.fn_RenderPages(m_uiFolderRelativePath, m_uiBindingContext)
     ex_Core.fn_Diagnostic_WritePerf "PageBase.Render | Profile=" & m_profileId, startedAt
 End Function
 
@@ -77,8 +79,7 @@ Public Function RenderActivePage() As Boolean
 
     If m_uiBindingContext Is Nothing Then Exit Function
     startedAt = VBA.Timer
-    ex_UiRenderer.fn_RenderActivePage m_uiFolderRelativePath, m_uiBindingContext
-    RenderActivePage = True
+    RenderActivePage = ex_UiRenderer.fn_RenderActivePage(m_uiFolderRelativePath, m_uiBindingContext)
     ex_Core.fn_Diagnostic_WritePerf "PageBase.RenderActivePage | Profile=" & m_profileId, startedAt
 End Function
 

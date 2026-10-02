@@ -10,6 +10,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiControl
+Implements obj_IUiBindingTarget
 
 Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
 Private m_uiControlBase As obj_UiControlBase
@@ -17,6 +18,9 @@ Private m_targetRange As Range
 Private m_buttonShape As Shape
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
@@ -50,6 +54,7 @@ End Function
 Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim startedAt As Double
     Dim targetRange As Range
+
     startedAt = VBA.Timer
     Dim shapeName As String
     Dim captionText As String
@@ -62,13 +67,14 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
     If Not ex_UiBindingRuntime.fn_TryResolveCommand(private_ReadAttribute( _
             m_uiControlBase.ControlNode, "command"), uiRenderContext.BindingContext, uiCommand) Then Exit Function
+    If Not m_buttonShape Is Nothing Then m_buttonShape.Delete
     Set m_buttonShape = uiRenderContext.TargetWorksheet.Shapes.AddShape( _
         msoShapeRoundedRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
     m_buttonShape.TextFrame2.TextRange.Text = captionText
-    ex_StylePipeline.fn_ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
-    ex_UiBindings.fn_Register shapeName, uiCommand
+    uiRenderContext.Router.RegisterShape shapeName, uiCommand
     obj_IUiControl_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Button.Render", startedAt
 End Function
@@ -86,9 +92,33 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName As String) As String
+Private Function private_ReadAttribute( _
+    ByVal node As Object, _
+    ByVal attributeName As String _
+) As String
     Dim attributeValue As Variant
+
     attributeValue = node.getAttribute(attributeName)
     If VBA.IsNull(attributeValue) Or VBA.IsEmpty(attributeValue) Then Exit Function
     private_ReadAttribute = VBA.CStr(attributeValue)
+End Function
+
+' //
+' // Interface
+' //
+Private Function obj_IUiBindingTarget_RefreshBindings( _
+    ByVal context As obj_UiRenderContext _
+) As Boolean
+    Dim caption As String
+    Dim uiCommand As obj_UiCommand
+
+    If m_buttonShape Is Nothing Then Exit Function
+    If Not m_uiControlBase.TryGetCaption(context.BindingContext, caption) Then Exit Function
+    m_buttonShape.TextFrame2.TextRange.Text = caption
+    context.Styles.ApplyControlStyle m_targetRange, m_buttonShape, _
+        m_uiControlBase.ControlNode, context.BindingContext
+    If Not ex_UiBindingRuntime.fn_TryResolveCommand(private_ReadAttribute( _
+            m_uiControlBase.ControlNode, "command"), context.BindingContext, uiCommand) Then Exit Function
+    context.Router.RegisterShape m_buttonShape.Name, uiCommand
+    obj_IUiBindingTarget_RefreshBindings = True
 End Function

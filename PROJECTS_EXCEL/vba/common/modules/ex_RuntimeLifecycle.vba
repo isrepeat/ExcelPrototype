@@ -20,7 +20,8 @@ Public Function fn_PrepareReload() As Boolean
     ex_UiPageManager.fn_Module_Dispose
     ex_UiBindings.fn_Module_Dispose
     ex_UiRuntime.fn_Module_Dispose
-    ex_StylePipeline.fn_Module_Dispose
+    ex_UiElementFactory.fn_Module_Dispose
+    ex_UiControlFactory.fn_Module_Dispose
     ex_RuntimePaths.fn_Module_Dispose
     ex_AppHotkeys.fn_Module_Dispose
     ex_Core.fn_Module_Dispose
@@ -110,7 +111,6 @@ Public Sub fn_AttachContext(ByVal context As Object)
         VBA.Err.Raise VBA.vbObjectError + 2203, "fn_AttachContext", "Missing runtime context."
     Set m_context = context
 End Sub
-
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
