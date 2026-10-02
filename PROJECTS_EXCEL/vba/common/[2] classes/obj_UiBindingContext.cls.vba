@@ -14,6 +14,9 @@ Public Event ValueChanged(ByVal sourceName As String, ByVal bindingPath As Strin
 Private m_sources As Object
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -36,6 +39,11 @@ Public Sub Dispose()
     m_isDisposed = True
     Set m_sources = Nothing
 End Sub
+
+Public Function HasSource(ByVal sourceName As String) As Boolean
+    If m_sources Is Nothing Then Exit Function
+    HasSource = m_sources.Exists(VBA.Trim$(sourceName))
+End Function
 
 Public Function SetValue( _
     ByVal sourceName As String, _
@@ -167,7 +175,10 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_TryGetOrCreateSource(ByVal sourceName As String, ByRef outSourceMap As Object) As Boolean
+Private Function private_TryGetOrCreateSource( _
+    ByVal sourceName As String, _
+    ByRef outSourceMap As Object _
+) As Boolean
     sourceName = VBA.Trim$(sourceName)
     If VBA.Len(sourceName) = 0 Then Exit Function
     If m_sources Is Nothing Then If Not Initialize() Then Exit Function

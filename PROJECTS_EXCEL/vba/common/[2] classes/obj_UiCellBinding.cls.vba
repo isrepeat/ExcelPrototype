@@ -18,12 +18,11 @@ Private m_sourceName As String
 Private m_bindingPath As String
 Private m_command As obj_UiCommand
 Private m_isDisposed As Boolean
-Private m_formName As String
-Private m_required As Boolean
-Private m_readOnly As Boolean
-Private m_checkbox As Boolean
-Private m_checkboxShape As Shape
+Private m_twoWay As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -65,13 +64,13 @@ Public Function Initialize( _
     m_bindingPath = bindingPath
     Set m_command = command
     m_isDisposed = False
+    m_twoWay = True
     Initialize = True
 End Function
 
 Public Sub Dispose()
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
-    Set m_checkboxShape = Nothing
     Set m_command = Nothing
     Set m_bindingContext = Nothing
     m_worksheetName = VBA.vbNullString
@@ -80,83 +79,18 @@ Public Sub Dispose()
     m_bindingPath = VBA.vbNullString
 End Sub
 
-Public Sub ConfigureField(ByVal formName As String, ByVal required As Boolean, _
-    ByVal readOnly As Boolean, ByVal checkbox As Boolean)
-    m_formName = formName
-    m_required = required
-    m_readOnly = readOnly
-    m_checkbox = checkbox
-    If m_checkbox Then
-        Set m_checkboxShape = ThisWorkbook.Worksheets(m_worksheetName).Shapes.AddFormControl( _
-            xlCheckBox, ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress).Left, _
-            ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress).Top, 20, 18)
-        m_checkboxShape.Name = "chk_" & CStr(ex_UiBindings.fn_NextSelectControlId())
-        m_checkboxShape.TextFrame.Characters.Text = VBA.vbNullString
-        m_checkboxShape.OnAction = "'" & Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_UiBridge.fn_OnShapeClick"
-        m_checkboxShape.ControlFormat.Value = IIf( _
-            ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress).Value2, xlOn, xlOff)
-        m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
-        ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress).NumberFormat = ";;;"
-    End If
+Public Sub SetTwoWay(ByVal enabled As Boolean)
+    m_twoWay = enabled
 End Sub
-
-Public Function HandleCheckboxClick(ByVal shapeName As String) As Boolean
-    Dim target As Range
-    Dim previousEnableEvents As Boolean
-
-    If m_isDisposed Or m_checkboxShape Is Nothing Then Exit Function
-    If StrComp(shapeName, m_checkboxShape.Name, vbTextCompare) <> 0 Then Exit Function
-    HandleCheckboxClick = True
-    If m_readOnly Then Exit Function
-    Set target = ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress)
-    previousEnableEvents = Application.EnableEvents
-    On Error GoTo EH
-    Application.EnableEvents = False
-    target.Value2 = (m_checkboxShape.ControlFormat.Value = xlOn)
-    Application.EnableEvents = previousEnableEvents
-    HandleCellChange target
-    Exit Function
-EH:
-    Application.EnableEvents = previousEnableEvents
-    MsgBox "Cannot change checkbox: " & Err.Description, vbExclamation, "Field"
-End Function
-
-Public Function ValidateForm(ByVal formName As String) As Boolean
-    Dim value As Variant
-    Dim sourceObject As Object
-    Dim isObject As Boolean
-
-    ValidateForm = True
-    If m_isDisposed Or StrComp(formName, m_formName, vbTextCompare) <> 0 Then Exit Function
-    If Not m_required Then Exit Function
-    If Not m_bindingContext.TryGetValue(m_sourceName, m_bindingPath, value, sourceObject, isObject) Then
-        ValidateForm = False
-    ElseIf isObject Or IsNull(value) Or IsError(value) Then
-        ValidateForm = False
-    Else
-        ValidateForm = (Len(Trim$(CStr(value))) > 0)
-        If m_checkbox Then ValidateForm = (value = True)
-    End If
-    If Not ValidateForm Then
-        MsgBox "Required field: " & m_bindingPath, vbExclamation, "Form validation"
-    End If
-End Function
 
 Public Function HandleCellChange(ByVal target As Range) As Boolean
     If m_isDisposed Or target Is Nothing Then Exit Function
     If VBA.StrComp(target.Parent.Name, m_worksheetName, VBA.vbTextCompare) <> 0 Then Exit Function
     If VBA.StrComp(target.Address(False, False), m_cellAddress, VBA.vbTextCompare) <> 0 Then Exit Function
-    If m_readOnly Then
+    If Not m_twoWay Then
         m_bindingContext_ValueChanged m_sourceName, m_bindingPath
         HandleCellChange = True
         Exit Function
-    End If
-    If m_checkbox Then
-        If VarType(target.Value2) <> vbBoolean Then
-            m_bindingContext_ValueChanged m_sourceName, m_bindingPath
-            MsgBox "A checkbox field requires TRUE or FALSE.", vbExclamation, "Field"
-            Exit Function
-        End If
     End If
     If Not m_bindingContext.TrySetPathValue( _
             m_sourceName, m_bindingPath, target.Value2) Then Exit Function
@@ -166,6 +100,9 @@ Public Function HandleCellChange(ByVal target As Range) As Boolean
     HandleCellChange = True
 End Function
 
+' //
+' // Private
+' //
 Private Sub m_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
     Dim value As Variant
     Dim sourceObject As Object
@@ -183,17 +120,16 @@ Private Sub m_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bind
     On Error GoTo EH
     If Not m_bindingContext.TryGetValue(m_sourceName, m_bindingPath, _
             value, sourceObject, isObject) Then
-        Err.Raise vbObjectError + 2101, "obj_UiCellBinding", _
+        VBA.Err.Raise VBA.vbObjectError + 2101, "obj_UiCellBinding", _
             "Binding value was not found: " & m_sourceName & "." & m_bindingPath
     End If
     If isObject Then
-        Err.Raise vbObjectError + 2102, "obj_UiCellBinding", _
+        VBA.Err.Raise VBA.vbObjectError + 2102, "obj_UiCellBinding", _
             "A cell binding requires a scalar value: " & m_sourceName & "." & m_bindingPath
     End If
     Set target = ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress)
     Application.EnableEvents = False
     target.Value2 = value
-    If Not m_checkboxShape Is Nothing Then m_checkboxShape.ControlFormat.Value = IIf(value, xlOn, xlOff)
     Application.EnableEvents = previousEnableEvents
     RaiseEvent ValueRefreshed
     Exit Sub

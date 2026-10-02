@@ -16,31 +16,27 @@ Public Sub fn_OnShapeClick()
     Dim runtimeContext As Object
     Dim errorNumber As Long
     Dim errorDescription As String
-    Dim uiCommand As obj_UiCommand
+    Dim context As obj_UiRenderContext
     Dim shapeName As String
+    Dim diagnostic As String
 
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
     On Error GoTo EH
     shapeName = VBA.CStr(Application.Caller)
-    If ex_UiBindings.fn_HandleCheckboxClick(shapeName) Then GoTo CleanExit
-    If ex_UiBindings.fn_HandleSelectShapeClick(shapeName) Then GoTo CleanExit
-    ex_UiBindings.fn_CollapseSelectControls
-    If Not ex_UiBindings.fn_TryGetCommand(shapeName, uiCommand) Then
-        ex_WindowsUi.fn_ShowMessage "No command is registered for the selected button.", _
-            VBA.vbExclamation, "PersonalEventBuilder"
-        GoTo CleanExit
+    If TypeOf Application.ActiveSheet Is Worksheet Then
+        If ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then
+            context.Router.DispatchShape shapeName
+            If Not context.FlushLayout(diagnostic) Then VBA.Err.Raise VBA.vbObjectError + 2231, , diagnostic
+        End If
     End If
-    ex_Core.fn_Diagnostic_WriteLog "UI_CLICK | Shape=" & shapeName & _
-        " | Command=" & uiCommand.CallbackName
-    uiCommand.Execute
 CleanExit:
-    Set uiCommand = Nothing
+    Set context = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
-    Set uiCommand = Nothing
+    Set context = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     VBA.Err.Raise errorNumber, "ex_UiBridge.fn_OnShapeClick", errorDescription
 End Sub

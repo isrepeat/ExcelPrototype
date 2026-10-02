@@ -10,6 +10,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiControl
+Implements obj_IUiEventHandler
 
 Private Const SELECT_SHAPE_PREFIX As String = "sel_"
 Private m_uiControlBase As obj_UiControlBase
@@ -23,10 +24,14 @@ Private m_changeCommand As obj_UiCommand
 Private m_isSelect As Boolean
 Private m_isCheckbox As Boolean
 Private m_readOnly As Boolean
-Private m_required As Boolean
-Private m_formName As String
+Private WithEvents m_cellBinding As obj_UiCellBinding
+Private m_selectAction As obj_UiSelectShapeAction
+Private m_checkboxShape As Shape
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
     Set m_uiControlBase = New obj_UiControlBase
 End Sub
@@ -47,6 +52,11 @@ End Function
 Private Sub obj_IUiControl_Dispose()
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
+    If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
+    If Not m_selectAction Is Nothing Then m_selectAction.Dispose
+    Set m_cellBinding = Nothing
+    Set m_selectAction = Nothing
+    Set m_checkboxShape = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_targetRange = Nothing
@@ -70,14 +80,12 @@ Private Function obj_IUiControl_Configure(ByVal controlNode As Object) As Boolea
     m_isSelect = (controlType = "select" Or inputType = "select")
     m_isCheckbox = (inputType = "checkbox")
     m_readOnly = (VBA.LCase$(private_ReadAttribute(controlNode, "readOnly")) = "true")
-    m_required = (VBA.LCase$(private_ReadAttribute(controlNode, "required")) = "true")
-    m_formName = private_ReadAttribute(controlNode, "formName")
     m_items = private_ReadAttribute(controlNode, "items")
     m_itemsSourceRaw = private_ReadAttribute(controlNode, "itemsSource")
     If m_isSelect And VBA.Len(VBA.Trim$(m_items)) = 0 And _
        VBA.Len(VBA.Trim$(m_itemsSourceRaw)) = 0 Then Exit Function
     rawValue = private_ReadAttribute(controlNode, "value")
-    defaultSource = private_GetFormSource(controlNode)
+    defaultSource = VBA.vbNullString
     If Not private_TryParseBinding(rawValue, defaultSource, m_sourceName, m_bindingPath) Then
         ex_WindowsUi.fn_ShowMessage "Invalid field binding. Specify Source or a qualified Path; " & _
             "an unqualified Path requires source on the nearest form: " & rawValue, _
@@ -102,6 +110,23 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     Dim targetCell As Range
     Dim selectItems As Collection
 
+    Dim shapeNameToRemove As Variant
+
+    If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
+    Set m_cellBinding = Nothing
+    If Not m_selectAction Is Nothing Then
+        For Each shapeNameToRemove In m_selectAction.ShapeNames
+            uiRenderContext.Router.UnregisterShape VBA.CStr(shapeNameToRemove)
+            uiRenderContext.TargetWorksheet.Shapes(VBA.CStr(shapeNameToRemove)).Delete
+        Next shapeNameToRemove
+        m_selectAction.Dispose
+        Set m_selectAction = Nothing
+    End If
+    If Not m_checkboxShape Is Nothing Then
+        uiRenderContext.Router.UnregisterShape m_checkboxShape.Name
+        m_checkboxShape.Delete
+        Set m_checkboxShape = Nothing
+    End If
     If m_targetRange Is Nothing Then Set m_targetRange = obj_IUiControl_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
     If m_targetRange.Cells.CountLarge > 1 Then m_targetRange.Merge
@@ -128,7 +153,7 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
         m_targetRange.NumberFormat = ";;;"
         If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
     Else
-        ex_StylePipeline.fn_ApplyControlStyle m_targetRange, Nothing, _
+        uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
             m_uiControlBase.ControlNode, uiRenderContext.BindingContext
         On Error Resume Next
         m_targetRange.Cells(1, 1).Validation.Delete
@@ -140,11 +165,23 @@ Private Function obj_IUiControl_Render(ByVal uiRenderContext As obj_UiRenderCont
     If Not uiCellBinding.Initialize( _
             targetCell.Parent.Name, targetCell.Address(False, False), _
             uiRenderContext.BindingContext, m_sourceName, m_bindingPath, m_changeCommand) Then Exit Function
-    uiCellBinding.ConfigureField m_formName, m_required, m_readOnly, m_isCheckbox
-    If Not ex_UiBindings.fn_RegisterCellBinding(uiCellBinding) Then Exit Function
+    uiCellBinding.SetTwoWay Not m_readOnly
+    Set m_cellBinding = uiCellBinding
+    uiRenderContext.Router.RegisterCell targetCell, Me
     If m_isSelect Then
         If Not private_RenderSelectShapes( _
                 uiRenderContext, selectItems, VBA.CStr(value), uiCellBinding) Then Exit Function
+    End If
+    If m_isCheckbox Then
+        Set m_checkboxShape = uiRenderContext.TargetWorksheet.Shapes.AddFormControl( _
+            xlCheckBox, targetCell.Left, targetCell.Top, 20, 18)
+        m_checkboxShape.Name = "chk_" & VBA.CStr(uiRenderContext.Router.NextId())
+        m_checkboxShape.TextFrame.Characters.Text = VBA.vbNullString
+        m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
+        m_checkboxShape.ControlFormat.Value = VBA.IIf(VBA.CBool(value), xlOn, xlOff)
+        m_checkboxShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+        m_targetRange.NumberFormat = ";;;"
+        uiRenderContext.Router.RegisterShape m_checkboxShape.Name, Me
     End If
     obj_IUiControl_Render = True
 End Function
@@ -225,7 +262,7 @@ Private Function private_RenderSelectShapes( _
     If items Is Nothing Or uiCellBinding Is Nothing Then Exit Function
     If items.Count = 0 Then Exit Function
     Set targetWorksheet = uiRenderContext.TargetWorksheet
-    controlId = ex_UiBindings.fn_NextSelectControlId()
+    controlId = uiRenderContext.Router.NextId()
     headerShapeName = SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId)
     panelShapeName = SELECT_SHAPE_PREFIX & "p_" & VBA.CStr(controlId)
     itemHeight = m_targetRange.Height
@@ -249,7 +286,7 @@ Private Function private_RenderSelectShapes( _
     headerShape.TextFrame2.MarginRight = 5
     headerShape.TextFrame2.MarginTop = 0
     headerShape.TextFrame2.MarginBottom = 0
-    ex_StylePipeline.fn_ApplyControlStyle Nothing, headerShape, _
+    uiRenderContext.Styles.ApplyControlStyle Nothing, headerShape, _
         m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     headerShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
 
@@ -258,7 +295,7 @@ Private Function private_RenderSelectShapes( _
         m_targetRange.Width, items.Count * itemHeight + (items.Count - 1) * itemMargin)
     panelShape.Name = panelShapeName
     private_ApplyDefaultShapeStyle panelShape
-    ex_StylePipeline.fn_ApplyControlPartStyle panelShape, _
+    uiRenderContext.Styles.ApplyControlPartStyle panelShape, _
         m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "panelStyle"
     panelShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
     panelShape.Visible = msoFalse
@@ -280,7 +317,7 @@ Private Function private_RenderSelectShapes( _
         itemShape.TextFrame2.MarginRight = 5
         itemShape.TextFrame2.MarginTop = 0
         itemShape.TextFrame2.MarginBottom = 0
-        ex_StylePipeline.fn_ApplyControlPartStyle itemShape, _
+        uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
             m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "itemStyle"
         itemShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
         itemShape.Visible = msoFalse
@@ -292,7 +329,12 @@ Private Function private_RenderSelectShapes( _
     If Not uiSelectAction.Initialize( _
             controlId, m_targetRange.Cells(1, 1), headerShapeName, panelShapeName, _
             itemShapeNames, shapeNames, items, selectedValue, uiCellBinding) Then Exit Function
-    If Not ex_UiBindings.fn_RegisterSelectControl(uiSelectAction) Then Exit Function
+    Set m_selectAction = uiSelectAction
+    Dim routeName As Variant
+
+    For Each routeName In uiSelectAction.ShapeNames
+        uiRenderContext.Router.RegisterShape VBA.CStr(routeName), uiSelectAction
+    Next routeName
     private_RenderSelectShapes = True
 End Function
 
@@ -321,23 +363,56 @@ Private Function private_TryParseBinding( _
         rawBinding, defaultSource, outSourceName, outBindingPath)
 End Function
 
-Private Function private_GetFormSource(ByVal controlNode As Object) As String
-    Dim currentNode As Object
-    Dim nodeName As String
-
-    Set currentNode = controlNode.parentNode
-    Do While Not currentNode Is Nothing
-        nodeName = VBA.LCase$(VBA.CStr(currentNode.baseName))
-        If nodeName = "form" Then
-            private_GetFormSource = private_ReadAttribute(currentNode, "source")
-            Exit Function
-        End If
-        Set currentNode = currentNode.parentNode
-    Loop
-End Function
-
-Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName As String) As String
+Private Function private_ReadAttribute( _
+    ByVal node As Object, _
+    ByVal attributeName As String _
+) As String
     Dim value As Variant
+
     value = node.getAttribute(attributeName)
     If Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then private_ReadAttribute = VBA.CStr(value)
+End Function
+
+Private Sub m_cellBinding_ValueRefreshed()
+    If Not m_checkboxShape Is Nothing Then _
+        m_checkboxShape.ControlFormat.Value = VBA.IIf(VBA.CBool(m_targetRange.Cells(1, 1).Value2), xlOn, xlOff)
+End Sub
+
+' //
+' // Interface
+' //
+Private Function obj_IUiEventHandler_HandleEvent( _
+    ByVal kind As String, _
+    ByVal payload As Variant _
+) As Boolean
+    Dim target As Range
+    Dim previousEvents As Boolean
+
+    If kind <> "click" And kind <> "change" Then Exit Function
+    If kind = "click" Then
+        If m_checkboxShape Is Nothing Then Exit Function
+        If m_readOnly Then
+            obj_IUiEventHandler_HandleEvent = True
+            Exit Function
+        End If
+        Set target = m_targetRange.Cells(1, 1)
+        previousEvents = Application.EnableEvents
+        On Error GoTo EH
+        Application.EnableEvents = False
+        target.Value2 = (m_checkboxShape.ControlFormat.Value = xlOn)
+        Application.EnableEvents = previousEvents
+    Else
+        Set target = payload
+        If m_isCheckbox And VBA.VarType(target.Value2) <> VBA.vbBoolean Then
+            m_cellBinding.SetTwoWay False
+            m_cellBinding.HandleCellChange target
+            m_cellBinding.SetTwoWay Not m_readOnly
+            Exit Function
+        End If
+    End If
+    obj_IUiEventHandler_HandleEvent = m_cellBinding.HandleCellChange(target)
+    Exit Function
+EH:
+    Application.EnableEvents = previousEvents
+    VBA.Err.Raise VBA.Err.Number, "Input.HandleEvent", VBA.Err.Description
 End Function

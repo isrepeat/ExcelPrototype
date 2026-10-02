@@ -59,10 +59,12 @@ Public Function fn_TryParseBinding( _
     ByVal rawBinding As String, _
     ByVal defaultSource As String, _
     ByRef outSourceName As String, _
-    ByRef outBindingPath As String _
+    ByRef outBindingPath As String, _
+    Optional ByVal context As obj_UiBindingContext _
 ) As Boolean
     Dim bindingBody As String
     Dim separatorPosition As Long
+    Dim qualified As Boolean
 
     outSourceName = VBA.vbNullString
     outBindingPath = VBA.vbNullString
@@ -70,7 +72,11 @@ Public Function fn_TryParseBinding( _
     If Not private_TryReadArgument(bindingBody, "Path", outBindingPath) Then Exit Function
     If Not private_TryReadArgument(bindingBody, "Source", outSourceName) Then
         separatorPosition = VBA.InStr(1, outBindingPath, ".", VBA.vbBinaryCompare)
-        If separatorPosition > 0 Then
+        qualified = (separatorPosition > 0)
+        If qualified And Not context Is Nothing And VBA.Len(defaultSource) > 0 Then
+            qualified = context.HasSource(VBA.Trim$(VBA.Left$(outBindingPath, separatorPosition - 1)))
+        End If
+        If qualified Then
             outSourceName = VBA.Trim$(VBA.Left$(outBindingPath, separatorPosition - 1))
             outBindingPath = VBA.Trim$(VBA.Mid$(outBindingPath, separatorPosition + 1))
         Else
@@ -104,7 +110,7 @@ Public Function fn_TryResolveValue( _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
-    If Not fn_TryParseBinding(rawText, "Text", sourceName, bindingPath) Then
+    If Not fn_TryParseBinding(rawText, VBA.vbNullString, sourceName, bindingPath, uiBindingContext) Then
         ex_WindowsUi.fn_ShowMessage "Binding Path is required: " & rawText, VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
@@ -119,7 +125,13 @@ End Function
 ' } // namespace API
 ' --------------------------------------
 
-Private Function private_TryExtractBindingBody(ByVal rawText As String, ByRef outBody As String) As Boolean
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
+Private Function private_TryExtractBindingBody( _
+    ByVal rawText As String, _
+    ByRef outBody As String _
+) As Boolean
     If VBA.Len(rawText) <= VBA.Len(BINDING_PREFIX) Then Exit Function
     If VBA.StrComp(VBA.Left$(rawText, VBA.Len(BINDING_PREFIX)), BINDING_PREFIX, VBA.vbTextCompare) <> 0 Then Exit Function
     If VBA.Right$(rawText, VBA.Len(BINDING_SUFFIX)) <> BINDING_SUFFIX Then Exit Function
@@ -127,7 +139,11 @@ Private Function private_TryExtractBindingBody(ByVal rawText As String, ByRef ou
     private_TryExtractBindingBody = True
 End Function
 
-Private Function private_TryReadArgument(ByVal bindingBody As String, ByVal argumentName As String, ByRef outValue As String) As Boolean
+Private Function private_TryReadArgument( _
+    ByVal bindingBody As String, _
+    ByVal argumentName As String, _
+    ByRef outValue As String _
+) As Boolean
     Dim arguments As Variant
     Dim argumentText As Variant
     Dim separatorPosition As Long
@@ -146,3 +162,6 @@ Private Function private_TryReadArgument(ByVal bindingBody As String, ByVal argu
         End If
     Next argumentText
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

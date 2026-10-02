@@ -13,13 +13,19 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_RenderPages(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
-    ex_UiRuntime.fn_RenderPages uiFolderRelativePath, uiBindingContext
-End Sub
+Public Function fn_RenderPages( _
+    ByVal uiFolderRelativePath As String, _
+    ByVal uiBindingContext As obj_UiBindingContext _
+) As Boolean
+    fn_RenderPages = ex_UiRuntime.fn_RenderPages(uiFolderRelativePath, uiBindingContext)
+End Function
 
-Public Sub fn_RenderActivePage(ByVal uiFolderRelativePath As String, ByVal uiBindingContext As obj_UiBindingContext)
-    ex_UiRuntime.fn_RenderActivePage uiFolderRelativePath, uiBindingContext
-End Sub
+Public Function fn_RenderActivePage( _
+    ByVal uiFolderRelativePath As String, _
+    ByVal uiBindingContext As obj_UiBindingContext _
+) As Boolean
+    fn_RenderActivePage = ex_UiRuntime.fn_RenderActivePage(uiFolderRelativePath, uiBindingContext)
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

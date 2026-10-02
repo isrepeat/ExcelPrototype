@@ -1,7 +1,7 @@
 Option Explicit
 
 ' --------------------------------------
-' namespace Events {
+' namespace Private {
 ' --------------------------------------
 Private Sub Workbook_Open()
     Dim runtimeContext As Object
@@ -132,7 +132,13 @@ Private Sub Workbook_SheetSelectionChange(ByVal sheet As Object, ByVal target As
     On Error GoTo EH
     runtimeEntered = ex_RuntimeLifecycle.fn_TryEnter(runtimeContext)
     If Not runtimeEntered Then Exit Sub
-    ex_UiBindings.fn_CollapseSelectControls
+    Dim uiRenderContext As obj_UiRenderContext
+
+    If TypeOf sheet Is Worksheet Then
+        If ex_UiRuntime.fn_TryGetContext(sheet, uiRenderContext) Then
+            uiRenderContext.Router.Broadcast "dismiss"
+        End If
+    End If
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
@@ -209,10 +215,6 @@ EH:
         VBA.vbExclamation, "PersonalEventBuilder"
 End Sub
 
-' --------------------------------------
-' } // namespace Events
-' --------------------------------------
-
 Private Sub private_ForgetReloadContext()
     Dim updater As Workbook
 
@@ -231,3 +233,6 @@ Private Function private_FormatElapsedMilliseconds(ByVal startedAt As Double) As
     If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
     private_FormatElapsedMilliseconds = VBA.Format$(elapsedSeconds * 1000#, "0.0")
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

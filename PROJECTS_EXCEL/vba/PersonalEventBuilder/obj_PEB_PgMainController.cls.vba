@@ -13,6 +13,9 @@ Private m_pageBase As obj_PageBase
 Private m_tableList As obj_UiRawTableList
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -100,7 +103,15 @@ Public Function SubmitFormCommandHandler() As Boolean
     Dim category As Variant
     Dim notes As Variant
 
-    If Not ex_UiBindings.fn_ValidateForm("EventDraftForm") Then Exit Function
+    Dim context As obj_UiRenderContext
+    Dim errors As Collection
+
+    Set errors = New Collection
+    If Not ex_UiRuntime.fn_TryGetContext(ThisWorkbook.Worksheets("MainPage"), context) Then Exit Function
+    If Not context.ValidateForm("EventDraftForm", errors) Then
+        ex_WindowsUi.fn_ShowMessage VBA.CStr(errors(1)), VBA.vbExclamation, "Form validation"
+        Exit Function
+    End If
     If Not FormChangedCommandHandler() Then Exit Function
     If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
     If Not private_TryReadFormValue("Category", category) Then Exit Function

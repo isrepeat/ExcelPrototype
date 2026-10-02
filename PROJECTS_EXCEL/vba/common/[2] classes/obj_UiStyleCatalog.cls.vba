@@ -1,3 +1,12 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1
+END
+Attribute VB_Name = "obj_UiStyleCatalog"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = False
+Attribute VB_Exposed = False
 Option Explicit
 
 Private Const COMMON_STYLE_CATALOG_FILE_NAME As String = "CommonControlStyles.xaml"
@@ -7,22 +16,26 @@ Private m_stylesByName As Object
 Private m_pageDocument As Object
 Private m_targetWorksheet As Worksheet
 
-' --------------------------------------
-' namespace Lifecycle {
-' --------------------------------------
-Public Sub fn_Module_Dispose()
+' //
+' // Lifecycle
+' //
+Private Sub Class_Initialize()
+End Sub
+
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+
+' //
+' // API
+' //
+Public Sub Dispose()
     Set m_stylesByName = Nothing
     Set m_pageDocument = Nothing
     Set m_targetWorksheet = Nothing
 End Sub
-' --------------------------------------
-' } // namespace Lifecycle
-' --------------------------------------
 
-' --------------------------------------
-' namespace API {
-' --------------------------------------
-Public Sub fn_BeginPage( _
+Public Sub BeginPage( _
     ByVal targetWorksheet As Worksheet, _
     ByVal pageDocument As Object, _
     ByVal uiFolderPath As String _
@@ -57,7 +70,7 @@ Public Sub fn_BeginPage( _
     ex_Core.fn_Diagnostic_WritePerf "Style.BeginPage | Sheet=" & targetWorksheet.Name, startedAt
 End Sub
 
-Public Sub fn_ApplyControlStyle( _
+Public Sub ApplyControlStyle( _
     ByVal targetRange As Range, _
     ByVal targetShape As Object, _
     ByVal controlNode As Object, _
@@ -81,7 +94,7 @@ Public Sub fn_ApplyControlStyle( _
                 m_targetWorksheet.Name & " | Style=" & styleName
             ex_WindowsUi.fn_ShowMessage "Control style is not declared: " & styleName, _
                 VBA.vbExclamation, "PersonalEventBuilder / Styles"
-            VBA.Err.Raise 5, "ex_StylePipeline.fn_ApplyControlStyle", _
+            VBA.Err.Raise 5, "obj_UiStyleCatalog.ApplyControlStyle", _
                 "Control style is not declared: " & styleName
         End If
     End If
@@ -92,7 +105,7 @@ Public Sub fn_ApplyControlStyle( _
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyControl", startedAt
 End Sub
 
-Public Sub fn_ApplyControlPartStyle( _
+Public Sub ApplyControlPartStyle( _
     ByVal targetShape As Object, _
     ByVal controlNode As Object, _
     ByVal uiBindingContext As obj_UiBindingContext, _
@@ -117,7 +130,7 @@ Public Sub fn_ApplyControlPartStyle( _
     private_ApplyProperties Nothing, targetShape, styleProperties
 End Sub
 
-Public Sub fn_ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
+Public Sub ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
     Dim stageNode As Object
     Dim layerNode As Object
     Dim ruleNode As Object
@@ -162,10 +175,10 @@ Public Sub fn_ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
     ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_COMPLETED | Sheet=" & targetWorksheet.Name
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyPagePipeline | Sheet=" & targetWorksheet.Name, startedAt
 End Sub
-' --------------------------------------
-' } // namespace API
-' --------------------------------------
 
+' //
+' // Private
+' //
 Private Sub private_RegisterStyleNodes(ByVal styleDocument As Object)
     Dim styleNode As Object
     Dim styleName As String
@@ -669,7 +682,10 @@ Private Function private_ReadSelectorValue( _
     Next selectorPart
 End Function
 
-Private Function private_ReadAttribute(ByVal node As Object, ByVal attributeName As String) As String
+Private Function private_ReadAttribute( _
+    ByVal node As Object, _
+    ByVal attributeName As String _
+) As String
     Dim attributeValue As Variant
 
     attributeValue = node.getAttribute(attributeName)

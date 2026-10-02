@@ -9,9 +9,6 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
-' //
-' // Interface
-' //
 Public Function Initialize() As Boolean
 End Function
 

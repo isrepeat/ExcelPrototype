@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Implements obj_IUiEventHandler
+
 Private m_controlId As Long
 Private m_worksheet As Worksheet
 Private m_targetCell As Range
@@ -22,6 +24,9 @@ Private WithEvents m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 Private m_isDisposed As Boolean
 
+' //
+' // Lifecycle
+' //
 Private Sub Class_Initialize()
 End Sub
 
@@ -210,3 +215,17 @@ Private Sub m_uiCellBinding_ValueRefreshed()
     m_selectedValue = VBA.CStr(m_targetCell.Value2)
     private_UpdateHeader
 End Sub
+
+' //
+' // Interface
+' //
+Private Function obj_IUiEventHandler_HandleEvent( _
+    ByVal kind As String, _
+    ByVal payload As Variant _
+) As Boolean
+    If kind = "dismiss" Then
+        obj_IUiEventHandler_HandleEvent = Me.CollapseDropdown()
+    Else
+        obj_IUiEventHandler_HandleEvent = Me.HandleShapeClick(VBA.CStr(payload))
+    End If
+End Function
