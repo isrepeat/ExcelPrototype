@@ -104,9 +104,10 @@ Public Function SubmitFormCommandHandler() As Boolean
     If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
     If Not private_TryReadFormValue("Category", category) Then Exit Function
     If Not private_TryReadFormValue("Notes", notes) Then Exit Function
-    VBA.MsgBox "Event: " & VBA.CStr(eventName) & VBA.vbCrLf & _
-        "Category: " & VBA.CStr(category) & VBA.vbCrLf & _
-        "Notes: " & VBA.CStr(notes), VBA.vbInformation, "Form data"
+    If ex_WindowsUi.fn_ShowInformation( _
+            "Event: " & VBA.CStr(eventName) & VBA.vbCrLf & _
+            "Category: " & VBA.CStr(category) & VBA.vbCrLf & _
+            "Notes: " & VBA.CStr(notes), "Form data") = 0 Then Exit Function
     SubmitFormCommandHandler = True
 End Function
 
