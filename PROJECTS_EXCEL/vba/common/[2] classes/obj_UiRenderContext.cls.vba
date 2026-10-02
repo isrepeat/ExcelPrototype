@@ -92,6 +92,18 @@ Public Function ValidateForm(ByVal name As String, ByVal errors As Collection) A
 End Function
 
 Public Function Build(ByRef diagnostic As String) As Boolean
+    Dim validator As New obj_UiMarkupValidator
+    Dim errors As New Collection
+    Dim markupError As obj_UiMarkupDiagnostic
+
+    If Not validator.Validate(m_uiPageDefinition.Document.documentElement, errors) Then
+        diagnostic = VBA.vbNullString
+        For Each markupError In errors
+            If VBA.Len(diagnostic) > 0 Then diagnostic = diagnostic & VBA.vbCrLf
+            diagnostic = diagnostic & markupError.Describe()
+        Next markupError
+        Exit Function
+    End If
     Set m_root = ex_UiElementFactory.fn_Create(m_uiPageDefinition.Document.documentElement, _
         Me, VBA.vbNullString, diagnostic)
     Build = Not m_root Is Nothing

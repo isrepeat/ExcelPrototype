@@ -276,7 +276,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If m_isCheckbox Then
         Set m_checkboxShape = uiRenderContext.TargetWorksheet.Shapes.AddFormControl( _
             xlCheckBox, targetCell.Left, targetCell.Top, 20, 18)
-        m_checkboxShape.Name = "chk_" & VBA.CStr(uiRenderContext.Router.NextId())
+        m_checkboxShape.Name = private_ShapeName("chk_" & VBA.CStr(uiRenderContext.Router.NextId()))
         m_checkboxShape.TextFrame.Characters.Text = VBA.vbNullString
         m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
         m_checkboxShape.ControlFormat.Value = VBA.IIf(VBA.CBool(value), xlOn, xlOff)
@@ -360,8 +360,8 @@ Private Function private_RenderSelectShapes( _
     If items.Count = 0 Then Exit Function
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     controlId = uiRenderContext.Router.NextId()
-    headerShapeName = SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId)
-    panelShapeName = SELECT_SHAPE_PREFIX & "p_" & VBA.CStr(controlId)
+    headerShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId))
+    panelShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "p_" & VBA.CStr(controlId))
     itemHeight = m_targetRange.Height
     itemMargin = 0
     If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight")) Then
@@ -402,7 +402,7 @@ Private Function private_RenderSelectShapes( _
     shapeNames.Add headerShapeName
     shapeNames.Add panelShapeName
     For itemIndex = 1 To items.Count
-        itemShapeName = SELECT_SHAPE_PREFIX & "i_" & VBA.CStr(controlId) & "_" & VBA.CStr(itemIndex)
+        itemShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "i_" & VBA.CStr(controlId) & "_" & VBA.CStr(itemIndex))
         itemTop = panelShape.Top + (itemIndex - 1) * (itemHeight + itemMargin)
         Set itemShape = targetWorksheet.Shapes.AddShape( _
             msoShapeRectangle, panelShape.Left, itemTop, panelShape.Width, itemHeight)
@@ -478,3 +478,11 @@ Private Sub private_cellBinding_ValueRefreshed()
     If Not m_checkboxShape Is Nothing Then _
         m_checkboxShape.ControlFormat.Value = VBA.IIf(VBA.CBool(m_targetRange.Cells(1, 1).Value2), xlOn, xlOff)
 End Sub
+
+Private Function private_ShapeName(ByVal name As String) As String
+    If VBA.Len(name) > 31 Then
+        VBA.Err.Raise VBA.vbObjectError + 2240, "Input.ShapeName", _
+            "The generated Shape name exceeds 31 characters: " & name
+    End If
+    private_ShapeName = name
+End Function

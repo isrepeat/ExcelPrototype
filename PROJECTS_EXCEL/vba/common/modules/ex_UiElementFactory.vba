@@ -25,6 +25,27 @@ Public Sub fn_Register(ByVal tag As String, ByVal factory As obj_IUiElementFacto
     Set m_factories(tag) = factory
 End Sub
 
+Public Function fn_TryGetSchema(ByVal name As String, ByRef schema As obj_UiMarkupSchema, ByRef diagnostic As String) As Boolean
+    Dim provider As obj_IUiMarkupSchemaProvider
+    Dim factory As obj_IUiElementFactory
+
+    Set schema = Nothing
+    private_Initialize
+    If Not m_factories.Exists(name) Then
+        diagnostic = "Unknown Element: " & name
+        Exit Function
+    End If
+    Set factory = m_factories(name)
+    If Not TypeOf factory Is obj_IUiMarkupSchemaProvider Then
+        diagnostic = "Markup schema provider is required: " & name
+        Exit Function
+    End If
+    Set provider = factory
+    Set schema = provider.GetSchema()
+    fn_TryGetSchema = Not schema Is Nothing
+    If schema Is Nothing Then diagnostic = "Markup schema is missing: " & name
+End Function
+
 Public Function fn_Create( _
     ByVal definition As Object, _
     ByVal context As obj_UiRenderContext, _
@@ -35,18 +56,7 @@ Public Function fn_Create( _
     Dim factory As obj_IUiElementFactory
     Dim builtInFactory As obj_UiElementFactory
 
-    If Not m_initialized Then
-        If m_factories Is Nothing Then
-            Set m_factories = VBA.CreateObject("Scripting.Dictionary")
-            m_factories.CompareMode = VBA.vbTextCompare
-        End If
-        For Each tag In VBA.Array("page", "grid", "stackPanel", "control")
-            Set builtInFactory = New obj_UiElementFactory
-            builtInFactory.Initialize VBA.LCase$(VBA.CStr(tag))
-            If Not m_factories.Exists(VBA.CStr(tag)) Then fn_Register VBA.CStr(tag), builtInFactory
-        Next tag
-        m_initialized = True
-    End If
+    private_Initialize
     tag = VBA.CStr(definition.baseName)
     If Not m_factories.Exists(tag) Then
         diagnostic = "Unsupported visual tag: " & tag
@@ -85,4 +95,28 @@ Public Function fn_Long( _
 End Function
 ' --------------------------------------
 ' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
+Private Sub private_Initialize()
+    Dim tag As Variant
+    Dim builtInFactory As obj_UiElementFactory
+
+    If Not m_initialized Then
+        If m_factories Is Nothing Then
+            Set m_factories = VBA.CreateObject("Scripting.Dictionary")
+            m_factories.CompareMode = VBA.vbTextCompare
+        End If
+        For Each tag In VBA.Array("page", "grid", "stackPanel", "control")
+            Set builtInFactory = New obj_UiElementFactory
+            builtInFactory.Initialize VBA.LCase$(VBA.CStr(tag))
+            If Not m_factories.Exists(VBA.CStr(tag)) Then fn_Register VBA.CStr(tag), builtInFactory
+        Next tag
+        m_initialized = True
+    End If
+End Sub
+' --------------------------------------
+' } // namespace Private
 ' --------------------------------------

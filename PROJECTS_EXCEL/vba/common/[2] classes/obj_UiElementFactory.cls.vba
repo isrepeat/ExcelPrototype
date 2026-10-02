@@ -10,6 +10,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiElementFactory
+Implements obj_IUiMarkupSchemaProvider
 
 Private m_kind As String
 
@@ -33,6 +34,10 @@ Private Function obj_IUiElementFactory_Create( _
     ByRef diagnostic As String _
 ) As obj_IUiElement
     Set obj_IUiElementFactory_Create = Me.Create(definition, context, source, diagnostic)
+End Function
+
+Private Function obj_IUiMarkupSchemaProvider_GetSchema() As obj_UiMarkupSchema
+    Set obj_IUiMarkupSchemaProvider_GetSchema = private_CreateSchema()
 End Function
 
 ' //
@@ -76,4 +81,101 @@ Public Function Create( _
 EH_CONFIGURE:
     diagnostic = VBA.Err.Description
     If Not element Is Nothing Then element.Dispose
+End Function
+
+' //
+' // Private
+' //
+Private Function private_CreateSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+
+    Select Case m_kind
+        Case "page"
+            schema.AddAttribute "name", "string", False, "", False, 0
+            schema.AddAttribute "source", "string", False, "", True, 0
+            schema.AddAttribute "row", "positive", False, "", False, 0
+            schema.AddAttribute "column", "positive", False, "", False, 0
+            schema.AddAttribute "version", "positive", False, "", False, 0
+            schema.AddChild "grid", Nothing, 1, 1
+            schema.AddChild "styles", private_StylesSchema(), 0, 1
+        Case "grid"
+            schema.AddAttribute "name", "string", False, "", False, 0
+            schema.AddAttribute "source", "string", False, "", True, 0
+            schema.AddAttribute "row", "positive", False, "", False, 0
+            schema.AddAttribute "column", "positive", False, "", False, 0
+            schema.AddAttribute "anchorCell", "string", False, "", False, 0
+            schema.AllowVisualChildren
+        Case "stackpanel"
+            schema.AddAttribute "name", "string", False, "", False, 0
+            schema.AddAttribute "source", "string", False, "", True, 0
+            schema.AddAttribute "row", "positive", False, "", False, 0
+            schema.AddAttribute "column", "positive", False, "", False, 0
+            schema.AddAttribute "orientation", "enum", True, "horizontal|vertical", False, 0
+            schema.AllowVisualChildren
+        Case "control"
+            schema.AddAttribute "type", "string", True
+            schema.ResolveControlType
+        Case Else
+            Exit Function
+    End Select
+    Set private_CreateSchema = schema
+End Function
+
+Private Function private_StylesSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+
+    schema.AddChild "controlStyle", private_ControlStyleSchema()
+    schema.AddChild "stylePipelineStage", private_StylePipelineStageSchema()
+    Set private_StylesSchema = schema
+End Function
+
+Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+
+    schema.AddAttribute "name", "string", True, "", False, 0
+    schema.AddAttribute "backColor", "string", False, "", False, 0
+    schema.AddAttribute "textColor", "string", False, "", False, 0
+    schema.AddAttribute "fontColor", "string", False, "", False, 0
+    schema.AddAttribute "fontName", "string", False, "", False, 0
+    schema.AddAttribute "fontSize", "string", False, "", False, 0
+    schema.AddAttribute "fontBold", "string", False, "", False, 0
+    schema.AddAttribute "fontItalic", "string", False, "", False, 0
+    schema.AddAttribute "borderColor", "string", False, "", False, 0
+    schema.AddAttribute "borderWeight", "string", False, "", False, 0
+    schema.AddAttribute "borderLineStyle", "string", False, "", False, 0
+    schema.AddAttribute "horizontal", "string", False, "", False, 0
+    schema.AddAttribute "vertical", "string", False, "", False, 0
+    schema.AddAttribute "overflow", "string", False, "", False, 0
+    schema.AddAttribute "width", "string", False, "", False, 0
+    schema.AddAttribute "rowHeight", "string", False, "", False, 0
+    schema.AddAttribute "columnWidth", "string", False, "", False, 0
+    schema.AddAttribute "gridLines", "string", False, "", False, 0
+    schema.AddAttribute "zoom", "string", False, "", False, 0
+    Set private_ControlStyleSchema = schema
+End Function
+
+Private Function private_StylePipelineStageSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+
+    schema.AddAttribute "name", "string", True, "", False, 0
+    schema.AddAttribute "enabled", "boolean", False, "", False, 0
+    schema.AddChild "layer", private_StyleLayerSchema()
+    Set private_StylePipelineStageSchema = schema
+End Function
+
+Private Function private_StyleLayerSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+
+    schema.AddAttribute "name", "string", True, "", False, 0
+    schema.AddChild "rule", private_StyleRuleSchema()
+    Set private_StyleLayerSchema = schema
+End Function
+
+Private Function private_StyleRuleSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+
+    schema.AddAttribute "target", "enum", True, "sheet|column|cell|control|controlPart|shape", False, 0
+    schema.AddAttribute "selector", "string", False, "", False, 0
+    schema.AddAttribute "styles", "styleblock", True, "", False, 0
+    Set private_StyleRuleSchema = schema
 End Function
