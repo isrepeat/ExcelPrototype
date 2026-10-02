@@ -3,6 +3,16 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+$sourceRoot = Join-Path $projectRoot 'vba'
+$manifest = Get-Content -LiteralPath (Join-Path $sourceRoot 'modules.json') -Raw | ConvertFrom-Json
+foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.vba') {
+    $relativePath = [IO.Path]::GetRelativePath($sourceRoot, $sourceFile.FullName).Replace([char]92, [char]47)
+    $covered = $false
+    foreach ($pattern in $manifest.PersonalEventBuilder) {
+        if ($relativePath -like $pattern) { $covered = $true; break }
+    }
+    if (-not $covered) { throw "Source is missing from modules.json: $relativePath" }
+}
 $fixturePath = Join-Path ([IO.Path]::GetTempPath()) ('UiElements-' + [guid]::NewGuid().ToString('N') + '.xlsm')
 $excel = $null
 $book = $null
@@ -67,6 +77,25 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     ex_UiElementFactory.fn_Register "flow", tagFactory
     controlFactory.Initialize "form"
     ex_UiControlFactory.fn_Register "DraftForm", controlFactory
+    CheckMarkup "<page><grid><control type='Label' name='Bad' text='Title' columnSapn='2'/></grid></page>", False, "columnSapn"
+    CheckMarkup "<page><grid><stackPanel/></grid></page>", False, "orientation"
+    CheckMarkup "<page><grid><page/></grid></page>", False, "page"
+    CheckMarkup "<page><grid><control type='Button' name='Bad' caption='Title'><grid/></control></grid></page>", False, "Child element"
+    CheckMarkup "<page><grid><control type='Form' name='Bad' source='Form' orientation='vertical'><grid/></control></grid></page>", False, "Child element"
+    CheckMarkup "<page><grid><control type='Unknown' name='Bad'/></grid></page>", False, "Unknown Control"
+    CheckMarkup "<page><grid><control type='Label' name='Bad' text='Title' row='1.5'/></grid></page>", False, "row"
+    CheckMarkup "<page><grid><control type='Input' name='Bad' value='{Binding Path=Name}' readOnly='yes'/></grid></page>", False, "readOnly"
+    CheckMarkup "<page><grid/>unexpected text</page>", False, "Text content"
+    CheckMarkup "<page><grid/><styles/><styles/></page>", False, "Invalid child count"
+    CheckMarkup "<page><grid><styles/></grid></page>", False, "styles"
+    CheckMarkup "<page><grid><control type='Label' name='Bad'/></grid></page>", False, "text|caption"
+    CheckMarkup "<page><grid><control type='Input' name='Bad' value='{Binding Path=}'/></grid></page>", False, "value"
+    CheckMarkup "<page><grid><flow orientation='horizontal'><control type='Label' name='Good' text='Title'/></flow></grid></page>", True, ""
+    CheckMarkup "<page/>", False, "Invalid child count"
+    CheckMarkup "<page><grid/><grid/></page>", False, "Invalid child count"
+    CheckMarkup "<page><grid/><stackPanel orientation='vertical'/></page>", False, "Child element"
+    CheckMarkup "<page><grid/><styles><controlStyle/></styles></page>", False, "name"
+    CheckMarkup "<page><grid/><styles/></page>", True, ""
     Set sheet = ThisWorkbook.Worksheets("MainPage")
     bindingContext.Initialize
     bindingContext.SetValue "Text", "Title", "Test page"
@@ -119,9 +148,9 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     Set otherSheet = ThisWorkbook.Worksheets.Add()
     otherSheet.Name = "OtherPage"
     Set otherDocument = CreateObject("MSXML2.DOMDocument.6.0")
-    If Not otherDocument.LoadXML("<page><flow orientation='vertical'><control type='DraftForm' name='OtherForm' source='Draft' orientation='horizontal'>" & _
+    If Not otherDocument.LoadXML("<page><grid><flow orientation='vertical'><control type='DraftForm' name='OtherForm' source='Draft' orientation='horizontal'>" & _
         "<field name='Accepted' label='Accepted' type='checkbox' required='true'/>" & _
-        "<field name='Name' label='Name' type='text' readOnly='true'/></control><stackPanel orientation='horizontal'><control type='Label' name='Tail1' text='Left' columnSpan='2'/><control type='Label' name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></page>") Then Err.Raise 5, , "Test XML"
+        "<field name='Name' label='Name' type='text' readOnly='true'/></control><stackPanel orientation='horizontal'><control type='Label' name='Tail1' text='Left' columnSpan='2'/><control type='Label' name='Tail2' text='Right' columnSpan='3'/></stackPanel></flow></grid></page>") Then Err.Raise 5, , "Test XML"
     otherDefinition.Initialize otherDocument, "OtherPage.xaml"
     otherBinding.Initialize
     otherBinding.TrySetPathValue "Draft", "Person.Name", "Nested"
@@ -158,6 +187,24 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If sheet.Range("D7").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"
     Run = True
 End Function
+
+Private Sub CheckMarkup(ByVal markup As String, ByVal expected As Boolean, ByVal member As String)
+    Dim document As Object
+    Dim validator As New obj_UiMarkupValidator
+    Dim errors As New Collection
+    Dim item As obj_UiMarkupDiagnostic
+    Dim found As Boolean
+
+    Set document = CreateObject("MSXML2.DOMDocument.6.0")
+    document.preserveWhiteSpace = True
+    If Not document.LoadXML(markup) Then Err.Raise 5, , "Invalid test XML"
+    If validator.Validate(document.documentElement, errors) <> expected Then Err.Raise 5, , "Unexpected markup validation: " & markup
+    If expected Then Exit Sub
+    For Each item In errors
+        If InStr(1, item.Describe(), member, vbTextCompare) > 0 And Left(item.Path, 5) = "/page" Then found = True
+    Next item
+    If Not found Then Err.Raise 5, , "Missing markup diagnostic: " & member
+End Sub
 "@)
     $book.SaveAs($fixturePath, 52)
     if (-not $excel.Run("'" + $book.Name + "'!ex_UiElementProbe.Run", (Join-Path $projectRoot 'ui/PersonalEventBuilder'))) {

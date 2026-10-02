@@ -54,7 +54,7 @@
           orientation="vertical"
           labelPosition="left"
           labelColumnSpan="2"
-          fieldWidth="4"
+          columnSpan="4"
           labelStyle="formLabel"
           fieldStyle="formField"
           onChange="{Binding Path=Commands.FormChangedCommand}">
@@ -71,7 +71,7 @@
       <field name="Notes"
              label="Notes"
              type="text"
-             height="3"/>
+             rowSpan="3"/>
       <control type="Button"
                name="SubmitEventDraft"
                caption="Submit form"
