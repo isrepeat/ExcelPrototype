@@ -11,5 +11,7 @@ Option Explicit
 Public Property Get TableCount() As Long
 End Property
 
-Public Function GetTable(ByVal index As Long) As obj_UiRawTable
+' Return Object to avoid a circular interface dependency with its implementing class.
+' Callers validate the returned object by assigning it to obj_UiRawTable.
+Public Function GetTable(ByVal index As Long) As Object
 End Function

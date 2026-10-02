@@ -25,7 +25,7 @@ Private Property Get obj_IUiTableSource_TableCount() As Long
     If Not m_tables Is Nothing Then obj_IUiTableSource_TableCount = m_tables.Count
 End Property
 
-Private Function obj_IUiTableSource_GetTable(ByVal index As Long) As obj_UiRawTable
+Private Function obj_IUiTableSource_GetTable(ByVal index As Long) As Object
     If m_tables Is Nothing Then Exit Function
     If index <= 0 Or index > m_tables.Count Then Exit Function
     Set obj_IUiTableSource_GetTable = m_tables.Item(index)
