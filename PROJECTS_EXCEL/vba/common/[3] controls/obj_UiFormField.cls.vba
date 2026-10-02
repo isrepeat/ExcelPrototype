@@ -151,7 +151,10 @@ Private Function private_ConfigureField( _
     m_required = (VBA.LCase$(ex_UiElementFactory.fn_Attribute(fieldNode, "required")) = "true")
     m_checkbox = (kind = "checkbox")
     rawValue = ex_UiElementFactory.fn_Attribute(fieldNode, "value")
-    If VBA.Len(rawValue) = 0 Then rawValue = "{Binding Path=" & m_name & "}"
+    If VBA.Len(VBA.Trim$(rawValue)) = 0 Then
+        diagnostic = "Field requires an explicit value binding: " & m_name
+        Exit Function
+    End If
     If Not ex_UiBindingRuntime.fn_TryParseBinding(rawValue, source, m_source, m_path, context.BindingContext) Then
         diagnostic = "Invalid field binding: " & m_name
         Exit Function

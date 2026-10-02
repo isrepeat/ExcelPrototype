@@ -1,81 +1,91 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles"
-      xmlns:controls="
-      urn:excelprototype:controls" version="1">
+      xmlns:controls="urn:excelprototype:controls"
+      version="1">
   <grid anchorCell="A1">
+    <grid.columnDefinitions>
+      <columnDefinition size="1"/>
+      <columnDefinition size="auto"/>
+      <columnDefinition size="2"/>
+      <columnDefinition size="2"/>
+    </grid.columnDefinitions>
+    <grid.rowDefinitions>
+      <rowDefinition size="auto"/>
+      <rowDefinition size="auto"/>
+    </grid.rowDefinitions>
+
     <controls:label name="Title"
+                    column="2"
+                    columnSpan="3"
                     text="{Binding Path=Text.Title}"
-                    row="1"
-                    column="1"
-                    columnSpan="8"
                     style="{Binding Path=Resources.PageTitle}"/>
 
-    <controls:button name="HelloWorld"
-                     row="3"
-                     column="8"
-                     rowSpan="2"
-                     columnSpan="3"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.HelloWorld}"
-                     command="{Binding Path=Commands.HelloWorldCommand}"/>
+    <stackPanel row="2"
+                column="2"
+                orientation="vertical">
+      <controls:form name="EventDraftForm"
+                     dataContext="{Binding Path=Form}"
+                     orientation="vertical"
+                     labelPosition="left"
+                     labelStyle="formLabel"
+                     fieldStyle="formField"
+                     onChange="{Binding Path=Commands.FormChangedCommand}">
+        <field name="EventName"
+               value="{Binding Path=EventName}"
+               label="Event name"
+               type="text"
+               required="true"/>
 
-    <controls:button name="UpdatePage"
-                     row="3"
-                     column="5"
-                     rowSpan="2"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.UpdatePage}"
-                     command="{Binding Path=Commands.UpdatePageCommand}"/>
+        <field name="Category"
+               label="Category"
+               value="{Binding Path=Category}"
+               type="select"
+               itemsSource="{Binding Path=Data.EventTypes}"
+               panelStyle="formSelectPanel"
+               itemStyle="formSelectItem"/>
 
-    <controls:button name="GenerateTables"
-                     row="3"
-                     column="11"
-                     rowSpan="2"
-                     columnSpan="3"
-                     style="{Binding Path=Resources.PrimaryButton}"
-                     caption="{Binding Path=Text.GenerateTables}"
-                     command="{Binding Path=Commands.GenerateTablesCommand}"/>
+        <field name="Notes"
+               label="Notes"
+               value="{Binding Path=Notes}"
+               type="text"/>
 
-    <controls:tableList name="GeneratedTables"
-                        itemsSource="{Binding Path=Data.Tables}"
-                        row="14"
-                        column="2"
-                        showHeaders="true"
-                        gapRows="1"/>
+        <controls:button name="SubmitEventDraft"
+                         caption="Submit form"
+                         style="primaryButton"
+                         command="{Binding Path=Commands.SubmitFormCommand}"/>
+      </controls:form>
+      <grid/>
+      <controls:tableList name="GeneratedTables"
+                          itemsSource="{Binding Path=Data.Tables}"
+                          showHeaders="true"
+                          gapRows="1"/>
+    </stackPanel>
 
-    <controls:form name="EventDraftForm"
-                   dataContext="{Binding Path=Form}"
-                   row="2"
-                   column="2"
-                   orientation="horizontal"
-                   labelPosition="left"
-                   labelStyle="formLabel"
-                   fieldStyle="formField"
-                   onChange="{Binding Path=Commands.FormChangedCommand}">
-      <field name="EventName"
-             label="Event name"
-             type="text"
-             required="true"/>
+    <stackPanel row="2"
+                column="4"
+                orientation="vertical">
+      <controls:button name="UpdatePage"
+                       rowSpan="2"
+                       columnSpan="2"
+                       style="secondaryButton"
+                       caption="{Binding Path=Text.UpdatePage}"
+                       command="{Binding Path=Commands.UpdatePageCommand}"/>
 
-      <field name="Category"
-             label="Category"
-             type="select"
-             itemsSource="{Binding Path=Data.EventTypes}"
-             panelStyle="formSelectPanel"
-             itemStyle="formSelectItem"/>
+      <controls:button name="Reset"
+                       rowSpan="2"
+                       columnSpan="2"
+                       style="secondaryButton"
+                       caption="{Binding Path=Text.Reset}"
+                       command="{Binding Path=Commands.ResetCommand}"/>
 
-      <field name="Notes"
-             label="Notes"
-             type="text"/>
-
-      <controls:button name="SubmitEventDraft"
-                       caption="Submit form"
-                       style="primaryButton"
-                       command="{Binding Path=Commands.SubmitFormCommand}"/>
-    </controls:form>
+      <controls:button name="GenerateTables"
+                       rowSpan="2"
+                       columnSpan="2"
+                       style="{Binding Path=Resources.PrimaryButton}"
+                       caption="{Binding Path=Text.GenerateTables}"
+                       command="{Binding Path=Commands.GenerateTablesCommand}"/>
+    </stackPanel>
   </grid>
-
   <styles>
     <controlStyle name="pageTitle"
                   backColor="#262626"

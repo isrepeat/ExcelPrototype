@@ -143,7 +143,7 @@ Private Function private_FieldSchema() As obj_UiMarkupSchema
     schema.AddAttribute "onChange", "string", False, "", True, 0
     schema.AddAttribute "readOnly", "boolean", False, "", False, 0
     schema.AddAttribute "required", "boolean", False, "", False, 0
-    schema.AddAttribute "value", "string", False, "", True, 0
+    schema.AddAttribute "value", "string", True, "", True, 0
     schema.AddAttribute "itemsSource", "string", False, "", True, 0
     schema.AddAttribute "items", "string", False, "", True, 0
     schema.AddAttribute "panelStyle", "string", False, "", True, 0

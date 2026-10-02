@@ -151,6 +151,15 @@ Private Function private_AttributeValid(ByVal value As String, ByVal rule As Var
         If VBA.Len(value) > rule(4) Then Exit Function
     End If
     Select Case rule(0)
+        Case "gridsize"
+            If value = "auto" Or value = "*" Then
+                private_AttributeValid = True
+                Exit Function
+            End If
+            If VBA.Right$(value, 1) = "*" Then value = VBA.Left$(value, VBA.Len(value) - 1)
+            If Not VBA.IsNumeric(value) Then Exit Function
+            number = VBA.CDbl(value)
+            If number < 1 Or number <> VBA.Fix(number) Or number > 1048576 Then Exit Function
         Case "positive", "nonnegative", "number"
             If Not VBA.IsNumeric(value) Then Exit Function
             number = VBA.CDbl(value)

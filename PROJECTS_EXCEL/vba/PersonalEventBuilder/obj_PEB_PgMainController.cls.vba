@@ -73,10 +73,17 @@ Public Function GenerateTablesCommandHandler() As Boolean
     GenerateTablesCommandHandler = m_pageBase.UpdatePage()
 End Function
 
-Public Function HelloWorldCommandHandler() As Boolean
-    ex_Core.fn_Diagnostic_WriteLog "HELLO_WORLD_CLICKED"
-    ex_WindowsUi.fn_ShowMessage "Hello World from PersonalEventBuilder.", VBA.vbInformation, "PersonalEventBuilder"
-    HelloWorldCommandHandler = True
+Public Function ResetCommandHandler() As Boolean
+    Dim bindingContext As obj_UiBindingContext
+
+    If m_pageBase Is Nothing Or m_tableList Is Nothing Then Exit Function
+    Set bindingContext = m_pageBase.BindingContext
+    If Not bindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "Category", "Meeting") Then Exit Function
+    If Not bindingContext.SetValue("Form", "Notes", VBA.vbNullString) Then Exit Function
+    m_tableList.Dispose
+    If Not m_tableList.Initialize() Then Exit Function
+    ResetCommandHandler = m_pageBase.UpdatePage()
 End Function
 
 Public Function UpdatePageCommandHandler() As Boolean
