@@ -9,3 +9,6 @@ PROJECTS_EXCEL/WorkbookUpdater/WorkbookUpdater.xlam
 .modules-backup-*/
 .backup/
 PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
+
+PROJECTS_EXCEL/**/*.xlsx
+PROJECTS_EXCEL/**/*.xlsm
