@@ -120,13 +120,16 @@ End Sub
 
 Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Dim previousEvents As Boolean
+    Dim previousScreenUpdating As Boolean
 
     If m_rendering Or Not m_needsMeasure Then
         FlushLayout = True
         Exit Function
     End If
     previousEvents = Application.EnableEvents
+    previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH_LAYOUT
+    Application.ScreenUpdating = False
     Application.EnableEvents = False
     m_needsMeasure = False
     m_router.Dispose
@@ -140,6 +143,7 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     End If
     FlushLayout = Me.RenderTree(diagnostic)
 CleanLayout:
+    Application.ScreenUpdating = previousScreenUpdating
     Application.EnableEvents = previousEvents
     Exit Function
 EH_LAYOUT:
@@ -151,19 +155,23 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     Dim rows As Long
     Dim columns As Long
     Dim previousEvents As Boolean
+    Dim previousScreenUpdating As Boolean
 
     If m_root Is Nothing Then Exit Function
-    If Not m_root.Measure(rows, columns, diagnostic) Then Exit Function
-    If Not m_root.Arrange(1, 1, diagnostic) Then Exit Function
     previousEvents = Application.EnableEvents
+    previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH_RENDER
+    Application.ScreenUpdating = False
     Application.EnableEvents = False
     m_rendering = True
+    If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
+    If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
     m_rows = rows
     m_columns = columns
     RenderTree = m_root.Render(diagnostic)
 CleanExit:
     m_rendering = False
+    Application.ScreenUpdating = previousScreenUpdating
     Application.EnableEvents = previousEvents
     Exit Function
 EH_RENDER:
