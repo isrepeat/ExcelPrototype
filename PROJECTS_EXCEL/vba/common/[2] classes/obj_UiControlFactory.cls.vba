@@ -108,6 +108,11 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
             If m_type = "tablelist" Then schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
             schema.AddAttribute "showHeaders", "boolean", False, "", False, 0
+            If m_type = "table" Then
+                schema.AddAttribute "onSelect", "string", False, "", True, 0
+                schema.AddAttribute "selectedItem", "string", False, "", True, 0
+                schema.AddAttribute "selectedStyle", "string", False, "", True, 0
+            End If
 
         Case "input", "select"
             If m_type = "select" Then
@@ -150,7 +155,7 @@ Private Function private_FieldSchema() As obj_UiMarkupSchema
         Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
     End If
     schema.AddAttribute "name", "string", True, "", False, 0
-    schema.AddAttribute "label", "string", True, "", False, 0
+    schema.AddAttribute "label", "string", True, "", True, 0
     schema.AddAttribute "type", "enum", True, "text|select|checkbox", False, 0
     schema.AddAttribute "labelColumnSpan", "positive", False, "", False, 0
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0

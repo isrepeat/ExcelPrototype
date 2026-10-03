@@ -132,12 +132,8 @@ Private Sub Workbook_SheetSelectionChange(ByVal sheet As Object, ByVal target As
     On Error GoTo EH
     runtimeEntered = ex_RuntimeLifecycle.fn_TryEnter(runtimeContext)
     If Not runtimeEntered Then Exit Sub
-    Dim uiRenderContext As obj_UiRenderContext
-
     If TypeOf sheet Is Worksheet Then
-        If ex_UiRuntime.fn_TryGetContext(sheet, uiRenderContext) Then
-            uiRenderContext.Router.Broadcast "dismiss"
-        End If
+        ex_UiBindings.fn_HandleSelection target
     End If
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
@@ -153,6 +149,25 @@ EH:
     VBA.Err.Raise errorNumber, _
         "PersonalEventBuilder.Workbook_SheetSelectionChange", _
         errorDescription
+End Sub
+
+Private Sub Workbook_SheetBeforeDoubleClick( _
+    ByVal sheet As Object, _
+    ByVal target As Range, _
+    Cancel As Boolean _
+)
+    Dim runtimeContext As Object
+    Dim runtimeEntered As Boolean
+
+    On Error GoTo EH
+    runtimeEntered = ex_RuntimeLifecycle.fn_TryEnter(runtimeContext)
+    If Not runtimeEntered Then Exit Sub
+    If TypeOf sheet Is Worksheet Then Cancel = ex_UiBindings.fn_HandleSelection(target)
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH:
+    If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
+    ex_WindowsUi.fn_ShowMessage "Cannot select candidate: " & VBA.Err.Description, vbExclamation, "UI"
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)

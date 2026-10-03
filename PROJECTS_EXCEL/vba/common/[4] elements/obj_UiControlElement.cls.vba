@@ -160,22 +160,24 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
 
     If m_control Is Nothing Then Exit Sub
     For Each nodeAttribute In m_definition.Attributes
-        If ex_UiBindingRuntime.fn_TryParseBinding(VBA.CStr(nodeAttribute.Text), _
-                VBA.vbNullString, source, path) Then
-            If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
-                If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
-                        VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
-                    If TypeOf m_control Is obj_IUiBindingTarget Then
-                        Set target = m_control
-                        previousEvents = Application.EnableEvents
-                        On Error GoTo EH_REFRESH
-                        Application.EnableEvents = False
-                        target.RefreshBindings m_context
-                        Application.EnableEvents = previousEvents
-                    ElseIf nodeAttribute.nodeName <> "value" Then
-                        m_context.InvalidateMeasure
+        If nodeAttribute.nodeName <> "selectedItem" Then
+            If ex_UiBindingRuntime.fn_TryParseBinding(VBA.CStr(nodeAttribute.Text), _
+                    VBA.vbNullString, source, path) Then
+                If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
+                    If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
+                            VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
+                        If TypeOf m_control Is obj_IUiBindingTarget Then
+                            Set target = m_control
+                            previousEvents = Application.EnableEvents
+                            On Error GoTo EH_REFRESH
+                            Application.EnableEvents = False
+                            target.RefreshBindings m_context
+                            Application.EnableEvents = previousEvents
+                        ElseIf nodeAttribute.nodeName <> "value" Then
+                            m_context.InvalidateMeasure
+                        End If
+                        Exit Sub
                     End If
-                    Exit Sub
                 End If
             End If
         End If

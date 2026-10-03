@@ -24,6 +24,22 @@ try {
     $excel.EnableEvents = $false
     $book = $excel.Workbooks.Add()
     $book.Worksheets.Item(1).Name = 'MainPage'
+    $configSheet = $book.Worksheets.Add()
+    $configSheet.Name = 'wsConfig'
+    $configSheet.Cells.Item(1, 1).Value2 = 'Key'
+    $configSheet.Cells.Item(1, 2).Value2 = 'Value'
+    $configRow = 2
+    foreach ($line in Get-Content -LiteralPath (Join-Path $projectRoot 'config/PersonalEventBuilder/wsConfig.txt') -Encoding utf8) {
+        $parts = $line -split '\t|\\t'
+        if ($parts.Count -eq 3 -and $parts[0] -eq 'value') {
+            $configSheet.Cells.Item($configRow, 1).Value2 = $parts[1]
+            $configSheet.Cells.Item($configRow, 2).Value2 = $parts[2]
+            $configRow++
+        }
+    }
+    $configTable = $configSheet.ListObjects.Add(1, $configSheet.Range('A1:B' + ($configRow - 1)), $null, 1)
+    $configTable.Name = 'tbConfig'
+
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'vba') -Recurse -Filter '*.vba') {
         if ($file.Name -eq 'ThisWorkbook.vba') { continue }
         $source = [IO.File]::ReadAllText($file.FullName)
@@ -50,7 +66,7 @@ End Function
     $component.Name = 'ex_UiElementProbe'
     $component.CodeModule.AddFromString(@"
 Option Explicit
-Public Function Run(ByVal uiFolder As String) As Boolean
+Public Function Run(ByVal uiFolder As String) As String
     Dim bindingContext As New obj_UiBindingContext
     Dim context As New obj_UiRenderContext
     Dim definition As obj_UiPageDefinition
@@ -70,9 +86,13 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     Dim otherSheet As Worksheet
     Dim tagFactory As New obj_UiElementFactory
     Dim controlFactory As New obj_UiControlFactory
+    Dim lookupProfile As New obj_LookupProfile
+    Dim lookupService As New obj_LookupService
+    Dim lookupResult As obj_LookupResult
     Dim resolvedSource As String
     Dim resolvedPath As String
 
+    On Error GoTo EH
     tagFactory.Initialize "stackpanel"
     ex_UiElementFactory.fn_Register "flow", tagFactory
     controlFactory.Initialize "form"
@@ -121,9 +141,21 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     bindingContext.SetValue "Resources", "PageTitle", "pageTitle"
     tables.Initialize
     bindingContext.SetObject "Data", "Tables", tables
+    If Not lookupProfile.Initialize("PersonalEventBuilder::lookup.Personnel", diagnostic) Then Err.Raise 5, , diagnostic
+    If Not lookupService.Initialize(lookupProfile) Then Err.Raise 5, , "Lookup initialize"
+    If Not lookupService.TrySearch("", lookupResult, diagnostic) Then Err.Raise 5, , diagnostic
+    bindingContext.SetObject "Data", "PersonnelCandidates", lookupResult
+    bindingContext.SetValue "Data", "SelectedPersonnel", ""
+    bindingContext.SetValue "Text", "PersonnelStatus", "Search"
+    For Each name In Array("PersonNameLabel", "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", "RefreshPersonnel")
+        bindingContext.SetValue "Text", CStr(name), CStr(name)
+    Next name
+    For Each name In Array("PersonName", "PersonId", "PersonRank", "PersonPosition", "PersonUnit")
+        bindingContext.SetValue "Form", CStr(name), ""
+    Next name
     command.Initialize callbacks, "Execute"
     For Each name In Array("ResetCommand", "UpdatePageCommand", "GenerateTablesCommand", _
-        "FormChangedCommand", "SubmitFormCommand")
+        "FormChangedCommand", "SubmitFormCommand", "SearchPersonnel", "SelectPersonnel", "RefreshPersonnel")
         bindingContext.SetObject "Commands", CStr(name), command
     Next name
     If Not ex_UiPageLoader.fn_TryLoad(uiFolder & "\MainPage.xaml", definition) Then Err.Raise 5, , "Load"
@@ -135,7 +167,7 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
     If sheet.Shapes("btn_UpdatePage").TopLeftCell.Row <> 2 Then Err.Raise 5, , "Update button position"
     If sheet.Shapes("btn_Reset").TopLeftCell.Row <> 4 Then Err.Raise 5, , "Reset button position"
-    If sheet.Shapes("btn_GenerateTables").TopLeftCell.Row <> 6 Then Err.Raise 5, , "Generate button position"
+    If sheet.Shapes("btn_GenerateTables").TopLeftCell.Row <> 8 Then Err.Raise 5, , "Generate button position"
     If sheet.Shapes("btn_UpdatePage").TopLeftCell.Column <= 3 Then Err.Raise 5, , "Buttons must be right of form"
 
     If sheet.Range("C2").Value2 <> "Initial" Then Err.Raise 5, , "Field layout or binding"
@@ -203,7 +235,10 @@ Public Function Run(ByVal uiFolder As String) As Boolean
     If sheet.Range("C2").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"
     CheckGrid uiFolder
     CheckTables uiFolder
-    Run = True
+    Run = "PASS"
+    Exit Function
+EH:
+    Run = "FAIL: " & Err.Description
 End Function
 
 Private Sub CheckGrid(ByVal uiFolder As String)
@@ -347,9 +382,15 @@ Private Sub CheckMarkup(ByVal markup As String, ByVal expected As Boolean, ByVal
 End Sub
 "@)
     $book.SaveAs($fixturePath, 52)
-    if (-not $excel.Run("'" + $book.Name + "'!ex_UiElementProbe.Run", (Join-Path $projectRoot 'ui/PersonalEventBuilder'))) {
-        throw 'UI element contract test failed.'
+    try { $result = $excel.Run("'" + $book.Name + "'!ex_UiElementProbe.Run", (Join-Path $projectRoot 'ui/PersonalEventBuilder')) }
+    catch {
+        $pane = $excel.VBE.ActiveCodePane
+        $startLine = 0; $startColumn = 0; $endLine = 0; $endColumn = 0
+        $pane.GetSelection([ref]$startLine, [ref]$startColumn, [ref]$endLine, [ref]$endColumn)
+        Write-Output ($pane.CodeModule.Name + ':' + $startLine + ' ' + $pane.CodeModule.Lines($startLine, 1))
+        throw
     }
+    if ($result -ne 'PASS') { throw $result }
     Write-Output 'PASS: real page tree, unchanged XML, layout, reactive binding, events, validation and disposal.'
     Write-Output "Fixture: $fixturePath"
 }

@@ -115,9 +115,9 @@ Public Sub CollectColumns(ByVal names As Collection)
 End Sub
 
 Public Function Matches( _
-    ByVal values As Variant, _
+    ByRef values As Variant, _
     ByVal row As Long, _
-    ByVal headers As Variant _
+    ByRef headers As Variant _
 ) As Boolean
     Dim item As Object
     Dim matched As Boolean

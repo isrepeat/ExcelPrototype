@@ -78,6 +78,8 @@ End Sub
 ' //
 Private Function private_TryRegisterBindings() As Boolean
     Dim uiBindingContext As obj_UiBindingContext
+    Dim textKey As Variant
+    Dim configuredText As String
 
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
@@ -86,6 +88,22 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Text", "Reset", "Reset") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "UpdatePage", "Update page") Then Exit Function
     If Not uiBindingContext.SetValue("Text", "GenerateTables", "Generate tables") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PersonName", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PersonId", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PersonRank", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PersonPosition", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PersonUnit", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
+    For Each textKey In VBA.Array("PersonnelPrompt", "PersonNameLabel", "PersonIdLabel", _
+            "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", "RefreshPersonnel")
+        If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
+            ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
+            Exit Function
+        End If
+        If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
+    Next textKey
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.PersonnelPrompt", configuredText) Then Exit Function
+    If Not uiBindingContext.SetValue("Text", "PersonnelStatus", configuredText) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "Category", "Meeting") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "Notes", VBA.vbNullString) Then Exit Function
@@ -96,6 +114,7 @@ Private Function private_TryRegisterBindings() As Boolean
 End Function
 
 Private Function private_TryRegisterCommands() As Boolean
+    Dim lookupCommand As obj_UiCommand
     Dim resetCommand As obj_UiCommand
     Dim updatePageCommand As obj_UiCommand
     Dim generateTablesCommand As obj_UiCommand
@@ -122,5 +141,14 @@ Private Function private_TryRegisterCommands() As Boolean
     Set submitFormCommand = New obj_UiCommand
     If Not submitFormCommand.Initialize(m_controller, "SubmitFormCommandHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "SubmitFormCommand", submitFormCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "SearchPersonnelHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "SearchPersonnel", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "SelectPersonnelHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "SelectPersonnel", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function

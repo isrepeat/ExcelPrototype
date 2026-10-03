@@ -7,8 +7,11 @@
       <columnDefinition size="1"/>
       <columnDefinition size="auto"/>
       <columnDefinition size="2"/>
+      <columnDefinition size="auto"/>
+      <columnDefinition size="2"/>
       <columnDefinition size="2"/>
     </grid.columnDefinitions>
+
     <grid.rowDefinitions>
       <rowDefinition size="auto"/>
       <rowDefinition size="auto"/>
@@ -16,9 +19,9 @@
 
     <controls:label name="Title"
                     column="2"
-                    columnSpan="3"
-                    text="{Binding Path=Text.Title}"
-                    style="{Binding Path=Resources.PageTitle}"/>
+                    columnSpan="5"
+                    style="{Binding Path=Resources.PageTitle}"
+                    text="{Binding Path=Text.Title}"/>
 
     <stackPanel row="2"
                 column="2"
@@ -31,30 +34,73 @@
                      fieldStyle="formField"
                      onChange="{Binding Path=Commands.FormChangedCommand}">
         <field name="EventName"
+               type="text"
                value="{Binding Path=EventName}"
                label="Event name"
-               type="text"
                required="true"/>
 
         <field name="Category"
-               label="Category"
-               value="{Binding Path=Category}"
                type="select"
                itemsSource="{Binding Path=Data.EventTypes}"
+               value="{Binding Path=Category}"
+               label="Category"
                panelStyle="formSelectPanel"
                itemStyle="formSelectItem"/>
 
         <field name="Notes"
-               label="Notes"
+               type="text"
                value="{Binding Path=Notes}"
-               type="text"/>
+               label="Notes"/>
 
         <controls:button name="SubmitEventDraft"
-                         caption="Submit form"
                          style="primaryButton"
+                         caption="Submit form"
                          command="{Binding Path=Commands.SubmitFormCommand}"/>
       </controls:form>
-      <grid/>
+
+      <stackPanel orientation="vertical"/>
+
+      <controls:form name="PersonnelForm"
+                     dataContext="{Binding Path=Form}"
+                     columnSpan="3"
+                     orientation="vertical"
+                     labelPosition="top"
+                     labelStyle="formLabel"
+                     fieldStyle="formField">
+        <field name="PersonName"
+               type="text"
+               value="{Binding Path=PersonName}"
+               label="{Binding Path=Text.PersonNameLabel}"
+               onChange="{Binding Path=Commands.SearchPersonnel}"/>
+
+        <field name="PersonId"
+               type="text"
+               value="{Binding Path=PersonId}"
+               label="{Binding Path=Text.PersonIdLabel}"
+               readOnly="true"/>
+
+        <field name="PersonRank"
+               type="text"
+               value="{Binding Path=PersonRank}"
+               label="{Binding Path=Text.PersonRankLabel}"
+               readOnly="true"/>
+
+        <field name="PersonPosition"
+               type="text"
+               rowSpan="2"
+               value="{Binding Path=PersonPosition}"
+               label="{Binding Path=Text.PersonPositionLabel}"
+               readOnly="true"/>
+
+        <field name="PersonUnit"
+               type="text"
+               value="{Binding Path=PersonUnit}"
+               label="{Binding Path=Text.PersonUnitLabel}"
+               readOnly="true"/>
+      </controls:form>
+
+      <stackPanel orientation="vertical"/>
+
       <controls:tableList name="GeneratedTables"
                           itemsSource="{Binding Path=Data.Tables}"
                           showHeaders="true"
@@ -63,6 +109,24 @@
 
     <stackPanel row="2"
                 column="4"
+                orientation="vertical">
+      <controls:label name="LookupStatus"
+                      rowSpan="2"
+                      columnSpan="5"
+                      style="formField"
+                      text="{Binding Path=Text.PersonnelStatus}"/>
+
+      <controls:table name="Candidates"
+                      itemsSource="{Binding Path=Data.PersonnelCandidates}"
+                      style="candidateTable"
+                      selectedItem="{Binding Path=Data.SelectedPersonnel}"
+                      onSelect="{Binding Path=Commands.SelectPersonnel}"
+                      selectedStyle="candidateSelected"
+                      showHeaders="true"/>
+    </stackPanel>
+
+    <stackPanel row="2"
+                column="6"
                 orientation="vertical">
       <controls:button name="UpdatePage"
                        rowSpan="2"
@@ -78,6 +142,12 @@
                        caption="{Binding Path=Text.Reset}"
                        command="{Binding Path=Commands.ResetCommand}"/>
 
+      <controls:button name="RefreshPersonnel"
+                       rowSpan="2"
+                       columnSpan="2"
+                       style="secondaryButton"
+                       caption="{Binding Path=Text.RefreshPersonnel}"
+                       command="{Binding Path=Commands.RefreshPersonnel}"/>
       <controls:button name="GenerateTables"
                        rowSpan="2"
                        columnSpan="2"
@@ -86,7 +156,22 @@
                        command="{Binding Path=Commands.GenerateTablesCommand}"/>
     </stackPanel>
   </grid>
+
   <styles>
+    <controlStyle name="candidateTable"
+                  backColor="#2D2D2D"
+                  textColor="#FFFFFF"
+                  borderColor="#444444"
+                  borderWeight="thin"
+                  vertical="center"/>
+
+    <controlStyle name="candidateSelected"
+                  backColor="#375D7A"
+                  textColor="#FFFFFF"
+                  borderColor="#6A9EC4"
+                  borderWeight="thin"
+                  vertical="center"/>
+
     <controlStyle name="pageTitle"
                   backColor="#262626"
                   textColor="#FFFFFF"
@@ -134,17 +219,41 @@
                 fontColor:#FFFFFF;
                 borderColor:#000000;
                 borderWeight:thin;
-                rowHeight:25;
+                rowHeight:40;
                 overflow:wrap;
                 gridLines:false;
                 zoom:90%;
               }"/>
+
         <rule target="column"
               selector="address=A:A"
               styles="{
                 width:2;
               }"/>
       </layer>
+
+      <layer name="candidate-columns">
+        <rule target="column"
+              selector="address=G:G"
+              styles="{width:38;}"/>
+
+        <rule target="column"
+              selector="address=H:H"
+              styles="{width:15;}"/>
+
+        <rule target="column"
+              selector="address=I:I"
+              styles="{width:18;}"/>
+
+        <rule target="column"
+              selector="address=J:J"
+              styles="{width:35;}"/>
+
+        <rule target="column"
+              selector="address=K:K"
+              styles="{width:25;}"/>
+      </layer>
+
       <layer name="layout">
         <rule target="control"
               selector="type=button"

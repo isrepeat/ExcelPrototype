@@ -35,7 +35,7 @@ Debug.Print result.RowCount
 service.Dispose
 ```
 
-For a plain range, omit `TableName` and specify `SheetName` and `RangeAddress`, for example `A1:F500`. The first row contains headers. Ranges must be contiguous; every header must be nonempty and unique after trimming and case-insensitive comparison. With a ListObject, the header must be shown; the totals row is excluded. Queries read all data rows, including rows hidden by worksheet filters.
+For a plain range, omit `TableName` and specify `SheetName` and `RangeAddress`, for example `A1:F500`. `RangeAddress="auto"` discovers a range starting at A1, ending at the last populated row and the last header column in row 1; it includes newly added rows and ignores formatting-only extent. Auto discovery requires headers in row 1. It uses the same workbook-session metadata path for both backends. The first row contains headers. Ranges must be contiguous; every header must be nonempty and unique after trimming and case-insensitive comparison. With a ListObject, the header must be shown; the totals row is excluded. Queries read all data rows, including rows hidden by worksheet filters.
 
 ## Contracts
 

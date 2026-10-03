@@ -48,6 +48,70 @@ Public Sub Dispose()
     Set m_sources = Nothing
 End Sub
 
+Public Function TryApplyValues( _
+    ByVal updates As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim maps As New Collection
+    Dim members As New Collection
+    Dim sources As New Collection
+    Dim paths As New Collection
+    Dim key As Variant
+    Dim parts As Variant
+    Dim target As Object
+    Dim child As Object
+    Dim source As String
+    Dim path As String
+    Dim member As String
+    Dim separator As Long
+    Dim i As Long
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Binding context is not initialized."
+    If updates Is Nothing Then Err.Raise 5, , "Binding updates are required."
+    ' Проверяем все назначения до записи. Уведомления видят уже заполненную форму.
+    For Each key In updates.Keys
+        If VBA.IsObject(updates(key)) Or VBA.IsError(updates(key)) Then Err.Raise 5, , "Batch updates require scalar values."
+        separator = VBA.InStr(1, VBA.CStr(key), ".")
+        If separator <= 1 Then Err.Raise 5, , "Expected Source.Path: " & key
+        source = VBA.Left$(key, separator - 1)
+        path = VBA.Mid$(key, separator + 1)
+        If Not m_sources.Exists(source) Then Err.Raise 5, , "Binding source not found: " & source
+        Set target = m_sources(source)
+        parts = VBA.Split(path, ".")
+        For i = LBound(parts) To UBound(parts) - 1
+            member = VBA.CStr(parts(i))
+            If Not ex_Helpers.fn_RTTI_IsDictionary(target) Then Err.Raise 5, , "Batch targets require dictionaries: " & key
+            If Not target.Exists(member) Then Err.Raise 5, , "Binding target not found: " & key
+            If Not VBA.IsObject(target(member)) Then Err.Raise 5, , "Binding parent must be an object: " & key
+            Set child = target(member)
+            Set target = child
+        Next i
+        member = VBA.CStr(parts(UBound(parts)))
+        If Not ex_Helpers.fn_RTTI_IsDictionary(target) Then Err.Raise 5, , "Batch targets require dictionaries: " & key
+        If Not target.Exists(member) Then Err.Raise 5, , "Binding target not found: " & key
+        If VBA.IsObject(target(member)) Then Err.Raise 5, , "Binding target must be scalar: " & key
+        maps.Add target
+        members.Add member
+        sources.Add source
+        paths.Add path
+    Next key
+    i = 0
+    For Each key In updates.Keys
+        i = i + 1
+        Set target = maps(i)
+        target(members(i)) = updates(key)
+    Next key
+    For i = 1 To sources.Count
+        RaiseEvent ValueChanged(sources(i), paths(i))
+    Next i
+    TryApplyValues = True
+    diagnostic = VBA.vbNullString
+    Exit Function
+EH:
+    diagnostic = "Batch binding update: " & VBA.Err.Description
+End Function
+
 Public Function HasSource(ByVal sourceName As String) As Boolean
     If m_sources Is Nothing Then Exit Function
     HasSource = m_sources.Exists(VBA.Trim$(sourceName))
@@ -82,6 +146,36 @@ Public Function SetObject( _
     Set sourceMap(keyName) = sourceObject
     RaiseEvent ValueChanged(VBA.Trim$(sourceName), keyName)
     SetObject = True
+End Function
+
+Public Function TrySetPathObject( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String, _
+    ByVal value As Object _
+) As Boolean
+    Dim target As Object
+    Dim parts As Variant
+    Dim i As Long
+    Dim member As String
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If value Is Nothing Or VBA.Len(bindingPath) = 0 Then Exit Function
+    If Not m_sources.Exists(sourceName) Then Exit Function
+    Set target = m_sources(sourceName)
+    parts = VBA.Split(bindingPath, ".")
+    For i = LBound(parts) To UBound(parts) - 1
+        member = parts(i)
+        If Not ex_Helpers.fn_RTTI_IsDictionary(target) Then Exit Function
+        If Not target.Exists(member) Then Exit Function
+        Set target = target(member)
+    Next i
+    member = parts(UBound(parts))
+    If Not ex_Helpers.fn_RTTI_IsDictionary(target) Or VBA.Len(member) = 0 Then Exit Function
+    Set target(member) = value
+    RaiseEvent ValueChanged(sourceName, bindingPath)
+    TrySetPathObject = True
+EH:
 End Function
 
 Public Function TrySetPathValue( _

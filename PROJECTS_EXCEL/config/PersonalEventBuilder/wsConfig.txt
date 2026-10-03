@@ -3,3 +3,72 @@ value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::uiPath	..\..\ui
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonalEventBuilder
 value	ThisWorkbook::logMode	Immediate
+value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
+value	PersonalEventBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
+value	PersonalEventBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
+value	PersonalEventBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
+value	PersonalEventBuilder::text.PersonnelCount	Кандидатів: {count}. Оберіть рядок праворуч.
+value	PersonalEventBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
+value	PersonalEventBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
+value	PersonalEventBuilder::text.PersonNameLabel	Пошук ПІБ / ІПН
+value	PersonalEventBuilder::text.PersonIdLabel	ІПН
+value	PersonalEventBuilder::text.PersonRankLabel	Звання
+value	PersonalEventBuilder::text.PersonPositionLabel	Посада
+value	PersonalEventBuilder::text.PersonUnitLabel	Підрозділ
+value	PersonalEventBuilder::text.RefreshPersonnel	Оновити ШПО
+value	PersonalEventBuilder::text.FullNameHeader	ПІБ
+value	PersonalEventBuilder::text.TaxIdHeader	ІПН
+value	PersonalEventBuilder::text.RankHeader	Звання
+value	PersonalEventBuilder::text.PositionHeader	Посада
+value	PersonalEventBuilder::text.UnitHeader	Підрозділ
+value	PersonalEventBuilder::lookup.Personnel.key	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.minChars	2
+value	PersonalEventBuilder::lookup.Personnel.maxResults	50
+value	PersonalEventBuilder::lookup.Personnel.source.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::lookup.Personnel.source.sheet	ОС
+value	PersonalEventBuilder::lookup.Personnel.source.range	auto
+value	PersonalEventBuilder::lookup.Personnel.columns.count	6
+value	PersonalEventBuilder::lookup.Personnel.columns.1.name	Personnel.FullName
+value	PersonalEventBuilder::lookup.Personnel.columns.1.header	Прізвище, ім’я, по батькові
+value	PersonalEventBuilder::lookup.Personnel.columns.1.captionKey	PersonalEventBuilder::text.FullNameHeader
+value	PersonalEventBuilder::lookup.Personnel.columns.2.name	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.columns.2.header	ІПН
+value	PersonalEventBuilder::lookup.Personnel.columns.2.captionKey	PersonalEventBuilder::text.TaxIdHeader
+value	PersonalEventBuilder::lookup.Personnel.columns.3.name	Personnel.Rank
+value	PersonalEventBuilder::lookup.Personnel.columns.3.header	Військове звання фактично
+value	PersonalEventBuilder::lookup.Personnel.columns.3.captionKey	PersonalEventBuilder::text.RankHeader
+value	PersonalEventBuilder::lookup.Personnel.columns.4.name	Personnel.Position
+value	PersonalEventBuilder::lookup.Personnel.columns.4.header	Посада
+value	PersonalEventBuilder::lookup.Personnel.columns.4.captionKey	PersonalEventBuilder::text.PositionHeader
+value	PersonalEventBuilder::lookup.Personnel.columns.5.name	Personnel.Unit
+value	PersonalEventBuilder::lookup.Personnel.columns.5.header	Підрозділ
+value	PersonalEventBuilder::lookup.Personnel.columns.5.captionKey	PersonalEventBuilder::text.UnitHeader
+value	PersonalEventBuilder::lookup.Personnel.columns.6.name	Personnel.PositionCode
+value	PersonalEventBuilder::lookup.Personnel.columns.6.header	Код посади
+value	PersonalEventBuilder::lookup.Personnel.display.count	0
+value	PersonalEventBuilder::lookup.Personnel.search.count	2
+value	PersonalEventBuilder::lookup.Personnel.search.1.name	Personnel.FullName
+value	PersonalEventBuilder::lookup.Personnel.search.1.match	contains
+value	PersonalEventBuilder::lookup.Personnel.search.2.name	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.search.2.match	contains
+value	PersonalEventBuilder::lookup.Personnel.apply.count	5
+value	PersonalEventBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
+value	PersonalEventBuilder::lookup.Personnel.apply.1.target	Form.PersonName
+value	PersonalEventBuilder::lookup.Personnel.apply.1.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.1.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.2.field	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.apply.2.target	Form.PersonId
+value	PersonalEventBuilder::lookup.Personnel.apply.2.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.2.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.3.field	Personnel.Rank
+value	PersonalEventBuilder::lookup.Personnel.apply.3.target	Form.PersonRank
+value	PersonalEventBuilder::lookup.Personnel.apply.3.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.3.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.4.field	Personnel.Position
+value	PersonalEventBuilder::lookup.Personnel.apply.4.target	Form.PersonPosition
+value	PersonalEventBuilder::lookup.Personnel.apply.4.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.4.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.5.field	Personnel.Unit
+value	PersonalEventBuilder::lookup.Personnel.apply.5.target	Form.PersonUnit
+value	PersonalEventBuilder::lookup.Personnel.apply.5.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.5.required	true
