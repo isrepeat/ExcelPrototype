@@ -82,7 +82,7 @@ Public Sub Validate(ByVal headers As Variant)
 End Sub
 
 Public Function MatchesRow( _
-    ByVal values As Variant, _
+    ByRef values As Variant, _
     ByVal row As Long _
 ) As Boolean
     If m_isDisposed Or Not m_isInitialized Then

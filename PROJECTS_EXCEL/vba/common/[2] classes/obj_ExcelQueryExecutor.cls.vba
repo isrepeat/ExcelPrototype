@@ -63,6 +63,7 @@ Public Function TryExecute( _
     Dim values As Variant
     Dim scalar As Variant
     Dim rows As Long
+    Dim startedAt As Double
 
     On Error GoTo EH
     Set output = Nothing
@@ -88,6 +89,8 @@ Public Function TryExecute( _
         Exit Function
     End If
     Set body = session.Body
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=ReadRange"
+    startedAt = VBA.Timer
     If Not body Is Nothing Then
         rows = body.Rows.Count
         values = body.Value2
@@ -97,13 +100,19 @@ Public Function TryExecute( _
             values(1, 1) = scalar
         End If
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Query.ReadRange | Rows=" & VBA.CStr(rows), startedAt
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=BuildDataTable"
+    startedAt = VBA.Timer
     If Not data.Initialize(session.Headers, values, rows, diagnostic) Then
         GoTo Cleanup
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Query.BuildDataTable | Columns=" & VBA.CStr(data.ColumnCount), startedAt
     TryExecute = ex_TableQuery.fn_TryApply(data, query, output, diagnostic)
 Cleanup:
     Set body = Nothing
+    startedAt = VBA.Timer
     session.Dispose
+    ex_Core.fn_Diagnostic_WritePerf "Query.CloseSession", startedAt
     Exit Function
 EH:
     diagnostic = "Excel query: " & Err.Description

@@ -171,11 +171,15 @@ Public Function fn_TryApply( _
     Dim ordering As obj_QueryOrder
     Dim col As Long
     Dim group As obj_QueryGroup
+    Dim startedAt As Double
 
     On Error GoTo EH
     Set output = Nothing
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=PrepareArrays"
+    startedAt = VBA.Timer
     headers = dataTable.Headers
     values = dataTable.Values
+    ex_Core.fn_Diagnostic_WritePerf "Query.PrepareArrays", startedAt
     Set columns = query.Columns
     If columns.Count = 0 Then
         For i = LBound(headers) To UBound(headers)
@@ -199,18 +203,25 @@ Public Function fn_TryApply( _
     If dataTable.RowCount > 0 Then
         ReDim indexes(1 To dataTable.RowCount)
     End If
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=FilterRows | Rows=" & VBA.CStr(dataTable.RowCount)
+    startedAt = VBA.Timer
     For row = 1 To dataTable.RowCount
         If group.Matches(values, row, headers) Then
             count = count + 1
             indexes(count) = row
         End If
     Next row
+    ex_Core.fn_Diagnostic_WritePerf "Query.FilterRows | Matches=" & VBA.CStr(count), startedAt
     If query.Orders.Count > 0 And count > 1 Then
+        ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=SortRows"
+        startedAt = VBA.Timer
         private_Sort indexes, count, values, headers, query.Orders
+        ex_Core.fn_Diagnostic_WritePerf "Query.SortRows | Rows=" & VBA.CStr(count), startedAt
     End If
     If query.Limit > 0 And count > query.Limit Then
         count = query.Limit
     End If
+    startedAt = VBA.Timer
     If count > 0 Then
         ReDim result(1 To count, 1 To columns.Count)
         For i = 1 To count
@@ -221,9 +232,11 @@ Public Function fn_TryApply( _
     End If
     Set output = New obj_DataTable
     fn_TryApply = output.Initialize(resultHeaders, result, count, diagnostic)
+    ex_Core.fn_Diagnostic_WritePerf "Query.ProjectRows | Rows=" & VBA.CStr(count), startedAt
     Exit Function
 EH:
     diagnostic = "Query evaluation: " & Err.Description
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_APPLY_FAILED | Number=" & VBA.CStr(Err.Number)
     Set output = Nothing
 End Function
 ' --------------------------------------

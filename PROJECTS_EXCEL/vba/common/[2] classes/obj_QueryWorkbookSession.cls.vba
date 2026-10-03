@@ -87,6 +87,9 @@ Public Function TryOpen( _
     Dim i As Long
     Dim count As Long
     Dim canonical As String
+    Dim lastRow As Range
+    Dim lastColumn As Range
+    Dim startedAt As Double
 
     On Error GoTo EH
     If m_isDisposed Or Not m_isInitialized Then
@@ -110,14 +113,22 @@ Public Function TryOpen( _
         If VBA.Len(VBA.Dir$(canonical)) = 0 Then
             Err.Raise VBA.vbObjectError + 2130, , "Workbook not found: " & canonical
         End If
+        ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=CreateExcel"
+        startedAt = VBA.Timer
         Set m_app = VBA.CreateObject("Excel.Application")
+        ex_Core.fn_Diagnostic_WritePerf "Query.CreateExcel", startedAt
         m_app.Visible = False
         m_app.DisplayAlerts = False
         m_app.EnableEvents = False
         m_app.AutomationSecurity = 3
+        ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=OpenWorkbook"
+        startedAt = VBA.Timer
         Set m_book = m_app.Workbooks.Open(Filename:=canonical, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False)
+        ex_Core.fn_Diagnostic_WritePerf "Query.OpenWorkbook", startedAt
         m_owned = True
     End If
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=ResolveRange"
+    startedAt = VBA.Timer
     If VBA.Len(source.TableName) > 0 Then
         For Each sheet In m_book.Worksheets
             If VBA.Len(source.SheetName) = 0 Or VBA.StrComp(sheet.Name, source.SheetName, VBA.vbTextCompare) = 0 Then
@@ -148,7 +159,20 @@ Public Function TryOpen( _
         End If
     Else
         Set sheet = m_book.Worksheets(source.SheetName)
-        Set extent = sheet.Range(source.RangeAddress)
+        If VBA.StrComp(source.RangeAddress, "auto", VBA.vbTextCompare) = 0 Then
+            Set lastRow = sheet.Cells.Find(What:="*", After:=sheet.Cells(1, 1), _
+                LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByRows, _
+                SearchDirection:=xlPrevious, MatchCase:=False, SearchFormat:=False)
+            Set lastColumn = sheet.Rows(1).Find(What:="*", After:=sheet.Cells(1, 1), _
+                LookIn:=xlFormulas, LookAt:=xlPart, SearchOrder:=xlByColumns, _
+                SearchDirection:=xlPrevious, MatchCase:=False, SearchFormat:=False)
+            If lastRow Is Nothing Or lastColumn Is Nothing Then
+                Err.Raise VBA.vbObjectError + 2133, , "Auto range requires headers in row 1: " & sheet.Name
+            End If
+            Set extent = sheet.Range(sheet.Cells(1, 1), sheet.Cells(lastRow.Row, lastColumn.Column))
+        Else
+            Set extent = sheet.Range(source.RangeAddress)
+        End If
         If extent.Areas.Count <> 1 Then
             Err.Raise VBA.vbObjectError + 2133, , "A contiguous range is required."
         End If
@@ -165,6 +189,7 @@ Public Function TryOpen( _
         End If
     End If
     m_sqlRef = "[" & VBA.Replace$(sheet.Name, "]", "]]") & "$" & extent.Address(False, False) & "]"
+    ex_Core.fn_Diagnostic_WritePerf "Query.ResolveRange", startedAt
     TryOpen = True
     Exit Function
 EH:

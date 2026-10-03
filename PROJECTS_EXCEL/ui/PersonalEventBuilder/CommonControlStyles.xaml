@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<styleCatalog xmlns="urn:excelprototype:profiles" version="1">
+<styleCatalog xmlns="urn:excelprototype:profiles"
+              version="1">
   <controlStyle name="primaryButton"
                 backColor="#3B3B3B"
                 textColor="#92D050"
