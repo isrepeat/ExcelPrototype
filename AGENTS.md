@@ -75,6 +75,8 @@ Write every created commit message in English.
 
 ## Validation without VBA execution
 
+- Full page rendering and layout rebuilds must disable `Application.ScreenUpdating` before clearing or changing the page and restore its previous value on every exit, including errors. Keep this guard in the rendering pipeline; ordinary cell selection must not toggle screen updating merely because focus changed.
+
 - Do not automatically compile the VBA project or run VBA macros/tests as part of source edits. Compilation dialogs interrupt the user. Use static source, XML, configuration, naming and final-byte checks instead.
 - Do not import changed sources into or update the working workbook unless the user explicitly requests that action. Do not treat a general implementation request as permission to start VBA compilation or execution.
 - Run VBA compilation or macro-based validation only when the user explicitly authorizes it. Report when runtime behavior remains unverified; static checks do not establish VBA runtime correctness.

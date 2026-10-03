@@ -91,6 +91,9 @@ Private Function private_RenderPage( _
     Dim uiRootPath As String
     Dim fileSystem As Object
     Dim startedAt As Double
+    Dim previousScreenUpdating As Boolean
+    Dim renderErrorNumber As Long
+    Dim renderErrorDescription As String
 
     startedAt = VBA.Timer
     If Not ex_RuntimePaths.fn_TryGetUiFolder(uiRootPath) Then Exit Function
@@ -133,6 +136,9 @@ Private Function private_RenderPage( _
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "UI configuration"
         Exit Function
     End If
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH_RENDER_PAGE
+    Application.ScreenUpdating = False
     If m_pages.Exists(targetWorksheet.Name) Then
         Set previousContext = m_pages(targetWorksheet.Name)
         previousContext.Dispose
@@ -152,7 +158,7 @@ Private Function private_RenderPage( _
         uiRenderContext.Dispose
         m_pages.Remove targetWorksheet.Name
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "UI render"
-        Exit Function
+        GoTo CleanRenderPage
     End If
     ex_Core.fn_Diagnostic_WritePerf "Page.RenderControls | Sheet=" & targetWorksheet.Name, startedAt
     private_LogUiScopeVisibility targetWorksheet, "after-controls"
@@ -162,6 +168,16 @@ Private Function private_RenderPage( _
 
     private_RenderPage = True
     ex_Core.fn_Diagnostic_WritePerf "Page.Render | Sheet=" & targetWorksheet.Name, startedAt
+CleanRenderPage:
+    Application.ScreenUpdating = previousScreenUpdating
+    If renderErrorNumber <> 0 Then
+        VBA.Err.Raise renderErrorNumber, "ex_UiRuntime.RenderPage", renderErrorDescription
+    End If
+    Exit Function
+EH_RENDER_PAGE:
+    renderErrorNumber = VBA.Err.Number
+    renderErrorDescription = VBA.Err.Description
+    Resume CleanRenderPage
 End Function
 
 Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
