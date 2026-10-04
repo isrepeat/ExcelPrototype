@@ -14,9 +14,9 @@ Private m_isDisposed As Boolean
 
 Private m_pageBase As obj_PageBase
 Private m_resultTable As obj_UiRawTable
+Private m_errorTable As obj_UiRawTable
 Private m_calculateCommand As obj_UiCommand
 Private m_cancelCommand As obj_UiCommand
-Private m_notReadyMessage As String
 Private m_title As String
 
 ' //
@@ -39,6 +39,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim inputReference As String
     Dim headers(0 To 6) As Variant
     Dim headerIndex As Long
+    Dim errorCaption As String
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -58,7 +59,6 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         If Not bindings.SetValue("Text", VBA.CStr(textKey), configuredText) Then GoTo Failed
     Next textKey
     If Not private_TryReadConfiguration("text.Title", m_title) Then GoTo Failed
-    If Not private_TryReadConfiguration("text.CalculationNotReady", m_notReadyMessage) Then GoTo Failed
     If Not private_TryReadConfiguration("default.InputReference", inputReference) Then GoTo Failed
     If Not bindings.SetValue("Form", "InputReference", inputReference) Then GoTo Failed
     If Not bindings.SetValue("Form", "EndDate", vbNullString) Then GoTo Failed
@@ -72,6 +72,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Set m_resultTable = New obj_UiRawTable
     If Not m_resultTable.InitializeEmpty(headers) Then GoTo Failed
     If Not bindings.SetObject("Data", "CalculationRows", m_resultTable) Then GoTo Failed
+    Set m_errorTable = New obj_UiRawTable
+    If Not private_TryReadConfiguration("legacy.ERROR_COL_DESCRIPTION", errorCaption) Then GoTo Failed
+    If Not m_errorTable.InitializeEmpty(VBA.Array(headers(0), headers(1), errorCaption)) Then GoTo Failed
+    If Not bindings.SetObject("Data", "Errors", m_errorTable) Then GoTo Failed
 
     Set m_calculateCommand = New obj_UiCommand
     If Not m_calculateCommand.Initialize(Me, "CalculateHandler") Then GoTo Failed
@@ -99,6 +103,8 @@ Public Sub Dispose()
     If Not m_calculateCommand Is Nothing Then m_calculateCommand.Dispose
     If Not m_cancelCommand Is Nothing Then m_cancelCommand.Dispose
     If Not m_resultTable Is Nothing Then m_resultTable.Dispose
+    If Not m_errorTable Is Nothing Then m_errorTable.Dispose
+    Set m_errorTable = Nothing
     Set m_calculateCommand = Nothing
     Set m_cancelCommand = Nothing
     Set m_resultTable = Nothing
@@ -107,14 +113,13 @@ End Sub
 
 Public Function CalculateHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    ex_Core.fn_Diagnostic_WriteLog "PADC_CALCULATE_REQUESTED | Status=NotConnected"
-    ex_WindowsUi.fn_ShowMessage m_notReadyMessage, vbInformation, m_title
+    ex_PADC_Movement.CalculateMovementDays m_pageBase
     CalculateHandler = True
 End Function
 
 Public Function CancelHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    ex_Core.fn_Diagnostic_WriteLog "PADC_CANCEL_REQUESTED | Status=Idle"
+    ex_PADC_Movement.CancelMovementDays
     CancelHandler = True
 End Function
 
