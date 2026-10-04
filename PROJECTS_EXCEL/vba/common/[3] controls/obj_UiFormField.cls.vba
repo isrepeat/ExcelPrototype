@@ -133,6 +133,7 @@ Private Function private_ConfigureField( _
     Dim rawValue As String
     Dim booleanName As Variant
     Dim booleanValue As String
+    Dim editorAttribute As Variant
 
     If Not fieldNode.getAttributeNode("rowSpan") Is Nothing Or _
             Not fieldNode.getAttributeNode("columnSpan") Is Nothing Or _
@@ -189,6 +190,10 @@ Private Function private_ConfigureField( _
     panelNode.setAttribute "columnSpan", "1"
     If Not m_panel.Configure(panelNode, context, source, diagnostic) Then Exit Function
     Set labelNode = fieldNode.cloneNode(False)
+    For Each editorAttribute In VBA.Array("value", "itemsSource", "selectedItem", _
+            "onChange", "command", "readOnly", "required")
+        labelNode.removeAttribute VBA.CStr(editorAttribute)
+    Next editorAttribute
     labelNode.setAttribute "type", "Label"
     labelNode.setAttribute "rowSpan", "1"
     labelNode.setAttribute "name", m_name & "_label"

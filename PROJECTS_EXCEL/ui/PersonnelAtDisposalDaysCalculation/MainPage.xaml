@@ -12,6 +12,14 @@
                      caption="{Binding Path=Text.Calculate}"
                      command="{Binding Path=Commands.Calculate}"/>
 
+    <controls:button name="RefreshPage"
+                     row="2"
+                     column="6"
+                     rowSpan="2"
+                     style="refreshButton"
+                     caption="{Binding Path=Text.RefreshPage}"
+                     command="{Binding Path=Commands.RefreshPage}"/>
+
     <controls:button name="Cancel"
                      row="5"
                      column="2"
@@ -59,6 +67,15 @@
     <controlStyle name="calculateButton"
                   backColor="#3F3F3F"
                   textColor="#92D050"
+                  fontName="Calibri"
+                  fontSize="12"
+                  borderColor="#172B34"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="refreshButton"
+                  backColor="#3F3F3F"
+                  textColor="#FFFFFF"
                   fontName="Calibri"
                   fontSize="12"
                   borderColor="#172B34"
@@ -131,6 +148,12 @@
         <rule target="row"
               selector="address=7:7"
               styles="{rowHeight:48;}"/>
+        <rule target="cell"
+              selector="address=I3"
+              styles="{cellType:text;}"/>
+        <rule target="range"
+              selector="address=H2:I3"
+              styles="{fontSize:12;}"/>
       </layer>
       <layer name="table">
         <rule target="controlPart"

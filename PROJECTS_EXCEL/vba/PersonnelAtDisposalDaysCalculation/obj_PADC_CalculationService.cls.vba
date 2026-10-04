@@ -10,11 +10,11 @@ Private m_isDisposed As Boolean
 
 Private COUNTED_DAYS_THRESHOLD As Long
 Private PRESENT_EVENT_NAME As String
+Private m_periodRangeSeparator As String
 Private Const EVENT_NAMES_SEPARATOR As String = " / "
 Private Const PERIOD_LABEL_OPEN As String = " ("
 Private Const PERIOD_LABEL_CLOSE As String = ")"
 Private Const PERIODS_SEPARATOR As String = " | "
-Private Const PERIOD_RANGE_SEPARATOR As String = "–"
 Private Const DICTIONARY_PROG_ID As String = "Scripting.Dictionary"
 Private Const FORMAT_DATE As String = "dd.mm.yyyy"
 
@@ -33,16 +33,18 @@ End Sub
 ' //
 Public Function Initialize( _
     ByVal thresholdDays As Long, _
-    ByVal presentEventName As String _
+    ByVal presentEventName As String, _
+    ByVal periodRangeSeparator As String _
 ) As Boolean
     If m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
-    If thresholdDays < 1 Or VBA.Len(presentEventName) = 0 Then
+    If thresholdDays < 1 Or VBA.Len(presentEventName) = 0 Or VBA.Len(periodRangeSeparator) = 0 Then
         Exit Function
     End If
     COUNTED_DAYS_THRESHOLD = thresholdDays
     PRESENT_EVENT_NAME = presentEventName
+    m_periodRangeSeparator = periodRangeSeparator
     m_isInitialized = True
     Initialize = True
 End Function
@@ -61,12 +63,15 @@ Public Function Calculate( _
     ByVal lastDay As Long, _
     ByRef periodsText As String, _
     ByRef thresholdDate As Variant, _
-    ByRef cancelled As Boolean _
+    ByVal runContext As obj_PADC_RunContext _
 ) As Long
     If Not m_isInitialized Or m_isDisposed Then
         VBA.Err.Raise vbObjectError + 2100, "PADC.Calculate", "Calculation service is not initialized."
     End If
-    Calculate = private_BuildCountedPeriods(rows, firstDay, lastDay, periodsText, thresholdDate, cancelled)
+    If runContext Is Nothing Then
+        VBA.Err.Raise vbObjectError + 2100, "PADC.Calculate", "Run context is required."
+    End If
+    Calculate = private_BuildCountedPeriods(rows, firstDay, lastDay, periodsText, thresholdDate, runContext)
 End Function
 
 ' //
@@ -78,7 +83,7 @@ Private Function private_BuildCountedPeriods( _
     ByVal lastDay As Long, _
     ByRef periodsText As String, _
     ByRef thresholdDate As Variant, _
-    ByRef cancelled As Boolean _
+    ByVal runContext As obj_PADC_RunContext _
 ) As Long
     Dim boundaries() As Long
     Dim unused() As Long
@@ -107,14 +112,14 @@ Private Function private_BuildCountedPeriods( _
     boundaries(1) = firstDay
     boundaries(2) = lastDay
     For i = 1 To rows.Count
-        private_CheckCancel cancelled, i
+        private_CheckCancel runContext, i
         item = rows(i)
         boundaries(i * 2 + 1) = item(0)
         boundaries(i * 2 + 2) = item(1)
     Next i
-    private_SortIntervals boundaries, unused, 1, count, cancelled
+    private_SortIntervals boundaries, unused, 1, count, runContext
     For i = 1 To count - 1
-        private_CheckCancel cancelled, i
+        private_CheckCancel runContext, i
         segmentStart = boundaries(i)
         segmentEnd = boundaries(i + 1)
         If segmentStart >= segmentEnd Then
@@ -124,7 +129,7 @@ Private Function private_BuildCountedPeriods( _
         Set names = VBA.CreateObject(DICTIONARY_PROG_ID)
         names.CompareMode = vbTextCompare
         For j = 1 To rows.Count
-            private_CheckCancel cancelled, j
+            private_CheckCancel runContext, j
             item = rows(j)
             If item(0) < segmentEnd And item(1) > segmentStart Then
                 If item(3) Then
@@ -182,7 +187,7 @@ Private Sub private_AppendCountedPeriod( _
         periodsText = periodsText & PERIODS_SEPARATOR
     End If
     periodsText = periodsText & eventName & PERIOD_LABEL_OPEN & _
-        VBA.Format$(VBA.CDate(firstDay), FORMAT_DATE) & PERIOD_RANGE_SEPARATOR & _
+        VBA.Format$(VBA.CDate(firstDay), FORMAT_DATE) & m_periodRangeSeparator & _
         VBA.Format$(VBA.CDate(endExclusive - 1), FORMAT_DATE) & PERIOD_LABEL_CLOSE
 End Sub
 
@@ -191,7 +196,7 @@ Private Sub private_SortIntervals( _
     ByRef b() As Long, _
     ByVal low As Long, _
     ByVal high As Long, _
-    ByRef cancelled As Boolean _
+    ByVal runContext As obj_PADC_RunContext _
 )
     Dim i As Long
     Dim j As Long
@@ -202,14 +207,14 @@ Private Sub private_SortIntervals( _
     j = high
     pivot = a(low + (high - low) \ 2)
     Do While i <= j
-        private_CheckCancel cancelled, i
+        private_CheckCancel runContext, i
         Do While a(i) < pivot
             i = i + 1
-            private_CheckCancel cancelled, i
+            private_CheckCancel runContext, i
         Loop
         Do While a(j) > pivot
             j = j - 1
-            private_CheckCancel cancelled, j
+            private_CheckCancel runContext, j
         Loop
         If i <= j Then
             temp = a(i)
@@ -223,21 +228,16 @@ Private Sub private_SortIntervals( _
         End If
     Loop
     If low < j Then
-        private_SortIntervals a, b, low, j, cancelled
+        private_SortIntervals a, b, low, j, runContext
     End If
     If i < high Then
-        private_SortIntervals a, b, i, high, cancelled
+        private_SortIntervals a, b, i, high, runContext
     End If
 End Sub
 
 Private Sub private_CheckCancel( _
-    ByRef cancelled As Boolean, _
+    ByVal runContext As obj_PADC_RunContext, _
     ByVal index As Long _
 )
-    If index Mod 100 = 0 Then
-        VBA.DoEvents
-    End If
-    If cancelled Then
-        VBA.Err.Raise vbObjectError + 2101, "PADC.Calculate", "Cancelled"
-    End If
+    runContext.CheckCancel index
 End Sub
