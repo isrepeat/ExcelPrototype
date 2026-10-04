@@ -72,3 +72,28 @@ value	PersonalEventBuilder::lookup.Personnel.apply.5.field	Personnel.Unit
 value	PersonalEventBuilder::lookup.Personnel.apply.5.target	Form.PersonUnit
 value	PersonalEventBuilder::lookup.Personnel.apply.5.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.5.required	true
+value	PersonalEventBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
+value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
+value	PersonalEventBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
+value	PersonalEventBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
+value	PersonalEventBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
+value	PersonalEventBuilder::text.StyleRangeKey	Селектор не підтримується для діапазону: {value}
+value	PersonalEventBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
+value	PersonalEventBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
+value	PersonalEventBuilder::text.StyleSelector	Некоректний селектор стилів: {value}
+value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
+value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
+value	PersonalEventBuilder::text.StyleEnabled	Значення enabled має бути true або false.
+value	PersonalEventBuilder::text.StyleTargetSelector	Для селекторів row, col або address використовуйте ціль діапазону.
+value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
+value	PersonalEventBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
+value	PersonalEventBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
+value	PersonalEventBuilder::text.StyleOverlayBinding	Не вдалося визначити стиль виділення.
+value	PersonalEventBuilder::text.StyleOverlayMissing	Стиль виділення не оголошено: {value}
+value	PersonalEventBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
+value	PersonalEventBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
+value	PersonalEventBuilder::text.StyleProperty	Непідтримувана властивість стилю: {value}
+value	PersonalEventBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
+value	PersonalEventBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
+value	PersonalEventBuilder::text.StyleCellType	Непідтримуване значення cellType.
+value	PersonalEventBuilder::text.StyleWidth	Некоректне обмеження ширини.

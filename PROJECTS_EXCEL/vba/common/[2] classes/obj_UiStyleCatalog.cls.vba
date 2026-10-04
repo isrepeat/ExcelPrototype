@@ -18,6 +18,8 @@ Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private m_stylesByName As Object
 Private m_pageDocument As Object
 Private m_targetWorksheet As Worksheet
+Private m_pipeline As obj_UiStylePipeline
+Private m_overlays As Object
 
 ' //
 ' // Lifecycle
@@ -48,6 +50,9 @@ Public Sub Dispose()
     Set m_stylesByName = Nothing
     Set m_pageDocument = Nothing
     Set m_targetWorksheet = Nothing
+    If Not m_pipeline Is Nothing Then m_pipeline.Dispose
+    Set m_pipeline = Nothing
+    Set m_overlays = Nothing
 End Sub
 
 Public Sub BeginPage( _
@@ -80,6 +85,9 @@ Public Sub BeginPage( _
         End If
     End If
     private_RegisterStyleNodes pageDocument
+    Set m_pipeline = New obj_UiStylePipeline
+    If Not m_pipeline.Initialize(pageDocument) Then ex_UiStyleDiagnostics.fn_Raise "Initialize"
+    private_CompileRules
     ex_Core.fn_Diagnostic_WriteLog "STYLE_PAGE_READY | Sheet=" & targetWorksheet.Name & _
         " | StyleCount=" & VBA.CStr(m_stylesByName.Count)
     ex_Core.fn_Diagnostic_WritePerf "Style.BeginPage | Sheet=" & targetWorksheet.Name, startedAt
@@ -116,7 +124,12 @@ Public Sub ApplyControlStyle( _
 
     Set directProperties = private_ReadVisualAttributes(controlNode)
     private_ApplyProperties targetRange, targetShape, directProperties
-    private_ApplyPipelineRules targetRange, targetShape, controlNode
+    m_pipeline.RegisterRegion controlNode, targetRange, targetShape, "control"
+    If Not targetRange Is Nothing Then m_pipeline.RegisterRegion controlNode, targetRange, Nothing, "cell"
+    If Not targetShape Is Nothing Then m_pipeline.RegisterRegion controlNode, Nothing, targetShape, "shape"
+    If Not targetShape Is Nothing And VBA.LCase$(private_ReadAttribute(controlNode, "type")) = "select" Then
+        m_pipeline.RegisterRegion controlNode, Nothing, targetShape, "header"
+    End If
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyControl", startedAt
 End Sub
 
@@ -130,6 +143,9 @@ Public Sub ApplyControlPartStyle( _
     Dim styleProperties As Object
 
     If targetShape Is Nothing Or m_stylesByName Is Nothing Then Exit Sub
+    If Not m_pipeline Is Nothing Then
+        m_pipeline.RegisterRegion controlNode, Nothing, targetShape, VBA.LCase$(VBA.Replace(styleAttributeName, "Style", ""))
+    End If
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
             private_ReadAttribute(controlNode, styleAttributeName), _
             uiBindingContext, styleName) Then Exit Sub
@@ -146,50 +162,192 @@ Public Sub ApplyControlPartStyle( _
 End Sub
 
 Public Sub ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
-    Dim stageNode As Object
-    Dim layerNode As Object
-    Dim ruleNode As Object
-    Dim targetName As String
-    Dim properties As Object
-    Dim sheetScope As Range
-    Dim startedAt As Double
-
-    startedAt = VBA.Timer
-    If m_pageDocument Is Nothing Then Exit Sub
-    ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_STARTED | Sheet=" & targetWorksheet.Name
-    For Each stageNode In m_pageDocument.SelectNodes( _
-            "//*[local-name()='stylePipelineStage']")
-        If private_IsNodeEnabled(stageNode) Then
-            ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_STAGE | Name=" & _
-                private_ReadAttribute(stageNode, "name")
-            For Each layerNode In stageNode.ChildNodes
-                If layerNode.NodeType = 1 Then
-                    For Each ruleNode In layerNode.ChildNodes
-                        If ruleNode.NodeType = 1 And private_IsNodeEnabled(ruleNode) Then
-                            targetName = VBA.LCase$(private_ReadAttribute(ruleNode, "target"))
-                            Set properties = private_ParseStyleDeclarations( _
-                                private_ReadAttribute(ruleNode, "styles"))
-                            Select Case targetName
-                                Case "sheet"
-                                    Set sheetScope = private_GetSheetScope(targetWorksheet)
-                                    ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_RULE | Target=sheet | Scope=" & _
-                                        sheetScope.Address(False, False)
-                                    private_ApplyProperties sheetScope, Nothing, properties
-                                    private_ApplyWorksheetProperties targetWorksheet, properties
-                                Case "column"
-                                    ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_RULE | Target=column | Selector=" & _
-                                        private_ReadAttribute(ruleNode, "selector")
-                                    private_ApplyColumnRule targetWorksheet, ruleNode, properties
-                            End Select
-                        End If
-                    Next ruleNode
-                End If
-            Next layerNode
-        End If
-    Next stageNode
-    ex_Core.fn_Diagnostic_WriteLog "STYLE_PIPELINE_COMPLETED | Sheet=" & targetWorksheet.Name
-    ex_Core.fn_Diagnostic_WritePerf "Style.ApplyPagePipeline | Sheet=" & targetWorksheet.Name, startedAt
+    Me.ApplyStage "default"
 End Sub
+
+Public Sub BeginRender()
+    If m_pipeline Is Nothing Then Exit Sub
+    m_pipeline.BeginRender
+    Set m_overlays = VBA.CreateObject("Scripting.Dictionary")
+    m_overlays.CompareMode = VBA.vbTextCompare
+End Sub
+
+Public Sub ApplyOverlay( _
+    ByVal area As Range, _
+    ByVal node As Object, _
+    ByVal bindings As obj_UiBindingContext _
+)
+    Dim styleName As String
+    Dim overlay As Object
+
+    If Not ex_UiBindingRuntime.fn_TryResolveText(private_ReadAttribute(node, "style"), bindings, styleName) Then ex_UiStyleDiagnostics.fn_Raise "OverlayBinding"
+    If Not m_stylesByName.Exists(styleName) Then ex_UiStyleDiagnostics.fn_Raise "OverlayMissing", styleName
+    Set overlay = VBA.CreateObject("Scripting.Dictionary")
+    overlay.Add "area", area
+    overlay.Add "properties", m_stylesByName(styleName)
+    If m_overlays Is Nothing Then
+        Set m_overlays = VBA.CreateObject("Scripting.Dictionary")
+        m_overlays.CompareMode = VBA.vbTextCompare
+    End If
+    Set m_overlays(private_ReadAttribute(node, "name")) = overlay
+    private_ApplyProperties area, Nothing, m_stylesByName(styleName)
+End Sub
+
+Public Sub RegisterPart( _
+    ByVal controlNode As Object, _
+    ByVal area As Range, _
+    ByVal part As String, _
+    Optional ByVal columnAlias As String, _
+    Optional ByVal sourceAlias As String, _
+    Optional ByVal sourceAliasTemplate As String, _
+    Optional ByVal tags As String _
+)
+    If m_pipeline Is Nothing Then Exit Sub
+    m_pipeline.RegisterRegion controlNode, area, Nothing, part, columnAlias, sourceAlias, sourceAliasTemplate, tags
+End Sub
+
+Public Sub ApplyStage(ByVal stageName As String)
+    Dim rule As Object
+    Dim regions As Collection
+    Dim region As Object
+    Dim properties As Object
+    Dim area As Range
+    Dim pageScope As Range
+    Dim shape As Object
+    Dim selector As Object
+    Dim startedAt As Double
+    Dim ruleIndex As Long
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
+    Dim regionKey As Variant
+    Dim operation As String
+
+    On Error GoTo EH_STAGE
+    startedAt = VBA.Timer
+    If m_pipeline Is Nothing Then Exit Sub
+    m_pipeline.ValidateStage stageName
+    ex_Core.fn_Diagnostic_WriteLog "STYLE_STAGE_STARTED | Name=" & stageName
+    Set pageScope = private_GetSheetScope(m_targetWorksheet)
+    For Each rule In m_pipeline.Rules
+        ruleIndex = ruleIndex + 1
+        If rule("enabled") And VBA.StrComp(rule("stage"), stageName, VBA.vbTextCompare) = 0 Then
+            ex_Core.fn_Diagnostic_WriteLog "STYLE_RULE_STARTED | Index=" & VBA.CStr(ruleIndex) & " | Target=" & rule("target")
+            Set properties = rule("properties")
+            Set selector = rule("selector")
+            operation = "ResolveRegions"
+            Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, pageScope)
+            operation = "ApplyRegions"
+            private_ApplyRegions regions, properties
+            If rule("target") = "sheet" Then private_ApplyWorksheetProperties m_targetWorksheet, properties
+        End If
+    Next rule
+    If Not m_overlays Is Nothing Then
+        For Each regionKey In m_overlays.Keys
+            Set region = m_overlays(regionKey)
+            Set area = region("area")
+            Set properties = region("properties")
+            private_ApplyProperties area, Nothing, properties
+        Next regionKey
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "Style.ApplyStage | Name=" & stageName, startedAt
+    Exit Sub
+EH_STAGE:
+    errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
+    errorDescription = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteLog "STYLE_STAGE_ERROR | Name=" & stageName & " | Rule=" & VBA.CStr(ruleIndex) & " | Operation=" & operation & " | Error=" & VBA.CStr(errorNumber) & " | Source=" & errorSource & " | Description=" & errorDescription
+    Err.Raise errorNumber, errorSource, errorDescription
+End Sub
+
+Private Sub private_ApplyRegions( _
+    ByVal regions As Collection, _
+    ByVal properties As Object _
+)
+    Dim batch As Range
+    Dim rowArea As Range
+    Dim shape As Object
+    Dim region As Object
+    Dim count As Long
+
+    For Each region In regions
+        Set rowArea = region("area")
+        Set shape = region("shape")
+        If region("part") = "row" And Not rowArea Is Nothing And shape Is Nothing Then
+            If batch Is Nothing Then
+                Set batch = rowArea
+            Else
+                Set batch = Application.Union(batch, rowArea)
+            End If
+            count = count + 1
+            If count = 64 Then
+                private_ApplyProperties batch, Nothing, properties
+                Set batch = Nothing
+                count = 0
+            End If
+        Else
+            If Not batch Is Nothing Then
+                private_ApplyProperties batch, Nothing, properties
+                Set batch = Nothing
+                count = 0
+            End If
+            private_ApplyProperties rowArea, shape, properties
+        End If
+    Next region
+    If Not batch Is Nothing Then private_ApplyProperties batch, Nothing, properties
+End Sub
+
+Public Function ResolveInlineStyle( _
+    ByVal node As Object, _
+    ByVal part As String, _
+    ByVal stageName As String _
+) As Object
+    Dim result As Object
+    Dim rule As Object
+    Dim properties As Object
+    Dim key As Variant
+    Dim selector As Object
+
+    Set result = VBA.CreateObject("Scripting.Dictionary")
+    result.CompareMode = VBA.vbTextCompare
+    m_pipeline.ValidateStage stageName
+    For Each rule In m_pipeline.Rules
+        If rule("enabled") And rule("target") = "inlinepart" And VBA.StrComp(rule("stage"), stageName, VBA.vbTextCompare) = 0 Then
+            If m_pipeline.MatchesInline(node, part, rule("selector")) Then
+                Set selector = rule("selector")
+                If selector.Exists("sheet") Then
+                    If VBA.StrComp(selector("sheet"), m_targetWorksheet.Name, VBA.vbTextCompare) <> 0 Then GoTo NextInlineRule
+                End If
+                Set properties = rule("properties")
+                For Each key In properties.Keys
+                    result(key) = properties(key)
+                Next key
+            End If
+        End If
+NextInlineRule:
+    Next rule
+    Set ResolveInlineStyle = result
+End Function
+
+Private Sub private_CompileRules()
+    Dim rule As Object
+    Dim properties As Object
+    Dim baseProperties As Object
+    Dim key As Variant
+
+    For Each rule In m_pipeline.Rules
+        Set properties = private_ParseStyleDeclarations(rule("styles"))
+        If VBA.Len(rule("style")) > 0 Then
+            If Not m_stylesByName.Exists(rule("style")) Then ex_UiStyleDiagnostics.fn_Raise "RuleStyleMissing", rule("style")
+            Set baseProperties = m_stylesByName(rule("style"))
+            For Each key In baseProperties.Keys
+                If Not properties.Exists(key) Then properties.Add key, baseProperties(key)
+            Next key
+        End If
+        rule.Add "properties", properties
+    Next rule
+End Sub
+
 
 ' //
 ' // Private
@@ -210,92 +368,8 @@ Private Sub private_RegisterStyleNodes(ByVal styleDocument As Object)
     Next styleNode
 End Sub
 
-Private Sub private_ApplyPipelineRules( _
-    ByVal targetRange As Range, _
-    ByVal targetShape As Object, _
-    ByVal controlNode As Object _
-)
-    Dim ruleNode As Object
-    Dim targetName As String
-    Dim properties As Object
 
-    If m_pageDocument Is Nothing Then Exit Sub
-    For Each ruleNode In m_pageDocument.SelectNodes( _
-            "//*[local-name()='stylePipelineStage']//*[local-name()='rule']")
-        targetName = VBA.LCase$(private_ReadAttribute(ruleNode, "target"))
-        If private_IsNodeEnabled(ruleNode) Then
-            If (targetName = "control" Or VBA.Len(targetName) = 0) And _
-               private_MatchesSelector(controlNode, private_ReadAttribute(ruleNode, "selector")) Then
-                Set properties = private_ParseStyleDeclarations( _
-                    private_ReadAttribute(ruleNode, "styles"))
-                private_ApplyProperties targetRange, targetShape, properties
-            End If
-            If targetName = "controlpart" Then _
-                private_ApplyControlPartRule targetRange, targetShape, controlNode, ruleNode
-        End If
-    Next ruleNode
-End Sub
 
-Private Sub private_ApplyControlPartRule( _
-    ByVal targetRange As Range, _
-    ByVal targetShape As Object, _
-    ByVal controlNode As Object, _
-    ByVal ruleNode As Object _
-)
-    Dim properties As Object
-    Dim selectorText As String
-
-    selectorText = private_ReadAttribute(ruleNode, "selector")
-    Set properties = private_ParseStyleDeclarations(private_ReadAttribute(ruleNode, "styles"))
-    If private_MatchesSelector(controlNode, selectorText, "control") Then _
-        private_ApplyProperties targetRange, targetShape, properties
-    If Not targetRange Is Nothing Then
-        If private_MatchesSelector(controlNode, selectorText, "cell") Then _
-            private_ApplyProperties targetRange, Nothing, properties
-    End If
-    If Not targetShape Is Nothing Then
-        If private_MatchesSelector(controlNode, selectorText, "shape") Then _
-            private_ApplyProperties targetRange, targetShape, properties
-    End If
-End Sub
-
-Private Function private_MatchesSelector( _
-    ByVal controlNode As Object, _
-    ByVal selectorText As String, _
-    Optional ByVal partName As String = VBA.vbNullString _
-) As Boolean
-    Dim selectorParts As Variant
-    Dim selectorPart As Variant
-    Dim separatorPosition As Long
-    Dim keyName As String
-    Dim expectedValue As String
-    Dim actualValue As String
-
-    selectorText = VBA.Trim$(selectorText)
-    If VBA.Len(selectorText) = 0 Then
-        private_MatchesSelector = True
-        Exit Function
-    End If
-    selectorParts = VBA.Split(selectorText, ";")
-    For Each selectorPart In selectorParts
-        separatorPosition = VBA.InStr(1, VBA.CStr(selectorPart), "=")
-        If separatorPosition = 0 Then Exit Function
-        keyName = VBA.LCase$(VBA.Trim$(VBA.Left$(selectorPart, separatorPosition - 1)))
-        expectedValue = VBA.Trim$(VBA.Mid$(selectorPart, separatorPosition + 1))
-        Select Case keyName
-            Case "sheet"
-                actualValue = m_targetWorksheet.Name
-            Case "type", "name", "tags"
-                actualValue = private_ReadAttribute(controlNode, keyName)
-            Case "part"
-                actualValue = partName
-            Case Else
-                Exit Function
-        End Select
-        If VBA.StrComp(actualValue, expectedValue, VBA.vbTextCompare) <> 0 Then Exit Function
-    Next selectorPart
-    private_MatchesSelector = True
-End Function
 
 Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
     Dim result As Object
@@ -310,7 +384,7 @@ Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
                  "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
                  "fontname", "horizontal", "vertical", "columnwidth", "width", "rowheight", _
-                 "overflow", "zoom", "gridlines"
+                 "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype"
                 result(propertyName) = VBA.CStr(attributeNode.Text)
         End Select
     Next attributeNode
@@ -340,8 +414,13 @@ Private Function private_ParseStyleDeclarations(ByVal declarationText As String)
             propertyValue = private_TrimXmlWhitespace( _
                 VBA.Mid$(declarationPart, separatorPosition + 1))
             If private_IsVisualProperty(propertyName) Then
+                If VBA.Len(propertyValue) = 0 Then ex_UiStyleDiagnostics.fn_Raise "PropertyEmpty", propertyName
                 result(propertyName) = propertyValue
+            Else
+                ex_UiStyleDiagnostics.fn_Raise "Property", propertyName
             End If
+        ElseIf VBA.Len(private_TrimXmlWhitespace(VBA.CStr(declarationPart))) > 0 Then
+            ex_UiStyleDiagnostics.fn_Raise "Declaration", VBA.CStr(declarationPart)
         End If
     Next declarationPart
     Set private_ParseStyleDeclarations = result
@@ -352,7 +431,7 @@ Private Function private_IsVisualProperty(ByVal propertyName As String) As Boole
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
              "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
                  "fontname", "horizontal", "vertical", "columnwidth", "width", "rowheight", _
-                  "overflow", "zoom", "gridlines"
+                  "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype"
             private_IsVisualProperty = True
     End Select
 End Function
@@ -439,12 +518,57 @@ Private Sub private_ApplyProperties( _
             targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("width"))
     End If
     If properties.Exists("rowheight") Then
-        If Not targetRange Is Nothing And VBA.IsNumeric(properties("rowheight")) Then _
-            targetRange.EntireRow.RowHeight = VBA.CDbl(properties("rowheight"))
+        If Not targetRange Is Nothing Then
+            If VBA.LCase$(properties("rowheight")) = "auto" Then
+                targetRange.EntireRow.AutoFit
+            ElseIf VBA.IsNumeric(properties("rowheight")) Then
+                targetRange.EntireRow.RowHeight = VBA.CDbl(properties("rowheight"))
+            Else
+                ex_UiStyleDiagnostics.fn_Raise "RowHeight"
+            End If
+        End If
+    End If
+    If Not targetRange Is Nothing Then
+        If properties.Exists("autofitcolumns") Then
+            If private_ReadBoolean(properties("autofitcolumns")) Then targetRange.Columns.AutoFit
+        End If
+        If properties.Exists("minwidth") Then
+            private_ClampWidth targetRange, properties("minwidth"), True
+        End If
+        If properties.Exists("maxwidth") Then
+            private_ClampWidth targetRange, properties("maxwidth"), False
+        End If
+        If properties.Exists("celltype") Then
+            Select Case VBA.LCase$(properties("celltype"))
+                Case "text"
+                    targetRange.NumberFormat = "@"
+                Case "date"
+                    targetRange.NumberFormat = "yyyy-mm-dd"
+                Case "general"
+                    targetRange.NumberFormat = "General"
+                Case Else
+                    ex_UiStyleDiagnostics.fn_Raise "CellType"
+            End Select
+        End If
     End If
     If properties.Exists("overflow") And Not targetRange Is Nothing Then _
         private_ApplyOverflow targetRange, properties("overflow")
     private_ApplyBorders targetRange, targetShape, properties
+End Sub
+
+Private Sub private_ClampWidth( _
+    ByVal area As Range, _
+    ByVal value As String, _
+    ByVal minimum As Boolean _
+)
+    Dim column As Range
+    Dim width As Double
+
+    If Not VBA.IsNumeric(value) Then ex_UiStyleDiagnostics.fn_Raise "Width"
+    width = VBA.CDbl(value)
+    For Each column In area.Columns
+        If (minimum And column.ColumnWidth < width) Or (Not minimum And column.ColumnWidth > width) Then column.ColumnWidth = width
+    Next column
 End Sub
 
 Private Sub private_ApplyBorders( _
@@ -511,30 +635,6 @@ Private Function private_GetSheetScope(ByVal targetWorksheet As Worksheet) As Ra
         targetWorksheet.Cells(1, 1), targetWorksheet.Cells(lastRow, lastColumn))
 End Function
 
-Private Sub private_ApplyColumnRule( _
-    ByVal targetWorksheet As Worksheet, _
-    ByVal ruleNode As Object, _
-    ByVal properties As Object _
-)
-    Dim selectorText As String
-    Dim addressText As String
-    Dim targetRange As Range
-
-    selectorText = private_ReadAttribute(ruleNode, "selector")
-    addressText = private_ReadSelectorValue(selectorText, "address")
-    If VBA.Len(addressText) = 0 Then
-        ex_WindowsUi.fn_ShowMessage "Column style rule requires selector address=... .", _
-            VBA.vbExclamation, "PersonalEventBuilder / Styles"
-        Exit Sub
-    End If
-    On Error GoTo EH
-    Set targetRange = targetWorksheet.Range(addressText)
-    private_ApplyProperties targetRange, Nothing, properties
-    Exit Sub
-EH:
-    ex_WindowsUi.fn_ShowMessage "Column style rule address is invalid: " & addressText, _
-        VBA.vbExclamation, "PersonalEventBuilder / Styles"
-End Sub
 
 Private Sub private_ApplyOverflow(ByVal targetRange As Range, ByVal overflowText As String)
     Select Case VBA.LCase$(VBA.Trim$(overflowText))
@@ -674,28 +774,6 @@ Private Function private_IsNodeEnabled(ByVal node As Object) As Boolean
     End If
 End Function
 
-Private Function private_ReadSelectorValue( _
-    ByVal selectorText As String, _
-    ByVal requestedKey As String _
-) As String
-    Dim selectorParts As Variant
-    Dim selectorPart As Variant
-    Dim separatorPosition As Long
-    Dim keyName As String
-
-    selectorParts = VBA.Split(selectorText, ";")
-    For Each selectorPart In selectorParts
-        separatorPosition = VBA.InStr(1, VBA.CStr(selectorPart), "=")
-        If separatorPosition > 0 Then
-            keyName = VBA.LCase$(VBA.Trim$(VBA.Left$(selectorPart, separatorPosition - 1)))
-            If VBA.StrComp(keyName, requestedKey, VBA.vbTextCompare) = 0 Then
-                private_ReadSelectorValue = VBA.Trim$( _
-                    VBA.Mid$(selectorPart, separatorPosition + 1))
-                Exit Function
-            End If
-        End If
-    Next selectorPart
-End Function
 
 Private Function private_ReadAttribute( _
     ByVal node As Object, _

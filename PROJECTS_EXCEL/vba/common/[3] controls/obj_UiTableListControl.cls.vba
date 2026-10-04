@@ -85,6 +85,7 @@ Private Function obj_IUiControl_Measure(ByRef rows As Long, ByRef columns As Lon
     For index = 1 To tableSource.TableCount
         Set definition = m_definition.cloneNode(False)
         definition.setAttribute "type", "Table"
+        definition.setAttribute "styleOwnerType", "TableList"
         definition.setAttribute "row", "1"
         definition.setAttribute "column", "1"
         definition.removeAttribute "itemsSource"

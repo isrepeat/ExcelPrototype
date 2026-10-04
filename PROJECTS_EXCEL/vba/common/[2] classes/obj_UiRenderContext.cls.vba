@@ -168,13 +168,16 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
     m_rows = rows
     m_columns = columns
+    m_styles.BeginRender
     RenderTree = m_root.Render(diagnostic)
+    If RenderTree Then m_styles.ApplyStage "default"
 CleanExit:
     m_rendering = False
     Application.ScreenUpdating = previousScreenUpdating
     Application.EnableEvents = previousEvents
     Exit Function
 EH_RENDER:
+    RenderTree = False
     diagnostic = VBA.Err.Description
     Resume CleanExit
 End Function
