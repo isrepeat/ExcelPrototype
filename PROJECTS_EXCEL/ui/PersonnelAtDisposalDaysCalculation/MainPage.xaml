@@ -41,12 +41,19 @@
              required="true"/>
     </controls:form>
 
+    <stackPanel row="7"
+                column="2"
+                orientation="vertical">
     <controls:table name="CalculationRows"
                     itemsSource="{Binding Path=Data.CalculationRows}"
-                    row="7"
-                    column="2"
                     style="resultTable"
                     showHeaders="true"/>
+    <stackPanel orientation="vertical"/>
+    <controls:table name="CalculationErrors"
+                    itemsSource="{Binding Path=Data.Errors}"
+                    style="resultTable"
+                    showHeaders="true"/>
+    </stackPanel>
   </grid>
   <styles>
     <controlStyle name="calculateButton"

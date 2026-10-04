@@ -20,3 +20,107 @@ value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\100.Д3.xlsx|
 value	PersonnelAtDisposalDaysCalculation::event.alwaysExcluded	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Стаціонарне лікування|ВЛК за межами|Безвісти зниклий|Арешт|Полон
 value	PersonnelAtDisposalDaysCalculation::event.optionalExcluded	Відрядження
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
+value	PersonnelAtDisposalDaysCalculation::flag.includeTrips	так|да|true|1
+value	PersonnelAtDisposalDaysCalculation::flag.excludeTrips	ні|нет|false|0
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_SHEET_NAME	Відсутні
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_TABLE_NAME	ТВ
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_NAME	ПІБ
+value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_SHEET_NAME	Список
+value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_TABLE_NAME	Список
+value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_COL_NAME	ПІБ
+value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_COL_TAX_ID	ІПН
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PERSON_UNVERIFIED	Person not found in events or the personnel roster:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_AMBIGUOUS_NAME	Full name matches multiple tax IDs:
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_TAX_ID	ІПН
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_EVENT	Подія
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_PERIOD_FROM	Вибуття
+value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_PERIOD_TO	Прибуття
+value	PersonnelAtDisposalDaysCalculation::legacy.ERROR_COL_NAME	Full name
+value	PersonnelAtDisposalDaysCalculation::legacy.ERROR_COL_TAX_ID	Tax ID
+value	PersonnelAtDisposalDaysCalculation::legacy.ERROR_COL_DESCRIPTION	Error
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SKIPPED_PEOPLE	; skipped:
+value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_NAME	ПІБ
+value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_TAX_ID	ІПН
+value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_START	ДЗС
+value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_TRIPS	ВІДРЯДЖЕННЯ
+value	PersonnelAtDisposalDaysCalculation::legacy.PRESENT_EVENT_NAME	В строю
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ALREADY_RUNNING	An operation is already running. Wait for completion or click Cancel.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_LOADING_STARTED	Parameter loading started
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SELECT_TOOL_SHEET	Select the tool worksheet containing the input path and end date.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WRONG_WORKBOOK	Run this command from a worksheet in the tool workbook.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_WORKSHEET	Parameter worksheet:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_LOADING_COMPLETED	Parameter loading completed
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INPUT_FILE	Input file:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_END_DATE	End date:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPERATION_CANCELLED	Operation cancelled.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPERATION_STOPPED	Operation stopped:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CANCELLING_OPERATION	Cancelling operation...
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RUKH_SOURCE	RUKH source:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_CLOSE_FAILED	Unable to close the parameter workbook:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_SHEET_MISSING	Parameter worksheet not found:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETERS_EMPTY	The parameter table is empty.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SOURCE_FILTER_FAILED	Unable to clear filters in source table
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SOURCE_EMPTY	The source RUKH table is empty.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PEOPLE	People:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RUKH_EVENTS	; RUKH events:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WORKSHEET_ROW	, worksheet row
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TAX_ID	: Tax ID
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DUPLICATE_TAX_ID	: duplicate tax ID
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TIME_POINT	: Start date
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_START_AFTER_END	: the start date is later than the end date.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_FULL_NAME	: Full name
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EVENT	: Event
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DEPARTURE	: Departure
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ARRIVAL_CELL_ERROR	: the arrival cell contains an error.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ARRIVAL	: Arrival
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ARRIVAL_BEFORE_DEPARTURE	: arrival is earlier than departure.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TAX_ID_PREFIX	Tax ID
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PERSON_NOT_FOUND	 was not found in RUKH. Check the ID and source workbook.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WRITING_RESULT	Writing result:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ROWS	 rows
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TARGET_BODY_MISSING	The result table has no data rows after preparation.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TARGET_PREPARE_FAILED	Unable to prepare the result table:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TARGET_ROWS_READY	Result table rows prepared:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WRITING_RESULTS	Writing results...
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CALCULATION_COMPLETED_PEOPLE	Calculation completed. People:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_NO_EXCLUSIONS	no exclusions
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OVERLAPS_DUPLICATES_ADJACENCY_AND_GAP	overlaps, duplicates, adjacency and gap
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_BUSINESS_TRIP_EXCLUDED	business trip excluded
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_BUSINESS_TRIP_INCLUDED	business trip included
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TREATMENT_EXCLUDED	treatment excluded
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TEST	test
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TEXT_DATE	text date
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_1904_DATE_SYSTEM	1904 date system
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EXAMPLE_EXCLUSIONS	example exclusions
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EXAMPLE_RESULT	example result
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ALGORITHM_CHECKS_PASSED	Algorithm checks passed.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CHECK_FAILED	Check failed:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RELATIVE_PATH_BASE	Save the tool workbook in a local or network folder before using a relative input path.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_AMBIGUOUS_PATH	Use a full drive or UNC path, or a path relative to the tool workbook:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_FILE_NOT_FOUND_OR_INACCESSIBLE	: file not found or inaccessible:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CANCELLED	Cancelled
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CALCULATING_DAYS	Calculating days:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_MULTIPLE_SOURCES	Multiple RUKH tables are open. Keep only one source workbook open.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPEN_SOURCE	Open the RUKH workbook: worksheet '
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TABLE	', table '
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TABLE_NOT_FOUND	Table not found: '
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ON_WORKSHEET	' on worksheet '
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CHECK_TABLE_CONFIGURATION	'. Check the table and worksheet names in Configuration.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TABLE_TEXT	Table '
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_IS_MISSING_COLUMN	' is missing column '
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RESULT_COLUMN_COUNT	The result table has an unexpected column count.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DISABLE_TOTALS	Disable the totals row in the result table.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CELL_ERROR	: the cell contains an error.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_REQUIRED_VALUE	: a required value is missing.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SUBTRACT_BUSINESS_TRIPS	: Count business trip days
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_TRIP_FLAG	: the business trip flag must be TRUE / FALSE or 1 / 0 (Ukrainian and Russian equivalents are accepted).
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_DATE	: enter a valid Excel date or dd.mm.yyyy text (not earlier than 01.03.1900).
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EXPECTED	: expected
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ACTUAL	, actual
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SAVE_BEFORE_LOGGING	Save the tool workbook before enabling logging.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPERATION_CANCELLED_BY_THE_USER	Operation cancelled by the user.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_NUMBER	Number=
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DESCRIPTION	 | Description=
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_LOG_WRITE_FAILED	Unable to write the log:
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_REFERENCE	Use file.xlsx|Worksheet!B2, where B2 is the first table header cell.
+value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_TABLE_MISSING	No table starts at the specified header cell:
