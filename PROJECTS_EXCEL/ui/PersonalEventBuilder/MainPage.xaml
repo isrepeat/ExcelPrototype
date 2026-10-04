@@ -62,9 +62,8 @@
 
       <controls:form name="PersonnelForm"
                      dataContext="{Binding Path=Form}"
-                     columnSpan="3"
                      orientation="vertical"
-                     labelPosition="top"
+                     labelPosition="left"
                      labelStyle="formLabel"
                      fieldStyle="formField">
         <field name="PersonName"
@@ -87,7 +86,6 @@
 
         <field name="PersonPosition"
                type="text"
-               rowSpan="2"
                value="{Binding Path=PersonPosition}"
                label="{Binding Path=Text.PersonPositionLabel}"
                readOnly="true"/>
@@ -197,6 +195,7 @@
                   fontSize="11"
                   borderColor="#000000"
                   borderWeight="thin"
+                  horizontal="left"
                   vertical="center"/>
 
     <controlStyle name="formSelectPanel"

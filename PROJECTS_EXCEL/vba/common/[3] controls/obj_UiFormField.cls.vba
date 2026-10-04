@@ -134,6 +134,12 @@ Private Function private_ConfigureField( _
     Dim booleanName As Variant
     Dim booleanValue As String
 
+    If Not fieldNode.getAttributeNode("rowSpan") Is Nothing Or _
+            Not fieldNode.getAttributeNode("columnSpan") Is Nothing Or _
+            Not fieldNode.getAttributeNode("labelColumnSpan") Is Nothing Then
+        diagnostic = "Field does not support rowSpan, columnSpan or labelColumnSpan."
+        Exit Function
+    End If
     m_name = ex_UiElementFactory.fn_Attribute(fieldNode, "name")
     kind = VBA.LCase$(ex_UiElementFactory.fn_Attribute(fieldNode, "type"))
     If VBA.Len(VBA.Trim$(m_name)) = 0 Then
@@ -179,13 +185,15 @@ Private Function private_ConfigureField( _
     Set container = m_panel
     panelNode.setAttribute "row", "1"
     panelNode.setAttribute "column", "1"
+    panelNode.setAttribute "rowSpan", "1"
+    panelNode.setAttribute "columnSpan", "1"
     If Not m_panel.Configure(panelNode, context, source, diagnostic) Then Exit Function
     Set labelNode = fieldNode.cloneNode(False)
     labelNode.setAttribute "type", "Label"
     labelNode.setAttribute "rowSpan", "1"
     labelNode.setAttribute "name", m_name & "_label"
     labelNode.setAttribute "text", ex_UiElementFactory.fn_Attribute(fieldNode, "label")
-    labelNode.setAttribute "columnSpan", private_Inherit(fieldNode, formNode, "labelColumnSpan", "1")
+    labelNode.setAttribute "columnSpan", "1"
     labelNode.setAttribute "style", private_Inherit(fieldNode, formNode, "labelStyle", VBA.vbNullString)
     Set label = New obj_UiControlElement
     If Not label.Configure(labelNode, context, source, diagnostic) Then Exit Function
@@ -195,8 +203,8 @@ Private Function private_ConfigureField( _
     editorNode.setAttribute "inputType", kind
     editorNode.setAttribute "name", m_name & "_input"
     editorNode.setAttribute "value", rawValue
-    editorNode.setAttribute "columnSpan", private_Inherit(fieldNode, formNode, "columnSpan", "1")
-    editorNode.setAttribute "rowSpan", private_Inherit(fieldNode, formNode, "rowSpan", "1")
+    editorNode.setAttribute "columnSpan", "1"
+    editorNode.setAttribute "rowSpan", "1"
     editorNode.setAttribute "style", private_Inherit(fieldNode, formNode, "fieldStyle", VBA.vbNullString)
     editorNode.setAttribute "onChange", private_Inherit(fieldNode, formNode, "onChange", VBA.vbNullString)
     editorNode.setAttribute "readOnly", private_Inherit(fieldNode, formNode, "readOnly", "false")

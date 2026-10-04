@@ -56,6 +56,12 @@ Private Function obj_IUiControl_Configure( _
     Dim container As obj_IUiContainer
     Dim panelNode As Object
 
+    If Not definition.getAttributeNode("rowSpan") Is Nothing Or _
+            Not definition.getAttributeNode("columnSpan") Is Nothing Or _
+            Not definition.getAttributeNode("labelColumnSpan") Is Nothing Then
+        diagnostic = "Form does not support rowSpan, columnSpan or labelColumnSpan."
+        Exit Function
+    End If
     m_name = ex_UiElementFactory.fn_Attribute(definition, "name")
     If VBA.Len(m_name) = 0 Or VBA.Len(source) = 0 Then
         diagnostic = "Form requires name and dataContext (local or inherited)."
