@@ -5,6 +5,7 @@ value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalcula
 value	ThisWorkbook::logMode	Immediate
 value	PersonnelAtDisposalDaysCalculation::text.Calculate	Розрахувати періоди
 value	PersonnelAtDisposalDaysCalculation::text.Cancel	Скасувати
+value	PersonnelAtDisposalDaysCalculation::text.RefreshPage	Оновити сторінку
 value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
 value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
 value	PersonnelAtDisposalDaysCalculation::text.Title	Розрахунок днів у розпорядженні
@@ -20,6 +21,7 @@ value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\100.Д3.xlsx|
 value	PersonnelAtDisposalDaysCalculation::event.alwaysExcluded	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Стаціонарне лікування|ВЛК за межами|Безвісти зниклий|Арешт|Полон
 value	PersonnelAtDisposalDaysCalculation::event.optionalExcluded	Відрядження
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
+value	PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator	–
 value	PersonnelAtDisposalDaysCalculation::flag.includeTrips	так|да|true|1
 value	PersonnelAtDisposalDaysCalculation::flag.excludeTrips	ні|нет|false|0
 value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_SHEET_NAME	Відсутні
