@@ -133,6 +133,7 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     End If
     m_selectedRow = rowIndex
     private_StyleSelectedRow rowIndex
+    m_renderContext.InvalidateMeasure
     If Not m_selectCommand Is Nothing Then
         If Not m_selectCommand.ExecuteWithPayload(item) Then Exit Function
     End If
@@ -234,6 +235,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim item As Object
     Dim selectedValue As Variant
     Dim selectedIsObject As Boolean
+    Dim rowTags As String
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -269,6 +271,28 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_targetRange.ClearContents
     m_targetRange.Value2 = buffer
     uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    targetRow = 1
+    If VBA.Len(rawTable.Title) > 0 Then
+        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "section"
+        targetRow = targetRow + 1
+    End If
+    If m_showHeaders And IsArray(rawTable.Headers) Then
+        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "header"
+        For columnIndex = 1 To rawTable.ColumnCount
+            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Cells(targetRow, columnIndex), "header", rawTable.HeaderAt(columnIndex)
+        Next columnIndex
+    End If
+    If Not m_bodyRange Is Nothing Then
+        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange, "rows"
+        For rowIndex = 1 To rawTable.RowCount
+            rowTags = "tableRow odd"
+            If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
+            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Rows(rowIndex), "row", tags:=rowTags
+        Next rowIndex
+        For columnIndex = 1 To rawTable.ColumnCount
+            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Columns(columnIndex), "rows", rawTable.HeaderAt(columnIndex)
+        Next columnIndex
+    End If
     If Not m_selectionSource Is Nothing And Not m_bodyRange Is Nothing And VBA.Len(m_selectedSource) > 0 Then
         If uiRenderContext.BindingContext.TryGetValue(m_selectedSource, m_selectedPath, _
                 selectedValue, selected, selectedIsObject) Then
@@ -297,7 +321,7 @@ Private Sub private_StyleSelectedRow(ByVal rowIndex As Long)
     If VBA.Len(m_selectedStyle) = 0 Or m_bodyRange Is Nothing Then Exit Sub
     Set node = m_uiControlBase.ControlNode.cloneNode(False)
     node.setAttribute "style", m_selectedStyle
-    m_renderContext.Styles.ApplyControlStyle m_bodyRange.Rows(rowIndex), Nothing, node, m_renderContext.BindingContext
+    m_renderContext.Styles.ApplyOverlay m_bodyRange.Rows(rowIndex), node, m_renderContext.BindingContext
 End Sub
 
 Private Function private_ReadAttribute(ByVal node As Object, ByVal name As String) As String

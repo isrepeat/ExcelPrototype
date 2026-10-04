@@ -254,12 +254,45 @@
       </layer>
 
       <layer name="layout">
+        <rule style="pageTitle"
+              target="control"
+              selector="style=pageTitle"/>
+
+        <rule style="formLabel"
+              target="control"
+              selector="style=formLabel"/>
+
+        <rule style="formField"
+              target="control"
+              selector="style=formField"/>
+
+        <rule style="candidateTable"
+              target="control"
+              selector="style=candidateTable"/>
+
         <rule target="control"
               selector="type=button"
               styles="{
                 horizontal:center;
                 vertical:center;
               }"/>
+      </layer>
+      <layer name="table-parts">
+        <rule target="controlPart"
+              selector="type=table;part=header"
+              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;}"/>
+
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=even"
+              styles="{backColor:#383838;}"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=header"
+              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;}"/>
+
+        <rule target="controlPart"
+              selector="type=tablelist;part=row;tags=even"
+              styles="{backColor:#383838;}"/>
       </layer>
     </stylePipelineStage>
   </styles>

@@ -27,6 +27,8 @@ Private m_rows As Long
 Private m_columns As Long
 Private m_row As Long
 Private m_column As Long
+Private m_arrangedRow As Long
+Private m_arrangedColumn As Long
 
 ' //
 ' // Lifecycle
@@ -217,6 +219,8 @@ Private Function private_ArrangePanel( _
     Dim nextRow As Long
     Dim nextColumn As Long
 
+    m_arrangedRow = row
+    m_arrangedColumn = column
     If m_trackLayout Then
         Dim index As Long
         Dim slot As Variant
@@ -245,6 +249,9 @@ End Function
 Private Function private_RenderPanel(ByRef diagnostic As String) As Boolean
     Dim child As obj_IUiElement
 
+    If m_rows > 0 And m_columns > 0 Then
+        m_context.Styles.RegisterPart m_definition, m_context.TargetWorksheet.Cells(m_arrangedRow, m_arrangedColumn).Resize(m_rows, m_columns), "layout"
+    End If
     For Each child In m_children
         If Not child.Render(diagnostic) Then Exit Function
     Next child

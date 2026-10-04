@@ -211,6 +211,7 @@ Private Function private_StyleLayerSchema() As obj_UiMarkupSchema
     End If
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddChild "rule", private_StyleRuleSchema()
+    schema.AddAttribute "enabled", "boolean", False, "", False, 0
     Set private_StyleLayerSchema = schema
 End Function
 
@@ -220,8 +221,11 @@ Private Function private_StyleRuleSchema() As obj_UiMarkupSchema
     If Not schema.Initialize() Then
         Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
     End If
-    schema.AddAttribute "target", "enum", True, "sheet|column|cell|control|controlPart|shape", False, 0
+    schema.AddAttribute "target", "enum", True, "sheet|usedRange|row|column|cell|range|control|controlPart|layoutContainer|layoutBound|inlinePart", False, 0
     schema.AddAttribute "selector", "string", False, "", False, 0
-    schema.AddAttribute "styles", "styleblock", True, "", False, 0
+    schema.AddAttribute "style", "string", False, "", False, 0
+    schema.AddAttribute "styles", "styleblock", False, "", False, 0
+    schema.AddAttribute "enabled", "boolean", False, "", False, 0
+    schema.RequireAnyAttribute "style|styles"
     Set private_StyleRuleSchema = schema
 End Function

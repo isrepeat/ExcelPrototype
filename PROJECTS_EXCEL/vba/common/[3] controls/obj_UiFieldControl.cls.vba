@@ -384,6 +384,7 @@ Private Function private_RenderSelectShapes( _
         msoShapeRectangle, m_targetRange.Left, m_targetRange.Top, _
         m_targetRange.Width, m_targetRange.Height)
     headerShape.Name = headerShapeName
+    headerShape.Placement = xlMoveAndSize
     private_ApplyDefaultShapeStyle headerShape
     arrowText = VBA.ChrW(&H25BC)
     headerShape.TextFrame2.TextRange.Text = selectedValue & " " & arrowText
@@ -399,6 +400,7 @@ Private Function private_RenderSelectShapes( _
         msoShapeRectangle, m_targetRange.Left, m_targetRange.Top + m_targetRange.Height, _
         m_targetRange.Width, items.Count * itemHeight + (items.Count - 1) * itemMargin)
     panelShape.Name = panelShapeName
+    panelShape.Placement = xlMoveAndSize
     private_ApplyDefaultShapeStyle panelShape
     uiRenderContext.Styles.ApplyControlPartStyle panelShape, _
         m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "panelStyle"
@@ -415,6 +417,7 @@ Private Function private_RenderSelectShapes( _
         Set itemShape = targetWorksheet.Shapes.AddShape( _
             msoShapeRectangle, panelShape.Left, itemTop, panelShape.Width, itemHeight)
         itemShape.Name = itemShapeName
+        itemShape.Placement = xlMoveAndSize
         private_ApplyDefaultShapeStyle itemShape
         itemText = VBA.CStr(items(itemIndex))
         itemShape.TextFrame2.TextRange.Text = itemText

@@ -149,7 +149,6 @@ Private Function private_RenderPage( _
         uiPageDefinition.Document, uiFolderPath
     ex_Core.fn_Diagnostic_WritePerf "Page.BeginStyles | Sheet=" & targetWorksheet.Name, startedAt
     private_ClearUi targetWorksheet
-    uiRenderContext.Styles.ApplyPagePipeline targetWorksheet
     ex_Core.fn_Diagnostic_WritePerf "Page.ApplyStyles | Sheet=" & targetWorksheet.Name, startedAt
     private_LogUiScopeVisibility targetWorksheet, "after-pipeline"
     private_RestoreUiScopeVisibility targetWorksheet

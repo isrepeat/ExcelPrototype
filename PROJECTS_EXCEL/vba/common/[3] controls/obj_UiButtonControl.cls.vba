@@ -161,6 +161,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Set m_buttonShape = uiRenderContext.TargetWorksheet.Shapes.AddShape( _
         msoShapeRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
+    m_buttonShape.Placement = xlMoveAndSize
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
