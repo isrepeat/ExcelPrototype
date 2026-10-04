@@ -1,0 +1,22 @@
+value	ThisWorkbook::id	PersonnelAtDisposalDaysCalculation
+value	ThisWorkbook::vbaPath	..\..\vba
+value	ThisWorkbook::uiPath	..\..\ui
+value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalculation
+value	ThisWorkbook::logMode	Immediate
+value	PersonnelAtDisposalDaysCalculation::text.Calculate	Розрахувати періоди
+value	PersonnelAtDisposalDaysCalculation::text.Cancel	Скасувати
+value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
+value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
+value	PersonnelAtDisposalDaysCalculation::text.Title	Розрахунок днів у розпорядженні
+value	PersonnelAtDisposalDaysCalculation::text.CalculationNotReady	Читання вихідних таблиць і запуск розрахунку ще не підключені.
+value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::header.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
+value	PersonnelAtDisposalDaysCalculation::header.BusinessTrips	Враховувати відрядження
+value	PersonnelAtDisposalDaysCalculation::header.Periods	Періоди
+value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
+value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
+value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\100.Д3.xlsx|Д3.Списки!B2
+value	PersonnelAtDisposalDaysCalculation::event.alwaysExcluded	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Стаціонарне лікування|ВЛК за межами|Безвісти зниклий|Арешт|Полон
+value	PersonnelAtDisposalDaysCalculation::event.optionalExcluded	Відрядження
+value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
