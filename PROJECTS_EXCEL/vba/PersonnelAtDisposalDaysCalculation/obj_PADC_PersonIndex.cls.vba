@@ -51,7 +51,9 @@ Public Function Initialize( _
     Set m_configuration = configuration
     Set m_validation = validation
     Set m_runContext = runContext
+    m_runContext.LogStage "PersonIndex.Started", "Rows=" & count
     private_BuildPersonIndex data, count, taxColumn, nameColumn
+    m_runContext.LogStage "PersonIndex.Completed", "TaxIds=" & m_taxIndex.Count & " | Names=" & m_nameIndex.Count
     m_isInitialized = True
     Initialize = True
 End Function

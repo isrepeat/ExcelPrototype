@@ -182,7 +182,9 @@ End Function
 Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
     Dim currentShape As Shape
     Dim uiScope As Range
+    Dim usedScope As Range
     Dim shapeIndex As Long
+    Dim lastRow As Long
 
     For shapeIndex = targetWorksheet.Shapes.Count To 1 Step -1
         Set currentShape = targetWorksheet.Shapes(shapeIndex)
@@ -191,7 +193,11 @@ Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
            SELECT_SHAPE_PREFIX Or VBA.Left$(currentShape.Name, 4) = "chk_" Then _
             currentShape.Delete
     Next shapeIndex
-    Set uiScope = targetWorksheet.Range("A1:AN100")
+    Set usedScope = targetWorksheet.UsedRange
+    lastRow = Application.Max(100, usedScope.Row + usedScope.Rows.Count - 1)
+    Set uiScope = targetWorksheet.Range("A1:AN" & VBA.CStr(lastRow))
+    ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_CLEAR | Sheet=" & targetWorksheet.Name & _
+        " | Range=" & uiScope.Address(False, False)
     private_LogUiScopeVisibility targetWorksheet, "before-clear"
     private_RestoreUiScopeVisibility targetWorksheet
     uiScope.UnMerge
