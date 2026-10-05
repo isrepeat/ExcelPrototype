@@ -87,6 +87,7 @@ Public Function TryOpen( _
     Dim i As Long
     Dim count As Long
     Dim canonical As String
+    Dim isWebPath As Boolean
     Dim lastRow As Range
     Dim lastColumn As Range
     Dim startedAt As Double
@@ -100,7 +101,9 @@ Public Function TryOpen( _
         diagnostic = "Workbook session is already open."
         Exit Function
     End If
-    canonical = VBA.CreateObject("Scripting.FileSystemObject").GetAbsolutePathName(source.WorkbookPath)
+    canonical = source.WorkbookPath
+    isWebPath = VBA.StrComp(VBA.Left$(canonical, 8), "https://", VBA.vbTextCompare) = 0 Or _
+        VBA.StrComp(VBA.Left$(canonical, 7), "http://", VBA.vbTextCompare) = 0
     If Not savedOnly Then
         For Each book In Application.Workbooks
             If VBA.StrComp(book.FullName, canonical, VBA.vbTextCompare) = 0 Then
@@ -109,9 +112,25 @@ Public Function TryOpen( _
             End If
         Next book
     End If
+    If m_book Is Nothing And Not isWebPath Then
+        canonical = VBA.CreateObject("Scripting.FileSystemObject").GetAbsolutePathName(canonical)
+        If Not savedOnly Then
+            For Each book In Application.Workbooks
+                If VBA.StrComp(book.FullName, canonical, VBA.vbTextCompare) = 0 Then
+                    Set m_book = book
+                    Exit For
+                End If
+            Next book
+        End If
+    End If
+    If Not m_book Is Nothing Then
+        ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_COMPLETED | Name=ReuseWorkbook | Path=" & m_book.FullName
+    End If
     If m_book Is Nothing Then
-        If VBA.Len(VBA.Dir$(canonical)) = 0 Then
-            Err.Raise VBA.vbObjectError + 2130, , "Workbook not found: " & canonical
+        If Not isWebPath Then
+            If VBA.Len(VBA.Dir$(canonical)) = 0 Then
+                Err.Raise VBA.vbObjectError + 2130, , "Workbook not found: " & canonical
+            End If
         End If
         ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=CreateExcel"
         startedAt = VBA.Timer

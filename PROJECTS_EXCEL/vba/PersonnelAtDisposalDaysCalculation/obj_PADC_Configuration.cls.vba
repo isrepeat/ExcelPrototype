@@ -72,7 +72,7 @@ Public Function Initialize() As Boolean
     Initialize = True
     Exit Function
 Failed:
-    VBA.MsgBox "Required configuration key is missing or invalid: " & key, vbExclamation
+    ex_WindowsUi.fn_ShowMessage "Required configuration key is missing or invalid: " & key, vbExclamation
     Me.Dispose
 End Function
 

@@ -78,7 +78,7 @@ Public Sub Calculate()
 
     private_EnsureReady
     If m_running Then
-        VBA.MsgBox m_configuration.GetText("legacy.MSG_ALREADY_RUNNING"), vbExclamation
+        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_ALREADY_RUNNING"), vbExclamation
         Exit Sub
     End If
     oldStatus = Application.StatusBar
@@ -104,11 +104,21 @@ Public Sub Calculate()
     End If
     m_runContext.CheckCancel 0
     m_runContext.LogDebug m_configuration.GetText("legacy.MSG_PARAMETER_LOADING_COMPLETED")
+    m_runContext.LogStage "OpenInput.Started"
     Set parameterTable = m_dataSource.OpenParameterTable(m_parameters)
+    m_runContext.LogStage "OpenInput.Completed"
+    m_runContext.LogStage "PrepareEvents.Started"
     Set prepared = m_eventPreparation.Prepare(parameterTable, m_parameters.EndDay)
+    m_runContext.LogStage "PrepareEvents.Completed"
+    m_runContext.LogStage "CalculateAndPublish.Started"
     private_CalculatePreparedPeople prepared, m_parameters.EndDay
+    m_runContext.LogStage "CalculateAndPublish.Completed"
 Cleanup:
+    ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=RunCleanup.Started"
+    ex_Core.fn_Diagnostic_Flush
     private_DisposeServices
+    ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=RunCleanup.Completed"
+    ex_Core.fn_Diagnostic_Flush
     Application.StatusBar = oldStatus
     m_running = False
     If m_disposeRequested Then
@@ -124,11 +134,11 @@ Failed:
         ex_Core.fn_Diagnostic_WriteLog "PADC_FAILED | Number=" & errorNumber & " | " & errorText
     End If
     If errorNumber = CANCEL_ERROR Then
-        VBA.MsgBox m_configuration.GetText("legacy.MSG_OPERATION_CANCELLED"), vbInformation
+        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_OPERATION_CANCELLED"), vbInformation
     ElseIf m_configurationReady Then
-        VBA.MsgBox m_configuration.GetText("legacy.MSG_OPERATION_STOPPED") & errorText, vbExclamation
+        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_OPERATION_STOPPED") & errorText, vbExclamation
     Else
-        VBA.MsgBox errorText, vbExclamation
+        ex_WindowsUi.fn_ShowMessage errorText, vbExclamation
     End If
     Resume Cleanup
 End Sub
@@ -264,10 +274,12 @@ Private Sub private_CalculatePreparedPeople( _
     m_runContext.LogDebug m_configuration.GetText("legacy.MSG_WRITING_RESULT") & count & _
         m_configuration.GetText("legacy.MSG_ROWS")
     Application.StatusBar = m_configuration.GetText("legacy.MSG_WRITING_RESULTS")
+    m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & failures.Count
     m_resultWriter.Publish names, ids, starts, trips, periods, days, thresholds, count, failures
+    m_runContext.LogStage "PublishResults.Completed"
     m_runContext.LogDebug m_configuration.GetText("legacy.MSG_CALCULATION_COMPLETED_PEOPLE") & count & _
         m_configuration.GetText("legacy.MSG_SKIPPED_PEOPLE") & failures.Count
-    VBA.MsgBox m_configuration.GetText("legacy.MSG_CALCULATION_COMPLETED_PEOPLE") & count & _
+    ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_CALCULATION_COMPLETED_PEOPLE") & count & _
         m_configuration.GetText("legacy.MSG_SKIPPED_PEOPLE") & failures.Count, vbInformation
 End Sub
 

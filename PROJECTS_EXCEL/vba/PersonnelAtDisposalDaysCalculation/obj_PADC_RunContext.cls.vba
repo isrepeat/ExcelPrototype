@@ -80,10 +80,25 @@ Public Sub CheckCancel(ByVal index As Long)
     End If
     m_lastUiYield = currentTime
     Application.StatusBar = m_configuration.GetText("legacy.MSG_CALCULATING_DAYS") & index
+    If index = 0 Then
+        Me.LogStage "Yield.Started"
+    End If
     VBA.DoEvents
+    If index = 0 Then
+        Me.LogStage "Yield.Completed"
+    End If
     If m_cancelled Then
         VBA.Err.Raise CANCEL_ERROR, ERROR_SOURCE, m_configuration.GetText("legacy.MSG_CANCELLED")
     End If
+End Sub
+
+Public Sub LogStage( _
+    ByVal stageName As String, _
+    Optional ByVal details As String = vbNullString _
+)
+    private_EnsureReady
+    ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=" & stageName & " | " & details
+    ex_Core.fn_Diagnostic_Flush
 End Sub
 
 Public Sub ClearLog()

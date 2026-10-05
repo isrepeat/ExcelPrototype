@@ -121,11 +121,17 @@ Public Function Prepare( _
     Dim preparedPerson As obj_PADC_PreparedPerson
 
     private_EnsureReady
+    m_runContext.LogStage "FindMovementSource.Started"
     Set source = m_dataSource.FindSource()
+    m_runContext.LogStage "FindMovementSource.Completed"
+    m_runContext.LogStage "FindRoster.Started"
     Set roster = m_dataSource.RequireTable(m_configuration.GetText("legacy.ROSTER_SHEET_NAME"), m_configuration.GetText("legacy.ROSTER_TABLE_NAME"), source.Parent.Parent)
+    m_runContext.LogStage "FindRoster.Completed"
     rosterTaxCol = m_dataSource.ColumnIndex(roster, m_configuration.GetText("legacy.ROSTER_COL_TAX_ID"))
     rosterNameCol = m_dataSource.ColumnIndex(roster, m_configuration.GetText("legacy.ROSTER_COL_NAME"))
+    m_runContext.LogStage "ReadRoster.Started"
     rosterData = m_dataSource.ReadQueryTable(roster)
+    m_runContext.LogStage "ReadRoster.Completed"
     m_runContext.CheckCancel 0
 
     m_runContext.LogDebug m_configuration.GetText("legacy.MSG_RUKH_SOURCE") & source.Parent.Parent.Name & " / " & source.Parent.Name & " / " & source.Name
@@ -142,8 +148,12 @@ Public Function Prepare( _
     If params.DataBodyRange Is Nothing Then
         m_configuration.Fail m_configuration.GetText("legacy.MSG_PARAMETERS_EMPTY")
     End If
+    m_runContext.LogStage "ReadParameters.Started"
     p = m_dataSource.ReadQueryTable(params)
+    m_runContext.LogStage "ReadParameters.Completed"
+    m_runContext.LogStage "ReadMovement.Started"
     s = m_dataSource.ReadQueryTable(source)
+    m_runContext.LogStage "ReadMovement.Completed"
     Set eventPersonIndex = New obj_PADC_PersonIndex
     If Not eventPersonIndex.Initialize(s, source.ListRows.Count, taxCol, sourceNameCol, _
             m_configuration, m_validation, m_runContext) Then
