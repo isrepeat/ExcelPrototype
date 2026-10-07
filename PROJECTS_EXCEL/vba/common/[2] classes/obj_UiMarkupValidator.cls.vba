@@ -154,6 +154,8 @@ Private Function private_AttributeValid(ByVal value As String, ByVal rule As Var
     Dim source As String
     Dim path As String
     Dim number As Double
+    Dim policy As obj_UiTablePolicy
+    Dim intervals As Collection
 
     On Error GoTo InvalidValue
     If VBA.Left$(VBA.Trim$(value), 1) = "{" And rule(0) <> "styleblock" Then
@@ -166,6 +168,9 @@ Private Function private_AttributeValid(ByVal value As String, ByVal rule As Var
         If VBA.Len(value) > rule(4) Then Exit Function
     End If
     Select Case rule(0)
+        Case "tableindices"
+            Set policy = New obj_UiTablePolicy
+            Set intervals = policy.ParseIndices(value)
         Case "gridsize"
             If value = "auto" Or value = "*" Then
                 private_AttributeValid = True

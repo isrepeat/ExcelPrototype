@@ -653,6 +653,8 @@ Page разрешает ровно один grid и не более одного
 
 `controls:tableList` (`obj_UiTableListControl`) принимает тот же контракт источника, включая `obj_UiRawTableList`. Атрибут `gapRows` определяет число пустых строк между таблицами и поддерживается только списком. Пустой список занимает одну ячейку и ничего не выводит.
 
+Raw/Smart presentation, index-based XAML policies, generated Excel names and conversion of rendered tables are described in [TablePresentation-API.md](TablePresentation-API.md).
+
 ```xml
 <controls:table name="EventTable"
                 itemsSource="{Binding Path=Data.EventTable}"

@@ -20,6 +20,7 @@ Private m_base As obj_UiControlBase
 Private m_children As Collection
 Private m_sizes As Collection
 Private m_gapRows As Long
+Private m_policy As obj_UiTablePolicy
 
 ' //
 ' // Lifecycle
@@ -50,13 +51,19 @@ Private Sub obj_IUiControl_Dispose()
 End Sub
 
 Private Function obj_IUiControl_Configure(ByVal definition As Object, ByVal context As obj_UiRenderContext, ByVal source As String, ByRef diagnostic As String) As Boolean
+    On Error GoTo Failed
     Set m_context = context
     Set m_definition = definition.cloneNode(True)
     m_base.ConfigurePosition definition
     m_gapRows = 1
     If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "gapRows")) > 0 Then _
         m_gapRows = VBA.CLng(ex_UiElementFactory.fn_Attribute(definition, "gapRows"))
+    Set m_policy = New obj_UiTablePolicy
+    If Not m_policy.Initialize(definition) Then Exit Function
     obj_IUiControl_Configure = True
+    Exit Function
+Failed:
+    diagnostic = Err.Description
 End Function
 
 Private Function obj_IUiControl_Measure(ByRef rows As Long, ByRef columns As Long, ByRef diagnostic As String) As Boolean
@@ -67,6 +74,8 @@ Private Function obj_IUiControl_Measure(ByRef rows As Long, ByRef columns As Lon
     Dim definition As Object
     Dim raw As String
     Dim index As Long, childRows As Long, childColumns As Long
+    Dim representation As String
+    Dim excelTableName As String
 
     private_ClearChildren
     raw = ex_UiElementFactory.fn_Attribute(m_definition, "itemsSource")
@@ -90,6 +99,10 @@ Private Function obj_IUiControl_Measure(ByRef rows As Long, ByRef columns As Lon
         definition.setAttribute "column", "1"
         definition.removeAttribute "itemsSource"
         definition.removeAttribute "gapRows"
+        m_policy.Resolve index, representation, excelTableName
+        definition.setAttribute "representation", representation
+        definition.setAttribute "tableIndex", VBA.CStr(index)
+        If VBA.Len(excelTableName) > 0 Then definition.setAttribute "excelTableName", excelTableName
         Set child = ex_UiControlFactory.fn_Create(definition)
         If child Is Nothing Then Exit Function
         m_children.Add child
@@ -152,6 +165,8 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     private_ClearChildren
+    If Not m_policy Is Nothing Then m_policy.Dispose
+    Set m_policy = Nothing
     Set m_children = Nothing
     Set m_sizes = Nothing
     If Not m_base Is Nothing Then m_base.Dispose

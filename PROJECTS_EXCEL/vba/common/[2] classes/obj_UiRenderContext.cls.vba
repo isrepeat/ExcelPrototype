@@ -13,6 +13,7 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_rendering As Boolean
+Private m_hasRendered As Boolean
 Private m_needsMeasure As Boolean
 Private m_rows As Long
 Private m_columns As Long
@@ -21,6 +22,7 @@ Private m_root As obj_IUiElement
 Private m_router As obj_UiEventRouter
 Private m_forms As Object
 Private m_elements As Object
+Private m_tablePlans As Collection
 Private m_targetWorksheet As Worksheet
 Private m_uiPageDefinition As obj_UiPageDefinition
 Private m_uiFolderPath As String
@@ -59,6 +61,8 @@ End Sub
 Public Function InvalidateVisual(ByVal name As String, ByRef diagnostic As String) As Boolean
     Dim element As obj_IUiElement
     Dim previousEvents As Boolean
+    Dim previousExpand As Boolean
+    Dim previousFill As Boolean
 
     If Not m_elements.Exists(name) Then
         diagnostic = "Element was not found: " & name
@@ -66,10 +70,16 @@ Public Function InvalidateVisual(ByVal name As String, ByRef diagnostic As Strin
     End If
     Set element = m_elements(name)
     previousEvents = Application.EnableEvents
+    previousExpand = Application.AutoCorrect.AutoExpandListRange
+    previousFill = Application.AutoCorrect.AutoFillFormulasInLists
     On Error GoTo EH_VISUAL
     Application.EnableEvents = False
+    Application.AutoCorrect.AutoExpandListRange = False
+    Application.AutoCorrect.AutoFillFormulasInLists = False
     InvalidateVisual = element.Render(diagnostic)
 CleanVisual:
+    Application.AutoCorrect.AutoExpandListRange = previousExpand
+    Application.AutoCorrect.AutoFillFormulasInLists = previousFill
     Application.EnableEvents = previousEvents
     Exit Function
 EH_VISUAL:
@@ -118,6 +128,43 @@ Public Sub InvalidateMeasure()
     m_needsMeasure = True
 End Sub
 
+Public Sub RegisterTablePlan(ByVal plan As Object)
+    If m_tablePlans Is Nothing Then Set m_tablePlans = New Collection
+    m_tablePlans.Add plan
+End Sub
+
+Public Function TryEnsureSmart( _
+    ByVal controlName As String, _
+    ByVal tableIndex As Long, _
+    ByRef diagnostic As String, _
+    Optional ByVal excelTableName As String _
+) As Boolean
+    Dim plan As Object
+    Dim area As Range
+
+    diagnostic = VBA.vbNullString
+    If Not m_isInitialized Or m_isDisposed Or m_rendering Or Not m_hasRendered Or m_tablePlans Is Nothing Then
+        diagnostic = "Table conversion requires a rendered page."
+        Exit Function
+    End If
+    For Each plan In m_tablePlans
+        If plan("owner") = controlName & "|" & VBA.CStr(tableIndex) Then
+            If plan("selectable") Then
+                diagnostic = "Smart table does not support positional selection bindings."
+                Exit Function
+            End If
+            Set area = plan("conversionRange")
+            If area Is Nothing Then
+                diagnostic = "Table conversion requires visible headers and at least one data row."
+                Exit Function
+            End If
+            TryEnsureSmart = ex_UiTables.fn_TryEnsureSmart(area, plan("owner"), diagnostic, excelTableName)
+            Exit Function
+        End If
+    Next plan
+    diagnostic = "Rendered table was not found: " & controlName & "[" & VBA.CStr(tableIndex) & "]"
+End Function
+
 Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
@@ -136,10 +183,7 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Set m_router = New obj_UiEventRouter
     m_router.Initialize
     If m_rows > 0 And m_columns > 0 Then
-        With m_targetWorksheet.Cells(1, 1).Resize(m_rows, m_columns)
-            .UnMerge
-            .ClearContents
-        End With
+        ex_UiTables.fn_ClearRange m_targetWorksheet.Cells(1, 1).Resize(m_rows, m_columns), True
     End If
     FlushLayout = Me.RenderTree(diagnostic)
 CleanLayout:
@@ -156,29 +200,41 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     Dim columns As Long
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
+    Dim previousExpand As Boolean
+    Dim previousFill As Boolean
 
     If m_root Is Nothing Then Exit Function
     previousEvents = Application.EnableEvents
     previousScreenUpdating = Application.ScreenUpdating
+    previousExpand = Application.AutoCorrect.AutoExpandListRange
+    previousFill = Application.AutoCorrect.AutoFillFormulasInLists
     On Error GoTo EH_RENDER
     Application.ScreenUpdating = False
     Application.EnableEvents = False
+    Application.AutoCorrect.AutoExpandListRange = False
+    Application.AutoCorrect.AutoFillFormulasInLists = False
     m_rendering = True
+    m_hasRendered = False
+    Set m_tablePlans = New Collection
     If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
     If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
+    ex_UiTables.fn_Prepare m_targetWorksheet, m_tablePlans
     m_rows = rows
     m_columns = columns
     m_styles.BeginRender
     RenderTree = m_root.Render(diagnostic)
     If RenderTree Then m_styles.ApplyStage "default"
+    m_hasRendered = RenderTree
 CleanExit:
     m_rendering = False
+    Application.AutoCorrect.AutoExpandListRange = previousExpand
+    Application.AutoCorrect.AutoFillFormulasInLists = previousFill
     Application.ScreenUpdating = previousScreenUpdating
     Application.EnableEvents = previousEvents
     Exit Function
 EH_RENDER:
     RenderTree = False
-    diagnostic = VBA.Err.Description
+    diagnostic = VBA.Err.Source & ": " & VBA.Err.Description
     Resume CleanExit
 End Function
 
@@ -255,6 +311,7 @@ Public Sub Dispose()
     Set m_router = Nothing
     Set m_forms = Nothing
     Set m_elements = Nothing
+    Set m_tablePlans = Nothing
     Set m_uiBindingContext = Nothing
     If Not m_uiPageDefinition Is Nothing Then m_uiPageDefinition.Dispose
     Set m_uiPageDefinition = Nothing

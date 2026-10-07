@@ -173,7 +173,7 @@ Public Function Initialize( _
         name = private_Required(node, "field")
         If Not names.Exists(name) Then Err.Raise 5, , "Apply field not declared: " & name
         item("field") = name
-        item("required") = ex_UiElementFactory.fn_Attribute(node, "required")
+        item("required") = VBA.LCase$(ex_UiElementFactory.fn_Attribute(node, "required"))
         If VBA.Len(item("required")) = 0 Then item("required") = "true"
         If item("required") <> "true" And item("required") <> "false" Then Err.Raise 5, , "Map required must be true or false."
         item("target") = private_Required(node, "target")

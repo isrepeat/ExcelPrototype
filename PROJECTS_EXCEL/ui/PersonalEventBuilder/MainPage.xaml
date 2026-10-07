@@ -102,7 +102,21 @@
       <controls:tableList name="GeneratedTables"
                           itemsSource="{Binding Path=Data.Tables}"
                           showHeaders="true"
-                          gapRows="1"/>
+                          gapRows="1">
+        <controls:tableList.tablePolicy>
+          <controls:tablePolicy defaultRepresentation="Raw">
+            <controls:rule index="2"
+                           representation="Smart"
+                           excelTableName="tbGeneratedEvent2"/>
+            <controls:rule index="5"
+                           representation="Smart"
+                           excelTableName="tbGeneratedEvent5"/>
+            <controls:rule index="8"
+                           representation="Smart"
+                           excelTableName="tbGeneratedEvent8"/>
+          </controls:tablePolicy>
+        </controls:tableList.tablePolicy>
+      </controls:tableList>
     </stackPanel>
 
     <stackPanel row="2"

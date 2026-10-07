@@ -82,6 +82,9 @@ End Sub
 Private Function private_CreateSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
     Dim field As obj_UiMarkupSchema
+    Dim wrapper As obj_UiMarkupSchema
+    Dim policy As obj_UiMarkupSchema
+    Dim rule As obj_UiMarkupSchema
 
     If Not schema.Initialize() Then
         Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
@@ -108,6 +111,23 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
             If m_type = "tablelist" Then schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
             schema.AddAttribute "showHeaders", "boolean", False, "", False, 0
+            schema.AddAttribute "representation", "enum", False, "Raw|Smart", False, 0
+            If m_type = "table" Then schema.AddAttribute "excelTableName", "string", False, "", False, 255
+            If m_type = "tablelist" Then
+                Set wrapper = New obj_UiMarkupSchema
+                Set policy = New obj_UiMarkupSchema
+                Set rule = New obj_UiMarkupSchema
+                If Not wrapper.Initialize() Or Not policy.Initialize() Or Not rule.Initialize() Then
+                    Err.Raise VBA.vbObjectError + 2167, , "Table policy schema initialization failed."
+                End If
+                policy.AddAttribute "defaultRepresentation", "enum", False, "Raw|Smart"
+                rule.AddAttribute "index", "tableindices", True
+                rule.AddAttribute "representation", "enum", True, "Raw|Smart"
+                rule.AddAttribute "excelTableName", "string", False, "", False, 255
+                policy.AddChild "rule", rule, 0, -1, "urn:excelprototype:controls"
+                wrapper.AddChild "tablePolicy", policy, 1, 1, "urn:excelprototype:controls"
+                schema.AddChild "tableList.tablePolicy", wrapper, 0, 1, "urn:excelprototype:controls"
+            End If
             If m_type = "table" Then
                 schema.AddAttribute "onSelect", "string", False, "", True, 0
                 schema.AddAttribute "selectedItem", "string", False, "", True, 0
