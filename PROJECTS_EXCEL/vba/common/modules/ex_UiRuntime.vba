@@ -200,8 +200,7 @@ Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)
         " | Range=" & uiScope.Address(False, False)
     private_LogUiScopeVisibility targetWorksheet, "before-clear"
     private_RestoreUiScopeVisibility targetWorksheet
-    uiScope.UnMerge
-    uiScope.Clear
+    ex_UiTables.fn_ClearRange uiScope
     private_LogUiScopeVisibility targetWorksheet, "after-clear"
     private_RestoreUiScopeVisibility targetWorksheet
     private_LogUiScopeVisibility targetWorksheet, "after-clear-visibility-restore"

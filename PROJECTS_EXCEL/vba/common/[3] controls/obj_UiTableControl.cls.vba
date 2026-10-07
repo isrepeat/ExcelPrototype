@@ -30,6 +30,7 @@ Private m_selectedPath As String
 Private m_selectedStyle As String
 Private m_bodyRange As Range
 Private m_selectedRow As Long
+Private m_tablePlan As Object
 
 ' //
 ' // Lifecycle
@@ -99,6 +100,10 @@ Private Function obj_IUiControl_Arrange( _
     If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
     Set target = private_Measure(m_renderContext)
     obj_IUiControl_Arrange = Not target Is Nothing
+    If Not target Is Nothing Then
+        Set m_tablePlan = ex_UiTables.fn_CreatePlan(m_uiControlBase.ControlNode, target, m_table, m_showHeaders)
+        m_renderContext.RegisterTablePlan m_tablePlan
+    End If
     If target Is Nothing Then diagnostic = "Cannot arrange control: " & m_uiControlBase.ControlName
 End Function
 
@@ -160,6 +165,7 @@ Public Sub Dispose()
     Set m_source = Nothing
     Set m_table = Nothing
     Set m_targetRange = Nothing
+    Set m_tablePlan = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_renderContext = Nothing
@@ -216,6 +222,7 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
     If m_table Is Nothing Then Exit Function
     Set rawTable = m_table
     rows = rawTable.RowCount
+    If rows = 0 And private_ReadAttribute(m_uiControlBase.ControlNode, "representation") = "Smart" Then rows = 1
     If VBA.Len(rawTable.Title) > 0 Then rows = rows + 1
     If m_showHeaders And IsArray(rawTable.Headers) Then rows = rows + 1
     columns = rawTable.ColumnCount
@@ -268,8 +275,8 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             uiRenderContext.Router.RegisterSelection m_uiControlBase.ControlName, m_bodyRange, Me
         End If
     End If
-    m_targetRange.ClearContents
     m_targetRange.Value2 = buffer
+    If Not m_tablePlan Is Nothing Then ex_UiTables.fn_Apply m_tablePlan
     uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     targetRow = 1
     If VBA.Len(rawTable.Title) > 0 Then

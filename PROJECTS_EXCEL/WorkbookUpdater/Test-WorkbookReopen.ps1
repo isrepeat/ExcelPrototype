@@ -37,6 +37,12 @@ Public Sub Generate()
     If Not ex_UiBindings.fn_TryGetCommand("btn_GenerateTables", command) Then Err.Raise 5
     command.Execute
     If ThisWorkbook.Worksheets("MainPage").UsedRange.Find("Candidate 10.3") Is Nothing Then Err.Raise 5
+    With ThisWorkbook.Worksheets("MainPage")
+        If .ListObjects.Count <> 3 Then Err.Raise 5, , "Expected three generated Smart tables."
+        If .ListObjects("tbGeneratedEvent2").DataBodyRange.Cells(1, 1).Value2 <> "Candidate 2.1" Then Err.Raise 5
+        If .ListObjects("tbGeneratedEvent5").DataBodyRange.Cells(3, 3).Value2 <> "Ready" Then Err.Raise 5
+        If .ListObjects("tbGeneratedEvent8").ListRows.Count <> 3 Then Err.Raise 5
+    End With
 End Sub
 ' } // namespace Test
 "@

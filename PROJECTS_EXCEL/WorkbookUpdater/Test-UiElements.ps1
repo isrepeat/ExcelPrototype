@@ -5,13 +5,14 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $sourceRoot = Join-Path $projectRoot 'vba'
 $manifest = Get-Content -LiteralPath (Join-Path $sourceRoot 'modules.json') -Raw | ConvertFrom-Json
+$profileSources = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
 foreach ($sourceFile in Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.vba') {
     $relativePath = [IO.Path]::GetRelativePath($sourceRoot, $sourceFile.FullName).Replace([char]92, [char]47)
     $covered = $false
     foreach ($pattern in $manifest.PersonalEventBuilder) {
         if ($relativePath -like $pattern) { $covered = $true; break }
     }
-    if (-not $covered) { throw "Source is missing from modules.json: $relativePath" }
+    if ($covered) { $profileSources.Add($sourceFile) }
 }
 $fixturePath = Join-Path ([IO.Path]::GetTempPath()) ('UiElements-' + [guid]::NewGuid().ToString('N') + '.xlsm')
 $excel = $null
@@ -40,7 +41,7 @@ try {
     $configTable = $configSheet.ListObjects.Add(1, $configSheet.Range('A1:B' + ($configRow - 1)), $null, 1)
     $configTable.Name = 'tbConfig'
 
-    foreach ($file in Get-ChildItem -LiteralPath (Join-Path $projectRoot 'vba') -Recurse -Filter '*.vba') {
+    foreach ($file in $profileSources) {
         if ($file.Name -eq 'ThisWorkbook.vba') { continue }
         $source = [IO.File]::ReadAllText($file.FullName)
         $nameMatch = [regex]::Match($source, '(?m)^Attribute VB_Name = "([^"]+)"')
@@ -91,8 +92,14 @@ Public Function Run(ByVal uiFolder As String) As String
     Dim lookupResult As obj_LookupResult
     Dim resolvedSource As String
     Dim resolvedPath As String
+    Dim phase As String
+    Dim generatedTable As obj_UiRawTable
+    Dim generatedValues As Variant
+    Dim generatedIndex As Long
+    Dim generatedRow As Long
 
     On Error GoTo EH
+    phase = "markup validation"
     tagFactory.Initialize "stackpanel"
     ex_UiElementFactory.fn_Register "flow", tagFactory
     controlFactory.Initialize "form"
@@ -126,6 +133,7 @@ Public Function Run(ByVal uiFolder As String) As String
     CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:tableList name='Old' source='{Binding Path=Data.Tables}'/></grid></page>", False, "source"
     CheckMarkup "<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:form name='MissingValue' dataContext='{Binding Path=Form}' orientation='vertical'><field name='Notes' label='Notes' type='text'/></c:form></grid></page>", False, "value"
     Set sheet = ThisWorkbook.Worksheets("MainPage")
+    phase = "PersonalEventBuilder setup"
     bindingContext.Initialize
     bindingContext.SetValue "Text", "Title", "Test page"
     bindingContext.SetValue "Text", "Reset", "Hello"
@@ -164,6 +172,7 @@ Public Function Run(ByVal uiFolder As String) As String
     If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
     If definition.Document.xml <> snapshot Then Err.Raise 5, , "Page DOM changed during Build"
     context.Styles.BeginPage sheet, definition.Document, uiFolder
+    phase = "PersonalEventBuilder first render"
     If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
     If sheet.Shapes("btn_UpdatePage").TopLeftCell.Row <> 2 Then Err.Raise 5, , "Update button position"
     If sheet.Shapes("btn_Reset").TopLeftCell.Row <> 4 Then Err.Raise 5, , "Reset button position"
@@ -177,9 +186,32 @@ Public Function Run(ByVal uiFolder As String) As String
     bindingContext.SetValue "Text", "Reset", "Changed button"
     If sheet.Shapes("btn_Reset").TextFrame2.TextRange.Text <> "Changed button" Then Err.Raise 5, , "Button refresh"
     shapeCount = sheet.Shapes.Count
+    phase = "PersonalEventBuilder reflow"
     context.InvalidateMeasure
     If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
     If sheet.Shapes.Count <> shapeCount Then Err.Raise 5, , "Shapes leaked after reflow"
+    phase = "PersonalEventBuilder generated Smart tables"
+    tables.Clear
+    For generatedIndex = 1 To 10
+        ReDim generatedValues(1 To 3, 1 To 3)
+        For generatedRow = 1 To 3
+            generatedValues(generatedRow, 1) = "Candidate " & VBA.CStr(generatedIndex) & "." & VBA.CStr(generatedRow)
+            generatedValues(generatedRow, 2) = "Group " & VBA.CStr(generatedIndex)
+            generatedValues(generatedRow, 3) = "Ready"
+        Next generatedRow
+        Set generatedTable = New obj_UiRawTable
+        If Not generatedTable.Initialize(generatedValues, VBA.Array("Candidate", "Category", "Status"), _
+                "Table " & VBA.CStr(generatedIndex)) Then Err.Raise 5, , "Generated table initialization"
+        If Not tables.Add(generatedTable) Then Err.Raise 5, , "Generated table list update"
+    Next generatedIndex
+    context.InvalidateMeasure
+    If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.ListObjects.Count <> 3 Then Err.Raise 5, , "Generated Smart table count"
+    If sheet.ListObjects("tbGeneratedEvent2").DataBodyRange.Cells(1, 1).Value2 <> "Candidate 2.1" Then _
+        Err.Raise 5, , "Generated Smart table 2"
+    If sheet.ListObjects("tbGeneratedEvent5").DataBodyRange.Cells(3, 3).Value2 <> "Ready" Then _
+        Err.Raise 5, , "Generated Smart table 5"
+    If sheet.ListObjects("tbGeneratedEvent8").ListRows.Count <> 3 Then Err.Raise 5, , "Generated Smart table 8"
     bindingContext.SetValue "Form", "EventName", "Updated"
     If sheet.Range("C2").Value2 <> "Updated" Then Err.Raise 5, , "Reactive update"
     sheet.Range("C2").Value2 = "User"
@@ -194,6 +226,7 @@ Public Function Run(ByVal uiFolder As String) As String
     If context.ValidateForm("EventDraftForm", errors) Or errors.Count <> 1 Then Err.Raise 5, , "Required field"
     If definition.Document.xml <> snapshot Then Err.Raise 5, , "Page DOM changed during Render"
     Set otherSheet = ThisWorkbook.Worksheets.Add()
+    phase = "nested controls"
     otherSheet.Name = "OtherPage"
     Set otherDocument = CreateObject("MSXML2.DOMDocument.6.0")
     If Not otherDocument.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:controls='urn:excelprototype:controls'><grid><flow orientation='vertical' dataContext='{Binding Path=Draft.Person}'><controls:draftform name='OtherForm' orientation='horizontal'>" & _
@@ -233,12 +266,16 @@ Public Function Run(ByVal uiFolder As String) As String
     context.Dispose
     bindingContext.SetValue "Form", "EventName", "After disposal"
     If sheet.Range("C2").Value2 <> vbNullString Then Err.Raise 5, , "Subscription survived disposal"
+    phase = "grid controls"
     CheckGrid uiFolder
+    phase = "raw tables"
     CheckTables uiFolder
+    phase = "smart tables"
+    CheckSmartTables uiFolder
     Run = "PASS"
     Exit Function
 EH:
-    Run = "FAIL: " & Err.Description
+    Run = "FAIL: " & phase & " | " & Err.Source & ": " & Err.Description
 End Function
 
 Private Sub CheckGrid(ByVal uiFolder As String)
@@ -251,7 +288,10 @@ Private Sub CheckGrid(ByVal uiFolder As String)
     Dim tables As New obj_UiRawTableList
     Dim table As New obj_UiRawTable
     Dim values(1 To 1, 1 To 2) As Variant
+    Dim phase As String
 
+    On Error GoTo EH_GRID
+    phase = "markup"
     CheckMarkup "<page xmlns='urn:excelprototype:profiles'><grid><grid.rowDefinitions><rowDefinition size='bad'/></grid.rowDefinitions></grid></page>", False, "size"
     CheckMarkup "<page xmlns='urn:excelprototype:profiles'><grid><grid.rowDefinitions/></grid></page>", False, "Invalid child count"
     Set document = CreateObject("MSXML2.DOMDocument.6.0")
@@ -270,9 +310,11 @@ Private Sub CheckGrid(ByVal uiFolder As String)
     context.Initialize sheet, definition, uiFolder, binding
     If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
     context.Styles.BeginPage sheet, document, uiFolder
+    phase = "first render"
     If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
     If sheet.Range("D1").Value2 <> "Right" Or sheet.Range("A4").Value2 <> "Table" Then Err.Raise 5, , "Auto grid positioning"
     If sheet.Range("D1").MergeArea.Rows.Count <> 2 Then Err.Raise 5, , "Grid slot height"
+    phase = "second render"
     If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
     If sheet.Range("D1").Value2 <> "Right" Then Err.Raise 5, , "Repeated grid measure"
     document.documentElement.firstChild.lastChild.setAttribute "column", "4"
@@ -284,10 +326,13 @@ Private Sub CheckGrid(ByVal uiFolder As String)
     document.documentElement.firstChild.lastChild.setAttribute "column", "1"
     context.Dispose
 
+    phase = "span render"
     If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><grid.columnDefinitions><columnDefinition size='2'/><columnDefinition size='3'/><columnDefinition size='1'/></grid.columnDefinitions><c:label name='Span' text='Span' columnSpan='2'/><c:label name='After' text='After' column='3'/></grid></page>") Then Err.Raise 5, , "Span XML"
     sheet.Cells.UnMerge
     sheet.Cells.ClearContents
+    Set definition = New obj_UiPageDefinition
     definition.Initialize document, "Span.xaml"
+    Set context = New obj_UiRenderContext
     context.Initialize sheet, definition, uiFolder, binding
     If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
     context.Styles.BeginPage sheet, document, uiFolder
@@ -295,10 +340,13 @@ Private Sub CheckGrid(ByVal uiFolder As String)
     If sheet.Range("A1").MergeArea.Columns.Count <> 5 Or sheet.Range("F1").Value2 <> "After" Then Err.Raise 5, , "Grid track span"
     context.Dispose
 
+    phase = "star render"
     If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid rowSpan='2' columnSpan='9'><grid.columnDefinitions><columnDefinition size='*'/><columnDefinition size='2*'/></grid.columnDefinitions><grid.rowDefinitions><rowDefinition size='*'/></grid.rowDefinitions><c:label name='Star' text='Star' column='2'/></grid></page>") Then Err.Raise 5, , "Star XML"
     sheet.Cells.UnMerge
     sheet.Cells.ClearContents
+    Set definition = New obj_UiPageDefinition
     definition.Initialize document, "Star.xaml"
+    Set context = New obj_UiRenderContext
     context.Initialize sheet, definition, uiFolder, binding
     If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
     context.Styles.BeginPage sheet, document, uiFolder
@@ -307,12 +355,17 @@ Private Sub CheckGrid(ByVal uiFolder As String)
     context.Dispose
 
     document.documentElement.firstChild.removeAttribute "columnSpan"
+    Set definition = New obj_UiPageDefinition
     definition.Initialize document, "InvalidStar.xaml"
+    Set context = New obj_UiRenderContext
     context.Initialize sheet, definition, uiFolder, binding
     If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
     If context.RenderTree(diagnostic) Then Err.Raise 5, , "Unbounded star grid accepted"
     context.Dispose
     binding.Dispose
+    Exit Sub
+EH_GRID:
+    Err.Raise Err.Number, "CheckGrid " & phase, Err.Description
 End Sub
 
 Private Sub CheckTables(ByVal uiFolder As String)
@@ -362,6 +415,162 @@ Private Sub CheckTables(ByVal uiFolder As String)
     context.Dispose
     binding.Dispose
 End Sub
+
+Private Sub CheckSmartTables(ByVal uiFolder As String)
+    Dim sheet As Worksheet
+    Dim otherSheet As Worksheet
+    Dim tables As obj_UiRawTableList
+    Dim context As obj_UiRenderContext
+    Dim first As ListObject
+    Dim second As ListObject
+    Dim diagnostic As String
+    Dim rules As String
+    Dim document As Object
+    Dim policy As obj_UiTablePolicy
+    Dim representation As String
+    Dim tableName As String
+    Dim selector As Variant
+    Dim intervals As Collection
+    Dim errorNumber As Long
+    Dim phase As String
+
+    On Error GoTo EH_SMART
+    phase = "index selectors"
+    Set policy = New obj_UiTablePolicy
+    For Each selector In Array("", "0", "-1", "2-1", "1,", "1.5", "1e2", "1--2", "2147483648")
+        On Error Resume Next
+        Set intervals = policy.ParseIndices(CStr(selector))
+        errorNumber = Err.Number
+        Err.Clear
+        On Error GoTo 0
+        If errorNumber = 0 Then Err.Raise 5, , "Invalid index accepted: " & selector
+    Next selector
+    Set document = CreateObject("MSXML2.DOMDocument.6.0")
+    rules = "<c:rule index='1' representation='Smart' excelTableName='tbProbeFirst'/>" & _
+        "<c:rule index='2-3, 8-12' representation='Smart'/><c:rule index='3' representation='Raw'/>"
+    If Not document.LoadXML("<c:tableList xmlns:c='urn:excelprototype:controls'><c:tableList.tablePolicy><c:tablePolicy defaultRepresentation='Raw'>" & rules & "</c:tablePolicy></c:tableList.tablePolicy></c:tableList>") Then Err.Raise 5, , "Policy XML"
+    If Not policy.Initialize(document.documentElement) Then Err.Raise 5, , "Policy initialization"
+    policy.Resolve 1, representation, tableName
+    If representation <> "Smart" Or tableName <> "tbProbeFirst" Then Err.Raise 5, , "Explicit name rule"
+    policy.Resolve 3, representation, tableName
+    If representation <> "Raw" Or tableName <> "" Then Err.Raise 5, , "Last rule precedence"
+    policy.Resolve 10, representation, tableName
+    If representation <> "Smart" Then Err.Raise 5, , "Index interval"
+    policy.Dispose
+
+    phase = "initial mixed render"
+    Set sheet = ThisWorkbook.Worksheets.Add()
+    Set tables = MakeSmartTables(3, 1)
+    Set context = RenderSmartFixture(sheet, tables, rules, uiFolder)
+    If sheet.ListObjects.Count <> 2 Then Err.Raise 5, , "Mixed table representations"
+    Set first = sheet.ListObjects("tbProbeFirst")
+    Set second = sheet.ListObjects(2)
+    If first.Range.Address <> sheet.Range("A2:B3").Address Then Err.Raise 5, , "Title included in Smart table"
+    If Left(second.Name, 12) <> "tbGenerated_" Then Err.Raise 5, , "Automatic name"
+    If first.DataBodyRange.Cells(1, 2).Value2 <> 10 Then Err.Raise 5, , "Smart values"
+    phase = "repeated render and promotion"
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.ListObjects.Count <> 2 Or sheet.ListObjects("tbProbeFirst").Name <> "tbProbeFirst" Then _
+        Err.Raise 5, , "ListObject was not retained"
+    If Not context.TryEnsureSmart("Many", 3, diagnostic, "tbProbePromoted") Then Err.Raise 5, , diagnostic
+    If Not context.TryEnsureSmart("Many", 3, diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.ListObjects.Count <> 3 Then Err.Raise 5, , "Promotion is not idempotent"
+    If sheet.ListObjects("tbProbePromoted").DataBodyRange.Cells(1, 2).Value2 <> 30 Then Err.Raise 5, , "Promotion changed data"
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.ListObjects.Count <> 2 Then Err.Raise 5, , "Policy did not restore Raw"
+
+    phase = "resize"
+    Set tables = MakeSmartTables(2, 3)
+    context.BindingContext.SetObject "Data", "Many", tables
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    If sheet.ListObjects.Count <> 2 Or sheet.ListObjects("tbProbeFirst").Name <> "tbProbeFirst" Then _
+        Err.Raise 5, , "Resize removed ListObject"
+    If sheet.ListObjects("tbProbeFirst").ListRows.Count <> 3 Then Err.Raise 5, , "Resize row count"
+    phase = "context recreation"
+    context.Dispose
+    Set tables = MakeSmartTables(1, 1)
+    Set context = RenderSmartFixture(sheet, tables, rules, uiFolder)
+    If sheet.ListObjects.Count <> 1 Then Err.Raise 5, , "Stale table survived page rebuild"
+    If sheet.ListObjects("tbProbeFirst").Name <> "tbProbeFirst" Then Err.Raise 5, , "Ownership lost on context disposal"
+    If sheet.ListObjects("tbProbeFirst").ListRows.Count <> 1 Then Err.Raise 5, , "Shrink row count"
+    context.Dispose
+
+    phase = "collision rejection"
+    Set otherSheet = ThisWorkbook.Worksheets.Add()
+    otherSheet.Range("A1").Value2 = "Key"
+    otherSheet.Range("A2").Value2 = 42
+    If ex_UiTables.fn_TryEnsureSmart(otherSheet.Range("A1:A2"), "External|1", diagnostic, "tbProbeFirst") Then Err.Raise 5, , "Duplicate name accepted"
+    If otherSheet.ListObjects.Count <> 0 Or otherSheet.Range("A2").Value2 <> 42 Then Err.Raise 5, , "Collision mutated target"
+    otherSheet.Range("B1").Value2 = "Key"
+    If ex_UiTables.fn_TryEnsureSmart(otherSheet.Range("A1:B2"), "External|1", diagnostic) Then Err.Raise 5, , "Duplicate headers accepted"
+    phase = "smart to raw"
+    Set context = RenderSmartFixture(sheet, tables, "", uiFolder)
+    If sheet.ListObjects.Count <> 0 Then Err.Raise 5, , "Smart to Raw cleanup"
+    context.Dispose
+    Set tables = MakeSmartTables(1, 0)
+    Set context = RenderSmartFixture(sheet, tables, "<c:rule index='1' representation='Smart'/>", uiFolder)
+    If sheet.ListObjects.Count <> 1 Then Err.Raise 5, , "Empty Smart table"
+    If sheet.Range("A2").Value2 <> "Key" Or sheet.Range("A3").Value2 <> "" Then Err.Raise 5, , "Empty Smart layout"
+    context.Dispose
+    Exit Sub
+EH_SMART:
+    Err.Raise Err.Number, "CheckSmartTables " & phase, Err.Description
+End Sub
+
+Private Function MakeSmartTables( _
+    ByVal count As Long, _
+    ByVal firstRows As Long _
+) As obj_UiRawTableList
+    Dim tables As New obj_UiRawTableList
+    Dim table As obj_UiRawTable
+    Dim values As Variant
+    Dim index As Long
+    Dim row As Long
+    Dim rows As Long
+
+    If Not tables.Initialize() Then Err.Raise 5, , "Table list initialization"
+    For index = 1 To count
+        rows = 1
+        If index = 1 Then rows = firstRows
+        Set table = New obj_UiRawTable
+        If rows = 0 Then
+            If Not table.InitializeEmpty(Array("Key", "Amount"), "Title") Then Err.Raise 5, , "Empty table initialization"
+        Else
+            ReDim values(1 To rows, 1 To 2)
+            For row = 1 To rows
+                values(row, 1) = "Item"
+                values(row, 2) = index * 10
+            Next row
+            If Not table.Initialize(values, Array("Key", "Amount"), "Title") Then Err.Raise 5, , "Table initialization"
+        End If
+        tables.Add table
+    Next index
+    Set MakeSmartTables = tables
+End Function
+
+Private Function RenderSmartFixture( _
+    ByVal sheet As Worksheet, _
+    ByVal tables As obj_UiRawTableList, _
+    ByVal rules As String, _
+    ByVal uiFolder As String _
+) As obj_UiRenderContext
+    Dim binding As New obj_UiBindingContext
+    Dim context As New obj_UiRenderContext
+    Dim definition As New obj_UiPageDefinition
+    Dim document As Object
+    Dim diagnostic As String
+
+    Set document = CreateObject("MSXML2.DOMDocument.6.0")
+    If Not document.LoadXML("<page xmlns='urn:excelprototype:profiles' xmlns:c='urn:excelprototype:controls'><grid><c:tableList name='Many' itemsSource='{Binding Path=Data.Many}'><c:tableList.tablePolicy><c:tablePolicy defaultRepresentation='Raw'>" & rules & "</c:tablePolicy></c:tableList.tablePolicy></c:tableList></grid></page>") Then Err.Raise 5, , "Smart XML"
+    If Not binding.Initialize() Then Err.Raise 5, , "Binding initialization"
+    binding.SetObject "Data", "Many", tables
+    If Not definition.Initialize(document, "Smart.xaml") Then Err.Raise 5, , "Definition initialization"
+    If Not context.Initialize(sheet, definition, uiFolder, binding) Then Err.Raise 5, , "Context initialization"
+    If Not context.Build(diagnostic) Then Err.Raise 5, , diagnostic
+    context.Styles.BeginPage sheet, document, uiFolder
+    If Not context.RenderTree(diagnostic) Then Err.Raise 5, , diagnostic
+    Set RenderSmartFixture = context
+End Function
 
 Private Sub CheckMarkup(ByVal markup As String, ByVal expected As Boolean, ByVal member As String)
     Dim document As Object

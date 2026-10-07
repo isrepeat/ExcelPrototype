@@ -73,7 +73,7 @@ Private Function obj_IUiElement_Configure( _
         Exit Function
     End If
     If Not m_control.Configure(m_definition, context, source, diagnostic) Then
-        diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
+        If VBA.Len(diagnostic) = 0 Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
     context.RegisterElement ex_UiElementFactory.fn_Attribute(definition, "name"), Me
