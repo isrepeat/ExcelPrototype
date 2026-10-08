@@ -34,7 +34,6 @@ EH_PREPARE:
 End Function
 
 Public Function fn_InitializeReloaded(ByVal context As Object, ByVal uiFolder As String) As Boolean
-    Dim profileId As String
     Dim initializerName As String
 
     On Error GoTo EH_INITIALIZE
@@ -42,18 +41,8 @@ Public Function fn_InitializeReloaded(ByVal context As Object, ByVal uiFolder As
     If context("Phase") <> "Initializing" Then _
         VBA.Err.Raise VBA.vbObjectError + 2206, "fn_InitializeReloaded", "Unexpected initialization phase."
     ex_RuntimePaths.fn_SetUiFolder uiFolder
-    If Not ex_Core.fn_TryGetWorkbookProfileId(profileId) Then _
-        VBA.Err.Raise VBA.vbObjectError + 2207, "fn_InitializeReloaded", "Workbook profile is unavailable."
-    Select Case profileId
-        Case "PersonalEventBuilder"
-            initializerName = "ex_PersonalEventBuilder.fn_Initialize"
-        Case "PersonnelAtDisposalDaysCalculation"
-            initializerName = "ex_PADC.fn_Initialize"
-        Case Else
-            VBA.Err.Raise VBA.vbObjectError + 2207, "fn_InitializeReloaded", _
-                "Unsupported workbook profile: " & profileId
-    End Select
-    If Not VBA.CBool(Application.Run("'" & ThisWorkbook.Name & "'!" & initializerName)) Then _
+    initializerName = ex_WorkbookCallbacks.fn_Resolve("ThisWorkbook::initializer")
+    If Not VBA.CBool(Application.Run(initializerName)) Then _
         VBA.Err.Raise VBA.vbObjectError + 2207, "fn_InitializeReloaded", "Runtime initialization failed."
     ex_AppHotkeys.fn_Activate
     fn_InitializeReloaded = True

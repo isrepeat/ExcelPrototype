@@ -45,6 +45,8 @@ function Wait-Result([string]$Expected) {
 try {
     $lifecycle = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\vba\common\modules\ex_RuntimeLifecycle.vba'))
     Write-Source 'ex_RuntimeLifecycle' $lifecycle
+    $callbacks = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\vba\common\modules\ex_WorkbookCallbacks.vba'))
+    Write-Source 'ex_WorkbookCallbacks' $callbacks
     foreach ($name in @('ex_AppHotkeys', 'ex_UiPageManager', 'ex_UiBindings', 'ex_UiRuntime', 'ex_UiElementFactory', 'ex_UiControlFactory')) {
         Write-Source $name @'
 Option Explicit
@@ -60,6 +62,20 @@ End Sub
 Option Explicit
 Public Function fn_Diagnostic_Flush() As Boolean
     fn_Diagnostic_Flush = True
+End Function
+Public Function fn_TryGetWorkbookConfigValue( _
+    ByVal key As String, _
+    ByRef value As String _
+) As Boolean
+    Dim row As ListRow
+
+    For Each row In ThisWorkbook.Worksheets(1).ListObjects("tbConfig").ListRows
+        If row.Range.Cells(1, 1).Value2 = key Then
+            value = row.Range.Cells(1, 2).Value2
+            fn_TryGetWorkbookConfigValue = True
+            Exit Function
+        End If
+    Next row
 End Function
 Public Sub fn_Module_Dispose()
 End Sub
@@ -129,7 +145,9 @@ End Function
     $sheet.Cells.Item(3,2).Value2 = 'vba'
     $sheet.Cells.Item(4,1).Value2 = 'ThisWorkbook::uiPath'
     $sheet.Cells.Item(4,2).Value2 = 'ui'
-    $table = $sheet.ListObjects.Add(1, $sheet.Range('A1:B4'), $null, 1)
+    $sheet.Cells.Item(5,1).Value2 = 'ThisWorkbook::initializer'
+    $sheet.Cells.Item(5,2).Value2 = 'ex_PersonalEventBuilder.fn_Initialize'
+    $table = $sheet.ListObjects.Add(1, $sheet.Range('A1:B5'), $null, 1)
     $table.Name = 'tbConfig'
     $book.SaveAs((Join-Path $fixtureRoot 'Target.xlsm'), 52)
     $legacy = $book.VBProject.VBComponents.Add(1)

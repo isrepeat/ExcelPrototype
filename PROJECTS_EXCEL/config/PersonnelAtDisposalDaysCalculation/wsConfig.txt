@@ -1,4 +1,6 @@
 value	ThisWorkbook::id	PersonnelAtDisposalDaysCalculation
+value	ThisWorkbook::initializer	ex_PADC.fn_Initialize
+value	ThisWorkbook::pageFactory	ex_PADC.fn_CreatePage
 value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::uiPath	..\..\ui
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalculation

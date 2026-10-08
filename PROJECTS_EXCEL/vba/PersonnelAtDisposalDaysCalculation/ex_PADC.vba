@@ -13,6 +13,14 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_CreatePage(ByVal pageId As String) As obj_IPage
+    If VBA.StrComp(VBA.Trim$(pageId), "PersonnelAtDisposalDaysCalculation", VBA.vbTextCompare) <> 0 Then
+        VBA.Err.Raise VBA.vbObjectError + 2211, "ex_PADC.fn_CreatePage", _
+            "The page is not registered in this workbook: " & pageId
+    End If
+    Set fn_CreatePage = New obj_PADC_PgMain
+End Function
+
 Public Function fn_Initialize() As Boolean
     Dim profileId As String
 

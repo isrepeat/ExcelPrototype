@@ -42,7 +42,7 @@ Supported event handlers, the shape bridge and the diagnostic hotkey enter and l
 
 Future OnTime tasks, COM event subscriptions, API timers, forms and external object owners must be added to the prepare/dispose protocol before they are supported for reload. The current target sources contain no independent OnTime tasks or Windows callbacks. Arbitrary direct calls that bypass the entry gate, external references to old class instances and manual project edits are outside the guarantee.
 
-The lifecycle initializer currently delegates to the selected PersonalEventBuilder implementation. A new application profile must supply its initialization and ownership ordering explicitly.
+The lifecycle initializer invokes the callback specified by the required wsConfig key `ThisWorkbook::initializer`. The common page factory uses `ThisWorkbook::pageFactory`. Both values must name a public function as `Module.Procedure` in the target workbook; missing or invalid values stop the operation. Each mode owns its initializer, concrete page creation and resource ordering. Profiles import only common sources and their own mode sources.
 
 ## Failure recovery and validation
 

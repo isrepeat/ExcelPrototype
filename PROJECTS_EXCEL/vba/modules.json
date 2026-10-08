@@ -1,4 +1,13 @@
 {
+  "PeriodsGeneration": [
+    "common/modules/ex_*.vba",
+    "common/[[]0] interfaces/*.cls.vba",
+    "common/[[]1] bases/*.cls.vba",
+    "common/[[]2] classes/*.cls.vba",
+    "common/[[]3] controls/*.cls.vba",
+    "common/[[]4] elements/*.cls.vba",
+    "PeriodsGeneration/*.vba"
+  ],
   "PersonalEventBuilder": [
     "common/modules/ex_*.vba",
     "common/[[]0] interfaces/*.cls.vba",
@@ -6,8 +15,7 @@
     "common/[[]2] classes/*.cls.vba",
     "common/[[]3] controls/*.cls.vba",
     "common/[[]4] elements/*.cls.vba",
-    "PersonalEventBuilder/*.vba",
-    "PersonnelAtDisposalDaysCalculation/obj_*.vba"
+    "PersonalEventBuilder/*.vba"
   ],
   "PersonnelAtDisposalDaysCalculation": [
     "common/modules/ex_*.vba",
@@ -16,7 +24,6 @@
     "common/[[]2] classes/*.cls.vba",
     "common/[[]3] controls/*.cls.vba",
     "common/[[]4] elements/*.cls.vba",
-    "PersonalEventBuilder/obj_*.vba",
     "PersonnelAtDisposalDaysCalculation/*.vba"
   ]
 }
