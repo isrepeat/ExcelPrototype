@@ -55,7 +55,9 @@
       <controls:table name="CalculationRows"
                       itemsSource="{Binding Path=Data.CalculationRows}"
                       style="resultTable"
-                      showHeaders="true"/>
+                      showHeaders="true"
+                      representation="Smart"
+                      excelTableName="tbPGPeriods"/>
     </stackPanel>
   </grid>
   <styles>
