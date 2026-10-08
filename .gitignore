@@ -12,3 +12,5 @@ PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
 
 PROJECTS_EXCEL/**/*.xlsx
 PROJECTS_EXCEL/**/*.xlsm
+!PROJECTS_EXCEL/workbook/PeriodsGeneration/Безперервні періоди 2022-2026.xlsx
+!PROJECTS_EXCEL/workbook/PeriodsGeneration/РУХ генерація періодів.xlsm

@@ -1,0 +1,57 @@
+value	ThisWorkbook::id	PeriodsGeneration
+value	ThisWorkbook::initializer	ex_PG.fn_Initialize
+value	ThisWorkbook::pageFactory	ex_PG.fn_CreatePage
+value	ThisWorkbook::vbaPath	..\..\vba
+value	ThisWorkbook::uiPath	..\..\ui
+value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PeriodsGeneration
+value	ThisWorkbook::logMode	Immediate
+value	PeriodsGeneration::legacy.SOURCE_COL_RANK	Звання
+value	PeriodsGeneration::legacy.SOURCE_COL_NAME	ПІБ
+value	PeriodsGeneration::legacy.SOURCE_COL_TAX_ID	ІПН
+value	PeriodsGeneration::legacy.SOURCE_COL_POSITION	Посада
+value	PeriodsGeneration::legacy.SOURCE_COL_EVENT	Подія
+value	PeriodsGeneration::legacy.SOURCE_COL_PERIOD_FROM	Вибуття
+value	PeriodsGeneration::legacy.SOURCE_COL_PERIOD_TO	Прибуття
+value	PeriodsGeneration::legacy.SOURCE_COL_DEPARTURE_ORDER	Вибуття.Наказ
+value	PeriodsGeneration::legacy.SOURCE_COL_ARRIVAL_ORDER	Прибуття.Наказ
+value	PeriodsGeneration::legacy.SOURCE_SHEET_NAME	Відсутні
+value	PeriodsGeneration::legacy.SOURCE_TABLE_NAME	ТВ
+value	PeriodsGeneration::legacy.MERGEABLE_EVENTS	Відпустка для лікування|Стаціонарне лікування|ВЛК за межами
+value	PeriodsGeneration::legacy.DISPLAYABLE_EVENTS	Відпустка для лікування|Стаціонарне лікування|ВЛК за межами
+value	PeriodsGeneration::legacy.EVENTS_SEPARATOR	{left} | {right}
+value	PeriodsGeneration::legacy.OPEN_PERIOD_TO_TEXT	по теперішній час
+value	PeriodsGeneration::legacy.UI_YIELD_INTERVAL	100
+value	PeriodsGeneration::legacy.TARGET_COL_RANK	Звання
+value	PeriodsGeneration::legacy.TARGET_COL_NAME	ПІБ
+value	PeriodsGeneration::legacy.TARGET_COL_TAX_ID	ІПН
+value	PeriodsGeneration::legacy.TARGET_COL_POSITION	Посада
+value	PeriodsGeneration::legacy.TARGET_COL_EVENT	Подія
+value	PeriodsGeneration::legacy.TARGET_COL_DEPARTURE_ORDER	Наказ.Вибуття
+value	PeriodsGeneration::legacy.TARGET_COL_PERIOD_FROM	Період.Вибуття
+value	PeriodsGeneration::legacy.TARGET_COL_PERIOD_TO	Період.Прибуття
+value	PeriodsGeneration::legacy.TARGET_COL_ARRIVAL_ORDER	Наказ.Прибуття
+value	PeriodsGeneration::legacy.TARGET_COL_PERIOD_COUNT	Період.Кількість
+value	PeriodsGeneration::format.date	dd.mm.yyyy
+value	PeriodsGeneration::text.Calculate	Розрахувати періоди
+value	PeriodsGeneration::text.Cancel	Скасувати
+value	PeriodsGeneration::text.RefreshPage	Оновити сторінку
+value	PeriodsGeneration::text.StartDateLabel	Початкова дата
+value	PeriodsGeneration::text.EndDateLabel	Кінцева дата
+value	PeriodsGeneration::text.Title	Генерація періодів
+value	PeriodsGeneration::message.AlreadyRunning	Period calculation is already running. Wait for it to complete.
+value	PeriodsGeneration::message.SourceMissing	Source workbook was not found. Open the RUKH workbook and try again.
+value	PeriodsGeneration::message.MultipleSources	Відкрито декілька таблиць РУХ. Залиште відкритою одну книгу-джерело.
+value	PeriodsGeneration::message.ColumnMissing	У таблиці відсутня обов’язкова колонка: {column}
+value	PeriodsGeneration::message.InvalidPeriod	Введіть коректні початкову та кінцеву дати. Початкова дата має бути не пізніше кінцевої.
+value	PeriodsGeneration::message.Cancelled	Розрахунок скасовано.
+value	PeriodsGeneration::message.Failed	Розрахунок зупинено: {error}
+value	PeriodsGeneration::message.PublishFailed	Не вдалося відобразити результат.
+value	PeriodsGeneration::message.Done	Розрахунок завершено. Кількість періодів: {count}
+value	PeriodsGeneration::status.Reading	Читання вихідних даних
+value	PeriodsGeneration::status.ReadingProgress	Читання вихідних даних: {current} / {total}
+value	PeriodsGeneration::status.Sorting	Сортування періодів
+value	PeriodsGeneration::status.Merging	Об’єднання періодів
+value	PeriodsGeneration::status.MergingProgress	Об’єднання періодів: {current} / {total}
+value	PeriodsGeneration::status.Filtering	Фільтрація результату
+value	PeriodsGeneration::status.Preparing	Підготовка результату
+value	PeriodsGeneration::status.Writing	Відображення результату

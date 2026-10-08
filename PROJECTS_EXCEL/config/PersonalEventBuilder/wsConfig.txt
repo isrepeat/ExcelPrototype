@@ -1,4 +1,6 @@
 value	ThisWorkbook::id	PersonalEventBuilder
+value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
+value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
 value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::uiPath	..\..\ui
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonalEventBuilder
