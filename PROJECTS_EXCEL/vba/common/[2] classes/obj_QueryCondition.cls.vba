@@ -14,6 +14,8 @@ Public Value As Variant
 Public ValueType As en_QueryType
 Public NormalizeText As Boolean
 Public CaseSensitive As Boolean
+Public SourceFormat As obj_QueryValueFormat
+Public ValueFormat As obj_QueryValueFormat
 Private m_columnIndex As Long
 
 ' //
@@ -52,6 +54,8 @@ Public Sub Dispose()
     NormalizeText = False
     CaseSensitive = False
     m_columnIndex = 0
+    Set SourceFormat = Nothing
+    Set ValueFormat = Nothing
 End Sub
 
 Public Sub Validate(ByVal headers As Variant)
@@ -78,7 +82,7 @@ Public Sub Validate(ByVal headers As Variant)
     If Operation >= QueryContains And Operation <= QueryEndsWith And ValueType <> QueryText Then
         Err.Raise VBA.vbObjectError + 2113, , "Text operator requires QueryText."
     End If
-    comparison = ex_TableQuery.fn_Compare(Value, Value, ValueType, NormalizeText, CaseSensitive)
+    comparison = ex_TableQuery.fn_Compare(Value, Value, ValueType, NormalizeText, CaseSensitive, ValueFormat, ValueFormat)
 End Sub
 
 Public Function MatchesRow( _
@@ -144,7 +148,7 @@ Public Function Matches(ByVal actual As Variant) As Boolean
         End Select
         Exit Function
     End If
-    comparison = ex_TableQuery.fn_Compare(actual, Value, ValueType, NormalizeText, CaseSensitive)
+    comparison = ex_TableQuery.fn_Compare(actual, Value, ValueType, NormalizeText, CaseSensitive, SourceFormat, ValueFormat)
     Select Case Operation
         Case QueryEquals
             Matches = comparison = 0

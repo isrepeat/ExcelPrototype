@@ -13,6 +13,7 @@ Public ValueType As en_QueryType
 Public Descending As Boolean
 Public NormalizeText As Boolean
 Public CaseSensitive As Boolean
+Public ValueFormat As obj_QueryValueFormat
 
 ' //
 ' // Lifecycle
@@ -47,4 +48,5 @@ Public Sub Dispose()
     Descending = False
     NormalizeText = False
     CaseSensitive = False
+    Set ValueFormat = Nothing
 End Sub

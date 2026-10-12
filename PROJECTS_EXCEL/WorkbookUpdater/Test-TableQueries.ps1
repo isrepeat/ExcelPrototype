@@ -33,7 +33,7 @@ try {
     $dataBook.Close($false)
     $dataBook = $null
     $runner = $excel.Workbooks.Add()
-    $names = @('obj_TableSource', 'obj_TableQuery', 'obj_QueryCondition', 'obj_QueryGroup', 'obj_QueryOrder',
+    $names = @('obj_QueryValueFormat', 'obj_TableSource', 'obj_TableQuery', 'obj_QueryCondition', 'obj_QueryGroup', 'obj_QueryOrder',
         'obj_DataTable', 'obj_QueryWorkbookSession', 'obj_ExcelQueryExecutor', 'obj_AdoQueryExecutor',
         'obj_TableQueryService', 'obj_ITableQueryExecutor', 'obj_UiRawTable', 'obj_IUiTableSource', 'ex_Core', 'ex_TableQuery')
     foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.vba') {
@@ -54,13 +54,53 @@ Option Explicit
 Private Sub Assert(ByVal ok As Boolean, ByVal message As String)
     If Not ok Then Err.Raise vbObjectError + 2200, , message
 End Sub
+Private Sub AssertConversionRejected(ByVal value As Variant, ByVal kind As en_QueryType, ByVal valueFormat As obj_QueryValueFormat)
+    Dim result As Double
+    On Error GoTo Rejected
+    If kind = QueryNumber Then
+        result = ex_TableQuery.fn_NumberValue(value, valueFormat)
+    Else
+        result = ex_TableQuery.fn_DateValue(value, valueFormat)
+    End If
+    On Error GoTo 0
+    Err.Raise vbObjectError + 2201, , "Invalid conversion was accepted."
+Rejected:
+End Sub
+Private Sub CheckValueFormats()
+    Dim commaFormat As New obj_QueryValueFormat
+    Dim isoFormat As New obj_QueryValueFormat
+    Dim serialFormat As New obj_QueryValueFormat
+    Assert commaFormat.Initialize(",", " ", "dd.MM.yyyy", "1900"), "Comma format initialization"
+    Assert isoFormat.Initialize(".", "", "yyyy-MM-dd", "1904"), "ISO format initialization"
+    Assert serialFormat.Initialize("", "", "", "1900"), "Serial format initialization"
+    Assert ex_TableQuery.fn_NumberValue("-1 234,50", commaFormat) = -1234.5, "Explicit comma decimal"
+    Assert ex_TableQuery.fn_NumberValue("1234.50", isoFormat) = 1234.5, "Explicit dot decimal"
+    Assert ex_TableQuery.fn_NumberValue(1234.5) = 1234.5, "Typed number without format"
+    Assert ex_TableQuery.fn_Compare("03.04.2026", "2026-04-03", QueryDate, False, False, commaFormat, isoFormat) = 0, "Separate date formats"
+    Assert ex_TableQuery.fn_DateValue("29.02.2024", commaFormat) = CDbl(DateSerial(2024, 2, 29)), "Leap day"
+    Assert ex_TableQuery.fn_DateValue(0, isoFormat) = ex_TableQuery.fn_DateValue(1462, serialFormat), "1904 date offset"
+    Assert ex_TableQuery.fn_DateValue(59, serialFormat) = CDbl(DateSerial(1900, 2, 28)), "Early 1900 serial"
+    AssertConversionRejected "31.02.2026", QueryDate, commaFormat
+    AssertConversionRejected "03/04/2026", QueryDate, isoFormat
+    AssertConversionRejected "12 34,50", QueryNumber, commaFormat
+    AssertConversionRejected "1.25", QueryNumber, commaFormat
+    AssertConversionRejected True, QueryNumber, commaFormat
+    AssertConversionRejected "1.25", QueryNumber, Nothing
+    AssertConversionRejected 60, QueryDate, serialFormat
+    AssertConversionRejected 46000, QueryDate, Nothing
+    commaFormat.Dispose
+    AssertConversionRejected "1,25", QueryNumber, commaFormat
+End Sub
 Public Function Run(ByVal path As String) As String
     Dim source As New obj_TableSource, query As obj_TableQuery, service As New obj_TableQueryService
     Dim result As obj_DataTable, ui As obj_UiRawTable, diagnostic As String
     Dim backend As Long, book As Workbook, condition As obj_QueryCondition, group As obj_QueryGroup
+    Dim sourceFormat As New obj_QueryValueFormat
     Dim executor As obj_ITableQueryExecutor
     Dim excelExecutor As obj_ExcelQueryExecutor
     On Error GoTo EH
+    CheckValueFormats
+    Assert sourceFormat.Initialize("", "", "", "1900"), "Source date system initialization"
     Assert source.Initialize(), "Source initialization"
     Set query = New obj_TableQuery
     Assert Not service.TryExecute(source, query, result, diagnostic), "Uninitialized service accepted query"
@@ -95,7 +135,7 @@ Public Function Run(ByVal path As String) As String
         Assert result.RowCount = 1, "Literal contains"
         Set query = New obj_TableQuery
     Assert query.Initialize(), "Query initialization"
-        query.AddCondition "When", QueryGreaterOrEqual, CDate(46004), QueryDate
+        query.AddCondition "When", QueryGreaterOrEqual, CDate(46004), QueryDate, False, False, sourceFormat
         Assert service.TryExecute(source, query, result, diagnostic), diagnostic
         Assert result.RowCount = 2, "Date comparison"
         Set query = New obj_TableQuery

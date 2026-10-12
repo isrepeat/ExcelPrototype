@@ -9,7 +9,9 @@ value	TravelDocumentsBuilder::text.PersonnelPrompt	Введіть частину
 value	TravelDocumentsBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
 value	TravelDocumentsBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
 value	TravelDocumentsBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
-value	TravelDocumentsBuilder::text.PersonnelCount	Кандидатів: {count}. Оберіть рядок праворуч.
+value	TravelDocumentsBuilder::text.PersonnelCount	Оберіть рядок кандидата — дані буде підставлено у форму.
+value	TravelDocumentsBuilder::text.CandidateCountTemplate	Кандидатів: {count}
+value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
 value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
 value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
 value	TravelDocumentsBuilder::text.PersonNameLabel	ПІБ
@@ -18,7 +20,7 @@ value	TravelDocumentsBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВО�
 value	TravelDocumentsBuilder::text.DocumentSection	ДАНІ ДОКУМЕНТА
 value	TravelDocumentsBuilder::text.SearchSection	ПОШУК ВІЙСЬКОВОСЛУЖБОВЦЯ
 value	TravelDocumentsBuilder::text.SearchPersonnel	Знайти
-value	TravelDocumentsBuilder::text.SearchLabel	ПІБ або ІПН
+value	TravelDocumentsBuilder::text.SearchLabel	ПІБ / ІПН
 value	TravelDocumentsBuilder::text.PersonPositionCodeLabel	Код посади
 value	TravelDocumentsBuilder::text.UnknownDocumentType	Невідомий тип документа: {value}
 value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток

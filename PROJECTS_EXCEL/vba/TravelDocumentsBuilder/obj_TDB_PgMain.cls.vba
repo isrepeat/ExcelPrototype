@@ -78,7 +78,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
             "RefreshPersonnel", "AutoFillPersonnelLabel", "Title", "PersonnelSection", _
             "DocumentSection", "SearchSection", "SearchPersonnel", "SearchLabel", "PersonPositionCodeLabel", _
-            "CheckboxChecked", "CheckboxUnchecked")
+            "CheckboxChecked", "CheckboxUnchecked", "ActionsSection")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key

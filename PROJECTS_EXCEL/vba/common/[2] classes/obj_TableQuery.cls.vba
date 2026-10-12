@@ -110,7 +110,9 @@ Public Sub AddCondition( _
     Optional ByVal value As Variant, _
     Optional ByVal valueType As en_QueryType = QueryText, _
     Optional ByVal normalizeText As Boolean = False, _
-    Optional ByVal caseSensitive As Boolean = False _
+    Optional ByVal caseSensitive As Boolean = False, _
+    Optional ByVal sourceFormat As obj_QueryValueFormat = Nothing, _
+    Optional ByVal valueFormat As obj_QueryValueFormat = Nothing _
 )
     Dim condition As New obj_QueryCondition
 
@@ -128,6 +130,8 @@ Public Sub AddCondition( _
     condition.ValueType = valueType
     condition.NormalizeText = normalizeText
     condition.CaseSensitive = caseSensitive
+    Set condition.SourceFormat = sourceFormat
+    Set condition.ValueFormat = valueFormat
     m_filter.AddCondition condition
 End Sub
 
@@ -136,7 +140,8 @@ Public Sub AddOrderBy( _
     Optional ByVal descending As Boolean = False, _
     Optional ByVal valueType As en_QueryType = QueryText, _
     Optional ByVal normalizeText As Boolean = False, _
-    Optional ByVal caseSensitive As Boolean = False _
+    Optional ByVal caseSensitive As Boolean = False, _
+    Optional ByVal valueFormat As obj_QueryValueFormat = Nothing _
 )
     Dim ordering As New obj_QueryOrder
 
@@ -151,5 +156,6 @@ Public Sub AddOrderBy( _
     ordering.ValueType = valueType
     ordering.NormalizeText = normalizeText
     ordering.CaseSensitive = caseSensitive
+    Set ordering.ValueFormat = valueFormat
     m_orders.Add ordering
 End Sub

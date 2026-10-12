@@ -74,6 +74,22 @@ ADO requires the matching installed `Microsoft.ACE.OLEDB.12.0` provider and supp
 
 `TryExecute=False` returns `Nothing` and an error description. The caller must display the diagnostic and stop the operation. `True` with zero rows is a valid result. `result.TryCreateUiTable` converts the result into the existing `obj_UiRawTable`, including zero rows; query execution has no dependency on page controllers or bindings.
 
+## Explicit number and date formats
+
+`QueryText` is unchanged. Typed numeric values and VBA `Date` values need no text format. Numeric/date strings now require an initialized `obj_QueryValueFormat`; unconfigured strings are rejected instead of interpreted through the computer's locale. Both condition operands and sorting use the same conversion API (`ex_TableQuery.fn_NumberValue` / `fn_DateValue`).
+
+Initialize the format with `Initialize(decimalSeparator, groupSeparator, dateFormat, dateSystem)` and check its Boolean result. Decimal separators are `.` or `,`; optional thousands separators are `.`, `,`, space or NBSP and must differ from the decimal separator. Groups must contain three digits after the first group. Text numbers allow a leading sign and decimal fraction; currency, scientific notation and other syntax are rejected. Supported date templates are exactly `dd.MM.yyyy` and `yyyy-MM-dd`. Dates are checked against their components after `DateSerial`; impossible dates are rejected.
+
+Application formats belong in `wsConfig` / `tbConfig`. `format.InitializeFromConfig(prefix)` requires four keys: `<prefix>.decimalSeparator`, `.groupSeparator`, `.dateFormat` and `.dateSystem`. Use `none` for an unused setting; group separators also accept `space` and `nbsp`. Missing keys or invalid settings fail initialization; the caller must report the failure and stop. Formats are not inferred from the Windows locale.
+
+`query.AddCondition` accepts trailing optional `sourceFormat` and `valueFormat` objects. They independently describe the source column and condition value. Direct conditions expose `SourceFormat` and `ValueFormat`. `query.AddOrderBy` accepts a trailing `valueFormat`, also exposed on `obj_QueryOrder`. Format instances are borrowed; keep them initialized until evaluation ends. Disposing a condition/order releases references without disposing a shared format.
+
+For example, an explicitly formatted source date can be compared to a typed `Date` with `query.AddCondition "When", QueryGreaterOrEqual, DateSerial(2026, 4, 3), QueryDate, False, False, sourceFormat`. For two different text templates, supply both format objects. Existing typed-number calls and all text queries retain their signatures and behavior.
+
+Numeric date values are **Excel serials**, not inferred dates: specify `dateSystem="1900"` or `"1904"` using the actual source workbook's `Date1904` metadata. Configure the condition value independently if it is also an Excel serial. The conversion handles the 1462-day offset and early 1900 dates; the fictitious serial day 60 is rejected. Typed ADO/VBA dates already represent calendar dates and are not shifted. Raw serial values are retained by projection, so a projected result is not automatically converted into the destination workbook's date system. Blank values, Booleans and invalid values are not coerced into numbers/dates.
+
+The regression script includes explicit comma/dot numbers, invalid grouping, separate date templates, leap days, rejected impossible/ambiguous dates, 1900/1904 serials and missing/disposed format checks. Run it only with explicit authorization to execute VBA; static validation does not establish runtime correctness.
+
 ## Validation
 
 Run `WorkbookUpdater/Test-TableQueries.ps1` on Windows with Excel, ACE and trusted access to the VBA project object model. It creates and preserves temporary fixture workbooks, imports the API into a separate runner, and executes the same assertions through both backends. It does not modify repository workbooks.

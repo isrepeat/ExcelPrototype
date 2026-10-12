@@ -1,5 +1,17 @@
 Option Explicit
 
+#If VBA7 Then
+Private Declare PtrSafe Function private_GetUserDefaultLocaleName Lib "kernel32" Alias "GetUserDefaultLocaleName" (ByVal buffer As LongPtr, ByVal count As Long) As Long
+Private Declare PtrSafe Function private_GetSystemDefaultLocaleName Lib "kernel32" Alias "GetSystemDefaultLocaleName" (ByVal buffer As LongPtr, ByVal count As Long) As Long
+Private Declare PtrSafe Function private_GetACP Lib "kernel32" Alias "GetACP" () As Long
+Private Declare PtrSafe Function private_GetThreadLocale Lib "kernel32" Alias "GetThreadLocale" () As Long
+#Else
+Private Declare Function private_GetUserDefaultLocaleName Lib "kernel32" Alias "GetUserDefaultLocaleName" (ByVal buffer As Long, ByVal count As Long) As Long
+Private Declare Function private_GetSystemDefaultLocaleName Lib "kernel32" Alias "GetSystemDefaultLocaleName" (ByVal buffer As Long, ByVal count As Long) As Long
+Private Declare Function private_GetACP Lib "kernel32" Alias "GetACP" () As Long
+Private Declare Function private_GetThreadLocale Lib "kernel32" Alias "GetThreadLocale" () As Long
+#End If
+
 #Const ENABLE_LOGGING = True
 
 Private Const DIAGNOSTIC_FOLDER_NAME As String = "PROJECTS_EXCEL"
@@ -147,6 +159,21 @@ Public Sub fn_Diagnostic_WritePerf(ByVal stageName As String, ByVal startedAt As
     If elapsedMilliseconds < 0 Then elapsedMilliseconds = elapsedMilliseconds + 86400#
     fn_Diagnostic_WriteLog "PERF | Stage=" & stageName & _
         " | ElapsedMs=" & VBA.Format$(elapsedMilliseconds * 1000#, "0.0")
+End Sub
+
+Public Sub fn_Diagnostic_WriteError( _
+    ByVal stageName As String, _
+    ByVal errorNumber As Long, _
+    ByVal errorSource As String, _
+    ByVal errorDescription As String _
+)
+    ' Реквизиты передаются до очистки Err и вызова обработчиков восстановления.
+    On Error GoTo EH
+    fn_Diagnostic_WriteLog "ERROR | Stage=" & stageName & " | Number=" & VBA.CStr(errorNumber) & _
+        " | Source=" & errorSource & " | Description=" & errorDescription
+    Exit Sub
+EH:
+    Debug.Print "Diagnostic error recording failed: " & VBA.Err.Description
 End Sub
 
 ' --------------------------------------
@@ -396,4 +423,58 @@ Private Sub private_Diagnostic_WriteSessionHeader()
         VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
     private_Diagnostic_WriteLine String$(96, "=")
     m_diagnosticSessionStarted = True
+    private_Diagnostic_WriteEnvironment
 End Sub
+
+Private Sub private_Diagnostic_WriteEnvironment()
+    Dim profileId As String
+
+    ' Снимок пишется один раз; ошибка диагностики не прерывает запуск приложения.
+    On Error GoTo EH
+    private_Diagnostic_WriteLine "ENV_WINDOWS | UserLocale=" & private_Diagnostic_LocaleName(False) & _
+        " | SystemLocale=" & private_Diagnostic_LocaleName(True) & _
+        " | ThreadLCID=" & VBA.CStr(private_GetThreadLocale()) & " | ACP=" & VBA.CStr(private_GetACP())
+    private_Diagnostic_WriteLine "ENV_HOST | OS=" & Application.OperatingSystem & _
+        " | ExcelVersion=" & Application.Version & " | ExcelBuild=" & VBA.CStr(Application.Build)
+#If Win64 Then
+    private_Diagnostic_WriteLine "ENV_OFFICE | ProcessBits=64"
+#Else
+    private_Diagnostic_WriteLine "ENV_OFFICE | ProcessBits=32"
+#End If
+    private_Diagnostic_WriteLine "ENV_EXCEL | UILanguageID=" & VBA.CStr(Application.LanguageSettings.LanguageID(2)) & _
+        " | CountrySetting=" & VBA.CStr(Application.International(xlCountrySetting)) & _
+        " | UseSystemSeparators=" & VBA.CStr(Application.UseSystemSeparators) & _
+        " | DecimalSeparator=[" & Application.DecimalSeparator & "]" & _
+        " | ThousandsSeparator=[" & Application.ThousandsSeparator & "]"
+    private_Diagnostic_WriteLine "ENV_FORMAT | ListSeparator=[" & VBA.CStr(Application.International(xlListSeparator)) & _
+        "] | DateSeparator=[" & VBA.CStr(Application.International(xlDateSeparator)) & _
+        "] | DateOrder=" & VBA.CStr(Application.International(xlDateOrder)) & _
+        " | VBA_NumberSample=[" & VBA.CStr(1234.5) & "] | VBA_DateSample=[" & VBA.CStr(VBA.DateSerial(2026, 4, 3)) & "]"
+    If Not fn_TryGetWorkbookConfigValue("ThisWorkbook::id", profileId) Then profileId = "<missing>"
+    private_Diagnostic_WriteLine "ENV_WORKBOOK | FullName=" & ThisWorkbook.FullName & _
+        " | Profile=" & profileId & " | Date1904=" & VBA.CStr(ThisWorkbook.Date1904) & _
+        " | ReadOnly=" & VBA.CStr(ThisWorkbook.ReadOnly) & " | LogMode=" & m_diagnosticMode
+    Exit Sub
+EH:
+    private_Diagnostic_WriteLine "ENV_CAPTURE_FAILED | Number=" & VBA.CStr(VBA.Err.Number) & _
+        " | Source=" & VBA.Err.Source & " | Description=" & VBA.Err.Description
+End Sub
+
+Private Function private_Diagnostic_LocaleName(ByVal systemLocale As Boolean) As String
+    Dim buffer As String
+    Dim count As Long
+    Dim lastError As Long
+
+    buffer = VBA.String$(85, VBA.vbNullChar)
+    If systemLocale Then
+        count = private_GetSystemDefaultLocaleName(VBA.StrPtr(buffer), 85)
+    Else
+        count = private_GetUserDefaultLocaleName(VBA.StrPtr(buffer), 85)
+    End If
+    If count = 0 Then
+        lastError = VBA.Err.LastDllError
+        private_Diagnostic_LocaleName = "<unavailable: Win32=" & VBA.CStr(lastError) & ">"
+    Else
+        private_Diagnostic_LocaleName = VBA.Left$(buffer, count - 1)
+    End If
+End Function
