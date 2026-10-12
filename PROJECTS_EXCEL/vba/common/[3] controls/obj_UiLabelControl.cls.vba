@@ -23,7 +23,9 @@ Private m_targetRange As Range
 ' // Lifecycle
 ' //
 Private Sub Class_Initialize()
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_BASE_NEW_STARTED"
     Set m_uiControlBase = New obj_UiControlBase
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_BASE_NEW_COMPLETED"
 End Sub
 
 Private Sub Class_Terminate()
@@ -52,9 +54,15 @@ Private Function obj_IUiControl_Configure( _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONTEXT_ATTACH_STARTED"
     Set m_renderContext = context
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONTEXT_ATTACH_COMPLETED"
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_POSITION_CONFIGURE_STARTED"
     m_uiControlBase.ConfigurePosition definition
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_POSITION_CONFIGURE_COMPLETED"
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONFIGURE_STARTED"
     obj_IUiControl_Configure = private_Configure(definition)
+    ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONFIGURE_COMPLETED | Success=" & VBA.CStr(obj_IUiControl_Configure)
     If Not obj_IUiControl_Configure Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
 End Function
 

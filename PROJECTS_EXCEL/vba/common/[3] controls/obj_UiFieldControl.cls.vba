@@ -11,6 +11,7 @@ Option Explicit
 
 Implements obj_IUiControl
 Implements obj_IUiEventHandler
+Implements obj_IUiCellRefreshListener
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -28,7 +29,7 @@ Private m_changeCommand As obj_UiCommand
 Private m_isSelect As Boolean
 Private m_isCheckbox As Boolean
 Private m_readOnly As Boolean
-Private WithEvents m_cellBinding As obj_UiCellBinding
+Private m_cellBinding As obj_UiCellBinding
 Private m_selectAction As obj_UiSelectShapeAction
 Private m_checkboxShape As Shape
 
@@ -221,6 +222,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 
     Dim shapeNameToRemove As Variant
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RENDER_STARTED | Name=" & m_uiControlBase.ControlName
     If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
     Set m_cellBinding = Nothing
     If Not m_selectAction Is Nothing Then
@@ -236,12 +238,16 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         m_checkboxShape.Delete
         Set m_checkboxShape = Nothing
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RANGE_PREPARE_STARTED | Name=" & m_uiControlBase.ControlName
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
     If m_targetRange.Cells.CountLarge > 1 Then m_targetRange.Merge
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RANGE_PREPARE_COMPLETED | Name=" & m_uiControlBase.ControlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_RESOLVE_STARTED | Name=" & m_uiControlBase.ControlName
     If Not uiRenderContext.BindingContext.TryGetValue( _
             m_sourceName, m_bindingPath, value, sourceObject, isObject) Then Exit Function
     If isObject Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_RESOLVE_COMPLETED | Name=" & m_uiControlBase.ControlName
     If m_isSelect Then
         On Error Resume Next
         m_targetRange.Cells(1, 1).Validation.Delete
@@ -255,9 +261,11 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         ex_WindowsUi.fn_ShowMessage "A checkbox binding requires a Boolean value.", VBA.vbExclamation, "Field"
         Exit Function
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_STARTED | Name=" & m_uiControlBase.ControlName
     m_targetRange.Value2 = value
     m_targetRange.Locked = m_readOnly
     If Not m_isSelect And Not m_isCheckbox Then m_targetRange.WrapText = True
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_COMPLETED | Name=" & m_uiControlBase.ControlName
     If m_isSelect Then
         m_targetRange.NumberFormat = ";;;"
         If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
@@ -269,14 +277,23 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         On Error GoTo 0
     End If
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_BINDING_NEW_STARTED | Name=" & m_uiControlBase.ControlName
     Set targetCell = m_targetRange.Cells(1, 1)
     Set uiCellBinding = New obj_UiCellBinding
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_BINDING_NEW_COMPLETED | Name=" & m_uiControlBase.ControlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_BINDING_INITIALIZE_STARTED | Name=" & m_uiControlBase.ControlName
     If Not uiCellBinding.Initialize( _
             targetCell.Parent.Name, targetCell.Address(False, False), _
             uiRenderContext.BindingContext, m_sourceName, m_bindingPath, m_changeCommand) Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_BINDING_INITIALIZE_COMPLETED | Name=" & m_uiControlBase.ControlName
     uiCellBinding.SetTwoWay Not m_readOnly
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_REFRESH_SUBSCRIBE_STARTED | Name=" & m_uiControlBase.ControlName
     Set m_cellBinding = uiCellBinding
+    m_cellBinding.SubscribeRefresh Me
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_REFRESH_SUBSCRIBE_COMPLETED | Name=" & m_uiControlBase.ControlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_ROUTER_REGISTER_STARTED | Name=" & m_uiControlBase.ControlName
     uiRenderContext.Router.RegisterCell targetCell, Me
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_ROUTER_REGISTER_COMPLETED | Name=" & m_uiControlBase.ControlName
     If m_isSelect Then
         If Not private_RenderSelectShapes( _
                 uiRenderContext, selectItems, VBA.CStr(value), uiCellBinding) Then Exit Function
@@ -293,6 +310,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         uiRenderContext.Router.RegisterShape m_checkboxShape.Name, Me
     End If
     private_Render = True
+    ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RENDER_COMPLETED | Name=" & m_uiControlBase.ControlName
 End Function
 
 ' //
@@ -481,11 +499,12 @@ Private Function private_ReadAttribute( _
     If Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then private_ReadAttribute = VBA.CStr(value)
 End Function
 
-Private Sub m_cellBinding_ValueRefreshed()
+Private Sub obj_IUiCellRefreshListener_OnValueRefreshed()
     private_cellBinding_ValueRefreshed
 End Sub
 
 Private Sub private_cellBinding_ValueRefreshed()
+    If m_isDisposed Then Exit Sub
     If Not m_checkboxShape Is Nothing Then _
         m_checkboxShape.ControlFormat.Value = VBA.IIf(VBA.CBool(m_targetRange.Cells(1, 1).Value2), xlOn, xlOff)
 End Sub

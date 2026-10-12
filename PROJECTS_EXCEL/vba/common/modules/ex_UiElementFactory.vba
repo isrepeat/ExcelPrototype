@@ -60,18 +60,29 @@ Public Function fn_Create( _
     Dim tag As Variant
     Dim factory As obj_IUiElementFactory
     Dim builtInFactory As obj_UiElementFactory
+    Dim configured As Boolean
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_ELEMENT_CREATE_STARTED | Tag=" & VBA.CStr(definition.baseName) & _
+        " | Name=" & fn_Attribute(definition, "name")
     private_Initialize
     If Not ex_UiBindingRuntime.fn_TryDataContext(fn_Attribute(definition, "dataContext"), _
             source, context.BindingContext, source, diagnostic) Then Exit Function
     If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then
         Dim element As obj_IUiElement
+        ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_NEW_STARTED | Name=" & fn_Attribute(definition, "name")
         Set element = New obj_UiControlElement
-        If element.Configure(definition, context, source, diagnostic) Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_NEW_COMPLETED | Name=" & fn_Attribute(definition, "name")
+        ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_CONFIGURE_STARTED | Name=" & fn_Attribute(definition, "name")
+        configured = element.Configure(definition, context, source, diagnostic)
+        ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_CONFIGURE_COMPLETED | Name=" & _
+            fn_Attribute(definition, "name") & " | Success=" & VBA.CStr(configured)
+        If configured Then
             Set fn_Create = element
         Else
             element.Dispose
         End If
+        ex_Core.fn_Diagnostic_WriteLog "UI_ELEMENT_CREATE_COMPLETED | Tag=" & VBA.CStr(definition.baseName) & _
+            " | Name=" & fn_Attribute(definition, "name") & " | Success=" & VBA.CStr(configured)
         Exit Function
     End If
     tag = VBA.CStr(definition.namespaceURI) & "|" & VBA.LCase$(VBA.CStr(definition.baseName))
@@ -81,6 +92,8 @@ Public Function fn_Create( _
     End If
     Set factory = m_factories(tag)
     Set fn_Create = factory.Create(definition, context, source, diagnostic)
+    ex_Core.fn_Diagnostic_WriteLog "UI_ELEMENT_CREATE_COMPLETED | Tag=" & VBA.CStr(definition.baseName) & _
+        " | Name=" & fn_Attribute(definition, "name")
 End Function
 
 Public Function fn_Attribute(ByVal node As Object, ByVal name As String) As String

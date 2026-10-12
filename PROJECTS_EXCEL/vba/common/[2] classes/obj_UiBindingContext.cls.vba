@@ -12,9 +12,8 @@ Option Explicit
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
-Public Event ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
-
 Private m_sources As Object
+Private m_listeners As Collection
 
 ' //
 ' // Lifecycle
@@ -34,6 +33,7 @@ Public Function Initialize() As Boolean
         Exit Function
     End If
     Set m_sources = VBA.CreateObject("Scripting.Dictionary")
+    Set m_listeners = New Collection
     m_sources.CompareMode = VBA.vbTextCompare
     Initialize = True
     m_isInitialized = Initialize
@@ -45,7 +45,30 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    Set m_listeners = Nothing
     Set m_sources = Nothing
+End Sub
+
+Public Sub Subscribe(ByVal listener As obj_IUiBindingListener)
+    Dim registered As obj_IUiBindingListener
+
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Binding context is not initialized."
+    If listener Is Nothing Then Err.Raise 5, , "Binding listener is required."
+    For Each registered In m_listeners
+        If registered Is listener Then Exit Sub
+    Next registered
+    m_listeners.Add listener
+End Sub
+
+Public Sub Unsubscribe(ByVal listener As obj_IUiBindingListener)
+    Dim index As Long
+    Dim registered As obj_IUiBindingListener
+
+    If m_listeners Is Nothing Then Exit Sub
+    For index = m_listeners.Count To 1 Step -1
+        Set registered = m_listeners(index)
+        If registered Is listener Then m_listeners.Remove index
+    Next index
 End Sub
 
 Public Function TryApplyValues( _
@@ -103,7 +126,7 @@ Public Function TryApplyValues( _
         target(members(i)) = updates(key)
     Next key
     For i = 1 To sources.Count
-        RaiseEvent ValueChanged(sources(i), paths(i))
+        private_NotifyValueChanged sources(i), paths(i)
     Next i
     TryApplyValues = True
     diagnostic = VBA.vbNullString
@@ -128,7 +151,7 @@ Public Function SetValue( _
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
     sourceMap(keyName) = value
-    RaiseEvent ValueChanged(VBA.Trim$(sourceName), keyName)
+    private_NotifyValueChanged VBA.Trim$(sourceName), keyName
     SetValue = True
 End Function
 
@@ -144,7 +167,7 @@ Public Function SetObject( _
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
     Set sourceMap(keyName) = sourceObject
-    RaiseEvent ValueChanged(VBA.Trim$(sourceName), keyName)
+    private_NotifyValueChanged VBA.Trim$(sourceName), keyName
     SetObject = True
 End Function
 
@@ -173,7 +196,7 @@ Public Function TrySetPathObject( _
     member = parts(UBound(parts))
     If Not ex_Helpers.fn_RTTI_IsDictionary(target) Or VBA.Len(member) = 0 Then Exit Function
     Set target(member) = value
-    RaiseEvent ValueChanged(sourceName, bindingPath)
+    private_NotifyValueChanged sourceName, bindingPath
     TrySetPathObject = True
 EH:
 End Function
@@ -240,7 +263,7 @@ Public Function TrySetPathValue( _
         End If
         On Error GoTo 0
     End If
-    RaiseEvent ValueChanged(VBA.Trim$(sourceName), bindingPath)
+    private_NotifyValueChanged VBA.Trim$(sourceName), bindingPath
     TrySetPathValue = True
 End Function
 
@@ -283,6 +306,23 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_NotifyValueChanged( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String _
+)
+    Dim snapshot As New Collection
+    Dim listener As obj_IUiBindingListener
+
+    If m_listeners Is Nothing Then Exit Sub
+    For Each listener In m_listeners
+        snapshot.Add listener
+    Next listener
+    For Each listener In snapshot
+        If m_isDisposed Then Exit Sub
+        listener.OnValueChanged sourceName, bindingPath
+    Next listener
+End Sub
+
 Private Function private_TryGetOrCreateSource( _
     ByVal sourceName As String, _
     ByRef outSourceMap As Object _
