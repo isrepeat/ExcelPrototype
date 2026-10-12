@@ -12,6 +12,25 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_TryParseInvariantNumber( _
+    ByVal text As String, _
+    ByRef number As Double _
+) As Boolean
+    Dim pattern As Object
+
+    On Error GoTo InvalidNumber
+    number = 0
+    text = VBA.Trim$(text)
+    Set pattern = VBA.CreateObject("VBScript.RegExp")
+    pattern.Pattern = "^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][+-]?[0-9]+)?$"
+    If Not pattern.Test(text) Then Exit Function
+    ' Val uses a decimal point regardless of Windows regional settings.
+    number = VBA.Val(text)
+    fn_TryParseInvariantNumber = True
+    Exit Function
+InvalidNumber:
+    number = 0
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

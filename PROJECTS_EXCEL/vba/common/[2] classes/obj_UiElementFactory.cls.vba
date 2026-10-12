@@ -16,7 +16,6 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_kind As String
-
 ' //
 ' // Lifecycle
 ' //
@@ -26,7 +25,6 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
-
 ' //
 ' // Interface
 ' //
@@ -42,7 +40,6 @@ End Function
 Private Function obj_IUiMarkupSchemaProvider_GetSchema() As obj_UiMarkupSchema
     Set obj_IUiMarkupSchemaProvider_GetSchema = private_CreateSchema()
 End Function
-
 ' //
 ' // API
 ' //
@@ -92,7 +89,6 @@ EH_CONFIGURE:
     diagnostic = VBA.Err.Description
     If Not element Is Nothing Then element.Dispose
 End Function
-
 ' //
 ' // Private
 ' //
@@ -183,6 +179,14 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     schema.AddAttribute "horizontal", "string", False, "", False, 0
     schema.AddAttribute "vertical", "string", False, "", False, 0
     schema.AddAttribute "indent", "nonnegative", False, "", False, 0
+    schema.AddAttribute "paddingLeft", "number", False, "", False, 0
+    schema.AddAttribute "paddingRight", "number", False, "", False, 0
+    schema.AddAttribute "shadow", "boolean", False, "", False, 0
+    schema.AddAttribute "shadowColor", "string", False, "", False, 0
+    schema.AddAttribute "shadowBlur", "number", False, "", False, 0
+    schema.AddAttribute "shadowTransparency", "number", False, "", False, 0
+    schema.AddAttribute "shadowOffsetX", "number", False, "", False, 0
+    schema.AddAttribute "shadowOffsetY", "number", False, "", False, 0
     schema.AddAttribute "overflow", "string", False, "", False, 0
     schema.AddAttribute "width", "string", False, "", False, 0
     schema.AddAttribute "rowHeight", "string", False, "", False, 0

@@ -13,9 +13,21 @@ Implements obj_IPage
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
+
 Private m_pageBase As obj_PageBase
 Private m_controller As obj_TDB_PgMainController
+' //
+' // Lifecycle
+' //
+Private Sub Class_Initialize()
+End Sub
 
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+' //
+' // Interface
+' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
     If m_isDisposed Or m_isInitialized Then Exit Function
 
@@ -59,6 +71,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim key As Variant
     Dim valueText As String
     Dim defaultDocumentType As String
+    Dim items As Variant
 
     If m_pageBase Is Nothing Then Exit Function
     Set bindingContext = m_pageBase.BindingContext
@@ -69,8 +82,29 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.items", valueText) Then Exit Function
     If Not bindingContext.SetValue("Data", "DocumentTypes", valueText) Then Exit Function
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
-            "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose")
+            "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
+            "OrderReference", "TvoLookup", "TicketNo", "DocumentPath", "GenerationStatus")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
+    Next key
+    For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
+            "RoadDays", "DonationDays", "TemplatePath", "OutputFolderPath")
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
+        If Not bindingContext.SetValue("Form", VBA.CStr(key), valueText) Then Exit Function
+    Next key
+    For Each key In VBA.Array("VacationKinds", "AbroadOptions", "StatusOptions")
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then Exit Function
+        If VBA.CStr(key) = "VacationKinds" Then
+            items = VBA.Split(valueText, "|")
+            If Not bindingContext.SetValue("Data", VBA.CStr(key), items) Then Exit Function
+        Else
+            If Not bindingContext.SetValue("Data", VBA.CStr(key), valueText) Then Exit Function
+        End If
+    Next key
+    For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
+            "VacationAbroad", "VacationStatus", "TvoLookup", "TemplatePath", "OutputFolderPath", _
+            "CreateDocument", "UpdateDocument", "TicketNo", "DocumentPath")
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
+        If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then Exit Function
@@ -104,6 +138,12 @@ Private Function private_TryRegisterCommands() As Boolean
             bindingContext, "RefreshPersonnel", "RefreshPersonnelHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "DocumentTypeChanged", "DocumentTypeChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
+            bindingContext, "CreateDocument", "CreateDocumentHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
+            bindingContext, "UpdateDocument", "UpdateDocumentHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
+            bindingContext, "VacationDatesChanged", "VacationDatesChangedHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function
 

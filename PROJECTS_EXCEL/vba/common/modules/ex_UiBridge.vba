@@ -20,9 +20,13 @@ Public Sub fn_OnShapeClick()
     Dim targetWorksheet As Worksheet
     Dim shapeName As String
     Dim diagnostic As String
+    Dim previousScreenUpdating As Boolean
 
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
+    ' Hide intermediate changes until the command and layout refresh complete.
+    Application.ScreenUpdating = False
     shapeName = VBA.CStr(Application.Caller)
     If TypeOf Application.ActiveSheet Is Worksheet Then
         Set targetWorksheet = Application.ActiveSheet
@@ -38,6 +42,7 @@ Public Sub fn_OnShapeClick()
         End If
     End If
 CleanExit:
+    Application.ScreenUpdating = previousScreenUpdating
     Set context = Nothing
     Set targetWorksheet = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext
@@ -45,6 +50,7 @@ CleanExit:
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    Application.ScreenUpdating = previousScreenUpdating
     Set context = Nothing
     Set targetWorksheet = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext

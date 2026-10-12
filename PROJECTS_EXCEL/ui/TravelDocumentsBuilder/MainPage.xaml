@@ -109,7 +109,8 @@
                     row="12"
                     column="2"
                     style="formField"
-                    value="{Binding Path=Form.DepartureDate}"/>
+                    value="{Binding Path=Form.DepartureDate}"
+                    onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="ReturnDateLabel"
                     row="13"
@@ -117,11 +118,11 @@
                     style="formLabel"
                     text="{Binding Path=Text.ReturnDateLabel}"/>
 
-    <controls:input name="ReturnDate"
+    <controls:label name="ReturnDate"
                     row="13"
                     column="2"
                     style="formField"
-                    value="{Binding Path=Form.ReturnDate}"/>
+                    text="{Binding Path=Form.ReturnDate}"/>
 
     <controls:label name="PurposeLabel"
                     row="14"
@@ -143,6 +144,208 @@
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.DocumentSection}"/>
+
+
+    <controls:label name="VacationKindLabel"
+                    row="16"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.VacationKind}"/>
+
+    <controls:select name="VacationKind"
+                     itemsSource="{Binding Path=Data.VacationKinds}"
+                     row="16"
+                     column="2"
+                     style="formField"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     value="{Binding Path=Form.VacationKind}"/>
+
+    <controls:label name="OrderReferenceLabel"
+                    row="17"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.OrderReference}"/>
+
+    <controls:input name="OrderReference"
+                     row="17"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.OrderReference}"/>
+
+    <controls:label name="VacationDaysLabel"
+                    row="18"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.VacationDays}"/>
+
+    <controls:input name="VacationDays"
+                     row="18"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.VacationDays}"
+                     onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+
+    <controls:label name="RoadDaysLabel"
+                    row="19"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.RoadDays}"/>
+
+    <controls:input name="RoadDays"
+                     row="19"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.RoadDays}"
+                     onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+
+    <controls:label name="DonationDaysLabel"
+                    row="20"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.DonationDays}"/>
+
+    <controls:input name="DonationDays"
+                     row="20"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.DonationDays}"
+                     onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+
+    <controls:label name="VacationAbroadLabel"
+                    row="21"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.VacationAbroad}"/>
+
+    <controls:select name="VacationAbroad"
+                     itemsSource="{Binding Path=Data.AbroadOptions}"
+                     row="21"
+                     column="2"
+                     style="formField"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     value="{Binding Path=Form.VacationAbroad}"/>
+
+    <controls:label name="VacationStatusLabel"
+                    row="22"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.VacationStatus}"/>
+
+    <controls:select name="VacationStatus"
+                     itemsSource="{Binding Path=Data.StatusOptions}"
+                     row="22"
+                     column="2"
+                     style="formField"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     value="{Binding Path=Form.VacationStatus}"/>
+
+    <controls:label name="TvoLookupLabel"
+                    row="23"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.TvoLookup}"/>
+
+    <controls:input name="TvoLookup"
+                     row="23"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.TvoLookup}"/>
+
+    <controls:label name="TemplatePathLabel"
+                    row="24"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.TemplatePath}"/>
+
+    <controls:input name="TemplatePath"
+                     row="24"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.TemplatePath}"/>
+
+    <controls:label name="OutputFolderPathLabel"
+                    row="25"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.OutputFolderPath}"/>
+
+    <controls:input name="OutputFolderPath"
+                     row="25"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.OutputFolderPath}"/>
+
+    <controls:label name="DocumentTypeLabel"
+                    row="9"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.DocumentTypeLabel}"/>
+
+    <controls:select name="DocumentType"
+                     itemsSource="{Binding Path=Data.DocumentTypes}"
+                     row="9"
+                     column="2"
+                     style="formField"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     value="{Binding Path=Form.DocumentType}"
+                     onChange="{Binding Path=Commands.DocumentTypeChanged}"/>
+
+    <controls:button name="CreateDocument"
+                     row="4"
+                     column="10"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.CreateDocument}"
+                     command="{Binding Path=Commands.CreateDocument}"/>
+
+    <controls:button name="UpdateDocument"
+                     row="6"
+                     column="10"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.UpdateDocument}"
+                     command="{Binding Path=Commands.UpdateDocument}"/>
+
+    <controls:label name="TicketNoLabel"
+                    row="8"
+                    column="10"
+                    columnSpan="2"
+                    style="formLabel"
+                    text="{Binding Path=Text.TicketNo}"/>
+
+    <controls:label name="TicketNo"
+                    row="9"
+                    column="10"
+                    columnSpan="2"
+                    style="formField"
+                    text="{Binding Path=Form.TicketNo}"/>
+
+    <controls:label name="DocumentPathLabel"
+                    row="11"
+                    column="10"
+                    columnSpan="2"
+                    style="formLabel"
+                    text="{Binding Path=Text.DocumentPath}"/>
+
+    <controls:label name="DocumentPath"
+                    row="12"
+                    column="10"
+                    rowSpan="4"
+                    columnSpan="2"
+                    style="formField"
+                    text="{Binding Path=Form.DocumentPath}"/>
+
+    <controls:label name="GenerationStatus"
+                    row="17"
+                    column="10"
+                    rowSpan="5"
+                    columnSpan="2"
+                    style="statusText"
+                    text="{Binding Path=Form.GenerationStatus}"/>
 
     <controls:label name="SearchSection"
                     row="1"
@@ -217,6 +420,9 @@
 
   <styles>
     <controlStyle name="searchLabel"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#333333"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -224,9 +430,11 @@
                   borderColor="#000000"
                   borderWeight="thin"
                   horizontal="center"
-                  indent="0"
                   vertical="center"/>
     <controlStyle name="pageTitle"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -237,6 +445,9 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="toolbarLabel"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -247,6 +458,9 @@
                   horizontal="right"
                   vertical="center"/>
     <controlStyle name="sectionTitle"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#333333"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -255,9 +469,11 @@
                   borderColor="#000000"
                   borderWeight="thin"
                   horizontal="center"
-                  indent="0"
                   vertical="center"/>
     <controlStyle name="formLabel"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#333333"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -266,9 +482,11 @@
                   borderColor="#000000"
                   borderWeight="thin"
                   horizontal="right"
-                  indent="1"
                   vertical="center"/>
     <controlStyle name="formField"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#2D2D2D"
                   textColor="#F4A46B"
                   fontName="Calibri"
@@ -276,10 +494,12 @@
                   fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
-                  indent="1"
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="statusText"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#F4A46B"
                   fontName="Calibri"
@@ -290,6 +510,9 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="personnelCheckbox"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -300,6 +523,9 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="candidateTable"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#2D2D2D"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -310,6 +536,9 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="candidateSelected"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#375D7A"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -320,6 +549,9 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="secondaryButton"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#3B3B3B"
                   textColor="#F4A46B"
                   fontName="Calibri"
@@ -330,7 +562,16 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="formSelectPanel"
-                  backColor="#2D2D2D"
+                  shadow="true"
+                  shadowColor="#000000"
+                  shadowBlur="6"
+                  shadowTransparency="0.55"
+                  shadowOffsetX="3"
+                  shadowOffsetY="3"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#383838"
                   textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
@@ -340,7 +581,11 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="formSelectItem"
-                  backColor="#2D2D2D"
+                  shadow="false"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#383838"
                   textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
@@ -391,6 +636,21 @@
               styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="control"
+              selector="name=ReturnDate"
+              styles="{cellType:text;}"/>
+        <rule target="control"
+              selector="name=DepartureDate"
+              styles="{cellType:text;}"/>
+        <rule target="control"
+              selector="name=OrderReference"
+              styles="{cellType:text;}"/>
+        <rule target="control"
+              selector="name=PersonId"
+              styles="{cellType:text;}"/>
+        <rule target="control"
+              selector="name=TvoLookup"
+              styles="{cellType:text;}"/>
         <rule target="control"
               selector="name=CandidateCount"
               styles="{horizontal:right;indent:1;}"/>
