@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
@@ -108,12 +110,18 @@ Public Function Build(ByRef diagnostic As String) As Boolean
     Dim errors As New Collection
     Dim markupError As obj_UiMarkupDiagnostic
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_VALIDATOR_INITIALIZE_STARTED"
+#End If
     If Not validator.Initialize() Then
         Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
     End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_VALIDATOR_INITIALIZE_COMPLETED"
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_MARKUP_VALIDATE_STARTED"
+#End If
     If Not validator.Validate(m_uiPageDefinition.Document.documentElement, errors) Then
         ex_Core.fn_Diagnostic_WriteLog "UI_MARKUP_VALIDATE_FAILED"
         diagnostic = VBA.vbNullString
@@ -123,12 +131,18 @@ Public Function Build(ByRef diagnostic As String) As Boolean
         Next markupError
         Exit Function
     End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_MARKUP_VALIDATE_COMPLETED"
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_CREATE_STARTED"
+#End If
     Set m_root = ex_UiElementFactory.fn_Create(m_uiPageDefinition.Document.documentElement, _
         Me, VBA.vbNullString, diagnostic)
     Build = Not m_root Is Nothing
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_CREATE_COMPLETED | Success=" & VBA.CStr(Build)
+#End If
 End Function
 
 Public Sub InvalidateMeasure()
@@ -304,16 +318,26 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_STARTED"
+#End If
     If Not m_router Is Nothing Then
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_STARTED"
+#End If
         m_router.Dispose
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_COMPLETED"
+#End If
     End If
     If Not m_root Is Nothing Then
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_STARTED"
+#End If
         m_root.Dispose
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_COMPLETED"
+#End If
     End If
     If Not m_elements Is Nothing Then
         For Each key In m_elements.Keys
@@ -333,5 +357,7 @@ Public Sub Dispose()
     Set m_uiPageDefinition = Nothing
     Set m_targetWorksheet = Nothing
     m_uiFolderPath = VBA.vbNullString
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_COMPLETED"
+#End If
 End Sub

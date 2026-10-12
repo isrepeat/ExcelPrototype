@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Implements obj_IUiControl
 Implements obj_IUiBindingTarget
 
@@ -23,9 +25,13 @@ Private m_targetRange As Range
 ' // Lifecycle
 ' //
 Private Sub Class_Initialize()
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_BASE_NEW_STARTED"
+#End If
     Set m_uiControlBase = New obj_UiControlBase
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_BASE_NEW_COMPLETED"
+#End If
 End Sub
 
 Private Sub Class_Terminate()
@@ -54,15 +60,27 @@ Private Function obj_IUiControl_Configure( _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONTEXT_ATTACH_STARTED"
+#End If
     Set m_renderContext = context
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONTEXT_ATTACH_COMPLETED"
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_POSITION_CONFIGURE_STARTED"
+#End If
     m_uiControlBase.ConfigurePosition definition
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_POSITION_CONFIGURE_COMPLETED"
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONFIGURE_STARTED"
+#End If
     obj_IUiControl_Configure = private_Configure(definition)
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_LABEL_CONFIGURE_COMPLETED | Success=" & VBA.CStr(obj_IUiControl_Configure)
+#End If
     If Not obj_IUiControl_Configure Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
 End Function
 

@@ -1,6 +1,8 @@
 Attribute VB_Name = "ex_UiRuntime"
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Private m_pages As Object
 Private Const BUTTON_SHAPE_PREFIX As String = "btn_"
 Private Const SELECT_SHAPE_PREFIX As String = "sel_"
@@ -14,10 +16,14 @@ Public Sub fn_Module_Dispose()
 
     If Not m_pages Is Nothing Then
         For Each key In m_pages.Keys
+#If ENABLE_LOGGING_VERBOSE Then
             ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_DISPOSE_STARTED | Sheet=" & VBA.CStr(key)
+#End If
             Set context = m_pages(key)
             context.Dispose
+#If ENABLE_LOGGING_VERBOSE Then
             ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_DISPOSE_COMPLETED | Sheet=" & VBA.CStr(key)
+#End If
         Next key
     End If
     Set m_pages = Nothing
@@ -137,10 +143,16 @@ Private Function private_RenderPage( _
     If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Function
     ex_Core.fn_Diagnostic_WritePerf "Page.LoadXaml | Sheet=" & targetWorksheet.Name, startedAt
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_CREATE_STARTED | Sheet=" & targetWorksheet.Name
+#End If
     Set uiRenderContext = New obj_UiRenderContext
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_CREATE_COMPLETED | Sheet=" & targetWorksheet.Name
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_INITIALIZE_STARTED | Sheet=" & targetWorksheet.Name
+#End If
     If Not uiRenderContext.Initialize( _
             targetWorksheet, uiPageDefinition, uiFolderPath, uiBindingContext) Then
         ex_WindowsUi.fn_ShowMessage "The UI render context cannot be initialized.", _
@@ -148,7 +160,9 @@ Private Function private_RenderPage( _
         Exit Function
     End If
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_INITIALIZE_COMPLETED | Sheet=" & targetWorksheet.Name
+#End If
 
     If m_pages Is Nothing Then
         Set m_pages = VBA.CreateObject("Scripting.Dictionary")
@@ -157,14 +171,18 @@ Private Function private_RenderPage( _
     Dim diagnostic As String
     Dim previousContext As obj_UiRenderContext
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_STARTED | Sheet=" & targetWorksheet.Name
+#End If
     If Not uiRenderContext.Build(diagnostic) Then
         ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_FAILED | Sheet=" & targetWorksheet.Name & " | Description=" & diagnostic
         uiRenderContext.Dispose
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "UI configuration"
         Exit Function
     End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_COMPLETED | Sheet=" & targetWorksheet.Name
+#End If
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH_RENDER_PAGE
     Application.ScreenUpdating = False

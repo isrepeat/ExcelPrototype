@@ -1,5 +1,7 @@
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Private m_runtimeReleased As Boolean
 
 Private Sub Workbook_Open()
@@ -89,13 +91,17 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     If Cancel Or m_runtimeReleased Then Exit Sub
     previousEvents = Application.EnableEvents
     On Error GoTo EH_CLOSE
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_STARTED"
+#End If
     m_runtimeReleased = True
     Application.EnableEvents = False
     For Each stage In VBA.Array("Hotkeys", "Pages", "TableData", "Bindings", _
             "ElementFactory", "ControlFactory", "Busy", "Paths", "Flush")
         stageName = VBA.CStr(stage)
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_STAGE_STARTED | Name=" & stageName
+#End If
         Select Case stageName
             Case "Hotkeys"
                 ex_AppHotkeys.fn_Module_Dispose
@@ -117,11 +123,15 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
                 If Not ex_Core.fn_Diagnostic_Flush() Then _
                     VBA.Err.Raise VBA.vbObjectError + 2232, "Workbook_BeforeClose", "Diagnostic log flush failed."
         End Select
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_STAGE_COMPLETED | Name=" & stageName
+#End If
 NextStage:
     Next stage
     stageName = VBA.vbNullString
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_COMPLETED | Success=" & VBA.CStr(Not cleanupFailed)
+#End If
     If Not ex_Core.fn_Diagnostic_Flush() Then _
         ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_FINAL_FLUSH_FAILED"
 CleanClose:

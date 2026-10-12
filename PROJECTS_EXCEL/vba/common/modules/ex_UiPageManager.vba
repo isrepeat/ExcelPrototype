@@ -1,21 +1,31 @@
 Attribute VB_Name = "ex_UiPageManager"
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Private m_activePage As obj_IPage
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_MANAGER_DISPOSE_STARTED"
+#End If
     ex_UiRuntime.fn_Module_Dispose
     If Not m_activePage Is Nothing Then
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ACTIVE_PAGE_DISPOSE_STARTED"
+#End If
         m_activePage.Dispose
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ACTIVE_PAGE_DISPOSE_COMPLETED"
+#End If
     End If
     Set m_activePage = Nothing
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_MANAGER_DISPOSE_COMPLETED"
+#End If
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
