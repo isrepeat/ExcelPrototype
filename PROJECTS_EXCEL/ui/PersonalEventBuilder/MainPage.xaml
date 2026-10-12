@@ -268,22 +268,6 @@
       </layer>
 
       <layer name="layout">
-        <rule style="pageTitle"
-              target="control"
-              selector="style=pageTitle"/>
-
-        <rule style="formLabel"
-              target="control"
-              selector="style=formLabel"/>
-
-        <rule style="formField"
-              target="control"
-              selector="style=formField"/>
-
-        <rule style="candidateTable"
-              target="control"
-              selector="style=candidateTable"/>
-
         <rule target="control"
               selector="type=button"
               styles="{

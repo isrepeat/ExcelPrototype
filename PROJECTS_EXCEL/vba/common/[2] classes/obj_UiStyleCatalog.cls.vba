@@ -165,11 +165,25 @@ Public Sub ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
     Me.ApplyStage "default"
 End Sub
 
-Public Sub BeginRender()
+Public Sub BeginRender( _
+    ByVal rows As Long, _
+    ByVal columns As Long _
+)
+    Dim pageScope As Range
+
     If m_pipeline Is Nothing Then Exit Sub
     m_pipeline.BeginRender
     Set m_overlays = VBA.CreateObject("Scripting.Dictionary")
     m_overlays.CompareMode = VBA.vbTextCompare
+    Set pageScope = private_GetSheetScope(m_targetWorksheet)
+    Set pageScope = m_targetWorksheet.Cells(1, 1).Resize( _
+        Application.Max(rows, pageScope.Rows.Count), _
+        Application.Max(columns, pageScope.Columns.Count))
+    private_ApplyStage "default", True, False, pageScope
+End Sub
+
+Public Sub CompleteRender()
+    private_ApplyStage "default", False, True
 End Sub
 
 Public Sub ApplyOverlay( _
@@ -207,6 +221,15 @@ Public Sub RegisterPart( _
 End Sub
 
 Public Sub ApplyStage(ByVal stageName As String)
+    private_ApplyStage stageName, False, False
+End Sub
+
+Private Sub private_ApplyStage( _
+    ByVal stageName As String, _
+    ByVal sheetOnly As Boolean, _
+    ByVal skipSheet As Boolean, _
+    Optional ByVal renderScope As Range _
+)
     Dim rule As Object
     Dim regions As Collection
     Dim region As Object
@@ -228,10 +251,16 @@ Public Sub ApplyStage(ByVal stageName As String)
     If m_pipeline Is Nothing Then Exit Sub
     m_pipeline.ValidateStage stageName
     ex_Core.fn_Diagnostic_WriteLog "STYLE_STAGE_STARTED | Name=" & stageName
-    Set pageScope = private_GetSheetScope(m_targetWorksheet)
+    If renderScope Is Nothing Then
+        Set pageScope = private_GetSheetScope(m_targetWorksheet)
+    Else
+        Set pageScope = renderScope
+    End If
     For Each rule In m_pipeline.Rules
         ruleIndex = ruleIndex + 1
-        If rule("enabled") And VBA.StrComp(rule("stage"), stageName, VBA.vbTextCompare) = 0 Then
+        If rule("enabled") And VBA.StrComp(rule("stage"), stageName, VBA.vbTextCompare) = 0 _
+                And (Not sheetOnly Or rule("target") = "sheet") _
+                And (Not skipSheet Or rule("target") <> "sheet") Then
             ex_Core.fn_Diagnostic_WriteLog "STYLE_RULE_STARTED | Index=" & VBA.CStr(ruleIndex) & " | Target=" & rule("target")
             Set properties = rule("properties")
             Set selector = rule("selector")
@@ -242,7 +271,7 @@ Public Sub ApplyStage(ByVal stageName As String)
             If rule("target") = "sheet" Then private_ApplyWorksheetProperties m_targetWorksheet, properties
         End If
     Next rule
-    If Not m_overlays Is Nothing Then
+    If Not sheetOnly And Not m_overlays Is Nothing Then
         For Each regionKey In m_overlays.Keys
             Set region = m_overlays(regionKey)
             Set area = region("area")

@@ -352,35 +352,6 @@
               selector="address=J:J"
               styles="{width:2;}"/>
       </layer>
-      <layer name="controls">
-        <rule style="pageTitle"
-              target="control"
-              selector="style=pageTitle"/>
-        <rule style="toolbarLabel"
-              target="control"
-              selector="style=toolbarLabel"/>
-        <rule style="sectionTitle"
-              target="control"
-              selector="style=sectionTitle"/>
-        <rule style="formLabel"
-              target="control"
-              selector="style=formLabel"/>
-        <rule style="formField"
-              target="control"
-              selector="style=formField"/>
-        <rule style="statusText"
-              target="control"
-              selector="style=statusText"/>
-        <rule style="personnelCheckbox"
-              target="control"
-              selector="style=personnelCheckbox"/>
-        <rule style="candidateTable"
-              target="control"
-              selector="style=candidateTable"/>
-        <rule style="secondaryButton"
-              target="control"
-              selector="style=secondaryButton"/>
-      </layer>
       <layer name="table-parts">
         <rule target="controlPart"
               selector="type=table;part=header"

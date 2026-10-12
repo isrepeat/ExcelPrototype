@@ -15,6 +15,18 @@ assert 'Set region("area") = area' in pipeline
 assert 'Set region("shape") = shape' in pipeline
 assert "For Each region In m_regions.Items" not in pipeline
 assert "For Each region In m_overlays.Items" not in catalog
+render_context = (CLASSES / "obj_UiRenderContext.cls.vba").read_text(encoding="utf-8-sig")
+render_tree = render_context.split("Public Function RenderTree", 1)[1].split("End Function", 1)[0]
+assert render_tree.index("m_styles.BeginRender rows, columns") < render_tree.index("m_root.Render(diagnostic)")
+assert render_tree.index("m_root.Render(diagnostic)") < render_tree.index("If RenderTree Then m_styles.CompleteRender")
+begin_render = catalog.split("Public Sub BeginRender(", 1)[1].split("End Sub", 1)[0]
+assert 'private_ApplyStage "default", True, False, pageScope' in begin_render
+assert "Application.Max(rows, pageScope.Rows.Count)" in begin_render
+assert "Application.Max(columns, pageScope.Columns.Count)" in begin_render
+assert 'private_ApplyStage "default", False, True' in catalog
+assert "private_ApplyStage stageName, False, False" in catalog
+assert '(Not sheetOnly Or rule("target") = "sheet")' in catalog
+assert '(Not skipSheet Or rule("target") <> "sheet")' in catalog
 
 
 def case_keys(text, anchor):
@@ -87,6 +99,9 @@ for folder in (ROOT / "ui").iterdir():
                     assert {"type", "part"} <= selected.keys(), (path, "Part selector lacks type/part")
                 if "style" in node.attrib:
                     assert node.attrib["style"] in style_names, (path, "Unknown named rule style")
+                    assert not (node.attrib["target"].lower() == "control"
+                                and selected == {"style": node.attrib["style"]}
+                                and not node.attrib.get("styles", "").strip()), (path, "Redundant control style rule")
                 for pair in node.attrib.get("styles", "").strip().strip("{}").split(";"):
                     if pair.strip():
                         key, value = pair.split(":", 1)
