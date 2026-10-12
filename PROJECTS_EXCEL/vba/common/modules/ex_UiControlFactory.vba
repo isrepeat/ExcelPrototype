@@ -71,7 +71,7 @@ Private Sub private_Initialize()
     Dim builtInFactory As obj_UiControlFactory
 
     If Not m_initialized Then
-        For Each builtInType In VBA.Array("Label", "Button", "Table", "TableList", "Input", "Select", "Form")
+        For Each builtInType In VBA.Array("Label", "Button", "Checkbox", "Table", "TableList", "Input", "Select", "Form")
             If m_factories Is Nothing Then
                 Set m_factories = VBA.CreateObject("Scripting.Dictionary")
                 m_factories.CompareMode = VBA.vbBinaryCompare

@@ -72,9 +72,10 @@ Private Function private_TryRegisterBindings() As Boolean
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
     Next key
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then Exit Function
     For Each key In VBA.Array("DocumentTypeLabel", "PersonnelPrompt", "PersonNameLabel", _
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
-            "RefreshPersonnel")
+            "RefreshPersonnel", "AutoFillPersonnelLabel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _
                 "TravelDocumentsBuilder::text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function

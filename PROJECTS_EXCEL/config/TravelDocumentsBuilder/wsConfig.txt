@@ -13,6 +13,7 @@ value	TravelDocumentsBuilder::text.PersonnelCount	Кандидатів: {count}.
 value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
 value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
 value	TravelDocumentsBuilder::text.PersonNameLabel	Пошук ПІБ / ІПН
+value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
 value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
 value	TravelDocumentsBuilder::text.PersonRankLabel	Звання
 value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
@@ -22,6 +23,7 @@ value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
 value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
 value	TravelDocumentsBuilder::text.RankHeader	Звання
 value	TravelDocumentsBuilder::text.PositionHeader	Посада
+value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
 value	TravelDocumentsBuilder::lookup.Personnel.key	Personnel.TaxId
 value	TravelDocumentsBuilder::lookup.Personnel.minChars	2
@@ -30,23 +32,23 @@ value	TravelDocumentsBuilder::lookup.Personnel.source.path	../Dependencies/ШП�
 value	TravelDocumentsBuilder::lookup.Personnel.source.sheet	ОС
 value	TravelDocumentsBuilder::lookup.Personnel.source.range	auto
 value	TravelDocumentsBuilder::lookup.Personnel.columns.count	6
-value	TravelDocumentsBuilder::lookup.Personnel.columns.1.name	Personnel.FullName
-value	TravelDocumentsBuilder::lookup.Personnel.columns.1.header	Прізвище, ім’я, по батькові
-value	TravelDocumentsBuilder::lookup.Personnel.columns.1.captionKey	TravelDocumentsBuilder::text.FullNameHeader
-value	TravelDocumentsBuilder::lookup.Personnel.columns.2.name	Personnel.TaxId
-value	TravelDocumentsBuilder::lookup.Personnel.columns.2.header	ІПН
-value	TravelDocumentsBuilder::lookup.Personnel.columns.2.captionKey	TravelDocumentsBuilder::text.TaxIdHeader
-value	TravelDocumentsBuilder::lookup.Personnel.columns.3.name	Personnel.Rank
-value	TravelDocumentsBuilder::lookup.Personnel.columns.3.header	Військове звання фактично
-value	TravelDocumentsBuilder::lookup.Personnel.columns.3.captionKey	TravelDocumentsBuilder::text.RankHeader
-value	TravelDocumentsBuilder::lookup.Personnel.columns.4.name	Personnel.Position
-value	TravelDocumentsBuilder::lookup.Personnel.columns.4.header	Посада
-value	TravelDocumentsBuilder::lookup.Personnel.columns.4.captionKey	TravelDocumentsBuilder::text.PositionHeader
-value	TravelDocumentsBuilder::lookup.Personnel.columns.5.name	Personnel.Unit
-value	TravelDocumentsBuilder::lookup.Personnel.columns.5.header	Підрозділ
-value	TravelDocumentsBuilder::lookup.Personnel.columns.5.captionKey	TravelDocumentsBuilder::text.UnitHeader
-value	TravelDocumentsBuilder::lookup.Personnel.columns.6.name	Personnel.PositionCode
-value	TravelDocumentsBuilder::lookup.Personnel.columns.6.header	Код посади
+value	TravelDocumentsBuilder::lookup.Personnel.columns.1.name	Personnel.Rank
+value	TravelDocumentsBuilder::lookup.Personnel.columns.1.header	Військове звання фактично
+value	TravelDocumentsBuilder::lookup.Personnel.columns.1.captionKey	TravelDocumentsBuilder::text.RankHeader
+value	TravelDocumentsBuilder::lookup.Personnel.columns.2.name	Personnel.FullName
+value	TravelDocumentsBuilder::lookup.Personnel.columns.2.header	Прізвище, ім’я, по батькові
+value	TravelDocumentsBuilder::lookup.Personnel.columns.2.captionKey	TravelDocumentsBuilder::text.FullNameHeader
+value	TravelDocumentsBuilder::lookup.Personnel.columns.3.name	Personnel.TaxId
+value	TravelDocumentsBuilder::lookup.Personnel.columns.3.header	ІПН
+value	TravelDocumentsBuilder::lookup.Personnel.columns.3.captionKey	TravelDocumentsBuilder::text.TaxIdHeader
+value	TravelDocumentsBuilder::lookup.Personnel.columns.4.name	Personnel.PositionCode
+value	TravelDocumentsBuilder::lookup.Personnel.columns.4.header	Код посади
+value	TravelDocumentsBuilder::lookup.Personnel.columns.4.captionKey	TravelDocumentsBuilder::text.PositionCodeHeader
+value	TravelDocumentsBuilder::lookup.Personnel.columns.5.name	Personnel.Position
+value	TravelDocumentsBuilder::lookup.Personnel.columns.5.header	Посада
+value	TravelDocumentsBuilder::lookup.Personnel.columns.5.captionKey	TravelDocumentsBuilder::text.PositionHeader
+value	TravelDocumentsBuilder::lookup.Personnel.columns.6.name	Personnel.Unit
+value	TravelDocumentsBuilder::lookup.Personnel.columns.6.header	Підрозділ
 value	TravelDocumentsBuilder::lookup.Personnel.display.count	0
 value	TravelDocumentsBuilder::lookup.Personnel.search.count	2
 value	TravelDocumentsBuilder::lookup.Personnel.search.1.name	Personnel.FullName
