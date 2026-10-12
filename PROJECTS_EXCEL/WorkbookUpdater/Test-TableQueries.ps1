@@ -35,7 +35,7 @@ try {
     $runner = $excel.Workbooks.Add()
     $names = @('obj_TableSource', 'obj_TableQuery', 'obj_QueryCondition', 'obj_QueryGroup', 'obj_QueryOrder',
         'obj_DataTable', 'obj_QueryWorkbookSession', 'obj_ExcelQueryExecutor', 'obj_AdoQueryExecutor',
-        'obj_TableQueryService', 'obj_ITableQueryExecutor', 'obj_UiRawTable', 'obj_IUiTableSource', 'ex_TableQuery')
+        'obj_TableQueryService', 'obj_ITableQueryExecutor', 'obj_UiRawTable', 'obj_IUiTableSource', 'ex_Core', 'ex_TableQuery')
     foreach ($file in Get-ChildItem -LiteralPath $sourceRoot -Recurse -Filter '*.vba') {
         $source = [IO.File]::ReadAllText($file.FullName, [Text.Encoding]::UTF8)
         $match = [regex]::Match($source, '(?m)^Attribute VB_Name = "([^"]+)"')

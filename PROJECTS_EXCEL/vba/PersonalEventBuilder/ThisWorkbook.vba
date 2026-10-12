@@ -36,6 +36,7 @@ Private Sub Workbook_Open()
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    ex_UiBusy.fn_Reset
     If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_OPEN_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
@@ -63,6 +64,7 @@ Private Sub Workbook_Activate()
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    ex_UiBusy.fn_Reset
     If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_ACTIVATE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
@@ -90,6 +92,7 @@ Private Sub Workbook_Deactivate()
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    ex_UiBusy.fn_Reset
     If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_DEACTIVATE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription
@@ -113,6 +116,7 @@ Private Sub Workbook_SheetChange(ByVal sheet As Object, ByVal target As Range)
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    ex_UiBusy.fn_Reset
     If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_SHEET_CHANGE_ERROR | Sheet=" & _
         sheet.Name & " | Range=" & target.Address(False, False) & _
@@ -140,6 +144,7 @@ Private Sub Workbook_SheetSelectionChange(ByVal sheet As Object, ByVal target As
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    ex_UiBusy.fn_Reset
     If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_SELECTION_CHANGE_ERROR | Sheet=" & _
         sheet.Name & " | Range=" & target.Address(False, False) & _
@@ -166,6 +171,7 @@ Private Sub Workbook_SheetBeforeDoubleClick( _
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
+    ex_UiBusy.fn_Reset
     If runtimeEntered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     ex_WindowsUi.fn_ShowMessage "Cannot select candidate: " & VBA.Err.Description, vbExclamation, "UI"
 End Sub
@@ -179,6 +185,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
 
     startedAt = VBA.Timer
     On Error GoTo EH
+    ex_UiBusy.fn_Reset
     Set runtimeContext = ex_RuntimeLifecycle.fn_Context()
     If runtimeContext("Phase") = "Requested" Then
         Application.Run "'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_CancelPending", ThisWorkbook
@@ -222,6 +229,7 @@ EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     On Error Resume Next
+    ex_UiBusy.fn_Reset
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription

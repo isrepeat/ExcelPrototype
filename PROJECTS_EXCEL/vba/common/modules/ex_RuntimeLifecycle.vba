@@ -22,6 +22,7 @@ Public Function fn_PrepareReload() As Boolean
     ex_UiRuntime.fn_Module_Dispose
     ex_UiElementFactory.fn_Module_Dispose
     ex_UiControlFactory.fn_Module_Dispose
+    ex_UiBusy.fn_Module_Dispose
     ex_RuntimePaths.fn_Module_Dispose
     ex_AppHotkeys.fn_Module_Dispose
     ex_Core.fn_Module_Dispose

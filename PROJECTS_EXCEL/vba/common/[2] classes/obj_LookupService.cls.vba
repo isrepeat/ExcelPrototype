@@ -283,6 +283,7 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
     Dim keys As Object
     Dim key As String
     Dim startedAt As Double
+    Dim busyEntered As Boolean
 
     On Error GoTo EH
     If Not m_cache Is Nothing Then
@@ -291,10 +292,11 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
         Exit Function
     End If
     ex_Core.fn_Diagnostic_WriteLog "LOOKUP_CACHE_LOAD_STARTED"
+    busyEntered = ex_UiBusy.fn_Begin("Завантаження кандидатів...")
     Set service = New obj_TableQueryService
     Set query = New obj_TableQuery
     If Not service.Initialize() Or Not query.Initialize() Then Err.Raise 5, , "Cannot initialize source query."
-    service.Backend = QueryExcel
+    service.Backend = QueryAdo
     For Each column In m_profile.Columns
         query.AddColumn column("header")
     Next column
@@ -315,6 +317,7 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
 Cleanup:
     If Not service Is Nothing Then service.Dispose
     If Not query Is Nothing Then query.Dispose
+    If busyEntered Then ex_UiBusy.fn_End
     If Not private_LoadCache Then Me.InvalidateCache
     Exit Function
 EH:

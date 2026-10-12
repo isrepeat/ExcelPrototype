@@ -178,6 +178,9 @@ def validate_profile():
     for name in ("PersonnelCount", "PersonnelMore"):
         check("{count}" in config["PersonalEventBuilder::text." + name], "Count placeholder missing")
     check("{minChars}" in config["PersonalEventBuilder::text.PersonnelMinimum"], "Minimum-length placeholder missing")
+    lookup_service = modules["obj_LookupService"][1]
+    check("service.Backend = QueryAdo" in lookup_service, "Personnel lookup must use ADO")
+    check("service.Backend = QueryExcel" not in lookup_service, "Personnel lookup must not use Excel backend")
     return profile, people
 
 
