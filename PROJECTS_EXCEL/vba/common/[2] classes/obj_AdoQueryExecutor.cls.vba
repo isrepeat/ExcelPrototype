@@ -66,6 +66,8 @@ Public Function TryExecute( _
     Dim sqlRef As String
     Dim props As String
     Dim extension As String
+    Dim metadataHeaders As Variant
+    Dim metadataRows As Long
     Dim rows As Long
     Dim columns As Long
     Dim i As Long
@@ -74,6 +76,7 @@ Public Function TryExecute( _
     Dim readColumns As Collection
     Dim name As Variant
     Dim selectSql As String
+    Dim startedAt As Double
 
     On Error GoTo EH
     Set output = Nothing
@@ -105,27 +108,26 @@ Public Function TryExecute( _
         Case Else
             Err.Raise VBA.vbObjectError + 2152, , "Unsupported workbook format."
     End Select
-    ' Метаданные берутся только из сохранённого файла, даже если книга открыта пользователем.
-    If Not Me.private_TrySavedReference(source, sqlRef, headers, rows, diagnostic) Then
+    If VBA.Len(source.TableName) > 0 Then
+        If Not private_TrySavedReference( _
+                source, sqlRef, metadataHeaders, metadataRows, diagnostic) Then Exit Function
+    ElseIf Not private_TrySqlReference(source, sqlRef, diagnostic) Then
         Exit Function
     End If
-    If rows = 0 Then
-        If Not data.Initialize(headers, values, 0, diagnostic) Then
-            Exit Function
-        End If
-        TryExecute = ex_TableQuery.fn_TryApply(data, query, output, diagnostic)
-        Exit Function
-    End If
+    startedAt = VBA.Timer
     Set conn = VBA.CreateObject("ADODB.Connection")
     conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=""" & VBA.Replace$(canonical, """", """""") & _
         """;Extended Properties=""" & props & ";HDR=YES;IMEX=1;ReadOnly=True"";"
+    ex_Core.fn_Diagnostic_WritePerf "Ado.OpenConnection", startedAt
     Set rs = VBA.CreateObject("ADODB.Recordset")
+    startedAt = VBA.Timer
     rs.Open "SELECT * FROM " & sqlRef & " WHERE 1=0", conn, 0, 1
     ReDim headers(0 To rs.Fields.Count - 1)
     For i = 0 To rs.Fields.Count - 1
         headers(i) = rs.Fields(i).Name
     Next i
     rs.Close
+    ex_Core.fn_Diagnostic_WritePerf "Ado.ReadHeaders | Columns=" & VBA.CStr(UBound(headers) + 1), startedAt
     Set readColumns = ex_TableQuery.fn_ReadColumns(headers, query)
     For Each name In readColumns
         If VBA.Len(selectSql) > 0 Then
@@ -133,6 +135,7 @@ Public Function TryExecute( _
         End If
         selectSql = selectSql & "[" & VBA.Replace$(VBA.CStr(name), "]", "]]") & "]"
     Next name
+    startedAt = VBA.Timer
     rs.Open "SELECT " & selectSql & " FROM " & sqlRef, conn, 0, 1
     columns = rs.Fields.Count
     ReDim headers(0 To columns - 1)
@@ -150,6 +153,8 @@ Public Function TryExecute( _
             Next j
         Next i
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Ado.ReadRows | Rows=" & VBA.CStr(rows) & _
+        " | Columns=" & VBA.CStr(columns), startedAt
     If Not data.Initialize(headers, values, rows, diagnostic) Then
         GoTo Cleanup
     End If
@@ -184,7 +189,25 @@ End Function
 ' //
 ' // Private
 ' //
-Friend Function private_TrySavedReference( _
+Private Function private_TrySqlReference( _
+    ByVal source As obj_TableSource, _
+    ByRef sqlRef As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim rangeAddress As String
+
+    sqlRef = VBA.vbNullString
+    diagnostic = VBA.vbNullString
+    rangeAddress = VBA.Trim$(source.RangeAddress)
+    If VBA.StrComp(rangeAddress, "auto", VBA.vbTextCompare) = 0 Then
+        sqlRef = "[" & VBA.Replace$(source.SheetName, "]", "]]") & "$]"
+    Else
+        sqlRef = "[" & VBA.Replace$(source.SheetName, "]", "]]") & "$" & rangeAddress & "]"
+    End If
+    private_TrySqlReference = True
+End Function
+
+Private Function private_TrySavedReference( _
     ByVal source As obj_TableSource, _
     ByRef sqlRef As String, _
     ByRef headers As Variant, _
@@ -199,16 +222,12 @@ Friend Function private_TrySavedReference( _
         diagnostic = "Workbook session initialization failed."
         Exit Function
     End If
-    If Not session.TryOpen(source, diagnostic, True) Then
-        Exit Function
-    End If
+    If Not session.TryOpen(source, diagnostic, True) Then Exit Function
     headers = session.Headers
     sqlRef = session.SqlReference
     Set body = session.Body
     rows = 0
-    If Not body Is Nothing Then
-        rows = body.Rows.Count
-    End If
+    If Not body Is Nothing Then rows = body.Rows.Count
     private_TrySavedReference = True
 Cleanup:
     Set body = Nothing
