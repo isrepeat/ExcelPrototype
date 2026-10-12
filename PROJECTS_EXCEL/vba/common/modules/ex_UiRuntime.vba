@@ -39,6 +39,25 @@ Public Function fn_TryGetContext( _
     fn_TryGetContext = True
 End Function
 
+Public Function fn_UpdateActivePage() As Boolean
+    Dim targetWorksheet As Worksheet
+    Dim uiRenderContext As obj_UiRenderContext
+    Dim uiBindingContext As obj_UiBindingContext
+    Dim uiRootPath As String
+    Dim uiFolderRelativePath As String
+
+    If Not (TypeOf Application.ActiveSheet Is Worksheet) Then Exit Function
+    Set targetWorksheet = Application.ActiveSheet
+    If Not fn_TryGetContext(targetWorksheet, uiRenderContext) Then Exit Function
+    If Not ex_RuntimePaths.fn_TryGetUiFolder(uiRootPath) Then Exit Function
+    If VBA.Right$(uiRootPath, 1) <> "\" Then uiRootPath = uiRootPath & "\"
+    If VBA.StrComp(VBA.Left$(uiRenderContext.UiFolderPath, VBA.Len(uiRootPath)), _
+            uiRootPath, VBA.vbTextCompare) <> 0 Then Exit Function
+    uiFolderRelativePath = VBA.Mid$(uiRenderContext.UiFolderPath, VBA.Len(uiRootPath) + 1)
+    Set uiBindingContext = uiRenderContext.BindingContext
+    fn_UpdateActivePage = fn_RenderActivePage(uiFolderRelativePath, uiBindingContext)
+End Function
+
 Public Function fn_RenderPages( _
     ByVal uiFolderRelativePath As String, _
     ByVal uiBindingContext As obj_UiBindingContext _
