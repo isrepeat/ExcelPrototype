@@ -22,8 +22,7 @@ Cleanup:
     If Not runtimeContext Is Nothing Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
-    ex_UiBusy.fn_Reset
-    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, VBA.vbExclamation, "TravelDocumentsBuilder"
+    private_ReportError "Workbook_SheetChange"
     Resume Cleanup
 End Sub
 
@@ -37,8 +36,7 @@ Cleanup:
     If Not runtimeContext Is Nothing Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
-    ex_UiBusy.fn_Reset
-    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, VBA.vbExclamation, "TravelDocumentsBuilder"
+    private_ReportError "Workbook_SheetSelectionChange"
     Resume Cleanup
 End Sub
 
@@ -56,8 +54,7 @@ Cleanup:
     If Not runtimeContext Is Nothing Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
-    ex_UiBusy.fn_Reset
-    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, VBA.vbExclamation, "TravelDocumentsBuilder"
+    private_ReportError "Workbook_SheetBeforeDoubleClick"
     Resume Cleanup
 End Sub
 
@@ -78,7 +75,19 @@ Cleanup:
     If Not runtimeContext Is Nothing Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH:
-    ex_UiBusy.fn_Reset
-    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, VBA.vbExclamation, "TravelDocumentsBuilder"
+    private_ReportError "Workbook_Open.Initialize"
     Resume Cleanup
+End Sub
+
+Private Sub private_ReportError(ByVal stageName As String)
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
+
+    errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
+    errorDescription = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError stageName, errorNumber, errorSource, errorDescription
+    ex_UiBusy.fn_Reset
+    ex_WindowsUi.fn_ShowMessage errorDescription, VBA.vbExclamation, "TravelDocumentsBuilder"
 End Sub

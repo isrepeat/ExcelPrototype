@@ -151,10 +151,16 @@
                     style="sectionTitle"
                     text="{Binding Path=Text.SearchSection}"/>
 
-    <controls:input name="PersonnelQuery"
+    <controls:label name="SearchLabel"
                     row="2"
                     column="4"
-                    columnSpan="5"
+                    style="searchLabel"
+                    text="{Binding Path=Text.SearchLabel}"/>
+
+    <controls:input name="PersonnelQuery"
+                    row="2"
+                    column="5"
+                    columnSpan="4"
                     style="formField"
                     value="{Binding Path=Form.PersonnelQuery}"
                     onChange="{Binding Path=Commands.SearchPersonnel}"/>
@@ -169,9 +175,24 @@
                          checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                          uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"/>
 
+    <controls:label name="CandidateCount"
+                    row="3"
+                    column="7"
+                    columnSpan="2"
+                    style="statusText"
+                    text="{Binding Path=Text.CandidateCount}"/>
+
+    <controls:label name="ActionsSection"
+                    row="1"
+                    column="10"
+                    columnSpan="2"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.ActionsSection}"/>
+
     <controls:button name="RefreshPersonnel"
-                     row="3"
-                     column="8"
+                     row="2"
+                     column="10"
+                     columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
@@ -195,6 +216,16 @@
   </grid>
 
   <styles>
+    <controlStyle name="searchLabel"
+                  backColor="#333333"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  indent="0"
+                  vertical="center"/>
     <controlStyle name="pageTitle"
                   backColor="#262626"
                   textColor="#FFFFFF"
@@ -223,7 +254,8 @@
                   fontBold="true"
                   borderColor="#000000"
                   borderWeight="thin"
-                  horizontal="left"
+                  horizontal="center"
+                  indent="0"
                   vertical="center"/>
     <controlStyle name="formLabel"
                   backColor="#333333"
@@ -351,8 +383,17 @@
         <rule target="column"
               selector="address=J:J"
               styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=K:K"
+              styles="{width:25;}"/>
+        <rule target="column"
+              selector="address=L:L"
+              styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="control"
+              selector="name=CandidateCount"
+              styles="{horizontal:right;indent:1;}"/>
         <rule target="controlPart"
               selector="type=table;part=header"
               styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>

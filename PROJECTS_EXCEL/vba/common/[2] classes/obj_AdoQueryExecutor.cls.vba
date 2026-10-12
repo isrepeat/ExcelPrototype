@@ -116,6 +116,9 @@ Public Function TryExecute( _
     End If
     startedAt = VBA.Timer
     Set conn = VBA.CreateObject("ADODB.Connection")
+    ex_Core.fn_Diagnostic_WriteLog "ADO_CONNECT | Provider=Microsoft.ACE.OLEDB.12.0 | Path=" & canonical & _
+        " | Sheet=" & source.SheetName & " | Range=" & source.RangeAddress & " | Table=" & source.TableName & _
+        " | ExtendedProperties=" & props & ";HDR=YES;IMEX=1;ReadOnly=True"
     conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=""" & VBA.Replace$(canonical, """", """""") & _
         """;Extended Properties=""" & props & ";HDR=YES;IMEX=1;ReadOnly=True"";"
     ex_Core.fn_Diagnostic_WritePerf "Ado.OpenConnection", startedAt
@@ -158,7 +161,7 @@ Public Function TryExecute( _
     If Not data.Initialize(headers, values, rows, diagnostic) Then
         GoTo Cleanup
     End If
-    ' Общий evaluator обеспечивает одинаковые правила типов, пустоты, регистра и лимита.
+    ' The shared evaluator applies consistent type, empty-value, case and limit rules.
     TryExecute = ex_TableQuery.fn_TryApply(data, query, output, diagnostic)
 Cleanup:
     On Error Resume Next
@@ -177,7 +180,8 @@ Cleanup:
     On Error GoTo 0
     Exit Function
 EH:
-    diagnostic = "ADO query: " & Err.Description
+    diagnostic = "ADO query: Number=" & VBA.CStr(Err.Number) & " | Source=" & Err.Source & " | Description=" & Err.Description
+    ex_Core.fn_Diagnostic_WriteLog "ADO_FAILED | " & diagnostic
     Set output = Nothing
     If m_isDisposed Or Not m_isInitialized Then
         diagnostic = "Query executor is not initialized or is disposed."

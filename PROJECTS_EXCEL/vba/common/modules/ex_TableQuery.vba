@@ -95,7 +95,9 @@ Public Function fn_Compare( _
     ByVal expected As Variant, _
     ByVal kind As en_QueryType, _
     ByVal normalize As Boolean, _
-    ByVal caseSensitive As Boolean _
+    ByVal caseSensitive As Boolean, _
+    Optional ByVal actualFormat As obj_QueryValueFormat = Nothing, _
+    Optional ByVal expectedFormat As obj_QueryValueFormat = Nothing _
 ) As Long
     Dim a As Variant
     Dim b As Variant
@@ -119,21 +121,11 @@ Public Function fn_Compare( _
             fn_Compare = VBA.StrComp(a, b, mode)
             Exit Function
         Case QueryNumber
-            If VBA.VarType(actual) = VBA.vbBoolean Or Not VBA.IsNumeric(actual) Or Not VBA.IsNumeric(expected) Then
-                Err.Raise VBA.vbObjectError + 2103, , "Expected a number."
-            End If
-            a = VBA.CDbl(actual)
-            b = VBA.CDbl(expected)
+            a = fn_NumberValue(actual, actualFormat)
+            b = fn_NumberValue(expected, expectedFormat)
         Case QueryDate
-            If VBA.IsNumeric(actual) Then
-                a = VBA.CDbl(actual)
-            Else
-                If Not VBA.IsDate(actual) Then
-                    Err.Raise VBA.vbObjectError + 2104, , "Expected a date, received: " & VBA.CStr(actual)
-                End If
-                a = VBA.CDbl(VBA.CDate(actual))
-            End If
-            b = VBA.CDbl(VBA.CDate(expected))
+            a = fn_DateValue(actual, actualFormat)
+            b = fn_DateValue(expected, expectedFormat)
         Case QueryBoolean
             If VBA.VarType(actual) <> VBA.vbBoolean Or VBA.VarType(expected) <> VBA.vbBoolean Then
                 Err.Raise VBA.vbObjectError + 2105, , "Expected a Boolean."
@@ -149,6 +141,126 @@ Public Function fn_Compare( _
     If a > b Then
         fn_Compare = 1
     End If
+End Function
+
+Public Function fn_NumberValue( _
+    ByVal value As Variant, _
+    Optional ByVal valueFormat As obj_QueryValueFormat = Nothing _
+) As Double
+    Dim text As String
+    Dim integerText As String
+    Dim fractionText As String
+    Dim groups As Variant
+    Dim separator As String
+    Dim decimalPosition As Long
+    Dim i As Long
+    Dim sign As Double
+
+    If private_IsNumber(value) Then
+        fn_NumberValue = VBA.CDbl(value)
+        Exit Function
+    End If
+    If VBA.VarType(value) <> VBA.vbString Then GoTo InvalidNumber
+    private_RequireFormat valueFormat
+    separator = valueFormat.DecimalSeparator
+    If VBA.Len(separator) = 0 Then GoTo InvalidNumber
+    text = VBA.Trim$(value)
+    sign = 1
+    If VBA.Left$(text, 1) = "-" Or VBA.Left$(text, 1) = "+" Then
+        If VBA.Left$(text, 1) = "-" Then sign = -1
+        text = VBA.Mid$(text, 2)
+    End If
+    decimalPosition = VBA.InStr(1, text, separator, VBA.vbBinaryCompare)
+    If decimalPosition > 0 Then
+        integerText = VBA.Left$(text, decimalPosition - 1)
+        fractionText = VBA.Mid$(text, decimalPosition + 1)
+        If Not private_IsDigits(fractionText) Then GoTo InvalidNumber
+    Else
+        integerText = text
+    End If
+    ' Группы тысяч проверяются до удаления разделителей.
+    If VBA.Len(valueFormat.GroupSeparator) > 0 Then
+        groups = VBA.Split(integerText, valueFormat.GroupSeparator)
+        If UBound(groups) > 0 Then
+            If VBA.Len(groups(0)) < 1 Or VBA.Len(groups(0)) > 3 Then GoTo InvalidNumber
+            For i = 1 To UBound(groups)
+                If VBA.Len(groups(i)) <> 3 Then GoTo InvalidNumber
+            Next i
+        End If
+        For i = 0 To UBound(groups)
+            If Not private_IsDigits(VBA.CStr(groups(i))) Then GoTo InvalidNumber
+        Next i
+        integerText = VBA.Join(groups, "")
+    End If
+    If Not private_IsDigits(integerText) Then GoTo InvalidNumber
+    ' Val получает только проверенные ASCII-цифры и точку, независимо от локали.
+    text = integerText
+    If decimalPosition > 0 Then text = text & "." & fractionText
+    fn_NumberValue = sign * VBA.Val(text)
+    Exit Function
+InvalidNumber:
+    Err.Raise VBA.vbObjectError + 2103, "ex_TableQuery.fn_NumberValue", "Invalid number or missing explicit number format."
+End Function
+
+Public Function fn_DateValue( _
+    ByVal value As Variant, _
+    Optional ByVal valueFormat As obj_QueryValueFormat = Nothing _
+) As Double
+    Dim text As String
+    Dim year As Long
+    Dim month As Long
+    Dim day As Long
+    Dim parsed As Date
+    Dim serial As Double
+
+    If VBA.VarType(value) = VBA.vbDate Then
+        fn_DateValue = VBA.CDbl(value)
+        Exit Function
+    End If
+    private_RequireFormat valueFormat
+    If private_IsNumber(value) Then
+        serial = VBA.CDbl(value)
+        Select Case valueFormat.DateSystem
+            Case "1900"
+                If serial < 1 Or serial >= 2958466# Then GoTo InvalidDate
+                ' Несуществующий день 29.02.1900 не преобразуется в настоящую дату.
+                If serial >= 60 And serial < 61 Then GoTo InvalidDate
+                If serial < 60 Then serial = serial + 1
+            Case "1904"
+                If serial < 0 Or serial >= 2957004# Then GoTo InvalidDate
+                serial = serial + 1462
+            Case Else
+                GoTo InvalidDate
+        End Select
+        fn_DateValue = serial
+        Exit Function
+    End If
+    If VBA.VarType(value) <> VBA.vbString Then GoTo InvalidDate
+    text = VBA.Trim$(value)
+    If VBA.Len(text) <> 10 Then GoTo InvalidDate
+    Select Case valueFormat.DateFormat
+        Case "dd.MM.yyyy"
+            If VBA.Mid$(text, 3, 1) <> "." Or VBA.Mid$(text, 6, 1) <> "." Then GoTo InvalidDate
+            If Not private_IsDigits(VBA.Left$(text, 2) & VBA.Mid$(text, 4, 2) & VBA.Right$(text, 4)) Then GoTo InvalidDate
+            day = VBA.Val(VBA.Left$(text, 2))
+            month = VBA.Val(VBA.Mid$(text, 4, 2))
+            year = VBA.Val(VBA.Right$(text, 4))
+        Case "yyyy-MM-dd"
+            If VBA.Mid$(text, 5, 1) <> "-" Or VBA.Mid$(text, 8, 1) <> "-" Then GoTo InvalidDate
+            If Not private_IsDigits(VBA.Left$(text, 4) & VBA.Mid$(text, 6, 2) & VBA.Right$(text, 2)) Then GoTo InvalidDate
+            year = VBA.Val(VBA.Left$(text, 4))
+            month = VBA.Val(VBA.Mid$(text, 6, 2))
+            day = VBA.Val(VBA.Right$(text, 2))
+        Case Else
+            GoTo InvalidDate
+    End Select
+    If year < 100 Or year > 9999 Or month < 1 Or month > 12 Or day < 1 Or day > 31 Then GoTo InvalidDate
+    parsed = VBA.DateSerial(year, month, day)
+    If VBA.Year(parsed) <> year Or VBA.Month(parsed) <> month Or VBA.Day(parsed) <> day Then GoTo InvalidDate
+    fn_DateValue = VBA.CDbl(parsed)
+    Exit Function
+InvalidDate:
+    Err.Raise VBA.vbObjectError + 2104, "ex_TableQuery.fn_DateValue", "Invalid date or missing explicit date format/system."
 End Function
 
 Public Function fn_TryApply( _
@@ -271,7 +383,7 @@ Private Sub private_Sort( _
     For i = 1 To orders.Count
         columns(i) = fn_HeaderIndex(headers, orders(i).ColumnName)
     Next i
-    ' Стабильная сортировка слиянием: O(n log n), без перестановки исходных значений.
+    ' Stable merge sort: O(n log n), preserving original values.
     width = 1
     Do While width < count
         For left = 1 To count Step width * 2
@@ -342,9 +454,37 @@ Private Function private_CompareOrder( _
     ElseIf emptyB Then
         private_CompareOrder = 1
     Else
-        private_CompareOrder = fn_Compare(a, b, ordering.ValueType, ordering.NormalizeText, ordering.CaseSensitive)
+        private_CompareOrder = fn_Compare(a, b, ordering.ValueType, ordering.NormalizeText, ordering.CaseSensitive, ordering.ValueFormat, ordering.ValueFormat)
     End If
     If ordering.Descending Then
         private_CompareOrder = -private_CompareOrder
     End If
 End Function
+
+Private Function private_IsNumber(ByVal value As Variant) As Boolean
+    Select Case VBA.VarType(value)
+        Case VBA.vbByte, VBA.vbInteger, VBA.vbLong, VBA.vbSingle, VBA.vbDouble, VBA.vbCurrency, VBA.vbDecimal, 20
+            private_IsNumber = True
+    End Select
+End Function
+
+Private Function private_IsDigits(ByVal text As String) As Boolean
+    Dim i As Long
+    Dim code As Long
+
+    If VBA.Len(text) = 0 Then Exit Function
+    For i = 1 To VBA.Len(text)
+        code = VBA.AscW(VBA.Mid$(text, i, 1))
+        If code < 48 Or code > 57 Then Exit Function
+    Next i
+    private_IsDigits = True
+End Function
+
+Private Sub private_RequireFormat(ByVal valueFormat As obj_QueryValueFormat)
+    If valueFormat Is Nothing Then
+        Err.Raise VBA.vbObjectError + 2108, , "Explicit query value format is required."
+    End If
+    If Not valueFormat.IsInitialized Then
+        Err.Raise VBA.vbObjectError + 2108, , "Query value format is not initialized or is disposed."
+    End If
+End Sub

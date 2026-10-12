@@ -27,7 +27,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set m_messages = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
-            "PersonnelCount", "PersonnelMore", "PersonnelSelected", "ConnectionsReset")
+            "PersonnelCount", "PersonnelMore", "PersonnelSelected", "ConnectionsReset", "CandidateCountTemplate")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _
                 "TravelDocumentsBuilder::text." & VBA.CStr(key), valueText) Then Exit Function
         m_messages(VBA.CStr(key)) = valueText
@@ -47,6 +47,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then Exit Function
+    If Not private_SetCandidateCount(m_lookupResult.RowCount) Then Exit Function
     m_isInitialized = True
     Initialize = True
 End Function
@@ -81,6 +82,7 @@ Public Function SearchPersonnelHandler() As Boolean
     End If
     Set m_lookupResult = result
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
+    If Not private_SetCandidateCount(result.RowCount) Then Exit Function
     statusText = private_BuildPersonnelStatus(VBA.CStr(searchText), result)
     SearchPersonnelHandler = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", statusText)
 End Function
@@ -134,6 +136,7 @@ Public Function RefreshPersonnelHandler() As Boolean
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
     Set m_lookupResult = emptyResult
+    If Not private_SetCandidateCount(emptyResult.RowCount) Then Exit Function
     RefreshPersonnelHandler = m_pageBase.BindingContext.SetValue( _
         "Text", "PersonnelStatus", m_messages("ConnectionsReset"))
 End Function
@@ -153,6 +156,11 @@ Public Function DocumentTypeChangedHandler() As Boolean
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
     DocumentTypeChangedHandler = m_pageBase.UpdatePage()
+End Function
+
+Private Function private_SetCandidateCount(ByVal count As Long) As Boolean
+    private_SetCandidateCount = m_pageBase.BindingContext.SetValue( _
+        "Text", "CandidateCount", VBA.Replace$(m_messages("CandidateCountTemplate"), "{count}", VBA.CStr(count)))
 End Function
 
 Private Function private_BuildPersonnelStatus( _
