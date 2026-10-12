@@ -133,3 +133,105 @@ value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentTargetLabel	�
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.DepartureDateLabel	Дата вибуття
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.ReturnDateLabel	Дата повернення
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.PurposeLabel	Мета відрядження
+value	TravelDocumentsBuilder::text.VacationKind	Вид відпустки
+value	TravelDocumentsBuilder::text.OrderReference	Номер / дата наказу
+value	TravelDocumentsBuilder::text.VacationDays	Дні відпустки
+value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
+value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
+value	TravelDocumentsBuilder::text.VacationAbroad	Виїзд за кордон
+value	TravelDocumentsBuilder::text.VacationStatus	Статус
+value	TravelDocumentsBuilder::text.TvoLookup	ТВО: повний ПІБ / ІПН
+value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
+value	TravelDocumentsBuilder::text.OutputFolderPath	Папка документів
+value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
+value	TravelDocumentsBuilder::text.UpdateDocument	Оновити DOCX
+value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
+value	TravelDocumentsBuilder::text.DocumentPath	Збережений документ
+value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
+value	TravelDocumentsBuilder::generation.defaults.VacationKind	Щорічна відпустка
+value	TravelDocumentsBuilder::generation.defaults.VacationAbroad	Ні
+value	TravelDocumentsBuilder::generation.defaults.VacationStatus	Активна
+value	TravelDocumentsBuilder::generation.defaults.VacationDays	0
+value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
+value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
+value	TravelDocumentsBuilder::generation.defaults.TemplatePath	Шаблони\Відпустка (Шаблон).docx
+value	TravelDocumentsBuilder::generation.defaults.OutputFolderPath	.
+value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
+value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
+value	TravelDocumentsBuilder::generation.registry.workbook	Квитки.xlsx
+value	TravelDocumentsBuilder::generation.registry.sheet	Квитки
+value	TravelDocumentsBuilder::generation.registry.table	tbTickets
+value	TravelDocumentsBuilder::generation.registry.columns	Звання|ПІБ|ІПН|Посада|Подія|Куди|Вибуття.Наказ|Вибуття.Продовольче|Вибуття|Вибуття.Термін|Вибуття.Дорога|Прибуття.План|Прибуття|Прибуття.Продовольче|Прибуття.Наказ|Супровідний документ|ТВО.ПІБ|ТВО.ІПН|ТВО.Посада|Статус
+value	TravelDocumentsBuilder::generation.registry.arrivalFormula	=IF([@Вибуття]="","",[@Вибуття]+SUM([@[Вибуття.Термін]],[@[Вибуття.Дорога]])+1)
+value	TravelDocumentsBuilder::generation.orders.path	../Dependencies/Накази.xlsx
+value	TravelDocumentsBuilder::generation.orders.rangePrefix	generation.orders.year.
+value	TravelDocumentsBuilder::generation.orders.year.2025	[Накази$A2:B12000]
+value	TravelDocumentsBuilder::generation.orders.year.2026	[Накази$D2:E12000]
+value	TravelDocumentsBuilder::generation.orders.numberHeader	Номер наказу
+value	TravelDocumentsBuilder::generation.orders.dateHeader	Дата наказу
+value	TravelDocumentsBuilder::generation.kind.ids	annual,family,treatment,maternity,childcare
+value	TravelDocumentsBuilder::generation.abroad.yes	Так
+value	TravelDocumentsBuilder::generation.abroad.no	Ні
+value	TravelDocumentsBuilder::generation.abroad.word	Дозволено виїзд за кордон
+value	TravelDocumentsBuilder::generation.status.active	Активна
+value	TravelDocumentsBuilder::generation.status.cancelled	Скасовано
+value	TravelDocumentsBuilder::generation.status.mark	СКАСОВАНО
+value	TravelDocumentsBuilder::generation.donation.event	Відпочинок за донацію крові
+value	TravelDocumentsBuilder::generation.donation.orderMissing	NNN
+value	TravelDocumentsBuilder::generation.donation.orderPrefix	(?)
+value	TravelDocumentsBuilder::generation.months	січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня
+value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
+value	TravelDocumentsBuilder::generation.name.active	В.к. {TicketNo} {FIO} ({IPN})
+value	TravelDocumentsBuilder::generation.name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})
+value	TravelDocumentsBuilder::generation.duration.connector	та
+value	TravelDocumentsBuilder::generation.duration.vacation.one	календарний день
+value	TravelDocumentsBuilder::generation.duration.vacation.few	календарні дні
+value	TravelDocumentsBuilder::generation.duration.vacation.many	календарних днів
+value	TravelDocumentsBuilder::generation.duration.donation.one	додатковий день
+value	TravelDocumentsBuilder::generation.duration.donation.few	додаткові дні
+value	TravelDocumentsBuilder::generation.duration.donation.many	додаткових днів
+value	TravelDocumentsBuilder::generation.duration.donation.suffix	відпочинку за донацію донорської крові та/або компонентів крові
+value	TravelDocumentsBuilder::generation.duration.road.one	добу
+value	TravelDocumentsBuilder::generation.duration.road.few	доби
+value	TravelDocumentsBuilder::generation.duration.road.many	діб
+value	TravelDocumentsBuilder::generation.duration.road.suffix	на дорогу
+value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
+value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
+value	TravelDocumentsBuilder::generation.position.reservedText	РОЗП
+value	TravelDocumentsBuilder::generation.position.removedText	СПИС
+value	TravelDocumentsBuilder::generation.message.Required	Не заповнено обов'язкове поле: {value}.
+value	TravelDocumentsBuilder::generation.message.Invalid	Некоректне значення: {value}. Дати вводьте у форматі дд.мм.рррр, дні — цілими невід'ємними числами.
+value	TravelDocumentsBuilder::generation.message.Workbook	Відкрийте доступну для редагування книгу {value} в цьому Excel.
+value	TravelDocumentsBuilder::generation.message.Table	Не знайдено таблицю або аркуш захищено: {value}.
+value	TravelDocumentsBuilder::generation.message.Column	У tbTickets немає колонки: {value}.
+value	TravelDocumentsBuilder::generation.message.Duplicate	Знайдено кілька відповідних записів або документів: {value}. Усуньте неоднозначність.
+value	TravelDocumentsBuilder::generation.message.NotFound	Квиток для оновлення не знайдено: {value}.
+value	TravelDocumentsBuilder::generation.message.Exists	Квиток або файл уже існує: {value}. Скористайтеся оновленням.
+value	TravelDocumentsBuilder::generation.message.Restore	Запис {value} існує, але DOCX відсутній. Створити документ та оновити запис за поточною формою?
+value	TravelDocumentsBuilder::generation.message.Replace	Замінити існуючий документ {value}?
+value	TravelDocumentsBuilder::generation.message.Path	Файл або папка недоступні чи шлях конфліктує з шаблоном: {value}.
+value	TravelDocumentsBuilder::generation.message.Marker	У шаблоні відсутній плейсхолдер: {value}.
+value	TravelDocumentsBuilder::generation.message.Order	Наказ не знайдено, номер некоректний або знайдено кілька наказів: {value}.
+value	TravelDocumentsBuilder::generation.message.Tvo	Не вдалося однозначно визначити ТВО: {value}. Введіть повний ПІБ або ІПН.
+value	TravelDocumentsBuilder::generation.message.Unsupported	Генерація для цього типу документа ще не реалізована: {value}.
+value	TravelDocumentsBuilder::generation.message.Success	DOCX збережено, tbTickets оновлено: {value}.
+value	TravelDocumentsBuilder::generation.message.Failed	Не вдалося згенерувати квиток: {value}
+value	TravelDocumentsBuilder::generation.message.Rollback	Не вдалося повністю відновити дані або прибрати тимчасові файли: {value}
+value	TravelDocumentsBuilder::generation.message.Title	Відпускний квиток
+value	TravelDocumentsBuilder::generation.limits.maxDays	100000
+value	TravelDocumentsBuilder::generation.kind.annual.input	Щорічна відпустка
+value	TravelDocumentsBuilder::generation.kind.annual.word	у частину щорічної основної відпустки
+value	TravelDocumentsBuilder::generation.kind.annual.event	Щорічна відпустка
+value	TravelDocumentsBuilder::generation.kind.family.input	Відпустка за сімейними обставинами
+value	TravelDocumentsBuilder::generation.kind.family.word	у відпустку за сімейними обставинами
+value	TravelDocumentsBuilder::generation.kind.family.event	Відпустка за сімейними обставинами
+value	TravelDocumentsBuilder::generation.kind.treatment.input	Відпустка для лікування після поранення (контузії, травми або каліцтва)
+value	TravelDocumentsBuilder::generation.kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
+value	TravelDocumentsBuilder::generation.kind.treatment.event	Відпустка для лікування
+value	TravelDocumentsBuilder::generation.kind.maternity.input	Відпустка у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.kind.maternity.word	у відпустку у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.kind.maternity.event	Відпустка у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.kind.childcare.input	Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::generation.kind.childcare.word	у відпустку по догляду за дитиною
+value	TravelDocumentsBuilder::generation.kind.childcare.event	Відпустка по догляду за дитиною

@@ -11,12 +11,24 @@ Option Explicit
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
+
 Private m_pageBase As obj_PageBase
 Private m_lookupProfile As obj_LookupProfile
 Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
 Private m_messages As Object
+' //
+' // Lifecycle
+' //
+Private Sub Class_Initialize()
+End Sub
 
+Private Sub Class_Terminate()
+    Me.Dispose
+End Sub
+' //
+' // API
+' //
 Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim key As Variant
     Dim valueText As String
@@ -155,7 +167,78 @@ Public Function DocumentTypeChangedHandler() As Boolean
                 "TravelDocumentsBuilder::text." & prefix & "." & VBA.CStr(key), valueText) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
-    DocumentTypeChangedHandler = m_pageBase.UpdatePage()
+    ' Bindings refresh captions; rebuilding the page during a click disposes the active handler.
+    DocumentTypeChangedHandler = True
+End Function
+
+Public Function CreateDocumentHandler() As Boolean
+    CreateDocumentHandler = private_GenerateDocument(False)
+End Function
+
+Public Function UpdateDocumentHandler() As Boolean
+    UpdateDocumentHandler = private_GenerateDocument(True)
+End Function
+
+Public Function VacationDatesChangedHandler() As Boolean
+    Dim value As Variant
+    Dim parts As Variant
+    Dim departure As Date
+    Dim totalDays As Long
+    Dim key As Variant
+    Dim maximum As String
+    Dim result As String
+    Dim text As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo InvalidInput
+    If Not private_TryReadFormValue("DepartureDate", value) Then GoTo InvalidInput
+    text = VBA.Trim$(VBA.CStr(value))
+    If Not text Like "##.##.####" Then GoTo InvalidInput
+    parts = VBA.Split(text, ".")
+    departure = VBA.DateSerial(VBA.CInt(parts(2)), VBA.CInt(parts(1)), VBA.CInt(parts(0)))
+    If VBA.Format$(departure, "dd.mm.yyyy") <> text Then GoTo InvalidInput
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.limits.maxDays", maximum) Then GoTo InvalidInput
+    For Each key In VBA.Array("VacationDays", "RoadDays", "DonationDays")
+        If Not private_TryReadFormValue(VBA.CStr(key), value) Then GoTo InvalidInput
+        text = VBA.Trim$(VBA.CStr(value))
+        If VBA.Len(text) = 0 Then
+            If VBA.CStr(key) = "VacationDays" Then GoTo InvalidInput
+            text = "0"
+        End If
+        If text Like "*[!0-9]*" Then GoTo InvalidInput
+        If VBA.CDbl(text) > VBA.CDbl(maximum) Then GoTo InvalidInput
+        totalDays = totalDays + VBA.CLng(text)
+    Next key
+    result = VBA.Format$(VBA.DateAdd("d", totalDays, departure), "dd.mm.yyyy")
+InvalidInput:
+    VacationDatesChangedHandler = m_pageBase.BindingContext.SetValue("Form", "ReturnDate", result)
+End Function
+' //
+' // Private
+' //
+Private Function private_GenerateDocument(ByVal isUpdate As Boolean) As Boolean
+    Dim vacationGenerator As obj_TDB_VacationGenerator
+    Dim diagnostic As String
+    Dim title As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo EH
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.GenerationTitle", title) Then Exit Function
+    Set vacationGenerator = New obj_TDB_VacationGenerator
+    If vacationGenerator.Initialize(m_pageBase.BindingContext, m_lookupService) Then
+        private_GenerateDocument = vacationGenerator.TryGenerate(isUpdate, diagnostic)
+    End If
+    vacationGenerator.Dispose
+    If VBA.Len(diagnostic) > 0 Then
+        m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
+        ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, title
+    End If
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    If Not vacationGenerator Is Nothing Then vacationGenerator.Dispose
+    ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_HANDLER_FAILED | " & diagnostic
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, title
 End Function
 
 Private Function private_SetCandidateCount(ByVal count As Long) As Boolean

@@ -20,7 +20,6 @@ Private m_pageDocument As Object
 Private m_targetWorksheet As Worksheet
 Private m_pipeline As obj_UiStylePipeline
 Private m_overlays As Object
-
 ' //
 ' // Lifecycle
 ' //
@@ -30,7 +29,6 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
-
 ' //
 ' // API
 ' //
@@ -376,8 +374,6 @@ Private Sub private_CompileRules()
         rule.Add "properties", properties
     Next rule
 End Sub
-
-
 ' //
 ' // Private
 ' //
@@ -412,8 +408,9 @@ Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
         Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
                  "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
-                 "fontname", "horizontal", "vertical", "indent", "columnwidth", "width", "rowheight", _
-                 "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype"
+                 "fontname", "horizontal", "vertical", "indent", "paddingleft", "paddingright", "columnwidth", "width", "rowheight", _
+                 "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype", _
+                 "shadow", "shadowcolor", "shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety"
                 result(propertyName) = VBA.CStr(attributeNode.Text)
         End Select
     Next attributeNode
@@ -459,8 +456,9 @@ Private Function private_IsVisualProperty(ByVal propertyName As String) As Boole
     Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
              "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
-                 "fontname", "horizontal", "vertical", "indent", "columnwidth", "width", "rowheight", _
-                  "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype"
+                 "fontname", "horizontal", "vertical", "indent", "paddingleft", "paddingright", "columnwidth", "width", "rowheight", _
+                  "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype", _
+                  "shadow", "shadowcolor", "shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety"
             private_IsVisualProperty = True
     End Select
 End Function
@@ -547,8 +545,21 @@ Private Sub private_ApplyProperties( _
         If indentLevel < 0 Or indentLevel > 15 Or indentLevel <> VBA.Fix(indentLevel) Then
             ex_UiStyleDiagnostics.fn_Raise "Property", "indent=" & properties("indent")
         End If
-        If targetShape Is Nothing And Not targetRange Is Nothing Then
+        If Not targetShape Is Nothing Then
+            ' One indent level approximates three characters in the current font.
+            ' Symmetric margins preserve padding for left and right alignment.
+            targetShape.TextFrame2.MarginLeft = indentLevel * targetShape.TextFrame2.TextRange.Font.Size * 1.5
+            targetShape.TextFrame2.MarginRight = indentLevel * targetShape.TextFrame2.TextRange.Font.Size * 1.5
+        ElseIf Not targetRange Is Nothing Then
             targetRange.IndentLevel = VBA.CLng(indentLevel)
+        End If
+    End If
+    If Not targetShape Is Nothing Then
+        If properties.Exists("paddingleft") Then
+            targetShape.TextFrame2.MarginLeft = private_ReadPadding(properties("paddingleft"))
+        End If
+        If properties.Exists("paddingright") Then
+            targetShape.TextFrame2.MarginRight = private_ReadPadding(properties("paddingright"))
         End If
     End If
     If properties.Exists("columnwidth") Then
@@ -596,7 +607,54 @@ Private Sub private_ApplyProperties( _
     If properties.Exists("overflow") And Not targetRange Is Nothing Then _
         private_ApplyOverflow targetRange, properties("overflow")
     private_ApplyBorders targetRange, targetShape, properties
+    If Not targetShape Is Nothing Then private_ApplyShadow targetShape, properties
 End Sub
+
+Private Sub private_ApplyShadow( _
+    ByVal targetShape As Object, _
+    ByVal properties As Object _
+)
+    Dim key As Variant
+    Dim number As Double
+    Dim color As Long
+
+    For Each key In VBA.Array("shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety")
+        If properties.Exists(key) Then
+            If Not ex_Helpers.fn_TryParseInvariantNumber(VBA.CStr(properties(key)), number) Then
+                ex_UiStyleDiagnostics.fn_Raise "Property", VBA.CStr(key)
+            End If
+            Select Case VBA.CStr(key)
+                Case "shadowblur"
+                    If number < 0 Or number > 100 Then ex_UiStyleDiagnostics.fn_Raise "Property", VBA.CStr(key)
+                    targetShape.Shadow.Blur = number
+                Case "shadowtransparency"
+                    If number < 0 Or number > 1 Then ex_UiStyleDiagnostics.fn_Raise "Property", VBA.CStr(key)
+                    targetShape.Shadow.Transparency = number
+                Case "shadowoffsetx"
+                    targetShape.Shadow.OffsetX = number
+                Case "shadowoffsety"
+                    targetShape.Shadow.OffsetY = number
+            End Select
+        End If
+    Next key
+    If properties.Exists("shadowcolor") Then
+        If Not private_TryParseColor(properties("shadowcolor"), color) Then
+            ex_UiStyleDiagnostics.fn_Raise "Property", "shadowcolor"
+        End If
+        targetShape.Shadow.ForeColor.RGB = color
+    End If
+    If properties.Exists("shadow") Then
+        targetShape.Shadow.Visible = VBA.IIf(private_ReadBoolean(properties("shadow")), msoTrue, msoFalse)
+        If private_ReadBoolean(properties("shadow")) Then targetShape.Shadow.Style = msoShadowStyleOuterShadow
+    End If
+End Sub
+
+Private Function private_ReadPadding(ByVal value As String) As Double
+    If Not ex_Helpers.fn_TryParseInvariantNumber(value, private_ReadPadding) Then
+        ex_UiStyleDiagnostics.fn_Raise "Property", value
+    End If
+    If private_ReadPadding < 0 Then ex_UiStyleDiagnostics.fn_Raise "Property", value
+End Function
 
 Private Sub private_ClampWidth( _
     ByVal area As Range, _
