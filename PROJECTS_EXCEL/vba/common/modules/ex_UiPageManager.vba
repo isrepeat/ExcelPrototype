@@ -7,9 +7,15 @@ Private m_activePage As obj_IPage
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_MANAGER_DISPOSE_STARTED"
     ex_UiRuntime.fn_Module_Dispose
-    If Not m_activePage Is Nothing Then m_activePage.Dispose
+    If Not m_activePage Is Nothing Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ACTIVE_PAGE_DISPOSE_STARTED"
+        m_activePage.Dispose
+        ex_Core.fn_Diagnostic_WriteLog "UI_ACTIVE_PAGE_DISPOSE_COMPLETED"
+    End If
     Set m_activePage = Nothing
+    ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_MANAGER_DISPOSE_COMPLETED"
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle

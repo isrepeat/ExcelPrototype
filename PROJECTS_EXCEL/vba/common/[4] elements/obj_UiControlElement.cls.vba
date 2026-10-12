@@ -11,6 +11,7 @@ Option Explicit
 
 Implements obj_IUiElement
 Implements obj_IUiLayoutSlot
+Implements obj_IUiBindingListener
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -19,7 +20,7 @@ Private m_definition As Object
 Private m_intrinsicRows As String
 Private m_intrinsicColumns As String
 Private m_context As obj_UiRenderContext
-Private WithEvents m_bindingContext As obj_UiBindingContext
+Private m_bindingContext As obj_UiBindingContext
 Private m_control As obj_IUiControl
 
 ' //
@@ -44,18 +45,28 @@ Private Function obj_IUiElement_Configure( _
     Dim attributeNode As Object
     Dim bindingSource As String
     Dim bindingPath As String
+    Dim controlName As String
 
     If m_isDisposed Or m_isInitialized Then
         diagnostic = "Element is already initialized or disposed."
         Exit Function
     End If
+    controlName = ex_UiElementFactory.fn_Attribute(definition, "name")
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLONE_STARTED | Name=" & controlName
     Set m_definition = definition.cloneNode(True)
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLONE_COMPLETED | Name=" & controlName
     m_intrinsicRows = ex_UiElementFactory.fn_Attribute(definition, "rowSpan")
     m_intrinsicColumns = ex_UiElementFactory.fn_Attribute(definition, "columnSpan")
     If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then _
         m_definition.setAttribute "type", VBA.CStr(definition.baseName)
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONTEXT_ATTACH_STARTED | Name=" & controlName
     Set m_context = context
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONTEXT_ATTACH_COMPLETED | Name=" & controlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_EVENTS_ATTACH_STARTED | Name=" & controlName
     Set m_bindingContext = context.BindingContext
+    m_bindingContext.Subscribe Me
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_EVENTS_ATTACH_COMPLETED | Name=" & controlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_BINDINGS_PARSE_STARTED | Name=" & controlName
     For Each attributeNode In m_definition.Attributes
         If attributeNode.nodeName <> "dataContext" And VBA.StrComp(VBA.Left$(VBA.Trim$(VBA.CStr(attributeNode.Text)), 9), _
                 "{Binding ", VBA.vbTextCompare) = 0 Then
@@ -67,16 +78,23 @@ Private Function obj_IUiElement_Configure( _
             attributeNode.Text = "{Binding Source=" & bindingSource & "; Path=" & bindingPath & "}"
         End If
     Next attributeNode
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_BINDINGS_PARSE_COMPLETED | Name=" & controlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_FACTORY_CREATE_STARTED | Name=" & controlName
     Set m_control = ex_UiControlFactory.fn_Create(m_definition)
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_FACTORY_CREATE_COMPLETED | Name=" & controlName
     If m_control Is Nothing Then
         diagnostic = "Cannot create control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONFIGURE_STARTED | Name=" & controlName
     If Not m_control.Configure(m_definition, context, source, diagnostic) Then
         If VBA.Len(diagnostic) = 0 Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONFIGURE_COMPLETED | Name=" & controlName
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_REGISTER_STARTED | Name=" & controlName
     context.RegisterElement ex_UiElementFactory.fn_Attribute(definition, "name"), Me
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_REGISTER_COMPLETED | Name=" & controlName
     obj_IUiElement_Configure = True
     m_isInitialized = obj_IUiElement_Configure
 End Function
@@ -139,6 +157,7 @@ Public Sub Dispose()
     m_isInitialized = False
     If Not m_control Is Nothing Then m_control.Dispose
     Set m_control = Nothing
+    If Not m_bindingContext Is Nothing Then m_bindingContext.Unsubscribe Me
     Set m_bindingContext = Nothing
     Set m_context = Nothing
     Set m_definition = Nothing
@@ -147,7 +166,10 @@ End Sub
 ' //
 ' // Private
 ' //
-Private Sub m_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
+Private Sub obj_IUiBindingListener_OnValueChanged( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String _
+)
     private_bindingContext_ValueChanged sourceName, bindingPath
 End Sub
 
@@ -158,7 +180,7 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
     Dim target As obj_IUiBindingTarget
     Dim previousEvents As Boolean
 
-    If m_control Is Nothing Then Exit Sub
+    If m_isDisposed Or m_control Is Nothing Then Exit Sub
     For Each nodeAttribute In m_definition.Attributes
         If nodeAttribute.nodeName <> "selectedItem" Then
             If ex_UiBindingRuntime.fn_TryParseBinding(VBA.CStr(nodeAttribute.Text), _

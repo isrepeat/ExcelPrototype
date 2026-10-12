@@ -10,6 +10,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IUiEventHandler
+Implements obj_IUiCellRefreshListener
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -23,7 +24,7 @@ Private m_itemShapeNames As Collection
 Private m_shapeNames As Collection
 Private m_items As Collection
 Private m_selectedValue As String
-Private WithEvents m_uiCellBinding As obj_UiCellBinding
+Private m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 
 ' //
@@ -102,6 +103,7 @@ Public Function Initialize( _
     m_isExpanded = False
     Initialize = True
     m_isInitialized = Initialize
+    m_uiCellBinding.SubscribeRefresh Me
 End Function
 
 Public Sub Dispose()
@@ -110,6 +112,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_uiCellBinding Is Nothing Then m_uiCellBinding.UnsubscribeRefresh Me
     Set m_uiCellBinding = Nothing
     Set m_items = Nothing
     Set m_shapeNames = Nothing
@@ -232,7 +235,7 @@ Private Sub private_UpdateHeader()
     On Error GoTo 0
 End Sub
 
-Private Sub m_uiCellBinding_ValueRefreshed()
+Private Sub obj_IUiCellRefreshListener_OnValueRefreshed()
     private_uiCellBinding_ValueRefreshed
 End Sub
 

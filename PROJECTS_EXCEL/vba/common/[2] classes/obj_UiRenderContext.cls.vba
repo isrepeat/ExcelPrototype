@@ -108,10 +108,14 @@ Public Function Build(ByRef diagnostic As String) As Boolean
     Dim errors As New Collection
     Dim markupError As obj_UiMarkupDiagnostic
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_VALIDATOR_INITIALIZE_STARTED"
     If Not validator.Initialize() Then
         Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_VALIDATOR_INITIALIZE_COMPLETED"
+    ex_Core.fn_Diagnostic_WriteLog "UI_MARKUP_VALIDATE_STARTED"
     If Not validator.Validate(m_uiPageDefinition.Document.documentElement, errors) Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_MARKUP_VALIDATE_FAILED"
         diagnostic = VBA.vbNullString
         For Each markupError In errors
             If VBA.Len(diagnostic) > 0 Then diagnostic = diagnostic & VBA.vbCrLf
@@ -119,9 +123,12 @@ Public Function Build(ByRef diagnostic As String) As Boolean
         Next markupError
         Exit Function
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_MARKUP_VALIDATE_COMPLETED"
+    ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_CREATE_STARTED"
     Set m_root = ex_UiElementFactory.fn_Create(m_uiPageDefinition.Document.documentElement, _
         Me, VBA.vbNullString, diagnostic)
     Build = Not m_root Is Nothing
+    ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_CREATE_COMPLETED | Success=" & VBA.CStr(Build)
 End Function
 
 Public Sub InvalidateMeasure()
@@ -297,8 +304,17 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
 
-    If Not m_router Is Nothing Then m_router.Dispose
-    If Not m_root Is Nothing Then m_root.Dispose
+    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_STARTED"
+    If Not m_router Is Nothing Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_STARTED"
+        m_router.Dispose
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_COMPLETED"
+    End If
+    If Not m_root Is Nothing Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_STARTED"
+        m_root.Dispose
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_COMPLETED"
+    End If
     If Not m_elements Is Nothing Then
         For Each key In m_elements.Keys
             Set element = m_elements(key)
@@ -317,4 +333,5 @@ Public Sub Dispose()
     Set m_uiPageDefinition = Nothing
     Set m_targetWorksheet = Nothing
     m_uiFolderPath = VBA.vbNullString
+    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_COMPLETED"
 End Sub

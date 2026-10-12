@@ -14,8 +14,10 @@ Public Sub fn_Module_Dispose()
 
     If Not m_pages Is Nothing Then
         For Each key In m_pages.Keys
+            ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_DISPOSE_STARTED | Sheet=" & VBA.CStr(key)
             Set context = m_pages(key)
             context.Dispose
+            ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_DISPOSE_COMPLETED | Sheet=" & VBA.CStr(key)
         Next key
     End If
     Set m_pages = Nothing
@@ -135,13 +137,18 @@ Private Function private_RenderPage( _
     If Not ex_UiPageLoader.fn_TryLoad(xamlPath, uiPageDefinition) Then Exit Function
     ex_Core.fn_Diagnostic_WritePerf "Page.LoadXaml | Sheet=" & targetWorksheet.Name, startedAt
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_CREATE_STARTED | Sheet=" & targetWorksheet.Name
     Set uiRenderContext = New obj_UiRenderContext
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_CREATE_COMPLETED | Sheet=" & targetWorksheet.Name
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_INITIALIZE_STARTED | Sheet=" & targetWorksheet.Name
     If Not uiRenderContext.Initialize( _
             targetWorksheet, uiPageDefinition, uiFolderPath, uiBindingContext) Then
         ex_WindowsUi.fn_ShowMessage "The UI render context cannot be initialized.", _
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
+
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTEXT_INITIALIZE_COMPLETED | Sheet=" & targetWorksheet.Name
 
     If m_pages Is Nothing Then
         Set m_pages = VBA.CreateObject("Scripting.Dictionary")
@@ -150,11 +157,14 @@ Private Function private_RenderPage( _
     Dim diagnostic As String
     Dim previousContext As obj_UiRenderContext
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_STARTED | Sheet=" & targetWorksheet.Name
     If Not uiRenderContext.Build(diagnostic) Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_FAILED | Sheet=" & targetWorksheet.Name & " | Description=" & diagnostic
         uiRenderContext.Dispose
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "UI configuration"
         Exit Function
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_COMPLETED | Sheet=" & targetWorksheet.Name
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH_RENDER_PAGE
     Application.ScreenUpdating = False

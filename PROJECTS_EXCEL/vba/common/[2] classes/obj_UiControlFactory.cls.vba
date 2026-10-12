@@ -33,6 +33,7 @@ End Sub
 Private Function obj_IUiControlFactory_Create() As obj_IUiControl
     Dim control As obj_IUiControl
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_NEW_STARTED | Type=" & m_type
     Select Case m_type
         Case "label"
             Set control = New obj_UiLabelControl
@@ -49,8 +50,11 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
         Case "input", "select"
             Set control = New obj_UiFieldControl
     End Select
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_NEW_COMPLETED | Type=" & m_type
     If control Is Nothing Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_INITIALIZE_STARTED | Type=" & m_type
     If Not control.Initialize() Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_INITIALIZE_COMPLETED | Type=" & m_type
     Set obj_IUiControlFactory_Create = control
 End Function
 
