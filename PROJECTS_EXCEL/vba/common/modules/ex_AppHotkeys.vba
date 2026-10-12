@@ -3,6 +3,7 @@ Option Explicit
 Private Const DIAGNOSTIC_MODE_IMMEDIATE As String = "Immediate"
 Private Const DIAGNOSTIC_MODE_BUFFERED As String = "Buffered"
 Private Const DIAGNOSTIC_MODE_HOTKEY As String = "^%l"
+Private Const UPDATE_PAGE_HOTKEY As String = "^r"
 Private Const PERSONAL_WORKBOOK_NAME As String = "PERSONAL.XLSB"
 Private Const PERSONAL_RESTORE_MACRO As String = "ex_Core.fn_RestorePersonalHotkeys"
 Private m_hotkeyHandlers As Object
@@ -98,6 +99,26 @@ Public Sub fn_Deactivate()
     m_isBrokerManaged = False
 End Sub
 
+Public Sub fn_UpdatePage()
+    Dim runtimeContext As Object
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    On Error GoTo EH_UPDATE
+    If Not ex_UiRuntime.fn_UpdateActivePage() Then
+        ex_Core.fn_Diagnostic_WriteLog "HOTKEY_PAGE_UPDATE_FAILED"
+    End If
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_UPDATE:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    VBA.Err.Raise errorNumber, "fn_UpdatePage", errorDescription
+End Sub
+
 Public Sub fn_ToggleDiagnosticMode()
     Dim runtimeContext As Object
     Dim errorNumber As Long
@@ -143,6 +164,8 @@ Private Sub private_EnsureRegistry()
         m_hotkeyHandlers.CompareMode = VBA.vbTextCompare
         m_hotkeyHandlers(DIAGNOSTIC_MODE_HOTKEY) = _
             "ex_AppHotkeys.fn_ToggleDiagnosticMode"
+        m_hotkeyHandlers(UPDATE_PAGE_HOTKEY) = _
+            "ex_AppHotkeys.fn_UpdatePage"
     End If
 End Sub
 
