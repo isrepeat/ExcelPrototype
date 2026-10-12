@@ -21,7 +21,7 @@ Private m_refreshCommand As obj_UiCommand
 Private m_configuration As obj_PG_Configuration
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -195,7 +195,7 @@ Public Function CancelHandler() As Boolean
 End Function
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Function private_TryReadConfiguration( _
     ByVal suffix As String, _

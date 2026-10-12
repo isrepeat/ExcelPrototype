@@ -17,7 +17,7 @@ Private m_runtimeContext As Object
 Private m_interval As Long
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -78,7 +78,7 @@ Public Sub LogDebug(ByVal message As String)
 End Sub
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Sub private_EnsureReady()
     If Not m_isInitialized Or m_isDisposed Then

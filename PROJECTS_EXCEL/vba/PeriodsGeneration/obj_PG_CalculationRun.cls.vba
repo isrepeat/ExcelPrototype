@@ -23,7 +23,7 @@ Private m_running As Boolean
 Private m_disposeRequested As Boolean
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -33,7 +33,7 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // Свойства
+' // Properties
 ' //
 Public Property Get IsRunning() As Boolean
     private_EnsureReady
@@ -155,7 +155,7 @@ Public Sub RequestCancel()
 End Sub
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Sub private_DisposeServices()
     If Not m_resultWriter Is Nothing Then

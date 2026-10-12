@@ -29,6 +29,7 @@ Public Function Initialize(ByVal profile As obj_LookupProfile) As Boolean
     If profile Is Nothing Then Exit Function
     If profile.Columns Is Nothing Then Exit Function
     Set m_profile = profile
+    ex_TableDataRuntime.fn_Register Me
     m_isInitialized = True
     Initialize = True
 End Function
@@ -38,6 +39,7 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     Me.InvalidateCache
+    ex_TableDataRuntime.fn_Unregister Me
     Set m_profile = Nothing
 End Sub
 
@@ -292,7 +294,7 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
         Exit Function
     End If
     ex_Core.fn_Diagnostic_WriteLog "LOOKUP_CACHE_LOAD_STARTED"
-    busyEntered = ex_UiBusy.fn_Begin("Завантаження кандидатів...")
+    busyEntered = ex_UiBusy.fn_Begin(m_profile.LoadingText)
     Set service = New obj_TableQueryService
     Set query = New obj_TableQuery
     If Not service.Initialize() Or Not query.Initialize() Then Err.Raise 5, , "Cannot initialize source query."
@@ -321,7 +323,8 @@ Cleanup:
     If Not private_LoadCache Then Me.InvalidateCache
     Exit Function
 EH:
-    diagnostic = "Load lookup source: " & VBA.Err.Description
+    diagnostic = "Load lookup source: Number=" & VBA.CStr(VBA.Err.Number) & _
+        " | Source=" & VBA.Err.Source & " | Description=" & VBA.Err.Description
     Resume Cleanup
 End Function
 

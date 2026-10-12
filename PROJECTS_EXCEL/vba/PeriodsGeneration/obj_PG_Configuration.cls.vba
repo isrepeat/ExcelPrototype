@@ -15,7 +15,7 @@ Private m_isDisposed As Boolean
 Private m_values As Object
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -90,7 +90,7 @@ Public Sub Fail(ByVal message As String)
 End Sub
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Function private_RequiredKeys() As Collection
     Dim keys As Collection

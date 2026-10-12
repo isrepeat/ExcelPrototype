@@ -182,6 +182,7 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     schema.AddAttribute "borderLineStyle", "string", False, "", False, 0
     schema.AddAttribute "horizontal", "string", False, "", False, 0
     schema.AddAttribute "vertical", "string", False, "", False, 0
+    schema.AddAttribute "indent", "nonnegative", False, "", False, 0
     schema.AddAttribute "overflow", "string", False, "", False, 0
     schema.AddAttribute "width", "string", False, "", False, 0
     schema.AddAttribute "rowHeight", "string", False, "", False, 0

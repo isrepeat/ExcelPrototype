@@ -18,7 +18,7 @@ Private m_interval As Long
 
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -121,7 +121,7 @@ Public Function Calculate( _
 End Function
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Function private_ReadPeriods( _
     ByVal sourceTable As ListObject, _
@@ -245,7 +245,7 @@ NextRow:
 End Function
 
 ' //
-' // Преобразование дат
+' // Date conversion
 ' //
 Private Function private_TryConvertToDate( _
     ByVal value As Variant, _
@@ -272,7 +272,7 @@ ConversionFailed:
 End Function
 
 ' //
-' // Сортировка
+' // Sorting
 ' //
 Private Sub private_SortPeriods( _
     ByRef periods() As obj_PG_Period, _
@@ -359,7 +359,7 @@ Private Function private_ComparePeriods( _
 End Function
 
 ' //
-' // Объединение по человеку
+' // Merge by person
 ' //
 Private Function private_MergePeriodsByPerson( _
     ByRef source() As obj_PG_Period, _
@@ -429,7 +429,7 @@ Private Sub private_MergeIntoPeriod( _
 End Sub
 
 ' //
-' // Сравнение людей
+' // Person comparison
 ' //
 Private Function private_IsSamePerson( _
     ByRef leftPeriod As obj_PG_Period, _
@@ -439,7 +439,7 @@ Private Function private_IsSamePerson( _
 End Function
 
 ' //
-' // Непрерывность
+' // Continuity
 ' //
 Private Function private_IsContinuous( _
     ByRef currentPeriod As obj_PG_Period, _
@@ -452,17 +452,17 @@ Private Function private_IsContinuous( _
     If Not private_IsMergeableEvent(NextPeriod.EventName) Then
         Exit Function
     End If
-    ' Периоды пересекаются или имеют общую граничную дату.
+    ' Periods overlap or share a boundary date.
     If NextPeriod.dateFrom <= currentPeriod.dateTo Then
         private_IsContinuous = True
         Exit Function
     End If
-    ' Правило объединения соседних календарных дней временно отключено.
+    ' Merging adjacent calendar days is temporarily disabled.
     '
     ' 01.06 - 10.06
     ' 11.06 - 20.06
     '
-    ' Соседние периоды объединяются только при совпадении номеров приказов.
+    ' Adjacent periods merge only when their order numbers match.
     ' If NextPeriod.dateFrom = DateAdd("d", 1, currentPeriod.dateTo) Then
     '     If private_OrdersMatch(currentPeriod.ArrivalOrder, NextPeriod.DepartureOrder) Then
     '         private_IsContinuous = True
@@ -496,7 +496,7 @@ Private Function private_IsEventInList( _
 End Function
 
 ' //
-' // Сравнение приказов
+' // Order comparison
 ' //
 Private Function private_OrdersMatch( _
     ByVal closingOrder As String, _
@@ -515,11 +515,11 @@ Private Function private_OrdersMatch( _
 End Function
 
 ' ============================================================
-' Фильтрация по диапазону
+' Filter by date range
 '
-' Исходные даты периодов сохраняются без обрезки.
-' В результат попадают только периоды с событиями из m_configuration.GetText("legacy.DISPLAYABLE_EVENTS"),
-' которые пересекаются с заданным диапазоном.
+' Preserve original period dates without clipping.
+' Include only periods with events from m_configuration.GetText("legacy.DISPLAYABLE_EVENTS")
+' that intersect the requested range.
 ' ============================================================
 Private Function private_FilterPeriodsByRange( _
     ByRef periods() As obj_PG_Period, _
@@ -577,7 +577,7 @@ Private Function private_IsCancellationRequested( _
     If yieldToUi Then
         m_runContext.CheckCancel 0
     End If
-    ' Отмена прерывает весь запуск исключением из CheckCancel.
+    ' Cancellation aborts the entire run through a CheckCancel exception.
     private_IsCancellationRequested = False
 End Function
 

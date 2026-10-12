@@ -101,7 +101,7 @@ Public Sub fn_Prepare( _
     names.CompareMode = VBA.vbTextCompare
     Set owners = VBA.CreateObject("Scripting.Dictionary")
     Set owned = private_OwnedTables(sheet)
-    ' Сначала проверяем весь план, до изменения объектов листа.
+    ' Validate the entire plan before changing worksheet objects.
     For Each plan In plans
         If owners.Exists(plan("marker")) Then private_Fail "Duplicate table owner: " & plan("owner")
         owners.Add plan("marker"), Empty
@@ -157,7 +157,7 @@ Public Sub fn_Prepare( _
             End If
         Next table
     Next plan
-    ' Сначала освобождаем перемещённые и исчезнувшие таблицы, затем расширяем оставшиеся.
+    ' Release moved and removed tables before expanding the remaining tables.
     For Each key In owned.Keys
         Set table = owned(key)
         keep = False
@@ -184,7 +184,7 @@ Public Sub fn_Prepare( _
                 Set previousRange = table.Range
                 table.ShowTotals = False
                 If table.AutoFilter.FilterMode Then table.AutoFilter.ShowAllData
-                ' Уменьшаем все старые области до расширения соседних таблиц.
+                ' Shrink all old ranges before expanding adjacent tables.
                 Set part = Application.Intersect(table.Range, area)
                 If table.Range.Address <> part.Address Then table.Resize part
                 Set parts = New Collection
@@ -224,7 +224,7 @@ Public Sub fn_Apply(ByVal plan As Object)
     If table Is Nothing And Not marker Is Nothing Then Set table = private_FindTable(sheet.Parent, plan("name"))
     If table Is Nothing Then
         Set table = sheet.ListObjects.Add(SourceType:=xlSrcRange, Source:=area, XlListObjectHasHeaders:=xlYes)
-        ' Маркер создаём сразу, чтобы последующая ошибка не оставила бесхозную таблицу.
+        ' Create the marker immediately so a later error cannot leave an unowned table.
         Set marker = sheet.Names.Add(Name:=plan("marker"), RefersTo:="=1", Visible:=False)
         marker.Comment = table.Name
     End If

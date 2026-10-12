@@ -18,7 +18,7 @@ Private m_pageBase As obj_PageBase
 Private m_controller As obj_PG_PgMainController
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -28,7 +28,7 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // Интерфейс
+' // Interface
 ' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
     If m_isDisposed Or m_isInitialized Then

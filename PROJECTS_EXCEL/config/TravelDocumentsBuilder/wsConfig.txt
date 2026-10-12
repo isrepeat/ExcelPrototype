@@ -12,13 +12,27 @@ value	TravelDocumentsBuilder::text.PersonnelEmpty	Кандидатів не зн
 value	TravelDocumentsBuilder::text.PersonnelCount	Кандидатів: {count}. Оберіть рядок праворуч.
 value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
 value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
-value	TravelDocumentsBuilder::text.PersonNameLabel	Пошук ПІБ / ІПН
+value	TravelDocumentsBuilder::text.PersonNameLabel	ПІБ
+value	TravelDocumentsBuilder::text.Title	Документи
+value	TravelDocumentsBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	TravelDocumentsBuilder::text.DocumentSection	ДАНІ ДОКУМЕНТА
+value	TravelDocumentsBuilder::text.SearchSection	ПОШУК ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	TravelDocumentsBuilder::text.SearchPersonnel	Знайти
+value	TravelDocumentsBuilder::text.SearchLabel	ПІБ або ІПН
+value	TravelDocumentsBuilder::text.PersonPositionCodeLabel	Код посади
+value	TravelDocumentsBuilder::text.UnknownDocumentType	Невідомий тип документа: {value}
+value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток
+value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
+value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
 value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
+value	TravelDocumentsBuilder::text.CheckboxChecked	☑
+value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
 value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
 value	TravelDocumentsBuilder::text.PersonRankLabel	Звання
 value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
 value	TravelDocumentsBuilder::text.PersonUnitLabel	Підрозділ
-value	TravelDocumentsBuilder::text.RefreshPersonnel	Оновити ШПО
+value	TravelDocumentsBuilder::text.RefreshPersonnel	Розірвати з’єднання
+value	TravelDocumentsBuilder::text.ConnectionsReset	Кеші даних скинуто. Повторіть пошук для завантаження актуальних даних.
 value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
 value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
 value	TravelDocumentsBuilder::text.RankHeader	Звання
@@ -26,6 +40,7 @@ value	TravelDocumentsBuilder::text.PositionHeader	Посада
 value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
 value	TravelDocumentsBuilder::lookup.Personnel.key	Personnel.TaxId
+value	TravelDocumentsBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
 value	TravelDocumentsBuilder::lookup.Personnel.minChars	2
 value	TravelDocumentsBuilder::lookup.Personnel.maxResults	50
 value	TravelDocumentsBuilder::lookup.Personnel.source.path	../Dependencies/ШПО.xlsx
@@ -55,7 +70,7 @@ value	TravelDocumentsBuilder::lookup.Personnel.search.1.name	Personnel.FullName
 value	TravelDocumentsBuilder::lookup.Personnel.search.1.match	contains
 value	TravelDocumentsBuilder::lookup.Personnel.search.2.name	Personnel.TaxId
 value	TravelDocumentsBuilder::lookup.Personnel.search.2.match	contains
-value	TravelDocumentsBuilder::lookup.Personnel.apply.count	5
+value	TravelDocumentsBuilder::lookup.Personnel.apply.count	6
 value	TravelDocumentsBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
 value	TravelDocumentsBuilder::lookup.Personnel.apply.1.target	Form.PersonName
 value	TravelDocumentsBuilder::lookup.Personnel.apply.1.policy	overwrite
@@ -76,6 +91,10 @@ value	TravelDocumentsBuilder::lookup.Personnel.apply.5.field	Personnel.Unit
 value	TravelDocumentsBuilder::lookup.Personnel.apply.5.target	Form.PersonUnit
 value	TravelDocumentsBuilder::lookup.Personnel.apply.5.policy	overwrite
 value	TravelDocumentsBuilder::lookup.Personnel.apply.5.required	True
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.field	Personnel.PositionCode
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.target	Form.PersonPositionCode
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.required	False
 value	TravelDocumentsBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
 value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	TravelDocumentsBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.

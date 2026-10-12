@@ -18,6 +18,7 @@ Public Function fn_PrepareReload() As Boolean
     If Not ex_Core.fn_Diagnostic_Flush() Then _
         VBA.Err.Raise VBA.vbObjectError + 2205, "fn_PrepareReload", "Diagnostic log flush failed."
     ex_UiPageManager.fn_Module_Dispose
+    ex_TableDataRuntime.fn_Module_Dispose
     ex_UiBindings.fn_Module_Dispose
     ex_UiRuntime.fn_Module_Dispose
     ex_UiElementFactory.fn_Module_Dispose

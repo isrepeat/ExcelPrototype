@@ -18,7 +18,7 @@ Private m_startDate As Date
 Private m_endDate As Date
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -28,7 +28,7 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // Свойства
+' // Properties
 ' //
 
 Public Property Get StartDate() As Date
@@ -95,7 +95,7 @@ Public Sub Dispose()
 End Sub
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 
 Private Function private_TryDate( _

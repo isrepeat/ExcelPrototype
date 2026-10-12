@@ -24,6 +24,7 @@ value	PersonalEventBuilder::text.RankHeader	Звання
 value	PersonalEventBuilder::text.PositionHeader	Посада
 value	PersonalEventBuilder::text.UnitHeader	Підрозділ
 value	PersonalEventBuilder::lookup.Personnel.key	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
 value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.source.path	../Dependencies/ШПО.xlsx

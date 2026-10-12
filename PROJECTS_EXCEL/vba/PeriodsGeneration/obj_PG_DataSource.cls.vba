@@ -16,7 +16,7 @@ Private m_configuration As obj_PG_Configuration
 Private m_runContext As obj_PG_RunContext
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -111,7 +111,7 @@ Public Function FindSourceTable() As ListObject
 End Function
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Sub private_EnsureReady()
     If Not m_isInitialized Or m_isDisposed Then
