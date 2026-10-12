@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles"
+      xmlns:controls="urn:excelprototype:controls"
+      version="1">
+  <grid anchorCell="A1">
+    <grid.columnDefinitions>
+      <columnDefinition size="1"/>
+      <columnDefinition size="auto"/>
+      <columnDefinition size="2"/>
+      <columnDefinition size="auto"/>
+      <columnDefinition size="2"/>
+      <columnDefinition size="2"/>
+    </grid.columnDefinitions>
+    <grid.rowDefinitions>
+      <rowDefinition size="auto"/>
+      <rowDefinition size="auto"/>
+    </grid.rowDefinitions>
+
+    <controls:label name="Title"
+                    column="2"
+                    columnSpan="5"
+                    style="pageTitle"
+                    text="{Binding Path=Text.Title}"/>
+
+    <stackPanel row="2" column="2" orientation="vertical">
+      <controls:form name="DocumentModeForm"
+                     dataContext="{Binding Path=Form}"
+                     orientation="vertical"
+                     labelPosition="left"
+                     labelStyle="formLabel"
+                     fieldStyle="formField">
+        <field name="DocumentType"
+               type="select"
+               itemsSource="{Binding Path=Data.DocumentTypes}"
+               value="{Binding Path=DocumentType}"
+               label="{Binding Path=Text.DocumentTypeLabel}"
+               panelStyle="formSelectPanel"
+               itemStyle="formSelectItem"
+               onChange="{Binding Path=Commands.DocumentTypeChanged}"/>
+      </controls:form>
+
+      <stackPanel orientation="vertical"/>
+
+      <controls:label name="DocumentFormTitle"
+                      style="formField"
+                      text="{Binding Path=Text.DocumentFormTitle}"/>
+
+      <controls:form name="TravelDocumentForm"
+                     dataContext="{Binding Path=Form}"
+                     orientation="vertical"
+                     labelPosition="left"
+                     labelStyle="formLabel"
+                     fieldStyle="formField">
+        <field name="PersonName"
+               type="text"
+               value="{Binding Path=PersonName}"
+               label="{Binding Path=Text.PersonNameLabel}"
+               onChange="{Binding Path=Commands.SearchPersonnel}"/>
+        <field name="PersonId" type="text" value="{Binding Path=PersonId}" label="{Binding Path=Text.PersonIdLabel}" readOnly="true"/>
+        <field name="PersonRank" type="text" value="{Binding Path=PersonRank}" label="{Binding Path=Text.PersonRankLabel}" readOnly="true"/>
+        <field name="PersonPosition" type="text" value="{Binding Path=PersonPosition}" label="{Binding Path=Text.PersonPositionLabel}" readOnly="true"/>
+        <field name="PersonUnit" type="text" value="{Binding Path=PersonUnit}" label="{Binding Path=Text.PersonUnitLabel}" readOnly="true"/>
+        <field name="DocumentTarget" type="text" value="{Binding Path=DocumentTarget}" label="{Binding Path=Text.DocumentTargetLabel}"/>
+        <field name="DepartureDate" type="text" value="{Binding Path=DepartureDate}" label="{Binding Path=Text.DepartureDateLabel}"/>
+        <field name="ReturnDate" type="text" value="{Binding Path=ReturnDate}" label="{Binding Path=Text.ReturnDateLabel}"/>
+        <field name="Purpose" type="text" value="{Binding Path=Purpose}" label="{Binding Path=Text.PurposeLabel}"/>
+      </controls:form>
+    </stackPanel>
+
+    <stackPanel row="2" column="4" orientation="vertical">
+      <controls:label name="LookupStatus" style="formField" text="{Binding Path=Text.PersonnelStatus}"/>
+      <controls:table name="Candidates"
+                      itemsSource="{Binding Path=Data.PersonnelCandidates}"
+                      style="candidateTable"
+                      selectedItem="{Binding Path=Data.SelectedPersonnel}"
+                      onSelect="{Binding Path=Commands.SelectPersonnel}"
+                      selectedStyle="candidateSelected"
+                      showHeaders="true"/>
+    </stackPanel>
+
+    <stackPanel row="2" column="6" orientation="vertical">
+      <controls:button name="RefreshPersonnel"
+                       style="secondaryButton"
+                       caption="{Binding Path=Text.RefreshPersonnel}"
+                       command="{Binding Path=Commands.RefreshPersonnel}"/>
+    </stackPanel>
+  </grid>
+
+  <styles>
+    <controlStyle name="candidateTable" backColor="#2D2D2D" textColor="#FFFFFF" borderColor="#444444" borderWeight="thin" vertical="center"/>
+    <controlStyle name="candidateSelected" backColor="#375D7A" textColor="#FFFFFF" borderColor="#6A9EC4" borderWeight="thin" vertical="center"/>
+    <controlStyle name="pageTitle" backColor="#262626" textColor="#FFFFFF" fontName="Calibri" fontSize="16" fontBold="true" horizontal="center" vertical="center"/>
+    <controlStyle name="formLabel" backColor="#2D2D2D" textColor="#FFFFFF" fontName="Calibri" fontSize="11" horizontal="right" vertical="center"/>
+    <controlStyle name="formField" backColor="#2D2D2D" textColor="#F4A46B" fontName="Calibri" fontSize="11" borderColor="#000000" borderWeight="thin" horizontal="left" vertical="center"/>
+    <controlStyle name="formSelectPanel" backColor="#2D2D2D" borderColor="#000000" borderWeight="thin"/>
+    <controlStyle name="formSelectItem" backColor="#2D2D2D" textColor="#F4A46B" fontName="Calibri" fontSize="11" vertical="center"/>
+    <controlStyle name="secondaryButton" backColor="#3B3B3B" textColor="#00B0F0" fontName="Calibri" fontSize="12" borderColor="#172B34" borderWeight="thin" horizontal="center" vertical="center"/>
+    <stylePipelineStage name="default">
+      <layer name="sheet-base">
+        <rule target="sheet" styles="{backColor:#262626;fontColor:#FFFFFF;borderColor:#000000;borderWeight:thin;rowHeight:28;overflow:wrap;gridLines:false;zoom:90%;}"/>
+        <rule target="column" selector="address=A:A" styles="{width:2;}"/>
+        <rule target="column" selector="address=G:G" styles="{width:38;}"/>
+        <rule target="column" selector="address=H:H" styles="{width:15;}"/>
+        <rule target="column" selector="address=I:I" styles="{width:18;}"/>
+        <rule target="column" selector="address=J:J" styles="{width:35;}"/>
+        <rule target="column" selector="address=K:K" styles="{width:25;}"/>
+      </layer>
+      <layer name="layout">
+        <rule style="pageTitle" target="control" selector="style=pageTitle"/>
+        <rule style="formLabel" target="control" selector="style=formLabel"/>
+        <rule style="formField" target="control" selector="style=formField"/>
+        <rule style="candidateTable" target="control" selector="style=candidateTable"/>
+      </layer>
+      <layer name="table-parts">
+        <rule target="controlPart" selector="type=table;part=header" styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;}"/>
+        <rule target="controlPart" selector="type=table;part=row;tags=even" styles="{backColor:#383838;}"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>
