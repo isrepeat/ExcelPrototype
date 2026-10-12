@@ -221,9 +221,9 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     ex_UiTables.fn_Prepare m_targetWorksheet, m_tablePlans
     m_rows = rows
     m_columns = columns
-    m_styles.BeginRender
+    m_styles.BeginRender rows, columns
     RenderTree = m_root.Render(diagnostic)
-    If RenderTree Then m_styles.ApplyStage "default"
+    If RenderTree Then m_styles.CompleteRender
     m_hasRendered = RenderTree
 CleanExit:
     m_rendering = False
