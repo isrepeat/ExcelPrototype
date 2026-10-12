@@ -114,7 +114,7 @@ def validate_profile():
     check(int(profile.attrib["minChars"]) >= 1, "Invalid minimum search length")
     check(1 <= int(profile.attrib["maxResults"]) <= 1000, "Invalid result limit")
     source = profile.find("source")
-    check(source.attrib["sheet"] == "ОС", "Personnel source must use ОС")
+    check(bool(source.attrib["sheet"].strip()), "Personnel source sheet must be configured")
     check(source.attrib["range"] == "auto", "Personnel source must grow automatically")
     workbook = (ROOT / "workbook/PersonalEventBuilder" / source.attrib["path"]).resolve()
     check(workbook.is_file(), "Source workbook not found")
@@ -174,7 +174,7 @@ def validate_profile():
             check(bool(config.get(column.attrib["captionKey"])), "Caption configuration missing")
     for path in (ROOT / "vba/PersonalEventBuilder").glob("*.vba"):
         text = path.read_text(encoding="utf-8")
-        check(not re.search(r'"[^"\n]*[А-Яа-яІіЇїЄє][^"\n]*"', text), "Localized message hardcoded in VBA")
+        check(text.isascii(), "Non-ASCII content found in VBA")
     for name in ("PersonnelCount", "PersonnelMore"):
         check("{count}" in config["PersonalEventBuilder::text." + name], "Count placeholder missing")
     check("{minChars}" in config["PersonalEventBuilder::text.PersonnelMinimum"], "Minimum-length placeholder missing")

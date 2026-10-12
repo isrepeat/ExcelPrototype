@@ -26,7 +26,7 @@ Private m_dateTo As Date
 Private m_ArrivalOrder As String
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -36,7 +36,7 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
-' // Свойства
+' // Properties
 ' //
 Public Property Get Rank() As String
     private_EnsureReady
@@ -177,7 +177,7 @@ Public Sub Dispose()
 End Sub
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Sub private_EnsureReady()
     If Not m_isInitialized Or m_isDisposed Then

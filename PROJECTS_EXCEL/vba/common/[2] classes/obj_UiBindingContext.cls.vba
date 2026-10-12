@@ -69,7 +69,7 @@ Public Function TryApplyValues( _
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Binding context is not initialized."
     If updates Is Nothing Then Err.Raise 5, , "Binding updates are required."
-    ' Проверяем все назначения до записи. Уведомления видят уже заполненную форму.
+    ' Validate all assignments before writing; notifications see the completed form.
     For Each key In updates.Keys
         If VBA.IsObject(updates(key)) Or VBA.IsError(updates(key)) Then Err.Raise 5, , "Batch updates require scalar values."
         separator = VBA.InStr(1, VBA.CStr(key), ".")

@@ -383,7 +383,7 @@ Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
         Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
                  "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
-                 "fontname", "horizontal", "vertical", "columnwidth", "width", "rowheight", _
+                 "fontname", "horizontal", "vertical", "indent", "columnwidth", "width", "rowheight", _
                  "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype"
                 result(propertyName) = VBA.CStr(attributeNode.Text)
         End Select
@@ -430,7 +430,7 @@ Private Function private_IsVisualProperty(ByVal propertyName As String) As Boole
     Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
              "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
-                 "fontname", "horizontal", "vertical", "columnwidth", "width", "rowheight", _
+                 "fontname", "horizontal", "vertical", "indent", "columnwidth", "width", "rowheight", _
                   "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype"
             private_IsVisualProperty = True
     End Select
@@ -449,6 +449,7 @@ Private Sub private_ApplyProperties( _
     ByVal properties As Object _
 )
     Dim colorValue As Long
+    Dim indentLevel As Double
 
     If properties Is Nothing Then Exit Sub
     If properties.Exists("backcolor") Then
@@ -509,6 +510,18 @@ Private Sub private_ApplyProperties( _
         targetRange, targetShape, properties("horizontal")
     If properties.Exists("vertical") Then private_ApplyVerticalAlignment _
         targetRange, targetShape, properties("vertical")
+    If properties.Exists("indent") Then
+        If Not VBA.IsNumeric(properties("indent")) Then
+            ex_UiStyleDiagnostics.fn_Raise "Property", "indent=" & properties("indent")
+        End If
+        indentLevel = VBA.CDbl(properties("indent"))
+        If indentLevel < 0 Or indentLevel > 15 Or indentLevel <> VBA.Fix(indentLevel) Then
+            ex_UiStyleDiagnostics.fn_Raise "Property", "indent=" & properties("indent")
+        End If
+        If targetShape Is Nothing And Not targetRange Is Nothing Then
+            targetRange.IndentLevel = VBA.CLng(indentLevel)
+        End If
+    End If
     If properties.Exists("columnwidth") Then
         If Not targetRange Is Nothing And VBA.IsNumeric(properties("columnwidth")) Then _
             targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("columnwidth"))

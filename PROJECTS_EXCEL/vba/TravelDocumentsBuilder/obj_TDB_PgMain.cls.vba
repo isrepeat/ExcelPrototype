@@ -58,32 +58,34 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim bindingContext As obj_UiBindingContext
     Dim key As Variant
     Dim valueText As String
+    Dim defaultDocumentType As String
 
     If m_pageBase Is Nothing Then Exit Function
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
 
-    If Not bindingContext.SetValue("Text", "Title", "TravelDocumentsBuilder") Then Exit Function
-    If Not bindingContext.SetValue("Form", "DocumentType", "Відпускний квиток") Then Exit Function
-    If Not bindingContext.SetValue( _
-            "Data", "DocumentTypes", "Відпускний квиток,Посвідчення про відрядження") Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.default", defaultDocumentType) Then Exit Function
+    If Not bindingContext.SetValue("Form", "DocumentType", defaultDocumentType) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.items", valueText) Then Exit Function
+    If Not bindingContext.SetValue("Data", "DocumentTypes", valueText) Then Exit Function
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
-            "PersonUnit", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose")
+            "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
     Next key
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then Exit Function
     For Each key In VBA.Array("DocumentTypeLabel", "PersonnelPrompt", "PersonNameLabel", _
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
-            "RefreshPersonnel", "AutoFillPersonnelLabel")
-        If Not ex_Core.fn_TryGetWorkbookConfigValue( _
-                "TravelDocumentsBuilder::text." & VBA.CStr(key), valueText) Then Exit Function
+            "RefreshPersonnel", "AutoFillPersonnelLabel", "Title", "PersonnelSection", _
+            "DocumentSection", "SearchSection", "SearchPersonnel", "SearchLabel", "PersonPositionCodeLabel", _
+            "CheckboxChecked", "CheckboxUnchecked")
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
     If Not ex_Core.fn_TryGetWorkbookConfigValue( _
             "TravelDocumentsBuilder::text.PersonnelPrompt", valueText) Then Exit Function
     If Not bindingContext.SetValue("Text", "PersonnelStatus", valueText) Then Exit Function
-    private_TryRegisterBindings = private_ApplyDocumentMode("Відпускний квиток")
+    private_TryRegisterBindings = private_ApplyDocumentMode(defaultDocumentType)
 End Function
 
 Private Function private_TryRegisterCommands() As Boolean
@@ -94,6 +96,8 @@ Private Function private_TryRegisterCommands() As Boolean
     If bindingContext Is Nothing Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "SearchPersonnel", "SearchPersonnelHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
+            bindingContext, "PersonNameChanged", "PersonNameChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "SelectPersonnel", "SelectPersonnelHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
@@ -126,14 +130,7 @@ Private Function private_ApplyDocumentMode(ByVal documentType As String) As Bool
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
 
-    Select Case VBA.Trim$(documentType)
-        Case "Відпускний квиток"
-            prefix = "VacationTicket"
-        Case "Посвідчення про відрядження"
-            prefix = "BusinessTripCertificate"
-        Case Else
-            Exit Function
-    End Select
+    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(documentType, prefix) Then Exit Function
     For Each key In VBA.Array("DocumentFormTitle", "DocumentTargetLabel", _
             "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _

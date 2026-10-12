@@ -122,7 +122,7 @@ End Sub
 
 Private Sub obj_IUiLayoutSlot_SetSize(ByVal rows As Long, ByVal columns As Long)
     Select Case VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type"))
-        Case "label", "button", "input", "select"
+        Case "label", "button", "checkbox", "input", "select"
             m_definition.setAttribute "rowSpan", VBA.CStr(rows)
             m_definition.setAttribute "columnSpan", VBA.CStr(columns)
     End Select

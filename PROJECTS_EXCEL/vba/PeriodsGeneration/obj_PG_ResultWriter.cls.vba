@@ -16,7 +16,7 @@ Private m_pageBase As obj_PageBase
 Private m_configuration As obj_PG_Configuration
 
 ' //
-' // Жизненный цикл
+' // Lifecycle
 ' //
 Private Sub Class_Initialize()
 End Sub
@@ -106,7 +106,7 @@ Failed:
 End Sub
 
 ' //
-' // Вспомогательные методы
+' // Private
 ' //
 Private Sub private_EnsureReady()
     If Not m_isInitialized Or m_isDisposed Then

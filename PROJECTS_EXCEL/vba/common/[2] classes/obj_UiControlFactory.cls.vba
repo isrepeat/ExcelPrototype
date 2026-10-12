@@ -107,6 +107,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "caption", "string", False, "", True, 0
             If m_type = "checkbox" Then
                 schema.AddAttribute "value", "string", True, "", True, 0
+                schema.AddAttribute "checkedGlyph", "string", True, "", True, 0
+                schema.AddAttribute "uncheckedGlyph", "string", True, "", True, 0
             End If
             If m_type = "button" Then
                 schema.AddAttribute "command", "string", False, "", True

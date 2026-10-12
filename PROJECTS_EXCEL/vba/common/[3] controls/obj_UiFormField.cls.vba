@@ -179,7 +179,7 @@ Private Function private_ConfigureField( _
         diagnostic = "Invalid field binding: " & m_name
         Exit Function
     End If
-    ' Изолированные описания для адаптера существующих контролов; DOM страницы не изменяется.
+    ' Clone definitions for existing control adapters without changing the page DOM.
     Set panelNode = fieldNode.cloneNode(False)
     panelNode.setAttribute "orientation", VBA.IIf(position = "left", "horizontal", "vertical")
     Set m_panel = New obj_UiStackPanelElement

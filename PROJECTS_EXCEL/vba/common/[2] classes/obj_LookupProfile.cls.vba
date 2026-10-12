@@ -16,6 +16,7 @@ Private m_apply As Collection
 Private m_keyField As String
 Private m_minChars As Long
 Private m_maxResults As Long
+Private m_loadingText As String
 
 ' //
 ' // Lifecycle
@@ -58,6 +59,10 @@ Public Property Get MaxResults() As Long
     MaxResults = m_maxResults
 End Property
 
+Public Property Get LoadingText() As String
+    LoadingText = m_loadingText
+End Property
+
 ' //
 ' // API
 ' //
@@ -88,6 +93,7 @@ Public Function Initialize( _
     End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     Set document = private_ConfigDocument(configPrefix)
+    m_loadingText = private_ConfigValue(configPrefix & ".loadingText")
     Set root = document.documentElement
     If root.nodeName <> "lookup" Then Err.Raise 5, , "Expected lookup profile root."
     m_keyField = private_Required(root, "key")

@@ -133,6 +133,8 @@ End Function
 
 Private Function private_RefreshCaption() As Boolean
     Dim caption As String
+    Dim glyph As String
+    Dim glyphAttribute As String
     Dim checked As Variant
     Dim resolvedObject As Object
     Dim isObject As Boolean
@@ -143,8 +145,18 @@ Private Function private_RefreshCaption() As Boolean
             private_ReadAttribute(m_uiControlBase.ControlNode, "value"), _
             m_renderContext.BindingContext, checked, resolvedObject, isObject) Then Exit Function
     If isObject Or VBA.VarType(checked) <> VBA.vbBoolean Then Exit Function
-    m_buttonShape.TextFrame2.TextRange.Text = VBA.ChrW$( _
-        VBA.IIf(VBA.CBool(checked), &H2611, &H2610)) & "  " & caption
+    If VBA.CBool(checked) Then
+        glyphAttribute = "checkedGlyph"
+    Else
+        glyphAttribute = "uncheckedGlyph"
+    End If
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+            private_ReadAttribute(m_uiControlBase.ControlNode, glyphAttribute), _
+            m_renderContext.BindingContext, glyph) Then Exit Function
+    If VBA.Len(glyph) = 0 Then Exit Function
+    m_buttonShape.TextFrame2.TextRange.Text = glyph & "  " & caption
+    m_buttonShape.TextFrame2.WordWrap = msoFalse
+    m_buttonShape.TextFrame2.AutoSize = msoAutoSizeNone
     private_RefreshCaption = True
 End Function
 
