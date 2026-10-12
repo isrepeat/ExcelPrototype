@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Implements obj_IUiElement
 Implements obj_IUiLayoutSlot
 Implements obj_IUiBindingListener
@@ -52,21 +54,35 @@ Private Function obj_IUiElement_Configure( _
         Exit Function
     End If
     controlName = ex_UiElementFactory.fn_Attribute(definition, "name")
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLONE_STARTED | Name=" & controlName
+#End If
     Set m_definition = definition.cloneNode(True)
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLONE_COMPLETED | Name=" & controlName
+#End If
     m_intrinsicRows = ex_UiElementFactory.fn_Attribute(definition, "rowSpan")
     m_intrinsicColumns = ex_UiElementFactory.fn_Attribute(definition, "columnSpan")
     If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then _
         m_definition.setAttribute "type", VBA.CStr(definition.baseName)
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONTEXT_ATTACH_STARTED | Name=" & controlName
+#End If
     Set m_context = context
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONTEXT_ATTACH_COMPLETED | Name=" & controlName
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_EVENTS_ATTACH_STARTED | Name=" & controlName
+#End If
     Set m_bindingContext = context.BindingContext
     m_bindingContext.Subscribe Me
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_EVENTS_ATTACH_COMPLETED | Name=" & controlName
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_BINDINGS_PARSE_STARTED | Name=" & controlName
+#End If
     For Each attributeNode In m_definition.Attributes
         If attributeNode.nodeName <> "dataContext" And VBA.StrComp(VBA.Left$(VBA.Trim$(VBA.CStr(attributeNode.Text)), 9), _
                 "{Binding ", VBA.vbTextCompare) = 0 Then
@@ -78,23 +94,37 @@ Private Function obj_IUiElement_Configure( _
             attributeNode.Text = "{Binding Source=" & bindingSource & "; Path=" & bindingPath & "}"
         End If
     Next attributeNode
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_BINDINGS_PARSE_COMPLETED | Name=" & controlName
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_FACTORY_CREATE_STARTED | Name=" & controlName
+#End If
     Set m_control = ex_UiControlFactory.fn_Create(m_definition)
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_FACTORY_CREATE_COMPLETED | Name=" & controlName
+#End If
     If m_control Is Nothing Then
         diagnostic = "Cannot create control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONFIGURE_STARTED | Name=" & controlName
+#End If
     If Not m_control.Configure(m_definition, context, source, diagnostic) Then
         If VBA.Len(diagnostic) = 0 Then diagnostic = "Cannot configure control: " & ex_UiElementFactory.fn_Attribute(definition, "name")
         Exit Function
     End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONFIGURE_COMPLETED | Name=" & controlName
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_REGISTER_STARTED | Name=" & controlName
+#End If
     context.RegisterElement ex_UiElementFactory.fn_Attribute(definition, "name"), Me
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_REGISTER_COMPLETED | Name=" & controlName
+#End If
     obj_IUiElement_Configure = True
     m_isInitialized = obj_IUiElement_Configure
 End Function

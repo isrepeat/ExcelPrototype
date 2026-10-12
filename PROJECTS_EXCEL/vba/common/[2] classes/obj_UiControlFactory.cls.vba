@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+#Const ENABLE_LOGGING_VERBOSE = False
+
 Implements obj_IUiControlFactory
 Implements obj_IUiMarkupSchemaProvider
 
@@ -33,7 +35,9 @@ End Sub
 Private Function obj_IUiControlFactory_Create() As obj_IUiControl
     Dim control As obj_IUiControl
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_NEW_STARTED | Type=" & m_type
+#End If
     Select Case m_type
         Case "label"
             Set control = New obj_UiLabelControl
@@ -50,11 +54,17 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
         Case "input", "select"
             Set control = New obj_UiFieldControl
     End Select
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_NEW_COMPLETED | Type=" & m_type
+#End If
     If control Is Nothing Then Exit Function
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_INITIALIZE_STARTED | Type=" & m_type
+#End If
     If Not control.Initialize() Then Exit Function
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CLASS_INITIALIZE_COMPLETED | Type=" & m_type
+#End If
     Set obj_IUiControlFactory_Create = control
 End Function
 

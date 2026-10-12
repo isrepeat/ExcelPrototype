@@ -1,5 +1,7 @@
 Attribute VB_Name = "ex_UiElementFactory"
 Option Explicit
+
+#Const ENABLE_LOGGING_VERBOSE = False
 Private m_factories As Object
 Private m_initialized As Boolean
 
@@ -62,27 +64,39 @@ Public Function fn_Create( _
     Dim builtInFactory As obj_UiElementFactory
     Dim configured As Boolean
 
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_ELEMENT_CREATE_STARTED | Tag=" & VBA.CStr(definition.baseName) & _
         " | Name=" & fn_Attribute(definition, "name")
+#End If
     private_Initialize
     If Not ex_UiBindingRuntime.fn_TryDataContext(fn_Attribute(definition, "dataContext"), _
             source, context.BindingContext, source, diagnostic) Then Exit Function
     If VBA.CStr(definition.namespaceURI) = "urn:excelprototype:controls" Then
         Dim element As obj_IUiElement
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_NEW_STARTED | Name=" & fn_Attribute(definition, "name")
+#End If
         Set element = New obj_UiControlElement
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_NEW_COMPLETED | Name=" & fn_Attribute(definition, "name")
+#End If
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_CONFIGURE_STARTED | Name=" & fn_Attribute(definition, "name")
+#End If
         configured = element.Configure(definition, context, source, diagnostic)
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_ELEMENT_CONFIGURE_COMPLETED | Name=" & _
             fn_Attribute(definition, "name") & " | Success=" & VBA.CStr(configured)
+#End If
         If configured Then
             Set fn_Create = element
         Else
             element.Dispose
         End If
+#If ENABLE_LOGGING_VERBOSE Then
         ex_Core.fn_Diagnostic_WriteLog "UI_ELEMENT_CREATE_COMPLETED | Tag=" & VBA.CStr(definition.baseName) & _
             " | Name=" & fn_Attribute(definition, "name") & " | Success=" & VBA.CStr(configured)
+#End If
         Exit Function
     End If
     tag = VBA.CStr(definition.namespaceURI) & "|" & VBA.LCase$(VBA.CStr(definition.baseName))
@@ -92,8 +106,10 @@ Public Function fn_Create( _
     End If
     Set factory = m_factories(tag)
     Set fn_Create = factory.Create(definition, context, source, diagnostic)
+#If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_ELEMENT_CREATE_COMPLETED | Tag=" & VBA.CStr(definition.baseName) & _
         " | Name=" & fn_Attribute(definition, "name")
+#End If
 End Function
 
 Public Function fn_Attribute(ByVal node As Object, ByVal name As String) As String
