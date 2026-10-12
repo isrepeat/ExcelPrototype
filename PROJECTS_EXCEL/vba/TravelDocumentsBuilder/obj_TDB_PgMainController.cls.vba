@@ -62,8 +62,17 @@ Public Function SearchPersonnelHandler() As Boolean
     Dim result As obj_LookupResult
     Dim diagnostic As String
     Dim statusText As String
+    Dim fieldName As Variant
 
     If Not private_TryReadFormValue("PersonName", searchText) Then Exit Function
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(searchText))) = 0 Then
+        For Each fieldName In VBA.Array("PersonId", "PersonRank", "PersonPosition", "PersonUnit")
+            If Not m_pageBase.BindingContext.SetValue( _
+                    "Form", VBA.CStr(fieldName), VBA.vbNullString) Then Exit Function
+        Next fieldName
+        If Not m_pageBase.BindingContext.SetValue( _
+                "Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    End If
     If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "Personnel lookup"
         Exit Function
@@ -76,8 +85,14 @@ End Function
 
 Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim diagnostic As String
+    Dim autoFillPersonnel As Variant
 
     If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then Exit Function
+    If Not VBA.CBool(autoFillPersonnel) Then
+        SelectPersonnelHandler = True
+        Exit Function
+    End If
     If Not m_lookupProfile.TryApply(selected, m_pageBase.BindingContext, diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "Personnel lookup"
         Exit Function

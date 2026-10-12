@@ -38,6 +38,8 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
             Set control = New obj_UiLabelControl
         Case "button"
             Set control = New obj_UiButtonControl
+        Case "checkbox"
+            Set control = New obj_UiCheckboxControl
         Case "table"
             Set control = New obj_UiTableControl
         Case "tablelist"
@@ -99,10 +101,13 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     schema.AddAttribute "style", "string", False, "", True, 0
 
     Select Case m_type
-        Case "label", "button"
+        Case "label", "button", "checkbox"
             schema.RequireAnyAttribute "text|caption"
             schema.AddAttribute "text", "string", False, "", True, 0
             schema.AddAttribute "caption", "string", False, "", True, 0
+            If m_type = "checkbox" Then
+                schema.AddAttribute "value", "string", True, "", True, 0
+            End If
             If m_type = "button" Then
                 schema.AddAttribute "command", "string", False, "", True
             End If
