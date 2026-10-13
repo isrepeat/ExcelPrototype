@@ -13,12 +13,14 @@ Private Sub Workbook_Activate()
         private_Initialize
     Else
         ex_AppHotkeys.fn_Activate
+        ex_TDB_ConfigRefresh.fn_Activate
     End If
 End Sub
 
 Private Sub Workbook_Deactivate()
     If m_runtimeReleased Then Exit Sub
     ex_AppHotkeys.fn_Deactivate
+    ex_TDB_ConfigRefresh.fn_Deactivate
 End Sub
 
 Private Sub Workbook_SheetChange(ByVal sheet As Object, ByVal target As Range)
@@ -104,6 +106,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
 #End If
         Select Case stageName
             Case "Hotkeys"
+                ex_TDB_ConfigRefresh.fn_Module_Dispose
                 ex_AppHotkeys.fn_Module_Dispose
             Case "Pages"
                 ex_TravelDocumentsBuilder.fn_Module_Dispose
@@ -155,6 +158,7 @@ Private Sub private_Initialize()
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
     m_runtimeReleased = False
     ex_AppHotkeys.fn_Activate
+    ex_TDB_ConfigRefresh.fn_Activate
     If Not ex_TravelDocumentsBuilder.fn_Initialize Then _
         VBA.Err.Raise VBA.vbObjectError + 2231, "TravelDocumentsBuilder", "Page initialization failed."
 Cleanup:

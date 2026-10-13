@@ -162,6 +162,9 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "value", "string", True, "", True, 0
             schema.AddAttribute "inputType", "enum", False, "text|select|checkbox", False, 0
             schema.AddAttribute "readOnly", "boolean", False, "", False, 0
+            schema.AddAttribute "editable", "boolean", False, "", False, 0
+            schema.AddAttribute "highlightValue", "string", False, "", True, 0
+            schema.AddAttribute "highlightStyle", "string", False, "", True, 0
             schema.AddAttribute "items", "string", False, "", True, 0
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
             schema.AddAttribute "onChange", "string", False, "", True, 0

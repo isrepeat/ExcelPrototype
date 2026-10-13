@@ -72,10 +72,30 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim valueText As String
     Dim defaultDocumentType As String
     Dim items As Variant
+    Dim departureDates As Collection
+    Dim daysAhead As Double
+    Dim daysBefore As Double
+    Dim offset As Long
 
     If m_pageBase Is Nothing Then Exit Function
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysAhead", valueText) Then Exit Function
+    If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysAhead) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysBefore", valueText) Then Exit Function
+    If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysBefore) Then Exit Function
+    If daysAhead < 0 Or daysAhead > 31 Or daysAhead <> VBA.Fix(daysAhead) Or _
+            daysBefore < 0 Or daysBefore > 31 Or daysBefore <> VBA.Fix(daysBefore) Then
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.InvalidDateRange", valueText) Then Exit Function
+        ex_WindowsUi.fn_ShowMessage valueText, VBA.vbExclamation
+        Exit Function
+    End If
+    Set departureDates = New Collection
+    For offset = -VBA.CLng(daysBefore) To VBA.CLng(daysAhead)
+        departureDates.Add VBA.Format$(VBA.DateAdd("d", offset, VBA.Date), "dd.mm.yyyy")
+    Next offset
+    If Not bindingContext.SetObject("Data", "DepartureDates", departureDates) Then Exit Function
+    If Not bindingContext.SetValue("Data", "CurrentDate", VBA.Format$(VBA.Date, "dd.mm.yyyy")) Then Exit Function
 
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.default", defaultDocumentType) Then Exit Function
     If Not bindingContext.SetValue("Form", "DocumentType", defaultDocumentType) Then Exit Function
