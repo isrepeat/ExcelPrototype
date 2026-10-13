@@ -85,8 +85,6 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Form", "LookupIsTvo", False) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.LookupTarget.Personnel", valueText) Then Exit Function
     If Not bindingContext.SetValue("Text", "LookupTargetCaption", valueText) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.ClearTvo", valueText) Then Exit Function
-    If Not bindingContext.SetValue("Text", "ClearTvo", valueText) Then Exit Function
     If Not bindingContext.SetValue("Form", "GenerationStatusStyle", "generationSuccess") Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysAhead", valueText) Then Exit Function
     If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysAhead) Then Exit Function
@@ -130,7 +128,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", _
-            "CreateDocument", "UpdateDocument", "ClearForm", "ReportNo", "TicketNo", "DocumentPath")
+            "CreateDocument", "UpdateDocument", "ClearForm", "ReinitializeConfig", "ReportNo", "TicketNo", "LastStatus")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
@@ -173,11 +171,12 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand( _
             bindingContext, "ClearForm", "ClearFormHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
+            bindingContext, "ReinitializeConfig", "ReinitializeConfigHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
             bindingContext, "VacationDatesChanged", "VacationDatesChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "ToggleLookupTarget", "ToggleLookupTargetHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "FocusTvo", "FocusTvoHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "FocusPersonnel", "FocusPersonnelHandler") Then Exit Function
-    If Not private_TryRegisterCommand(bindingContext, "ClearTvo", "ClearTvoHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function
 

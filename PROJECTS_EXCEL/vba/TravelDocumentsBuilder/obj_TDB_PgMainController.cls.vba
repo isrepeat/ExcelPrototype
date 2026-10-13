@@ -91,7 +91,7 @@ Public Function SearchPersonnelHandler() As Boolean
     If Not private_TryReadFormValue("PersonnelQuery", searchText) Then Exit Function
     If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then Exit Function
     If VBA.CBool(isTvo) Then
-        If Not Me.ClearTvoHandler() Then Exit Function
+        If Not private_ClearTvo() Then Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic) Then
@@ -156,15 +156,6 @@ Public Function FocusPersonnelHandler() As Boolean
     FocusPersonnelHandler = private_SetLookupTarget(False)
 End Function
 
-Public Function ClearTvoHandler() As Boolean
-    Dim key As Variant
-
-    For Each key In VBA.Array("TvoName", "TvoIpn", "TvoPosition")
-        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
-    Next key
-    ClearTvoHandler = m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString)
-End Function
-
 Public Function RefreshPersonnelHandler() As Boolean
     Dim emptyResult As obj_LookupResult
     Dim diagnostic As String
@@ -200,6 +191,11 @@ Public Function DocumentTypeChangedHandler() As Boolean
     Next key
     ' Bindings refresh captions; rebuilding the page during a click disposes the active handler.
     DocumentTypeChangedHandler = True
+End Function
+
+Public Function ReinitializeConfigHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    ReinitializeConfigHandler = ex_AppCommands.fn_RequestReinitialize()
 End Function
 
 Public Function ClearFormHandler() As Boolean
@@ -283,6 +279,15 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_ClearTvo() As Boolean
+    Dim key As Variant
+
+    For Each key In VBA.Array("TvoName", "TvoIpn", "TvoPosition")
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
+    Next key
+    private_ClearTvo = m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString)
+End Function
+
 Private Function private_SetLookupTarget(ByVal isTvo As Boolean) As Boolean
     Dim previous As Variant
     Dim key As String
