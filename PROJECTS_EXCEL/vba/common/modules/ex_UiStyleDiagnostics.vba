@@ -2,6 +2,15 @@ Attribute VB_Name = "ex_UiStyleDiagnostics"
 Option Explicit
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Sub fn_Raise( _

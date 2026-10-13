@@ -71,6 +71,17 @@ for node in markup.iter():
         elif category == "Data":
             assert f'"{key}"' in page + controller, f"Unknown data binding: {key}"
 assert len(names) == len(set(names)), "Duplicate control names"
+assert "TvoLookup" not in names
+for name in ("TvoName", "TvoIpn", "TvoPosition", "LookupTarget", "ClearTvo"):
+    assert name in names, f"Missing TVO control: {name}"
+assert int(cfg("lookup.Tvo.apply.count")) == 3
+assert {
+    cfg(f"lookup.Tvo.apply.{index}.target") for index in range(1, 4)
+} == {"Form.TvoName", "Form.TvoIpn", "Form.TvoPosition"}
+for state in ("Personnel", "Tvo"):
+    caption = cfg(f"text.LookupTarget.{state}")
+    assert caption.count("[[color=#") == caption.count("[[/color]]") == 1
+    assert re.search(r"\[\[color=#[0-9A-Fa-f]{6}\]\].+?\[\[/color\]\]", caption)
 
 # Validate contracts against actual files rather than a copied test schema.
 workbook_folder = ROOT / "workbook/TravelDocumentsBuilder"

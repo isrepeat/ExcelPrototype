@@ -15,11 +15,13 @@ Private m_isDisposed As Boolean
 Private Const COMMON_STYLE_CATALOG_FILE_NAME As String = "CommonControlStyles.xaml"
 Private Const SHEET_SCOPE_MIN_COLUMN As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
+Private m_inlineCaptions As Object
 Private m_stylesByName As Object
 Private m_pageDocument As Object
 Private m_targetWorksheet As Worksheet
 Private m_pipeline As obj_UiStylePipeline
 Private m_overlays As Object
+
 ' //
 ' // Lifecycle
 ' //
@@ -29,6 +31,7 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
 ' //
 ' // API
 ' //
@@ -51,6 +54,7 @@ Public Sub Dispose()
     If Not m_pipeline Is Nothing Then m_pipeline.Dispose
     Set m_pipeline = Nothing
     Set m_overlays = Nothing
+    Set m_inlineCaptions = Nothing
 End Sub
 
 Public Sub BeginPage( _
@@ -171,6 +175,7 @@ Public Sub BeginRender( _
 
     If m_pipeline Is Nothing Then Exit Sub
     m_pipeline.BeginRender
+    Set m_inlineCaptions = VBA.CreateObject("Scripting.Dictionary")
     Set m_overlays = VBA.CreateObject("Scripting.Dictionary")
     m_overlays.CompareMode = VBA.vbTextCompare
     Set pageScope = private_GetSheetScope(m_targetWorksheet)
@@ -181,7 +186,29 @@ Public Sub BeginRender( _
 End Sub
 
 Public Sub CompleteRender()
+    Dim entry As Variant
+
     private_ApplyStage "default", False, True
+    If Not m_inlineCaptions Is Nothing Then
+        For Each entry In m_inlineCaptions.Items
+            ex_UiInlineText.fn_ApplyCaption entry(0), VBA.CStr(entry(1)), VBA.CLng(entry(2))
+        Next entry
+    End If
+End Sub
+
+Public Sub ApplyButtonCaption( _
+    ByVal shape As Object, _
+    ByVal caption As String _
+)
+    Dim entry As Variant
+
+    If m_inlineCaptions Is Nothing Then Set m_inlineCaptions = VBA.CreateObject("Scripting.Dictionary")
+    ReDim entry(0 To 2)
+    Set entry(0) = shape
+    entry(1) = caption
+    entry(2) = shape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB
+    m_inlineCaptions(shape.Name) = entry
+    ex_UiInlineText.fn_ApplyCaption shape, caption, VBA.CLng(entry(2))
 End Sub
 
 Public Sub ApplyOverlay( _
@@ -374,6 +401,7 @@ Private Sub private_CompileRules()
         rule.Add "properties", properties
     Next rule
 End Sub
+
 ' //
 ' // Private
 ' //

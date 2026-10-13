@@ -223,6 +223,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim uiCellBinding As obj_UiCellBinding
     Dim targetCell As Range
     Dim selectItems As Collection
+    Dim focusCommand As obj_UiCommand
 
     Dim shapeNameToRemove As Variant
 
@@ -323,6 +324,12 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_REFRESH_SUBSCRIBE_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
     Set m_cellBinding = uiCellBinding
+    If VBA.Len(private_ReadAttribute(m_uiControlBase.ControlNode, "onFocus")) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
+                private_ReadAttribute(m_uiControlBase.ControlNode, "onFocus"), _
+                uiRenderContext.BindingContext, focusCommand) Then Exit Function
+        uiRenderContext.Router.RegisterSelection m_uiControlBase.ControlName, m_targetRange, focusCommand
+    End If
     m_cellBinding.SubscribeRefresh Me
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_REFRESH_SUBSCRIBE_COMPLETED | Name=" & m_uiControlBase.ControlName

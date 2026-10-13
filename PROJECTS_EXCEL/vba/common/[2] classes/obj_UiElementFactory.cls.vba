@@ -16,6 +16,7 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_kind As String
+
 ' //
 ' // Lifecycle
 ' //
@@ -25,6 +26,7 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
 ' //
 ' // Interface
 ' //
@@ -40,6 +42,7 @@ End Function
 Private Function obj_IUiMarkupSchemaProvider_GetSchema() As obj_UiMarkupSchema
     Set obj_IUiMarkupSchemaProvider_GetSchema = private_CreateSchema()
 End Function
+
 ' //
 ' // API
 ' //
@@ -89,6 +92,7 @@ EH_CONFIGURE:
     diagnostic = VBA.Err.Description
     If Not element Is Nothing Then element.Dispose
 End Function
+
 ' //
 ' // Private
 ' //

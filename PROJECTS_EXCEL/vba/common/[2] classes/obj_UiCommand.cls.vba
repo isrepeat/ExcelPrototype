@@ -34,7 +34,7 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     ByVal kind As String, _
     ByVal payload As Variant _
 ) As Boolean
-    If kind = "click" Then obj_IUiEventHandler_HandleEvent = Me.Execute()
+    If kind = "click" Or kind = "selection" Then obj_IUiEventHandler_HandleEvent = Me.Execute()
 End Function
 
 ' //

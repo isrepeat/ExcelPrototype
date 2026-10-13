@@ -17,6 +17,7 @@ Private m_lookupProfile As obj_LookupProfile
 Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
 Private m_messages As Object
+
 ' //
 ' // Lifecycle
 ' //
@@ -26,6 +27,7 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
 ' //
 ' // API
 ' //
@@ -84,8 +86,13 @@ Public Function SearchPersonnelHandler() As Boolean
     Dim result As obj_LookupResult
     Dim diagnostic As String
     Dim statusText As String
+    Dim isTvo As Variant
 
     If Not private_TryReadFormValue("PersonnelQuery", searchText) Then Exit Function
+    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then Exit Function
+    If VBA.CBool(isTvo) Then
+        If Not Me.ClearTvoHandler() Then Exit Function
+    End If
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic) Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_PERSONNEL_SEARCH_FAILED | " & diagnostic
@@ -125,13 +132,37 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         SelectPersonnelHandler = True
         Exit Function
     End If
-    If Not m_lookupProfile.TryApply(selected, m_pageBase.BindingContext, diagnostic) Then
+    If Not private_ApplySelectedPersonnel(selected, diagnostic) Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_PERSONNEL_APPLY_FAILED | " & diagnostic
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "Personnel lookup"
         Exit Function
     End If
     SelectPersonnelHandler = m_pageBase.BindingContext.SetValue( _
         "Text", "PersonnelStatus", m_messages("PersonnelSelected"))
+End Function
+
+Public Function ToggleLookupTargetHandler() As Boolean
+    Dim isTvo As Variant
+
+    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then Exit Function
+    ToggleLookupTargetHandler = private_SetLookupTarget(Not VBA.CBool(isTvo))
+End Function
+
+Public Function FocusTvoHandler() As Boolean
+    FocusTvoHandler = private_SetLookupTarget(True)
+End Function
+
+Public Function FocusPersonnelHandler() As Boolean
+    FocusPersonnelHandler = private_SetLookupTarget(False)
+End Function
+
+Public Function ClearTvoHandler() As Boolean
+    Dim key As Variant
+
+    For Each key In VBA.Array("TvoName", "TvoIpn", "TvoPosition")
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
+    Next key
+    ClearTvoHandler = m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString)
 End Function
 
 Public Function RefreshPersonnelHandler() As Boolean
@@ -213,9 +244,59 @@ Public Function VacationDatesChangedHandler() As Boolean
 InvalidInput:
     VacationDatesChangedHandler = m_pageBase.BindingContext.SetValue("Form", "ReturnDate", result)
 End Function
+
 ' //
 ' // Private
 ' //
+Private Function private_SetLookupTarget(ByVal isTvo As Boolean) As Boolean
+    Dim previous As Variant
+    Dim key As String
+    Dim caption As String
+
+    If Not private_TryReadFormValue("LookupIsTvo", previous) Then Exit Function
+    If VBA.CBool(previous) = isTvo Then
+        private_SetLookupTarget = True
+        Exit Function
+    End If
+    key = "text.LookupTarget.Personnel"
+    If isTvo Then key = "text.LookupTarget.Tvo"
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig(key, caption) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "LookupIsTvo", isTvo) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Text", "LookupTargetCaption", caption) Then Exit Function
+    private_SetLookupTarget = m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString)
+End Function
+
+Private Function private_ApplySelectedPersonnel( _
+    ByVal record As obj_LookupRecord, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim isTvo As Variant
+    Dim countText As String
+    Dim field As String
+    Dim target As String
+    Dim value As Variant
+    Dim updates As Object
+    Dim index As Long
+
+    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then Exit Function
+    If Not VBA.CBool(isTvo) Then
+        private_ApplySelectedPersonnel = m_lookupProfile.TryApply(record, m_pageBase.BindingContext, diagnostic)
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("lookup.Tvo.apply.count", countText) Then Exit Function
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For index = 1 To VBA.CLng(countText)
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("lookup.Tvo.apply." & index & ".field", field) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("lookup.Tvo.apply." & index & ".target", target) Then Exit Function
+        If Not record.TryGetValue(field, value) Then
+            diagnostic = field
+            Exit Function
+        End If
+        updates(target) = value
+    Next index
+    private_ApplySelectedPersonnel = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
+End Function
+
 Private Function private_GenerateDocument(ByVal isUpdate As Boolean) As Boolean
     Dim vacationGenerator As obj_TDB_VacationGenerator
     Dim diagnostic As String

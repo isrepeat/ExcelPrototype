@@ -112,6 +112,7 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
     m_buttonShape.TextFrame2.TextRange.Text = caption
     context.Styles.ApplyControlStyle m_targetRange, m_buttonShape, _
         m_uiControlBase.ControlNode, context.BindingContext
+    context.Styles.ApplyButtonCaption m_buttonShape, caption
     If Not ex_UiBindingRuntime.fn_TryResolveCommand(private_ReadAttribute( _
             m_uiControlBase.ControlNode, "command"), context.BindingContext, uiCommand) Then Exit Function
     context.Router.RegisterShape m_buttonShape.Name, uiCommand
@@ -164,6 +165,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_buttonShape.Placement = xlMoveAndSize
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    uiRenderContext.Styles.ApplyButtonCaption m_buttonShape, captionText
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
     uiRenderContext.Router.RegisterShape shapeName, uiCommand
     private_Render = True

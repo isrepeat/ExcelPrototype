@@ -3,12 +3,18 @@ Option Explicit
 Private Const DIAGNOSTIC_MODE_IMMEDIATE As String = "Immediate"
 Private Const DIAGNOSTIC_MODE_BUFFERED As String = "Buffered"
 
+' --------------------------------------
 ' namespace Lifecycle {
+' --------------------------------------
 Public Sub fn_Module_Dispose()
 End Sub
+' --------------------------------------
 ' } // namespace Lifecycle
+' --------------------------------------
 
+' --------------------------------------
 ' namespace API {
+' --------------------------------------
 Public Sub fn_RegisterHotkeys()
     If Not ex_AppHotkeys.fn_Register("^%l", "ex_AppCommands.fn_ToggleDiagnosticMode") Then VBA.Err.Raise 5, , "Hotkey registration failed: Ctrl+Alt+L"
     If Not ex_AppHotkeys.fn_Register("^%u", "ex_AppCommands.fn_UpdateConfig") Then VBA.Err.Raise 5, , "Hotkey registration failed: Ctrl+Alt+U"
@@ -92,4 +98,6 @@ EH_TOGGLE:
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     VBA.Err.Raise errorNumber, "fn_ToggleDiagnosticMode", errorDescription
 End Sub
+' --------------------------------------
 ' } // namespace API
+' --------------------------------------
