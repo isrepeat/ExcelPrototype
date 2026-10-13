@@ -47,6 +47,30 @@ Public Function fn_TryGetConfig( _
     fn_TryGetConfig = True
 End Function
 
+Public Function fn_LogValue(ByVal value As Variant) As String
+    Dim text As String
+
+    If VBA.IsObject(value) Then
+        text = "<object>"
+    ElseIf VBA.IsError(value) Then
+        text = "<error>"
+    ElseIf VBA.IsNull(value) Then
+        text = "<null>"
+    ElseIf VBA.IsEmpty(value) Then
+        text = "<empty>"
+    ElseIf VBA.VarType(value) = VBA.vbDate Then
+        text = VBA.Format$(value, "yyyy-mm-dd hh:nn:ss")
+    Else
+        text = VBA.CStr(value)
+    End If
+    text = VBA.Replace$(text, "\", "\\")
+    text = VBA.Replace$(text, VBA.vbCr, "\r")
+    text = VBA.Replace$(text, VBA.vbLf, "\n")
+    text = VBA.Replace$(text, VBA.vbTab, "\t")
+    text = VBA.Replace$(text, "|", "\|")
+    fn_LogValue = text
+End Function
+
 Public Function fn_TryGetDocumentPrefix( _
     ByVal documentType As String, _
     ByRef prefix As String _

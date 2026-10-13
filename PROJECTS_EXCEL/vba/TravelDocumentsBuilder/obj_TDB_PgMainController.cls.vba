@@ -212,7 +212,7 @@ Public Function ClearFormHandler() As Boolean
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
-            "ReturnDate", "Purpose", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
+            "ReturnDate", "Purpose", "ReportNo", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
             "TicketNo", "DocumentPath", "GenerationStatus")
         updates("Form." & VBA.CStr(key)) = VBA.vbNullString
     Next key
@@ -336,15 +336,48 @@ Private Function private_GenerateDocument(ByVal isUpdate As Boolean) As Boolean
     Dim vacationGenerator As obj_TDB_VacationGenerator
     Dim diagnostic As String
     Dim title As String
+    Dim operationId As String
+    Dim key As Variant
+    Dim value As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+    Static attemptNumber As Long
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
+    attemptNumber = attemptNumber + 1
+    operationId = VBA.Format$(VBA.Now, "yyyymmdd-hhnnss") & "-" & _
+        VBA.CStr(VBA.CLng(VBA.Timer * 1000#)) & "-" & VBA.CStr(attemptNumber)
+    ex_Core.fn_Diagnostic_WriteLog "TDB_ACTION | Operation=" & operationId & _
+        " | Update=" & VBA.CStr(isUpdate) & " | Workbook=" & ex_TravelDocumentsBuilder.fn_LogValue(ThisWorkbook.FullName)
+    For Each key In VBA.Array("DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPositionCode", _
+            "PersonPosition", "PersonUnit", "PersonnelQuery", "AutoFillPersonnel", "LookupIsTvo", _
+            "DocumentTarget", "DepartureDate", "ReturnDate", "OrderReference", "Purpose", "ReportNo", "VacationKind", _
+            "VacationDays", "RoadDays", "DonationDays", "VacationAbroad", "VacationStatus", _
+            "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", "TicketNo", "DocumentPath")
+        If m_pageBase.BindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
+            ex_Core.fn_Diagnostic_WriteLog "TDB_FORM_RAW | Operation=" & operationId & " | Field=" & key & _
+                " | Type=" & VBA.TypeName(value) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(value)
+        Else
+            ex_Core.fn_Diagnostic_WriteLog "TDB_FORM_RAW | Operation=" & operationId & " | Field=" & key & " | Missing=True"
+        End If
+    Next key
+    If Not ex_Core.fn_Diagnostic_Flush() Then
+        ex_Core.fn_Diagnostic_WriteLog "TDB_LOG_FLUSH_FAILED | Operation=" & operationId & " | Phase=BeforeGeneration"
+    End If
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.GenerationTitle", title) Then Exit Function
     Set vacationGenerator = New obj_TDB_VacationGenerator
     If vacationGenerator.Initialize(m_pageBase.BindingContext, m_lookupService) Then
-        private_GenerateDocument = vacationGenerator.TryGenerate(isUpdate, diagnostic)
+        private_GenerateDocument = vacationGenerator.TryGenerate(isUpdate, diagnostic, operationId)
+    Else
+        ex_Core.fn_Diagnostic_WriteLog "TDB_INITIALIZATION_FAILED | Operation=" & operationId
     End If
     vacationGenerator.Dispose
+    ex_Core.fn_Diagnostic_WriteLog "TDB_ACTION_FINISHED | Operation=" & operationId & _
+        " | Success=" & VBA.CStr(private_GenerateDocument) & " | Diagnostic=" & ex_TravelDocumentsBuilder.fn_LogValue(diagnostic)
+    If Not ex_Core.fn_Diagnostic_Flush() Then
+        ex_Core.fn_Diagnostic_WriteLog "TDB_LOG_FLUSH_FAILED | Operation=" & operationId & " | Phase=AfterGeneration"
+    End If
     If VBA.Len(diagnostic) > 0 Then
         m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
         m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
@@ -356,7 +389,11 @@ EH:
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
     If Not vacationGenerator Is Nothing Then vacationGenerator.Dispose
-    ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_HANDLER_FAILED | " & diagnostic
+    ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_HANDLER_FAILED | Operation=" & operationId & _
+        " | Diagnostic=" & ex_TravelDocumentsBuilder.fn_LogValue(diagnostic)
+    If Not ex_Core.fn_Diagnostic_Flush() Then
+        ex_Core.fn_Diagnostic_WriteLog "TDB_LOG_FLUSH_FAILED | Operation=" & operationId & " | Phase=HandlerError"
+    End If
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, title
 End Function
 

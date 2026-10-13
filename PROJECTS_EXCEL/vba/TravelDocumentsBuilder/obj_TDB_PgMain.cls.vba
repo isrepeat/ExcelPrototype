@@ -111,7 +111,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Data", "DocumentTypes", valueText) Then Exit Function
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
-            "OrderReference", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus")
+            "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
     Next key
     For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
@@ -130,7 +130,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", _
-            "CreateDocument", "UpdateDocument", "ClearForm", "TicketNo", "DocumentPath")
+            "CreateDocument", "UpdateDocument", "ClearForm", "ReportNo", "TicketNo", "DocumentPath")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
