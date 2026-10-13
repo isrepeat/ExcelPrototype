@@ -318,7 +318,7 @@
                      onChange="{Binding Path=Commands.DocumentTypeChanged}"/>
 
     <controls:button name="CreateDocument"
-                     row="4"
+                     row="3"
                      column="10"
                      columnSpan="2"
                      style="secondaryButton"
@@ -326,12 +326,20 @@
                      command="{Binding Path=Commands.CreateDocument}"/>
 
     <controls:button name="UpdateDocument"
-                     row="6"
+                     row="4"
                      column="10"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.UpdateDocument}"
                      command="{Binding Path=Commands.UpdateDocument}"/>
+
+    <controls:button name="ClearForm"
+                     row="5"
+                     column="10"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ClearForm}"
+                     command="{Binding Path=Commands.ClearForm}"/>
 
     <controls:label name="TicketNoLabel"
                     row="8"

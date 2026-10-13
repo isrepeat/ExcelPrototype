@@ -149,6 +149,7 @@ value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
 value	TravelDocumentsBuilder::text.OutputFolderPath	Папка документів
 value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
 value	TravelDocumentsBuilder::text.UpdateDocument	Оновити DOCX
+value	TravelDocumentsBuilder::text.ClearForm	Очистити форму
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
 value	TravelDocumentsBuilder::text.DocumentPath	Збережений документ
 value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
