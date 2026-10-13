@@ -219,6 +219,7 @@ End Function
 Public Function RenderTree(ByRef diagnostic As String) As Boolean
     Dim rows As Long
     Dim columns As Long
+    Dim stageStartedAt As Double
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
     Dim previousExpand As Boolean
@@ -237,14 +238,28 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     m_rendering = True
     m_hasRendered = False
     Set m_tablePlans = New Collection
+    stageStartedAt = VBA.Timer
     If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
+    ex_Core.fn_Diagnostic_WritePerf "Page.Measure | Sheet=" & m_targetWorksheet.Name, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
+    ex_Core.fn_Diagnostic_WritePerf "Page.Arrange | Sheet=" & m_targetWorksheet.Name, stageStartedAt
+    stageStartedAt = VBA.Timer
     ex_UiTables.fn_Prepare m_targetWorksheet, m_tablePlans
+    ex_Core.fn_Diagnostic_WritePerf "Page.PrepareTables | Sheet=" & m_targetWorksheet.Name, stageStartedAt
     m_rows = rows
     m_columns = columns
+    stageStartedAt = VBA.Timer
     m_styles.BeginRender rows, columns
+    ex_Core.fn_Diagnostic_WritePerf "Page.BeginRender | Sheet=" & m_targetWorksheet.Name, stageStartedAt
+    stageStartedAt = VBA.Timer
     RenderTree = m_root.Render(diagnostic)
-    If RenderTree Then m_styles.CompleteRender
+    ex_Core.fn_Diagnostic_WritePerf "Page.RenderElements | Sheet=" & m_targetWorksheet.Name, stageStartedAt
+    If RenderTree Then
+        stageStartedAt = VBA.Timer
+        m_styles.CompleteRender
+        ex_Core.fn_Diagnostic_WritePerf "Page.CompleteRender | Sheet=" & m_targetWorksheet.Name, stageStartedAt
+    End If
     m_hasRendered = RenderTree
 CleanExit:
     m_rendering = False

@@ -121,6 +121,7 @@ Private Function private_RenderPage( _
     Dim previousScreenUpdating As Boolean
     Dim renderErrorNumber As Long
     Dim renderErrorDescription As String
+    Dim clearStartedAt As Double
 
     startedAt = VBA.Timer
     If Not ex_RuntimePaths.fn_TryGetUiFolder(uiRootPath) Then Exit Function
@@ -195,7 +196,9 @@ Private Function private_RenderPage( _
     uiRenderContext.Styles.BeginPage targetWorksheet, _
         uiPageDefinition.Document, uiFolderPath
     ex_Core.fn_Diagnostic_WritePerf "Page.BeginStyles | Sheet=" & targetWorksheet.Name, startedAt
+    clearStartedAt = VBA.Timer
     private_ClearUi targetWorksheet
+    ex_Core.fn_Diagnostic_WritePerf "Page.ClearUi | Sheet=" & targetWorksheet.Name, clearStartedAt
     ex_Core.fn_Diagnostic_WritePerf "Page.ApplyStyles | Sheet=" & targetWorksheet.Name, startedAt
     private_LogUiScopeVisibility targetWorksheet, "after-pipeline"
     private_RestoreUiScopeVisibility targetWorksheet
@@ -265,6 +268,7 @@ Private Sub private_LogUiScopeVisibility( _
     ByVal targetWorksheet As Worksheet, _
     ByVal stageName As String _
 )
+#If ENABLE_LOGGING_VERBOSE Then
     Dim uiScope As Range
 
     Set uiScope = targetWorksheet.Range("A1:AN100")
@@ -272,6 +276,7 @@ Private Sub private_LogUiScopeVisibility( _
         targetWorksheet.Name & " | Stage=" & stageName & _
         " | HiddenRows=" & VBA.CStr(private_CountHiddenRows(uiScope)) & _
         " | ZeroHeightRows=" & VBA.CStr(private_CountZeroHeightRows(uiScope))
+#End If
 End Sub
 
 Private Function private_CountHiddenRows(ByVal targetRange As Range) As Long

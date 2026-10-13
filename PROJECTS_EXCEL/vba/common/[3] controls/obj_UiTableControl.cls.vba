@@ -138,7 +138,6 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     End If
     m_selectedRow = rowIndex
     private_StyleSelectedRow rowIndex
-    m_renderContext.InvalidateMeasure
     If Not m_selectCommand Is Nothing Then
         If Not m_selectCommand.ExecuteWithPayload(item) Then Exit Function
     End If
