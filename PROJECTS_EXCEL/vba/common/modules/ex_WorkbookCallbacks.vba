@@ -2,6 +2,15 @@ Attribute VB_Name = "ex_WorkbookCallbacks"
 Option Explicit
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Function fn_Resolve(ByVal configKey As String) As String

@@ -14,6 +14,7 @@ Private m_config As Object
 Private m_form As Object
 Private m_fileSystem As Object
 Private m_ordersConnection As Object
+
 ' //
 ' // Lifecycle
 ' //
@@ -23,6 +24,7 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
 ' //
 ' // API
 ' //
@@ -277,6 +279,7 @@ EH:
     If VBA.Len(rollbackError) > 0 Then diagnostic = diagnostic & VBA.vbCrLf & private_Message("Rollback", rollbackError)
     On Error GoTo 0
 End Function
+
 ' //
 ' // Private
 ' //
@@ -289,7 +292,7 @@ Private Sub private_ReadForm()
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPositionCode", _
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
-            "DonationDays", "VacationAbroad", "VacationStatus", "TvoLookup", "TemplatePath", "OutputFolderPath")
+            "DonationDays", "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
         End If
@@ -397,26 +400,26 @@ Private Sub private_ResolveTvo()
     Dim ipn As Variant
     Dim position As Variant
     Dim count As Long
+    Dim key As Variant
 
-    m_form("TvoName") = VBA.vbNullString
-    m_form("TvoIpn") = VBA.vbNullString
-    m_form("TvoPosition") = VBA.vbNullString
-    If VBA.Len(m_form("TvoLookup")) = 0 Then Exit Sub
-    If Not m_lookupService.TrySearch(m_form("TvoLookup"), result, diagnostic) Then private_Fail "Tvo", diagnostic
+    If VBA.Len(m_form("TvoName")) = 0 And VBA.Len(m_form("TvoIpn")) = 0 And VBA.Len(m_form("TvoPosition")) = 0 Then Exit Sub
+    For Each key In VBA.Array("TvoName", "TvoIpn", "TvoPosition")
+        If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
+    Next key
+    If Not m_lookupService.TrySearch(m_form("TvoIpn"), result, diagnostic) Then private_Fail "Tvo", diagnostic
     For Each record In result.Records
-        If Not record.TryGetValue("Personnel.FullName", name) Then private_Fail "Tvo", m_form("TvoLookup")
-        If Not record.TryGetValue("Personnel.TaxId", ipn) Then private_Fail "Tvo", m_form("TvoLookup")
-        If VBA.StrComp(VBA.CStr(name), m_form("TvoLookup"), VBA.vbTextCompare) = 0 Or _
-                VBA.StrComp(VBA.CStr(ipn), m_form("TvoLookup"), VBA.vbTextCompare) = 0 Then
+        If Not record.TryGetValue("Personnel.FullName", name) Then private_Fail "Tvo", m_form("TvoIpn")
+        If Not record.TryGetValue("Personnel.TaxId", ipn) Then private_Fail "Tvo", m_form("TvoIpn")
+        If VBA.CStr(ipn) = m_form("TvoIpn") Then
             count = count + 1
-            If Not record.TryGetValue("Personnel.PositionCode", position) Then private_Fail "Tvo", m_form("TvoLookup")
-            If VBA.Len(VBA.CStr(position)) = 0 Then private_Fail "Tvo", m_form("TvoLookup")
-            m_form("TvoName") = VBA.CStr(name)
-            m_form("TvoIpn") = VBA.CStr(ipn)
-            m_form("TvoPosition") = VBA.CStr(position)
+            If Not record.TryGetValue("Personnel.PositionCode", position) Then private_Fail "Tvo", m_form("TvoIpn")
+            If VBA.StrComp(ex_TableQuery.fn_NormalizeText(VBA.CStr(name)), m_form("TvoName"), VBA.vbTextCompare) <> 0 Or _
+                    VBA.StrComp(VBA.CStr(position), m_form("TvoPosition"), VBA.vbTextCompare) <> 0 Then
+                private_Fail "Tvo", m_form("TvoIpn")
+            End If
         End If
     Next record
-    If count <> 1 Or result.HasMore Then private_Fail "Tvo", m_form("TvoLookup")
+    If count <> 1 Or result.HasMore Then private_Fail "Tvo", m_form("TvoIpn")
 End Sub
 
 Private Sub private_ResolveOrder( _

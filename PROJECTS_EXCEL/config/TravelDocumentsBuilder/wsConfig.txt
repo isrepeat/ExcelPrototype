@@ -145,7 +145,6 @@ value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
 value	TravelDocumentsBuilder::text.VacationAbroad	Виїзд за кордон
 value	TravelDocumentsBuilder::text.VacationStatus	Статус
-value	TravelDocumentsBuilder::text.TvoLookup	ТВО: повний ПІБ / ІПН
 value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
 value	TravelDocumentsBuilder::text.OutputFolderPath	Папка документів
 value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
@@ -218,7 +217,7 @@ value	TravelDocumentsBuilder::generation.message.Replace	Замінити існ
 value	TravelDocumentsBuilder::generation.message.Path	Файл або папка недоступні чи шлях конфліктує з шаблоном: {value}.
 value	TravelDocumentsBuilder::generation.message.Marker	У шаблоні відсутній плейсхолдер: {value}.
 value	TravelDocumentsBuilder::generation.message.Order	Наказ не знайдено, номер некоректний або знайдено кілька наказів: {value}.
-value	TravelDocumentsBuilder::generation.message.Tvo	Не вдалося однозначно визначити ТВО: {value}. Введіть повний ПІБ або ІПН.
+value	TravelDocumentsBuilder::generation.message.Tvo	Дані ТВО неповні або не відповідають кадровому джерелу: {value}. Оберіть кандидата повторно.
 value	TravelDocumentsBuilder::generation.message.Unsupported	Генерація для цього типу документа ще не реалізована: {value}.
 value	TravelDocumentsBuilder::generation.message.Success	DOCX збережено, tbTickets оновлено: {value}.
 value	TravelDocumentsBuilder::generation.message.Failed	Не вдалося згенерувати квиток: {value}
@@ -240,3 +239,16 @@ value	TravelDocumentsBuilder::generation.kind.maternity.event	Відпустка
 value	TravelDocumentsBuilder::generation.kind.childcare.input	Відпустка по догляду за дитиною
 value	TravelDocumentsBuilder::generation.kind.childcare.word	у відпустку по догляду за дитиною
 value	TravelDocumentsBuilder::generation.kind.childcare.event	Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
+value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
+value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
+value	TravelDocumentsBuilder::text.ClearTvo	Очистити ТВО
+value	TravelDocumentsBuilder::text.LookupTarget.Personnel	[[color=#F4A46B]]Військовослужбовець[[/color]] / ТВО
+value	TravelDocumentsBuilder::text.LookupTarget.Tvo	Військовослужбовець / [[color=#F4A46B]]ТВО[[/color]]
+value	TravelDocumentsBuilder::lookup.Tvo.apply.count	3
+value	TravelDocumentsBuilder::lookup.Tvo.apply.1.field	Personnel.FullName
+value	TravelDocumentsBuilder::lookup.Tvo.apply.1.target	Form.TvoName
+value	TravelDocumentsBuilder::lookup.Tvo.apply.2.field	Personnel.TaxId
+value	TravelDocumentsBuilder::lookup.Tvo.apply.2.target	Form.TvoIpn
+value	TravelDocumentsBuilder::lookup.Tvo.apply.3.field	Personnel.PositionCode
+value	TravelDocumentsBuilder::lookup.Tvo.apply.3.target	Form.TvoPosition

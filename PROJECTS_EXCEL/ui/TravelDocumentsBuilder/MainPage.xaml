@@ -13,38 +13,40 @@
                     text="{Binding Path=Text.PersonnelSection}"/>
 
     <controls:label name="PersonNameLabel"
-                    row="2"
+                    row="3"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.PersonNameLabel}"/>
 
     <controls:input name="PersonName"
-                    row="2"
+                    row="3"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.PersonName}"
+                    onFocus="{Binding Path=Commands.FocusPersonnel}"
                     onChange="{Binding Path=Commands.PersonNameChanged}"/>
 
     <controls:label name="PersonIdLabel"
-                    row="3"
+                    row="4"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.PersonIdLabel}"/>
 
     <controls:input name="PersonId"
-                    row="3"
+                    row="4"
                     column="2"
                     style="formField"
-                    value="{Binding Path=Form.PersonId}"/>
+                    value="{Binding Path=Form.PersonId}"
+                    onFocus="{Binding Path=Commands.FocusPersonnel}"/>
 
     <controls:label name="PersonRankLabel"
-                    row="4"
+                    row="2"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.PersonRankLabel}"/>
 
     <controls:input name="PersonRank"
-                    row="4"
+                    row="2"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.PersonRank}"/>
@@ -222,52 +224,79 @@
                      itemStyle="formSelectItem"
                      value="{Binding Path=Form.VacationAbroad}"/>
 
-    <controls:label name="TvoLookupLabel"
+    <controls:label name="TvoNameLabel"
                     row="20"
                     column="1"
                     style="formLabel"
-                    text="{Binding Path=Text.TvoLookup}"/>
+                    text="{Binding Path=Text.TvoName}"/>
 
-    <controls:input name="TvoLookup"
-                     row="20"
-                     column="2"
-                     style="formField"
-                     value="{Binding Path=Form.TvoLookup}"/>
+    <controls:input name="TvoName"
+                    row="20"
+                    column="2"
+                    style="formField"
+                    value="{Binding Path=Form.TvoName}"
+                    onFocus="{Binding Path=Commands.FocusTvo}"/>
+
+    <controls:label name="TvoIpnLabel"
+                    row="21"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.TvoIpn}"/>
+
+    <controls:input name="TvoIpn"
+                    row="21"
+                    column="2"
+                    style="formField"
+                    value="{Binding Path=Form.TvoIpn}"
+                    onFocus="{Binding Path=Commands.FocusTvo}"/>
+
+    <controls:label name="TvoPositionLabel"
+                    row="22"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.TvoPosition}"/>
+
+    <controls:input name="TvoPosition"
+                    row="22"
+                    column="2"
+                    style="formField"
+                    value="{Binding Path=Form.TvoPosition}"
+                    onFocus="{Binding Path=Commands.FocusTvo}"/>
 
     <controls:label name="PurposeLabel"
-                    row="21"
+                    row="23"
                     column="1"
                     rowSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.PurposeLabel}"/>
 
     <controls:input name="Purpose"
-                    row="21"
+                    row="23"
                     column="2"
                     rowSpan="2"
                     style="formField"
                     value="{Binding Path=Form.Purpose}"/>
 
     <controls:label name="TemplatePathLabel"
-                    row="23"
+                    row="25"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.TemplatePath}"/>
 
     <controls:input name="TemplatePath"
-                     row="23"
+                     row="25"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.TemplatePath}"/>
 
     <controls:label name="OutputFolderPathLabel"
-                    row="24"
+                    row="26"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.OutputFolderPath}"/>
 
     <controls:input name="OutputFolderPath"
-                     row="24"
+                     row="26"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.OutputFolderPath}"/>
@@ -373,7 +402,7 @@
                          uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"/>
 
     <controls:label name="CandidateCount"
-                    row="3"
+                    row="5"
                     column="7"
                     columnSpan="2"
                     style="statusText"
@@ -394,6 +423,22 @@
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
 
+    <controls:button name="LookupTarget"
+                     row="3"
+                     column="6"
+                     columnSpan="3"
+                     style="lookupToggle"
+                     caption="{Binding Path=Text.LookupTargetCaption}"
+                     command="{Binding Path=Commands.ToggleLookupTarget}"/>
+
+    <controls:button name="ClearTvo"
+                     row="23"
+                     column="10"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ClearTvo}"
+                     command="{Binding Path=Commands.ClearTvo}"/>
+
     <controls:label name="LookupStatus"
                     row="4"
                     column="4"
@@ -403,7 +448,7 @@
 
     <controls:table name="Candidates"
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                    row="5"
+                    row="6"
                     column="4"
                     style="candidateTable"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
@@ -571,6 +616,18 @@
                   fontSize="11"
                   horizontal="left"
                   vertical="top"/>
+    <controlStyle name="lookupToggle"
+                  backColor="#3B3B3B"
+                  textColor="#909090"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"
+                  paddingLeft="10"
+                  paddingRight="10"/>
     <controlStyle name="currentDateItem"
                   backColor="#375D7A"
                   textColor="#F4A46B"
@@ -660,7 +717,7 @@
               selector="name=PersonId"
               styles="{cellType:text;}"/>
         <rule target="control"
-              selector="name=TvoLookup"
+              selector="name=TvoIpn"
               styles="{cellType:text;}"/>
         <rule target="control"
               selector="name=CandidateCount"

@@ -1,11 +1,17 @@
 Option Explicit
 
+' --------------------------------------
 ' namespace Lifecycle {
+' --------------------------------------
 Public Sub fn_Module_Dispose()
 End Sub
+' --------------------------------------
 ' } // namespace Lifecycle
+' --------------------------------------
 
+' --------------------------------------
 ' namespace API {
+' --------------------------------------
 Public Function fn_TryUpdate(ByRef diagnostic As String) As Boolean
     Dim fileSystem As Object
     Dim stream As Object
@@ -167,4 +173,6 @@ EH:
     End If
     Resume Cleanup
 End Function
+' --------------------------------------
 ' } // namespace API
+' --------------------------------------

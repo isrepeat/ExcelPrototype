@@ -5,6 +5,9 @@ Private m_context As Object
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+
 Public Function fn_PrepareReload() As Boolean
     Dim context As Object
 

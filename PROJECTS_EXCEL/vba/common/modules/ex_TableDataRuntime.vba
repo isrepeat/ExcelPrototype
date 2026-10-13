@@ -2,14 +2,20 @@ Option Explicit
 
 Private m_lookupServices As Collection
 
+' --------------------------------------
 ' namespace Lifecycle {
+' --------------------------------------
 Public Sub fn_Module_Dispose()
     fn_ResetCaches
     Set m_lookupServices = Nothing
 End Sub
+' --------------------------------------
 ' } // namespace Lifecycle
+' --------------------------------------
 
+' --------------------------------------
 ' namespace API {
+' --------------------------------------
 Public Sub fn_Register(ByVal lookupService As obj_LookupService)
     If m_lookupServices Is Nothing Then Set m_lookupServices = New Collection
     m_lookupServices.Add lookupService
@@ -34,4 +40,6 @@ Public Sub fn_ResetCaches()
         lookupService.InvalidateCache
     Next lookupService
 End Sub
+' --------------------------------------
 ' } // namespace API
+' --------------------------------------

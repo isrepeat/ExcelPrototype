@@ -157,6 +157,7 @@ Public Property Let ArrivalOrder(ByVal value As String)
     private_EnsureReady
     m_ArrivalOrder = value
 End Property
+
 ' //
 ' // API
 ' //

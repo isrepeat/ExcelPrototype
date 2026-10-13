@@ -4,6 +4,15 @@ Option Explicit
 Private Const MARKER_PREFIX As String = "_pxTable_"
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Function fn_CreatePlan( _
