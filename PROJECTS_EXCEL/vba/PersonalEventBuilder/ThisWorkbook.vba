@@ -20,6 +20,7 @@ Private Sub Workbook_Open()
     ex_Core.fn_Diagnostic_Flush
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_OPEN_STAGE | Name=ActivateHotkeys"
     ex_Core.fn_Diagnostic_Flush
+    ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_OPEN_STAGE_COMPLETED | Name=ActivateHotkeys"
     ex_Core.fn_Diagnostic_Flush
@@ -56,6 +57,7 @@ Private Sub Workbook_Activate()
     If Not runtimeEntered Then Exit Sub
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_ACTIVATE_STARTED | Workbook=" & _
         ThisWorkbook.Name
+    ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_ACTIVATE_COMPLETED"
     ex_Core.fn_Diagnostic_Flush
@@ -209,6 +211,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
         Exit Sub
     End If
 
+    ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_CANCELLED | Reason=FinalLogFlushFailed"
     ex_Core.fn_Diagnostic_Flush
@@ -230,6 +233,7 @@ EH:
     errorDescription = VBA.Err.Description
     On Error Resume Next
     ex_UiBusy.fn_Reset
+    ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_ERROR | Number=" & _
         VBA.CStr(errorNumber) & " | Description=" & errorDescription

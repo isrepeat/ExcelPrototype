@@ -100,3 +100,5 @@ value	PersonalEventBuilder::text.StyleDeclaration	Некоректне огол�
 value	PersonalEventBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
 value	PersonalEventBuilder::text.StyleCellType	Непідтримуване значення cellType.
 value	PersonalEventBuilder::text.StyleWidth	Некоректне обмеження ширини.
+value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
+value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}

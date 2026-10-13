@@ -241,6 +241,7 @@ Public Function TryGenerate( _
     m_bindingContext.SetValue "Form", "ReturnDate", VBA.Format$(finalReturn, "dd.mm.yyyy")
     m_bindingContext.SetValue "Form", "TicketNo", ticketNo
     m_bindingContext.SetValue "Form", "DocumentPath", documentPath
+    m_bindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
     m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", documentPath)
     ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATED | Ticket=" & ticketNo & " | Path=" & documentPath
     TryGenerate = True

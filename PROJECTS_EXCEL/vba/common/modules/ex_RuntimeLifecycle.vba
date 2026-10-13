@@ -46,6 +46,8 @@ Public Function fn_InitializeReloaded(ByVal context As Object, ByVal uiFolder As
     initializerName = ex_WorkbookCallbacks.fn_Resolve("ThisWorkbook::initializer")
     If Not VBA.CBool(Application.Run(initializerName)) Then _
         VBA.Err.Raise VBA.vbObjectError + 2207, "fn_InitializeReloaded", "Runtime initialization failed."
+    ' Module replacement clears the registry; rebuild command bindings before activation.
+    ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     fn_InitializeReloaded = True
     Exit Function

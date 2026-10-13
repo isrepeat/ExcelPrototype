@@ -80,6 +80,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
+    If Not bindingContext.SetValue("Form", "GenerationStatusStyle", "generationSuccess") Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysAhead", valueText) Then Exit Function
     If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysAhead) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysBefore", valueText) Then Exit Function

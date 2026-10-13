@@ -230,12 +230,15 @@ Private Function private_GenerateDocument(ByVal isUpdate As Boolean) As Boolean
     End If
     vacationGenerator.Dispose
     If VBA.Len(diagnostic) > 0 Then
+        m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
         m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, title
     End If
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
+    m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
+    m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
     If Not vacationGenerator Is Nothing Then vacationGenerator.Dispose
     ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_HANDLER_FAILED | " & diagnostic
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, title

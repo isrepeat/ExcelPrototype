@@ -14,6 +14,7 @@ Private Sub Workbook_Open()
     If Not ex_PADC.fn_Initialize() Then
         GoTo Cleanup
     End If
+    ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
 Cleanup:
     ex_RuntimeLifecycle.fn_Leave runtimeContext
