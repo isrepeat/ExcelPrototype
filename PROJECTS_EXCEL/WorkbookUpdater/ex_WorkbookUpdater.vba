@@ -26,6 +26,7 @@ Public Function fn_RequestReload( _
     Dim errorText As String
     Dim lifecycleStarted As Boolean
     Dim ownsOperation As Boolean
+    Dim configDiagnostic As String
 
     On Error GoTo EH
     If Not m_target Is Nothing Then _
@@ -75,6 +76,12 @@ Public Function fn_RequestReload( _
         Set m_plan = New Collection
         m_operationFolder = private_CreateOperationFolder(target)
     Else
+        If Not m_initialInstall Then
+            If Not VBA.CBool(Application.Run(private_Macro("ex_ConfigRefresh.fn_TryUpdate"), configDiagnostic)) Then
+                VBA.Err.Raise VBA.vbObjectError + 2326, , _
+                    "Configuration refresh failed. Module update was cancelled. " & configDiagnostic
+            End If
+        End If
         Set m_plan = private_ReadPlan(target, m_uiFolder)
     End If
     m_context("StopRequested") = True

@@ -202,6 +202,41 @@ Public Function DocumentTypeChangedHandler() As Boolean
     DocumentTypeChangedHandler = True
 End Function
 
+Public Function ClearFormHandler() As Boolean
+    Dim updates As Object
+    Dim key As Variant
+    Dim valueText As String
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
+            "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
+            "ReturnDate", "Purpose", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
+            "TicketNo", "DocumentPath", "GenerationStatus")
+        updates("Form." & VBA.CStr(key)) = VBA.vbNullString
+    Next key
+    For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", _
+            "VacationDays", "RoadDays", "DonationDays")
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig( _
+                "generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
+        updates("Form." & VBA.CStr(key)) = valueText
+    Next key
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.default", valueText) Then Exit Function
+    updates("Form.DocumentType") = valueText
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.LookupTarget.Personnel", valueText) Then Exit Function
+    updates("Text.LookupTargetCaption") = valueText
+    updates("Form.LookupIsTvo") = False
+    updates("Form.AutoFillPersonnel") = True
+    updates("Form.GenerationStatusStyle") = "generationSuccess"
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "UI"
+        Exit Function
+    End If
+    If Not Me.DocumentTypeChangedHandler() Then Exit Function
+    ClearFormHandler = Me.SearchPersonnelHandler()
+End Function
+
 Public Function CreateDocumentHandler() As Boolean
     CreateDocumentHandler = private_GenerateDocument(False)
 End Function

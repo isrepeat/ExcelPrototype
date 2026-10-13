@@ -130,7 +130,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", _
-            "CreateDocument", "UpdateDocument", "TicketNo", "DocumentPath")
+            "CreateDocument", "UpdateDocument", "ClearForm", "TicketNo", "DocumentPath")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
@@ -170,6 +170,8 @@ Private Function private_TryRegisterCommands() As Boolean
             bindingContext, "CreateDocument", "CreateDocumentHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "UpdateDocument", "UpdateDocumentHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
+            bindingContext, "ClearForm", "ClearFormHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "VacationDatesChanged", "VacationDatesChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "ToggleLookupTarget", "ToggleLookupTargetHandler") Then Exit Function
