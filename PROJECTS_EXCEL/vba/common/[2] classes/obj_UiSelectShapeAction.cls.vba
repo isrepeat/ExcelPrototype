@@ -27,6 +27,8 @@ Private m_selectedValue As String
 Private m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 Private m_editable As Boolean
+Private m_uiFieldControl As obj_UiFieldControl
+Private m_dropdownCreated As Boolean
 
 ' //
 ' // Lifecycle
@@ -80,7 +82,8 @@ Public Function Initialize( _
     ByVal items As Collection, _
     ByVal selectedValue As String, _
     ByVal uiCellBinding As obj_UiCellBinding, _
-    Optional ByVal editable As Boolean = False _
+    Optional ByVal editable As Boolean = False, _
+    Optional ByVal uiFieldControl As obj_UiFieldControl = Nothing _
 ) As Boolean
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -90,7 +93,11 @@ Public Function Initialize( _
     If uiCellBinding Is Nothing Then Exit Function
     If VBA.Len(VBA.Trim$(headerShapeName)) = 0 Or _
        VBA.Len(VBA.Trim$(panelShapeName)) = 0 Then Exit Function
-    If itemShapeNames.Count <> items.Count Then Exit Function
+    If uiFieldControl Is Nothing Then
+        If itemShapeNames.Count <> items.Count Then Exit Function
+    Else
+        If itemShapeNames.Count <> 0 Or shapeNames.Count <> 1 Then Exit Function
+    End If
 
     m_controlId = controlId
     Set m_worksheet = targetCell.Parent
@@ -104,6 +111,8 @@ Public Function Initialize( _
     Set m_uiCellBinding = uiCellBinding
     m_isExpanded = False
     m_editable = editable
+    Set m_uiFieldControl = uiFieldControl
+    m_dropdownCreated = (uiFieldControl Is Nothing)
     Initialize = True
     m_isInitialized = Initialize
     m_uiCellBinding.SubscribeRefresh Me
@@ -117,6 +126,7 @@ Public Sub Dispose()
     m_isInitialized = False
     If Not m_uiCellBinding Is Nothing Then m_uiCellBinding.UnsubscribeRefresh Me
     Set m_uiCellBinding = Nothing
+    Set m_uiFieldControl = Nothing
     Set m_items = Nothing
     Set m_shapeNames = Nothing
     Set m_itemShapeNames = Nothing
@@ -168,9 +178,38 @@ End Function
 ' // Private
 ' //
 Private Function private_ToggleDropdown() As Boolean
+    Dim previousScreenUpdating As Boolean
+    Dim shapeIndex As Long
+    Dim shapeName As String
+    Dim errorDescription As String
+
+    If Not m_dropdownCreated Then
+        previousScreenUpdating = Application.ScreenUpdating
+        On Error GoTo EH_CREATE
+        Application.ScreenUpdating = False
+        If Not m_uiFieldControl.CreateDropdownShapes( _
+                m_controlId, m_panelShapeName, m_itemShapeNames, m_shapeNames, m_items, Me) Then
+            VBA.Err.Raise 5, , "Cannot create dropdown: " & m_headerShapeName
+        End If
+        m_dropdownCreated = True
+        Application.ScreenUpdating = previousScreenUpdating
+    End If
     m_isExpanded = Not m_isExpanded
     private_UpdateHeader
     private_ToggleDropdown = private_ApplyVisibility()
+    Exit Function
+EH_CREATE:
+    errorDescription = VBA.Err.Description
+    On Error Resume Next
+    For shapeIndex = m_shapeNames.Count To 2 Step -1
+        shapeName = VBA.CStr(m_shapeNames(shapeIndex))
+        m_worksheet.Shapes(shapeName).Delete
+        m_shapeNames.Remove shapeIndex
+    Next shapeIndex
+    Set m_itemShapeNames = New Collection
+    Application.ScreenUpdating = previousScreenUpdating
+    On Error GoTo 0
+    ex_WindowsUi.fn_ShowMessage errorDescription, VBA.vbExclamation, "UI"
 End Function
 
 Private Function private_SelectItem(ByVal itemIndex As Long) As Boolean

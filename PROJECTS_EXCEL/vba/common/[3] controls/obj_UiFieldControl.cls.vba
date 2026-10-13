@@ -178,6 +178,99 @@ Public Sub Dispose()
     Set m_changeCommand = Nothing
 End Sub
 
+Public Function CreateDropdownShapes( _
+    ByVal controlId As Long, _
+    ByVal panelShapeName As String, _
+    ByVal itemShapeNames As Collection, _
+    ByVal shapeNames As Collection, _
+    ByVal items As Collection, _
+    ByVal uiSelectShapeAction As obj_UiSelectShapeAction _
+) As Boolean
+    Dim uiRenderContext As obj_UiRenderContext
+    Dim targetWorksheet As Worksheet
+    Dim panelShape As Shape
+    Dim itemShape As Shape
+    Dim itemShapeName As String
+    Dim itemText As String
+    Dim itemHeight As Double
+    Dim itemMargin As Double
+    Dim itemTop As Double
+    Dim itemIndex As Long
+    Dim highlightValue As Variant
+    Dim highlightObject As Object
+    Dim highlightIsObject As Boolean
+    Dim highlightRaw As String
+    Dim startedAt As Double
+    Dim routeName As Variant
+
+    If m_isDisposed Or m_renderContext Is Nothing Then Exit Function
+    startedAt = VBA.Timer
+    Set uiRenderContext = m_renderContext
+    highlightRaw = private_ReadAttribute(m_uiControlBase.ControlNode, "highlightValue")
+    If VBA.Len(highlightRaw) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+                highlightRaw, uiRenderContext.BindingContext, highlightValue, highlightObject, highlightIsObject) Then Exit Function
+        If highlightIsObject Or VBA.IsNull(highlightValue) Or VBA.IsError(highlightValue) Then Exit Function
+    End If
+    Set targetWorksheet = uiRenderContext.TargetWorksheet
+    itemHeight = m_targetRange.Height
+    itemMargin = 0
+    If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight")) Then
+        itemHeight = VBA.CDbl(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight"))
+    End If
+    If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemMargin")) Then
+        itemMargin = VBA.CDbl(private_ReadAttribute(m_uiControlBase.ControlNode, "itemMargin"))
+    End If
+    If itemHeight <= 0 Or itemMargin < 0 Then Exit Function
+
+    Set panelShape = targetWorksheet.Shapes.AddShape( _
+        msoShapeRectangle, m_targetRange.Left, m_targetRange.Top + m_targetRange.Height, _
+        m_targetRange.Width, items.Count * itemHeight + (items.Count - 1) * itemMargin)
+    panelShape.Name = panelShapeName
+    shapeNames.Add panelShapeName
+    panelShape.Placement = xlMoveAndSize
+    private_ApplyDefaultShapeStyle panelShape
+    uiRenderContext.Styles.ApplyControlPartStyle panelShape, _
+        m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "panelStyle"
+    panelShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+    panelShape.Visible = msoFalse
+
+    For itemIndex = 1 To items.Count
+        itemShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "i_" & VBA.CStr(controlId) & "_" & VBA.CStr(itemIndex))
+        itemTop = panelShape.Top + (itemIndex - 1) * (itemHeight + itemMargin)
+        Set itemShape = targetWorksheet.Shapes.AddShape( _
+            msoShapeRectangle, panelShape.Left, itemTop, panelShape.Width, itemHeight)
+        itemShape.Name = itemShapeName
+        shapeNames.Add itemShapeName
+        itemShape.Placement = xlMoveAndSize
+        private_ApplyDefaultShapeStyle itemShape
+        itemText = VBA.CStr(items(itemIndex))
+        itemShape.TextFrame2.TextRange.Text = itemText
+        itemShape.TextFrame2.MarginLeft = 5
+        itemShape.TextFrame2.MarginRight = 5
+        itemShape.TextFrame2.MarginTop = 0
+        itemShape.TextFrame2.MarginBottom = 0
+        uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
+            m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "itemStyle"
+        If VBA.Len(highlightRaw) > 0 Then
+            If itemText = VBA.CStr(highlightValue) Then
+                uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
+                    m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "highlightStyle"
+            End If
+        End If
+        itemShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+        itemShape.Visible = msoFalse
+        itemShapeNames.Add itemShapeName
+    Next itemIndex
+
+    For Each routeName In shapeNames
+        uiRenderContext.Router.RegisterShape VBA.CStr(routeName), uiSelectShapeAction
+    Next routeName
+    CreateDropdownShapes = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Select.CreateDropdown | Name=" & m_uiControlBase.ControlName & _
+        " | Items=" & VBA.CStr(items.Count), startedAt
+End Function
+
 ' //
 ' // Private
 ' //
@@ -217,6 +310,7 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
 End Function
 
 Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
+    Dim startedAt As Double
     Dim value As Variant
     Dim sourceObject As Object
     Dim isObject As Boolean
@@ -227,6 +321,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 
     Dim shapeNameToRemove As Variant
 
+    startedAt = VBA.Timer
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RENDER_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
@@ -357,6 +452,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         uiRenderContext.Router.RegisterShape m_checkboxShape.Name, Me
     End If
     private_Render = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Field.Render | Name=" & m_uiControlBase.ControlName, startedAt
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RENDER_COMPLETED | Name=" & m_uiControlBase.ControlName
 #End If
@@ -415,47 +511,22 @@ Private Function private_RenderSelectShapes( _
 ) As Boolean
     Dim targetWorksheet As Worksheet
     Dim headerShape As Shape
-    Dim panelShape As Shape
-    Dim itemShape As Shape
     Dim itemShapeNames As Collection
     Dim shapeNames As Collection
     Dim uiSelectAction As obj_UiSelectShapeAction
     Dim controlId As Long
     Dim headerShapeName As String
     Dim panelShapeName As String
-    Dim itemShapeName As String
-    Dim itemText As String
     Dim arrowText As String
-    Dim itemHeight As Double
-    Dim itemMargin As Double
-    Dim itemTop As Double
-    Dim itemIndex As Long
-    Dim highlightValue As Variant
-    Dim highlightObject As Object
-    Dim highlightIsObject As Boolean
-    Dim highlightRaw As String
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
     If items Is Nothing Or uiCellBinding Is Nothing Then Exit Function
     If items.Count = 0 Then Exit Function
-    highlightRaw = private_ReadAttribute(m_uiControlBase.ControlNode, "highlightValue")
-    If VBA.Len(highlightRaw) > 0 Then
-        If Not ex_UiBindingRuntime.fn_TryResolveValue( _
-                highlightRaw, uiRenderContext.BindingContext, highlightValue, highlightObject, highlightIsObject) Then Exit Function
-        If highlightIsObject Or VBA.IsNull(highlightValue) Or VBA.IsError(highlightValue) Then Exit Function
-    End If
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     controlId = uiRenderContext.Router.NextId()
     headerShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId))
     panelShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "p_" & VBA.CStr(controlId))
-    itemHeight = m_targetRange.Height
-    itemMargin = 0
-    If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight")) Then
-        itemHeight = VBA.CDbl(private_ReadAttribute(m_uiControlBase.ControlNode, "itemHeight"))
-    End If
-    If VBA.IsNumeric(private_ReadAttribute(m_uiControlBase.ControlNode, "itemMargin")) Then
-        itemMargin = VBA.CDbl(private_ReadAttribute(m_uiControlBase.ControlNode, "itemMargin"))
-    End If
-    If itemHeight <= 0 Or itemMargin < 0 Then Exit Function
 
     Set headerShape = targetWorksheet.Shapes.AddShape( _
         msoShapeRectangle, m_targetRange.Left, m_targetRange.Top, _
@@ -484,53 +555,14 @@ Private Function private_RenderSelectShapes( _
     End If
     headerShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
 
-    Set panelShape = targetWorksheet.Shapes.AddShape( _
-        msoShapeRectangle, m_targetRange.Left, m_targetRange.Top + m_targetRange.Height, _
-        m_targetRange.Width, items.Count * itemHeight + (items.Count - 1) * itemMargin)
-    panelShape.Name = panelShapeName
-    panelShape.Placement = xlMoveAndSize
-    private_ApplyDefaultShapeStyle panelShape
-    uiRenderContext.Styles.ApplyControlPartStyle panelShape, _
-        m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "panelStyle"
-    panelShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
-    panelShape.Visible = msoFalse
-
     Set itemShapeNames = New Collection
     Set shapeNames = New Collection
     shapeNames.Add headerShapeName
-    shapeNames.Add panelShapeName
-    For itemIndex = 1 To items.Count
-        itemShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "i_" & VBA.CStr(controlId) & "_" & VBA.CStr(itemIndex))
-        itemTop = panelShape.Top + (itemIndex - 1) * (itemHeight + itemMargin)
-        Set itemShape = targetWorksheet.Shapes.AddShape( _
-            msoShapeRectangle, panelShape.Left, itemTop, panelShape.Width, itemHeight)
-        itemShape.Name = itemShapeName
-        itemShape.Placement = xlMoveAndSize
-        private_ApplyDefaultShapeStyle itemShape
-        itemText = VBA.CStr(items(itemIndex))
-        itemShape.TextFrame2.TextRange.Text = itemText
-        itemShape.TextFrame2.MarginLeft = 5
-        itemShape.TextFrame2.MarginRight = 5
-        itemShape.TextFrame2.MarginTop = 0
-        itemShape.TextFrame2.MarginBottom = 0
-        uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
-            m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "itemStyle"
-        If VBA.Len(highlightRaw) > 0 Then
-            If itemText = VBA.CStr(highlightValue) Then
-                uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
-                    m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "highlightStyle"
-            End If
-        End If
-        itemShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
-        itemShape.Visible = msoFalse
-        itemShapeNames.Add itemShapeName
-        shapeNames.Add itemShapeName
-    Next itemIndex
 
     Set uiSelectAction = New obj_UiSelectShapeAction
     If Not uiSelectAction.Initialize( _
             controlId, m_targetRange.Cells(1, 1), headerShapeName, panelShapeName, _
-            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable) Then Exit Function
+            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable, Me) Then Exit Function
     Set m_selectAction = uiSelectAction
     Dim routeName As Variant
 
@@ -538,6 +570,8 @@ Private Function private_RenderSelectShapes( _
         uiRenderContext.Router.RegisterShape VBA.CStr(routeName), uiSelectAction
     Next routeName
     private_RenderSelectShapes = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Select.CreateShapes | Name=" & m_uiControlBase.ControlName & _
+        " | Items=" & VBA.CStr(items.Count), startedAt
 End Function
 
 Private Sub private_ApplyDefaultShapeStyle(ByVal targetShape As Shape)
