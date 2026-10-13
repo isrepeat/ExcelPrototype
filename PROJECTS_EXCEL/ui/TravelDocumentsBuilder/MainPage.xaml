@@ -263,40 +263,52 @@
                     value="{Binding Path=Form.TvoPosition}"
                     onFocus="{Binding Path=Commands.FocusTvo}"/>
 
-    <controls:label name="PurposeLabel"
+    <controls:label name="ReportNoLabel"
                     row="23"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.ReportNo}"/>
+
+    <controls:input name="ReportNo"
+                    row="23"
+                    column="2"
+                    style="formField"
+                    value="{Binding Path=Form.ReportNo}"/>
+
+    <controls:label name="PurposeLabel"
+                    row="24"
                     column="1"
                     rowSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.PurposeLabel}"/>
 
     <controls:input name="Purpose"
-                    row="23"
+                    row="24"
                     column="2"
                     rowSpan="2"
                     style="formField"
                     value="{Binding Path=Form.Purpose}"/>
 
     <controls:label name="TemplatePathLabel"
-                    row="25"
+                    row="26"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.TemplatePath}"/>
 
     <controls:input name="TemplatePath"
-                     row="25"
+                     row="26"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.TemplatePath}"/>
 
     <controls:label name="OutputFolderPathLabel"
-                    row="26"
+                    row="27"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.OutputFolderPath}"/>
 
     <controls:input name="OutputFolderPath"
-                     row="26"
+                     row="27"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.OutputFolderPath}"/>

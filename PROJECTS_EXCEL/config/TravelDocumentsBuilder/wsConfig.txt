@@ -132,6 +132,7 @@ value	TravelDocumentsBuilder::text.VacationTicket.DocumentFormTitle	Відпус
 value	TravelDocumentsBuilder::text.VacationTicket.DocumentTargetLabel	Місце відпустки
 value	TravelDocumentsBuilder::text.VacationTicket.DepartureDateLabel	Дата вибуття
 value	TravelDocumentsBuilder::text.VacationTicket.ReturnDateLabel	Дата повернення
+value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.VacationTicket.PurposeLabel	Підстава
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentFormTitle	Посвідчення про відрядження
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentTargetLabel	Місце відрядження
@@ -160,14 +161,14 @@ value	TravelDocumentsBuilder::generation.defaults.VacationDays	0
 value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
 value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
 value	TravelDocumentsBuilder::generation.defaults.TemplatePath	Шаблони\Відпустка (Шаблон).docx
-value	TravelDocumentsBuilder::generation.defaults.OutputFolderPath	.
+value	TravelDocumentsBuilder::generation.defaults.OutputFolderPath	.\Результати
 value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
 value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
 value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
 value	TravelDocumentsBuilder::generation.registry.workbook	Квитки.xlsx
 value	TravelDocumentsBuilder::generation.registry.sheet	Квитки
 value	TravelDocumentsBuilder::generation.registry.table	tbTickets
-value	TravelDocumentsBuilder::generation.registry.columns	Звання|ПІБ|ІПН|Посада|Подія|Куди|Вибуття.Наказ|Вибуття.Продовольче|Вибуття|Вибуття.Термін|Вибуття.Дорога|Прибуття.План|Прибуття|Прибуття.Продовольче|Прибуття.Наказ|Супровідний документ|ТВО.ПІБ|ТВО.ІПН|ТВО.Посада|Статус
+value	TravelDocumentsBuilder::generation.registry.columns	Звання|ПІБ|ІПН|Посада|Подія|Куди|Вибуття.Наказ|Вибуття.Продовольче|Вибуття|Вибуття.Термін|Вибуття.Дорога|Прибуття.План|Прибуття|Прибуття.Продовольче|Прибуття.Наказ|Супровідний документ|ТВО.ПІБ|ТВО.ІПН|ТВО.Посада|Статус|Підстава
 value	TravelDocumentsBuilder::generation.registry.arrivalFormula	=IF([@Вибуття]="","",[@Вибуття]+SUM([@[Вибуття.Термін]],[@[Вибуття.Дорога]])+1)
 value	TravelDocumentsBuilder::generation.orders.path	../Dependencies/Накази.xlsx
 value	TravelDocumentsBuilder::generation.orders.rangePrefix	generation.orders.year.
