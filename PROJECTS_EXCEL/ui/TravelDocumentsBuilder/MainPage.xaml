@@ -87,27 +87,76 @@
                     style="formField"
                     value="{Binding Path=Form.PersonUnit}"/>
 
-    <controls:label name="DocumentTargetLabel"
+    <controls:label name="DocumentSection"
+                    row="10"
+                    column="1"
+                    columnSpan="2"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.DocumentSection}"/>
+
+    <controls:label name="VacationKindLabel"
                     row="11"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.VacationKind}"/>
+
+    <controls:select name="VacationKind"
+                     itemsSource="{Binding Path=Data.VacationKinds}"
+                     row="11"
+                     column="2"
+                     style="formField"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     value="{Binding Path=Form.VacationKind}"/>
+
+    <controls:label name="VacationStatusLabel"
+                    row="12"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.VacationStatus}"/>
+
+    <controls:select name="VacationStatus"
+                     itemsSource="{Binding Path=Data.StatusOptions}"
+                     row="12"
+                     column="2"
+                     style="formField"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     value="{Binding Path=Form.VacationStatus}"/>
+
+    <controls:label name="DocumentTargetLabel"
+                    row="13"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.DocumentTargetLabel}"/>
 
     <controls:input name="DocumentTarget"
-                    row="11"
+                    row="13"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.DocumentTarget}"/>
 
+    <controls:label name="OrderReferenceLabel"
+                    row="14"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.OrderReference}"/>
+
+    <controls:input name="OrderReference"
+                     row="14"
+                     column="2"
+                     style="formField"
+                     value="{Binding Path=Form.OrderReference}"/>
+
     <controls:label name="DepartureDateLabel"
-                    row="12"
+                    row="15"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.DepartureDateLabel}"/>
 
     <controls:select name="DepartureDate"
                     itemsSource="{Binding Path=Data.DepartureDates}"
-                    row="12"
+                    row="15"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.DepartureDate}"
@@ -119,168 +168,106 @@
                     itemStyle="formSelectItem"
                     onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
-    <controls:label name="ReturnDateLabel"
-                    row="13"
-                    column="1"
-                    style="formLabel"
-                    text="{Binding Path=Text.ReturnDateLabel}"/>
-
-    <controls:label name="ReturnDate"
-                    row="13"
-                    column="2"
-                    style="formField"
-                    text="{Binding Path=Form.ReturnDate}"/>
-
-    <controls:label name="PurposeLabel"
-                    row="14"
-                    column="1"
-                    rowSpan="2"
-                    style="formLabel"
-                    text="{Binding Path=Text.PurposeLabel}"/>
-
-    <controls:input name="Purpose"
-                    row="14"
-                    column="2"
-                    rowSpan="2"
-                    style="formField"
-                    value="{Binding Path=Form.Purpose}"/>
-
-    <controls:label name="DocumentSection"
-                    row="10"
-                    column="1"
-                    columnSpan="2"
-                    style="sectionTitle"
-                    text="{Binding Path=Text.DocumentSection}"/>
-
-
-    <controls:label name="VacationKindLabel"
-                    row="16"
-                    column="1"
-                    style="formLabel"
-                    text="{Binding Path=Text.VacationKind}"/>
-
-    <controls:select name="VacationKind"
-                     itemsSource="{Binding Path=Data.VacationKinds}"
-                     row="16"
-                     column="2"
-                     style="formField"
-                     panelStyle="formSelectPanel"
-                     itemStyle="formSelectItem"
-                     value="{Binding Path=Form.VacationKind}"/>
-
-    <controls:label name="OrderReferenceLabel"
-                    row="17"
-                    column="1"
-                    style="formLabel"
-                    text="{Binding Path=Text.OrderReference}"/>
-
-    <controls:input name="OrderReference"
-                     row="17"
-                     column="2"
-                     style="formField"
-                     value="{Binding Path=Form.OrderReference}"/>
-
     <controls:label name="VacationDaysLabel"
-                    row="18"
+                    row="16"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.VacationDays}"/>
 
     <controls:input name="VacationDays"
-                     row="18"
+                     row="16"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.VacationDays}"
                      onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="RoadDaysLabel"
-                    row="19"
+                    row="17"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.RoadDays}"/>
 
     <controls:input name="RoadDays"
-                     row="19"
+                     row="17"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.RoadDays}"
                      onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="DonationDaysLabel"
-                    row="20"
+                    row="18"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.DonationDays}"/>
 
     <controls:input name="DonationDays"
-                     row="20"
+                     row="18"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.DonationDays}"
                      onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="VacationAbroadLabel"
-                    row="21"
+                    row="19"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.VacationAbroad}"/>
 
     <controls:select name="VacationAbroad"
                      itemsSource="{Binding Path=Data.AbroadOptions}"
-                     row="21"
+                     row="19"
                      column="2"
                      style="formField"
                      panelStyle="formSelectPanel"
                      itemStyle="formSelectItem"
                      value="{Binding Path=Form.VacationAbroad}"/>
 
-    <controls:label name="VacationStatusLabel"
-                    row="22"
-                    column="1"
-                    style="formLabel"
-                    text="{Binding Path=Text.VacationStatus}"/>
-
-    <controls:select name="VacationStatus"
-                     itemsSource="{Binding Path=Data.StatusOptions}"
-                     row="22"
-                     column="2"
-                     style="formField"
-                     panelStyle="formSelectPanel"
-                     itemStyle="formSelectItem"
-                     value="{Binding Path=Form.VacationStatus}"/>
-
     <controls:label name="TvoLookupLabel"
-                    row="23"
+                    row="20"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.TvoLookup}"/>
 
     <controls:input name="TvoLookup"
-                     row="23"
+                     row="20"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.TvoLookup}"/>
 
+    <controls:label name="PurposeLabel"
+                    row="21"
+                    column="1"
+                    rowSpan="2"
+                    style="formLabel"
+                    text="{Binding Path=Text.PurposeLabel}"/>
+
+    <controls:input name="Purpose"
+                    row="21"
+                    column="2"
+                    rowSpan="2"
+                    style="formField"
+                    value="{Binding Path=Form.Purpose}"/>
+
     <controls:label name="TemplatePathLabel"
-                    row="24"
+                    row="23"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.TemplatePath}"/>
 
     <controls:input name="TemplatePath"
-                     row="24"
+                     row="23"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.TemplatePath}"/>
 
     <controls:label name="OutputFolderPathLabel"
-                    row="25"
+                    row="24"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.OutputFolderPath}"/>
 
     <controls:input name="OutputFolderPath"
-                     row="25"
+                     row="24"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.OutputFolderPath}"/>
@@ -351,7 +338,7 @@
                     column="10"
                     rowSpan="5"
                     columnSpan="2"
-                    style="statusText"
+                    style="{Binding Path=Form.GenerationStatusStyle}"
                     text="{Binding Path=Form.GenerationStatus}"/>
 
     <controls:label name="SearchSection"
@@ -568,6 +555,22 @@
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="generationError"
+                  indent="1"
+                  backColor="#262626"
+                  textColor="#FFD966"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"/>
+    <controlStyle name="generationSuccess"
+                  indent="1"
+                  backColor="#262626"
+                  textColor="#909090"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"/>
     <controlStyle name="currentDateItem"
                   backColor="#375D7A"
                   textColor="#F4A46B"
@@ -647,9 +650,6 @@
               styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">
-        <rule target="control"
-              selector="name=ReturnDate"
-              styles="{cellType:text;}"/>
         <rule target="control"
               selector="name=DepartureDate"
               styles="{cellType:text;}"/>

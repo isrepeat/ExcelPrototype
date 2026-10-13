@@ -1,31 +1,16 @@
 Option Explicit
 
-Private Const HOTKEY As String = "^%u"
-Private m_isBound As Boolean
-
 ' namespace Lifecycle {
 Public Sub fn_Module_Dispose()
-    fn_Deactivate
 End Sub
 ' } // namespace Lifecycle
 
 ' namespace API {
-Public Sub fn_Activate()
-    Application.OnKey HOTKEY, "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_TDB_ConfigRefresh.fn_Update"
-    m_isBound = True
-End Sub
-
-Public Sub fn_Deactivate()
-    If Not m_isBound Then Exit Sub
-    Application.OnKey HOTKEY
-    m_isBound = False
-End Sub
-
-Public Sub fn_Update()
-    Dim runtimeContext As Object
+Public Function fn_TryUpdate(ByRef diagnostic As String) As Boolean
     Dim fileSystem As Object
     Dim stream As Object
     Dim configPath As String
+    Dim profileId As String
     Dim text As String
     Dim lines As Variant
     Dim fields As Variant
@@ -48,16 +33,20 @@ Public Sub fn_Update()
     Dim previousUpdating As Boolean
     Dim guarded As Boolean
     Dim changed As Boolean
-    Dim diagnostic As String
     Dim failureTemplate As String
     Dim successTemplate As String
 
-    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
-    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    diagnostic = VBA.vbNullString
     On Error GoTo EH
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::id", profileId) Then
+        VBA.Err.Raise 5, , "Required configuration key not found in the current workbook: ThisWorkbook::id"
+    End If
+    If profileId = "." Or profileId = ".." Or profileId Like "*[!A-Za-z0-9_-]*" Then
+        VBA.Err.Raise 5, , "Invalid configuration profile identifier: " & profileId
+    End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     configPath = fileSystem.GetAbsolutePathName(fileSystem.BuildPath( _
-        ThisWorkbook.Path, "../../config/TravelDocumentsBuilder/wsConfig.txt"))
+        ThisWorkbook.Path, "../../config/" & profileId & "/wsConfig.txt"))
     Set stream = VBA.CreateObject("ADODB.Stream")
     stream.Type = 2
     stream.Charset = "utf-8"
@@ -86,9 +75,11 @@ Public Sub fn_Update()
     Next line
     If records.Count = 0 Then VBA.Err.Raise 5, , "Configuration file is empty: " & configPath
     If Not keys.Exists("ThisWorkbook::id") Then VBA.Err.Raise 5, , "Required configuration key not found: ThisWorkbook::id"
-    If keys("ThisWorkbook::id") <> "TravelDocumentsBuilder" Then VBA.Err.Raise 5, , "Configuration profile mismatch."
-    successTemplate = keys("TravelDocumentsBuilder::configRefresh.text.Success")
-    failureTemplate = keys("TravelDocumentsBuilder::configRefresh.text.Failed")
+    If VBA.StrComp(VBA.Trim$(keys("ThisWorkbook::id")), profileId, VBA.vbBinaryCompare) <> 0 Then
+        VBA.Err.Raise 5, , "Configuration profile mismatch: " & profileId & " / " & keys("ThisWorkbook::id")
+    End If
+    successTemplate = keys(profileId & "::configRefresh.text.Success")
+    failureTemplate = keys(profileId & "::configRefresh.text.Failed")
     If VBA.Len(successTemplate) = 0 Or VBA.Len(failureTemplate) = 0 Then
         VBA.Err.Raise 5, , "Required configuration key unavailable: configRefresh.text.Success / configRefresh.text.Failed"
     End If
@@ -143,8 +134,9 @@ Public Sub fn_Update()
         Application.CutCopyMode = False
     End If
     changed = False
-    ex_Core.fn_Diagnostic_WriteLog "TDB_CONFIG_REFRESHED | Path=" & configPath & " | Rows=" & records.Count
-    ex_Core.fn_StatusBar_Show VBA.Replace$(successTemplate, "{path}", configPath)
+    ex_Core.fn_Diagnostic_WriteLog "CONFIG_REFRESHED | Path=" & configPath & " | Rows=" & records.Count
+    diagnostic = VBA.Replace$(successTemplate, "{path}", configPath)
+    fn_TryUpdate = True
 Cleanup:
     On Error Resume Next
     Application.CutCopyMode = False
@@ -153,8 +145,7 @@ Cleanup:
         Application.EnableEvents = previousEvents
         Application.ScreenUpdating = previousUpdating
     End If
-    ex_RuntimeLifecycle.fn_Leave runtimeContext
-    Exit Sub
+    Exit Function
 EH:
     diagnostic = VBA.Err.Description
     On Error Resume Next
@@ -165,15 +156,15 @@ EH:
         originalRange.Value2 = originalValues
         If VBA.Err.Number <> 0 Then diagnostic = diagnostic & " | Rollback: " & VBA.Err.Description
     End If
-    ex_Core.fn_Diagnostic_WriteLog "TDB_CONFIG_REFRESH_FAILED | " & diagnostic
+    ex_Core.fn_Diagnostic_WriteLog "CONFIG_REFRESH_FAILED | " & diagnostic
     If VBA.Len(failureTemplate) = 0 Then
-        ex_Core.fn_TryGetWorkbookConfigValue "TravelDocumentsBuilder::configRefresh.text.Failed", failureTemplate
+        ex_Core.fn_TryGetWorkbookConfigValue profileId & "::configRefresh.text.Failed", failureTemplate
     End If
     If VBA.Len(failureTemplate) > 0 Then
-        ex_WindowsUi.fn_ShowMessage VBA.Replace$(failureTemplate, "{error}", diagnostic), VBA.vbExclamation
+        diagnostic = VBA.Replace$(failureTemplate, "{error}", diagnostic)
     Else
-        ex_WindowsUi.fn_ShowMessage "Required configuration key unavailable: TravelDocumentsBuilder::configRefresh.text.Failed | " & diagnostic, VBA.vbExclamation
+        diagnostic = "Required configuration key unavailable: " & profileId & "::configRefresh.text.Failed | " & diagnostic
     End If
     Resume Cleanup
-End Sub
+End Function
 ' } // namespace API

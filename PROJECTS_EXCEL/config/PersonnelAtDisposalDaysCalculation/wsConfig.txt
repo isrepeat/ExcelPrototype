@@ -128,3 +128,5 @@ value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DESCRIPTION	 | Description=
 value	PersonnelAtDisposalDaysCalculation::legacy.MSG_LOG_WRITE_FAILED	Unable to write the log:
 value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_REFERENCE	Use file.xlsx|Worksheet!B2, where B2 is the first table header cell.
 value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_TABLE_MISSING	No table starts at the specified header cell:
+value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}
+value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
