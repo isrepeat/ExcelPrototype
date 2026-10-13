@@ -29,6 +29,7 @@ Private m_itemsSourceRaw As String
 Private m_changeCommandRaw As String
 Private m_changeCommand As obj_UiCommand
 Private m_isSelect As Boolean
+Private m_editable As Boolean
 Private m_isCheckbox As Boolean
 Private m_readOnly As Boolean
 Private m_cellBinding As obj_UiCellBinding
@@ -192,6 +193,7 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     m_isSelect = (controlType = "select" Or inputType = "select")
     m_isCheckbox = (inputType = "checkbox")
     m_readOnly = (VBA.LCase$(private_ReadAttribute(controlNode, "readOnly")) = "true")
+    m_editable = m_isSelect And (VBA.LCase$(private_ReadAttribute(controlNode, "editable")) = "true")
     m_items = private_ReadAttribute(controlNode, "items")
     m_itemsSourceRaw = private_ReadAttribute(controlNode, "itemsSource")
     If m_isSelect And VBA.Len(VBA.Trim$(m_items)) = 0 And _
@@ -283,7 +285,13 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_COMPLETED | Name=" & m_uiControlBase.ControlName
 #End If
     If m_isSelect Then
-        m_targetRange.NumberFormat = ";;;"
+        If m_editable Then
+            uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
+                m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+            m_targetRange.NumberFormat = "@"
+        Else
+            m_targetRange.NumberFormat = ";;;"
+        End If
         If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
     Else
         uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
@@ -415,9 +423,19 @@ Private Function private_RenderSelectShapes( _
     Dim itemMargin As Double
     Dim itemTop As Double
     Dim itemIndex As Long
+    Dim highlightValue As Variant
+    Dim highlightObject As Object
+    Dim highlightIsObject As Boolean
+    Dim highlightRaw As String
 
     If items Is Nothing Or uiCellBinding Is Nothing Then Exit Function
     If items.Count = 0 Then Exit Function
+    highlightRaw = private_ReadAttribute(m_uiControlBase.ControlNode, "highlightValue")
+    If VBA.Len(highlightRaw) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+                highlightRaw, uiRenderContext.BindingContext, highlightValue, highlightObject, highlightIsObject) Then Exit Function
+        If highlightIsObject Or VBA.IsNull(highlightValue) Or VBA.IsError(highlightValue) Then Exit Function
+    End If
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     controlId = uiRenderContext.Router.NextId()
     headerShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId))
@@ -437,6 +455,11 @@ Private Function private_RenderSelectShapes( _
         m_targetRange.Width, m_targetRange.Height)
     headerShape.Name = headerShapeName
     headerShape.Placement = xlMoveAndSize
+    If m_editable Then
+        ' Keep the cell available for typing; only the arrow is a clickable shape.
+        headerShape.Width = m_targetRange.Height
+        headerShape.Left = m_targetRange.Left + m_targetRange.Width - headerShape.Width
+    End If
     private_ApplyDefaultShapeStyle headerShape
     arrowText = VBA.ChrW(&H25BC)
     headerShape.TextFrame2.TextRange.Text = selectedValue & " " & arrowText
@@ -446,6 +469,12 @@ Private Function private_RenderSelectShapes( _
     headerShape.TextFrame2.MarginBottom = 0
     uiRenderContext.Styles.ApplyControlStyle Nothing, headerShape, _
         m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    If m_editable Then
+        headerShape.TextFrame2.TextRange.Text = arrowText
+        headerShape.TextFrame2.MarginLeft = 0
+        headerShape.TextFrame2.MarginRight = 0
+        headerShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    End If
     headerShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
 
     Set panelShape = targetWorksheet.Shapes.AddShape( _
@@ -479,6 +508,12 @@ Private Function private_RenderSelectShapes( _
         itemShape.TextFrame2.MarginBottom = 0
         uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
             m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "itemStyle"
+        If VBA.Len(highlightRaw) > 0 Then
+            If itemText = VBA.CStr(highlightValue) Then
+                uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
+                    m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "highlightStyle"
+            End If
+        End If
         itemShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
         itemShape.Visible = msoFalse
         itemShapeNames.Add itemShapeName
@@ -488,7 +523,7 @@ Private Function private_RenderSelectShapes( _
     Set uiSelectAction = New obj_UiSelectShapeAction
     If Not uiSelectAction.Initialize( _
             controlId, m_targetRange.Cells(1, 1), headerShapeName, panelShapeName, _
-            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding) Then Exit Function
+            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable) Then Exit Function
     Set m_selectAction = uiSelectAction
     Dim routeName As Variant
 

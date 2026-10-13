@@ -1,4 +1,9 @@
 value	ThisWorkbook::id	TravelDocumentsBuilder
+value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
+value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
+value	TravelDocumentsBuilder::dates.daysAhead	15
+value	TravelDocumentsBuilder::dates.daysBefore	3
+value	TravelDocumentsBuilder::text.InvalidDateRange	Параметри dates.daysAhead і dates.daysBefore мають бути цілими числами від 0 до 31.
 value	ThisWorkbook::initializer	ex_TravelDocumentsBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_TravelDocumentsBuilder.fn_CreatePage
 value	ThisWorkbook::vbaPath	..\..\vba

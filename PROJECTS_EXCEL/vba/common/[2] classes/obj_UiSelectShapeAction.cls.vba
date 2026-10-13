@@ -26,6 +26,7 @@ Private m_items As Collection
 Private m_selectedValue As String
 Private m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
+Private m_editable As Boolean
 
 ' //
 ' // Lifecycle
@@ -78,7 +79,8 @@ Public Function Initialize( _
     ByVal shapeNames As Collection, _
     ByVal items As Collection, _
     ByVal selectedValue As String, _
-    ByVal uiCellBinding As obj_UiCellBinding _
+    ByVal uiCellBinding As obj_UiCellBinding, _
+    Optional ByVal editable As Boolean = False _
 ) As Boolean
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -101,6 +103,7 @@ Public Function Initialize( _
     m_selectedValue = selectedValue
     Set m_uiCellBinding = uiCellBinding
     m_isExpanded = False
+    m_editable = editable
     Initialize = True
     m_isInitialized = Initialize
     m_uiCellBinding.SubscribeRefresh Me
@@ -231,7 +234,11 @@ Private Sub private_UpdateHeader()
     Else
         arrowText = VBA.ChrW(&H25BC)
     End If
-    headerShape.TextFrame2.TextRange.Text = m_selectedValue & " " & arrowText
+    If m_editable Then
+        headerShape.TextFrame2.TextRange.Text = arrowText
+    Else
+        headerShape.TextFrame2.TextRange.Text = m_selectedValue & " " & arrowText
+    End If
     On Error GoTo 0
 End Sub
 

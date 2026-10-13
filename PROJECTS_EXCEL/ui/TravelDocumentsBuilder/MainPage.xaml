@@ -105,11 +105,18 @@
                     style="formLabel"
                     text="{Binding Path=Text.DepartureDateLabel}"/>
 
-    <controls:input name="DepartureDate"
+    <controls:select name="DepartureDate"
+                    itemsSource="{Binding Path=Data.DepartureDates}"
                     row="12"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.DepartureDate}"
+                    editable="true"
+                    highlightValue="{Binding Path=Data.CurrentDate}"
+                    highlightStyle="currentDateItem"
+                    itemHeight="20"
+                    panelStyle="formSelectPanel"
+                    itemStyle="formSelectItem"
                     onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="ReturnDateLabel"
@@ -561,6 +568,10 @@
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="currentDateItem"
+                  backColor="#375D7A"
+                  textColor="#F4A46B"
+                  fontBold="true"/>
     <controlStyle name="formSelectPanel"
                   shadow="true"
                   shadowColor="#000000"
