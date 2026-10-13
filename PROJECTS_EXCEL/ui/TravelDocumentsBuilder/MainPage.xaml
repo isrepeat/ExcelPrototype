@@ -353,39 +353,25 @@
                      caption="{Binding Path=Text.ClearForm}"
                      command="{Binding Path=Commands.ClearForm}"/>
 
-    <controls:label name="TicketNoLabel"
-                    row="8"
-                    column="10"
-                    columnSpan="2"
-                    style="formLabel"
-                    text="{Binding Path=Text.TicketNo}"/>
+    <controls:button name="ReinitializeConfig"
+                     row="6"
+                     column="10"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ReinitializeConfig}"
+                     command="{Binding Path=Commands.ReinitializeConfig}"/>
 
-    <controls:label name="TicketNo"
+    <controls:label name="LastStatusLabel"
                     row="9"
                     column="10"
                     columnSpan="2"
-                    style="formField"
-                    text="{Binding Path=Form.TicketNo}"/>
-
-    <controls:label name="DocumentPathLabel"
-                    row="11"
-                    column="10"
-                    columnSpan="2"
-                    style="formLabel"
-                    text="{Binding Path=Text.DocumentPath}"/>
-
-    <controls:label name="DocumentPath"
-                    row="12"
-                    column="10"
-                    rowSpan="4"
-                    columnSpan="2"
-                    style="formField"
-                    text="{Binding Path=Form.DocumentPath}"/>
+                    style="statusHeading"
+                    text="{Binding Path=Text.LastStatus}"/>
 
     <controls:label name="GenerationStatus"
-                    row="17"
+                    row="10"
                     column="10"
-                    rowSpan="5"
+                    rowSpan="4"
                     columnSpan="2"
                     style="{Binding Path=Form.GenerationStatusStyle}"
                     text="{Binding Path=Form.GenerationStatus}"/>
@@ -450,14 +436,6 @@
                      style="lookupToggle"
                      caption="{Binding Path=Text.LookupTargetCaption}"
                      command="{Binding Path=Commands.ToggleLookupTarget}"/>
-
-    <controls:button name="ClearTvo"
-                     row="23"
-                     column="10"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.ClearTvo}"
-                     command="{Binding Path=Commands.ClearTvo}"/>
 
     <controls:label name="LookupStatus"
                     row="4"
@@ -554,6 +532,19 @@
                   borderColor="#000000"
                   borderWeight="thin"
                   horizontal="left"
+                  vertical="center"/>
+    <controlStyle name="statusHeading"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#2D2D2D"
+                  textColor="#999999"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="right"
                   vertical="center"/>
     <controlStyle name="statusText"
                   indent="1"

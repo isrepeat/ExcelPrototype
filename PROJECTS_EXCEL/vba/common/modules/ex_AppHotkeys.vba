@@ -26,6 +26,7 @@ Public Sub fn_PrepareReload()
 End Sub
 
 Public Sub fn_Module_Dispose()
+    ex_AppCommands.fn_Module_Dispose
     fn_Deactivate
     Set m_hotkeyHandlers = Nothing
     m_isBrokerManaged = False

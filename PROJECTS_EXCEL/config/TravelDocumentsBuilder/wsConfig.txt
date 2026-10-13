@@ -151,8 +151,9 @@ value	TravelDocumentsBuilder::text.OutputFolderPath	Папка документ�
 value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
 value	TravelDocumentsBuilder::text.UpdateDocument	Оновити DOCX
 value	TravelDocumentsBuilder::text.ClearForm	Очистити форму
+value	TravelDocumentsBuilder::text.ReinitializeConfig	Застосувати конфіг
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
-value	TravelDocumentsBuilder::text.DocumentPath	Збережений документ
+value	TravelDocumentsBuilder::text.LastStatus	Останній статус
 value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
 value	TravelDocumentsBuilder::generation.defaults.VacationKind	Щорічна відпустка
 value	TravelDocumentsBuilder::generation.defaults.VacationAbroad	Ні
@@ -244,7 +245,6 @@ value	TravelDocumentsBuilder::generation.kind.childcare.event	Відпустка
 value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
 value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
 value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
-value	TravelDocumentsBuilder::text.ClearTvo	Очистити ТВО
 value	TravelDocumentsBuilder::text.LookupTarget.Personnel	[[color=#F4A46B]]Військовослужбовець[[/color]] / ТВО
 value	TravelDocumentsBuilder::text.LookupTarget.Tvo	Військовослужбовець / [[color=#F4A46B]]ТВО[[/color]]
 value	TravelDocumentsBuilder::lookup.Tvo.apply.count	3
