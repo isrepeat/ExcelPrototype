@@ -7,32 +7,34 @@
     <field name="Destination"
            type="text"
            value="{Binding Path=Destination}"
-           label="{Binding Path=Text.ModeDestinationLabel}"/>
+           label="{Binding Path=Text.ModeDestinationLabel}"
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="PersonRank"
            type="text"
            value="{Binding Path=PersonRank}"
            label="{Binding Path=Text.ModePersonRankLabel}"
-           readOnly="true"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="PersonName"
            type="text"
            value="{Binding Path=PersonName}"
            label="{Binding Path=Text.ModePersonNameLabel}"
-           onChange="{Binding Path=Commands.SearchPersonnel}"/>
+           fieldStyle="lookupKeyField"
+           onChange="{Binding Path=Commands.PersonNameChanged}"/>
     <field name="PersonId"
            type="text"
            value="{Binding Path=PersonId}"
            label="{Binding Path=Text.ModePersonIdLabel}"
-           readOnly="true"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="PositionCode"
            type="text"
            value="{Binding Path=PositionCode}"
            label="{Binding Path=Text.ModePositionCodeLabel}"
-           readOnly="true"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="PersonPosition"
            type="text"
            value="{Binding Path=PersonPosition}"
            label="{Binding Path=Text.ModePersonPositionLabel}"
-           readOnly="true"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="ReportRank"
            type="text"
            value="{Binding Path=ReportRank}"
@@ -56,15 +58,18 @@
     <field name="EventDate"
            type="text"
            value="{Binding Path=EventDate}"
-           label="{Binding Path=Text.ModeEventDateLabel}"/>
+           label="{Binding Path=Text.ModeEventDateLabel}"
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="TicketNumber"
            type="text"
            value="{Binding Path=TicketNumber}"
-           label="{Binding Path=Text.ModeTicketNumberLabel}"/>
+           label="{Binding Path=Text.ModeTicketNumberLabel}"
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="TicketDate"
            type="text"
            value="{Binding Path=TicketDate}"
-           label="{Binding Path=Text.ModeTicketDateLabel}"/>
+           label="{Binding Path=Text.ModeTicketDateLabel}"
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
     <field name="Hospital"
            type="text"
            value="{Binding Path=Hospital}"
@@ -123,6 +128,8 @@
       <fieldRef name="Hospital"
                 columnSpan="1"/>
       <fieldRef name="HospitalShortName"
+                columnSpan="1"/>
+      <fieldRef name="PersonRank"
                 columnSpan="1"/>
       <fieldRef name="PersonName"
                 columnSpan="1"/>
@@ -215,7 +222,7 @@
                      row="2"
                      column="1"
                      columnSpan="4"
-                     style="formField"
+                     style="lookupKeyField"
                      panelStyle="formSelectPanel"
                      itemStyle="formSelectItem"
                      value="{Binding Path=Form.OrderQuery}"
@@ -234,7 +241,7 @@
                     row="2"
                     column="5"
                     columnSpan="2"
-                    style="formField"
+                    style="lookupKeyField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:label name="AcceptedOrder"
@@ -265,48 +272,67 @@
                    layout="{Binding Path=Form.ModeForm}"/>
 
     <controls:candidates name="Candidates"
-                    itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                    row="14"
-                    column="1"
-                    style="candidateTable"
-                    alignToForm="PersonnelForm"
-                    workspaceFirstColumn="1"
-                    workspaceLastColumn="16"
-                    selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
-                    selectedItem="{Binding Path=Data.SelectedPersonnel}"
-                    onSelect="{Binding Path=Commands.SelectPersonnel}"
-                    selectedStyle="candidateSelected"
-                    showHeaders="true"/>
+                         itemsSource="{Binding Path=Data.PersonnelCandidates}"
+                         row="14"
+                         column="1"
+                         style="candidateTable"
+                         alignToForm="PersonnelForm"
+                         workspaceFirstColumn="1"
+                         workspaceLastColumn="16"
+                         selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
+                         selectedItem="{Binding Path=Data.SelectedPersonnel}"
+                         onSelect="{Binding Path=Commands.SelectPersonnel}"
+                         selectedStyle="candidateSelected"
+                         showHeaders="true"/>
 
     <controls:label name="ActionsSection"
-                    row="10"
+                    row="1"
                     column="18"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
-                     row="11"
+                     row="2"
                      column="18"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
+    <controls:checkbox name="AutoFillPersonnel"
+                       row="3"
+                       column="18"
+                       columnSpan="2"
+                       style="secondaryButton"
+                       value="{Binding Path=Form.AutoFillPersonnel}"
+                       caption="{Binding Path=Text.AutoFillPersonnelLabel}"
+                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
     <controls:label name="LastStatusLabel"
-                    row="13"
+                    row="7"
                     column="18"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
     <controls:label name="ActionStatus"
-                    row="14"
+                    row="8"
                     column="18"
-                    rowSpan="5"
+                    rowSpan="3"
                     columnSpan="2"
                     style="{Binding Path=Form.ActionStatusStyle}"
                     text="{Binding Path=Form.ActionStatus}"/>
   </grid>
 
   <styles>
+    <controlStyle name="lookupKeyField"
+                  backColor="#3A3A3A"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="activeModeButton"
                   backColor="#375D7A"
                   textColor="#FFFFFF"
@@ -514,7 +540,7 @@
               styles="{cellType:text;}"/>
         <rule target="controlPart"
               selector="type=candidates;part=header"
-              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
+              styles="{backColor:#3A3A3A;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
         <rule target="controlPart"
               selector="type=candidates;part=row;tags=even"
               styles="{backColor:#383838;}"/>

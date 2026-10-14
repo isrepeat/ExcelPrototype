@@ -122,6 +122,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "text", "string", False, "", True, 0
             schema.AddAttribute "caption", "string", False, "", True, 0
             If m_type = "checkbox" Then
+                schema.AddAttribute "onChange", "string", False, "", True, 0
                 schema.AddAttribute "value", "string", True, "", True, 0
                 schema.AddAttribute "checkedGlyph", "string", True, "", True, 0
                 schema.AddAttribute "uncheckedGlyph", "string", True, "", True, 0
@@ -172,7 +173,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             End If
             schema.AddAttribute "value", "string", True, "", True, 0
             schema.AddAttribute "inputType", "enum", False, "text|select|checkbox", False, 0
-            schema.AddAttribute "readOnly", "boolean", False, "", False, 0
+            schema.AddAttribute "readOnly", "boolean", False, "", True, 0
             schema.AddAttribute "editable", "boolean", False, "", False, 0
             schema.AddAttribute "onFocus", "string", False, "", True, 0
             schema.AddAttribute "highlightValue", "string", False, "", True, 0
@@ -193,7 +194,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "labelStyle", "string", False, "", True, 0
             schema.AddAttribute "fieldStyle", "string", False, "", True, 0
             schema.AddAttribute "onChange", "string", False, "", True, 0
-            schema.AddAttribute "readOnly", "boolean", False, "", False, 0
+            schema.AddAttribute "readOnly", "boolean", False, "", True, 0
             Set field = private_FieldSchema()
             schema.AddChild "field", field
             schema.AllowControlChildren
@@ -217,7 +218,7 @@ Private Function private_FieldSchema() As obj_UiMarkupSchema
     schema.AddAttribute "labelStyle", "string", False, "", True, 0
     schema.AddAttribute "fieldStyle", "string", False, "", True, 0
     schema.AddAttribute "onChange", "string", False, "", True, 0
-    schema.AddAttribute "readOnly", "boolean", False, "", False, 0
+    schema.AddAttribute "readOnly", "boolean", False, "", True, 0
     schema.AddAttribute "required", "boolean", False, "", False, 0
     schema.AddAttribute "value", "string", True, "", True, 0
     schema.AddAttribute "itemsSource", "string", False, "", True, 0

@@ -133,6 +133,7 @@ Private Function private_ConfigureField( _
     Dim rawValue As String
     Dim booleanName As Variant
     Dim booleanValue As String
+    Dim booleanRaw As String
     Dim editorAttribute As Variant
     Dim fieldColumns As Long
     Dim labelColumns As Long
@@ -181,7 +182,12 @@ Private Function private_ConfigureField( _
         Exit Function
     End If
     For Each booleanName In VBA.Array("required", "readOnly")
-        booleanValue = VBA.LCase$(private_Inherit(fieldNode, formNode, VBA.CStr(booleanName), "false"))
+        booleanRaw = private_Inherit(fieldNode, formNode, VBA.CStr(booleanName), "false")
+        If Not ex_UiBindingRuntime.fn_TryResolveText(booleanRaw, context.BindingContext, booleanValue) Then
+            diagnostic = "Cannot resolve field attribute: " & VBA.CStr(booleanName)
+            Exit Function
+        End If
+        booleanValue = VBA.LCase$(booleanValue)
         If booleanValue <> "true" And booleanValue <> "false" Then
             diagnostic = "Boolean field attribute required: " & VBA.CStr(booleanName)
             Exit Function

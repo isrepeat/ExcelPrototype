@@ -112,6 +112,15 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "AcceptedOrderNumber", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "AcceptedOrderDate", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "ActionStatusStyle", "actionSuccess") Then Exit Function
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::personnel.autoFill.default", configuredText) Then
+        ex_WindowsUi.fn_ShowMessage "Required configuration key not found: PersonalEventBuilder::personnel.autoFill.default", vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If configuredText <> "true" And configuredText <> "false" Then
+        ex_WindowsUi.fn_ShowMessage "Invalid configuration value: PersonalEventBuilder::personnel.autoFill.default", vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If Not uiBindingContext.SetValue("Form", "AutoFillPersonnel", configuredText = "true") Then Exit Function
     Set orderOptions = New Collection
     If Not uiBindingContext.SetObject("Data", "OrderOptions", orderOptions) Then Exit Function
     Set orderOptions = New Collection
@@ -130,7 +139,8 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonPositionLabel", "PositionCodeLabel", "AbsenceTypeLabel", "DestinationLabel", _
             "DepartureDateLabel", "TicketNumberLabel", "TicketDateLabel", _
             "OrderQueryLabel", "OrderYearLabel", "LastStatus", _
-            "PersonnelSection", "ActionsSection", "RefreshPersonnel")
+            "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
+            "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function
@@ -189,7 +199,7 @@ Private Function private_TryRegisterCommands() As Boolean
     Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
-    For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged")
+    For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged")
         Set lookupCommand = New obj_UiCommand
         If Not lookupCommand.Initialize(m_controller, VBA.CStr(orderCommand) & "Handler") Then Exit Function
         If Not uiBindingContext.SetObject("Commands", VBA.CStr(orderCommand), lookupCommand) Then Exit Function
