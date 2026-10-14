@@ -183,6 +183,8 @@ Public Function DocumentTypeChangedHandler() As Boolean
 
     If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, valueText) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "TemplatePath", valueText) Then Exit Function
     For Each key In VBA.Array("DocumentFormTitle", "DocumentTargetLabel", _
             "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _

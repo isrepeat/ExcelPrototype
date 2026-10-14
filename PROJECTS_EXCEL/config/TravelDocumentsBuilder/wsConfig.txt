@@ -31,6 +31,8 @@ value	TravelDocumentsBuilder::text.UnknownDocumentType	Невідомий тип
 value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток
 value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
 value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
+value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (Шаблон).docx
+value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
 value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
 value	TravelDocumentsBuilder::text.CheckboxChecked	☑
 value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
@@ -161,7 +163,6 @@ value	TravelDocumentsBuilder::generation.defaults.VacationStatus	Активна
 value	TravelDocumentsBuilder::generation.defaults.VacationDays	0
 value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
 value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
-value	TravelDocumentsBuilder::generation.defaults.TemplatePath	Шаблони\Відпустка (Шаблон).docx
 value	TravelDocumentsBuilder::generation.defaults.OutputFolderPath	.\Результати
 value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
 value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
