@@ -20,6 +20,8 @@ Private m_definition As Object
 Private m_context As obj_UiRenderContext
 Private m_source As String
 Private m_mode As String
+Private m_stretchColumns As Long
+Private m_minRows As Long
 Private m_rows As Long
 Private m_columns As Long
 Private m_row As Long
@@ -114,6 +116,8 @@ Private Function private_ConfigurePanel( _
 ) As Boolean
     Dim node As Object
     Dim child As obj_IUiElement
+    Dim childDefinition As Object
+    Dim alignment As String
 
     Set m_definition = definition
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
@@ -125,10 +129,29 @@ Private Function private_ConfigurePanel( _
         diagnostic = "A stack container requires orientation=horizontal or vertical."
         Exit Function
     End If
+    alignment = VBA.LCase$(ex_UiElementFactory.fn_Attribute(definition, "horizontalAlignment"))
+    If VBA.Len(alignment) > 0 And alignment <> "start" And alignment <> "stretch" Then
+        diagnostic = "Invalid stack horizontalAlignment: " & alignment
+        Exit Function
+    End If
+    If alignment = "stretch" Then
+        If m_mode <> "vertical" Or definition.getAttributeNode("columnSpan") Is Nothing Then
+            diagnostic = "Stack stretch requires vertical orientation and explicit columnSpan."
+            Exit Function
+        End If
+        m_stretchColumns = ex_UiElementFactory.fn_Long(definition, "columnSpan", 1)
+        m_minRows = ex_UiElementFactory.fn_Long(definition, "rowSpan", 1)
+    End If
         For Each node In definition.ChildNodes
             If node.NodeType = 1 Then
                 If Not (VBA.CStr(node.namespaceURI) = "urn:excelprototype:profiles" And VBA.LCase$(VBA.CStr(node.baseName)) = "styles") Then
-                    Set child = ex_UiElementFactory.fn_Create(node, context, m_source, diagnostic)
+                    Set childDefinition = node.cloneNode(True)
+                    If m_stretchColumns > 0 Then
+                        If childDefinition.getAttributeNode("columnSpan") Is Nothing Then
+                            childDefinition.setAttribute "columnSpan", VBA.CStr(m_stretchColumns)
+                        End If
+                    End If
+                    Set child = ex_UiElementFactory.fn_Create(childDefinition, context, m_source, diagnostic)
                     If child Is Nothing Then Exit Function
                     m_children.Add child
                 End If
@@ -160,6 +183,14 @@ Private Function private_MeasurePanel( _
     Next child
     If rows = 0 Then rows = 1
     If columns = 0 Then columns = 1
+    If m_stretchColumns > 0 Then
+        If columns > m_stretchColumns Then
+            diagnostic = "Stack child exceeds the declared stretch width."
+            Exit Function
+        End If
+        columns = m_stretchColumns
+        If rows < m_minRows Then rows = m_minRows
+    End If
     m_rows = rows
     m_columns = columns
     private_MeasurePanel = True
