@@ -183,6 +183,11 @@ Private Function private_ToggleDropdown() As Boolean
     Dim shapeName As String
     Dim errorDescription As String
 
+    If m_items.Count = 0 Then
+        private_ToggleDropdown = True
+        Exit Function
+    End If
+
     If Not m_dropdownCreated Then
         previousScreenUpdating = Application.ScreenUpdating
         On Error GoTo EH_CREATE
@@ -268,6 +273,10 @@ Private Sub private_UpdateHeader()
     On Error Resume Next
     Set headerShape = m_worksheet.Shapes(m_headerShapeName)
     If headerShape Is Nothing Then Exit Sub
+    If m_items.Count = 0 Then
+        headerShape.TextFrame2.TextRange.Text = m_selectedValue
+        Exit Sub
+    End If
     If m_isExpanded Then
         arrowText = VBA.ChrW(&H25B2)
     Else

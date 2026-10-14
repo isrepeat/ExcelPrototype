@@ -273,6 +273,8 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim selectedValue As Variant
     Dim selectedIsObject As Boolean
     Dim rowTags As String
+    Dim columnMetadata As obj_IUiColumnMetadata
+    Dim sourceAlias As String
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -328,6 +330,22 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         Next rowIndex
         For columnIndex = 1 To rawTable.ColumnCount
             uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Columns(columnIndex), "rows", rawTable.HeaderAt(columnIndex)
+            If Not m_source Is Nothing Then
+                If TypeOf m_source Is obj_IUiColumnMetadata Then
+                    Set columnMetadata = m_source
+                    sourceAlias = columnMetadata.SourceAliasAt(columnIndex)
+                    If VBA.Len(sourceAlias) > 0 Then
+                        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Columns(columnIndex), _
+                            "rows", sourceAlias:=sourceAlias
+                        For rowIndex = 1 To rawTable.RowCount
+                            rowTags = "tableRow odd"
+                            If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
+                            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Cells(rowIndex, columnIndex), _
+                                "rows", sourceAlias:=sourceAlias, tags:=rowTags
+                        Next rowIndex
+                    End If
+                End If
+            End If
         Next columnIndex
     End If
     If Not m_selectionSource Is Nothing And Not m_bodyRange Is Nothing And VBA.Len(m_selectedSource) > 0 Then

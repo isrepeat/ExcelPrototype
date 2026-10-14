@@ -129,6 +129,9 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
     Dim selectionSource As obj_IUiSelectionSource
     Dim table As obj_UiRawTable
     Dim candidatesSource As obj_UiCandidatesSource
+    Dim columnMetadata As obj_IUiColumnMetadata
+    Dim sourceAliases As Object
+    Dim columnIndex As Long
 
     If Not ex_UiBindingRuntime.fn_TryResolveValue( _
             private_ReadAttribute(m_definition, "itemsSource"), m_context.BindingContext, value, sourceObject, isObject) Then
@@ -154,9 +157,16 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
         diagnostic = "Candidates source returned no table."
         Exit Function
     End If
+    Set sourceAliases = VBA.CreateObject("Scripting.Dictionary")
+    If TypeOf sourceObject Is obj_IUiColumnMetadata Then
+        Set columnMetadata = sourceObject
+        For columnIndex = 1 To table.ColumnCount
+            sourceAliases(VBA.CStr(table.HeaderAt(columnIndex))) = columnMetadata.SourceAliasAt(columnIndex)
+        Next columnIndex
+    End If
     If Not private_AlignToForm(table, diagnostic) Then Exit Function
     Set candidatesSource = New obj_UiCandidatesSource
-    If Not candidatesSource.Initialize(table, selectionSource) Then
+    If Not candidatesSource.Initialize(table, selectionSource, sourceAliases) Then
         diagnostic = "Cannot initialize candidates source."
         Exit Function
     End If

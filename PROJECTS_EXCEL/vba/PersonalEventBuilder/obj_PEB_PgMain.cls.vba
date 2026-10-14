@@ -81,6 +81,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim textKey As Variant
     Dim configuredText As String
     Dim confirmSelectionKey As String
+    Dim orderOptions As Collection
 
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
@@ -104,16 +105,31 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
     End If
     If Not uiBindingContext.SetValue("Settings", "CandidateSelectionMode", configuredText) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "EventNote", vbNullString) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "EventDate", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "AbsenceType", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "OrderQuery", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "OrderYear", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "OrderChoice", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "AcceptedOrderNumber", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "AcceptedOrderDate", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ActionStatusStyle", "actionSuccess") Then Exit Function
+    Set orderOptions = New Collection
+    If Not uiBindingContext.SetObject("Data", "OrderOptions", orderOptions) Then Exit Function
+    Set orderOptions = New Collection
+    If Not uiBindingContext.SetObject("Data", "TodayOrderOptions", orderOptions) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "Destination", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PersonRank", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonName", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonId", vbNullString) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "PersonRank", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "PositionCode", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonPosition", vbNullString) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "PersonUnit", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "DepartureDate", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "TicketNumber", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "TicketDate", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
     For Each textKey In VBA.Array("PersonNameLabel", "PersonIdLabel", "PersonRankLabel", _
-            "PersonPositionLabel", "PersonUnitLabel", "EventNoteLabel", "EventDateLabel", _
+            "PersonPositionLabel", "PositionCodeLabel", "AbsenceTypeLabel", "DestinationLabel", _
+            "DepartureDateLabel", "TicketNumberLabel", "TicketDateLabel", _
+            "OrderQueryLabel", "OrderYearLabel", "LastStatus", _
             "PersonnelSection", "ActionsSection", "RefreshPersonnel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
@@ -121,12 +137,23 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
         If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
     Next textKey
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.OrderUnaccepted", configuredText) Then
+        ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text.OrderUnaccepted", vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If Not uiBindingContext.SetValue("Form", "AcceptedOrderText", configuredText) Then Exit Function
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.OrderReady", configuredText) Then
+        ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text.OrderReady", vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If Not uiBindingContext.SetValue("Form", "ActionStatus", configuredText) Then Exit Function
     private_TryRegisterBindings = True
 End Function
 
 Private Function private_TryRegisterCommands() As Boolean
     Dim lookupCommand As obj_UiCommand
     Dim uiBindingContext As obj_UiBindingContext
+    Dim orderCommand As Variant
 
     If m_controller Is Nothing Or m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
@@ -139,5 +166,10 @@ Private Function private_TryRegisterCommands() As Boolean
     Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
+    For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged")
+        Set lookupCommand = New obj_UiCommand
+        If Not lookupCommand.Initialize(m_controller, VBA.CStr(orderCommand) & "Handler") Then Exit Function
+        If Not uiBindingContext.SetObject("Commands", VBA.CStr(orderCommand), lookupCommand) Then Exit Function
+    Next orderCommand
     private_TryRegisterCommands = True
 End Function

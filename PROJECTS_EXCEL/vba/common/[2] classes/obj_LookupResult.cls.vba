@@ -7,6 +7,7 @@ Option Explicit
 
 Implements obj_IUiTableSource
 Implements obj_IUiSelectionSource
+Implements obj_IUiColumnMetadata
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -14,6 +15,7 @@ Private m_isDisposed As Boolean
 Private m_records As Collection
 Private m_table As obj_UiRawTable
 Private m_hasMore As Boolean
+Private m_sourceAliases As Variant
 
 ' //
 ' // Lifecycle
@@ -65,6 +67,12 @@ Private Function obj_IUiSelectionSource_GetItemAt(ByVal rowIndex As Long) As Obj
     Set obj_IUiSelectionSource_GetItemAt = m_records(rowIndex)
 End Function
 
+Private Function obj_IUiColumnMetadata_SourceAliasAt(ByVal columnIndex As Long) As String
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If columnIndex < 1 Or columnIndex > m_table.ColumnCount Then Exit Function
+    obj_IUiColumnMetadata_SourceAliasAt = m_sourceAliases(columnIndex)
+End Function
+
 ' //
 ' // API
 ' //
@@ -91,9 +99,11 @@ Public Function Initialize( _
     End If
     Set m_records = New Collection
     ReDim headers(0 To columns.Count - 1)
+    ReDim m_sourceAliases(1 To columns.Count)
     For columnIndex = 1 To columns.Count
         Set column = columns(columnIndex)
         headers(columnIndex - 1) = column("caption")
+        If column.Exists("sourceAlias") Then m_sourceAliases(columnIndex) = column("sourceAlias")
     Next columnIndex
     If records.Count > 0 Then ReDim values(1 To records.Count, 1 To columns.Count)
     For rowIndex = 1 To records.Count
@@ -127,6 +137,7 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     Set m_records = Nothing
+    m_sourceAliases = Empty
     If Not m_table Is Nothing Then m_table.Dispose
     Set m_table = Nothing
 End Sub

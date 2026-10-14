@@ -54,33 +54,83 @@ value	PersonalEventBuilder::lookup.Personnel.columns.5.header	Підрозділ
 value	PersonalEventBuilder::lookup.Personnel.columns.5.captionKey	PersonalEventBuilder::text.UnitHeader
 value	PersonalEventBuilder::lookup.Personnel.columns.6.name	Personnel.PositionCode
 value	PersonalEventBuilder::lookup.Personnel.columns.6.header	Код посади
-value	PersonalEventBuilder::lookup.Personnel.display.count	0
+value	PersonalEventBuilder::lookup.Personnel.display.count	10
+value	PersonalEventBuilder::lookup.Personnel.display.1.name	Absence.Type
+value	PersonalEventBuilder::lookup.Personnel.display.1.captionKey	PersonalEventBuilder::text.AbsenceTypeLabel
+value	PersonalEventBuilder::lookup.Personnel.display.1.sourceAlias	Absence
+value	PersonalEventBuilder::lookup.Personnel.display.2.name	Absence.Destination
+value	PersonalEventBuilder::lookup.Personnel.display.2.captionKey	PersonalEventBuilder::text.DestinationLabel
+value	PersonalEventBuilder::lookup.Personnel.display.2.sourceAlias	Absence
+value	PersonalEventBuilder::lookup.Personnel.display.3.name	Personnel.Rank
+value	PersonalEventBuilder::lookup.Personnel.display.3.captionKey	PersonalEventBuilder::text.PersonRankLabel
+value	PersonalEventBuilder::lookup.Personnel.display.3.sourceAlias	Personnel
+value	PersonalEventBuilder::lookup.Personnel.display.4.name	Personnel.FullName
+value	PersonalEventBuilder::lookup.Personnel.display.4.captionKey	PersonalEventBuilder::text.PersonNameLabel
+value	PersonalEventBuilder::lookup.Personnel.display.4.sourceAlias	Personnel
+value	PersonalEventBuilder::lookup.Personnel.display.5.name	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.display.5.captionKey	PersonalEventBuilder::text.PersonIdLabel
+value	PersonalEventBuilder::lookup.Personnel.display.5.sourceAlias	Personnel
+value	PersonalEventBuilder::lookup.Personnel.display.6.name	Personnel.PositionCode
+value	PersonalEventBuilder::lookup.Personnel.display.6.captionKey	PersonalEventBuilder::text.PositionCodeLabel
+value	PersonalEventBuilder::lookup.Personnel.display.6.sourceAlias	Personnel
+value	PersonalEventBuilder::lookup.Personnel.display.7.name	Personnel.Position
+value	PersonalEventBuilder::lookup.Personnel.display.7.captionKey	PersonalEventBuilder::text.PersonPositionLabel
+value	PersonalEventBuilder::lookup.Personnel.display.7.sourceAlias	Personnel
+value	PersonalEventBuilder::lookup.Personnel.display.8.name	Absence.DepartureDate
+value	PersonalEventBuilder::lookup.Personnel.display.8.captionKey	PersonalEventBuilder::text.DepartureDateLabel
+value	PersonalEventBuilder::lookup.Personnel.display.8.sourceAlias	Absence
+value	PersonalEventBuilder::lookup.Personnel.display.9.name	Absence.TicketNumber
+value	PersonalEventBuilder::lookup.Personnel.display.9.captionKey	PersonalEventBuilder::text.TicketNumberLabel
+value	PersonalEventBuilder::lookup.Personnel.display.9.sourceAlias	Absence
+value	PersonalEventBuilder::lookup.Personnel.display.10.name	Absence.TicketDate
+value	PersonalEventBuilder::lookup.Personnel.display.10.captionKey	PersonalEventBuilder::text.TicketDateLabel
+value	PersonalEventBuilder::lookup.Personnel.display.10.sourceAlias	Absence
 value	PersonalEventBuilder::lookup.Personnel.search.count	2
 value	PersonalEventBuilder::lookup.Personnel.search.1.name	Personnel.FullName
 value	PersonalEventBuilder::lookup.Personnel.search.1.match	contains
 value	PersonalEventBuilder::lookup.Personnel.search.2.name	Personnel.TaxId
 value	PersonalEventBuilder::lookup.Personnel.search.2.match	contains
-value	PersonalEventBuilder::lookup.Personnel.apply.count	5
-value	PersonalEventBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
-value	PersonalEventBuilder::lookup.Personnel.apply.1.target	Form.PersonName
+value	PersonalEventBuilder::lookup.Personnel.apply.count	10
+value	PersonalEventBuilder::lookup.Personnel.apply.1.field	Absence.Type
+value	PersonalEventBuilder::lookup.Personnel.apply.1.target	Form.AbsenceType
 value	PersonalEventBuilder::lookup.Personnel.apply.1.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.1.required	true
-value	PersonalEventBuilder::lookup.Personnel.apply.2.field	Personnel.TaxId
-value	PersonalEventBuilder::lookup.Personnel.apply.2.target	Form.PersonId
+value	PersonalEventBuilder::lookup.Personnel.apply.2.field	Absence.Destination
+value	PersonalEventBuilder::lookup.Personnel.apply.2.target	Form.Destination
 value	PersonalEventBuilder::lookup.Personnel.apply.2.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.2.required	true
 value	PersonalEventBuilder::lookup.Personnel.apply.3.field	Personnel.Rank
 value	PersonalEventBuilder::lookup.Personnel.apply.3.target	Form.PersonRank
 value	PersonalEventBuilder::lookup.Personnel.apply.3.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.3.required	true
-value	PersonalEventBuilder::lookup.Personnel.apply.4.field	Personnel.Position
-value	PersonalEventBuilder::lookup.Personnel.apply.4.target	Form.PersonPosition
+value	PersonalEventBuilder::lookup.Personnel.apply.4.field	Personnel.FullName
+value	PersonalEventBuilder::lookup.Personnel.apply.4.target	Form.PersonName
 value	PersonalEventBuilder::lookup.Personnel.apply.4.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.4.required	true
-value	PersonalEventBuilder::lookup.Personnel.apply.5.field	Personnel.Unit
-value	PersonalEventBuilder::lookup.Personnel.apply.5.target	Form.PersonUnit
+value	PersonalEventBuilder::lookup.Personnel.apply.5.field	Personnel.TaxId
+value	PersonalEventBuilder::lookup.Personnel.apply.5.target	Form.PersonId
 value	PersonalEventBuilder::lookup.Personnel.apply.5.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.5.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.6.field	Personnel.PositionCode
+value	PersonalEventBuilder::lookup.Personnel.apply.6.target	Form.PositionCode
+value	PersonalEventBuilder::lookup.Personnel.apply.6.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.6.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.7.field	Personnel.Position
+value	PersonalEventBuilder::lookup.Personnel.apply.7.target	Form.PersonPosition
+value	PersonalEventBuilder::lookup.Personnel.apply.7.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.7.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.8.field	Absence.DepartureDate
+value	PersonalEventBuilder::lookup.Personnel.apply.8.target	Form.DepartureDate
+value	PersonalEventBuilder::lookup.Personnel.apply.8.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.8.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.9.field	Absence.TicketNumber
+value	PersonalEventBuilder::lookup.Personnel.apply.9.target	Form.TicketNumber
+value	PersonalEventBuilder::lookup.Personnel.apply.9.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.9.required	true
+value	PersonalEventBuilder::lookup.Personnel.apply.10.field	Absence.TicketDate
+value	PersonalEventBuilder::lookup.Personnel.apply.10.target	Form.TicketDate
+value	PersonalEventBuilder::lookup.Personnel.apply.10.policy	overwrite
+value	PersonalEventBuilder::lookup.Personnel.apply.10.required	true
 value	PersonalEventBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
 value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	PersonalEventBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
@@ -108,3 +158,67 @@ value	PersonalEventBuilder::text.StyleCellType	Непідтримуване зн
 value	PersonalEventBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
+value	PersonalEventBuilder::text.AbsenceTypeLabel	Тип вибуття
+value	PersonalEventBuilder::text.DestinationLabel	Куди
+value	PersonalEventBuilder::text.PositionCodeLabel	Код посади
+value	PersonalEventBuilder::text.DepartureDateLabel	Дата вибуття
+value	PersonalEventBuilder::text.TicketNumberLabel	Квиток №
+value	PersonalEventBuilder::text.TicketDateLabel	Квиток Дата
+value	PersonalEventBuilder::text.OrderNumberLabel	Наказ №
+value	PersonalEventBuilder::text.OrderDateLabel	Дата наказу
+value	PersonalEventBuilder::lookup.Absence.key	Personnel.FullName
+value	PersonalEventBuilder::lookup.Absence.loadingText	Завантаження даних вибуття...
+value	PersonalEventBuilder::lookup.Absence.minChars	1
+value	PersonalEventBuilder::lookup.Absence.maxResults	1000
+value	PersonalEventBuilder::lookup.Absence.source.path	C:\Users\isrepeat\OneDrive\Рабочий стол\ЕЖОС_last.xlsx
+value	PersonalEventBuilder::lookup.Absence.source.sheet	5. Тимчасово відсутні
+value	PersonalEventBuilder::lookup.Absence.source.table	ВІДСУТНІ
+value	PersonalEventBuilder::lookup.Absence.columns.count	5
+value	PersonalEventBuilder::lookup.Absence.display.count	0
+value	PersonalEventBuilder::lookup.Absence.search.count	1
+value	PersonalEventBuilder::lookup.Absence.search.1.name	Personnel.FullName
+value	PersonalEventBuilder::lookup.Absence.search.1.match	contains
+value	PersonalEventBuilder::lookup.Absence.apply.count	0
+value	PersonalEventBuilder::lookup.Absence.columns.1.name	Personnel.FullName
+value	PersonalEventBuilder::lookup.Absence.columns.1.header	66
+value	PersonalEventBuilder::lookup.Absence.columns.1.captionKey	PersonalEventBuilder::text.PersonNameLabel
+value	PersonalEventBuilder::lookup.Absence.columns.2.name	Absence.Type
+value	PersonalEventBuilder::lookup.Absence.columns.2.header	68
+value	PersonalEventBuilder::lookup.Absence.columns.2.captionKey	PersonalEventBuilder::text.AbsenceTypeLabel
+value	PersonalEventBuilder::lookup.Absence.columns.3.name	Absence.Destination
+value	PersonalEventBuilder::lookup.Absence.columns.3.header	69
+value	PersonalEventBuilder::lookup.Absence.columns.3.captionKey	PersonalEventBuilder::text.DestinationLabel
+value	PersonalEventBuilder::lookup.Absence.columns.4.name	Absence.DepartureDate
+value	PersonalEventBuilder::lookup.Absence.columns.4.header	70
+value	PersonalEventBuilder::lookup.Absence.columns.4.captionKey	PersonalEventBuilder::text.DepartureDateLabel
+value	PersonalEventBuilder::lookup.Absence.columns.5.name	Absence.TicketSequence
+value	PersonalEventBuilder::lookup.Absence.columns.5.header	Стовпець1
+value	PersonalEventBuilder::orders.source.path	../Dependencies/Накази.xlsx
+value	PersonalEventBuilder::orders.source.sheet	Накази
+value	PersonalEventBuilder::orders.source.table	tbOrders
+value	PersonalEventBuilder::orders.dateHeader	Дата
+value	PersonalEventBuilder::orders.numberHeader	Номер наказа
+value	PersonalEventBuilder::orders.daysBefore	5
+value	PersonalEventBuilder::orders.daysAfter	5
+value	PersonalEventBuilder::text.OrderQueryLabel	№ наказу / дата наказу
+value	PersonalEventBuilder::text.OrderYearLabel	Рік наказу
+value	PersonalEventBuilder::text.OrderChoiceLabel	Знайдений наказ
+value	PersonalEventBuilder::text.LastStatus	Статус останньої дії
+value	PersonalEventBuilder::text.OrderReady	Введіть номер, дату або пару наказу: 193, 10.10, 10.10.2025, 193 / 10.10.2025. Порожній рік означає поточний для номера та неповної дати.
+value	PersonalEventBuilder::text.OrderUnaccepted	Наказ не прийнято.
+value	PersonalEventBuilder::text.OrderChoiceFormat	{number} / {date}
+value	PersonalEventBuilder::text.OrderAccepted	Прийнято: №{number} від {date}.
+value	PersonalEventBuilder::text.OrderFoundOne	Знайдено один наказ.
+value	PersonalEventBuilder::text.OrderFoundMany	Знайдено наказів: {count}. Оберіть наказ зі списку.
+value	PersonalEventBuilder::text.OrderEmpty	Наказів не знайдено. Перевірте номер, дату та рік.
+value	PersonalEventBuilder::text.OrderChooseRequired	Спочатку знайдіть і оберіть наказ.
+value	PersonalEventBuilder::text.OrderInvalidInput	Допустимі формати: номер, ДД.ММ, ДД.ММ.РРРР або номер / ДД.ММ.РРРР. Номер — лише цифри; день і місяць — по дві цифри.
+value	PersonalEventBuilder::text.OrderInvalidYear	Рік наказу має містити чотири цифри від 1000 до 9999.
+value	PersonalEventBuilder::text.OrderInvalidDate	Вказано неіснуючу дату наказу.
+value	PersonalEventBuilder::text.OrderYearConflict	Рік у даті не збігається з полем «Рік наказу».
+value	PersonalEventBuilder::text.OrderSourceError	Не вдалося підготувати дані наказів.
+value	PersonalEventBuilder::text.OrderReadError	Не вдалося прочитати tbOrders: {details}
+value	PersonalEventBuilder::text.OrderDataInvalid	Некоректна дата або номер у рядку tbOrders: {row}.
+value	PersonalEventBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте tbOrders.
+value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
+value	PersonalEventBuilder::text.PersonnelActionError	Помилка роботи з кандидатами: {details}
