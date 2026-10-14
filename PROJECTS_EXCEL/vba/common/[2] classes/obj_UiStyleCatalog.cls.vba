@@ -99,7 +99,8 @@ Public Sub ApplyControlStyle( _
     ByVal targetRange As Range, _
     ByVal targetShape As Object, _
     ByVal controlNode As Object, _
-    ByVal uiBindingContext As obj_UiBindingContext _
+    ByVal uiBindingContext As obj_UiBindingContext, _
+    Optional ByVal registerRegions As Boolean = True _
 )
     Dim styleName As String
     Dim styleProperties As Object
@@ -126,6 +127,7 @@ Public Sub ApplyControlStyle( _
 
     Set directProperties = private_ReadVisualAttributes(controlNode)
     private_ApplyProperties targetRange, targetShape, directProperties
+    If Not registerRegions Then Exit Sub
     m_pipeline.RegisterRegion controlNode, targetRange, targetShape, "control"
     If Not targetRange Is Nothing Then m_pipeline.RegisterRegion controlNode, targetRange, Nothing, "cell"
     If Not targetShape Is Nothing Then m_pipeline.RegisterRegion controlNode, Nothing, targetShape, "shape"
@@ -133,6 +135,43 @@ Public Sub ApplyControlStyle( _
         m_pipeline.RegisterRegion controlNode, Nothing, targetShape, "header"
     End If
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyControl", startedAt
+End Sub
+
+Public Sub RestoreControlArea( _
+    ByVal area As Range, _
+    ByVal controlNode As Object, _
+    ByVal bindings As obj_UiBindingContext _
+)
+    Dim rule As Object
+    Dim regions As Collection
+    Dim region As Object
+    Dim regionArea As Range
+    Dim intersection As Range
+    Dim owner As String
+
+    If area Is Nothing Or m_pipeline Is Nothing Then Exit Sub
+    owner = private_ReadAttribute(controlNode, "name")
+    If Not m_overlays Is Nothing Then
+        If m_overlays.Exists(owner) Then m_overlays.Remove owner
+    End If
+    Me.ApplyControlStyle area, Nothing, controlNode, bindings, False
+    ' Restore matching pipeline rules in their original order, within the old row only.
+    For Each rule In m_pipeline.Rules
+        If rule("enabled") And VBA.StrComp(rule("stage"), "default", VBA.vbTextCompare) = 0 Then
+            If rule("target") <> "sheet" Then
+                Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, area)
+                For Each region In regions
+                    Set regionArea = region("area")
+                    If Not regionArea Is Nothing Then
+                        Set intersection = Application.Intersect(regionArea, area)
+                        If Not intersection Is Nothing Then
+                            private_ApplyProperties intersection, Nothing, rule("properties")
+                        End If
+                    End If
+                Next region
+            End If
+        End If
+    Next rule
 End Sub
 
 Public Sub ApplyControlPartStyle( _

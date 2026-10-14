@@ -5,6 +5,8 @@ value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::uiPath	..\..\ui
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonalEventBuilder
 value	ThisWorkbook::logMode	Immediate
+value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
+value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
 value	PersonalEventBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
 value	PersonalEventBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.

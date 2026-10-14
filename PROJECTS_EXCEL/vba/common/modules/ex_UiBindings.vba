@@ -13,7 +13,10 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_HandleSelection(ByVal target As Range) As Boolean
+Public Function fn_HandleSelection( _
+    ByVal target As Range, _
+    Optional ByVal kind As String = "selection" _
+) As Boolean
     Dim context As obj_UiRenderContext
     Dim previousEvents As Boolean
     Dim diagnostic As String
@@ -24,7 +27,7 @@ Public Function fn_HandleSelection(ByVal target As Range) As Boolean
     On Error GoTo EH
     Application.EnableEvents = False
     context.Router.Broadcast "dismiss"
-    fn_HandleSelection = context.Router.DispatchSelection(target)
+    fn_HandleSelection = context.Router.DispatchSelection(target, kind)
     If Not context.FlushLayout(diagnostic) Then VBA.Err.Raise 5, , diagnostic
 CleanExit:
     Application.EnableEvents = previousEvents

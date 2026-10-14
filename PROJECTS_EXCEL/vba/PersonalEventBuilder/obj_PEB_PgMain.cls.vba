@@ -80,10 +80,30 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim uiBindingContext As obj_UiBindingContext
     Dim textKey As Variant
     Dim configuredText As String
+    Dim confirmSelectionKey As String
 
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::candidates.selectionMode", configuredText) Then
+        ex_WindowsUi.fn_ShowMessage "Required configuration key not found: PersonalEventBuilder::candidates.selectionMode", vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If configuredText <> "Focus" And configuredText <> "Confirm" Then
+        ex_WindowsUi.fn_ShowMessage "Invalid configuration value: PersonalEventBuilder::candidates.selectionMode", vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If configuredText = "Confirm" Then
+        If Not ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::ui.confirmSelectionKey", confirmSelectionKey) Then
+            ex_WindowsUi.fn_ShowMessage "Required configuration key not found: ThisWorkbook::ui.confirmSelectionKey", vbExclamation, "Configuration"
+            Exit Function
+        End If
+        If VBA.Len(VBA.Trim$(confirmSelectionKey)) = 0 Then
+            ex_WindowsUi.fn_ShowMessage "Empty configuration key: ThisWorkbook::ui.confirmSelectionKey", vbExclamation, "Configuration"
+            Exit Function
+        End If
+    End If
+    If Not uiBindingContext.SetValue("Settings", "CandidateSelectionMode", configuredText) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "EventNote", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "EventDate", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonName", vbNullString) Then Exit Function

@@ -102,7 +102,10 @@ Public Sub UnregisterSelection(ByVal name As String)
     If m_selections.Exists(name) Then m_selections.Remove name
 End Sub
 
-Public Function DispatchSelection(ByVal target As Range) As Boolean
+Public Function DispatchSelection( _
+    ByVal target As Range, _
+    Optional ByVal kind As String = "selection" _
+) As Boolean
     Dim key As Variant
     Dim route As Collection
     Dim area As Range
@@ -110,6 +113,7 @@ Public Function DispatchSelection(ByVal target As Range) As Boolean
     Dim payload As Variant
 
     If target Is Nothing Or m_selections Is Nothing Then Exit Function
+    If kind <> "selection" And kind <> "confirmSelection" Then Exit Function
     If target.Areas.Count <> 1 Or target.Rows.Count <> 1 Then Exit Function
     For Each key In m_selections.Keys
         Set route = m_selections(key)
@@ -118,7 +122,8 @@ Public Function DispatchSelection(ByVal target As Range) As Boolean
             If Not Application.Intersect(area, target) Is Nothing Then
                 Set handler = route(2)
                 Set payload = target.Cells(1, 1)
-                DispatchSelection = handler.HandleEvent("selection", payload)
+                Set payload = Application.Intersect(area, target).Cells(1, 1)
+                DispatchSelection = handler.HandleEvent(kind, payload)
                 Exit Function
             End If
         End If
