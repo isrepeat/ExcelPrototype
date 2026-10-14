@@ -133,6 +133,7 @@ Public Function Initialize( _
         item("name") = private_Required(node, "name")
         item("header") = private_Required(node, "header")
         item("caption") = ex_UiElementFactory.fn_Attribute(node, "caption")
+        item("sourceAlias") = ex_UiElementFactory.fn_Attribute(node, "sourceAlias")
         captionKey = ex_UiElementFactory.fn_Attribute(node, "captionKey")
         If VBA.Len(captionKey) > 0 Then
             If Not ex_Core.fn_TryGetWorkbookConfigValue(captionKey, configuredCaption) Then Err.Raise 5, , "Required configuration text not found: " & captionKey
@@ -155,7 +156,14 @@ Public Function Initialize( _
             Set item = VBA.CreateObject("Scripting.Dictionary")
             name = private_Required(node, "name")
             item("name") = name
-            item("caption") = private_Required(node, "caption")
+            item("caption") = ex_UiElementFactory.fn_Attribute(node, "caption")
+            captionKey = ex_UiElementFactory.fn_Attribute(node, "captionKey")
+            If VBA.Len(captionKey) > 0 Then
+                If Not ex_Core.fn_TryGetWorkbookConfigValue(captionKey, configuredCaption) Then Err.Raise 5, , "Required configuration text not found: " & captionKey
+                item("caption") = configuredCaption
+            End If
+            If VBA.Len(item("caption")) = 0 Then Err.Raise 5, , "Display column requires caption or captionKey: " & name
+            item("sourceAlias") = ex_UiElementFactory.fn_Attribute(node, "sourceAlias")
             If captions.Exists(name) Then Err.Raise 5, , "Duplicate display field: " & name
             captions.Add name, True
             If Not names.Exists(name) Then names.Add name, True
@@ -306,9 +314,9 @@ Private Function private_ConfigDocument(ByVal configPrefix As String) As Object
         End If
     Next attributeName
     private_ConfigSection document, root, configPrefix, "columns", "column", _
-        VBA.Array("name", "header"), VBA.Array("captionKey")
+        VBA.Array("name", "header"), VBA.Array("captionKey", "sourceAlias")
     private_ConfigSection document, root, configPrefix, "display", "column", _
-        VBA.Array("name", "caption"), VBA.Array()
+        VBA.Array("name"), VBA.Array("caption", "captionKey", "sourceAlias")
     private_ConfigSection document, root, configPrefix, "search", "field", _
         VBA.Array("name", "match"), VBA.Array()
     private_ConfigSection document, root, configPrefix, "apply", "map", _

@@ -115,7 +115,7 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
     context.Styles.ApplyButtonCaption m_buttonShape, caption
     If Not ex_UiBindingRuntime.fn_TryResolveCommand(private_ReadAttribute( _
             m_uiControlBase.ControlNode, "command"), context.BindingContext, uiCommand) Then Exit Function
-    context.Router.RegisterShape m_buttonShape.Name, uiCommand
+    private_RegisterCommand context, uiCommand
     obj_IUiBindingTarget_RefreshBindings = True
 End Function
 
@@ -166,8 +166,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     uiRenderContext.Styles.ApplyButtonCaption m_buttonShape, captionText
-    m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
-    uiRenderContext.Router.RegisterShape shapeName, uiCommand
+    private_RegisterCommand uiRenderContext, uiCommand
     private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Button.Render", startedAt
 End Function
@@ -177,6 +176,33 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
     Set m_targetRange = m_uiControlBase.Measure(uiRenderContext)
     Set private_Measure = m_targetRange
 End Function
+
+Private Sub private_RegisterCommand( _
+    ByVal context As obj_UiRenderContext, _
+    ByVal uiCommand As obj_UiCommand _
+)
+    Dim raw As String
+    Dim enabled As String
+
+    raw = private_ReadAttribute(m_uiControlBase.ControlNode, "enabled")
+    enabled = "true"
+    If VBA.Len(raw) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveText(raw, context.BindingContext, enabled) Then
+            Err.Raise 5, , "Cannot resolve button enabled: " & m_uiControlBase.ControlName
+        End If
+        enabled = VBA.LCase$(enabled)
+    End If
+    If enabled <> "true" And enabled <> "false" Then
+        Err.Raise 5, , "Invalid button enabled: " & m_uiControlBase.ControlName
+    End If
+    context.Router.UnregisterShape m_buttonShape.Name
+    If enabled = "true" Then
+        m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+        context.Router.RegisterShape m_buttonShape.Name, uiCommand
+    Else
+        m_buttonShape.OnAction = VBA.vbNullString
+    End If
+End Sub
 
 ' //
 ' // Private

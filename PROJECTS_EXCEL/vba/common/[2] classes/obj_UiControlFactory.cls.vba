@@ -128,6 +128,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             End If
             If m_type = "button" Then
                 schema.AddAttribute "command", "string", False, "", True
+                schema.AddAttribute "enabled", "boolean", False, "", True
             End If
         Case "table", "tablelist", "candidates"
             schema.RequireAnyAttribute "itemsSource"

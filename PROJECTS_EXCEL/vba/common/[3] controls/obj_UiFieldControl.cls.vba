@@ -200,6 +200,8 @@ Public Function CreateDropdownShapes( _
     Dim highlightObject As Object
     Dim highlightIsObject As Boolean
     Dim highlightRaw As String
+    Dim highlightItem As Variant
+    Dim isHighlighted As Boolean
     Dim startedAt As Double
     Dim routeName As Variant
 
@@ -210,7 +212,11 @@ Public Function CreateDropdownShapes( _
     If VBA.Len(highlightRaw) > 0 Then
         If Not ex_UiBindingRuntime.fn_TryResolveValue( _
                 highlightRaw, uiRenderContext.BindingContext, highlightValue, highlightObject, highlightIsObject) Then Exit Function
-        If highlightIsObject Or VBA.IsNull(highlightValue) Or VBA.IsError(highlightValue) Then Exit Function
+        If highlightIsObject Then
+            If VBA.TypeName(highlightObject) <> "Collection" Then Exit Function
+        Else
+            If VBA.IsNull(highlightValue) Or VBA.IsError(highlightValue) Then Exit Function
+        End If
     End If
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     itemHeight = m_targetRange.Height
@@ -253,7 +259,18 @@ Public Function CreateDropdownShapes( _
         uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
             m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "itemStyle"
         If VBA.Len(highlightRaw) > 0 Then
-            If itemText = VBA.CStr(highlightValue) Then
+            isHighlighted = False
+            If highlightIsObject Then
+                For Each highlightItem In highlightObject
+                    If itemText = VBA.CStr(highlightItem) Then
+                        isHighlighted = True
+                        Exit For
+                    End If
+                Next highlightItem
+            Else
+                isHighlighted = itemText = VBA.CStr(highlightValue)
+            End If
+            If isHighlighted Then
                 uiRenderContext.Styles.ApplyControlPartStyle itemShape, _
                     m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "highlightStyle"
             End If
@@ -490,7 +507,8 @@ Private Function private_TryResolveItems( _
     Else
         private_AddDelimitedItems VBA.CStr(value), outItems
     End If
-    private_TryResolveItems = (outItems.Count > 0)
+    ' An empty bound collection is valid while lookup results are pending.
+    private_TryResolveItems = True
 End Function
 
 Private Sub private_AddDelimitedItems(ByVal listText As String, ByVal outItems As Collection)
@@ -522,7 +540,6 @@ Private Function private_RenderSelectShapes( _
 
     startedAt = VBA.Timer
     If items Is Nothing Or uiCellBinding Is Nothing Then Exit Function
-    If items.Count = 0 Then Exit Function
     Set targetWorksheet = uiRenderContext.TargetWorksheet
     controlId = uiRenderContext.Router.NextId()
     headerShapeName = private_ShapeName(SELECT_SHAPE_PREFIX & "h_" & VBA.CStr(controlId))
@@ -540,7 +557,8 @@ Private Function private_RenderSelectShapes( _
     End If
     private_ApplyDefaultShapeStyle headerShape
     arrowText = VBA.ChrW(&H25BC)
-    headerShape.TextFrame2.TextRange.Text = selectedValue & " " & arrowText
+    headerShape.TextFrame2.TextRange.Text = selectedValue
+    If items.Count > 0 Then headerShape.TextFrame2.TextRange.Text = selectedValue & " " & arrowText
     headerShape.TextFrame2.MarginLeft = 5
     headerShape.TextFrame2.MarginRight = 5
     headerShape.TextFrame2.MarginTop = 0
