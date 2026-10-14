@@ -19,6 +19,8 @@ value	PersonalEventBuilder::text.PersonIdLabel	ІПН
 value	PersonalEventBuilder::text.PersonRankLabel	Звання
 value	PersonalEventBuilder::text.PersonPositionLabel	Посада
 value	PersonalEventBuilder::text.PersonUnitLabel	Підрозділ
+value	PersonalEventBuilder::text.EventNoteLabel	Примітка
+value	PersonalEventBuilder::text.EventDateLabel	Дата події
 value	PersonalEventBuilder::text.RefreshPersonnel	Розірвати з’єднання
 value	PersonalEventBuilder::text.FullNameHeader	ПІБ
 value	PersonalEventBuilder::text.TaxIdHeader	ІПН

@@ -31,6 +31,7 @@ Private m_selectedStyle As String
 Private m_bodyRange As Range
 Private m_selectedRow As Long
 Private m_tablePlan As Object
+Private m_sourceOverride As obj_IUiTableSource
 
 ' //
 ' // Lifecycle
@@ -165,9 +166,16 @@ Public Sub Dispose()
     Set m_table = Nothing
     Set m_targetRange = Nothing
     Set m_tablePlan = Nothing
+    Set m_sourceOverride = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_renderContext = Nothing
+End Sub
+
+Public Sub SetSource(ByVal source As obj_IUiTableSource)
+    If Not m_isInitialized Or m_isDisposed Then Exit Sub
+    Set m_sourceOverride = source
+    Set m_table = Nothing
 End Sub
 
 ' //
@@ -203,8 +211,13 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
 
     If uiRenderContext Is Nothing Then Exit Function
     If m_table Is Nothing Then
-        If Not ex_UiBindingRuntime.fn_TryResolveValue( _
-                m_sourceRaw, uiRenderContext.BindingContext, value, sourceObject, isObject) Then Exit Function
+        If Not m_sourceOverride Is Nothing Then
+            Set sourceObject = m_sourceOverride
+            isObject = True
+        Else
+            If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+                    m_sourceRaw, uiRenderContext.BindingContext, value, sourceObject, isObject) Then Exit Function
+        End If
         If Not isObject Or Not TypeOf sourceObject Is obj_IUiTableSource Then Exit Function
         Set m_source = sourceObject
         Set m_selectionSource = Nothing

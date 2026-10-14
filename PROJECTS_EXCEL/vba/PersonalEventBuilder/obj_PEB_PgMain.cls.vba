@@ -84,6 +84,8 @@ Private Function private_TryRegisterBindings() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "EventNote", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "EventDate", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonName", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonId", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonRank", vbNullString) Then Exit Function
@@ -91,7 +93,8 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "PersonUnit", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
     For Each textKey In VBA.Array("PersonNameLabel", "PersonIdLabel", "PersonRankLabel", _
-            "PersonPositionLabel", "PersonUnitLabel", "PersonnelSection", "ActionsSection", "RefreshPersonnel")
+            "PersonPositionLabel", "PersonUnitLabel", "EventNoteLabel", "EventDateLabel", _
+            "PersonnelSection", "ActionsSection", "RefreshPersonnel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function

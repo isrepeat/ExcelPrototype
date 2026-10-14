@@ -47,6 +47,8 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
             Set control = New obj_UiCheckboxControl
         Case "table"
             Set control = New obj_UiTableControl
+        Case "candidates"
+            Set control = New obj_UiCandidatesControl
         Case "tablelist"
             Set control = New obj_UiTableListControl
         Case "form"
@@ -127,7 +129,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             If m_type = "button" Then
                 schema.AddAttribute "command", "string", False, "", True
             End If
-        Case "table", "tablelist"
+        Case "table", "tablelist", "candidates"
             schema.RequireAnyAttribute "itemsSource"
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
             If m_type = "tablelist" Then schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
@@ -149,7 +151,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 wrapper.AddChild "tablePolicy", policy, 1, 1, "urn:excelprototype:controls"
                 schema.AddChild "tableList.tablePolicy", wrapper, 0, 1, "urn:excelprototype:controls"
             End If
-            If m_type = "table" Then
+            If m_type = "candidates" Then schema.AddAttribute "alignToForm", "string", True, "", False, 0
+            If m_type = "table" Or m_type = "candidates" Then
                 schema.AddAttribute "onSelect", "string", False, "", True, 0
                 schema.AddAttribute "selectedItem", "string", False, "", True, 0
                 schema.AddAttribute "selectedStyle", "string", False, "", True, 0
