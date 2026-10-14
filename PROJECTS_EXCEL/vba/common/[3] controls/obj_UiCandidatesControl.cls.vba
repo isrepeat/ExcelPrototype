@@ -132,6 +132,7 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
     Dim columnMetadata As obj_IUiColumnMetadata
     Dim sourceAliases As Object
     Dim columnIndex As Long
+    Dim columnSpans As Object
 
     If Not ex_UiBindingRuntime.fn_TryResolveValue( _
             private_ReadAttribute(m_definition, "itemsSource"), m_context.BindingContext, value, sourceObject, isObject) Then
@@ -164,9 +165,9 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
             sourceAliases(VBA.CStr(table.HeaderAt(columnIndex))) = columnMetadata.SourceAliasAt(columnIndex)
         Next columnIndex
     End If
-    If Not private_AlignToForm(table, diagnostic) Then Exit Function
+    If Not private_AlignToForm(table, columnSpans, diagnostic) Then Exit Function
     Set candidatesSource = New obj_UiCandidatesSource
-    If Not candidatesSource.Initialize(table, selectionSource, sourceAliases) Then
+    If Not candidatesSource.Initialize(table, selectionSource, sourceAliases, columnSpans) Then
         diagnostic = "Cannot initialize candidates source."
         Exit Function
     End If
@@ -176,6 +177,7 @@ End Function
 
 Private Function private_AlignToForm( _
     ByRef table As obj_UiRawTable, _
+    ByRef columnSpans As Object, _
     ByRef diagnostic As String _
 ) As Boolean
     Dim formName As String
@@ -193,6 +195,9 @@ Private Function private_AlignToForm( _
     Dim columnIndex As Long
     Dim rowIndex As Long
     Dim matched As Object
+    Dim fieldSpan As Long
+    Dim reservedColumns As Long
+    Dim coveredColumn As Long
 
     formName = private_ReadAttribute(m_definition, "alignToForm")
     On Error GoTo EH
@@ -210,13 +215,19 @@ Private Function private_AlignToForm( _
     For Each node In formNode.ChildNodes
         If node.NodeType = 1 Then
             If node.baseName <> "field" Then Err.Raise 5, , "Aligned form only supports fields: " & formName
-            fieldCount = fieldCount + 1
+            fieldSpan = private_ReadLong(node, "columnSpan", 1)
+            If fieldSpan < 1 Then Err.Raise 5, , "Aligned field columnSpan must be positive."
+            fieldCount = fieldCount + fieldSpan
         End If
     Next node
     If fieldCount = 0 Then Err.Raise 5, , "Alignment form has no fields: " & formName
+    reservedColumns = private_ReadLong(formNode, "columnSpan", fieldCount)
+    If fieldCount > reservedColumns Then Err.Raise 5, , "Alignment form exceeds its reserved columnSpan: " & formName
+    fieldCount = reservedColumns
     ReDim headers(0 To fieldCount - 1)
     If table.RowCount > 0 Then ReDim values(1 To table.RowCount, 1 To fieldCount)
     Set matched = VBA.CreateObject("Scripting.Dictionary")
+    Set columnSpans = VBA.CreateObject("Scripting.Dictionary")
     ' Match headers to field labels; leave extra form fields blank.
     For Each fieldNode In formNode.ChildNodes
         If fieldNode.NodeType = 1 Then
@@ -225,6 +236,12 @@ Private Function private_AlignToForm( _
                 Err.Raise 5, , "Aligned field requires a top label: " & private_ReadAttribute(fieldNode, "name")
             End If
             position = position + 1
+            fieldSpan = private_ReadLong(fieldNode, "columnSpan", 1)
+            columnSpans(position) = fieldSpan
+            For coveredColumn = position + 1 To position + fieldSpan - 1
+                columnSpans(coveredColumn) = 0
+                headers(coveredColumn - 1) = VBA.vbNullString
+            Next coveredColumn
             headers(position - 1) = VBA.vbNullString
             If Not ex_UiBindingRuntime.fn_TryResolveValue( _
                     private_ReadAttribute(fieldNode, "label"), m_context.BindingContext, caption, captionObject, isObject) Then
@@ -243,6 +260,7 @@ Private Function private_AlignToForm( _
                     Next rowIndex
                 End If
             Next columnIndex
+            position = position + fieldSpan - 1
         End If
     Next fieldNode
     For columnIndex = 1 To table.ColumnCount

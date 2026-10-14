@@ -134,11 +134,13 @@ Private Function private_ConfigureField( _
     Dim booleanName As Variant
     Dim booleanValue As String
     Dim editorAttribute As Variant
+    Dim fieldColumns As Long
+    Dim labelColumns As Long
+    Dim editorColumns As Long
 
     If Not fieldNode.getAttributeNode("rowSpan") Is Nothing Or _
-            Not fieldNode.getAttributeNode("columnSpan") Is Nothing Or _
             Not fieldNode.getAttributeNode("labelColumnSpan") Is Nothing Then
-        diagnostic = "Field does not support rowSpan, columnSpan or labelColumnSpan."
+        diagnostic = "Field does not support rowSpan or labelColumnSpan."
         Exit Function
     End If
     m_name = ex_UiElementFactory.fn_Attribute(fieldNode, "name")
@@ -155,6 +157,24 @@ Private Function private_ConfigureField( _
     If position <> "left" And position <> "top" Then
         diagnostic = "labelPosition must be left or top."
         Exit Function
+    End If
+    fieldColumns = ex_UiElementFactory.fn_Long(fieldNode, "columnSpan", 1)
+    If fieldColumns < 1 Then
+        diagnostic = "Field columnSpan must be positive: " & m_name
+        Exit Function
+    End If
+    labelColumns = fieldColumns
+    editorColumns = fieldColumns
+    If position = "left" Then
+        labelColumns = 1
+        editorColumns = 1
+        If Not fieldNode.getAttributeNode("columnSpan") Is Nothing Then
+            If fieldColumns < 2 Then
+                diagnostic = "Field with a left label requires columnSpan >= 2: " & m_name
+                Exit Function
+            End If
+            editorColumns = fieldColumns - 1
+        End If
     End If
     If VBA.Len(ex_UiElementFactory.fn_Attribute(fieldNode, "label")) = 0 Then
         diagnostic = "Field requires label: " & m_name
@@ -198,7 +218,7 @@ Private Function private_ConfigureField( _
     labelNode.setAttribute "rowSpan", "1"
     labelNode.setAttribute "name", m_name & "_label"
     labelNode.setAttribute "text", ex_UiElementFactory.fn_Attribute(fieldNode, "label")
-    labelNode.setAttribute "columnSpan", "1"
+    labelNode.setAttribute "columnSpan", VBA.CStr(labelColumns)
     labelNode.setAttribute "style", private_Inherit(fieldNode, formNode, "labelStyle", VBA.vbNullString)
     Set label = New obj_UiControlElement
     If Not label.Configure(labelNode, context, source, diagnostic) Then Exit Function
@@ -208,7 +228,7 @@ Private Function private_ConfigureField( _
     editorNode.setAttribute "inputType", kind
     editorNode.setAttribute "name", m_name & "_input"
     editorNode.setAttribute "value", rawValue
-    editorNode.setAttribute "columnSpan", "1"
+    editorNode.setAttribute "columnSpan", VBA.CStr(editorColumns)
     editorNode.setAttribute "rowSpan", "1"
     editorNode.setAttribute "style", private_Inherit(fieldNode, formNode, "fieldStyle", VBA.vbNullString)
     editorNode.setAttribute "onChange", private_Inherit(fieldNode, formNode, "onChange", VBA.vbNullString)

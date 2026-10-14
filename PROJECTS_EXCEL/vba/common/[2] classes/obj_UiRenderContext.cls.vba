@@ -234,6 +234,7 @@ EH_LAYOUT:
 End Function
 
 Public Function RenderTree(ByRef diagnostic As String) As Boolean
+    Dim pageElement As obj_UiPageElement
     Dim rows As Long
     Dim columns As Long
     Dim stageStartedAt As Double
@@ -275,6 +276,10 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     If RenderTree Then
         stageStartedAt = VBA.Timer
         m_styles.CompleteRender
+        If TypeOf m_root Is obj_UiPageElement Then
+            Set pageElement = m_root
+            pageElement.ApplyZoom
+        End If
         ex_Core.fn_Diagnostic_WritePerf "Page.CompleteRender | Sheet=" & m_targetWorksheet.Name, stageStartedAt
     End If
     m_hasRendered = RenderTree

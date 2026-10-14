@@ -20,6 +20,7 @@ Private m_context As obj_UiRenderContext
 Private m_row As Long
 Private m_column As Long
 Private m_definition As Object
+Private m_reservedColumns As Long
 
 ' //
 ' // Lifecycle
@@ -58,9 +59,8 @@ Private Function obj_IUiControl_Configure( _
     Dim panelNode As Object
 
     If Not definition.getAttributeNode("rowSpan") Is Nothing Or _
-            Not definition.getAttributeNode("columnSpan") Is Nothing Or _
             Not definition.getAttributeNode("labelColumnSpan") Is Nothing Then
-        diagnostic = "Form does not support rowSpan, columnSpan or labelColumnSpan."
+        diagnostic = "Form does not support rowSpan or labelColumnSpan."
         Exit Function
     End If
     m_name = ex_UiElementFactory.fn_Attribute(definition, "name")
@@ -72,6 +72,7 @@ Private Function obj_IUiControl_Configure( _
     Set m_definition = definition.cloneNode(True)
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
+    m_reservedColumns = ex_UiElementFactory.fn_Long(definition, "columnSpan", 0)
     Set m_panel = New obj_UiStackPanelElement
     Set container = m_panel
     Set panelNode = definition.cloneNode(False)
@@ -108,6 +109,15 @@ Private Function obj_IUiControl_Measure( _
     ByRef diagnostic As String _
 ) As Boolean
     obj_IUiControl_Measure = m_panel.Measure(rows, columns, diagnostic)
+    If Not obj_IUiControl_Measure Then Exit Function
+    If m_reservedColumns > 0 Then
+        If columns > m_reservedColumns Then
+            diagnostic = "Form exceeds its reserved columnSpan: " & m_name
+            obj_IUiControl_Measure = False
+            Exit Function
+        End If
+        columns = m_reservedColumns
+    End If
     rows = rows + m_row - 1
     columns = columns + m_column - 1
 End Function

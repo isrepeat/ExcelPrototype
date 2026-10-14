@@ -257,6 +257,13 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
     If m_showHeaders And IsArray(rawTable.Headers) Then rows = rows + 1
     columns = rawTable.ColumnCount
     If columns <= 0 Then Exit Function
+    If private_ReadAttribute(m_uiControlBase.ControlNode, "representation") = "Smart" Then
+        For tableIndex = 1 To columns
+            If private_ColumnSpanAt(tableIndex) <> 1 Then
+                Err.Raise 5, , "Smart tables do not support column spans"
+            End If
+        Next tableIndex
+    End If
     If rows <= 0 Then rows = 1
     Set m_targetRange = uiRenderContext.TargetWorksheet.Cells(1, 1).Offset( _
         private_ReadLong(m_uiControlBase.ControlNode, "row", 1) - 1, _
@@ -275,6 +282,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim rowTags As String
     Dim columnMetadata As obj_IUiColumnMetadata
     Dim sourceAlias As String
+    Dim columnSpan As Long
+    Dim fieldRange As Range
+    Dim columnLayout As obj_IUiColumnLayout
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -307,7 +317,26 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             uiRenderContext.Router.RegisterSelection m_uiControlBase.ControlName, m_bodyRange, Me
         End If
     End If
+    If Not m_source Is Nothing Then
+        If TypeOf m_source Is obj_IUiColumnLayout Then Set columnLayout = m_source
+    End If
+    If Not columnLayout Is Nothing Then
+        m_targetRange.UnMerge
+    End If
     m_targetRange.Value2 = buffer
+    If Not columnLayout Is Nothing Then
+        targetRow = 1
+        If VBA.Len(rawTable.Title) > 0 Then targetRow = targetRow + 1
+        For columnIndex = 1 To rawTable.ColumnCount
+            columnSpan = columnLayout.ColumnSpanAt(columnIndex)
+            If columnSpan > 1 Then
+                If columnIndex + columnSpan - 1 > rawTable.ColumnCount Then Err.Raise 5, , "Table columnSpan exceeds table width"
+                For rowIndex = targetRow To m_targetRange.Rows.Count
+                    m_targetRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan).Merge
+                Next rowIndex
+            End If
+        Next columnIndex
+    End If
     If Not m_tablePlan Is Nothing Then ex_UiTables.fn_Apply m_tablePlan
     uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     targetRow = 1
@@ -318,7 +347,11 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If m_showHeaders And IsArray(rawTable.Headers) Then
         uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "header"
         For columnIndex = 1 To rawTable.ColumnCount
-            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Cells(targetRow, columnIndex), "header", rawTable.HeaderAt(columnIndex)
+            columnSpan = private_ColumnSpanAt(columnIndex)
+            If columnSpan > 0 Then
+                Set fieldRange = m_targetRange.Cells(targetRow, columnIndex).Resize(1, columnSpan)
+                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, "header", rawTable.HeaderAt(columnIndex)
+            End If
         Next columnIndex
     End If
     If Not m_bodyRange Is Nothing Then
@@ -329,20 +362,24 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Rows(rowIndex), "row", tags:=rowTags
         Next rowIndex
         For columnIndex = 1 To rawTable.ColumnCount
-            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Columns(columnIndex), "rows", rawTable.HeaderAt(columnIndex)
-            If Not m_source Is Nothing Then
-                If TypeOf m_source Is obj_IUiColumnMetadata Then
-                    Set columnMetadata = m_source
-                    sourceAlias = columnMetadata.SourceAliasAt(columnIndex)
-                    If VBA.Len(sourceAlias) > 0 Then
-                        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Columns(columnIndex), _
-                            "rows", sourceAlias:=sourceAlias
-                        For rowIndex = 1 To rawTable.RowCount
-                            rowTags = "tableRow odd"
-                            If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
-                            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Cells(rowIndex, columnIndex), _
-                                "rows", sourceAlias:=sourceAlias, tags:=rowTags
-                        Next rowIndex
+            columnSpan = private_ColumnSpanAt(columnIndex)
+            If columnSpan > 0 Then
+                Set fieldRange = m_bodyRange.Columns(columnIndex).Resize(rawTable.RowCount, columnSpan)
+                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, "rows", rawTable.HeaderAt(columnIndex)
+                If Not m_source Is Nothing Then
+                    If TypeOf m_source Is obj_IUiColumnMetadata Then
+                        Set columnMetadata = m_source
+                        sourceAlias = columnMetadata.SourceAliasAt(columnIndex)
+                        If VBA.Len(sourceAlias) > 0 Then
+                            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, _
+                                "rows", sourceAlias:=sourceAlias
+                            For rowIndex = 1 To rawTable.RowCount
+                                rowTags = "tableRow odd"
+                                If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
+                                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan), _
+                                    "rows", sourceAlias:=sourceAlias, tags:=rowTags
+                            Next rowIndex
+                        End If
                     End If
                 End If
             End If
@@ -370,6 +407,17 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_ColumnSpanAt(ByVal columnIndex As Long) As Long
+    Dim columnLayout As obj_IUiColumnLayout
+
+    private_ColumnSpanAt = 1
+    If m_source Is Nothing Then Exit Function
+    If TypeOf m_source Is obj_IUiColumnLayout Then
+        Set columnLayout = m_source
+        private_ColumnSpanAt = columnLayout.ColumnSpanAt(columnIndex)
+    End If
+End Function
+
 Private Sub private_StyleSelectedRow(ByVal rowIndex As Long)
     Dim node As Object
 
