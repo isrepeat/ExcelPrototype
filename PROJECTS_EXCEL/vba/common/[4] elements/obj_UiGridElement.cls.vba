@@ -133,6 +133,8 @@ Private Function private_ConfigurePanel( _
         If node.NodeType = 1 Then
             If Not (VBA.CStr(node.namespaceURI) = "urn:excelprototype:profiles" And _
                     (VBA.LCase$(VBA.CStr(node.baseName)) = "styles" Or _
+                     VBA.LCase$(VBA.CStr(node.baseName)) = "fieldcatalog" Or _
+                     VBA.LCase$(VBA.CStr(node.baseName)) = "formlayouts" Or _
                      VBA.LCase$(VBA.CStr(node.baseName)) = "grid.rowdefinitions" Or _
                      VBA.LCase$(VBA.CStr(node.baseName)) = "grid.columndefinitions")) Then
                 Dim childDefinition As Object

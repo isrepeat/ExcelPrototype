@@ -3,17 +3,232 @@
       xmlns:controls="urn:excelprototype:controls"
       version="1"
       zoom="80%">
+  <fieldCatalog name="EventFields">
+    <field name="EventType"
+           type="text"
+           value="{Binding Path=EventType}"
+           label="{Binding Path=Text.ModeEventTypeLabel}"
+           readOnly="true"/>
+    <field name="Destination"
+           type="text"
+           value="{Binding Path=Destination}"
+           label="{Binding Path=Text.ModeDestinationLabel}"/>
+    <field name="PersonRank"
+           type="text"
+           value="{Binding Path=PersonRank}"
+           label="{Binding Path=Text.ModePersonRankLabel}"
+           readOnly="true"/>
+    <field name="PersonName"
+           type="text"
+           value="{Binding Path=PersonName}"
+           label="{Binding Path=Text.ModePersonNameLabel}"
+           onChange="{Binding Path=Commands.SearchPersonnel}"/>
+    <field name="PersonId"
+           type="text"
+           value="{Binding Path=PersonId}"
+           label="{Binding Path=Text.ModePersonIdLabel}"
+           readOnly="true"/>
+    <field name="PositionCode"
+           type="text"
+           value="{Binding Path=PositionCode}"
+           label="{Binding Path=Text.ModePositionCodeLabel}"
+           readOnly="true"/>
+    <field name="PersonPosition"
+           type="text"
+           value="{Binding Path=PersonPosition}"
+           label="{Binding Path=Text.ModePersonPositionLabel}"
+           readOnly="true"/>
+    <field name="ReportRank"
+           type="text"
+           value="{Binding Path=ReportRank}"
+           label="{Binding Path=Text.ModeReportRankLabel}"/>
+    <field name="ReportName"
+           type="text"
+           value="{Binding Path=ReportName}"
+           label="{Binding Path=Text.ModeReportNameLabel}"/>
+    <field name="ReportPositionCode"
+           type="text"
+           value="{Binding Path=ReportPositionCode}"
+           label="{Binding Path=Text.ModeReportPositionCodeLabel}"/>
+    <field name="IncomingNumber"
+           type="text"
+           value="{Binding Path=IncomingNumber}"
+           label="{Binding Path=Text.ModeIncomingNumberLabel}"/>
+    <field name="IncomingDate"
+           type="text"
+           value="{Binding Path=IncomingDate}"
+           label="{Binding Path=Text.ModeIncomingDateLabel}"/>
+    <field name="EventDate"
+           type="text"
+           value="{Binding Path=EventDate}"
+           label="{Binding Path=Text.ModeEventDateLabel}"/>
+    <field name="TicketNumber"
+           type="text"
+           value="{Binding Path=TicketNumber}"
+           label="{Binding Path=Text.ModeTicketNumberLabel}"/>
+    <field name="TicketDate"
+           type="text"
+           value="{Binding Path=TicketDate}"
+           label="{Binding Path=Text.ModeTicketDateLabel}"/>
+    <field name="Hospital"
+           type="text"
+           value="{Binding Path=Hospital}"
+           label="{Binding Path=Text.ModeHospitalLabel}"/>
+    <field name="HospitalShortName"
+           type="text"
+           value="{Binding Path=HospitalShortName}"
+           label="{Binding Path=Text.ModeHospitalShortNameLabel}"/>
+    <field name="Document"
+           type="text"
+           value="{Binding Path=Document}"
+           label="{Binding Path=Text.ModeDocumentLabel}"/>
+    <field name="DocumentDate"
+           type="text"
+           value="{Binding Path=DocumentDate}"
+           label="{Binding Path=Text.ModeDocumentDateLabel}"/>
+    <field name="DocumentNumber"
+           type="text"
+           value="{Binding Path=DocumentNumber}"
+           label="{Binding Path=Text.ModeDocumentNumberLabel}"/>
+  </fieldCatalog>
+
+  <formLayouts name="EventLayouts"
+               catalog="EventFields">
+    <formLayout name="Leave">
+      <fieldRef name="EventType"
+                columnSpan="1"/>
+      <fieldRef name="Destination"
+                columnSpan="1"/>
+      <fieldRef name="PersonRank"
+                columnSpan="1"/>
+      <fieldRef name="PersonName"
+                columnSpan="1"/>
+      <fieldRef name="PersonId"
+                columnSpan="1"/>
+      <fieldRef name="PositionCode"
+                columnSpan="1"/>
+      <fieldRef name="PersonPosition"
+                columnSpan="1"/>
+      <fieldRef name="ReportRank"
+                columnSpan="1"/>
+      <fieldRef name="ReportName"
+                columnSpan="1"/>
+      <fieldRef name="ReportPositionCode"
+                columnSpan="1"/>
+      <fieldRef name="IncomingNumber"
+                columnSpan="1"/>
+      <fieldRef name="IncomingDate"
+                columnSpan="1"/>
+      <fieldRef name="EventDate"
+                columnSpan="1"/>
+      <fieldRef name="TicketNumber"
+                columnSpan="1"/>
+      <fieldRef name="TicketDate"
+                columnSpan="1"/>
+    </formLayout>
+    <formLayout name="Treatment">
+      <fieldRef name="EventType"
+                columnSpan="1"/>
+      <fieldRef name="Hospital"
+                columnSpan="1"/>
+      <fieldRef name="HospitalShortName"
+                columnSpan="1"/>
+      <fieldRef name="PersonName"
+                columnSpan="1"/>
+      <fieldRef name="PersonId"
+                columnSpan="1"/>
+      <fieldRef name="PositionCode"
+                columnSpan="1"/>
+      <fieldRef name="PersonPosition"
+                columnSpan="1"/>
+      <fieldRef name="ReportRank"
+                columnSpan="1"/>
+      <fieldRef name="ReportName"
+                columnSpan="1"/>
+      <fieldRef name="ReportPositionCode"
+                columnSpan="1"/>
+      <fieldRef name="IncomingNumber"
+                columnSpan="1"/>
+      <fieldRef name="IncomingDate"
+                columnSpan="1"/>
+      <fieldRef name="Document"
+                columnSpan="1"/>
+      <fieldRef name="DocumentDate"
+                columnSpan="1"/>
+      <fieldRef name="DocumentNumber"
+                columnSpan="1"/>
+      <fieldRef name="EventDate"
+                columnSpan="1"/>
+    </formLayout>
+  </formLayouts>
+
   <grid row="2"
         column="2">
+    <controls:button name="Mode1"
+                     row="1"
+                     column="1"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.ArrivalTreatmentStyle}"
+                     caption="{Binding Path=Text.ArrivalTreatment}"
+                     command="{Binding Path=Commands.ArrivalTreatment}"/>
+    <controls:button name="Mode2"
+                     row="1"
+                     column="5"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.ArrivalAnnualLeaveStyle}"
+                     caption="{Binding Path=Text.ArrivalAnnualLeave}"
+                     command="{Binding Path=Commands.ArrivalAnnualLeave}"/>
+    <controls:button name="Mode3"
+                     row="1"
+                     column="9"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.ArrivalMedicalLeaveStyle}"
+                     caption="{Binding Path=Text.ArrivalMedicalLeave}"
+                     command="{Binding Path=Commands.ArrivalMedicalLeave}"/>
+    <controls:button name="Mode4"
+                     row="1"
+                     column="13"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.ArrivalFamilyLeaveStyle}"
+                     caption="{Binding Path=Text.ArrivalFamilyLeave}"
+                     command="{Binding Path=Commands.ArrivalFamilyLeave}"/>
+    <controls:button name="Mode5"
+                     row="2"
+                     column="1"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.DepartureTreatmentStyle}"
+                     caption="{Binding Path=Text.DepartureTreatment}"
+                     command="{Binding Path=Commands.DepartureTreatment}"/>
+    <controls:button name="Mode6"
+                     row="2"
+                     column="5"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.DepartureAnnualLeaveStyle}"
+                     caption="{Binding Path=Text.DepartureAnnualLeave}"
+                     command="{Binding Path=Commands.DepartureAnnualLeave}"/>
+    <controls:button name="Mode7"
+                     row="2"
+                     column="9"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.DepartureMedicalLeaveStyle}"
+                     caption="{Binding Path=Text.DepartureMedicalLeave}"
+                     command="{Binding Path=Commands.DepartureMedicalLeave}"/>
+    <controls:button name="Mode8"
+                     row="2"
+                     column="13"
+                     columnSpan="4"
+                     style="{Binding Path=Settings.DepartureFamilyLeaveStyle}"
+                     caption="{Binding Path=Text.DepartureFamilyLeave}"
+                     command="{Binding Path=Commands.DepartureFamilyLeave}"/>
     <controls:label name="OrderQueryLabel"
-                    row="1"
+                    row="4"
                     column="1"
                     columnSpan="4"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
-                     row="2"
+                     row="5"
                      column="1"
                      columnSpan="4"
                      style="formField"
@@ -26,105 +241,53 @@
                      itemHeight="20"
                      onChange="{Binding Path=Commands.OrderQueryChanged}"/>
     <controls:label name="OrderYearLabel"
-                    row="1"
+                    row="4"
                     column="5"
                     columnSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:input name="OrderYear"
-                    row="2"
+                    row="5"
                     column="5"
                     columnSpan="2"
                     style="formField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:label name="AcceptedOrder"
-                    row="1"
+                    row="4"
                     column="7"
                     rowSpan="2"
-                    columnSpan="6"
+                    columnSpan="10"
                     style="statusText"
                     text="{Binding Path=Form.AcceptedOrderText}"/>
 
     <controls:label name="PersonnelSection"
-                    row="4"
+                    row="7"
                     column="1"
-                    columnSpan="12"
+                    columnSpan="16"
                     style="sectionTitle"
                     text="{Binding Path=Text.PersonnelSection}"/>
 
     <controls:form name="PersonnelForm"
                    dataContext="{Binding Path=Form}"
-                   row="5"
+                   row="8"
                    column="1"
-                   columnSpan="12"
+                   columnSpan="16"
                    orientation="horizontal"
                    labelPosition="top"
                    labelStyle="formLabel"
-                   fieldStyle="formField">
-      <field name="AbsenceType"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=AbsenceType}"
-             label="{Binding Path=Text.AbsenceTypeLabel}"/>
-      <field name="Destination"
-             type="text"
-             columnSpan="2"
-             value="{Binding Path=Destination}"
-             label="{Binding Path=Text.DestinationLabel}"/>
-      <field name="PersonRank"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=PersonRank}"
-             label="{Binding Path=Text.PersonRankLabel}"
-             readOnly="true"/>
-      <field name="PersonName"
-             type="text"
-             columnSpan="2"
-             value="{Binding Path=PersonName}"
-             label="{Binding Path=Text.PersonNameLabel}"
-             onChange="{Binding Path=Commands.SearchPersonnel}"/>
-      <field name="PersonId"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=PersonId}"
-             label="{Binding Path=Text.PersonIdLabel}"
-             readOnly="true"/>
-      <field name="PositionCode"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=PositionCode}"
-             label="{Binding Path=Text.PositionCodeLabel}"
-             readOnly="true"/>
-      <field name="PersonPosition"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=PersonPosition}"
-             label="{Binding Path=Text.PersonPositionLabel}"
-             readOnly="true"/>
-      <field name="DepartureDate"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=DepartureDate}"
-             label="{Binding Path=Text.DepartureDateLabel}"/>
-      <field name="TicketNumber"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=TicketNumber}"
-             label="{Binding Path=Text.TicketNumberLabel}"/>
-      <field name="TicketDate"
-             type="text"
-             columnSpan="1"
-             value="{Binding Path=TicketDate}"
-             label="{Binding Path=Text.TicketDateLabel}"/>
-    </controls:form>
+                   fieldStyle="formField"
+                   layoutSource="EventLayouts"
+                   layout="{Binding Path=Form.ModeForm}"/>
 
     <controls:candidates name="Candidates"
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                    row="8"
+                    row="11"
                     column="1"
                     style="candidateTable"
                     alignToForm="PersonnelForm"
+                    workspaceFirstColumn="1"
+                    workspaceLastColumn="16"
                     selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
                     onSelect="{Binding Path=Commands.SelectPersonnel}"
@@ -132,27 +295,27 @@
                     showHeaders="true"/>
 
     <controls:label name="ActionsSection"
-                    row="4"
-                    column="14"
+                    row="7"
+                    column="18"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
-                     row="5"
-                     column="14"
+                     row="8"
+                     column="18"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
     <controls:label name="LastStatusLabel"
-                    row="7"
-                    column="14"
+                    row="10"
+                    column="18"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
     <controls:label name="ActionStatus"
-                    row="8"
-                    column="14"
+                    row="11"
+                    column="18"
                     rowSpan="5"
                     columnSpan="2"
                     style="{Binding Path=Form.ActionStatusStyle}"
@@ -160,6 +323,16 @@
   </grid>
 
   <styles>
+    <controlStyle name="activeModeButton"
+                  backColor="#375D7A"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="currentOrderItem"
                   backColor="#375D7A"/>
     <controlStyle name="statusHeading"
@@ -336,17 +509,14 @@
               selector="address=A:A"
               styles="{width:2;}"/>
         <rule target="column"
-              selector="address=B:M"
-              styles="{width:19,5;}"/>
+              selector="address=B:Q"
+              styles="{width:15;}"/>
         <rule target="column"
-              selector="address=N:N"
+              selector="address=R:R"
               styles="{width:2;}"/>
         <rule target="column"
-              selector="address=O:O"
-              styles="{width:25;}"/>
-        <rule target="column"
-              selector="address=P:P"
-              styles="{width:12;}"/>
+              selector="address=S:T"
+              styles="{width:16;}"/>
       </layer>
       <layer name="table-parts">
         <rule target="control"

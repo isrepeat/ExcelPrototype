@@ -222,3 +222,147 @@ value	PersonalEventBuilder::text.OrderDataInvalid	Некоректна дата 
 value	PersonalEventBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте tbOrders.
 value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
 value	PersonalEventBuilder::text.PersonnelActionError	Помилка роботи з кандидатами: {details}
+value	PersonalEventBuilder::modes.default	ArrivalAnnualLeave
+value	PersonalEventBuilder::modes.ArrivalTreatment.caption	З лікування
+value	PersonalEventBuilder::modes.ArrivalTreatment.direction	Arrival
+value	PersonalEventBuilder::modes.ArrivalTreatment.form	Treatment
+value	PersonalEventBuilder::modes.ArrivalAnnualLeave.caption	З щорічної відпустки
+value	PersonalEventBuilder::modes.ArrivalAnnualLeave.direction	Arrival
+value	PersonalEventBuilder::modes.ArrivalAnnualLeave.form	Leave
+value	PersonalEventBuilder::modes.ArrivalMedicalLeave.caption	З відпустки для лікування
+value	PersonalEventBuilder::modes.ArrivalMedicalLeave.direction	Arrival
+value	PersonalEventBuilder::modes.ArrivalMedicalLeave.form	Leave
+value	PersonalEventBuilder::modes.ArrivalFamilyLeave.caption	З відпустки за сімейними обставинами
+value	PersonalEventBuilder::modes.ArrivalFamilyLeave.direction	Arrival
+value	PersonalEventBuilder::modes.ArrivalFamilyLeave.form	Leave
+value	PersonalEventBuilder::modes.DepartureTreatment.caption	На лікування
+value	PersonalEventBuilder::modes.DepartureTreatment.direction	Departure
+value	PersonalEventBuilder::modes.DepartureTreatment.form	Treatment
+value	PersonalEventBuilder::modes.DepartureAnnualLeave.caption	У щорічну відпустку
+value	PersonalEventBuilder::modes.DepartureAnnualLeave.direction	Departure
+value	PersonalEventBuilder::modes.DepartureAnnualLeave.form	Leave
+value	PersonalEventBuilder::modes.DepartureMedicalLeave.caption	У відпустку для лікування
+value	PersonalEventBuilder::modes.DepartureMedicalLeave.direction	Departure
+value	PersonalEventBuilder::modes.DepartureMedicalLeave.form	Leave
+value	PersonalEventBuilder::modes.DepartureFamilyLeave.caption	У відпустку за сімейними обставинами
+value	PersonalEventBuilder::modes.DepartureFamilyLeave.direction	Departure
+value	PersonalEventBuilder::modes.DepartureFamilyLeave.form	Leave
+value	PersonalEventBuilder::text.ModeEventTypeLabel	Тип
+value	PersonalEventBuilder::text.ModeDestinationLabel	Місце
+value	PersonalEventBuilder::text.ModePersonRankLabel	Звання
+value	PersonalEventBuilder::text.ModePersonNameLabel	ПІБ
+value	PersonalEventBuilder::text.ModePersonIdLabel	ІПН
+value	PersonalEventBuilder::text.ModePositionCodeLabel	Код посади
+value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
+value	PersonalEventBuilder::text.ModeReportRankLabel	Рапорт.Звання
+value	PersonalEventBuilder::text.ModeReportNameLabel	Рапорт.ПІБ
+value	PersonalEventBuilder::text.ModeReportPositionCodeLabel	Рапорт.КодПосади
+value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
+value	PersonalEventBuilder::text.ModeIncomingDateLabel	Вх.Дата
+value	PersonalEventBuilder::text.ModeEventDateLabel	Дата події
+value	PersonalEventBuilder::text.ModeTicketNumberLabel	Квиток.№
+value	PersonalEventBuilder::text.ModeTicketDateLabel	Квиток.Дата
+value	PersonalEventBuilder::text.ModeHospitalLabel	Лікарня
+value	PersonalEventBuilder::text.ModeHospitalShortNameLabel	Лікарня.СкороченаНазва
+value	PersonalEventBuilder::text.ModeDocumentLabel	Документ
+value	PersonalEventBuilder::text.ModeDocumentDateLabel	Документ.Дата
+value	PersonalEventBuilder::text.ModeDocumentNumberLabel	Документ.№
+value	PersonalEventBuilder::text.ModeSelected	Режим: {mode}.
+value	PersonalEventBuilder::text.ArrivalType	Прибуття
+value	PersonalEventBuilder::text.DepartureType	Вибуття
+value	PersonalEventBuilder::text.ModeArrivalDateLabel	Прибуття.Дата
+value	PersonalEventBuilder::text.ModeDepartureDateLabel	Вибуття.Дата
+value	PersonalEventBuilder::forms.Leave.fields.count	15
+value	PersonalEventBuilder::forms.Leave.fields.1.name	EventType
+value	PersonalEventBuilder::forms.Leave.fields.1.captionKey	PersonalEventBuilder::text.ModeEventTypeLabel
+value	PersonalEventBuilder::forms.Leave.fields.1.record	Event.Type
+value	PersonalEventBuilder::forms.Leave.fields.2.name	Destination
+value	PersonalEventBuilder::forms.Leave.fields.2.captionKey	PersonalEventBuilder::text.ModeDestinationLabel
+value	PersonalEventBuilder::forms.Leave.fields.2.record	Absence.Destination
+value	PersonalEventBuilder::forms.Leave.fields.2.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.3.name	PersonRank
+value	PersonalEventBuilder::forms.Leave.fields.3.captionKey	PersonalEventBuilder::text.ModePersonRankLabel
+value	PersonalEventBuilder::forms.Leave.fields.3.record	Personnel.Rank
+value	PersonalEventBuilder::forms.Leave.fields.3.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Leave.fields.4.name	PersonName
+value	PersonalEventBuilder::forms.Leave.fields.4.captionKey	PersonalEventBuilder::text.ModePersonNameLabel
+value	PersonalEventBuilder::forms.Leave.fields.4.record	Personnel.FullName
+value	PersonalEventBuilder::forms.Leave.fields.4.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Leave.fields.5.name	PersonId
+value	PersonalEventBuilder::forms.Leave.fields.5.captionKey	PersonalEventBuilder::text.ModePersonIdLabel
+value	PersonalEventBuilder::forms.Leave.fields.5.record	Personnel.TaxId
+value	PersonalEventBuilder::forms.Leave.fields.5.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Leave.fields.6.name	PositionCode
+value	PersonalEventBuilder::forms.Leave.fields.6.captionKey	PersonalEventBuilder::text.ModePositionCodeLabel
+value	PersonalEventBuilder::forms.Leave.fields.6.record	Personnel.PositionCode
+value	PersonalEventBuilder::forms.Leave.fields.6.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Leave.fields.7.name	PersonPosition
+value	PersonalEventBuilder::forms.Leave.fields.7.captionKey	PersonalEventBuilder::text.ModePersonPositionLabel
+value	PersonalEventBuilder::forms.Leave.fields.7.record	Personnel.Position
+value	PersonalEventBuilder::forms.Leave.fields.7.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Leave.fields.8.name	ReportRank
+value	PersonalEventBuilder::forms.Leave.fields.8.captionKey	PersonalEventBuilder::text.ModeReportRankLabel
+value	PersonalEventBuilder::forms.Leave.fields.9.name	ReportName
+value	PersonalEventBuilder::forms.Leave.fields.9.captionKey	PersonalEventBuilder::text.ModeReportNameLabel
+value	PersonalEventBuilder::forms.Leave.fields.10.name	ReportPositionCode
+value	PersonalEventBuilder::forms.Leave.fields.10.captionKey	PersonalEventBuilder::text.ModeReportPositionCodeLabel
+value	PersonalEventBuilder::forms.Leave.fields.11.name	IncomingNumber
+value	PersonalEventBuilder::forms.Leave.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingNumberLabel
+value	PersonalEventBuilder::forms.Leave.fields.12.name	IncomingDate
+value	PersonalEventBuilder::forms.Leave.fields.12.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
+value	PersonalEventBuilder::forms.Leave.fields.13.name	EventDate
+value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
+value	PersonalEventBuilder::forms.Leave.fields.13.record	Event.Date
+value	PersonalEventBuilder::forms.Leave.fields.13.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.14.name	TicketNumber
+value	PersonalEventBuilder::forms.Leave.fields.14.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
+value	PersonalEventBuilder::forms.Leave.fields.14.record	Absence.TicketNumber
+value	PersonalEventBuilder::forms.Leave.fields.14.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.15.name	TicketDate
+value	PersonalEventBuilder::forms.Leave.fields.15.captionKey	PersonalEventBuilder::text.ModeTicketDateLabel
+value	PersonalEventBuilder::forms.Leave.fields.15.record	Absence.TicketDate
+value	PersonalEventBuilder::forms.Leave.fields.15.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Treatment.fields.count	16
+value	PersonalEventBuilder::forms.Treatment.fields.1.name	EventType
+value	PersonalEventBuilder::forms.Treatment.fields.1.captionKey	PersonalEventBuilder::text.ModeEventTypeLabel
+value	PersonalEventBuilder::forms.Treatment.fields.1.record	Event.Type
+value	PersonalEventBuilder::forms.Treatment.fields.2.name	Hospital
+value	PersonalEventBuilder::forms.Treatment.fields.2.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
+value	PersonalEventBuilder::forms.Treatment.fields.3.name	HospitalShortName
+value	PersonalEventBuilder::forms.Treatment.fields.3.captionKey	PersonalEventBuilder::text.ModeHospitalShortNameLabel
+value	PersonalEventBuilder::forms.Treatment.fields.4.name	PersonName
+value	PersonalEventBuilder::forms.Treatment.fields.4.captionKey	PersonalEventBuilder::text.ModePersonNameLabel
+value	PersonalEventBuilder::forms.Treatment.fields.4.record	Personnel.FullName
+value	PersonalEventBuilder::forms.Treatment.fields.4.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Treatment.fields.5.name	PersonId
+value	PersonalEventBuilder::forms.Treatment.fields.5.captionKey	PersonalEventBuilder::text.ModePersonIdLabel
+value	PersonalEventBuilder::forms.Treatment.fields.5.record	Personnel.TaxId
+value	PersonalEventBuilder::forms.Treatment.fields.5.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Treatment.fields.6.name	PositionCode
+value	PersonalEventBuilder::forms.Treatment.fields.6.captionKey	PersonalEventBuilder::text.ModePositionCodeLabel
+value	PersonalEventBuilder::forms.Treatment.fields.6.record	Personnel.PositionCode
+value	PersonalEventBuilder::forms.Treatment.fields.6.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Treatment.fields.7.name	PersonPosition
+value	PersonalEventBuilder::forms.Treatment.fields.7.captionKey	PersonalEventBuilder::text.ModePersonPositionLabel
+value	PersonalEventBuilder::forms.Treatment.fields.7.record	Personnel.Position
+value	PersonalEventBuilder::forms.Treatment.fields.7.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.Treatment.fields.8.name	ReportRank
+value	PersonalEventBuilder::forms.Treatment.fields.8.captionKey	PersonalEventBuilder::text.ModeReportRankLabel
+value	PersonalEventBuilder::forms.Treatment.fields.9.name	ReportName
+value	PersonalEventBuilder::forms.Treatment.fields.9.captionKey	PersonalEventBuilder::text.ModeReportNameLabel
+value	PersonalEventBuilder::forms.Treatment.fields.10.name	ReportPositionCode
+value	PersonalEventBuilder::forms.Treatment.fields.10.captionKey	PersonalEventBuilder::text.ModeReportPositionCodeLabel
+value	PersonalEventBuilder::forms.Treatment.fields.11.name	IncomingNumber
+value	PersonalEventBuilder::forms.Treatment.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingNumberLabel
+value	PersonalEventBuilder::forms.Treatment.fields.12.name	IncomingDate
+value	PersonalEventBuilder::forms.Treatment.fields.12.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
+value	PersonalEventBuilder::forms.Treatment.fields.13.name	Document
+value	PersonalEventBuilder::forms.Treatment.fields.13.captionKey	PersonalEventBuilder::text.ModeDocumentLabel
+value	PersonalEventBuilder::forms.Treatment.fields.14.name	DocumentDate
+value	PersonalEventBuilder::forms.Treatment.fields.14.captionKey	PersonalEventBuilder::text.ModeDocumentDateLabel
+value	PersonalEventBuilder::forms.Treatment.fields.15.name	DocumentNumber
+value	PersonalEventBuilder::forms.Treatment.fields.15.captionKey	PersonalEventBuilder::text.ModeDocumentNumberLabel
+value	PersonalEventBuilder::forms.Treatment.fields.16.name	EventDate
+value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
+value	PersonalEventBuilder::forms.Treatment.fields.16.record	Event.Date
+value	PersonalEventBuilder::forms.Treatment.fields.16.sourceAlias	Absence

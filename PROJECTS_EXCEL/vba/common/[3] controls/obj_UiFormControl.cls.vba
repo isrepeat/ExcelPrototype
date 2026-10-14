@@ -58,6 +58,8 @@ Private Function obj_IUiControl_Configure( _
     Dim container As obj_IUiContainer
     Dim panelNode As Object
 
+    If Not ex_UiFormLayouts.fn_TryResolve(definition, context.BindingContext, definition, diagnostic) Then Exit Function
+
     If Not definition.getAttributeNode("rowSpan") Is Nothing Or _
             Not definition.getAttributeNode("labelColumnSpan") Is Nothing Then
         diagnostic = "Form does not support rowSpan or labelColumnSpan."

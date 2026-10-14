@@ -23,6 +23,11 @@ Private m_ordersByCaption As Object
 Private m_pendingOrder As obj_LookupRecord
 Private m_acceptedOrderNumber As String
 Private m_acceptedOrderDate As Variant
+Private m_modeFields As Collection
+Private m_modeId As String
+Private m_modeDirection As String
+Private m_eventType As String
+Private m_modeConfig As Object
 
 ' //
 ' // Lifecycle
@@ -41,6 +46,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim messageKey As Variant
     Dim messageText As String
     Dim diagnostic As String
+    Dim defaultMode As String
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -89,6 +95,18 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then Exit Function
+    If Not private_CaptureModeConfig(diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If Not private_ReadModeConfig("modes.default", defaultMode, diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If Not private_LoadMode(defaultMode, diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
+        Exit Function
+    End If
     Initialize = True
     m_isInitialized = Initialize
     If Not Me.SearchOrdersHandler() Then
@@ -118,6 +136,8 @@ Public Sub Dispose()
     Set m_lookupService = Nothing
     Set m_lookupProfile = Nothing
     Set m_lookupResult = Nothing
+    Set m_modeFields = Nothing
+    Set m_modeConfig = Nothing
     Set m_pageBase = Nothing
 End Sub
 
@@ -137,10 +157,12 @@ Public Function SearchPersonnelHandler() As Boolean
             "PositionCode", "PersonPosition", "DepartureDate", "TicketNumber", "TicketDate")
         updates("Form." & name) = vbNullString
     Next name
+    updates("Form.EventDate") = vbNullString
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failure
     If Not m_lookupService.TrySearch(VBA.CStr(text), result, diagnostic) Then
         If Not m_lookupService.TrySearch(vbNullString, result, status) Then GoTo Failure
+        If Not private_TryEnrichResult(result, status) Then GoTo Failure
         Set m_lookupResult = result
         m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
         m_pageBase.BindingContext.SetValue "Text", "PersonnelStatus", m_messages("PersonnelError")
@@ -148,6 +170,7 @@ Public Function SearchPersonnelHandler() As Boolean
     End If
     If Not private_TryEnrichResult(result, diagnostic) Then
         If m_lookupService.TrySearch(vbNullString, result, status) Then
+            If Not private_TryEnrichResult(result, status) Then GoTo Failure
             Set m_lookupResult = result
             m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
         End If
@@ -188,7 +211,7 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     On Error GoTo EH
     Application.ScreenUpdating = False
     Set record = selected
-    If Not m_lookupProfile.TryApply(record, m_pageBase.BindingContext, diagnostic) Then
+    If Not private_ApplyModeRecord(record, diagnostic) Then
         private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
         GoTo CleanExit
@@ -349,9 +372,290 @@ Public Function RefreshPersonnelHandler() As Boolean
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
 End Function
 
+Public Function ArrivalTreatmentHandler() As Boolean
+    ArrivalTreatmentHandler = private_SwitchMode("ArrivalTreatment")
+End Function
+
+Public Function ArrivalAnnualLeaveHandler() As Boolean
+    ArrivalAnnualLeaveHandler = private_SwitchMode("ArrivalAnnualLeave")
+End Function
+
+Public Function ArrivalMedicalLeaveHandler() As Boolean
+    ArrivalMedicalLeaveHandler = private_SwitchMode("ArrivalMedicalLeave")
+End Function
+
+Public Function ArrivalFamilyLeaveHandler() As Boolean
+    ArrivalFamilyLeaveHandler = private_SwitchMode("ArrivalFamilyLeave")
+End Function
+
+Public Function DepartureTreatmentHandler() As Boolean
+    DepartureTreatmentHandler = private_SwitchMode("DepartureTreatment")
+End Function
+
+Public Function DepartureAnnualLeaveHandler() As Boolean
+    DepartureAnnualLeaveHandler = private_SwitchMode("DepartureAnnualLeave")
+End Function
+
+Public Function DepartureMedicalLeaveHandler() As Boolean
+    DepartureMedicalLeaveHandler = private_SwitchMode("DepartureMedicalLeave")
+End Function
+
+Public Function DepartureFamilyLeaveHandler() As Boolean
+    DepartureFamilyLeaveHandler = private_SwitchMode("DepartureFamilyLeave")
+End Function
+
 ' //
 ' // Private
 ' //
+Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolean
+    Dim sheet As Worksheet
+    Dim table As ListObject
+    Dim configTable As ListObject
+    Dim values As Variant
+    Dim keyColumn As Long
+    Dim rowIndex As Long
+    Dim key As String
+    Dim prefix As String
+
+    On Error GoTo EH
+    prefix = "PersonalEventBuilder::"
+    For Each sheet In ThisWorkbook.Worksheets
+        For Each table In sheet.ListObjects
+            If table.Name = "tbConfig" Then
+                If Not configTable Is Nothing Then Err.Raise 5, , "Duplicate configuration table tbConfig."
+                Set configTable = table
+            End If
+        Next table
+    Next sheet
+    If configTable Is Nothing Then Err.Raise 5, , "Configuration table tbConfig was not found."
+    If configTable.DataBodyRange Is Nothing Then Err.Raise 5, , "Configuration table tbConfig is empty."
+    keyColumn = configTable.ListColumns("Key").Index
+    If keyColumn >= configTable.ListColumns.Count Then Err.Raise 5, , "Configuration values must follow Key."
+    values = configTable.DataBodyRange.Value2
+    Set m_modeConfig = VBA.CreateObject("Scripting.Dictionary")
+    m_modeConfig.CompareMode = VBA.vbTextCompare
+    ' Read the worksheet once; mode switches use the in-memory snapshot.
+    For rowIndex = 1 To UBound(values, 1)
+        key = VBA.Trim$(VBA.CStr(values(rowIndex, keyColumn)))
+        If VBA.Left$(key, VBA.Len(prefix)) = prefix Then
+            key = VBA.Mid$(key, VBA.Len(prefix) + 1)
+            If m_modeConfig.Exists(key) Then Err.Raise 5, , "Duplicate configuration key: " & prefix & key
+            m_modeConfig.Add key, VBA.Trim$(VBA.CStr(values(rowIndex, keyColumn + 1)))
+        End If
+    Next rowIndex
+    private_CaptureModeConfig = True
+    Exit Function
+EH:
+    diagnostic = "Mode configuration: " & VBA.Err.Description
+End Function
+
+Private Function private_ReadModeConfig( _
+    ByVal key As String, _
+    ByRef value As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    value = VBA.vbNullString
+    If Not m_modeConfig Is Nothing Then
+        If m_modeConfig.Exists(key) Then
+            value = m_modeConfig(key)
+            private_ReadModeConfig = (VBA.Len(value) > 0)
+        End If
+    End If
+    If Not private_ReadModeConfig Then diagnostic = "Required configuration key not found: PersonalEventBuilder::" & key
+End Function
+
+Private Function private_LoadMode( _
+    ByVal modeId As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim direction As String
+    Dim formKind As String
+    Dim caption As String
+    Dim countText As String
+    Dim fieldName As String
+    Dim captionKey As String
+    Dim recordName As String
+    Dim sourceAlias As String
+    Dim fieldCaption As String
+    Dim eventType As String
+    Dim eventDateLabel As String
+    Dim text As String
+    Dim mode As Variant
+    Dim field As Variant
+    Dim index As Long
+    Dim prefix As String
+    Dim columns As New Collection
+    Dim column As Object
+    Dim emptyRecords As New Collection
+    Dim emptyResult As obj_LookupResult
+    Dim modes As Variant
+
+    On Error GoTo EH
+    modes = VBA.Array("ArrivalTreatment", _
+            "ArrivalAnnualLeave", _
+            "ArrivalMedicalLeave", _
+            "ArrivalFamilyLeave", _
+            "DepartureTreatment", _
+            "DepartureAnnualLeave", _
+            "DepartureMedicalLeave", _
+            "DepartureFamilyLeave")
+    If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function
+    If direction <> "Arrival" And direction <> "Departure" Then Err.Raise 5, , "Invalid mode direction: " & modeId
+    If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
+    If Not private_ReadModeConfig("forms." & formKind & ".fields.count", countText, diagnostic) Then Exit Function
+    If Not VBA.IsNumeric(countText) Then Err.Raise 5, , "Invalid mode field count: " & formKind
+    If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
+        Err.Raise 5, , "Mode field count must be an integer from 1 to 16."
+    End If
+    If Not private_ReadModeConfig("text." & direction & "Type", eventType, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("text.Mode" & direction & "DateLabel", eventDateLabel, diagnostic) Then Exit Function
+    For index = 1 To VBA.CLng(countText)
+        prefix = "forms." & formKind & ".fields." & VBA.CStr(index)
+        If Not private_ReadModeConfig(prefix & ".name", fieldName, diagnostic) Then Exit Function
+        If Not private_ReadModeConfig(prefix & ".captionKey", captionKey, diagnostic) Then Exit Function
+        If VBA.Left$(captionKey, VBA.Len("PersonalEventBuilder::")) <> "PersonalEventBuilder::" Then
+            diagnostic = "Mode caption key must use PersonalEventBuilder:: prefix: " & captionKey
+            Exit Function
+        End If
+        If Not private_ReadModeConfig(VBA.Mid$(captionKey, VBA.Len("PersonalEventBuilder::") + 1), fieldCaption, diagnostic) Then
+            diagnostic = "Required caption key not found: " & captionKey
+            Exit Function
+        End If
+        If fieldName = "EventDate" Then fieldCaption = eventDateLabel
+        recordName = VBA.vbNullString
+        sourceAlias = VBA.vbNullString
+        If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
+        If m_modeConfig.Exists(prefix & ".sourceAlias") Then sourceAlias = m_modeConfig(prefix & ".sourceAlias")
+        Set column = VBA.CreateObject("Scripting.Dictionary")
+        column("formField") = fieldName
+        column("apply") = (VBA.Len(recordName) > 0)
+        If VBA.Len(recordName) = 0 Then recordName = "Manual." & fieldName
+        column("name") = recordName
+        column("caption") = fieldCaption
+        column("sourceAlias") = sourceAlias
+        columns.Add column
+    Next index
+    For Each field In VBA.Array("EventType", _
+            "Destination", _
+            "PersonRank", _
+            "PersonName", _
+            "PersonId", _
+            "PositionCode", _
+            "PersonPosition", _
+            "ReportRank", _
+            "ReportName", _
+            "ReportPositionCode", _
+            "IncomingNumber", _
+            "IncomingDate", _
+            "EventDate", _
+            "TicketNumber", _
+            "TicketDate", _
+            "Hospital", _
+            "HospitalShortName", _
+            "Document", _
+            "DocumentDate", _
+            "DocumentNumber")
+        If Not private_ReadModeConfig("text.Mode" & VBA.CStr(field) & "Label", text, diagnostic) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Text", "Mode" & VBA.CStr(field) & "Label", text) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
+    Next field
+    If Not m_pageBase.BindingContext.SetValue("Text", "ModeEventDateLabel", eventDateLabel) Then Exit Function
+    For Each mode In modes
+        If Not private_ReadModeConfig("modes." & VBA.CStr(mode) & ".caption", text, diagnostic) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(mode), text) Then Exit Function
+        text = "secondaryButton"
+        If VBA.CStr(mode) = modeId Then text = "activeModeButton"
+        If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", text) Then Exit Function
+    Next mode
+    If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "EventType", eventType) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    Set emptyResult = New obj_LookupResult
+    If Not emptyResult.Initialize(emptyRecords, columns, False, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
+    Set m_lookupResult = emptyResult
+    Set m_modeFields = columns
+    m_modeId = modeId
+    m_modeDirection = direction
+    m_eventType = eventType
+    private_LoadMode = True
+    Exit Function
+EH:
+    diagnostic = "Mode configuration: " & VBA.Err.Description
+End Function
+
+Private Function private_SwitchMode(ByVal modeId As String) As Boolean
+    Dim diagnostic As String
+    Dim caption As String
+    Dim status As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If modeId = m_modeId Then
+        private_SwitchMode = True
+        Exit Function
+    End If
+    If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
+    If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
+    If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
+    private_SwitchMode = m_pageBase.UpdatePage()
+    Exit Function
+Failed:
+    private_SetActionStatus diagnostic, True
+    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Event mode"
+End Function
+
+Private Function private_PrepareModeRecords( _
+    ByVal records As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim record As obj_LookupRecord
+    Dim supplement As obj_LookupRecord
+    Dim fields As Object
+    Dim eventDate As Variant
+
+    For Each record In records
+        eventDate = VBA.vbNullString
+        If m_modeDirection = "Departure" Then record.TryGetValue "Absence.DepartureDate", eventDate
+        Set fields = VBA.CreateObject("Scripting.Dictionary")
+        fields("Event.Type") = m_eventType
+        fields("Event.Date") = eventDate
+        Set supplement = New obj_LookupRecord
+        If Not supplement.Initialize(record.Key, fields) Then Exit Function
+        If Not record.TryMerge(supplement, True) Then
+            diagnostic = "Cannot apply event mode fields."
+            Exit Function
+        End If
+    Next record
+    private_PrepareModeRecords = True
+End Function
+
+Private Function private_ApplyModeRecord( _
+    ByVal record As obj_LookupRecord, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim column As Object
+    Dim value As Variant
+    Dim updates As Object
+
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each column In m_modeFields
+        If column("apply") Then
+            value = VBA.vbNullString
+            If Not record.TryGetValue(column("name"), value) Then
+                diagnostic = "Candidate field not found: " & column("name")
+                Exit Function
+            End If
+            updates("Form." & column("formField")) = value
+        End If
+    Next column
+    private_ApplyModeRecord = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
+End Function
+
 Private Function private_TryEnrichResult( _
     ByRef result As obj_LookupResult, _
     ByRef diagnostic As String _
@@ -362,7 +666,8 @@ Private Function private_TryEnrichResult( _
     If Not m_candidateEnricher.TryEnrich(m_lookupService, result.Records, _
             m_acceptedOrderNumber, m_acceptedOrderDate, records, diagnostic) Then Exit Function
     Set enrichedResult = New obj_LookupResult
-    If Not enrichedResult.Initialize(records, m_lookupProfile.DisplayColumns, result.HasMore, diagnostic) Then Exit Function
+    If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
+    If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then Exit Function
     Set result = enrichedResult
     private_TryEnrichResult = True
 End Function

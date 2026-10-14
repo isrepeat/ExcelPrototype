@@ -154,6 +154,7 @@ Public Function Build(ByRef diagnostic As String) As Boolean
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_CREATE_STARTED"
 #End If
+    If Not ex_UiFormLayouts.fn_Validate(m_uiPageDefinition.Document.documentElement, diagnostic) Then Exit Function
     Set m_root = ex_UiElementFactory.fn_Create(m_uiPageDefinition.Document.documentElement, _
         Me, VBA.vbNullString, diagnostic)
     Build = Not m_root Is Nothing

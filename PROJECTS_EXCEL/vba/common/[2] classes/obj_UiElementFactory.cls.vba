@@ -112,6 +112,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "zoom", "string", False, "", False, 0
             schema.AddChild "grid", Nothing, 1, 1
             schema.AddChild "styles", private_StylesSchema(), 0, 1
+            schema.AddChild "fieldCatalog", private_FieldCatalogSchema(), 0, -1
+            schema.AddChild "formLayouts", private_FormLayoutsSchema(), 0, -1
         Case "grid"
             schema.AddAttribute "name", "string", False, "", False, 0
             schema.AddAttribute "dataContext", "context", False, "", True, 0
@@ -151,6 +153,42 @@ Private Function private_TrackSchema(ByVal itemName As String) As obj_UiMarkupSc
     track.AddAttribute "size", "gridsize", True, "", False, 0
     schema.AddChild itemName, track, 1
     Set private_TrackSchema = schema
+End Function
+
+Private Function private_FieldCatalogSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+    Dim formSchema As obj_UiMarkupSchema
+    Dim fieldRule As Variant
+    Dim fieldSchema As obj_UiMarkupSchema
+    Dim diagnostic As String
+
+    If Not schema.Initialize() Then Err.Raise 5, , "Cannot initialize field catalog schema."
+    If Not ex_UiElementFactory.fn_TryGetSchema("form", formSchema, diagnostic, "urn:excelprototype:controls") Then
+        Err.Raise 5, , diagnostic
+    End If
+    fieldRule = formSchema.Children("urn:excelprototype:profiles|field")
+    Set fieldSchema = fieldRule(0)
+    schema.AddAttribute "name", "string", True, "", False, 0
+    schema.AddChild "field", fieldSchema, 1, -1
+    Set private_FieldCatalogSchema = schema
+End Function
+
+Private Function private_FormLayoutsSchema() As obj_UiMarkupSchema
+    Dim schema As New obj_UiMarkupSchema
+    Dim layout As New obj_UiMarkupSchema
+    Dim fieldRef As New obj_UiMarkupSchema
+
+    If Not schema.Initialize() Or Not layout.Initialize() Or Not fieldRef.Initialize() Then
+        Err.Raise 5, , "Cannot initialize form layout schema."
+    End If
+    schema.AddAttribute "name", "string", True, "", False, 0
+    schema.AddAttribute "catalog", "string", True, "", False, 0
+    layout.AddAttribute "name", "string", True, "", False, 0
+    fieldRef.AddAttribute "name", "string", True, "", False, 0
+    fieldRef.AddAttribute "columnSpan", "positive", False, "", False, 0
+    layout.AddChild "fieldRef", fieldRef, 1, -1
+    schema.AddChild "formLayout", layout, 1, -1
+    Set private_FormLayoutsSchema = schema
 End Function
 
 Private Function private_StylesSchema() As obj_UiMarkupSchema

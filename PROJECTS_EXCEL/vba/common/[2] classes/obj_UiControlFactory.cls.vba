@@ -152,7 +152,13 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 wrapper.AddChild "tablePolicy", policy, 1, 1, "urn:excelprototype:controls"
                 schema.AddChild "tableList.tablePolicy", wrapper, 0, 1, "urn:excelprototype:controls"
             End If
-            If m_type = "candidates" Then schema.AddAttribute "alignToForm", "string", True, "", False, 0
+            If m_type = "candidates" Then
+                schema.AddAttribute "alignToForm", "string", True, "", False, 0
+                schema.AddAttribute "columnsBefore", "string", False, "", False, 0
+                schema.AddAttribute "columnsAfter", "string", False, "", False, 0
+                schema.AddAttribute "workspaceFirstColumn", "positive", False, "", False, 0
+                schema.AddAttribute "workspaceLastColumn", "positive", False, "", False, 0
+            End If
             If m_type = "table" Or m_type = "candidates" Then
                 schema.AddAttribute "selectionMode", "enum", m_type = "candidates", "Focus|Confirm", True, 0
                 schema.AddAttribute "onSelect", "string", False, "", True, 0
@@ -180,6 +186,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemMargin", "number", False, "", False, 0
 
         Case "form"
+            schema.AddAttribute "layoutSource", "string", False, "", False, 0
+            schema.AddAttribute "layout", "string", False, "", True, 0
             schema.AddAttribute "orientation", "enum", True, "horizontal|vertical", False, 0
             schema.AddAttribute "labelPosition", "enum", False, "left|top", False, 0
             schema.AddAttribute "labelStyle", "string", False, "", True, 0
