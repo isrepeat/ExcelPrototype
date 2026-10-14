@@ -160,6 +160,7 @@ Public Sub fn_ForgetContext(ByVal target As Workbook)
 End Sub
 
 Public Sub fn_RunPending()
+    Dim configDiagnostic As String
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
     Dim previousCalculation As Long
@@ -243,6 +244,12 @@ Public Sub fn_RunPending()
     Exit Sub
 
 InitializeRuntime:
+    If m_initialInstall Then
+        If Not VBA.CBool(Application.Run(private_Macro("ex_ConfigRefresh.fn_TryUpdate"), configDiagnostic)) Then
+            VBA.Err.Raise VBA.vbObjectError + 2326, , _
+                "Initial configuration refresh failed. Runtime initialization was cancelled. " & configDiagnostic
+        End If
+    End If
     If Not VBA.CBool(Application.Run(private_Macro("ex_RuntimeLifecycle.fn_InitializeReloaded"), m_context, m_uiFolder)) Then _
         VBA.Err.Raise VBA.vbObjectError + 2321, , _
             "Runtime initialization failed: " & VBA.CStr(m_context("Error"))
