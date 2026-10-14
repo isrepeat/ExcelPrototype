@@ -7,7 +7,7 @@
     <controls:label name="PersonnelSection"
                     row="1"
                     column="1"
-                    columnSpan="5"
+                    columnSpan="7"
                     style="sectionTitle"
                     text="{Binding Path=Text.PersonnelSection}"/>
 
@@ -19,6 +19,10 @@
                    labelPosition="top"
                    labelStyle="formLabel"
                    fieldStyle="formField">
+      <field name="EventNote"
+             type="text"
+             value="{Binding Path=EventNote}"
+             label="{Binding Path=Text.EventNoteLabel}"/>
       <field name="PersonName"
              type="text"
              value="{Binding Path=PersonName}"
@@ -34,6 +38,10 @@
              value="{Binding Path=PersonRank}"
              label="{Binding Path=Text.PersonRankLabel}"
              readOnly="true"/>
+      <field name="EventDate"
+             type="text"
+             value="{Binding Path=EventDate}"
+             label="{Binding Path=Text.EventDateLabel}"/>
       <field name="PersonPosition"
              type="text"
              value="{Binding Path=PersonPosition}"
@@ -46,11 +54,12 @@
              readOnly="true"/>
     </controls:form>
 
-    <controls:table name="Candidates"
+    <controls:candidates name="Candidates"
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
                     row="5"
                     column="1"
                     style="candidateTable"
+                    alignToForm="PersonnelForm"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
                     onSelect="{Binding Path=Commands.SelectPersonnel}"
                     selectedStyle="candidateSelected"
@@ -58,13 +67,13 @@
 
     <controls:label name="ActionsSection"
                     row="1"
-                    column="7"
+                    column="9"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
                      row="2"
-                     column="7"
+                     column="9"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
@@ -232,12 +241,18 @@
               styles="{width:21;}"/>
         <rule target="column"
               selector="address=G:G"
-              styles="{width:2;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=H:H"
-              styles="{width:25;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=I:I"
+              styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=J:J"
+              styles="{width:25;}"/>
+        <rule target="column"
+              selector="address=K:K"
               styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">
@@ -245,10 +260,10 @@
               selector="name=PersonId_input"
               styles="{cellType:text;}"/>
         <rule target="controlPart"
-              selector="type=table;part=header"
+              selector="type=candidates;part=header"
               styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
         <rule target="controlPart"
-              selector="type=table;part=row;tags=even"
+              selector="type=candidates;part=row;tags=even"
               styles="{backColor:#383838;}"/>
         <rule target="controlPart"
               selector="type=tablelist;part=header"

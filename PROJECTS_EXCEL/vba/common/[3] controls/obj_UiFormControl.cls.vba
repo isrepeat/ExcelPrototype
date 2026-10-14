@@ -19,6 +19,7 @@ Private m_name As String
 Private m_context As obj_UiRenderContext
 Private m_row As Long
 Private m_column As Long
+Private m_definition As Object
 
 ' //
 ' // Lifecycle
@@ -68,6 +69,7 @@ Private Function obj_IUiControl_Configure( _
         Exit Function
     End If
     Set m_context = context
+    Set m_definition = definition.cloneNode(True)
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     Set m_panel = New obj_UiStackPanelElement
@@ -138,4 +140,11 @@ Public Sub Dispose()
     If Not m_panel Is Nothing Then m_panel.Dispose
     Set m_panel = Nothing
     Set m_context = Nothing
+    Set m_definition = Nothing
 End Sub
+
+Public Function GetDefinition() As Object
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_definition Is Nothing Then Exit Function
+    Set GetDefinition = m_definition.cloneNode(True)
+End Function

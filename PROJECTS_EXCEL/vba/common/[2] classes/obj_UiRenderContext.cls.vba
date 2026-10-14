@@ -105,6 +105,23 @@ Public Function ValidateForm(ByVal name As String, ByVal errors As Collection) A
     ValidateForm = form.Validate(errors)
 End Function
 
+Public Function TryGetFormDefinition( _
+    ByVal name As String, _
+    ByRef definition As Object _
+) As Boolean
+    Dim form As obj_UiFormControl
+    Dim registeredForm As obj_IUiControl
+
+    Set definition = Nothing
+    If m_forms Is Nothing Then Exit Function
+    If Not m_forms.Exists(name) Then Exit Function
+    Set registeredForm = m_forms(name)
+    If Not TypeOf registeredForm Is obj_UiFormControl Then Exit Function
+    Set form = registeredForm
+    Set definition = form.GetDefinition()
+    TryGetFormDefinition = Not definition Is Nothing
+End Function
+
 Public Function Build(ByRef diagnostic As String) As Boolean
     Dim validator As New obj_UiMarkupValidator
     Dim errors As New Collection
