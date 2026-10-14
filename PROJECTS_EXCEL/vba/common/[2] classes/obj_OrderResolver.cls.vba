@@ -2,7 +2,7 @@ VERSION 1.0 CLASS
 BEGIN
   MultiUse = -1
 END
-Attribute VB_Name = "obj_PEB_OrderResolver"
+Attribute VB_Name = "obj_OrderResolver"
 Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = False
@@ -18,6 +18,8 @@ Private m_numberHeader As String
 Private m_orders As Collection
 Private m_rowsBefore As Long
 Private m_rowsAfter As Long
+Private m_configPrefix As String
+Private m_textPrefix As String
 
 ' //
 ' // Lifecycle
@@ -32,12 +34,21 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function Initialize(ByRef diagnostic As String) As Boolean
+Public Function Initialize( _
+    ByVal configPrefix As String, _
+    ByVal textPrefix As String, _
+    ByRef diagnostic As String _
+) As Boolean
     Dim fileSystem As Object
     Dim path As String
 
     If m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
+    m_configPrefix = VBA.Trim$(configPrefix)
+    m_textPrefix = VBA.Trim$(textPrefix)
+    If VBA.Len(m_configPrefix) = 0 Or VBA.Len(m_textPrefix) = 0 Then
+        Err.Raise 5, , "Order resolver requires configuration and text prefixes."
+    End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     Set m_source = New obj_TableSource
     If Not m_source.Initialize() Then Err.Raise 5, , private_Message("OrderSourceError")
@@ -47,7 +58,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     m_source.SheetName = private_Config("source.sheet")
     m_source.RangeAddress = private_Config("source.range")
     If VBA.LCase$(m_source.RangeAddress) = "auto" Or VBA.Len(VBA.Trim$(m_source.RangeAddress)) = 0 Then
-        Err.Raise 5, , "Explicit configuration range required: PersonalEventBuilder::orders.source.range"
+        Err.Raise 5, , "Explicit configuration range required: " & m_configPrefix & ".source.range"
     End If
     m_dateHeader = private_Config("dateHeader")
     m_numberHeader = private_Config("numberHeader")
@@ -70,6 +81,8 @@ Public Sub Dispose()
     If Not m_source Is Nothing Then m_source.Dispose
     Set m_source = Nothing
     Set m_orders = Nothing
+    m_configPrefix = VBA.vbNullString
+    m_textPrefix = VBA.vbNullString
 End Sub
 
 Public Sub InvalidateCache()
@@ -309,13 +322,13 @@ Private Function private_Text(ByVal value As Variant) As String
 End Function
 
 Private Function private_Config(ByVal suffix As String) As String
-    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::orders." & suffix, private_Config) Then
-        Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::orders." & suffix
+    If Not ex_Core.fn_TryGetWorkbookConfigValue(m_configPrefix & "." & suffix, private_Config) Then
+        Err.Raise 5, , "Required configuration key not found: " & m_configPrefix & "." & suffix
     End If
 End Function
 
 Private Function private_Message(ByVal key As String) As String
-    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & key, private_Message) Then
-        Err.Raise 5, , "Required configuration text not found: PersonalEventBuilder::text." & key
+    If Not ex_Core.fn_TryGetWorkbookConfigValue(m_textPrefix & "." & key, private_Message) Then
+        Err.Raise 5, , "Required configuration text not found: " & m_textPrefix & "." & key
     End If
 End Function

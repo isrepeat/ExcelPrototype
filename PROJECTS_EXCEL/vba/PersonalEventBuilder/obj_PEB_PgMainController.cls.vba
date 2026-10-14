@@ -18,7 +18,7 @@ Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
 Private m_messages As Object
 Private m_candidateEnricher As obj_PEB_CandidateEnricher
-Private m_orderResolver As obj_PEB_OrderResolver
+Private m_orderResolver As obj_OrderResolver
 Private m_ordersByCaption As Object
 Private m_pendingOrder As obj_LookupRecord
 Private m_acceptedOrderNumber As String
@@ -64,8 +64,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Next messageKey
     Set m_lookupProfile = New obj_LookupProfile
     Set m_ordersByCaption = VBA.CreateObject("Scripting.Dictionary")
-    Set m_orderResolver = New obj_PEB_OrderResolver
-    If Not m_orderResolver.Initialize(diagnostic) Then
+    Set m_orderResolver = New obj_OrderResolver
+    If Not m_orderResolver.Initialize("PersonalEventBuilder::orders", "PersonalEventBuilder::text", diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
         Exit Function
     End If
