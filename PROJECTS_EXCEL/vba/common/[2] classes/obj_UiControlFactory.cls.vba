@@ -205,6 +205,7 @@ Private Function private_FieldSchema() As obj_UiMarkupSchema
     schema.AddAttribute "label", "string", True, "", True, 0
     schema.AddAttribute "type", "enum", True, "text|select|checkbox", False, 0
     schema.AddAttribute "labelPosition", "enum", False, "left|top", False, 0
+    schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "labelStyle", "string", False, "", True, 0
     schema.AddAttribute "fieldStyle", "string", False, "", True, 0
     schema.AddAttribute "onChange", "string", False, "", True, 0

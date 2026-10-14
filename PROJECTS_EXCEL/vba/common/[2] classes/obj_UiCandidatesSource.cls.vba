@@ -12,6 +12,7 @@ Option Explicit
 Implements obj_IUiTableSource
 Implements obj_IUiSelectionSource
 Implements obj_IUiColumnMetadata
+Implements obj_IUiColumnLayout
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -19,6 +20,7 @@ Private m_isDisposed As Boolean
 Private m_table As obj_UiRawTable
 Private m_selectionSource As obj_IUiSelectionSource
 Private m_sourceAliases As Object
+Private m_columnSpans As Object
 
 ' //
 ' // Lifecycle
@@ -60,19 +62,30 @@ Private Function obj_IUiColumnMetadata_SourceAliasAt(ByVal columnIndex As Long) 
     If m_sourceAliases.Exists(header) Then obj_IUiColumnMetadata_SourceAliasAt = m_sourceAliases(header)
 End Function
 
+Private Function obj_IUiColumnLayout_ColumnSpanAt(ByVal columnIndex As Long) As Long
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If columnIndex < 1 Or columnIndex > m_table.ColumnCount Then Exit Function
+    obj_IUiColumnLayout_ColumnSpanAt = 1
+    If Not m_columnSpans Is Nothing Then
+        If m_columnSpans.Exists(columnIndex) Then obj_IUiColumnLayout_ColumnSpanAt = m_columnSpans(columnIndex)
+    End If
+End Function
+
 ' //
 ' // API
 ' //
 Public Function Initialize( _
     ByVal table As obj_UiRawTable, _
     ByVal selectionSource As obj_IUiSelectionSource, _
-    Optional ByVal sourceAliases As Object _
+    Optional ByVal sourceAliases As Object, _
+    Optional ByVal columnSpans As Object _
 ) As Boolean
     If m_isInitialized Or m_isDisposed Then Exit Function
     If table Is Nothing Or selectionSource Is Nothing Then Exit Function
     Set m_table = table
     Set m_selectionSource = selectionSource
     Set m_sourceAliases = sourceAliases
+    Set m_columnSpans = columnSpans
     m_isInitialized = True
     Initialize = True
 End Function
@@ -85,4 +98,5 @@ Public Sub Dispose()
     Set m_table = Nothing
     Set m_selectionSource = Nothing
     Set m_sourceAliases = Nothing
+    Set m_columnSpans = Nothing
 End Sub

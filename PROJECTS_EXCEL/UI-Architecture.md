@@ -742,3 +742,15 @@ Arrange использует суммы размеров предшествую�
 ## 29. Скомпилированный stylePipeline
 
 `obj_UiStylePipeline` compiles rules once during BeginPage and stores runtime regions. Full RenderTree clears these regions and applies default sheet rules over the measured page scope before rendering elements with their named styles and direct attributes. CompleteRender applies the remaining default rules in XML order and replays selected-row overlays last. Stages, layers and rules honor enabled. Explicit Styles.ApplyStage calls preserve XML order across all targets. Tables register section, header, rows and individual row regions tagged tableRow odd/even; grid and stackPanel register layout bounds. Stripes use controlPart selectors with part=row;tags=even. Select elements by element and depth by elementDepth. StylePipeline-API.md describes syntax and compatibility boundaries with PrototypeNew.
+
+## 30. Fixed workspace and field spans
+
+PEB reserves worksheet columns B:M as a fixed workspace of 12 columns, each with width 16. N separates it from the action panel at O:P. Column widths and absolute control positions are declared in MainPage.xaml; changing form fields does not change worksheet column widths or sidebar positions.
+
+A form's `columnSpan` reserves its total width. Its measured fields must fit within that width; overflow stops layout with a diagnostic. Each field's `columnSpan` specifies its width in worksheet columns (default 1 with a top label). Both the top label and editor span that width. With a left label, an explicit span includes the one-column label and requires at least two columns; the existing implicit left-label layout remains two columns.
+
+For example, a horizontal form with `columnSpan="12"` can contain ten fields, two spanning two columns and eight spanning one column, or other mixed spans whose total does not exceed 12. Shorter forms leave the remaining reserved space unused. Forms wider than the workspace require an explicit change to the page layout.
+
+`controls:candidates` reads spans from its `alignToForm` definition and projects source columns into matching physical positions. Fields missing from the source have empty values. Source aliases and selection records are retained. `obj_IUiColumnLayout` provides the generic table renderer with each starting column's positive span and zero for covered columns. The renderer merges each header/body cell across its span and registers styles over the complete field width. Smart Excel tables cannot use merged column spans. Candidate-specific matching remains in `obj_UiCandidatesControl`; the standard table only renders the supplied column layout.
+
+The optional page attribute `zoom="80%"` (also accepting `zoom="80"`) sets an integer zoom from 10 to 400. After each successful full render, it takes precedence over style zoom settings and applies to workbook windows displaying the target worksheet. When omitted, the page does not override zoom.

@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page xmlns="urn:excelprototype:profiles"
       xmlns:controls="urn:excelprototype:controls"
-      version="1">
+      version="1"
+      zoom="80%">
   <grid row="2"
         column="2">
     <controls:label name="OrderQueryLabel"
                     row="1"
                     column="1"
-                    columnSpan="2"
+                    columnSpan="4"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
                      row="2"
                      column="1"
-                     columnSpan="2"
+                     columnSpan="4"
                      style="formField"
                      panelStyle="formSelectPanel"
                      itemStyle="formSelectItem"
@@ -26,27 +27,29 @@
                      onChange="{Binding Path=Commands.OrderQueryChanged}"/>
     <controls:label name="OrderYearLabel"
                     row="1"
-                    column="3"
+                    column="5"
+                    columnSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:input name="OrderYear"
                     row="2"
-                    column="3"
+                    column="5"
+                    columnSpan="2"
                     style="formField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:label name="AcceptedOrder"
                     row="1"
-                    column="4"
+                    column="7"
                     rowSpan="2"
-                    columnSpan="7"
+                    columnSpan="6"
                     style="statusText"
                     text="{Binding Path=Form.AcceptedOrderText}"/>
 
     <controls:label name="PersonnelSection"
                     row="4"
                     column="1"
-                    columnSpan="10"
+                    columnSpan="12"
                     style="sectionTitle"
                     text="{Binding Path=Text.PersonnelSection}"/>
 
@@ -54,53 +57,64 @@
                    dataContext="{Binding Path=Form}"
                    row="5"
                    column="1"
+                   columnSpan="12"
                    orientation="horizontal"
                    labelPosition="top"
                    labelStyle="formLabel"
                    fieldStyle="formField">
       <field name="AbsenceType"
              type="text"
+             columnSpan="1"
              value="{Binding Path=AbsenceType}"
              label="{Binding Path=Text.AbsenceTypeLabel}"/>
       <field name="Destination"
              type="text"
+             columnSpan="2"
              value="{Binding Path=Destination}"
              label="{Binding Path=Text.DestinationLabel}"/>
       <field name="PersonRank"
              type="text"
+             columnSpan="1"
              value="{Binding Path=PersonRank}"
              label="{Binding Path=Text.PersonRankLabel}"
              readOnly="true"/>
       <field name="PersonName"
              type="text"
+             columnSpan="2"
              value="{Binding Path=PersonName}"
              label="{Binding Path=Text.PersonNameLabel}"
              onChange="{Binding Path=Commands.SearchPersonnel}"/>
       <field name="PersonId"
              type="text"
+             columnSpan="1"
              value="{Binding Path=PersonId}"
              label="{Binding Path=Text.PersonIdLabel}"
              readOnly="true"/>
       <field name="PositionCode"
              type="text"
+             columnSpan="1"
              value="{Binding Path=PositionCode}"
              label="{Binding Path=Text.PositionCodeLabel}"
              readOnly="true"/>
       <field name="PersonPosition"
              type="text"
+             columnSpan="1"
              value="{Binding Path=PersonPosition}"
              label="{Binding Path=Text.PersonPositionLabel}"
              readOnly="true"/>
       <field name="DepartureDate"
              type="text"
+             columnSpan="1"
              value="{Binding Path=DepartureDate}"
              label="{Binding Path=Text.DepartureDateLabel}"/>
       <field name="TicketNumber"
              type="text"
+             columnSpan="1"
              value="{Binding Path=TicketNumber}"
              label="{Binding Path=Text.TicketNumberLabel}"/>
       <field name="TicketDate"
              type="text"
+             columnSpan="1"
              value="{Binding Path=TicketDate}"
              label="{Binding Path=Text.TicketDateLabel}"/>
     </controls:form>
@@ -119,26 +133,26 @@
 
     <controls:label name="ActionsSection"
                     row="4"
-                    column="12"
+                    column="14"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
                      row="5"
-                     column="12"
+                     column="14"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
     <controls:label name="LastStatusLabel"
                     row="7"
-                    column="12"
+                    column="14"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
     <controls:label name="ActionStatus"
                     row="8"
-                    column="12"
+                    column="14"
                     rowSpan="5"
                     columnSpan="2"
                     style="{Binding Path=Form.ActionStatusStyle}"
@@ -317,48 +331,21 @@
     <stylePipelineStage name="default">
       <layer name="sheet-base">
         <rule target="sheet"
-              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:30;overflow:wrap;gridLines:true;zoom:90%;}"/>
+              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:30;overflow:wrap;gridLines:true;}"/>
         <rule target="column"
               selector="address=A:A"
               styles="{width:2;}"/>
         <rule target="column"
-              selector="address=B:B"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=C:C"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=D:D"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=E:E"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=F:F"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=G:G"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=H:H"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=I:I"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=J:J"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=K:K"
-              styles="{width:21;}"/>
-        <rule target="column"
-              selector="address=L:L"
-              styles="{width:2;}"/>
-        <rule target="column"
-              selector="address=M:M"
-              styles="{width:25;}"/>
+              selector="address=B:M"
+              styles="{width:19,5;}"/>
         <rule target="column"
               selector="address=N:N"
+              styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=O:O"
+              styles="{width:25;}"/>
+        <rule target="column"
+              selector="address=P:P"
               styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">

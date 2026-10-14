@@ -16,6 +16,8 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_grid As obj_IUiElement
+Private m_context As obj_UiRenderContext
+Private m_zoom As Long
 
 ' //
 ' // Lifecycle
@@ -37,10 +39,28 @@ Private Function obj_IUiElement_Configure( _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    Dim zoomText As String
+    Dim zoomValue As Double
+
     If m_isDisposed Or m_isInitialized Then
         diagnostic = "Element is already initialized or disposed."
         Exit Function
     End If
+    zoomText = VBA.Trim$(ex_UiElementFactory.fn_Attribute(definition, "zoom"))
+    If VBA.Len(zoomText) > 0 Then
+        If VBA.Right$(zoomText, 1) = "%" Then zoomText = VBA.Left$(zoomText, VBA.Len(zoomText) - 1)
+        If Not VBA.IsNumeric(zoomText) Then
+            diagnostic = "Page zoom must be an integer percentage from 10 to 400."
+            Exit Function
+        End If
+        zoomValue = VBA.CDbl(zoomText)
+        If zoomValue < 10 Or zoomValue > 400 Or zoomValue <> VBA.Fix(zoomValue) Then
+            diagnostic = "Page zoom must be an integer percentage from 10 to 400."
+            Exit Function
+        End If
+        m_zoom = VBA.CLng(zoomValue)
+    End If
+    Set m_context = context
     obj_IUiElement_Configure = m_grid.Configure(definition, context, source, diagnostic)
     m_isInitialized = obj_IUiElement_Configure
 End Function
@@ -97,4 +117,16 @@ Public Sub Dispose()
     m_isInitialized = False
     If Not m_grid Is Nothing Then m_grid.Dispose
     Set m_grid = Nothing
+    Set m_context = Nothing
+End Sub
+
+Public Sub ApplyZoom()
+    Dim window As Excel.Window
+    Dim targetSheet As Worksheet
+
+    If Not m_isInitialized Or m_isDisposed Or m_zoom = 0 Then Exit Sub
+    Set targetSheet = m_context.TargetWorksheet
+    For Each window In targetSheet.Parent.Windows
+        If window.ActiveSheet Is targetSheet Then window.Zoom = m_zoom
+    Next window
 End Sub

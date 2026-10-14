@@ -109,6 +109,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "version", "positive", False, "", False, 0
+            schema.AddAttribute "zoom", "string", False, "", False, 0
             schema.AddChild "grid", Nothing, 1, 1
             schema.AddChild "styles", private_StylesSchema(), 0, 1
         Case "grid"
