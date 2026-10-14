@@ -13,7 +13,6 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_pageBase As obj_PageBase
-Private m_tableList As obj_UiRawTableList
 Private m_lookupProfile As obj_LookupProfile
 Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
@@ -46,9 +45,6 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
             VBA.vbExclamation, "PersonalEventBuilder"
         Exit Function
     End If
-    Set m_tableList = New obj_UiRawTableList
-    If Not m_tableList.Initialize() Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "Tables", m_tableList) Then Exit Function
     Set m_messages = VBA.CreateObject("Scripting.Dictionary")
     For Each messageKey In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
             "PersonnelCount", "PersonnelMore", "PersonnelSelected")
@@ -87,8 +83,6 @@ Public Sub Dispose()
     Set m_lookupService = Nothing
     Set m_lookupProfile = Nothing
     Set m_lookupResult = Nothing
-    If Not m_tableList Is Nothing Then m_tableList.Dispose
-    Set m_tableList = Nothing
     Set m_pageBase = Nothing
 End Sub
 
@@ -152,90 +146,9 @@ End Function
 
 Public Function RefreshPersonnelHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    ex_TableDataRuntime.fn_ResetCaches
     m_lookupService.InvalidateCache
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
-End Function
-
-Public Function GenerateTablesCommandHandler() As Boolean
-    Dim tableIndex As Long
-    Dim rowIndex As Long
-    Dim values As Variant
-    Dim headers As Variant
-    Dim rawTable As obj_UiRawTable
-
-    If m_tableList Is Nothing Then Exit Function
-    m_tableList.Clear
-    headers = VBA.Array("Candidate", "Category", "Status")
-    For tableIndex = 1 To 10
-        ReDim values(1 To 3, 1 To 3)
-        For rowIndex = 1 To 3
-            values(rowIndex, 1) = "Candidate " & VBA.CStr(tableIndex) & "." & VBA.CStr(rowIndex)
-            values(rowIndex, 2) = "Group " & VBA.CStr(tableIndex)
-            values(rowIndex, 3) = "Ready"
-        Next rowIndex
-        Set rawTable = New obj_UiRawTable
-        If Not rawTable.Initialize(values, headers, "Table " & VBA.CStr(tableIndex)) Then Exit Function
-        If Not m_tableList.Add(rawTable) Then Exit Function
-    Next tableIndex
-    GenerateTablesCommandHandler = m_pageBase.UpdatePage()
-End Function
-
-Public Function ResetCommandHandler() As Boolean
-    Dim bindingContext As obj_UiBindingContext
-
-    If m_pageBase Is Nothing Or m_tableList Is Nothing Then Exit Function
-    Set bindingContext = m_pageBase.BindingContext
-    If Not bindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
-    If Not bindingContext.SetValue("Form", "Category", "Meeting") Then Exit Function
-    If Not bindingContext.SetValue("Form", "Notes", VBA.vbNullString) Then Exit Function
-    If Not bindingContext.SetValue("Form", "PersonName", vbNullString) Then Exit Function
-    If Not Me.SearchPersonnelHandler() Then Exit Function
-    m_tableList.Clear
-    ResetCommandHandler = m_pageBase.UpdatePage()
-End Function
-
-Public Function UpdatePageCommandHandler() As Boolean
-    If m_pageBase Is Nothing Then Exit Function
-    UpdatePageCommandHandler = m_pageBase.UpdatePage()
-End Function
-
-Public Function FormChangedCommandHandler() As Boolean
-    Dim eventName As Variant
-    Dim category As Variant
-    Dim notes As Variant
-
-    If m_pageBase Is Nothing Then Exit Function
-    If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
-    If Not private_TryReadFormValue("Category", category) Then Exit Function
-    If Not private_TryReadFormValue("Notes", notes) Then Exit Function
-    ex_Core.fn_Diagnostic_WriteLog "FORM_CHANGED | EventName=" & VBA.CStr(eventName) & _
-        " | Category=" & VBA.CStr(category) & " | Notes=" & VBA.CStr(notes)
-    FormChangedCommandHandler = True
-End Function
-
-Public Function SubmitFormCommandHandler() As Boolean
-    Dim eventName As Variant
-    Dim category As Variant
-    Dim notes As Variant
-
-    Dim context As obj_UiRenderContext
-    Dim errors As Collection
-
-    Set errors = New Collection
-    If Not ex_UiRuntime.fn_TryGetContext(ThisWorkbook.Worksheets("MainPage"), context) Then Exit Function
-    If Not context.ValidateForm("EventDraftForm", errors) Then
-        ex_WindowsUi.fn_ShowMessage VBA.CStr(errors(1)), VBA.vbExclamation, "Form validation"
-        Exit Function
-    End If
-    If Not Me.FormChangedCommandHandler() Then Exit Function
-    If Not private_TryReadFormValue("EventName", eventName) Then Exit Function
-    If Not private_TryReadFormValue("Category", category) Then Exit Function
-    If Not private_TryReadFormValue("Notes", notes) Then Exit Function
-    If ex_WindowsUi.fn_ShowInformation( _
-            "Event: " & VBA.CStr(eventName) & VBA.vbCrLf & _
-            "Category: " & VBA.CStr(category) & VBA.vbCrLf & _
-            "Notes: " & VBA.CStr(notes), "Form data") = 0 Then Exit Function
-    SubmitFormCommandHandler = True
 End Function
 
 ' //
