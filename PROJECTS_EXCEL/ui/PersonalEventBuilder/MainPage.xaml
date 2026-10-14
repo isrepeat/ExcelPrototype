@@ -4,11 +4,6 @@
       version="1"
       zoom="80%">
   <fieldCatalog name="EventFields">
-    <field name="EventType"
-           type="text"
-           value="{Binding Path=EventType}"
-           label="{Binding Path=Text.ModeEventTypeLabel}"
-           readOnly="true"/>
     <field name="Destination"
            type="text"
            value="{Binding Path=Destination}"
@@ -95,8 +90,6 @@
   <formLayouts name="EventLayouts"
                catalog="EventFields">
     <formLayout name="Leave">
-      <fieldRef name="EventType"
-                columnSpan="1"/>
       <fieldRef name="Destination"
                 columnSpan="1"/>
       <fieldRef name="PersonRank"
@@ -127,8 +120,6 @@
                 columnSpan="1"/>
     </formLayout>
     <formLayout name="Treatment">
-      <fieldRef name="EventType"
-                columnSpan="1"/>
       <fieldRef name="Hospital"
                 columnSpan="1"/>
       <fieldRef name="HospitalShortName"
@@ -164,71 +155,64 @@
 
   <grid row="2"
         column="2">
-    <controls:button name="Mode1"
-                     row="1"
-                     column="1"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.ArrivalTreatmentStyle}"
-                     caption="{Binding Path=Text.ArrivalTreatment}"
-                     command="{Binding Path=Commands.ArrivalTreatment}"/>
-    <controls:button name="Mode2"
-                     row="1"
-                     column="5"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.ArrivalAnnualLeaveStyle}"
-                     caption="{Binding Path=Text.ArrivalAnnualLeave}"
-                     command="{Binding Path=Commands.ArrivalAnnualLeave}"/>
-    <controls:button name="Mode3"
-                     row="1"
-                     column="9"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.ArrivalMedicalLeaveStyle}"
-                     caption="{Binding Path=Text.ArrivalMedicalLeave}"
-                     command="{Binding Path=Commands.ArrivalMedicalLeave}"/>
-    <controls:button name="Mode4"
-                     row="1"
-                     column="13"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.ArrivalFamilyLeaveStyle}"
-                     caption="{Binding Path=Text.ArrivalFamilyLeave}"
-                     command="{Binding Path=Commands.ArrivalFamilyLeave}"/>
-    <controls:button name="Mode5"
-                     row="2"
-                     column="1"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.DepartureTreatmentStyle}"
-                     caption="{Binding Path=Text.DepartureTreatment}"
-                     command="{Binding Path=Commands.DepartureTreatment}"/>
-    <controls:button name="Mode6"
-                     row="2"
-                     column="5"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.DepartureAnnualLeaveStyle}"
-                     caption="{Binding Path=Text.DepartureAnnualLeave}"
-                     command="{Binding Path=Commands.DepartureAnnualLeave}"/>
-    <controls:button name="Mode7"
-                     row="2"
-                     column="9"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.DepartureMedicalLeaveStyle}"
-                     caption="{Binding Path=Text.DepartureMedicalLeave}"
-                     command="{Binding Path=Commands.DepartureMedicalLeave}"/>
-    <controls:button name="Mode8"
-                     row="2"
-                     column="13"
-                     columnSpan="4"
-                     style="{Binding Path=Settings.DepartureFamilyLeaveStyle}"
-                     caption="{Binding Path=Text.DepartureFamilyLeave}"
-                     command="{Binding Path=Commands.DepartureFamilyLeave}"/>
+    <stackPanel name="ModesPanel"
+                row="4"
+                column="1"
+                orientation="horizontal">
+      <stackPanel name="ArrivalModes"
+                  rowSpan="5"
+                  columnSpan="3"
+                  orientation="vertical"
+                  horizontalAlignment="stretch">
+        <controls:button name="FromTreatment"
+                         style="{Binding Path=Settings.ArrivalTreatmentStyle}"
+                         caption="{Binding Path=Text.ArrivalTreatment}"
+                         command="{Binding Path=Commands.ArrivalTreatment}"/>
+        <controls:button name="FromAnnualLeave"
+                         style="{Binding Path=Settings.ArrivalAnnualLeaveStyle}"
+                         caption="{Binding Path=Text.ArrivalAnnualLeave}"
+                         command="{Binding Path=Commands.ArrivalAnnualLeave}"/>
+        <controls:button name="FromMedicalLeave"
+                         style="{Binding Path=Settings.ArrivalMedicalLeaveStyle}"
+                         caption="{Binding Path=Text.ArrivalMedicalLeave}"
+                         command="{Binding Path=Commands.ArrivalMedicalLeave}"/>
+        <controls:button name="FromFamilyLeave"
+                         style="{Binding Path=Settings.ArrivalFamilyLeaveStyle}"
+                         caption="{Binding Path=Text.ArrivalFamilyLeave}"
+                         command="{Binding Path=Commands.ArrivalFamilyLeave}"/>
+      </stackPanel>
+      <stackPanel name="DepartureModes"
+                  rowSpan="5"
+                  columnSpan="3"
+                  orientation="vertical"
+                  horizontalAlignment="stretch">
+        <controls:button name="ToTreatment"
+                         style="{Binding Path=Settings.DepartureTreatmentStyle}"
+                         caption="{Binding Path=Text.DepartureTreatment}"
+                         command="{Binding Path=Commands.DepartureTreatment}"/>
+        <controls:button name="ToAnnualLeave"
+                         style="{Binding Path=Settings.DepartureAnnualLeaveStyle}"
+                         caption="{Binding Path=Text.DepartureAnnualLeave}"
+                         command="{Binding Path=Commands.DepartureAnnualLeave}"/>
+        <controls:button name="ToMedicalLeave"
+                         style="{Binding Path=Settings.DepartureMedicalLeaveStyle}"
+                         caption="{Binding Path=Text.DepartureMedicalLeave}"
+                         command="{Binding Path=Commands.DepartureMedicalLeave}"/>
+        <controls:button name="ToFamilyLeave"
+                         style="{Binding Path=Settings.DepartureFamilyLeaveStyle}"
+                         caption="{Binding Path=Text.DepartureFamilyLeave}"
+                         command="{Binding Path=Commands.DepartureFamilyLeave}"/>
+      </stackPanel>
+    </stackPanel>
     <controls:label name="OrderQueryLabel"
-                    row="4"
+                    row="1"
                     column="1"
                     columnSpan="4"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
-                     row="5"
+                     row="2"
                      column="1"
                      columnSpan="4"
                      style="formField"
@@ -241,20 +225,20 @@
                      itemHeight="20"
                      onChange="{Binding Path=Commands.OrderQueryChanged}"/>
     <controls:label name="OrderYearLabel"
-                    row="4"
+                    row="1"
                     column="5"
                     columnSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:input name="OrderYear"
-                    row="5"
+                    row="2"
                     column="5"
                     columnSpan="2"
                     style="formField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:label name="AcceptedOrder"
-                    row="4"
+                    row="1"
                     column="7"
                     rowSpan="2"
                     columnSpan="10"
@@ -262,7 +246,7 @@
                     text="{Binding Path=Form.AcceptedOrderText}"/>
 
     <controls:label name="PersonnelSection"
-                    row="7"
+                    row="10"
                     column="1"
                     columnSpan="16"
                     style="sectionTitle"
@@ -270,7 +254,7 @@
 
     <controls:form name="PersonnelForm"
                    dataContext="{Binding Path=Form}"
-                   row="8"
+                   row="11"
                    column="1"
                    columnSpan="16"
                    orientation="horizontal"
@@ -282,7 +266,7 @@
 
     <controls:candidates name="Candidates"
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                    row="11"
+                    row="14"
                     column="1"
                     style="candidateTable"
                     alignToForm="PersonnelForm"
@@ -295,26 +279,26 @@
                     showHeaders="true"/>
 
     <controls:label name="ActionsSection"
-                    row="7"
+                    row="10"
                     column="18"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
-                     row="8"
+                     row="11"
                      column="18"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
     <controls:label name="LastStatusLabel"
-                    row="10"
+                    row="13"
                     column="18"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
     <controls:label name="ActionStatus"
-                    row="11"
+                    row="14"
                     column="18"
                     rowSpan="5"
                     columnSpan="2"
