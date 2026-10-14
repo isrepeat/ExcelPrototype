@@ -118,6 +118,8 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     Dim sourceName As String
     Dim bindingPath As String
     Dim rawBinding As String
+    Dim changeCommand As obj_UiCommand
+    Dim changeBinding As String
 
     If Not m_isInitialized Or m_isDisposed Or kind <> "click" Then Exit Function
     rawBinding = private_ReadAttribute(m_uiControlBase.ControlNode, "value")
@@ -129,6 +131,15 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     If Not m_renderContext.BindingContext.TrySetPathValue( _
             sourceName, bindingPath, Not VBA.CBool(checked)) Then Exit Function
     obj_IUiEventHandler_HandleEvent = private_RefreshCaption()
+    If Not obj_IUiEventHandler_HandleEvent Then Exit Function
+    changeBinding = private_ReadAttribute(m_uiControlBase.ControlNode, "onChange")
+    If VBA.Len(changeBinding) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveCommand(changeBinding, m_renderContext.BindingContext, changeCommand) Then
+            obj_IUiEventHandler_HandleEvent = False
+            Exit Function
+        End If
+        obj_IUiEventHandler_HandleEvent = changeCommand.Execute()
+    End If
 End Function
 
 Private Function private_RefreshCaption() As Boolean

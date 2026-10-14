@@ -296,13 +296,20 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     Dim inputType As String
     Dim rawValue As String
     Dim defaultSource As String
+    Dim readOnlyRaw As String
+    Dim readOnlyValue As String
 
     If Not m_uiControlBase.Configure(controlNode) Then Exit Function
     controlType = VBA.LCase$(private_ReadAttribute(controlNode, "type"))
     inputType = VBA.LCase$(private_ReadAttribute(controlNode, "inputType"))
     m_isSelect = (controlType = "select" Or inputType = "select")
     m_isCheckbox = (inputType = "checkbox")
-    m_readOnly = (VBA.LCase$(private_ReadAttribute(controlNode, "readOnly")) = "true")
+    readOnlyRaw = private_ReadAttribute(controlNode, "readOnly")
+    If VBA.Len(readOnlyRaw) = 0 Then readOnlyRaw = "false"
+    If Not ex_UiBindingRuntime.fn_TryResolveText(readOnlyRaw, m_renderContext.BindingContext, readOnlyValue) Then Exit Function
+    readOnlyValue = VBA.LCase$(readOnlyValue)
+    If readOnlyValue <> "true" And readOnlyValue <> "false" Then Err.Raise 5, , "Invalid input readOnly value."
+    m_readOnly = (readOnlyValue = "true")
     m_editable = m_isSelect And (VBA.LCase$(private_ReadAttribute(controlNode, "editable")) = "true")
     m_items = private_ReadAttribute(controlNode, "items")
     m_itemsSourceRaw = private_ReadAttribute(controlNode, "itemsSource")

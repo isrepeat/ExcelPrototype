@@ -61,7 +61,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     For Each messageKey In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
             "PersonnelCount", "PersonnelMore", "PersonnelSelected", "PersonnelActionError", _
             "OrderReady", "OrderEmpty", "OrderFoundOne", "OrderFoundMany", "OrderChooseRequired", _
-            "OrderChoiceFormat", "OrderAccepted", "OrderAppliedRefreshError")
+            "OrderChoiceFormat", "OrderAccepted", "OrderAppliedRefreshError", _
+            "PersonnelManualSelected", "AutoFillEnabled", "AutoFillDisabled")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & messageKey, messageText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & messageKey, vbExclamation, "Configuration"
             Exit Function
@@ -141,25 +142,31 @@ Public Sub Dispose()
     Set m_pageBase = Nothing
 End Sub
 
+Public Function PersonNameChangedHandler() As Boolean
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_ClearPersonnelGroup(False, VBA.vbNullString, diagnostic) Then
+        private_SetActionStatus diagnostic, True
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
+        Exit Function
+    End If
+    PersonNameChangedHandler = Me.SearchPersonnelHandler()
+End Function
+
 Public Function SearchPersonnelHandler() As Boolean
     Dim text As Variant
+    Dim formKind As Variant
+    Dim keyField As String
     Dim diagnostic As String
     Dim result As obj_LookupResult
-    Dim updates As Object
-    Dim name As Variant
     Dim status As String
     Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If Not private_TryReadFormValue("PersonName", text) Then Exit Function
-    Set updates = VBA.CreateObject("Scripting.Dictionary")
-    For Each name In VBA.Array("AbsenceType", "Destination", "PersonId", "PersonRank", _
-            "PositionCode", "PersonPosition", "DepartureDate", "TicketNumber", "TicketDate")
-        updates("Form." & name) = vbNullString
-    Next name
-    updates("Form.EventDate") = vbNullString
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
-    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failure
+    If Not private_TryReadFormValue("ModeForm", formKind) Then Exit Function
+    If Not private_ReadModeConfig("forms." & VBA.CStr(formKind) & ".lookup.key", keyField, diagnostic) Then GoTo Failure
+    If Not private_TryReadFormValue(keyField, text) Then Exit Function
     If Not m_lookupService.TrySearch(VBA.CStr(text), result, diagnostic) Then
         If Not m_lookupService.TrySearch(vbNullString, result, status) Then GoTo Failure
         If Not private_TryEnrichResult(result, status) Then GoTo Failure
@@ -202,10 +209,17 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim diagnostic As String
     Dim previousScreenUpdating As Boolean
     Dim startedAt As Double
+    Dim autoFill As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If selected Is Nothing Then Exit Function
     If Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    If Not VBA.CBool(autoFill) Then
+        SelectPersonnelHandler = private_SetActionStatus(m_messages("PersonnelManualSelected"), False)
+        Exit Function
+    End If
     previousScreenUpdating = Application.ScreenUpdating
     startedAt = VBA.Timer
     On Error GoTo EH
@@ -372,6 +386,28 @@ Public Function RefreshPersonnelHandler() As Boolean
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
 End Function
 
+Public Function AutoFillPersonnelChangedHandler() As Boolean
+    Dim autoFill As Variant
+    Dim selectedValue As Variant
+    Dim selected As Object
+    Dim isObject As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    If VBA.CBool(autoFill) Then
+        If Not m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selected, isObject) Then Exit Function
+        If isObject Then
+            If Not Me.SelectPersonnelHandler(selected) Then Exit Function
+        Else
+            If Not private_SetActionStatus(m_messages("AutoFillEnabled"), False) Then Exit Function
+        End If
+    Else
+        If Not private_SetActionStatus(m_messages("AutoFillDisabled"), False) Then Exit Function
+    End If
+    AutoFillPersonnelChangedHandler = m_pageBase.UpdatePage()
+End Function
+
 Public Function ArrivalTreatmentHandler() As Boolean
     ArrivalTreatmentHandler = private_SwitchMode("ArrivalTreatment")
 End Function
@@ -486,8 +522,9 @@ Private Function private_LoadMode( _
     Dim prefix As String
     Dim columns As New Collection
     Dim column As Object
-    Dim emptyRecords As New Collection
-    Dim emptyResult As obj_LookupResult
+    Dim records As Collection
+    Dim projectedResult As obj_LookupResult
+    Dim hasMore As Boolean
     Dim modes As Variant
 
     On Error GoTo EH
@@ -559,7 +596,6 @@ Private Function private_LoadMode( _
             "DocumentNumber")
         If Not private_ReadModeConfig("text.Mode" & VBA.CStr(field) & "Label", text, diagnostic) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Text", "Mode" & VBA.CStr(field) & "Label", text) Then Exit Function
-        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
     Next field
     If Not m_pageBase.BindingContext.SetValue("Text", "ModeEventDateLabel", eventDateLabel) Then Exit Function
     For Each mode In modes
@@ -573,15 +609,20 @@ Private Function private_LoadMode( _
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "EventType", eventType) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
-    Set emptyResult = New obj_LookupResult
-    If Not emptyResult.Initialize(emptyRecords, columns, False, diagnostic) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
-    Set m_lookupResult = emptyResult
-    Set m_modeFields = columns
-    m_modeId = modeId
+    Set records = New Collection
+    If Not m_lookupResult Is Nothing Then
+        Set records = m_lookupResult.Records
+        hasMore = m_lookupResult.HasMore
+    End If
     m_modeDirection = direction
     m_eventType = eventType
+    If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
+    Set projectedResult = New obj_LookupResult
+    If Not projectedResult.Initialize(records, columns, hasMore, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
+    Set m_lookupResult = projectedResult
+    Set m_modeFields = columns
+    m_modeId = modeId
     private_LoadMode = True
     Exit Function
 EH:
@@ -590,6 +631,7 @@ End Function
 
 Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     Dim diagnostic As String
+    Dim nextForm As String
     Dim caption As String
     Dim status As String
 
@@ -598,6 +640,8 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
         private_SwitchMode = True
         Exit Function
     End If
+    If Not private_ReadModeConfig("modes." & modeId & ".form", nextForm, diagnostic) Then GoTo Failed
+    If Not private_ClearPersonnelGroup(True, nextForm, diagnostic) Then GoTo Failed
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
@@ -607,6 +651,50 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
 Failed:
     private_SetActionStatus diagnostic, True
     ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Event mode"
+End Function
+
+Private Function private_ClearPersonnelGroup( _
+    ByVal includeKey As Boolean, _
+    ByVal nextForm As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim currentForm As Variant
+    Dim formKind As Variant
+    Dim key As String
+    Dim dependents As String
+    Dim fieldName As Variant
+    Dim updates As Object
+    Dim records As New Collection
+    Dim emptyResult As obj_LookupResult
+
+    On Error GoTo EH
+    If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    ' Mode changes clear the union of the old and new lookup groups.
+    For Each formKind In VBA.Array(VBA.CStr(currentForm), nextForm)
+        If VBA.Len(VBA.CStr(formKind)) > 0 Then
+            If Not private_ReadModeConfig("forms." & formKind & ".lookup.key", key, diagnostic) Then Exit Function
+            If Not private_ReadModeConfig("forms." & formKind & ".lookup.dependents", dependents, diagnostic) Then Exit Function
+            If includeKey Then updates("Form." & key) = VBA.vbNullString
+            For Each fieldName In VBA.Split(dependents, "|")
+                fieldName = VBA.Trim$(VBA.CStr(fieldName))
+                If VBA.Len(fieldName) = 0 Or fieldName = key Then
+                    Err.Raise 5, , "Invalid lookup dependency in " & VBA.CStr(formKind)
+                End If
+                updates("Form." & fieldName) = VBA.vbNullString
+            Next fieldName
+        End If
+    Next formKind
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    Set emptyResult = New obj_LookupResult
+    If Not emptyResult.Initialize(records, m_modeFields, False, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
+    Set m_lookupResult = emptyResult
+    private_ClearPersonnelGroup = True
+    Exit Function
+EH:
+    diagnostic = "Lookup dependencies: " & VBA.Err.Description
 End Function
 
 Private Function private_PrepareModeRecords( _
