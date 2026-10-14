@@ -60,6 +60,7 @@
                     column="1"
                     style="candidateTable"
                     alignToForm="PersonnelForm"
+                    selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
                     onSelect="{Binding Path=Commands.SelectPersonnel}"
                     selectedStyle="candidateSelected"

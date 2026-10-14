@@ -32,6 +32,7 @@ Private m_bodyRange As Range
 Private m_selectedRow As Long
 Private m_tablePlan As Object
 Private m_sourceOverride As obj_IUiTableSource
+Private m_selectionMode As String
 
 ' //
 ' // Lifecycle
@@ -124,21 +125,28 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     Dim target As Range
     Dim item As Object
     Dim rowIndex As Long
-    If kind <> "selection" Or m_bodyRange Is Nothing Then Exit Function
+    If kind <> "selection" And kind <> "confirmSelection" Then Exit Function
+    ' Confirmation mode ignores navigation without reading records or changing styles.
+    If kind = "selection" And m_selectionMode = "Confirm" Then Exit Function
+    If m_bodyRange Is Nothing Then Exit Function
+    If kind = "confirmSelection" And m_selectionMode <> "Confirm" Then Exit Function
     If m_selectionSource Is Nothing Then Exit Function
     Set target = payload
+    If target Is Nothing Then Exit Function
+    If Not target.Parent Is m_bodyRange.Parent Then Exit Function
+    If Application.Intersect(target, m_bodyRange) Is Nothing Then Exit Function
     rowIndex = target.Row - m_bodyRange.Row + 1
     Set item = m_selectionSource.GetItemAt(rowIndex)
     If item Is Nothing Then Exit Function
-    If VBA.Len(m_selectedSource) > 0 Then
-        If Not m_renderContext.BindingContext.TrySetPathObject(m_selectedSource, m_selectedPath, item) Then Exit Function
-    End If
     If m_selectedRow > 0 Then
-        m_renderContext.Styles.ApplyControlStyle m_bodyRange.Rows(m_selectedRow), Nothing, _
+        m_renderContext.Styles.RestoreControlArea m_bodyRange.Rows(m_selectedRow), _
             m_uiControlBase.ControlNode, m_renderContext.BindingContext
     End If
     m_selectedRow = rowIndex
     private_StyleSelectedRow rowIndex
+    If VBA.Len(m_selectedSource) > 0 Then
+        If Not m_renderContext.BindingContext.TrySetPathObject(m_selectedSource, m_selectedPath, item) Then Exit Function
+    End If
     If Not m_selectCommand Is Nothing Then
         If Not m_selectCommand.ExecuteWithPayload(item) Then Exit Function
     End If
@@ -182,7 +190,17 @@ End Sub
 ' // Private
 ' //
 Private Function private_Configure(ByVal controlNode As Object) As Boolean
+    Dim modeRaw As String
+
     If Not m_uiControlBase.Configure(controlNode) Then Exit Function
+    modeRaw = private_ReadAttribute(controlNode, "selectionMode")
+    m_selectionMode = "Focus"
+    If VBA.Len(modeRaw) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveText(modeRaw, m_renderContext.BindingContext, m_selectionMode) Then Exit Function
+    End If
+    If m_selectionMode <> "Focus" And m_selectionMode <> "Confirm" Then
+        Err.Raise 5, , "Invalid table selectionMode: " & m_selectionMode
+    End If
     Set m_source = Nothing
     If VBA.Len(m_sourceRaw) > 0 Then Set m_table = Nothing
     m_sourceRaw = private_ReadAttribute(controlNode, "itemsSource")

@@ -20,9 +20,40 @@ End Sub
 ' namespace API {
 ' --------------------------------------
 Public Sub fn_RegisterHotkeys()
+    Dim confirmSelectionKey As String
+
     If Not ex_AppHotkeys.fn_Register("^%l", "ex_AppCommands.fn_ToggleDiagnosticMode") Then VBA.Err.Raise 5, , "Hotkey registration failed: Ctrl+Alt+L"
     If Not ex_AppHotkeys.fn_Register("^%u", "ex_AppCommands.fn_UpdateConfig") Then VBA.Err.Raise 5, , "Hotkey registration failed: Ctrl+Alt+U"
     If Not ex_AppHotkeys.fn_Register("^r", "ex_AppCommands.fn_UpdatePage") Then VBA.Err.Raise 5, , "Hotkey registration failed: Ctrl+R"
+    If ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::ui.confirmSelectionKey", confirmSelectionKey) Then
+        If VBA.Len(VBA.Trim$(confirmSelectionKey)) = 0 Then
+            VBA.Err.Raise 5, , "Empty configuration key: ThisWorkbook::ui.confirmSelectionKey"
+        End If
+        If Not ex_AppHotkeys.fn_Register(confirmSelectionKey, "ex_AppCommands.fn_ConfirmSelection") Then
+            VBA.Err.Raise 5, , "Hotkey registration failed: " & confirmSelectionKey
+        End If
+    End If
+End Sub
+
+Public Sub fn_ConfirmSelection()
+    Dim runtimeContext As Object
+    Dim target As Range
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not TypeOf Application.Selection Is Range Then Exit Sub
+    Set target = Application.Selection
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    On Error GoTo EH_CONFIRM
+    ex_UiBindings.fn_HandleSelection target, "confirmSelection"
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_CONFIRM:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    VBA.Err.Raise errorNumber, "ex_AppCommands.fn_ConfirmSelection", errorDescription
 End Sub
 
 Public Sub fn_UpdateConfig()
