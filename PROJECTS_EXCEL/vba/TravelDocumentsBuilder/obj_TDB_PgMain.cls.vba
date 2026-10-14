@@ -113,7 +113,7 @@ Private Function private_TryRegisterBindings() As Boolean
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
     Next key
     For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
-            "RoadDays", "DonationDays", "TemplatePath", "OutputFolderPath")
+            "RoadDays", "DonationDays", "OutputFolderPath")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Form", VBA.CStr(key), valueText) Then Exit Function
     Next key
@@ -204,6 +204,8 @@ Private Function private_ApplyDocumentMode(ByVal documentType As String) As Bool
     If bindingContext Is Nothing Then Exit Function
 
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(documentType, prefix) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, valueText) Then Exit Function
+    If Not bindingContext.SetValue("Form", "TemplatePath", valueText) Then Exit Function
     For Each key In VBA.Array("DocumentFormTitle", "DocumentTargetLabel", _
             "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _

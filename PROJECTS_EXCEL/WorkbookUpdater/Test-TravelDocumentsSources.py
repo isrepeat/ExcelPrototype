@@ -99,7 +99,7 @@ with zipfile.ZipFile(workbook_folder / cfg("generation.registry.workbook")) as a
     assert any(sheet.attrib["name"] == cfg("generation.registry.sheet")
                for sheet in workbook.find("s:sheets", namespace)), "Registry sheet missing"
 
-template = workbook_folder / cfg("generation.defaults.TemplatePath").replace("\\", "/")
+template = workbook_folder / cfg("generation.templates.VacationTicket").replace("\\", "/")
 with zipfile.ZipFile(template) as archive:
     document = ET.fromstring(archive.read("word/document.xml"))
     text = "".join(document.itertext())
