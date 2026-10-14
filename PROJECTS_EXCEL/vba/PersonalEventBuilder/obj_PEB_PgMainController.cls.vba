@@ -73,6 +73,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
         Exit Function
     End If
+    If VBA.Len(m_lookupProfile.Source.RangeAddress) = 0 Or VBA.LCase$(m_lookupProfile.Source.RangeAddress) = "auto" Then
+        ex_WindowsUi.fn_ShowMessage "Explicit configuration range required: PersonalEventBuilder::lookup.Personnel.source.range", vbExclamation, "Configuration"
+        Exit Function
+    End If
     Set m_lookupService = New obj_LookupService
     If Not m_lookupService.Initialize(m_lookupProfile) Then Exit Function
     Set m_candidateEnricher = New obj_PEB_CandidateEnricher
@@ -173,116 +177,87 @@ End Function
 Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim record As obj_LookupRecord
     Dim diagnostic As String
+    Dim previousScreenUpdating As Boolean
+    Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If selected Is Nothing Then Exit Function
     If Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    previousScreenUpdating = Application.ScreenUpdating
+    startedAt = VBA.Timer
+    On Error GoTo EH
+    Application.ScreenUpdating = False
     Set record = selected
     If Not m_lookupProfile.TryApply(record, m_pageBase.BindingContext, diagnostic) Then
         private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
-        Exit Function
+        GoTo CleanExit
     End If
     SelectPersonnelHandler = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", m_messages("PersonnelSelected"))
     If SelectPersonnelHandler Then SelectPersonnelHandler = private_SetActionStatus(m_messages("PersonnelSelected"), False)
+CleanExit:
+    Application.ScreenUpdating = previousScreenUpdating
+    ex_Core.fn_Diagnostic_WritePerf "Personnel.ApplySelection", startedAt
+    Exit Function
+EH:
+    private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", VBA.Err.Description), True
+    Resume CleanExit
 End Function
 
 Public Function SearchOrdersHandler() As Boolean
     Dim query As Variant
     Dim year As Variant
-    Dim choice As Variant
     Dim matches As Collection
+    Dim displayMatches As Collection
     Dim options As Collection
+    Dim todayOptions As Collection
     Dim record As obj_LookupRecord
     Dim caption As String
     Dim diagnostic As String
     Dim status As String
-    Dim updates As Object
-    Dim todayOptions As Collection
     Dim orderDate As Variant
-    Dim showSuggestions As Boolean
-    Dim suggestionDiagnostic As String
-    Dim displayMatches As Collection
-    Dim resolvedCaption As String
+    Dim isError As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
     If Not private_TryReadFormValue("OrderQuery", query) Then Exit Function
     If Not private_TryReadFormValue("OrderYear", year) Then Exit Function
-    If Not private_TryReadFormValue("OrderChoice", choice) Then Exit Function
     Set m_pendingOrder = Nothing
+    If Not m_pageBase.BindingContext.SetValue("Form", "OrderChoice", vbNullString) Then Exit Function
+
+    ' Dropdown contents depend only on today and neighboring rows.
+    If Not m_orderResolver.TryGetNearby(displayMatches, diagnostic) Then GoTo Failed
     Set m_ordersByCaption = VBA.CreateObject("Scripting.Dictionary")
     Set options = New Collection
     Set todayOptions = New Collection
-    Set updates = VBA.CreateObject("Scripting.Dictionary")
-    updates("Form.OrderChoice") = vbNullString
-    updates("Form.OrderQuery") = VBA.CStr(query)
-    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
-    If Not m_pageBase.BindingContext.SetObject("Data", "OrderOptions", options) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "TodayOrderOptions", todayOptions) Then Exit Function
-    If Not m_orderResolver.TrySearch(VBA.CStr(query), VBA.CStr(year), matches, diagnostic) Then
-        status = diagnostic
-        showSuggestions = True
-    ElseIf matches.Count = 0 And VBA.Len(VBA.Trim$(VBA.CStr(query))) > 0 Then
-        status = m_messages("OrderEmpty")
-        showSuggestions = True
-    End If
-    If showSuggestions Then
-        ' Keep the error visible, but offer nearby orders as explicit alternatives.
-        If Not m_orderResolver.TrySearch(vbNullString, VBA.CStr(year), matches, suggestionDiagnostic) Then
-            If VBA.Len(diagnostic) = 0 Then diagnostic = suggestionDiagnostic
-            GoTo Failed
-        End If
-        ex_Core.fn_Diagnostic_WriteLog "ORDER_LOOKUP_SUGGESTIONS | Items=" & VBA.CStr(matches.Count)
-    End If
-
-    Set displayMatches = matches
-    If Not showSuggestions And VBA.InStr(1, VBA.CStr(query), "/") > 0 And matches.Count = 1 Then
-        ' Resolve the pair independently of the nearby orders offered by the dropdown.
-        If Not m_orderResolver.TrySearch(vbNullString, VBA.CStr(year), displayMatches, diagnostic) Then GoTo Failed
-    End If
     For Each record In displayMatches
         caption = private_OrderText(record, "OrderChoiceFormat")
         options.Add caption
+        Set m_ordersByCaption(caption) = record
         If record.TryGetValue("OrderDate", orderDate) Then
             If VBA.CDate(orderDate) = VBA.Date Then todayOptions.Add caption
         End If
-        Set m_ordersByCaption(caption) = record
     Next record
-    If Not showSuggestions And matches.Count = 1 Then
-        resolvedCaption = private_OrderText(matches(1), "OrderChoiceFormat")
-        If Not m_ordersByCaption.Exists(resolvedCaption) Then
-            options.Add resolvedCaption
-            Set m_ordersByCaption(resolvedCaption) = matches(1)
-        End If
-    End If
-    If showSuggestions Then
-        ' Suggestions require an explicit dropdown selection before acceptance.
-        Set m_pendingOrder = Nothing
-    ElseIf matches.Count = 1 And VBA.Len(VBA.Trim$(VBA.CStr(query))) > 0 Then
-        Set m_pendingOrder = matches(1)
-        choice = resolvedCaption
-        status = m_messages("OrderFoundOne")
-    ElseIf matches.Count > 0 Then
-        If m_ordersByCaption.Exists(VBA.CStr(choice)) Then Set m_pendingOrder = m_ordersByCaption(VBA.CStr(choice))
-        status = VBA.Replace$(m_messages("OrderFoundMany"), "{count}", VBA.CStr(matches.Count))
-    ElseIf VBA.Len(VBA.Trim$(VBA.CStr(query))) = 0 Then
-        status = m_messages("OrderReady")
-    Else
-        status = m_messages("OrderEmpty")
-    End If
-    If VBA.Len(VBA.Trim$(VBA.CStr(query))) = 0 Then status = m_messages("OrderReady")
     If Not m_pageBase.BindingContext.SetObject("Data", "OrderOptions", options) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "TodayOrderOptions", todayOptions) Then Exit Function
-    If Not m_pendingOrder Is Nothing Then
-        updates("Form.OrderChoice") = VBA.CStr(choice)
-    End If
-    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
-    If Not showSuggestions And matches.Count = 1 And VBA.Len(VBA.Trim$(VBA.CStr(query))) > 0 Then
+    ex_Core.fn_Diagnostic_WriteLog "ORDER_DROPDOWN_NEARBY | Items=" & VBA.CStr(options.Count)
+
+    ' Input resolution never changes the dropdown contents.
+    If Not m_orderResolver.TrySearch(VBA.CStr(query), VBA.CStr(year), matches, diagnostic) Then GoTo Failed
+    If VBA.Len(VBA.Trim$(VBA.CStr(query))) = 0 Then
+        status = m_messages("OrderReady")
+    ElseIf matches.Count = 1 Then
+        Set m_pendingOrder = matches(1)
+        If Not m_pageBase.BindingContext.SetValue("Form", "OrderChoice", private_OrderText(m_pendingOrder, "OrderChoiceFormat")) Then Exit Function
         SearchOrdersHandler = private_ApplyResolvedOrder()
         Exit Function
+    ElseIf matches.Count > 1 Then
+        status = VBA.Replace$(m_messages("OrderFoundMany"), "{count}", VBA.CStr(matches.Count))
+    Else
+        status = m_messages("OrderEmpty")
+        isError = True
     End If
-    SearchOrdersHandler = private_SetActionStatus(status, showSuggestions)
+    SearchOrdersHandler = private_SetActionStatus(status, isError)
     Exit Function
 EH:
     diagnostic = VBA.Err.Description

@@ -35,6 +35,11 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         Me.Dispose
         Exit Function
     End If
+    If VBA.Len(m_absenceProfile.Source.RangeAddress) = 0 Or VBA.LCase$(m_absenceProfile.Source.RangeAddress) = "auto" Then
+        diagnostic = "Explicit configuration range required: PersonalEventBuilder::lookup.Absence.source.range"
+        Me.Dispose
+        Exit Function
+    End If
     m_isInitialized = True
     Initialize = True
 End Function
@@ -141,6 +146,7 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
     Set tableQueryService = New obj_TableQueryService
     Set tableQuery = New obj_TableQuery
     If Not tableQueryService.Initialize() Or Not tableQuery.Initialize() Then Err.Raise 5, , "Cannot initialize extension query."
+    tableQueryService.Backend = QueryAdo
     For Each column In m_absenceProfile.Columns
         tableQuery.AddColumn column("header")
     Next column

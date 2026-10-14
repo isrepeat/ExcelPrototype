@@ -35,7 +35,7 @@ value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.source.path	../Dependencies/ШПО.xlsx
 value	PersonalEventBuilder::lookup.Personnel.source.sheet	ОС
-value	PersonalEventBuilder::lookup.Personnel.source.range	auto
+value	PersonalEventBuilder::lookup.Personnel.source.range	A1:CG10556
 value	PersonalEventBuilder::lookup.Personnel.columns.count	6
 value	PersonalEventBuilder::lookup.Personnel.columns.1.name	Personnel.FullName
 value	PersonalEventBuilder::lookup.Personnel.columns.1.header	Прізвище, ім’я, по батькові
@@ -172,7 +172,7 @@ value	PersonalEventBuilder::lookup.Absence.minChars	1
 value	PersonalEventBuilder::lookup.Absence.maxResults	1000
 value	PersonalEventBuilder::lookup.Absence.source.path	C:\Users\isrepeat\OneDrive\Рабочий стол\ЕЖОС_last.xlsx
 value	PersonalEventBuilder::lookup.Absence.source.sheet	5. Тимчасово відсутні
-value	PersonalEventBuilder::lookup.Absence.source.table	ВІДСУТНІ
+value	PersonalEventBuilder::lookup.Absence.source.range	A5:Q2561
 value	PersonalEventBuilder::lookup.Absence.columns.count	5
 value	PersonalEventBuilder::lookup.Absence.display.count	0
 value	PersonalEventBuilder::lookup.Absence.search.count	1
@@ -195,11 +195,11 @@ value	PersonalEventBuilder::lookup.Absence.columns.5.name	Absence.TicketSequence
 value	PersonalEventBuilder::lookup.Absence.columns.5.header	Стовпець1
 value	PersonalEventBuilder::orders.source.path	../Dependencies/Накази.xlsx
 value	PersonalEventBuilder::orders.source.sheet	Накази
-value	PersonalEventBuilder::orders.source.table	tbOrders
+value	PersonalEventBuilder::orders.source.range	D2:H555
 value	PersonalEventBuilder::orders.dateHeader	Дата
 value	PersonalEventBuilder::orders.numberHeader	Номер наказа
-value	PersonalEventBuilder::orders.daysBefore	5
-value	PersonalEventBuilder::orders.daysAfter	5
+value	PersonalEventBuilder::orders.rowsBefore	5
+value	PersonalEventBuilder::orders.rowsAfter	5
 value	PersonalEventBuilder::text.OrderQueryLabel	№ наказу / дата наказу
 value	PersonalEventBuilder::text.OrderYearLabel	Рік наказу
 value	PersonalEventBuilder::text.OrderChoiceLabel	Знайдений наказ

@@ -91,8 +91,11 @@ Public Function TryOpen( _
     Dim lastRow As Range
     Dim lastColumn As Range
     Dim startedAt As Double
+    Dim fileSystem As Object
+    Dim operation As String
 
     On Error GoTo EH
+    operation = "ValidateSource"
     If m_isDisposed Or Not m_isInitialized Then
         diagnostic = "Workbook session is not initialized or is disposed."
         Exit Function
@@ -102,6 +105,8 @@ Public Function TryOpen( _
         Exit Function
     End If
     canonical = source.WorkbookPath
+    operation = "ResolvePath"
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     isWebPath = VBA.StrComp(VBA.Left$(canonical, 8), "https://", VBA.vbTextCompare) = 0 Or _
         VBA.StrComp(VBA.Left$(canonical, 7), "http://", VBA.vbTextCompare) = 0
     If Not savedOnly Then
@@ -113,7 +118,7 @@ Public Function TryOpen( _
         Next book
     End If
     If m_book Is Nothing And Not isWebPath Then
-        canonical = VBA.CreateObject("Scripting.FileSystemObject").GetAbsolutePathName(canonical)
+        canonical = fileSystem.GetAbsolutePathName(canonical)
         If Not savedOnly Then
             For Each book In Application.Workbooks
                 If VBA.StrComp(book.FullName, canonical, VBA.vbTextCompare) = 0 Then
@@ -127,12 +132,15 @@ Public Function TryOpen( _
         ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_COMPLETED | Name=ReuseWorkbook | Path=" & m_book.FullName
     End If
     If m_book Is Nothing Then
+        operation = "CheckFile"
+        ex_Core.fn_Diagnostic_WriteLog "QUERY_WORKBOOK_SOURCE | Path=" & canonical & " | SavedOnly=" & VBA.CStr(savedOnly)
         If Not isWebPath Then
-            If VBA.Len(VBA.Dir$(canonical)) = 0 Then
+            If Not fileSystem.FileExists(canonical) Then
                 Err.Raise VBA.vbObjectError + 2130, , "Workbook not found: " & canonical
             End If
         End If
         ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=CreateExcel"
+        operation = "CreateExcel"
         startedAt = VBA.Timer
         Set m_app = VBA.CreateObject("Excel.Application")
         ex_Core.fn_Diagnostic_WritePerf "Query.CreateExcel", startedAt
@@ -141,12 +149,14 @@ Public Function TryOpen( _
         m_app.EnableEvents = False
         m_app.AutomationSecurity = 3
         ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=OpenWorkbook"
+        operation = "OpenWorkbook"
         startedAt = VBA.Timer
         Set m_book = m_app.Workbooks.Open(Filename:=canonical, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False)
         ex_Core.fn_Diagnostic_WritePerf "Query.OpenWorkbook", startedAt
         m_owned = True
     End If
     ex_Core.fn_Diagnostic_WriteLog "QUERY_STAGE_STARTED | Name=ResolveRange"
+    operation = "ResolveRange"
     startedAt = VBA.Timer
     If VBA.Len(source.TableName) > 0 Then
         For Each sheet In m_book.Worksheets
@@ -207,11 +217,14 @@ Public Function TryOpen( _
             Set m_body = extent.Offset(1, 0).Resize(extent.Rows.Count - 1, extent.Columns.Count)
         End If
     End If
-    m_sqlRef = "[" & VBA.Replace$(sheet.Name, "]", "]]") & "$" & extent.Address(False, False) & "]"
+    ' ACE exposes dots in worksheet identifiers as hash characters.
+    m_sqlRef = "[" & VBA.Replace$(VBA.Replace$(sheet.Name, ".", "#"), "]", "]]") & "$" & extent.Address(False, False) & "]"
     ex_Core.fn_Diagnostic_WritePerf "Query.ResolveRange", startedAt
     TryOpen = True
     Exit Function
 EH:
-    diagnostic = "Workbook source: " & Err.Description
+    diagnostic = "Workbook source: " & VBA.Err.Description & " | Number=" & VBA.CStr(VBA.Err.Number) & _
+        " | Stage=" & operation & " | Path=" & canonical
+    ex_Core.fn_Diagnostic_WriteLog "QUERY_WORKBOOK_SOURCE_FAILED | " & diagnostic
     Me.Dispose
 End Function
