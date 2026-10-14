@@ -106,6 +106,7 @@ try {
         $macro = "'" + $book.Name.Replace("'", "''") + "'!" + $PrepareMacro
         $excel.Run($macro) | Out-Null
     }
+    if ($Mode -eq 'Update') { Update-WorkbookConfiguration $book $VbaFolderPath $Profile }
     Set-WorkbookModulePlan $book $plan $Mode
     if ($InitializeMacro) {
         $macro = "'" + $book.Name.Replace("'", "''") + "'!" + $InitializeMacro

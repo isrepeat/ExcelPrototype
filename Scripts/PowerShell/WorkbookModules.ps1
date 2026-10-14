@@ -248,6 +248,64 @@ function Assert-WorkbookModulePlan([object]$Workbook, [object[]]$Plan) {
     }
 }
 
+function Update-WorkbookConfiguration([object]$Workbook, [string]$VbaFolderPath, [string]$Profile) {
+    $configRoot = Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($VbaFolderPath).TrimEnd('\', '/'))) 'config'
+    if (-not (Test-Path -LiteralPath $configRoot -PathType Container)) { return }
+    if ($Profile -notmatch '^[A-Za-z0-9_-]+$') { throw "Invalid configuration profile: $Profile" }
+    $configPath = Join-Path (Join-Path $configRoot $Profile) 'wsConfig.txt'
+    $configTable = $null
+    foreach ($sheet in $Workbook.Worksheets) {
+        foreach ($table in $sheet.ListObjects) {
+            if ($table.Name -ine 'tbConfig') { continue }
+            if ($null -ne $configTable) { throw 'Duplicate table: tbConfig' }
+            $configTable = $table
+        }
+    }
+    if ($null -eq $configTable -and -not (Test-Path -LiteralPath $configPath -PathType Leaf)) { return }
+    if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) { throw "Configuration file not found: $configPath" }
+    $records = New-Object 'System.Collections.Generic.List[object]'
+    $keys = @{}
+    foreach ($line in [IO.File]::ReadAllLines($configPath, (New-Object Text.UTF8Encoding($false, $true)))) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $fields = $line.Split([char]9)
+        if ($fields.Count -ne 3 -or [string]::IsNullOrWhiteSpace($fields[0]) -or [string]::IsNullOrWhiteSpace($fields[1])) {
+            throw "Invalid configuration row: $line"
+        }
+        $key = $fields[1].Trim()
+        if ($keys.ContainsKey($key)) { throw "Duplicate configuration key: $key" }
+        $keys[$key] = $fields[2]
+        $records.Add($fields)
+    }
+    if ($records.Count -eq 0 -or $keys['ThisWorkbook::id'] -cne $Profile) { throw "Configuration profile mismatch: $configPath" }
+    if ($null -eq $configTable) { throw 'Required table not found: tbConfig' }
+    $kindColumn = $configTable.ListColumns.Item('Kind').Index
+    $keyColumn = $configTable.ListColumns.Item('Key').Index
+    $valueColumn = $keyColumn + 1
+    $columnCount = $configTable.ListColumns.Count
+    if ($valueColumn -gt $columnCount) { throw 'tbConfig has no value column after Key.' }
+    $values = New-Object 'object[,]' $records.Count, $columnCount
+    for ($index = 0; $index -lt $records.Count; $index++) {
+        $values[$index, ($kindColumn - 1)] = $records[$index][0]
+        $values[$index, ($keyColumn - 1)] = $records[$index][1]
+        $values[$index, ($valueColumn - 1)] = $records[$index][2]
+    }
+    $originalRange = $configTable.Range
+    $originalValues = $originalRange.Value2
+    try {
+        $configTable.Resize($configTable.HeaderRowRange.Resize($records.Count + 1, $columnCount))
+        if ($originalRange.Rows.Count -gt 1) { $originalRange.Offset(1).Resize($originalRange.Rows.Count - 1).ClearContents() }
+        $configTable.DataBodyRange.NumberFormat = '@'
+        $configTable.DataBodyRange.Value2 = $values
+    }
+    catch {
+        $configTable.Range.ClearContents()
+        $configTable.Resize($originalRange)
+        $originalRange.Value2 = $originalValues
+        throw
+    }
+    Write-Output "Configuration refreshed: $configPath; rows=$($records.Count)"
+}
+
 function Set-WorkbookModulePlan([object]$Workbook, [object[]]$Plan, [string]$Mode) {
     $stagedFiles = New-Object 'System.Collections.Generic.List[string]'
     $stagedFolders = New-Object 'System.Collections.Generic.List[string]'
