@@ -84,10 +84,6 @@ Private Function private_TryRegisterBindings() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
-    If Not uiBindingContext.SetValue("Text", "Title", "PersonalEventBuilder") Then Exit Function
-    If Not uiBindingContext.SetValue("Text", "Reset", "Reset") Then Exit Function
-    If Not uiBindingContext.SetValue("Text", "UpdatePage", "Update page") Then Exit Function
-    If Not uiBindingContext.SetValue("Text", "GenerateTables", "Generate tables") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonName", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonId", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonRank", vbNullString) Then Exit Function
@@ -95,7 +91,9 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "PersonUnit", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
     For Each textKey In VBA.Array("PersonnelPrompt", "PersonNameLabel", "PersonIdLabel", _
-            "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", "RefreshPersonnel")
+            "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", "RefreshPersonnel", _
+            "EventSection", "PersonnelSection", "SearchSection", "ActionsSection", "SearchLabel", _
+            "EventNameLabel", "CategoryLabel", "NotesLabel", "SubmitEventDraft", "Reset", "UpdatePage", "GenerateTables")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function

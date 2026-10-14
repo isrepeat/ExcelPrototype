@@ -2,103 +2,123 @@
 <page xmlns="urn:excelprototype:profiles"
       xmlns:controls="urn:excelprototype:controls"
       version="1">
-  <grid anchorCell="A1">
-    <grid.columnDefinitions>
-      <columnDefinition size="1"/>
-      <columnDefinition size="auto"/>
-      <columnDefinition size="2"/>
-      <columnDefinition size="auto"/>
-      <columnDefinition size="2"/>
-      <columnDefinition size="2"/>
-    </grid.columnDefinitions>
-
-    <grid.rowDefinitions>
-      <rowDefinition size="auto"/>
-      <rowDefinition size="auto"/>
-    </grid.rowDefinitions>
-
-    <controls:label name="Title"
-                    column="2"
+  <grid row="2"
+        column="2">
+    <controls:label name="EventSection"
+                    row="1"
+                    column="1"
                     columnSpan="5"
-                    style="{Binding Path=Resources.PageTitle}"
-                    text="{Binding Path=Text.Title}"/>
+                    style="sectionTitle"
+                    text="{Binding Path=Text.EventSection}"/>
 
-    <stackPanel row="2"
-                column="2"
+    <controls:form name="EventDraftForm"
+                   dataContext="{Binding Path=Form}"
+                   row="2"
+                   column="1"
+                   orientation="horizontal"
+                   labelPosition="top"
+                   labelStyle="formLabel"
+                   fieldStyle="formField"
+                   onChange="{Binding Path=Commands.FormChangedCommand}">
+      <field name="EventName"
+             type="text"
+             value="{Binding Path=EventName}"
+             label="{Binding Path=Text.EventNameLabel}"
+             required="true"/>
+      <field name="Category"
+             type="select"
+             itemsSource="{Binding Path=Data.EventTypes}"
+             value="{Binding Path=Category}"
+             label="{Binding Path=Text.CategoryLabel}"
+             panelStyle="formSelectPanel"
+             itemStyle="formSelectItem"/>
+      <field name="Notes"
+             type="text"
+             value="{Binding Path=Notes}"
+             label="{Binding Path=Text.NotesLabel}"/>
+    </controls:form>
+
+    <controls:label name="PersonnelSection"
+                    row="5"
+                    column="1"
+                    columnSpan="5"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.PersonnelSection}"/>
+
+    <controls:form name="PersonnelForm"
+                   dataContext="{Binding Path=Form}"
+                   row="6"
+                   column="1"
+                   orientation="horizontal"
+                   labelPosition="top"
+                   labelStyle="formLabel"
+                   fieldStyle="formField">
+      <field name="PersonName"
+             type="text"
+             value="{Binding Path=PersonName}"
+             label="{Binding Path=Text.PersonNameLabel}"
+             onChange="{Binding Path=Commands.SearchPersonnel}"/>
+      <field name="PersonId"
+             type="text"
+             value="{Binding Path=PersonId}"
+             label="{Binding Path=Text.PersonIdLabel}"
+             readOnly="true"/>
+      <field name="PersonRank"
+             type="text"
+             value="{Binding Path=PersonRank}"
+             label="{Binding Path=Text.PersonRankLabel}"
+             readOnly="true"/>
+      <field name="PersonPosition"
+             type="text"
+             value="{Binding Path=PersonPosition}"
+             label="{Binding Path=Text.PersonPositionLabel}"
+             readOnly="true"/>
+      <field name="PersonUnit"
+             type="text"
+             value="{Binding Path=PersonUnit}"
+             label="{Binding Path=Text.PersonUnitLabel}"
+             readOnly="true"/>
+    </controls:form>
+
+    <controls:label name="SearchSection"
+                    row="9"
+                    column="1"
+                    columnSpan="5"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.SearchSection}"/>
+    <controls:label name="SearchLabel"
+                    row="10"
+                    column="1"
+                    columnSpan="1"
+                    style="searchLabel"
+                    text="{Binding Path=Text.SearchLabel}"/>
+
+    <controls:input name="PersonnelQuery"
+                    row="10"
+                    column="2"
+                    columnSpan="4"
+                    style="formField"
+                    value="{Binding Path=Form.PersonName}"
+                    onChange="{Binding Path=Commands.SearchPersonnel}"/>
+
+    <controls:label name="LookupStatus"
+                    row="11"
+                    column="1"
+                    columnSpan="5"
+                    style="statusText"
+                    text="{Binding Path=Text.PersonnelStatus}"/>
+
+    <stackPanel row="13"
+                column="1"
                 orientation="vertical">
-      <controls:form name="EventDraftForm"
-                     dataContext="{Binding Path=Form}"
-                     orientation="vertical"
-                     labelPosition="left"
-                     labelStyle="formLabel"
-                     fieldStyle="formField"
-                     onChange="{Binding Path=Commands.FormChangedCommand}">
-        <field name="EventName"
-               type="text"
-               value="{Binding Path=EventName}"
-               label="Event name"
-               required="true"/>
-
-        <field name="Category"
-               type="select"
-               itemsSource="{Binding Path=Data.EventTypes}"
-               value="{Binding Path=Category}"
-               label="Category"
-               panelStyle="formSelectPanel"
-               itemStyle="formSelectItem"/>
-
-        <field name="Notes"
-               type="text"
-               value="{Binding Path=Notes}"
-               label="Notes"/>
-
-        <controls:button name="SubmitEventDraft"
-                         style="primaryButton"
-                         caption="Submit form"
-                         command="{Binding Path=Commands.SubmitFormCommand}"/>
-      </controls:form>
-
+      <controls:table name="Candidates"
+                      itemsSource="{Binding Path=Data.PersonnelCandidates}"
+                      style="candidateTable"
+                      selectedItem="{Binding Path=Data.SelectedPersonnel}"
+                      onSelect="{Binding Path=Commands.SelectPersonnel}"
+                      selectedStyle="candidateSelected"
+                      showHeaders="true"/>
       <stackPanel orientation="vertical"/>
-
-      <controls:form name="PersonnelForm"
-                     dataContext="{Binding Path=Form}"
-                     orientation="vertical"
-                     labelPosition="left"
-                     labelStyle="formLabel"
-                     fieldStyle="formField">
-        <field name="PersonName"
-               type="text"
-               value="{Binding Path=PersonName}"
-               label="{Binding Path=Text.PersonNameLabel}"
-               onChange="{Binding Path=Commands.SearchPersonnel}"/>
-
-        <field name="PersonId"
-               type="text"
-               value="{Binding Path=PersonId}"
-               label="{Binding Path=Text.PersonIdLabel}"
-               readOnly="true"/>
-
-        <field name="PersonRank"
-               type="text"
-               value="{Binding Path=PersonRank}"
-               label="{Binding Path=Text.PersonRankLabel}"
-               readOnly="true"/>
-
-        <field name="PersonPosition"
-               type="text"
-               value="{Binding Path=PersonPosition}"
-               label="{Binding Path=Text.PersonPositionLabel}"
-               readOnly="true"/>
-
-        <field name="PersonUnit"
-               type="text"
-               value="{Binding Path=PersonUnit}"
-               label="{Binding Path=Text.PersonUnitLabel}"
-               readOnly="true"/>
-      </controls:form>
-
-      <stackPanel orientation="vertical"/>
-
       <controls:tableList name="GeneratedTables"
                           itemsSource="{Binding Path=Data.Tables}"
                           showHeaders="true"
@@ -119,175 +139,235 @@
       </controls:tableList>
     </stackPanel>
 
-    <stackPanel row="2"
-                column="4"
-                orientation="vertical">
-      <controls:label name="LookupStatus"
-                      rowSpan="2"
-                      columnSpan="5"
-                      style="formField"
-                      text="{Binding Path=Text.PersonnelStatus}"/>
+    <controls:label name="ActionsSection"
+                    row="1"
+                    column="7"
+                    columnSpan="2"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.ActionsSection}"/>
+    <controls:button name="SubmitEventDraft"
+                     row="2"
+                     column="7"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.SubmitEventDraft}"
+                     command="{Binding Path=Commands.SubmitFormCommand}"/>
 
-      <controls:table name="Candidates"
-                      itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                      style="candidateTable"
-                      selectedItem="{Binding Path=Data.SelectedPersonnel}"
-                      onSelect="{Binding Path=Commands.SelectPersonnel}"
-                      selectedStyle="candidateSelected"
-                      showHeaders="true"/>
-    </stackPanel>
+    <controls:button name="Reset"
+                     row="3"
+                     column="7"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.Reset}"
+                     command="{Binding Path=Commands.ResetCommand}"/>
 
-    <stackPanel row="2"
-                column="6"
-                orientation="vertical">
-      <controls:button name="UpdatePage"
-                       rowSpan="2"
-                       columnSpan="2"
-                       style="secondaryButton"
-                       caption="{Binding Path=Text.UpdatePage}"
-                       command="{Binding Path=Commands.UpdatePageCommand}"/>
+    <controls:button name="RefreshPersonnel"
+                     row="4"
+                     column="7"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.RefreshPersonnel}"
+                     command="{Binding Path=Commands.RefreshPersonnel}"/>
 
-      <controls:button name="Reset"
-                       rowSpan="2"
-                       columnSpan="2"
-                       style="secondaryButton"
-                       caption="{Binding Path=Text.Reset}"
-                       command="{Binding Path=Commands.ResetCommand}"/>
+    <controls:button name="UpdatePage"
+                     row="5"
+                     column="7"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.UpdatePage}"
+                     command="{Binding Path=Commands.UpdatePageCommand}"/>
 
-      <controls:button name="RefreshPersonnel"
-                       rowSpan="2"
-                       columnSpan="2"
-                       style="secondaryButton"
-                       caption="{Binding Path=Text.RefreshPersonnel}"
-                       command="{Binding Path=Commands.RefreshPersonnel}"/>
-      <controls:button name="GenerateTables"
-                       rowSpan="2"
-                       columnSpan="2"
-                       style="{Binding Path=Resources.PrimaryButton}"
-                       caption="{Binding Path=Text.GenerateTables}"
-                       command="{Binding Path=Commands.GenerateTablesCommand}"/>
-    </stackPanel>
+    <controls:button name="GenerateTables"
+                     row="6"
+                     column="7"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.GenerateTables}"
+                     command="{Binding Path=Commands.GenerateTablesCommand}"/>
   </grid>
 
   <styles>
-    <controlStyle name="candidateTable"
-                  backColor="#2D2D2D"
-                  textColor="#FFFFFF"
-                  borderColor="#444444"
-                  borderWeight="thin"
-                  vertical="center"/>
-
-    <controlStyle name="candidateSelected"
-                  backColor="#375D7A"
-                  textColor="#FFFFFF"
-                  borderColor="#6A9EC4"
-                  borderWeight="thin"
-                  vertical="center"/>
-
-    <controlStyle name="pageTitle"
-                  backColor="#262626"
+    <controlStyle name="sectionTitle"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#333333"
                   textColor="#FFFFFF"
                   fontName="Calibri"
-                  fontSize="16"
+                  fontSize="12"
                   fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
-
+    <controlStyle name="searchLabel"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#333333"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="formLabel"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#333333"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="right"
+                  vertical="center"/>
+    <controlStyle name="formField"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#2D2D2D"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="left"
+                  vertical="center"/>
+    <controlStyle name="statusText"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#262626"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="left"
+                  vertical="center"/>
+    <controlStyle name="candidateTable"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#2D2D2D"
                   textColor="#FFFFFF"
                   fontName="Calibri"
                   fontSize="11"
                   fontBold="false"
-                  horizontal="right"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
                   vertical="center"/>
-
-    <controlStyle name="formField"
-                  backColor="#2D2D2D"
+    <controlStyle name="candidateSelected"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#375D7A"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#6A9EC4"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="secondaryButton"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#3B3B3B"
                   textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="formSelectPanel"
+                  shadow="true"
+                  shadowColor="#000000"
+                  shadowBlur="6"
+                  shadowTransparency="0.55"
+                  shadowOffsetX="3"
+                  shadowOffsetY="3"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#383838"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
                   horizontal="left"
                   vertical="center"/>
-
-    <controlStyle name="formSelectPanel"
-                  backColor="#2D2D2D"
-                  borderColor="#000000"
-                  borderWeight="thin"/>
-
     <controlStyle name="formSelectItem"
-                  backColor="#2D2D2D"
+                  shadow="false"
+                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#383838"
                   textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="left"
                   vertical="center"/>
-
     <stylePipelineStage name="default">
       <layer name="sheet-base">
         <rule target="sheet"
-              styles="{
-                backColor:#262626;
-                fontColor:#FFFFFF;
-                borderColor:#000000;
-                borderWeight:thin;
-                rowHeight:40;
-                overflow:wrap;
-                gridLines:false;
-                zoom:90%;
-              }"/>
-
+              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:30;overflow:wrap;gridLines:true;zoom:90%;}"/>
         <rule target="column"
               selector="address=A:A"
-              styles="{
-                width:2;
-              }"/>
-      </layer>
-
-      <layer name="candidate-columns">
+              styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=B:B"
+              styles="{width:37;}"/>
+        <rule target="column"
+              selector="address=C:C"
+              styles="{width:18;}"/>
+        <rule target="column"
+              selector="address=D:D"
+              styles="{width:18;}"/>
+        <rule target="column"
+              selector="address=E:E"
+              styles="{width:35;}"/>
+        <rule target="column"
+              selector="address=F:F"
+              styles="{width:28;}"/>
         <rule target="column"
               selector="address=G:G"
-              styles="{width:38;}"/>
-
+              styles="{width:2;}"/>
         <rule target="column"
               selector="address=H:H"
-              styles="{width:15;}"/>
-
+              styles="{width:25;}"/>
         <rule target="column"
               selector="address=I:I"
-              styles="{width:18;}"/>
-
-        <rule target="column"
-              selector="address=J:J"
-              styles="{width:35;}"/>
-
-        <rule target="column"
-              selector="address=K:K"
-              styles="{width:25;}"/>
-      </layer>
-
-      <layer name="layout">
-        <rule target="control"
-              selector="type=button"
-              styles="{
-                horizontal:center;
-                vertical:center;
-              }"/>
+              styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="control"
+              selector="name=PersonId_input"
+              styles="{cellType:text;}"/>
         <rule target="controlPart"
               selector="type=table;part=header"
-              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;}"/>
-
+              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
         <rule target="controlPart"
               selector="type=table;part=row;tags=even"
               styles="{backColor:#383838;}"/>
-
         <rule target="controlPart"
               selector="type=tablelist;part=header"
-              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;}"/>
-
+              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
         <rule target="controlPart"
               selector="type=tablelist;part=row;tags=even"
               styles="{backColor:#383838;}"/>

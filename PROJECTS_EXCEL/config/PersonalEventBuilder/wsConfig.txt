@@ -12,7 +12,19 @@ value	PersonalEventBuilder::text.PersonnelEmpty	Кандидатів не зна
 value	PersonalEventBuilder::text.PersonnelCount	Кандидатів: {count}. Оберіть рядок праворуч.
 value	PersonalEventBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
 value	PersonalEventBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
-value	PersonalEventBuilder::text.PersonNameLabel	Пошук ПІБ / ІПН
+value	PersonalEventBuilder::text.EventSection	ДАНІ ПОДІЇ
+value	PersonalEventBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	PersonalEventBuilder::text.SearchSection	ПОШУК ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	PersonalEventBuilder::text.ActionsSection	ДІЇ
+value	PersonalEventBuilder::text.SearchLabel	ПІБ / ІПН
+value	PersonalEventBuilder::text.EventNameLabel	Назва події
+value	PersonalEventBuilder::text.CategoryLabel	Категорія
+value	PersonalEventBuilder::text.NotesLabel	Примітки
+value	PersonalEventBuilder::text.SubmitEventDraft	Підтвердити форму
+value	PersonalEventBuilder::text.Reset	Очистити форму
+value	PersonalEventBuilder::text.UpdatePage	Оновити сторінку
+value	PersonalEventBuilder::text.GenerateTables	Створити таблиці
+value	PersonalEventBuilder::text.PersonNameLabel	ПІБ
 value	PersonalEventBuilder::text.PersonIdLabel	ІПН
 value	PersonalEventBuilder::text.PersonRankLabel	Звання
 value	PersonalEventBuilder::text.PersonPositionLabel	Посада
