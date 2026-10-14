@@ -4,42 +4,8 @@
       version="1">
   <grid row="2"
         column="2">
-    <controls:label name="EventSection"
-                    row="1"
-                    column="1"
-                    columnSpan="5"
-                    style="sectionTitle"
-                    text="{Binding Path=Text.EventSection}"/>
-
-    <controls:form name="EventDraftForm"
-                   dataContext="{Binding Path=Form}"
-                   row="2"
-                   column="1"
-                   orientation="horizontal"
-                   labelPosition="top"
-                   labelStyle="formLabel"
-                   fieldStyle="formField"
-                   onChange="{Binding Path=Commands.FormChangedCommand}">
-      <field name="EventName"
-             type="text"
-             value="{Binding Path=EventName}"
-             label="{Binding Path=Text.EventNameLabel}"
-             required="true"/>
-      <field name="Category"
-             type="select"
-             itemsSource="{Binding Path=Data.EventTypes}"
-             value="{Binding Path=Category}"
-             label="{Binding Path=Text.CategoryLabel}"
-             panelStyle="formSelectPanel"
-             itemStyle="formSelectItem"/>
-      <field name="Notes"
-             type="text"
-             value="{Binding Path=Notes}"
-             label="{Binding Path=Text.NotesLabel}"/>
-    </controls:form>
-
     <controls:label name="PersonnelSection"
-                    row="5"
+                    row="1"
                     column="1"
                     columnSpan="5"
                     style="sectionTitle"
@@ -47,7 +13,7 @@
 
     <controls:form name="PersonnelForm"
                    dataContext="{Binding Path=Form}"
-                   row="6"
+                   row="2"
                    column="1"
                    orientation="horizontal"
                    labelPosition="top"
@@ -80,64 +46,15 @@
              readOnly="true"/>
     </controls:form>
 
-    <controls:label name="SearchSection"
-                    row="9"
+    <controls:table name="Candidates"
+                    itemsSource="{Binding Path=Data.PersonnelCandidates}"
+                    row="5"
                     column="1"
-                    columnSpan="5"
-                    style="sectionTitle"
-                    text="{Binding Path=Text.SearchSection}"/>
-    <controls:label name="SearchLabel"
-                    row="10"
-                    column="1"
-                    columnSpan="1"
-                    style="searchLabel"
-                    text="{Binding Path=Text.SearchLabel}"/>
-
-    <controls:input name="PersonnelQuery"
-                    row="10"
-                    column="2"
-                    columnSpan="4"
-                    style="formField"
-                    value="{Binding Path=Form.PersonName}"
-                    onChange="{Binding Path=Commands.SearchPersonnel}"/>
-
-    <controls:label name="LookupStatus"
-                    row="11"
-                    column="1"
-                    columnSpan="5"
-                    style="statusText"
-                    text="{Binding Path=Text.PersonnelStatus}"/>
-
-    <stackPanel row="13"
-                column="1"
-                orientation="vertical">
-      <controls:table name="Candidates"
-                      itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                      style="candidateTable"
-                      selectedItem="{Binding Path=Data.SelectedPersonnel}"
-                      onSelect="{Binding Path=Commands.SelectPersonnel}"
-                      selectedStyle="candidateSelected"
-                      showHeaders="true"/>
-      <stackPanel orientation="vertical"/>
-      <controls:tableList name="GeneratedTables"
-                          itemsSource="{Binding Path=Data.Tables}"
-                          showHeaders="true"
-                          gapRows="1">
-        <controls:tableList.tablePolicy>
-          <controls:tablePolicy defaultRepresentation="Raw">
-            <controls:rule index="2"
-                           representation="Smart"
-                           excelTableName="tbGeneratedEvent2"/>
-            <controls:rule index="5"
-                           representation="Smart"
-                           excelTableName="tbGeneratedEvent5"/>
-            <controls:rule index="8"
-                           representation="Smart"
-                           excelTableName="tbGeneratedEvent8"/>
-          </controls:tablePolicy>
-        </controls:tableList.tablePolicy>
-      </controls:tableList>
-    </stackPanel>
+                    style="candidateTable"
+                    selectedItem="{Binding Path=Data.SelectedPersonnel}"
+                    onSelect="{Binding Path=Commands.SelectPersonnel}"
+                    selectedStyle="candidateSelected"
+                    showHeaders="true"/>
 
     <controls:label name="ActionsSection"
                     row="1"
@@ -145,45 +62,13 @@
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
-    <controls:button name="SubmitEventDraft"
-                     row="2"
-                     column="7"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.SubmitEventDraft}"
-                     command="{Binding Path=Commands.SubmitFormCommand}"/>
-
-    <controls:button name="Reset"
-                     row="3"
-                     column="7"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.Reset}"
-                     command="{Binding Path=Commands.ResetCommand}"/>
-
     <controls:button name="RefreshPersonnel"
-                     row="4"
+                     row="2"
                      column="7"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
-
-    <controls:button name="UpdatePage"
-                     row="5"
-                     column="7"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.UpdatePage}"
-                     command="{Binding Path=Commands.UpdatePageCommand}"/>
-
-    <controls:button name="GenerateTables"
-                     row="6"
-                     column="7"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.GenerateTables}"
-                     command="{Binding Path=Commands.GenerateTablesCommand}"/>
   </grid>
 
   <styles>
@@ -213,7 +98,7 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="formLabel"
-                  indent="1"
+                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -223,10 +108,10 @@
                   fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
-                  horizontal="right"
+                  horizontal="center"
                   vertical="center"/>
     <controlStyle name="formField"
-                  indent="1"
+                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -236,7 +121,7 @@
                   fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
-                  horizontal="left"
+                  horizontal="center"
                   vertical="center"/>
     <controlStyle name="statusText"
                   indent="1"
@@ -332,19 +217,19 @@
               styles="{width:2;}"/>
         <rule target="column"
               selector="address=B:B"
-              styles="{width:37;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=C:C"
-              styles="{width:18;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=D:D"
-              styles="{width:18;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=E:E"
-              styles="{width:35;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=F:F"
-              styles="{width:28;}"/>
+              styles="{width:21;}"/>
         <rule target="column"
               selector="address=G:G"
               styles="{width:2;}"/>

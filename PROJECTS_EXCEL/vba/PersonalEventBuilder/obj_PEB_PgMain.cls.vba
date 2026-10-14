@@ -90,55 +90,23 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "PersonPosition", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonUnit", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function
-    For Each textKey In VBA.Array("PersonnelPrompt", "PersonNameLabel", "PersonIdLabel", _
-            "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", "RefreshPersonnel", _
-            "EventSection", "PersonnelSection", "SearchSection", "ActionsSection", "SearchLabel", _
-            "EventNameLabel", "CategoryLabel", "NotesLabel", "SubmitEventDraft", "Reset", "UpdatePage", "GenerateTables")
+    For Each textKey In VBA.Array("PersonNameLabel", "PersonIdLabel", "PersonRankLabel", _
+            "PersonPositionLabel", "PersonUnitLabel", "PersonnelSection", "ActionsSection", "RefreshPersonnel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function
         End If
         If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
     Next textKey
-    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.PersonnelPrompt", configuredText) Then Exit Function
-    If Not uiBindingContext.SetValue("Text", "PersonnelStatus", configuredText) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "EventName", VBA.vbNullString) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "Category", "Meeting") Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "Notes", VBA.vbNullString) Then Exit Function
-    If Not uiBindingContext.SetValue("Data", "EventTypes", "Meeting,Training,Leave") Then Exit Function
-    If Not uiBindingContext.SetValue("Resources", "PrimaryButton", "primaryButton") Then Exit Function
-    If Not uiBindingContext.SetValue("Resources", "PageTitle", "pageTitle") Then Exit Function
     private_TryRegisterBindings = True
 End Function
 
 Private Function private_TryRegisterCommands() As Boolean
     Dim lookupCommand As obj_UiCommand
-    Dim resetCommand As obj_UiCommand
-    Dim updatePageCommand As obj_UiCommand
-    Dim generateTablesCommand As obj_UiCommand
-    Dim formChangedCommand As obj_UiCommand
-    Dim submitFormCommand As obj_UiCommand
     Dim uiBindingContext As obj_UiBindingContext
 
-    If m_controller Is Nothing Then Exit Function
-    If m_pageBase Is Nothing Then Exit Function
+    If m_controller Is Nothing Or m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
-    If uiBindingContext Is Nothing Then Exit Function
-    Set resetCommand = New obj_UiCommand
-    If Not resetCommand.Initialize(m_controller, "ResetCommandHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "ResetCommand", resetCommand) Then Exit Function
-    Set updatePageCommand = New obj_UiCommand
-    If Not updatePageCommand.Initialize(m_controller, "UpdatePageCommandHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "UpdatePageCommand", updatePageCommand) Then Exit Function
-    Set generateTablesCommand = New obj_UiCommand
-    If Not generateTablesCommand.Initialize(m_controller, "GenerateTablesCommandHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "GenerateTablesCommand", generateTablesCommand) Then Exit Function
-    Set formChangedCommand = New obj_UiCommand
-    If Not formChangedCommand.Initialize(m_controller, "FormChangedCommandHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "FormChangedCommand", formChangedCommand) Then Exit Function
-    Set submitFormCommand = New obj_UiCommand
-    If Not submitFormCommand.Initialize(m_controller, "SubmitFormCommandHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "SubmitFormCommand", submitFormCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "SearchPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "SearchPersonnel", lookupCommand) Then Exit Function
