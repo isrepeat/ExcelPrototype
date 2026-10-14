@@ -285,6 +285,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim columnSpan As Long
     Dim fieldRange As Range
     Dim columnLayout As obj_IUiColumnLayout
+    Dim headerPresentation As obj_IUiHeaderPresentation
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -296,9 +297,18 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ReDim buffer(1 To m_targetRange.Rows.Count, 1 To m_targetRange.Columns.Count)
     targetRow = 1
     Set rawTable = m_table
+    If Not m_source Is Nothing Then
+        If TypeOf m_source Is obj_IUiHeaderPresentation Then Set headerPresentation = m_source
+    End If
         If VBA.Len(rawTable.Title) > 0 Then buffer(targetRow, 1) = rawTable.Title: targetRow = targetRow + 1
         If m_showHeaders And IsArray(rawTable.Headers) Then
-            For columnIndex = 1 To rawTable.ColumnCount: buffer(targetRow, columnIndex) = rawTable.HeaderAt(columnIndex): Next columnIndex
+            For columnIndex = 1 To rawTable.ColumnCount
+                If headerPresentation Is Nothing Then
+                    buffer(targetRow, columnIndex) = rawTable.HeaderAt(columnIndex)
+                Else
+                    buffer(targetRow, columnIndex) = headerPresentation.HeaderTextAt(columnIndex)
+                End If
+            Next columnIndex
             targetRow = targetRow + 1
         End If
         For rowIndex = 1 To rawTable.RowCount

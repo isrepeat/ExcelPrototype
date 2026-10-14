@@ -19,6 +19,7 @@ Private m_control As obj_IUiControl
 Private m_definition As Object
 Private m_context As obj_UiRenderContext
 Private m_column As Long
+Private m_tableColumn As Long
 
 ' //
 ' // Lifecycle
@@ -48,7 +49,7 @@ Private Function obj_IUiControl_Configure( _
     ByRef diagnostic As String _
 ) As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    Set m_definition = definition
+    Set m_definition = definition.cloneNode(True)
     Set m_context = context
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     obj_IUiControl_Configure = m_control.Configure(definition, context, source, diagnostic)
@@ -133,6 +134,7 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
     Dim sourceAliases As Object
     Dim columnIndex As Long
     Dim columnSpans As Object
+    Dim tableDefinition As Object
 
     If Not ex_UiBindingRuntime.fn_TryResolveValue( _
             private_ReadAttribute(m_definition, "itemsSource"), m_context.BindingContext, value, sourceObject, isObject) Then
@@ -166,6 +168,9 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
         Next columnIndex
     End If
     If Not private_AlignToForm(table, columnSpans, diagnostic) Then Exit Function
+    Set tableDefinition = m_definition.cloneNode(True)
+    tableDefinition.setAttribute "column", VBA.CStr(m_tableColumn)
+    If Not m_control.Configure(tableDefinition, m_context, VBA.vbNullString, diagnostic) Then Exit Function
     Set candidatesSource = New obj_UiCandidatesSource
     If Not candidatesSource.Initialize(table, selectionSource, sourceAliases, columnSpans) Then
         diagnostic = "Cannot initialize candidates source."
@@ -198,6 +203,12 @@ Private Function private_AlignToForm( _
     Dim fieldSpan As Long
     Dim reservedColumns As Long
     Dim coveredColumn As Long
+    Dim beforeColumns As Collection
+    Dim afterColumns As Collection
+    Dim extraHeader As Variant
+    Dim totalColumns As Long
+    Dim firstColumn As Long
+    Dim lastColumn As Long
 
     formName = private_ReadAttribute(m_definition, "alignToForm")
     On Error GoTo EH
@@ -223,11 +234,32 @@ Private Function private_AlignToForm( _
     If fieldCount = 0 Then Err.Raise 5, , "Alignment form has no fields: " & formName
     reservedColumns = private_ReadLong(formNode, "columnSpan", fieldCount)
     If fieldCount > reservedColumns Then Err.Raise 5, , "Alignment form exceeds its reserved columnSpan: " & formName
-    fieldCount = reservedColumns
-    ReDim headers(0 To fieldCount - 1)
-    If table.RowCount > 0 Then ReDim values(1 To table.RowCount, 1 To fieldCount)
+    Set beforeColumns = private_ExtraColumns("columnsBefore")
+    Set afterColumns = private_ExtraColumns("columnsAfter")
+    m_tableColumn = m_column - beforeColumns.Count
+    totalColumns = beforeColumns.Count + fieldCount + afterColumns.Count
+    firstColumn = private_ReadLong(m_definition, "workspaceFirstColumn", 0)
+    lastColumn = private_ReadLong(m_definition, "workspaceLastColumn", 0)
+    If (firstColumn = 0) <> (lastColumn = 0) Then Err.Raise 5, , "Both workspace column bounds are required."
+    If beforeColumns.Count + afterColumns.Count > 0 And firstColumn = 0 Then
+        Err.Raise 5, , "Additional candidate columns require explicit workspace column bounds."
+    End If
+    If m_tableColumn < 1 Then Err.Raise 5, , "No space for candidate columns before the form."
+    If firstColumn > 0 Then
+        If lastColumn < firstColumn Then Err.Raise 5, , "Invalid candidate workspace column bounds."
+        If m_tableColumn < firstColumn Then Err.Raise 5, , "No space for candidate columns before the form."
+        If m_tableColumn + totalColumns - 1 > lastColumn Then
+            Err.Raise 5, , "No space for candidate columns after the form."
+        End If
+    End If
+    ReDim headers(0 To totalColumns - 1)
+    If table.RowCount > 0 Then ReDim values(1 To table.RowCount, 1 To totalColumns)
     Set matched = VBA.CreateObject("Scripting.Dictionary")
     Set columnSpans = VBA.CreateObject("Scripting.Dictionary")
+    For Each extraHeader In beforeColumns
+        position = position + 1
+        private_CopyExtraColumn table, VBA.CStr(extraHeader), position, headers, values, matched
+    Next extraHeader
     ' Match headers to field labels; leave extra form fields blank.
     For Each fieldNode In formNode.ChildNodes
         If fieldNode.NodeType = 1 Then
@@ -263,6 +295,10 @@ Private Function private_AlignToForm( _
             position = position + fieldSpan - 1
         End If
     Next fieldNode
+    For Each extraHeader In afterColumns
+        position = position + 1
+        private_CopyExtraColumn table, VBA.CStr(extraHeader), position, headers, values, matched
+    Next extraHeader
     For columnIndex = 1 To table.ColumnCount
         If VBA.Len(VBA.CStr(table.HeaderAt(columnIndex))) > 0 Then
             If Not matched.Exists(columnIndex) Then Err.Raise 5, , "Candidate header has no matching form field: " & table.HeaderAt(columnIndex)
@@ -280,6 +316,49 @@ Private Function private_AlignToForm( _
 EH:
     diagnostic = "Candidates alignment (" & formName & "): " & VBA.Err.Description
 End Function
+
+Private Function private_ExtraColumns(ByVal attributeName As String) As Collection
+    Dim columns As New Collection
+    Dim value As String
+    Dim header As Variant
+
+    value = private_ReadAttribute(m_definition, attributeName)
+    If VBA.Len(value) > 0 Then
+        For Each header In VBA.Split(value, "|")
+            value = VBA.Trim$(VBA.CStr(header))
+            If VBA.Len(value) = 0 Then Err.Raise 5, , "Empty candidate column in " & attributeName
+            columns.Add value
+        Next header
+    End If
+    Set private_ExtraColumns = columns
+End Function
+
+Private Sub private_CopyExtraColumn( _
+    ByVal table As obj_UiRawTable, _
+    ByVal header As String, _
+    ByVal position As Long, _
+    ByRef headers As Variant, _
+    ByRef values As Variant, _
+    ByVal matched As Object _
+)
+    Dim columnIndex As Long
+    Dim rowIndex As Long
+    Dim sourceColumn As Long
+
+    For columnIndex = 1 To table.ColumnCount
+        If VBA.CStr(table.HeaderAt(columnIndex)) = header Then
+            If sourceColumn > 0 Then Err.Raise 5, , "Ambiguous extra candidate header: " & header
+            sourceColumn = columnIndex
+        End If
+    Next columnIndex
+    If sourceColumn = 0 Then Err.Raise 5, , "Extra candidate header was not found: " & header
+    If matched.Exists(sourceColumn) Then Err.Raise 5, , "Duplicate candidate column: " & header
+    matched.Add sourceColumn, True
+    headers(position - 1) = header
+    For rowIndex = 1 To table.RowCount
+        values(rowIndex, position) = table.ValueAt(rowIndex, sourceColumn)
+    Next rowIndex
+End Sub
 
 Private Function private_ReadAttribute( _
     ByVal node As Object, _

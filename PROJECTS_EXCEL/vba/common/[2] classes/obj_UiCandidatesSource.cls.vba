@@ -13,6 +13,7 @@ Implements obj_IUiTableSource
 Implements obj_IUiSelectionSource
 Implements obj_IUiColumnMetadata
 Implements obj_IUiColumnLayout
+Implements obj_IUiHeaderPresentation
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -69,6 +70,28 @@ Private Function obj_IUiColumnLayout_ColumnSpanAt(ByVal columnIndex As Long) As 
     If Not m_columnSpans Is Nothing Then
         If m_columnSpans.Exists(columnIndex) Then obj_IUiColumnLayout_ColumnSpanAt = m_columnSpans(columnIndex)
     End If
+End Function
+
+Private Function obj_IUiHeaderPresentation_HeaderTextAt(ByVal columnIndex As Long) As String
+    Dim rowIndex As Long
+    Dim value As Variant
+    Dim hasValue As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If columnIndex < 1 Or columnIndex > m_table.ColumnCount Then Exit Function
+    For rowIndex = 1 To m_table.RowCount
+        value = m_table.ValueAt(rowIndex, columnIndex)
+        hasValue = False
+        If VBA.IsError(value) Then
+            hasValue = True
+        ElseIf Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then
+            hasValue = (VBA.Len(VBA.Trim$(VBA.CStr(value))) > 0)
+        End If
+        If hasValue Then
+            obj_IUiHeaderPresentation_HeaderTextAt = VBA.CStr(m_table.HeaderAt(columnIndex))
+            Exit Function
+        End If
+    Next rowIndex
 End Function
 
 ' //
