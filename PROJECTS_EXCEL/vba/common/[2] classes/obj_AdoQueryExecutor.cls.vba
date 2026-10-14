@@ -204,9 +204,9 @@ Private Function private_TrySqlReference( _
     diagnostic = VBA.vbNullString
     rangeAddress = VBA.Trim$(source.RangeAddress)
     If VBA.StrComp(rangeAddress, "auto", VBA.vbTextCompare) = 0 Then
-        sqlRef = "[" & VBA.Replace$(source.SheetName, "]", "]]") & "$]"
+        sqlRef = "[" & VBA.Replace$(VBA.Replace$(source.SheetName, ".", "#"), "]", "]]") & "$]"
     Else
-        sqlRef = "[" & VBA.Replace$(source.SheetName, "]", "]]") & "$" & rangeAddress & "]"
+        sqlRef = "[" & VBA.Replace$(VBA.Replace$(source.SheetName, ".", "#"), "]", "]]") & "$" & rangeAddress & "]"
     End If
     private_TrySqlReference = True
 End Function

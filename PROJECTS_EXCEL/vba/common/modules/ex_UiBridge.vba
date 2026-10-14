@@ -21,10 +21,12 @@ Public Sub fn_OnShapeClick()
     Dim shapeName As String
     Dim diagnostic As String
     Dim previousScreenUpdating As Boolean
+    Dim busyEntered As Boolean
 
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
+    busyEntered = ex_UiBusy.fn_Begin()
     ' Hide intermediate changes until the command and layout refresh complete.
     Application.ScreenUpdating = False
     shapeName = VBA.CStr(Application.Caller)
@@ -43,6 +45,7 @@ Public Sub fn_OnShapeClick()
     End If
 CleanExit:
     Application.ScreenUpdating = previousScreenUpdating
+    If busyEntered Then ex_UiBusy.fn_End
     Set context = Nothing
     Set targetWorksheet = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext
@@ -51,6 +54,7 @@ EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     Application.ScreenUpdating = previousScreenUpdating
+    If busyEntered Then ex_UiBusy.fn_End
     Set context = Nothing
     Set targetWorksheet = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext

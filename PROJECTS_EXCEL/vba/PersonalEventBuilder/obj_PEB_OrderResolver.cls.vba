@@ -16,8 +16,8 @@ Private m_source As obj_TableSource
 Private m_dateHeader As String
 Private m_numberHeader As String
 Private m_orders As Collection
-Private m_daysBefore As Long
-Private m_daysAfter As Long
+Private m_rowsBefore As Long
+Private m_rowsAfter As Long
 
 ' //
 ' // Lifecycle
@@ -45,12 +45,15 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     If VBA.Mid$(path, 2, 1) <> ":" And VBA.Left$(path, 2) <> "\\" Then path = fileSystem.BuildPath(ThisWorkbook.Path, path)
     m_source.WorkbookPath = fileSystem.GetAbsolutePathName(path)
     m_source.SheetName = private_Config("source.sheet")
-    m_source.TableName = private_Config("source.table")
+    m_source.RangeAddress = private_Config("source.range")
+    If VBA.LCase$(m_source.RangeAddress) = "auto" Or VBA.Len(VBA.Trim$(m_source.RangeAddress)) = 0 Then
+        Err.Raise 5, , "Explicit configuration range required: PersonalEventBuilder::orders.source.range"
+    End If
     m_dateHeader = private_Config("dateHeader")
     m_numberHeader = private_Config("numberHeader")
-    m_daysBefore = VBA.CLng(private_Config("daysBefore"))
-    m_daysAfter = VBA.CLng(private_Config("daysAfter"))
-    If m_daysBefore < 0 Or m_daysAfter < 0 Then Err.Raise 5, , private_Message("OrderSourceError")
+    m_rowsBefore = VBA.CLng(private_Config("rowsBefore"))
+    m_rowsAfter = VBA.CLng(private_Config("rowsAfter"))
+    If m_rowsBefore < 0 Or m_rowsAfter < 0 Then Err.Raise 5, , private_Message("OrderSourceError")
     If Not m_source.TryValidate(diagnostic) Then GoTo EH
     m_isInitialized = True
     Initialize = True
@@ -72,6 +75,55 @@ End Sub
 Public Sub InvalidateCache()
     Set m_orders = Nothing
 End Sub
+
+Public Function TryGetNearby( _
+    ByRef matches As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim record As obj_LookupRecord
+    Dim orderDate As Variant
+    Dim firstToday As Long
+    Dim lastToday As Long
+    Dim anchor As Long
+    Dim firstRow As Long
+    Dim lastRow As Long
+    Dim rowIndex As Long
+
+    On Error GoTo EH
+    Set matches = New Collection
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , private_Message("OrderSourceError")
+    If m_orders Is Nothing Then
+        If Not private_Load(diagnostic) Then Exit Function
+    End If
+    For rowIndex = 1 To m_orders.Count
+        Set record = m_orders(rowIndex)
+        If Not record.TryGetValue("OrderDate", orderDate) Then Err.Raise 5, , private_Message("OrderSourceError")
+        If VBA.CDate(orderDate) = VBA.Date Then
+            If firstToday = 0 Then firstToday = rowIndex
+            lastToday = rowIndex
+        End If
+        If anchor = 0 And VBA.CDate(orderDate) >= VBA.Date Then anchor = rowIndex
+    Next rowIndex
+    If m_orders.Count > 0 Then
+        ' Include all orders for today and five rows on either side.
+        If firstToday = 0 Then
+            If anchor = 0 Then anchor = m_orders.Count
+            firstToday = anchor
+            lastToday = anchor
+        End If
+        firstRow = firstToday - m_rowsBefore
+        If firstRow < 1 Then firstRow = 1
+        lastRow = lastToday + m_rowsAfter
+        If lastRow > m_orders.Count Then lastRow = m_orders.Count
+        For rowIndex = firstRow To lastRow
+            matches.Add m_orders(rowIndex)
+        Next rowIndex
+    End If
+    TryGetNearby = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+End Function
 
 Public Function TrySearch( _
     ByVal queryText As String, _
@@ -102,8 +154,8 @@ Public Function TrySearch( _
     End If
     ' Digits identify a number; only DD.MM and DD.MM.YYYY identify dates.
     If VBA.Len(queryText) = 0 Then
-        ' An empty query offers a date window around today without selecting a pair.
-        searchNumber = VBA.vbNullString
+        TrySearch = True
+        Exit Function
     ElseIf VBA.InStr(1, queryText, "/") > 0 Then
         pairParts = VBA.Split(queryText, "/")
         If UBound(pairParts) <> 1 Then Err.Raise 5, , private_Message("OrderInvalidInput")
@@ -133,11 +185,7 @@ Public Function TrySearch( _
     For Each record In m_orders
         If Not record.TryGetValue("OrderNumber", number) Then Err.Raise 5, , private_Message("OrderSourceError")
         If Not record.TryGetValue("OrderDate", orderDateValue) Then Err.Raise 5, , private_Message("OrderSourceError")
-        If VBA.Len(queryText) = 0 Then
-            If VBA.CDate(orderDateValue) >= VBA.Date - m_daysBefore And VBA.CDate(orderDateValue) <= VBA.Date + m_daysAfter Then
-                If VBA.Len(yearText) = 0 Or VBA.Year(VBA.CDate(orderDateValue)) = searchYear Then matches.Add record
-            End If
-        ElseIf VBA.Year(VBA.CDate(orderDateValue)) = searchYear Then
+        If VBA.Year(VBA.CDate(orderDateValue)) = searchYear Then
             If isDateQuery Then
                 If VBA.CDate(orderDateValue) = searchDate Then
                     If VBA.Len(searchNumber) = 0 Or VBA.CStr(number) = searchNumber Then matches.Add record
@@ -177,6 +225,7 @@ Private Function private_Load(ByRef diagnostic As String) As Boolean
     Set tableQueryService = New obj_TableQueryService
     Set tableQuery = New obj_TableQuery
     If Not tableQueryService.Initialize() Or Not tableQuery.Initialize() Then Err.Raise 5, , private_Message("OrderSourceError")
+    tableQueryService.Backend = QueryAdo
     tableQuery.AddColumn m_dateHeader
     tableQuery.AddColumn m_numberHeader
     If Not tableQueryService.TryExecute(m_source, tableQuery, dataTable, diagnostic) Then
