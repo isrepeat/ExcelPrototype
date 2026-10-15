@@ -1,4 +1,8 @@
 # Local artifacts
+Scripts/Testing/PEB/node_modules/
+Scripts/Testing/PEB/__pycache__/
+PROJECTS_EXCEL/tests/PersonalEventBuilder/**/*.inspect.ndjson
+PROJECTS_EXCEL/tests/PersonalEventBuilder/cases-preview.png
 \!SCREENSHOTS/
 Codex/logs/
 Codex/sessions/
@@ -14,3 +18,5 @@ PROJECTS_EXCEL/**/*.xlsx
 PROJECTS_EXCEL/**/*.xlsm
 PROJECTS_EXCEL/**/*.docx
 !PROJECTS_EXCEL/workbook/PeriodsGeneration/РУХ генерація періодів.xlsm
+!PROJECTS_EXCEL/tests/PersonalEventBuilder/Dependencies/*.xlsx
+!PROJECTS_EXCEL/tests/PersonalEventBuilder/Scenarios.xlsx

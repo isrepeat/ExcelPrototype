@@ -59,7 +59,9 @@ End Sub
 
 Public Function TryExport( _
     ByVal values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByRef resultCode As String = "", _
+    Optional ByVal targetWorkbook As Object = Nothing _
 ) As Boolean
     Dim excelApp As Object
     Dim book As Object
@@ -83,9 +85,11 @@ Public Function TryExport( _
     Dim changed As Boolean
     Dim saved As Boolean
     Dim cleanupError As String
+    Dim ownsBook As Boolean
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
+    resultCode = "ExportError"
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Movement exporter is not initialized."
     End If
@@ -112,12 +116,21 @@ Public Function TryExport( _
     Next openBook
 
     ' Отдельный экземпляр Excel закрывает книгу без сохранения при ошибке.
-    Set excelApp = VBA.CreateObject("Excel.Application")
-    excelApp.Visible = False
-    excelApp.DisplayAlerts = False
-    excelApp.EnableEvents = False
-    excelApp.AutomationSecurity = 3
-    Set book = excelApp.Workbooks.Open(m_path, 0, False)
+    If targetWorkbook Is Nothing Then
+        ownsBook = True
+        Set excelApp = VBA.CreateObject("Excel.Application")
+        excelApp.Visible = False
+        excelApp.DisplayAlerts = False
+        excelApp.EnableEvents = False
+        excelApp.AutomationSecurity = 3
+        Set book = excelApp.Workbooks.Open(m_path, 0, False)
+    Else
+        If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , "Borrowed export workbooks require TEST."
+        If VBA.StrComp(targetWorkbook.FullName, m_path, VBA.vbTextCompare) <> 0 Then
+            Err.Raise 5, , "Borrowed workbook differs from the configured Movement target."
+        End If
+        Set book = targetWorkbook
+    End If
     If book.ReadOnly Then
         Err.Raise 5, , "Movement workbook is locked or read-only: " & m_path
     End If
@@ -152,6 +165,7 @@ Public Function TryExport( _
     For rowIndex = 1 To table.ListRows.Count
         Set targetRow = table.ListRows(rowIndex)
         If private_Matches(targetRow, identities, columns) Then
+            resultCode = "DuplicateEvent"
             Err.Raise 5, , "Movement event already exists."
         End If
         If operation = "close" Then
@@ -165,10 +179,12 @@ Public Function TryExport( _
     Next rowIndex
     If operation = "close" Then
         If found <> 1 Then
+            resultCode = "AmbiguousOpenDeparture"
+            If found = 0 Then resultCode = "OpenDepartureNotFound"
             Err.Raise 5, , "Movement arrival requires exactly one matching open departure; found " & VBA.CStr(found)
         End If
         Set targetRow = table.ListRows(selected)
-        private_ValidateChronology targetRow, values, columns, prefix
+        private_ValidateChronology targetRow, values, columns, prefix, resultCode
         For Each key In writes.Keys
             If VBA.Len(ex_PEB_Export.fn_Text(targetRow.Range.Cells(1, columns(key)).Value2)) > 0 Then
                 Err.Raise 5, , "Movement arrival would overwrite populated data: " & VBA.CStr(key)
@@ -184,15 +200,17 @@ Public Function TryExport( _
         End If
         targetRow.Range.Cells(1, columns(key)).Value2 = writes(key)
     Next key
-    book.Save
+    If ownsBook Then book.Save
     saved = True
+    resultCode = "DepartureCreated"
+    If operation = "close" Then resultCode = "ArrivalClosed"
     TryExport = True
 Cleanup:
     On Error Resume Next
-    If Not book Is Nothing Then
+    If ownsBook And Not book Is Nothing Then
         book.Close False
     End If
-    If Not excelApp Is Nothing Then
+    If ownsBook And Not excelApp Is Nothing Then
         excelApp.Quit
     End If
     If VBA.Err.Number <> 0 Then
@@ -291,7 +309,8 @@ Private Sub private_ValidateChronology( _
     ByVal row As Object, _
     ByVal values As Object, _
     ByVal columns As Object, _
-    ByVal prefix As String _
+    ByVal prefix As String, _
+    ByRef resultCode As String _
 )
     Dim header As String
     Dim field As String
@@ -309,6 +328,7 @@ Private Sub private_ValidateChronology( _
         Err.Raise 5, , "Movement requires typed departure and arrival dates."
     End If
     If VBA.CDbl(arrival) < VBA.CDbl(departure) Then
+        resultCode = "ArrivalBeforeDeparture"
         Err.Raise 5, , "Movement arrival precedes departure."
     End If
 End Sub

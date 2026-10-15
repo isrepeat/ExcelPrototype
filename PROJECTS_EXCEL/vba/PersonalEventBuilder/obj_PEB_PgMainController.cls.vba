@@ -35,6 +35,10 @@ Private m_hospitalFields As Collection
 Private m_hospitalProfile As obj_LookupProfile
 Private m_hospitalService As obj_LookupService
 Private m_exportService As obj_PEB_ExportService
+Private m_environmentSwitchPending As Boolean
+Private m_testBusy As Boolean
+Private m_testScenario As String
+Private m_testStep As Long
 
 ' //
 ' // Lifecycle
@@ -564,6 +568,50 @@ Public Function ArrivalTreatmentHandler() As Boolean
     ArrivalTreatmentHandler = private_SwitchMode("ArrivalTreatment")
 End Function
 
+Public Function EnvironmentSwitchHandler() As Boolean
+    Dim environment As String
+    Dim target As String
+    Dim configPath As String
+    Dim diagnostic As String
+    Dim status As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        EnvironmentSwitchHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If m_environmentSwitchPending Then
+        EnvironmentSwitchHandler = True
+        Exit Function
+    End If
+    On Error GoTo EH_ENVIRONMENT
+    environment = ex_PEB_Export.fn_Config("environment.name")
+    Select Case environment
+        Case "PROD"
+            target = "TEST"
+        Case "TEST"
+            target = "PROD"
+        Case Else
+            Err.Raise 5, , "Unknown PEB environment: " & environment
+    End Select
+    configPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("environment.config." & target))
+    status = VBA.Replace$(ex_PEB_Export.fn_Config("text.EnvironmentSwitchPending"), "{environment}", target)
+    If Not ex_ConfigRefresh.fn_TryUpdate(diagnostic, configPath) Then GoTo FailedEnvironment
+    m_environmentSwitchPending = True
+    ' Reinitialize after this handler returns; never dispose an executing UI control.
+    If Not ex_AppCommands.fn_RequestReinitialize() Then
+        Err.Raise 5, , "Cannot schedule PEB environment initialization."
+    End If
+    EnvironmentSwitchHandler = private_SetActionStatus(status, False)
+    Exit Function
+EH_ENVIRONMENT:
+    diagnostic = VBA.Err.Description
+    m_environmentSwitchPending = False
+FailedEnvironment:
+    private_SetActionStatus diagnostic, True
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
+End Function
+
 Public Function PreviewWordHandler() As Boolean
     PreviewWordHandler = private_Export("PreviewWord")
 End Function
@@ -644,9 +692,158 @@ Public Function DepartureFamilyLeaveHandler() As Boolean
     DepartureFamilyLeaveHandler = private_SwitchMode("DepartureFamilyLeave")
 End Function
 
+Public Function LoadTestHandler() As Boolean
+    LoadTestHandler = private_LoadTest(False)
+End Function
+
+Public Function OpenTestsHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Or m_environmentSwitchPending Then Exit Function
+    OpenTestsHandler = ex_PEB_Testing.fn_Open()
+End Function
+
+Public Function CancelTestsHandler() As Boolean
+    ex_PEB_Testing.fn_RequestStop
+    CancelTestsHandler = True
+End Function
+
+Public Function NextTestHandler() As Boolean
+    NextTestHandler = private_LoadTest(True)
+End Function
+
 ' //
 ' // Private
 ' //
+Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
+    Dim pebTestScenarios As obj_PEB_TestScenarios
+    Dim updates As Object
+    Dim snapshot As Object
+    Dim formValues As Object
+    Dim source As Variant
+    Dim oldResult As obj_LookupResult
+    Dim emptyResult As obj_LookupResult
+    Dim records As New Collection
+    Dim scalar As Variant
+    Dim isObject As Boolean
+    Dim key As Variant
+    Dim scenarioId As String
+    Dim stepId As Long
+    Dim modeId As String
+    Dim oldMode As String
+    Dim oldDirection As String
+    Dim oldEventType As String
+    Dim oldOrder As String
+    Dim oldOrderDate As Variant
+    Dim oldReporter As Boolean
+    Dim oldHospital As Boolean
+    Dim oldFields As Collection
+    Dim status As String
+    Dim diagnostic As String
+    Dim rollbackDiagnostic As String
+    Dim formChanged As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Or m_testBusy Or m_environmentSwitchPending Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        private_LoadTest = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    On Error GoTo EH
+    If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
+    If Not private_TryReadFormValue("TestScenario", scalar) Then Err.Raise 5, , "Cannot read Form.TestScenario."
+    scenarioId = VBA.Trim$(VBA.CStr(scalar))
+    stepId = 1
+    If nextStep Then
+        If scenarioId <> m_testScenario Or m_testStep < 1 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestLoadFirst")
+        stepId = m_testStep + 1
+    End If
+    m_testBusy = True
+    Set pebTestScenarios = New obj_PEB_TestScenarios
+    If Not pebTestScenarios.Initialize(diagnostic) Then GoTo Failed
+    If Not pebTestScenarios.TryPrepare(scenarioId, stepId, Not nextStep, modeId, updates, status, diagnostic) Then GoTo Failed
+
+    ' Snapshot the form before publishing any mode or input changes.
+    Set snapshot = VBA.CreateObject("Scripting.Dictionary")
+    For Each source In VBA.Array("Form", "Text", "Settings")
+        If Not m_pageBase.BindingContext.TryGetValue(VBA.CStr(source), VBA.vbNullString, scalar, formValues, isObject) Then
+            Err.Raise 5, , "Cannot snapshot PEB bindings: " & source
+        End If
+        For Each key In formValues.Keys
+            If VBA.IsObject(formValues(key)) Then Err.Raise 5, , "Scalar binding value required: " & key
+            snapshot(source & "." & key) = formValues(key)
+        Next key
+    Next source
+    Set oldResult = m_lookupResult
+    Set oldFields = m_modeFields
+    oldMode = m_modeId
+    oldDirection = m_modeDirection
+    oldEventType = m_eventType
+    oldOrder = m_acceptedOrderNumber
+    oldOrderDate = m_acceptedOrderDate
+    oldReporter = m_reporterActive
+    oldHospital = m_hospitalActive
+    formChanged = True
+
+    ' Empty candidates without running personnel, reporter or hospital searches.
+    Set emptyResult = New obj_LookupResult
+    If Not emptyResult.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
+    Set m_lookupResult = emptyResult
+    m_modeId = VBA.vbNullString
+    m_reporterActive = False
+    m_hospitalActive = False
+    If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    m_acceptedOrderNumber = updates("Form.AcceptedOrderNumber")
+    m_acceptedOrderDate = updates("Form.AcceptedOrderDate")
+    If Not m_exportService Is Nothing Then m_exportService.Dispose
+    Set m_exportService = Nothing
+    ex_TableDataRuntime.fn_ResetCaches
+    m_lookupService.InvalidateCache
+    m_candidateEnricher.InvalidateCache
+    m_orderResolver.InvalidateCache
+    If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
+    If Not m_pageBase.FlushUpdates() Then Err.Raise 5, , "Cannot render the loaded scenario."
+    If Not pebTestScenarios.TryCommit(diagnostic) Then GoTo Failed
+    m_testScenario = scenarioId
+    m_testStep = stepId
+    Set m_pendingOrder = Nothing
+    private_LoadTest = True
+Cleanup:
+    If Not pebTestScenarios Is Nothing Then pebTestScenarios.Dispose
+    m_testBusy = False
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    If VBA.Len(diagnostic) = 0 Then diagnostic = "Scenario loading failed."
+    If formChanged Then
+        ' Discard unsaved history and restore form values and the previous candidate projection.
+        On Error Resume Next
+        m_modeId = oldMode
+        m_modeDirection = oldDirection
+        m_eventType = oldEventType
+        Set m_modeFields = oldFields
+        Set m_lookupResult = oldResult
+        m_reporterActive = oldReporter
+        m_hospitalActive = oldHospital
+        m_acceptedOrderNumber = oldOrder
+        m_acceptedOrderDate = oldOrderDate
+        If Not m_pageBase.BindingContext.TryApplyValues(snapshot, rollbackDiagnostic) Then
+            diagnostic = diagnostic & " Restore form: " & rollbackDiagnostic
+        End If
+        If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", oldResult) Then
+            diagnostic = diagnostic & " Cannot restore candidates."
+        End If
+        If Not m_pageBase.FlushUpdates() Then diagnostic = diagnostic & " Cannot render restored form."
+        If VBA.Err.Number <> 0 Then diagnostic = diagnostic & " Restore: " & VBA.Err.Description
+        On Error GoTo 0
+    End If
+    If Not pebTestScenarios Is Nothing Then pebTestScenarios.Dispose
+    m_testBusy = False
+    status = VBA.Replace$(ex_PEB_Export.fn_Config("text.TestFailed"), "{error}", diagnostic)
+    private_SetActionStatus status, True
+    ex_WindowsUi.fn_ShowMessage status, VBA.vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
+    GoTo Cleanup
+End Function
+
 Private Function private_SearchSecondary( _
     ByVal clearDependents As Boolean, _
     Optional ByVal hospital As Boolean = False _
@@ -838,6 +1035,10 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim failureTemplate As String
     Dim messageTitle As String
 
+    If ex_PEB_Testing.fn_IsRunning() Then
+        private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If

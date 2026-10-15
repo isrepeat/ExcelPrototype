@@ -12,7 +12,10 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_TryUpdate(ByRef diagnostic As String) As Boolean
+Public Function fn_TryUpdate( _
+    ByRef diagnostic As String, _
+    Optional ByVal sourcePath As String = "" _
+) As Boolean
     Dim fileSystem As Object
     Dim stream As Object
     Dim configPath As String
@@ -51,8 +54,15 @@ Public Function fn_TryUpdate(ByRef diagnostic As String) As Boolean
         VBA.Err.Raise 5, , "Invalid configuration profile identifier: " & profileId
     End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    configPath = fileSystem.GetAbsolutePathName(fileSystem.BuildPath( _
-        ThisWorkbook.Path, "../../config/" & profileId & "/wsConfig.txt"))
+    If VBA.Len(sourcePath) = 0 Then
+        If Not ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::config.source", sourcePath) Then
+            sourcePath = "../../config/" & profileId & "/wsConfig.txt"
+        End If
+    End If
+    If fileSystem.GetDriveName(sourcePath) = VBA.vbNullString Then
+        sourcePath = fileSystem.BuildPath(ThisWorkbook.Path, sourcePath)
+    End If
+    configPath = fileSystem.GetAbsolutePathName(sourcePath)
     Set stream = VBA.CreateObject("ADODB.Stream")
     stream.Type = 2
     stream.Charset = "utf-8"

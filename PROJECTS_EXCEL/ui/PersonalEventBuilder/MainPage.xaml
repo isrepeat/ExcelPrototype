@@ -308,6 +308,13 @@
                        checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                        uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
                        onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
+    <controls:button name="EnvironmentSwitch"
+                     row="9"
+                     column="3"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.EnvironmentSwitch}"
+                     command="{Binding Path=Commands.EnvironmentSwitch}"/>
     <controls:label name="WordPreview"
                     row="3"
                     column="9"
