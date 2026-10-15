@@ -34,6 +34,7 @@ Private m_hospitalActive As Boolean
 Private m_hospitalFields As Collection
 Private m_hospitalProfile As obj_LookupProfile
 Private m_hospitalService As obj_LookupService
+Private m_exportService As obj_PEB_ExportService
 
 ' //
 ' // Lifecycle
@@ -128,6 +129,8 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_exportService Is Nothing Then m_exportService.Dispose
+    Set m_exportService = Nothing
     If Not m_lookupService Is Nothing Then m_lookupService.Dispose
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
     If Not m_lookupProfile Is Nothing Then m_lookupProfile.Dispose
@@ -444,6 +447,8 @@ End Function
 
 Public Function RefreshPersonnelHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_exportService Is Nothing Then m_exportService.Dispose
+    Set m_exportService = Nothing
     ex_TableDataRuntime.fn_ResetCaches
     m_lookupService.InvalidateCache
     m_candidateEnricher.InvalidateCache
@@ -849,10 +854,14 @@ Private Function private_Export(ByVal action As String) As Boolean
             Exit Function
         End If
     End If
-    Set pebExportService = New obj_PEB_ExportService
-    If Not pebExportService.Initialize() Then
-        Err.Raise 5, , "Cannot initialize export service."
+    If m_exportService Is Nothing Then
+        Set m_exportService = New obj_PEB_ExportService
+        If Not m_exportService.Initialize() Then
+            Set m_exportService = Nothing
+            Err.Raise 5, , "Cannot initialize export service."
+        End If
     End If
+    Set pebExportService = m_exportService
     If Not pebExportService.TryPrepare( _
         m_pageBase.BindingContext, _
         exporter, _
@@ -895,9 +904,7 @@ Cleanup:
     If Not pebExptrMovement Is Nothing Then
         pebExptrMovement.Dispose
     End If
-    If Not pebExportService Is Nothing Then
-        pebExportService.Dispose
-    End If
+    Set pebExportService = Nothing
     Exit Function
 EH:
     diagnostic = VBA.Err.Description

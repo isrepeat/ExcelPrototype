@@ -14,6 +14,7 @@ Private m_isDisposed As Boolean
 
 Private m_pebDslRenderer As obj_PEB_DslRenderer
 Private m_pebWordTemplates As obj_PEB_WordTemplates
+Private m_lookupTables As Object
 
 ' //
 ' // Lifecycle
@@ -32,11 +33,17 @@ Public Function Initialize() As Boolean
     If m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
+    Set m_lookupTables = VBA.CreateObject("Scripting.Dictionary")
+    m_lookupTables.CompareMode = VBA.vbTextCompare
     m_isInitialized = True
     Initialize = True
 End Function
 
 Public Sub Dispose()
+    Dim entry As Collection
+    Dim key As Variant
+    Dim table As obj_DataTable
+
     If m_isDisposed Then
         Exit Sub
     End If
@@ -50,6 +57,14 @@ Public Sub Dispose()
     End If
     Set m_pebDslRenderer = Nothing
     Set m_pebWordTemplates = Nothing
+    If Not m_lookupTables Is Nothing Then
+        For Each key In m_lookupTables.Keys
+            Set entry = m_lookupTables(key)
+            Set table = entry(2)
+            table.Dispose
+        Next key
+    End If
+    Set m_lookupTables = Nothing
 End Sub
 
 Public Function TryPrepare( _
@@ -72,8 +87,18 @@ Public Function TryPrepare( _
     Dim rendered As String
     Dim requiredKey As String
     Dim templateName As String
+    Dim startedAt As Double
+    Dim stageStartedAt As Double
 
+    startedAt = VBA.Timer
     On Error GoTo EH
+    ex_PEB_Export.fn_BeginConfigSnapshot
+    ex_Core.fn_Diagnostic_WritePerf "Preview.ConfigSnapshot", startedAt
+    ' Reload templates per operation so edits to the XML are visible immediately.
+    If Not m_pebDslRenderer Is Nothing Then m_pebDslRenderer.Dispose
+    If Not m_pebWordTemplates Is Nothing Then m_pebWordTemplates.Dispose
+    Set m_pebDslRenderer = Nothing
+    Set m_pebWordTemplates = Nothing
     diagnostic = VBA.vbNullString
     Set values = Nothing
     If Not m_isInitialized Or m_isDisposed Then
@@ -122,7 +147,8 @@ Public Function TryPrepare( _
         End If
     Next key
 
-    ' Обогащаем снимок только справочниками выбранного экспортера.
+    ' Enrich the snapshot using only the selected exporter's directories.
+    stageStartedAt = VBA.Timer
     For index = 1 To ex_PEB_Export.fn_Count("export." & exporter & ".lookups.count")
         private_Enrich values, "export." & exporter & ".lookups." & VBA.CStr(index)
     Next index
@@ -131,6 +157,8 @@ Public Function TryPrepare( _
         For index = 1 To ex_PEB_Export.fn_Count("export.Word." & mode & ".lookups.count")
             private_Enrich values, "export.Word." & mode & ".lookups." & VBA.CStr(index)
         Next index
+        ex_Core.fn_Diagnostic_WritePerf "Preview.Lookups", stageStartedAt
+        stageStartedAt = VBA.Timer
         private_AddConstants values
         private_AddAliases values
         If m_pebWordTemplates Is Nothing Then
@@ -150,6 +178,7 @@ Public Function TryPrepare( _
         If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then
             GoTo Failed
         End If
+        ex_Core.fn_Diagnostic_WritePerf "Preview.TemplatesAndDsl", stageStartedAt
         If VBA.Len(rendered) = 0 Or VBA.Len(rendered) > 32767 Then
             Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
         End If
@@ -163,11 +192,14 @@ Public Function TryPrepare( _
         End If
     End If
     TryPrepare = True
-    Exit Function
+    GoTo CleanupPrepare
 EH:
     diagnostic = VBA.Err.Description
 Failed:
     Set values = Nothing
+CleanupPrepare:
+    ex_PEB_Export.fn_EndConfigSnapshot
+    ex_Core.fn_Diagnostic_WritePerf "Preview.Prepare | Success=" & VBA.CStr(TryPrepare), startedAt
 End Function
 
 ' //
@@ -228,6 +260,9 @@ Private Sub private_Enrich( _
     Dim whenField As String
     Dim whenPattern As String
     Dim rx As Object
+    Dim lookupTable As obj_DataTable
+    Dim lookupValues As Object
+    Dim lookupKey As String
 
     On Error GoTo EH
     inputField = ex_PEB_Export.fn_Config(prefix & ".input")
@@ -271,7 +306,16 @@ Private Sub private_Enrich( _
     tableQuery.AddCondition header, QueryEquals, values(inputField), QueryText, True
     tableQuery.Limit = 2
     tableQueryService.Backend = QueryAuto
-    If Not tableQueryService.TryExecute(tableSource, tableQuery, dataTable, diagnostic) Then
+    Set lookupTable = private_LookupTable(tableSource, tableQueryService, lookupValues, diagnostic)
+    If lookupTable Is Nothing Then
+        Err.Raise 5, , diagnostic
+    End If
+    lookupKey = header & VBA.vbNullChar & valueHeader & VBA.vbNullChar & VBA.CStr(values(inputField))
+    If lookupValues.Exists(lookupKey) Then
+        values.Add outputField, lookupValues(lookupKey)
+        GoTo Cleanup
+    End If
+    If Not ex_TableQuery.fn_TryApply(lookupTable, tableQuery, dataTable, diagnostic) Then
         Err.Raise 5, , diagnostic
     End If
     If dataTable.RowCount <> 1 Then
@@ -281,6 +325,7 @@ Private Sub private_Enrich( _
     If VBA.Len(ex_PEB_Export.fn_Text(values(outputField))) = 0 Then
         Err.Raise 5, , "Export lookup returned an empty value: " & outputField
     End If
+    lookupValues.Add lookupKey, values(outputField)
 Cleanup:
     If Not dataTable Is Nothing Then
         dataTable.Dispose
@@ -305,6 +350,68 @@ EH:
     errorText = VBA.Err.Description
     Resume Cleanup
 End Sub
+
+Private Function private_LookupTable( _
+    ByVal source As obj_TableSource, _
+    ByVal service As obj_TableQueryService, _
+    ByRef lookupValues As Object, _
+    ByRef diagnostic As String _
+) As obj_DataTable
+    Dim key As String
+    Dim stamp As String
+    Dim fileSystem As Object
+    Dim file As Object
+    Dim book As Workbook
+    Dim isOpen As Boolean
+    Dim entry As Collection
+    Dim table As obj_DataTable
+    Dim previous As obj_DataTable
+    Dim query As obj_TableQuery
+    Dim startedAt As Double
+
+    startedAt = VBA.Timer
+    key = source.WorkbookPath & VBA.vbNullChar & source.SheetName & VBA.vbNullChar & _
+        source.RangeAddress & VBA.vbNullChar & source.TableName
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    Set file = fileSystem.GetFile(source.WorkbookPath)
+    stamp = VBA.CStr(file.DateLastModified) & "|" & VBA.CStr(file.Size)
+    For Each book In Application.Workbooks
+        If VBA.StrComp(book.FullName, source.WorkbookPath, VBA.vbTextCompare) = 0 Then
+            isOpen = True
+            Exit For
+        End If
+    Next book
+    If m_lookupTables.Exists(key) Then
+        Set entry = m_lookupTables(key)
+        If Not isOpen And entry(1) = stamp Then
+            Set private_LookupTable = entry(2)
+            Set lookupValues = entry(3)
+            ex_Core.fn_Diagnostic_WritePerf "Preview.LookupCacheHit | Sheet=" & source.SheetName, startedAt
+            Exit Function
+        End If
+    End If
+    Set query = New obj_TableQuery
+    If Not query.Initialize() Then Err.Raise 5, , "Cannot initialize export directory query."
+    If Not service.TryExecute(source, query, table, diagnostic) Then
+        query.Dispose
+        Exit Function
+    End If
+    query.Dispose
+    If m_lookupTables.Exists(key) Then
+        Set entry = m_lookupTables(key)
+        Set previous = entry(2)
+        previous.Dispose
+    End If
+    Set entry = New Collection
+    If isOpen Then stamp = VBA.vbNullString
+    entry.Add stamp
+    entry.Add table
+    Set lookupValues = VBA.CreateObject("Scripting.Dictionary")
+    entry.Add lookupValues
+    Set m_lookupTables(key) = entry
+    Set private_LookupTable = table
+    ex_Core.fn_Diagnostic_WritePerf "Preview.LookupCacheLoad | Sheet=" & source.SheetName, startedAt
+End Function
 
 Private Sub private_AddConstants(ByVal values As Object)
     Dim index As Long
