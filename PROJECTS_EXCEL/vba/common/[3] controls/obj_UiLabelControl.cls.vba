@@ -146,6 +146,16 @@ Public Sub Dispose()
     Set m_targetRange = Nothing
 End Sub
 
+Public Function RefreshText() As Boolean
+    Dim caption As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_targetRange Is Nothing Then Exit Function
+    If Not m_uiControlBase.TryGetCaption(m_renderContext.BindingContext, caption) Then Exit Function
+    m_targetRange.Cells(1, 1).Value2 = caption
+    RefreshText = True
+End Function
+
 ' //
 ' // Private
 ' //

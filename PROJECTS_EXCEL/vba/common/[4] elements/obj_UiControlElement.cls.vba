@@ -30,6 +30,9 @@ Private m_columns As Long
 Private m_area As Range
 Private m_localRow As Long
 Private m_localColumn As Long
+Private m_readOnlyDirty As Boolean
+Private m_visualDirty As Boolean
+Private m_textDirty As Boolean
 
 ' //
 ' // Lifecycle
@@ -231,14 +234,27 @@ End Sub
 
 Public Function RefreshVisual(ByRef diagnostic As String) As Boolean
     Dim target As obj_IUiBindingTarget
+    Dim fieldControl As obj_UiFieldControl
+    Dim labelControl As obj_UiLabelControl
 
-    If TypeOf m_control Is obj_IUiBindingTarget Then
+    If m_readOnlyDirty And Not m_visualDirty And TypeOf m_control Is obj_UiFieldControl Then
+        Set fieldControl = m_control
+        RefreshVisual = fieldControl.RefreshReadOnly()
+    ElseIf m_textDirty And Not m_visualDirty And TypeOf m_control Is obj_UiLabelControl Then
+        Set labelControl = m_control
+        RefreshVisual = labelControl.RefreshText()
+    ElseIf TypeOf m_control Is obj_IUiBindingTarget Then
         Set target = m_control
         RefreshVisual = target.RefreshBindings(m_context)
     Else
         RefreshVisual = m_control.Render(diagnostic)
     End If
     If Not RefreshVisual And VBA.Len(diagnostic) = 0 Then diagnostic = "Cannot refresh control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
+    If RefreshVisual Then
+        m_readOnlyDirty = False
+        m_visualDirty = False
+        m_textDirty = False
+    End If
 End Function
 
 Public Function DependsOnLayout(ByVal name As String) As Boolean
@@ -282,6 +298,23 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
                 If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
                     If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                             VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
+                        If TypeOf m_control Is obj_UiFieldControl Then
+                            ' Cell bindings already propagate values without refreshing control presentation.
+                            If nodeAttribute.nodeName = "value" Then GoTo NextAttribute
+                            If nodeAttribute.nodeName = "readOnly" Then
+                                m_readOnlyDirty = True
+                            Else
+                                m_visualDirty = True
+                            End If
+                        ElseIf TypeOf m_control Is obj_UiLabelControl Then
+                            If nodeAttribute.nodeName = "text" Or nodeAttribute.nodeName = "caption" Then
+                                m_textDirty = True
+                            Else
+                                m_visualDirty = True
+                            End If
+                        Else
+                            m_visualDirty = True
+                        End If
                         If TypeOf m_control Is obj_IUiBindingTarget And _
                                 nodeAttribute.nodeName <> "itemsSource" And _
                                 nodeAttribute.nodeName <> "rowSpan" And _
@@ -290,11 +323,11 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
                         ElseIf nodeAttribute.nodeName <> "value" Then
                             m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
                         End If
-                        Exit Sub
                     End If
                 End If
             End If
         End If
+NextAttribute:
     Next nodeAttribute
     Exit Sub
 End Sub
