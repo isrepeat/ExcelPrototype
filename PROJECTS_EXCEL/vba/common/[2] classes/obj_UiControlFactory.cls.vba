@@ -128,6 +128,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 schema.AddAttribute "uncheckedGlyph", "string", True, "", True, 0
             End If
             If m_type = "button" Then
+                private_AddShapeLayoutSchema schema
                 schema.AddAttribute "command", "string", False, "", True
                 schema.AddAttribute "enabled", "boolean", False, "", True
             End If
@@ -168,6 +169,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             End If
 
         Case "input", "select"
+            private_AddShapeLayoutSchema schema
             If m_type = "select" Then
                 schema.RequireAnyAttribute "items|itemsSource"
             End If
@@ -204,6 +206,13 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     Set private_CreateSchema = schema
 End Function
 
+Private Sub private_AddShapeLayoutSchema(ByVal schema As obj_UiMarkupSchema)
+    schema.AddAttribute "shapeWidth", "string", False, "", False, 0
+    schema.AddAttribute "shapeHeight", "string", False, "", False, 0
+    schema.AddAttribute "shapeHorizontalAlignment", "enum", False, "left|center|right", False, 0
+    schema.AddAttribute "shapeVerticalAlignment", "enum", False, "top|center|bottom", False, 0
+End Sub
+
 Private Function private_FieldSchema() As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
 
@@ -217,6 +226,7 @@ Private Function private_FieldSchema() As obj_UiMarkupSchema
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "labelStyle", "string", False, "", True, 0
     schema.AddAttribute "fieldStyle", "string", False, "", True, 0
+    schema.AddAttribute "onFocus", "string", False, "", True, 0
     schema.AddAttribute "onChange", "string", False, "", True, 0
     schema.AddAttribute "readOnly", "boolean", False, "", True, 0
     schema.AddAttribute "required", "boolean", False, "", False, 0

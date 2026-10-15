@@ -202,7 +202,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
-            "PreviewWord", "ExportWord", "ExportMovement")
+            "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged")
         Set lookupCommand = New obj_UiCommand
         If Not lookupCommand.Initialize(m_controller, VBA.CStr(orderCommand) & "Handler") Then Exit Function
         If Not uiBindingContext.SetObject("Commands", VBA.CStr(orderCommand), lookupCommand) Then Exit Function

@@ -777,6 +777,14 @@ At page scope, fieldCatalog requires a unique name and contains ordinary field d
 
 A controls:form selects the group using layoutSource and the variant using layout (a literal or binding). Both attributes must be provided together, and a selected-layout form cannot contain inline fields or controls. Ordinary inline forms remain supported. Before tree creation, markup schemas validate every catalog and layout, and ex_UiFormLayouts checks duplicate names and all cross-references, including inactive layouts. During form configuration, the resolver clones the chosen fields in reference order and applies span overrides without modifying the source document. GetDefinition returns this materialized form, so candidate alignment uses exactly the same active fields. Missing catalogs, layouts or fields stop rendering with a diagnostic; no default variant is selected silently.
 
+## Shape size and alignment within a cell area
+
+`controls:button` and the `controls:select` header support the static attributes `shapeWidth`, `shapeHeight`, `shapeHorizontalAlignment` and `shapeVerticalAlignment`. Sizes are positive fractions no greater than one: `1`, `1/5`, `1/2`. Numerators and denominators are integers; zero, negative values and fractions greater than one are rejected. Alignment accepts `left|center|right` horizontally and `top|center|bottom` vertically. These attributes position the shape rather than its text.
+
+For example, `shapeWidth="1/5" shapeHeight="1/2" shapeHorizontalAlignment="left" shapeVerticalAlignment="top"` places a 20 by 20 button at the top left of an area 100 wide and 40 high. Centering both axes produces offsets of 40 from the left and 10 from the top. Merged cells and ranges use the entire area allocated to the control.
+
+Ordinary buttons without these attributes fill the entire area. An editable select defaults to an arrow occupying the rightmost tenth of the area at full height; a noneditable select fills the area. Geometry is calculated when the shape is created and again after page styles establish the final column widths and row heights. Excel handles window zoom. Manual cell resizing requires another page layout pass.
+
 ## 33. Personnel lookup dependencies and auto-fill
 
 Each form configures lookup.key and a pipe-separated lookup.dependents list in wsConfig. Changes to the key clear these dependent fields and the previous selection before lookup; deleting the key clears candidates when Excel commits the cell edit. Mode changes clear both groups, including the key. Report, hospital, document and incoming-document fields are not part of the current personnel dependencies. The key editor uses lookupKeyField background, as do the order inputs that trigger resolution.

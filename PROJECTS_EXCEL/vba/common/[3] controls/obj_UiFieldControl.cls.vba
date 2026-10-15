@@ -556,11 +556,11 @@ Private Function private_RenderSelectShapes( _
         msoShapeRectangle, m_targetRange.Left, m_targetRange.Top, _
         m_targetRange.Width, m_targetRange.Height)
     headerShape.Name = headerShapeName
-    headerShape.Placement = xlMoveAndSize
     If m_editable Then
-        ' Keep the cell available for typing; only the arrow is a clickable shape.
-        headerShape.Width = m_targetRange.Height
-        headerShape.Left = m_targetRange.Left + m_targetRange.Width - headerShape.Width
+        uiRenderContext.RegisterShapeLayout headerShape, m_targetRange, _
+            m_uiControlBase.ControlNode, "1/10", "right"
+    Else
+        uiRenderContext.RegisterShapeLayout headerShape, m_targetRange, m_uiControlBase.ControlNode
     End If
     private_ApplyDefaultShapeStyle headerShape
     arrowText = VBA.ChrW(&H25BC)
