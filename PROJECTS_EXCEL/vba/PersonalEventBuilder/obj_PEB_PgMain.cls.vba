@@ -43,6 +43,9 @@ Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
     Set m_controller = New obj_PEB_PgMainController
     If Not m_controller.Initialize(m_pageBase) Then Exit Function
     If Not private_TryRegisterCommands() Then Exit Function
+    If ex_PEB_Export.fn_Config("environment.name") = "TEST" Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "ActionStatus", VBA.vbNullString) Then Exit Function
+    End If
     obj_IPage_Initialize = True
     m_isInitialized = obj_IPage_Initialize
 End Function
@@ -51,11 +54,23 @@ Private Function obj_IPage_Render() As Boolean
     Dim diagnostic As String
 
     If m_pageBase Is Nothing Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        ex_WindowsUi.fn_ShowMessage ex_PEB_Export.fn_Config("text.TestsBusy"), vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
+        Exit Function
+    End If
     If Not m_controller.TryRefreshSourceLegend(diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Source legend"
         Exit Function
     End If
     obj_IPage_Render = m_pageBase.Render()
+    If Not obj_IPage_Render Then Exit Function
+    If ex_PEB_Export.fn_Config("environment.name") = "TEST" Then
+        On Error GoTo EH_TEST_PANEL
+        If Not ex_PEB_Testing.fn_Open() Then Err.Raise 5, , "Cannot open the test scenario panel."
+    End If
+    Exit Function
+EH_TEST_PANEL:
+    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
 End Function
 
 Private Function obj_IPage_HandleCellChange(ByVal target As Range) As Boolean
@@ -87,6 +102,7 @@ End Sub
 ' //
 Private Function private_TryRegisterBindings() As Boolean
     Dim uiBindingContext As obj_UiBindingContext
+    Dim rawTable As obj_UiRawTable
     Dim textKey As Variant
     Dim configuredText As String
     Dim confirmSelectionKey As String
@@ -95,6 +111,9 @@ Private Function private_TryRegisterBindings() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    Set rawTable = New obj_UiRawTable
+    If Not rawTable.InitializeEmpty(VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogCaptions"), "|")) Then Exit Function
+    If Not uiBindingContext.SetObject("Data", "TestCatalog", rawTable) Then Exit Function
     If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::candidates.selectionMode", configuredText) Then
         ex_WindowsUi.fn_ShowMessage "Required configuration key not found: PersonalEventBuilder::candidates.selectionMode", vbExclamation, "Configuration"
         Exit Function
@@ -153,7 +172,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", _
             "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
-            "TestScenarioItems", "LoadTest", "NextTest", "OpenTests", "TestsStop", "TestsPageTitle", _
+            "TestScenarioItems", "LoadTest", "NextTest", "OpenTests", "TestsStop", "TestsPageTitle", "TestsRefresh", _
             "PreviewWord", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"

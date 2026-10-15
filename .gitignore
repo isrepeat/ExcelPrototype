@@ -20,3 +20,4 @@ PROJECTS_EXCEL/**/*.docx
 !PROJECTS_EXCEL/workbook/PeriodsGeneration/РУХ генерація періодів.xlsm
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Dependencies/*.xlsx
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Scenarios.xlsx
+!PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx

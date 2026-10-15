@@ -309,12 +309,12 @@
                        uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
                        onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
     <controls:button name="EnvironmentSwitch"
-                     row="9"
-                     column="3"
-                     columnSpan="2"
+                     row="1"
+                     column="17"
                      style="secondaryButton"
                      caption="{Binding Path=Text.EnvironmentSwitch}"
-                     command="{Binding Path=Commands.EnvironmentSwitch}"/>
+                     command="{Binding Path=Commands.EnvironmentSwitch}"
+                     shapePlacement="moveAndSize"/>
     <controls:label name="WordPreview"
                     row="3"
                     column="9"
@@ -359,7 +359,7 @@
     <controls:label name="ActionsSection"
                     row="1"
                     column="18"
-                    columnSpan="3"
+                    columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
@@ -676,7 +676,7 @@
         <rule target="column"
               selector="address=R:R"
               styles="{
-                width:2;
+                width:17;
               }"/>
         <rule target="column"
               selector="address=S:S"

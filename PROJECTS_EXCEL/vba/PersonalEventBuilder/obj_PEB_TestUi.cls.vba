@@ -13,6 +13,8 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_sheet As Worksheet
+Private m_checkboxes As Collection
+Private m_selectionCommand As obj_UiCommand
 Private m_catalog As Collection
 Private m_selected As Object
 Private m_runSelection As Object
@@ -68,18 +70,31 @@ End Function
 
 Public Sub Dispose()
     Dim cleanupError As String
+    Dim index As Long
+    Dim previousScreen As Boolean
 
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
     m_isInitialized = False
     m_stop = True
     On Error Resume Next
+    private_ClearCheckboxes
+    If Not m_selectionCommand Is Nothing Then m_selectionCommand.Dispose
+    Set m_selectionCommand = Nothing
     ex_PEB_Testing.fn_CancelTick
     If Not m_runner Is Nothing Then m_runner.Dispose
     Set m_runner = Nothing
     m_running = False
     private_SetRunning False
     private_RestoreStatus
+    previousScreen = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    If Not m_sheet Is Nothing Then
+        For index = m_sheet.Shapes.Count To 1 Step -1
+            If VBA.Left$(m_sheet.Shapes(index).Name, 5) = "pebt_" Then m_sheet.Shapes(index).Delete
+        Next index
+    End If
+    Application.ScreenUpdating = previousScreen
     Set m_sheet = Nothing
     Set m_selected = Nothing
     Set m_runSelection = Nothing
@@ -91,7 +106,9 @@ Public Sub Dispose()
 End Sub
 
 Public Function OpenPage() As Boolean
-    Dim reader As obj_PEB_TestRunner
+    Dim context As obj_UiRenderContext
+    Dim rawTable As obj_UiRawTable
+    Dim values As Variant
     Dim retained As Object
     Dim scenario As Object
     Dim diagnostic As String
@@ -99,17 +116,12 @@ Public Function OpenPage() As Boolean
     Dim previousEvents As Boolean
     Dim index As Long
     Dim rowIndex As Long
-    Dim checkbox As Shape
     Dim captions As Variant
 
     private_Guard
     If m_running Then Exit Function
     On Error GoTo EH_READ
-    Set reader = New obj_PEB_TestRunner
-    If Not reader.Initialize(diagnostic) Then Err.Raise 5, , diagnostic
-    Set m_catalog = reader.Catalog
-    reader.Dispose
-    Set reader = Nothing
+    If Not ex_PEB_Testing.fn_ReadCatalog(m_catalog, diagnostic) Then Err.Raise 5, , diagnostic
     If m_catalog.Count > ex_PEB_Export.fn_Count("test.ui.maxScenarios") Then Err.Raise 5, , "Scenario catalog exceeds the UI limit."
     Set retained = VBA.CreateObject("Scripting.Dictionary")
     For Each scenario In m_catalog
@@ -118,61 +130,66 @@ Public Function OpenPage() As Boolean
     Set m_selected = retained
     Set m_sheet = ThisWorkbook.Worksheets(ex_PEB_Export.fn_Config("test.ui.mainSheet"))
     m_baseRow = ex_PEB_Export.fn_Count("test.panel.row")
-    index = ex_PEB_Export.fn_Count("lookup.Personnel.maxResults") + ex_PEB_Export.fn_Count("test.panel.candidateOffset")
-    If m_baseRow < index Then m_baseRow = index
-    index = ex_PEB_Export.fn_Count("lookup.Hospital.maxResults") + ex_PEB_Export.fn_Count("test.panel.candidateOffset")
-    If m_baseRow < index Then m_baseRow = index
     previousScreen = Application.ScreenUpdating
     previousEvents = Application.EnableEvents
     On Error GoTo EH_RENDER
     Application.ScreenUpdating = False
     Application.EnableEvents = False
-    If m_endRow >= m_baseRow Then m_sheet.Range(m_sheet.Cells(m_baseRow, 2), m_sheet.Cells(m_endRow, 17)).Clear
+    private_ClearCheckboxes
+    Set m_checkboxes = New Collection
+    If m_endRow >= m_resultRow And m_resultRow > 0 Then
+        m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).ClearContents
+        m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).UnMerge
+    End If
     For index = m_sheet.Shapes.Count To 1 Step -1
         If VBA.Left$(m_sheet.Shapes(index).Name, 5) = "pebt_" Then m_sheet.Shapes(index).Delete
     Next index
-    m_resultRow = m_baseRow + m_catalog.Count + 7
+    m_resultRow = m_baseRow + m_catalog.Count + 6
     m_endRow = m_resultRow + ex_PEB_Export.fn_Count("test.panel.displayRows")
-    m_sheet.Range(m_sheet.Cells(m_baseRow, 2), m_sheet.Cells(m_endRow, 17)).UnMerge
-    m_sheet.Range(m_sheet.Cells(m_baseRow, 2), m_sheet.Cells(m_endRow, 17)).NumberFormat = "@"
-    private_Cell m_baseRow, 2, 16, ex_PEB_Export.fn_Config("text.TestsPageTitle")
-    private_Button "All", m_baseRow + 1, 2, 2, "TestsSelectAll"
-    private_Button "None", m_baseRow + 1, 4, 2, "TestsSelectNone"
-    private_Button "Run", m_baseRow + 1, 6, 4, "TestsRun"
-    private_Button "Stop", m_baseRow + 1, 10, 4, "TestsStop"
-    private_Button "Refresh", m_baseRow + 1, 14, 4, "TestsRefresh"
-    private_Cell m_baseRow + 2, 2, 16, ex_PEB_Export.fn_Config("text.TestsHelp")
-    rowIndex = m_baseRow + 3
+    m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).UnMerge
+    m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).NumberFormat = "@"
+    private_Button "All", m_baseRow, 2, 2, "TestsSelectAll"
+    private_Button "None", m_baseRow, 4, 2, "TestsSelectNone"
+    private_Button "Run", m_baseRow, 6, 2, "TestsRun"
+    private_Button "Stop", m_baseRow, 8, 2, "TestsStop"
     captions = VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogCaptions"), "|")
-    If UBound(captions) <> 4 Then Err.Raise 5, , "Test catalog captions must contain five columns."
-    private_Cell rowIndex, 2, 1, VBA.CStr(captions(0))
-    private_Cell rowIndex, 3, 1, VBA.CStr(captions(1))
-    private_Cell rowIndex, 4, 8, VBA.CStr(captions(2))
-    private_Cell rowIndex, 12, 2, VBA.CStr(captions(3))
-    private_Cell rowIndex, 14, 4, VBA.CStr(captions(4))
-    rowIndex = rowIndex + 1
+    If UBound(captions) <> 5 Then Err.Raise 5, , "Test catalog captions must contain six columns."
+    Set rawTable = New obj_UiRawTable
+    If m_catalog.Count > 0 Then
+        ReDim values(1 To m_catalog.Count, 1 To 6)
+        For index = 1 To m_catalog.Count
+            Set scenario = m_catalog(index)
+            values(index, 1) = VBA.vbNullString
+            values(index, 2) = scenario("Id")
+            values(index, 3) = scenario("Operation")
+            values(index, 4) = scenario("EventLabel")
+            values(index, 5) = scenario("Steps").Count
+            values(index, 6) = scenario("RuleStatus")
+        Next index
+        If Not rawTable.Initialize(values, captions) Then Err.Raise 5, , "Cannot initialize scenario table data."
+    Else
+        If Not rawTable.InitializeEmpty(captions) Then Err.Raise 5, , "Cannot initialize empty scenario table."
+    End If
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Err.Raise 5, , "Test page render context is missing."
+    If Not context.BindingContext.SetObject("Data", "TestCatalog", rawTable) Then Err.Raise 5, , "Cannot bind scenario table data."
+    context.MarkDirty "TestCatalog", True
+    If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
+    rowIndex = m_baseRow + 4
     For index = 1 To m_catalog.Count
         Set scenario = m_catalog(index)
-        private_Cell rowIndex, 3, 1, scenario("Id")
-        private_Cell rowIndex, 4, 8, scenario("Name")
-        private_Cell rowIndex, 12, 2, VBA.CStr(scenario("Steps").Count)
-        private_Cell rowIndex, 14, 4, scenario("RuleStatus")
-        Set checkbox = m_sheet.Shapes.AddFormControl(xlCheckBox, m_sheet.Cells(rowIndex, 2).Left + 3, _
-            m_sheet.Cells(rowIndex, 2).Top + 3, m_sheet.Cells(rowIndex, 2).Width - 6, m_sheet.Cells(rowIndex, 2).Height - 6)
-        checkbox.Name = "pebt_C" & VBA.CStr(index)
-        checkbox.TextFrame.Characters.Text = VBA.vbNullString
-        checkbox.Placement = xlMoveAndSize
-        checkbox.OnAction = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_PEB_Testing.fn_Click"
-        checkbox.ControlFormat.Value = xlOff
-        If m_selected.Exists(scenario("Id")) Then checkbox.ControlFormat.Value = xlOn
+        private_CreateCheckbox index, rowIndex, m_selected.Exists(scenario("Id"))
         rowIndex = rowIndex + 1
     Next index
+    ex_Core.fn_Diagnostic_WriteLog "TEST_UI_STAGE | Name=DrawResults"
+    ex_Core.fn_Diagnostic_Flush
     private_Cell m_resultRow - 1, 2, 16, ex_PEB_Export.fn_Config("text.TestsResults")
     private_ResultHeader
     private_DrawResults
     m_sheet.Activate
-    Application.Goto m_sheet.Cells(m_baseRow, 2), True
+    Application.Goto m_sheet.Cells(1, 1), True
     OpenPage = True
+    ex_Core.fn_Diagnostic_WriteLog "TEST_UI_OPEN_COMPLETED"
+    ex_Core.fn_Diagnostic_Flush
 CleanRender:
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreen
@@ -180,23 +197,36 @@ CleanRender:
     Exit Function
 EH_RENDER:
     diagnostic = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteLog "TEST_UI_RENDER_ERROR | " & diagnostic
+    ex_Core.fn_Diagnostic_Flush
     Resume CleanRender
 EH_READ:
     diagnostic = VBA.Err.Description
-    If Not reader Is Nothing Then reader.Dispose
     Err.Raise 5, , diagnostic
 End Function
 
-Public Sub ToggleCase(ByVal index As Long)
+Public Function SelectionChanged() As Boolean
+    Dim index As Long
+    Dim context As obj_UiRenderContext
+    Dim value As Variant
+    Dim resolved As Object
+    Dim isObject As Boolean
     Dim id As String
 
     private_Guard
-    If m_running Or m_catalog Is Nothing Then Exit Sub
-    If index < 1 Or index > m_catalog.Count Then Err.Raise 5, , "Invalid scenario checkbox."
-    id = m_catalog(index)("Id")
-    If m_selected.Exists(id) Then m_selected.Remove id
-    If m_sheet.Shapes("pebt_C" & VBA.CStr(index)).ControlFormat.Value = xlOn Then m_selected.Add id, True
-End Sub
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Exit Function
+    If Not m_running Then
+        For index = 1 To m_catalog.Count
+            If Not context.BindingContext.TryGetValue("TestSelection", "C" & VBA.CStr(index), value, resolved, isObject) Then Exit Function
+            If isObject Or VBA.VarType(value) <> VBA.vbBoolean Then Exit Function
+            id = m_catalog(index)("Id")
+            If m_selected.Exists(id) Then m_selected.Remove id
+            If VBA.CBool(value) Then m_selected.Add id, True
+        Next index
+    End If
+    private_RefreshCheckboxes
+    SelectionChanged = True
+End Function
 
 Public Sub SelectAll(ByVal selected As Boolean)
     Dim scenario As Object
@@ -207,12 +237,11 @@ Public Sub SelectAll(ByVal selected As Boolean)
     Set m_selected = VBA.CreateObject("Scripting.Dictionary")
     For index = 1 To m_catalog.Count
         Set scenario = m_catalog(index)
-        m_sheet.Shapes("pebt_C" & VBA.CStr(index)).ControlFormat.Value = xlOff
         If selected Then
             m_selected.Add scenario("Id"), True
-            m_sheet.Shapes("pebt_C" & VBA.CStr(index)).ControlFormat.Value = xlOn
         End If
     Next index
+    private_RefreshCheckboxes
 End Sub
 
 Public Sub RunSelected()
@@ -262,6 +291,15 @@ Public Sub RequestStop()
     m_stop = True
     If Not m_runner Is Nothing Then m_runner.RequestStop
     private_Progress ex_PEB_Export.fn_Config("text.TestsStopping")
+End Sub
+
+Public Sub ReportPhase(ByVal key As String)
+    If Not m_running Then Exit Sub
+    If m_stop Then
+        private_Progress ex_PEB_Export.fn_Config("text.TestsStopping")
+    Else
+        private_Progress ex_PEB_Export.fn_Config("text.TestPhase." & key)
+    End If
 End Sub
 
 Public Function Advance() As Boolean
@@ -354,16 +392,10 @@ End Sub
 
 Private Sub private_SetRunning(ByVal running As Boolean)
     Dim context As obj_UiRenderContext
-    Dim index As Long
 
     If m_sheet Is Nothing Then Exit Sub
     If ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then
         If Not context.BindingContext.SetValue("Settings", "TestsRunning", running) Then Err.Raise 5, , "Cannot update test runner state."
-    End If
-    If Not m_catalog Is Nothing Then
-        For index = 1 To m_catalog.Count
-            m_sheet.Shapes("pebt_C" & VBA.CStr(index)).ControlFormat.Enabled = Not running
-        Next index
     End If
 End Sub
 
@@ -399,6 +431,90 @@ Private Function private_Summary() As String
     text = VBA.Replace$(text, "{skip}", VBA.CStr(m_skip))
     private_Summary = VBA.Replace$(text, "{error}", VBA.CStr(m_error))
 End Function
+
+Private Sub private_CreateCheckbox( _
+    ByVal index As Long, _
+    ByVal row As Long, _
+    ByVal selected As Boolean _
+)
+    Dim context As obj_UiRenderContext
+    Dim document As Object
+    Dim definition As Object
+    Dim control As obj_IUiControl
+    Dim diagnostic As String
+    Dim rows As Long
+    Dim columns As Long
+
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Err.Raise 5, , "Test page render context is missing."
+    If index = 1 Then
+        If Not m_selectionCommand Is Nothing Then m_selectionCommand.Dispose
+        Set m_selectionCommand = New obj_UiCommand
+        If Not m_selectionCommand.Initialize(Me, "SelectionChanged") Then Err.Raise 5, , "Cannot initialize test selection command."
+        If Not context.BindingContext.SetObject("Commands", "TestSelectionChanged", m_selectionCommand) Then Err.Raise 5, , "Cannot bind test selection command."
+        If Not context.BindingContext.SetValue("TestSelection", "Caption", VBA.vbNullString) Then Err.Raise 5, , "Cannot bind test checkbox caption."
+    End If
+    If Not context.BindingContext.SetValue("TestSelection", "C" & VBA.CStr(index), selected) Then Err.Raise 5, , "Cannot bind test checkbox value."
+    Set document = VBA.CreateObject("Msxml2.DOMDocument.6.0")
+    Set definition = document.createElement("control")
+    definition.setAttribute "name", "pebt_C" & VBA.CStr(index)
+    definition.setAttribute "type", "checkbox"
+    definition.setAttribute "row", "1"
+    definition.setAttribute "column", "1"
+    definition.setAttribute "style", "testCheckbox"
+    definition.setAttribute "value", "{Binding Path=TestSelection.C" & VBA.CStr(index) & "}"
+    definition.setAttribute "caption", "{Binding Path=TestSelection.Caption}"
+    definition.setAttribute "checkedGlyph", "{Binding Path=Text.CheckboxChecked}"
+    definition.setAttribute "uncheckedGlyph", "{Binding Path=Text.CheckboxUnchecked}"
+    definition.setAttribute "onChange", "{Binding Path=Commands.TestSelectionChanged}"
+    Set control = ex_UiControlFactory.fn_Create(definition)
+    If control Is Nothing Then Err.Raise 5, , "Checkbox control factory is unavailable."
+    m_checkboxes.Add control
+    If Not control.Configure(definition, context, VBA.vbNullString, diagnostic) Then Err.Raise 5, , diagnostic
+    If Not control.Measure(rows, columns, diagnostic) Then Err.Raise 5, , diagnostic
+    If Not control.Arrange(row, 2, diagnostic) Then Err.Raise 5, , diagnostic
+    If Not control.Render(diagnostic) Then Err.Raise 5, , diagnostic
+    With m_sheet.Shapes("chk_pebt_C" & VBA.CStr(index))
+        .Fill.Visible = msoTrue
+        .Fill.Solid
+        .Fill.ForeColor.RGB = m_sheet.Cells(row, 2).Interior.Color
+        .Fill.Transparency = VBA.CSng(ex_PEB_Export.fn_Count("test.ui.checkboxTransparency")) / 100!
+        .Line.Visible = msoFalse
+    End With
+End Sub
+
+Private Sub private_RefreshCheckboxes()
+    Dim context As obj_UiRenderContext
+    Dim target As obj_IUiBindingTarget
+    Dim index As Long
+
+    If m_checkboxes Is Nothing Then Exit Sub
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Err.Raise 5, , "Test page render context is missing."
+    For index = 1 To m_checkboxes.Count
+        If Not context.BindingContext.SetValue("TestSelection", "C" & VBA.CStr(index), m_selected.Exists(m_catalog(index)("Id"))) Then Err.Raise 5, , "Cannot refresh test selection."
+        Set target = m_checkboxes(index)
+        If Not target.RefreshBindings(context) Then Err.Raise 5, , "Cannot refresh test checkbox."
+    Next index
+End Sub
+
+Private Sub private_ClearCheckboxes()
+    Dim context As obj_UiRenderContext
+    Dim control As obj_IUiControl
+    Dim index As Long
+    Dim shapeName As String
+
+    If m_checkboxes Is Nothing Then Exit Sub
+    ex_UiRuntime.fn_TryGetContext m_sheet, context
+    For index = 1 To m_checkboxes.Count
+        shapeName = "chk_pebt_C" & VBA.CStr(index)
+        If Not context Is Nothing Then context.Router.UnregisterShape shapeName
+        Set control = m_checkboxes(index)
+        control.Dispose
+    Next index
+    For index = m_sheet.Shapes.Count To 1 Step -1
+        If VBA.Left$(m_sheet.Shapes(index).Name, 10) = "chk_pebt_C" Then m_sheet.Shapes(index).Delete
+    Next index
+    Set m_checkboxes = Nothing
+End Sub
 
 Private Sub private_Cell( _
     ByVal row As Long, _

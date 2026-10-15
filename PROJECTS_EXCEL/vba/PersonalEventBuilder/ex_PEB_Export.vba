@@ -72,7 +72,10 @@ Public Sub fn_EndConfigSnapshot()
     Set m_configSnapshot = Nothing
 End Sub
 
-Public Function fn_Count(ByVal key As String) As Long
+Public Function fn_Count( _
+    ByVal key As String, _
+    Optional ByVal maximum As Long = 1000 _
+) As Long
     Dim value As String
     Dim number As Double
 
@@ -81,7 +84,7 @@ Public Function fn_Count(ByVal key As String) As Long
         Err.Raise 5, , "Invalid configuration count: " & key
     End If
     number = VBA.CDbl(value)
-    If number < 0 Or number > 1000 Or number <> VBA.Fix(number) Then
+    If number < 0 Or number > maximum Or number <> VBA.Fix(number) Then
         Err.Raise 5, , "Invalid configuration count: " & key
     End If
     fn_Count = VBA.CLng(number)

@@ -1,14 +1,32 @@
 # PEB dummy sources
 
-## Existing test_РУХ workbook
+## Catalog loading and page lifecycle
 
-The user-supplied `Dependencies/test_РУХ.xlsx` now contains three additional sheets and native tables: `Тест_Сценарії` / `tbTestScenarios`, `Тест_Історія` / `tbTestHistory`, and `Тест_Кроки` / `tbTestSteps`. All existing sheet, table, style, formula and data parts were preserved byte for byte. The original file is backed up under `Dependencies/.backup/test_РУХ-before-scenarios.xlsx`.
+Scenario classification is stored in the Операція and Подія / сценарій columns of Тест_Сценарії. S01-S08 show departure/arrival and the event type separately. S09-S16 are Custom and retain their descriptive names. The UI groups departure cases first, arrival cases second, and Custom cases last; both classification columns are filterable in the Smart table. Scenario identities, inputs and execution rules are unchanged.
+
+Displaying or refreshing the catalog uses the existing ADO query executor against the saved scenario and step worksheets only. It does not create Excel.Application, open working Movement/Absence books or initialize the exporter. Full scenario validation and the private execution session start on the first scheduled runner callback after Run.
+
+The TEST XAML owns TestCatalog through the standard table control with Smart representation and Data.TestCatalog binding. The normal table-plan pipeline handles creation, resizing and removal. The test UI supplies raw data and recreates checkbox overlays after the table update; it does not add or unlist native tables itself. Page refresh goes through the active page Render contract so these overlays and result cells are restored too. Refresh is blocked during an active run.
+
+## Scenario-specific Absence source
+
+Absence fixtures contain leave departures only, including medical leave, but never inpatient treatment. S01, S05 and S11 explicitly use HasEvent=0; S10 and S15 retain only their leave history. Treatment events remain in Movement history and export steps. The Absence fixture has 16 rows, one per scenario.
+
+`Тест_ЄЖОС` / `tbTestAbsence` in `TestScenarios.xlsx` defines the initial Absence source for each scenario. It contains ScenarioId, ІПН, HasEvent and native ЕЖОС column headers. HasEvent=1 inserts an event; a single HasEvent=0 row explicitly defines an empty state. Keep column 66 equal to the scenario participant's full name, including on an empty-state row. Multiple event rows are supported.
+
+Before the first step, the scenario session validates these rows, replaces only that participant's rows in the configured TEST ЕЖОС table and restores Movement history. ЕЖОС has no IPN column, so replacement uses the validated full name. Other participants remain untouched. Subsequent steps retain the same state. The session opens TestScenarios, Movement and Absence books in its private Excel instance and rejects paths outside the test directory, open/locked books and read-only access. Keep all three books closed during catalog loading and execution.
+
+Manual scenario commit saves both working sources. Automated preparation keeps them unsaved until the step archive is saved in TestScenarios; disposal discards pending changes. Saving multiple workbooks is not atomic. The exporter still receives isolated step inputs: restoring ЕЖОС does not yet add end-to-end lookup/UI assertions.
+
+## Separate scenario workbook
+
+`TestScenarios.xlsx` contains four input sheets and native tables: `Тест_Сценарії` / `tbTestScenarios`, `Тест_Історія` / `tbTestHistory`, `Тест_Кроки` / `tbTestSteps`, and `Тест_ЄЖОС` / `tbTestAbsence`. They were moved from `Dependencies/test_РУХ.xlsx` with worksheet XML, table definitions and style catalog preserved byte for byte. Movement retains only its native working sheets.
 
 These tables describe 16 alternative scenarios for the one person already present in the workbook. `tbTestHistory` includes ScenarioId, RowId, TargetTable and every existing column from ТВ. A scenario without history rows means that ТВ starts empty. Computed ТВ columns are intentionally blank in the fixture history; the loader preserves/reapplies the working table's formulas rather than overwriting them with blanks.
 
 `tbTestSteps` contains 18 operations, input values, proposed expected decisions, reason codes and expected open-event counts. S16 is a three-step sequence without resets between steps. S15 has a deliberately unresolved exception expectation. Decisions are test specifications, not evidence of implemented or successfully executed business rules.
 
-The TEST configuration now routes Movement export to `Dependencies/test_РУХ.xlsx`, sheet `Відсутні`, native table `ТВ`, and enables Movement export in TEST. Other TEST sources route to the user's existing `test_ШПО.xlsx`, `test_ЕЖОС.xlsx`, `test_Накази.xlsx` and `test_Установи.xlsx` copies; their contents are not changed by the loader. Production routing and its disabled export flag are unchanged. The TEST treatment event name matches the native history: `Стаціонарне лікування`.
+The TEST configuration routes Movement export to `Dependencies/test_РУХ.xlsx`, sheet `Відсутні`, native table `ТВ`. Personnel and Absence use `test_ШПО.xlsx` and `test_ЕЖОС.xlsx`; orders and hospitals use the ordinary Dependencies folder. Scenario definitions and diagnostics use `TestScenarios.xlsx`. Production routing remains unchanged.
 
 ### Selecting and running tests on the main PEB page
 
@@ -20,9 +38,9 @@ After updating VBA, XAML and configuration, switch to TEST and click `Тесту
 - The Excel status bar and PEB action status display the processed-step percentage and counters. `Зупинити` is available in the panel and beside the main test button. Cancellation prevents new export operations; remaining selected steps are archived as SKIP on subsequent short callbacks. A failed assertion skips dependent steps of that scenario while independent scenarios continue; an infrastructure error aborts remaining operations.
 - Each persisted step appears immediately in the panel. Pending rules, including S15, are skipped. Manual loading/export and environment switching are guarded during an active run. Reload and workbook close cancel the scheduled callback and release the private workbook/session.
 
-### Durable diagnostics in test_РУХ
+### Durable diagnostics in TestScenarios
 
-Scenario tables remain input definitions; ТВ and other working tables are populated only by the relevant operations. Three archive sheets/native filterable tables are created lazily in `test_РУХ.xlsx` during the first run:
+Scenario tables remain input definitions; ТВ and other working tables are populated only by the relevant operations. Three permanent archive sheets/native filterable tables are prepared in `TestScenarios.xlsx`. Their dark table style, column formats and widths are stored in the workbook. VBA validates their schema and appends values without creating sheets or changing formatting. An empty last row is reused as the first data row. Missing archive sheets or tables stop the operation with a specific diagnostic.
 
 | Sheet / table | Contents |
 | --- | --- |
@@ -44,7 +62,7 @@ The runner currently covers the eight Movement modes represented by the fixtures
 
 After loading the changed VBA, XAML and wsConfig through the normal workbook update workflow:
 
-1. Switch PEB to TEST. Save and close `test_РУХ.xlsx`; it must remain closed while loading scenarios or exporting Movement.
+1. Switch PEB to TEST. Save and close `TestScenarios.xlsx`, `test_РУХ.xlsx` and `test_ЕЖОС.xlsx` before loading scenarios or running tests.
 2. Select a ScenarioId in the new selector below the mode panel, then click `Завантажити сценарій`. The loader replaces writable ТВ data with that scenario's `tbTestHistory` rows and fills the PEB form from step 1. Loading again resets the scenario's history. Scenarios without history rows start with no populated event rows.
 3. Run the normal `Експорт РУХ` action to exercise the exporter. Loading does not export an event automatically. Compare the actual result and ТВ with the expected decision/code shown in the status and the expected counts in `tbTestSteps`.
 4. For S16, export the current step, then click `Наступний крок`. This fills the next step's form without resetting ТВ. Repeat through steps 2 and 3. Advancing does not verify whether the previous step was exported; the operator controls that sequence. An absent or duplicate next step reports an error and preserves the previous form/history.

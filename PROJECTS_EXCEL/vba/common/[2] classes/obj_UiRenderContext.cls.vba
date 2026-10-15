@@ -229,6 +229,7 @@ Public Sub RegisterShapeLayout( _
     entry.Add private_ShapeAlignment(node, "shapeHorizontalAlignment", defaultHorizontal, "left|center|right")
     entry.Add private_ShapeAlignment(node, "shapeVerticalAlignment", "top", "top|center|bottom")
     entry.Add wrapCaption
+    entry.Add private_ShapeAlignment(node, "shapePlacement", "freeFloating", "freeFloating|move|moveAndSize")
     Set m_shapeLayouts(shape.Name) = entry
     private_ArrangeShape entry
 End Sub
@@ -712,7 +713,14 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     Set shape = entry(1)
     Set area = entry(2)
     shape.LockAspectRatio = msoFalse
-    shape.Placement = xlFreeFloating
+    Select Case entry(8)
+        Case "freeFloating"
+            shape.Placement = xlFreeFloating
+        Case "move"
+            shape.Placement = xlMove
+        Case "moveAndSize"
+            shape.Placement = xlMoveAndSize
+    End Select
     shape.Width = area.Width * entry(3)
     shape.Height = area.Height * entry(4)
     Select Case entry(5)

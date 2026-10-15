@@ -7,7 +7,7 @@ The implementation is in source files. The working PEB workbook has not been upd
 ## Architecture
 
 - wsConfig.txt and wsConfig.test.txt are complete PROD and TEST profiles. The environment button loads the other profile and schedules page reinitialization. TEST routes Movement export to Dependencies/test_РУХ.xlsx, sheet Відсутні, native table ТВ. Source paths and an explicit production-path rejection guard isolate test writes.
-- test_РУХ.xlsx contains scenario definitions in Тест_Сценарії/tbTestScenarios, initial native ТВ rows in Тест_Історія/tbTestHistory, and operations/expectations in Тест_Кроки/tbTestSteps. There are 16 scenarios, 18 steps and 11 initial history records. These are alternative states for the retained person, not simultaneous events.
+- TestScenarios.xlsx contains Тест_Сценарії/tbTestScenarios, Тест_Історія/tbTestHistory, Тест_Кроки/tbTestSteps and Тест_ЄЖОС/tbTestAbsence. There are 16 scenarios, 18 steps, 11 Movement history records and 16 Absence fixture rows. Absence contains leave departures only; S01/S05/S11 use explicit empty states, while treatment is tested in Movement. Definitions and reports are separate from the native test_РУХ and test_ЕЖОС working books. Native sheet/table XML and styles were retained during the move.
 - obj_PEB_TestScenarios owns a private Excel instance and the validated test workbook. It seeds scenario history, prepares inputs, captures native before/after records and commits diagnostics. Initial history is reset once per scenario; subsequent steps retain preceding changes.
 - obj_PEB_TestRunner freezes selected scenarios into a queue and executes one step per advance. It uses isolated form bindings and the existing PEB export preparation and Movement exporter. The visible PEB form is preserved. Assertions compare decisions, reason codes, open-event counts, affected rows, mapped values and preservation of unrelated data/formulas.
 - obj_PEB_TestUi renders scenario selection and recent results on MainPage below the candidate area. ex_PEB_Testing schedules workbook-qualified Application.OnTime callbacks. The panel provides selection, run, refresh and cancel controls. Status-bar progress and results update after steps.
@@ -16,13 +16,13 @@ The implementation is in source files. The working PEB workbook has not been upd
 ## Run workflow after workbook update
 
 1. Import/reload changed VBA, MainPage.xaml and wsConfig through the normal project workflow. Repository rules require explicit authorization before updating the working workbook or compiling/running VBA.
-2. Switch to TEST. Save and close test_РУХ.xlsx in the interactive Excel session.
+2. Switch to TEST. Save and close TestScenarios.xlsx, test_РУХ.xlsx and test_ЕЖОС.xlsx in the interactive Excel session.
 3. Open the test panel in PEB, select scenarios, and start the run. Cancel prevents further export operations; queued steps are recorded as SKIP.
-4. Inspect live results in PEB. After completion/cancellation, open test_РУХ.xlsx and filter the persistent diagnostics by RunId, ScenarioId and StepId.
+4. Inspect live results in PEB. After completion/cancellation, open TestScenarios.xlsx and filter the persistent diagnostics by RunId, ScenarioId and StepId.
 
 ## Persistent diagnostics
 
-The first run creates three native filterable tables in test_РУХ.xlsx:
+TestScenarios.xlsx contains three permanent native filterable report tables. Formatting is stored in the workbook; the runner only validates their schemas and writes values:
 
 - Тест_Результати/tbTestResults: expected/actual outcome, codes and counts, PASS/FAIL/SKIP/ERROR, details, elapsed time and run progress.
 - Тест_Записи/tbTestRecords: full native ТВ values before and after operations, including Created/Closed/Modified/Deleted/Unchanged markers.
