@@ -93,6 +93,19 @@ Public Sub BeginRender()
     m_regions.CompareMode = VBA.vbTextCompare
 End Sub
 
+Public Sub ForgetControl(ByVal name As String)
+    Dim key As Variant
+    Dim region As Object
+    Dim node As Object
+
+    If m_regions Is Nothing Then Exit Sub
+    For Each key In m_regions.Keys
+        Set region = m_regions(key)
+        Set node = region("node")
+        If VBA.StrComp(ex_UiElementFactory.fn_Attribute(node, "name"), name, VBA.vbTextCompare) = 0 Then m_regions.Remove key
+    Next key
+End Sub
+
 Public Sub RegisterRegion( _
     ByVal node As Object, _
     ByVal area As Range, _
@@ -131,6 +144,8 @@ Public Function ResolveRegions( _
     Dim selector As Object
     Dim region As Object
     Dim scope As Range
+    Dim scopePart As Range
+    Dim selectedArea As Range
     Dim selected As Object
     Dim target As String
     Dim rowFirst As Long
@@ -161,23 +176,28 @@ Public Function ResolveRegions( _
                 If scope.Rows.Count = sheet.Rows.Count Or scope.Columns.Count = sheet.Columns.Count Then
                     Set scope = Application.Intersect(scope, pageScope)
                 End If
-            Else
-                rowFirst = scope.Row
-                rowLast = scope.Row + scope.Rows.Count - 1
-                colFirst = scope.Column
-                colLast = scope.Column + scope.Columns.Count - 1
-                If selector.Exists("row") Then private_Span selector("row"), rowFirst, rowLast, sheet.Rows.Count
-                If selector.Exists("col") Then private_Span selector("col"), colFirst, colLast, sheet.Columns.Count
-                If target = "cell" And (Not selector.Exists("row") Or Not selector.Exists("col")) Then ex_UiStyleDiagnostics.fn_Raise "CellSelector"
-                If target = "range" Then ex_UiStyleDiagnostics.fn_Raise "RangeSelector"
-                Set scope = sheet.Range(sheet.Cells(rowFirst, colFirst), sheet.Cells(rowLast, colLast))
             End If
             If Not scope Is Nothing Then
-                Set selected = VBA.CreateObject("Scripting.Dictionary")
-                Set selected("area") = scope
-                Set selected("shape") = Nothing
-                selected.Add "part", ""
-                result.Add selected
+                ' Несмежные dirty-области нельзя трактовать как один прямоугольник.
+                For Each scopePart In scope.Areas
+                    Set selectedArea = scopePart
+                    If Not selector.Exists("address") Then
+                        rowFirst = scopePart.Row
+                        rowLast = scopePart.Row + scopePart.Rows.Count - 1
+                        colFirst = scopePart.Column
+                        colLast = scopePart.Column + scopePart.Columns.Count - 1
+                        If selector.Exists("row") Then private_Span selector("row"), rowFirst, rowLast, sheet.Rows.Count
+                        If selector.Exists("col") Then private_Span selector("col"), colFirst, colLast, sheet.Columns.Count
+                        If target = "cell" And (Not selector.Exists("row") Or Not selector.Exists("col")) Then ex_UiStyleDiagnostics.fn_Raise "CellSelector"
+                        If target = "range" Then ex_UiStyleDiagnostics.fn_Raise "RangeSelector"
+                        Set selectedArea = sheet.Range(sheet.Cells(rowFirst, colFirst), sheet.Cells(rowLast, colLast))
+                    End If
+                    Set selected = VBA.CreateObject("Scripting.Dictionary")
+                    Set selected("area") = selectedArea
+                    Set selected("shape") = Nothing
+                    selected.Add "part", ""
+                    result.Add selected
+                Next scopePart
             End If
     End Select
     Set ResolveRegions = result

@@ -434,7 +434,7 @@ Public Function AutoFillPersonnelChangedHandler() As Boolean
     Else
         If Not private_SetActionStatus(m_messages("AutoFillDisabled"), False) Then Exit Function
     End If
-    AutoFillPersonnelChangedHandler = m_pageBase.UpdatePage()
+    AutoFillPersonnelChangedHandler = m_pageBase.FlushUpdates()
 End Function
 
 Public Function ArrivalTreatmentHandler() As Boolean
@@ -957,7 +957,7 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
-    private_SwitchMode = m_pageBase.UpdatePage()
+    private_SwitchMode = m_pageBase.FlushUpdates()
     Exit Function
 Failed:
     private_SetActionStatus diagnostic, True

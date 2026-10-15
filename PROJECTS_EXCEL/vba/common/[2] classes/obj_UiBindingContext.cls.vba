@@ -88,6 +88,7 @@ Public Function TryApplyValues( _
     Dim member As String
     Dim separator As Long
     Dim i As Long
+    Dim changed As New Collection
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Binding context is not initialized."
@@ -114,6 +115,7 @@ Public Function TryApplyValues( _
         If Not ex_Helpers.fn_RTTI_IsDictionary(target) Then Err.Raise 5, , "Batch targets require dictionaries: " & key
         If Not target.Exists(member) Then Err.Raise 5, , "Binding target not found: " & key
         If VBA.IsObject(target(member)) Then Err.Raise 5, , "Binding target must be scalar: " & key
+        changed.Add Not private_SameValue(target(member), updates(key))
         maps.Add target
         members.Add member
         sources.Add source
@@ -126,7 +128,7 @@ Public Function TryApplyValues( _
         target(members(i)) = updates(key)
     Next key
     For i = 1 To sources.Count
-        private_NotifyValueChanged sources(i), paths(i)
+        If changed(i) Then private_NotifyValueChanged sources(i), paths(i)
     Next i
     TryApplyValues = True
     diagnostic = VBA.vbNullString
@@ -150,6 +152,12 @@ Public Function SetValue( _
     If Not private_TryGetOrCreateSource(sourceName, sourceMap) Then Exit Function
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
+    If sourceMap.Exists(keyName) Then
+        If private_SameValue(sourceMap(keyName), value) Then
+            SetValue = True
+            Exit Function
+        End If
+    End If
     sourceMap(keyName) = value
     private_NotifyValueChanged VBA.Trim$(sourceName), keyName
     SetValue = True
@@ -252,6 +260,12 @@ Public Function TrySetPathValue( _
     memberName = VBA.Trim$(VBA.CStr(pathParts(UBound(pathParts))))
     If VBA.Len(memberName) = 0 Then Exit Function
     If ex_Helpers.fn_RTTI_IsDictionary(currentObject) Then
+        If currentObject.Exists(memberName) Then
+            If private_SameValue(currentObject(memberName), value) Then
+                TrySetPathValue = True
+                Exit Function
+            End If
+        End If
         currentObject(memberName) = value
     Else
         On Error Resume Next
@@ -306,6 +320,18 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_SameValue(ByVal previous As Variant, ByVal current As Variant) As Boolean
+    If VBA.IsObject(previous) Or VBA.IsObject(current) Then Exit Function
+    If VBA.IsArray(previous) Or VBA.IsArray(current) Then Exit Function
+    If VBA.IsError(previous) Or VBA.IsError(current) Then Exit Function
+    If VBA.VarType(previous) <> VBA.VarType(current) Then Exit Function
+    If VBA.IsNull(previous) Then
+        private_SameValue = True
+    Else
+        private_SameValue = (previous = current)
+    End If
+End Function
+
 Private Sub private_NotifyValueChanged( _
     ByVal sourceName As String, _
     ByVal bindingPath As String _
