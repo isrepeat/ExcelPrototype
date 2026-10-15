@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<page xmlns="urn:excelprototype:profiles"
+      xmlns:controls="urn:excelprototype:controls"
+      version="1"
+      zoom="80%">
+  <grid row="2"
+        column="2">
+    <controls:label name="TestPlaceholder"
+                    row="1"
+                    column="1"
+                    columnSpan="8"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.TestsPageTitle}"/>
+    <controls:button name="EnvironmentSwitch"
+                     row="3"
+                     column="1"
+                     columnSpan="4"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.EnvironmentSwitch}"
+                     command="{Binding Path=Commands.EnvironmentSwitch}"/>
+  </grid>
+  <styles>
+    <controlStyle name="sectionTitle"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#333333"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="12"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="secondaryButton"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#3B3B3B"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <stylePipelineStage name="default">
+      <layer name="sheet-base">
+        <rule target="sheet"
+              styles="{
+                backColor:#262626;
+                fontColor:#FFFFFF;
+                fontName:Calibri;
+                fontSize:11;
+                borderColor:#000000;
+                borderWeight:thin;
+                rowHeight:30;
+                overflow:wrap;
+                gridLines:true;
+              }"/>
+        <rule target="column"
+              selector="address=A:A"
+              styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=B:Q"
+              styles="{width:15;}"/>
+        <rule target="column"
+              selector="address=R:R"
+              styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=S:S"
+              styles="{width:15;}"/>
+        <rule target="column"
+              selector="address=T:T"
+              styles="{width:3;}"/>
+        <rule target="column"
+              selector="address=U:U"
+              styles="{width:15;}"/>
+      </layer>
+      <layer name="table-parts">
+        <rule target="usedRange"
+              selector="row=1"
+              styles="{rowHeight:10;}"/>
+      </layer>
+    </stylePipelineStage>
+  </styles>
+</page>

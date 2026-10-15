@@ -191,6 +191,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     On Error GoTo EH
     ex_UiBusy.fn_Reset
     Set runtimeContext = ex_RuntimeLifecycle.fn_Context()
+    ex_PEB_Testing.fn_Module_Dispose
     If runtimeContext("Phase") = "Requested" Then
         Application.Run "'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_CancelPending", ThisWorkbook
     End If

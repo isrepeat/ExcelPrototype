@@ -31,11 +31,14 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
+    Dim uiFolder As String
+
     If m_isDisposed Or m_isInitialized Then
         Exit Function
     End If
     Set m_pageBase = New obj_PageBase
-    If Not m_pageBase.Initialize(profileId, VBA.Trim$(profileId)) Then Exit Function
+    uiFolder = ex_PEB_Export.fn_Config("ui.folder")
+    If Not m_pageBase.Initialize(profileId, uiFolder) Then Exit Function
     If Not private_TryRegisterBindings() Then Exit Function
     Set m_controller = New obj_PEB_PgMainController
     If Not m_controller.Initialize(m_pageBase) Then Exit Function
@@ -149,7 +152,8 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", _
-            "DummyMode", "ExtendedModeItems", _
+            "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
+            "TestScenarioItems", "LoadTest", "NextTest", "OpenTests", "TestsStop", "TestsPageTitle", _
             "PreviewWord", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
@@ -157,6 +161,20 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
         If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
     Next textKey
+    configuredText = ex_PEB_Export.fn_Config("environment.name")
+    If configuredText <> "TEST" And configuredText <> "PROD" Then
+        ex_WindowsUi.fn_ShowMessage "Invalid environment.name: " & configuredText, vbExclamation, "Configuration"
+        Exit Function
+    End If
+    If Not uiBindingContext.SetValue("Settings", "TestMode", configuredText = "TEST") Then Exit Function
+    If Not uiBindingContext.SetValue("Settings", "TestsRunning", False) Then Exit Function
+    If Not uiBindingContext.SetValue("Settings", "TestReadOnly", configuredText <> "TEST") Then Exit Function
+    If configuredText = "TEST" Then
+        If Not uiBindingContext.SetValue("Settings", "TestButtonStyle", "secondaryButton") Then Exit Function
+    Else
+        If Not uiBindingContext.SetValue("Settings", "TestButtonStyle", "disabledButton") Then Exit Function
+    End If
+    If Not uiBindingContext.SetValue("Form", "TestScenario", VBA.vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "ExtendedMode", ex_PEB_Export.fn_Config("text.ExtendedModes")) Then Exit Function
     If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.OrderUnaccepted", configuredText) Then
         ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text.OrderUnaccepted", vbExclamation, "Configuration"
@@ -211,7 +229,8 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
-            "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", _
+            "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
+            "LoadTest", "NextTest", "OpenTests", "CancelTests", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand
