@@ -474,7 +474,7 @@ Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
         propertyName = VBA.LCase$(VBA.CStr(attributeNode.nodeName))
         Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
-                 "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
+                 "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontsize", _
                  "fontname", "horizontal", "vertical", "indent", "paddingleft", "paddingright", "columnwidth", "width", "rowheight", _
                  "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype", _
                  "shadow", "shadowcolor", "shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety"
@@ -522,7 +522,7 @@ End Function
 Private Function private_IsVisualProperty(ByVal propertyName As String) As Boolean
     Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
-             "borderlinestyle", "fontbold", "fontitalic", "fontsize", _
+             "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontsize", _
                  "fontname", "horizontal", "vertical", "indent", "paddingleft", "paddingright", "columnwidth", "width", "rowheight", _
                   "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype", _
                   "shadow", "shadowcolor", "shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety"
@@ -748,16 +748,28 @@ Private Sub private_ApplyBorders( _
     Dim lineStyle As Long
     Dim lineWeight As Long
     Dim shapeLineWeight As Single
+    Dim borderIndexes As Variant
 
     If Not properties.Exists("bordercolor") And Not properties.Exists("borderweight") And _
-       Not properties.Exists("borderlinestyle") Then Exit Sub
+       Not properties.Exists("borderlinestyle") And Not properties.Exists("borderscope") Then
+        Exit Sub
+    End If
+    borderIndexes = Array(xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight, xlInsideHorizontal, xlInsideVertical)
+    If properties.Exists("borderscope") Then
+        Select Case VBA.LCase$(VBA.Trim$(properties("borderscope")))
+            Case "all"
+            Case "outline"
+                ' Apply an outer frame without changing the internal cell borders.
+                borderIndexes = Array(xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight)
+            Case Else
+                ex_UiStyleDiagnostics.fn_Raise "Declaration", "borderScope=" & properties("borderscope")
+        End Select
+    End If
     lineStyle = private_ReadBorderLineStyle(properties)
     lineWeight = private_ReadBorderWeight(properties)
     shapeLineWeight = private_ReadShapeBorderWeight(properties)
     If targetShape Is Nothing Then
-        For Each borderIndex In Array( _
-                xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight, _
-                xlInsideHorizontal, xlInsideVertical)
+        For Each borderIndex In borderIndexes
             targetRange.Borders(borderIndex).LineStyle = lineStyle
             targetRange.Borders(borderIndex).Weight = lineWeight
             If properties.Exists("bordercolor") Then

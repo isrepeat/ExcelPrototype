@@ -25,6 +25,7 @@ Private m_router As obj_UiEventRouter
 Private m_forms As Object
 Private m_elements As Object
 Private m_tablePlans As Collection
+Private m_shapeLayouts As Object
 Private m_targetWorksheet As Worksheet
 Private m_uiPageDefinition As obj_UiPageDefinition
 Private m_uiFolderPath As String
@@ -172,6 +173,29 @@ Public Sub RegisterTablePlan(ByVal plan As Object)
     m_tablePlans.Add plan
 End Sub
 
+Public Sub RegisterShapeLayout( _
+    ByVal shape As Shape, _
+    ByVal area As Range, _
+    ByVal node As Object, _
+    Optional ByVal defaultWidth As String = "1", _
+    Optional ByVal defaultHorizontal As String = "left" _
+)
+    Dim entry As Collection
+
+    If m_shapeLayouts Is Nothing Then
+        Set m_shapeLayouts = VBA.CreateObject("Scripting.Dictionary")
+    End If
+    Set entry = New Collection
+    entry.Add shape
+    entry.Add area
+    entry.Add private_ShapeFraction(node, "shapeWidth", defaultWidth)
+    entry.Add private_ShapeFraction(node, "shapeHeight", "1")
+    entry.Add private_ShapeAlignment(node, "shapeHorizontalAlignment", defaultHorizontal, "left|center|right")
+    entry.Add private_ShapeAlignment(node, "shapeVerticalAlignment", "top", "top|center|bottom")
+    Set m_shapeLayouts(shape.Name) = entry
+    private_ArrangeShape entry
+End Sub
+
 Public Function TryEnsureSmart( _
     ByVal controlName As String, _
     ByVal tableIndex As Long, _
@@ -257,6 +281,7 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     m_rendering = True
     m_hasRendered = False
     Set m_tablePlans = New Collection
+    Set m_shapeLayouts = VBA.CreateObject("Scripting.Dictionary")
     stageStartedAt = VBA.Timer
     If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
     ex_Core.fn_Diagnostic_WritePerf "Page.Measure | Sheet=" & m_targetWorksheet.Name, stageStartedAt
@@ -277,6 +302,7 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     If RenderTree Then
         stageStartedAt = VBA.Timer
         m_styles.CompleteRender
+        private_ArrangeShapes
         If TypeOf m_root Is obj_UiPageElement Then
             Set pageElement = m_root
             pageElement.ApplyZoom
@@ -390,6 +416,7 @@ Public Sub Dispose()
     Set m_forms = Nothing
     Set m_elements = Nothing
     Set m_tablePlans = Nothing
+    Set m_shapeLayouts = Nothing
     Set m_uiBindingContext = Nothing
     If Not m_uiPageDefinition Is Nothing Then m_uiPageDefinition.Dispose
     Set m_uiPageDefinition = Nothing
@@ -399,3 +426,99 @@ Public Sub Dispose()
     ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_COMPLETED"
 #End If
 End Sub
+
+' //
+' // Private
+' //
+Private Sub private_ArrangeShapes()
+    Dim entry As Collection
+    Dim key As Variant
+
+    ' Recalculate geometry after the final column widths and row heights are applied.
+    For Each key In m_shapeLayouts.Keys
+        Set entry = m_shapeLayouts(key)
+        private_ArrangeShape entry
+    Next key
+End Sub
+
+Private Sub private_ArrangeShape(ByVal entry As Collection)
+    Dim shape As Shape
+    Dim area As Range
+    Dim horizontalOffset As Double
+    Dim verticalOffset As Double
+
+    Set shape = entry(1)
+    Set area = entry(2)
+    shape.LockAspectRatio = msoFalse
+    shape.Placement = xlFreeFloating
+    shape.Width = area.Width * entry(3)
+    shape.Height = area.Height * entry(4)
+    Select Case entry(5)
+        Case "center"
+            horizontalOffset = (area.Width - shape.Width) / 2
+        Case "right"
+            horizontalOffset = area.Width - shape.Width
+    End Select
+    Select Case entry(6)
+        Case "center"
+            verticalOffset = (area.Height - shape.Height) / 2
+        Case "bottom"
+            verticalOffset = area.Height - shape.Height
+    End Select
+    shape.Left = area.Left + horizontalOffset
+    shape.Top = area.Top + verticalOffset
+End Sub
+
+Private Function private_ShapeFraction( _
+    ByVal node As Object, _
+    ByVal attributeName As String, _
+    ByVal defaultValue As String _
+) As Double
+    Dim raw As String
+    Dim parts As Variant
+    Dim part As Variant
+    Dim numerator As Double
+    Dim denominator As Double
+
+    raw = ex_UiElementFactory.fn_Attribute(node, attributeName)
+    If node.getAttributeNode(attributeName) Is Nothing Then
+        raw = defaultValue
+    End If
+    If VBA.Len(raw) = 0 Then GoTo InvalidFraction
+    parts = VBA.Split(raw, "/")
+    If UBound(parts) > 1 Then GoTo InvalidFraction
+    For Each part In parts
+        If VBA.Len(part) = 0 Or VBA.Len(part) > 9 Then GoTo InvalidFraction
+        If part Like "*[!0-9]*" Then GoTo InvalidFraction
+    Next part
+    numerator = VBA.CDbl(parts(0))
+    denominator = 1
+    If UBound(parts) = 1 Then
+        denominator = VBA.CDbl(parts(1))
+    End If
+    If numerator <= 0 Or denominator <= 0 Then GoTo InvalidFraction
+    If numerator > denominator Then GoTo InvalidFraction
+    private_ShapeFraction = numerator / denominator
+    Exit Function
+InvalidFraction:
+    VBA.Err.Raise 5, "ShapeLayout", "Invalid " & attributeName & "=" & raw & _
+        " for " & ex_UiElementFactory.fn_Attribute(node, "name") & "; expected a fraction in (0, 1]."
+End Function
+
+Private Function private_ShapeAlignment( _
+    ByVal node As Object, _
+    ByVal attributeName As String, _
+    ByVal defaultValue As String, _
+    ByVal allowedValues As String _
+) As String
+    Dim raw As String
+
+    raw = ex_UiElementFactory.fn_Attribute(node, attributeName)
+    If node.getAttributeNode(attributeName) Is Nothing Then
+        raw = defaultValue
+    End If
+    If VBA.InStr(1, "|" & allowedValues & "|", "|" & raw & "|", VBA.vbBinaryCompare) = 0 Or VBA.Len(raw) = 0 Then
+        VBA.Err.Raise 5, "ShapeLayout", "Invalid " & attributeName & "=" & raw
+    End If
+    private_ShapeAlignment = raw
+End Function

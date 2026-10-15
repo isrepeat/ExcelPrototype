@@ -35,7 +35,13 @@ Public Function fn_HandleSelection( _
     Application.EnableEvents = False
     context.Router.Broadcast "dismiss"
     fn_HandleSelection = context.Router.DispatchSelection(target, kind)
-    If Not context.FlushLayout(diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    ' A focus command can rebuild the page and dispose the original context.
+    Set context = Nothing
+    If ex_UiRuntime.fn_TryGetContext(target.Parent, context) Then
+        If Not context.FlushLayout(diagnostic) Then
+            VBA.Err.Raise 5, , diagnostic
+        End If
+    End If
 CleanExit:
     Application.EnableEvents = previousEvents
     If kind = "confirmSelection" Then Application.ScreenUpdating = previousScreenUpdating
@@ -62,7 +68,13 @@ Public Function fn_HandleCellChange(ByVal target As Range) As Boolean
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     fn_HandleCellChange = context.Router.DispatchCells(target)
-    If Not context.FlushLayout(diagnostic) Then VBA.Err.Raise VBA.vbObjectError + 2230, , diagnostic
+    ' A field change can also replace the entire page context.
+    Set context = Nothing
+    If ex_UiRuntime.fn_TryGetContext(target.Parent, context) Then
+        If Not context.FlushLayout(diagnostic) Then
+            VBA.Err.Raise VBA.vbObjectError + 2230, , diagnostic
+        End If
+    End If
 CleanExit:
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreenUpdating

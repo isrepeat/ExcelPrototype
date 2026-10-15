@@ -217,7 +217,7 @@ Private Function private_ConfigureField( _
     If Not m_panel.Configure(panelNode, context, source, diagnostic) Then Exit Function
     Set labelNode = fieldNode.cloneNode(False)
     For Each editorAttribute In VBA.Array("value", "itemsSource", "selectedItem", _
-            "onChange", "command", "readOnly", "required")
+            "onChange", "onFocus", "command", "readOnly", "required")
         labelNode.removeAttribute VBA.CStr(editorAttribute)
     Next editorAttribute
     labelNode.setAttribute "type", "Label"
@@ -238,6 +238,7 @@ Private Function private_ConfigureField( _
     editorNode.setAttribute "rowSpan", "1"
     editorNode.setAttribute "style", private_Inherit(fieldNode, formNode, "fieldStyle", VBA.vbNullString)
     editorNode.setAttribute "onChange", private_Inherit(fieldNode, formNode, "onChange", VBA.vbNullString)
+    editorNode.setAttribute "onFocus", private_Inherit(fieldNode, formNode, "onFocus", VBA.vbNullString)
     editorNode.setAttribute "readOnly", private_Inherit(fieldNode, formNode, "readOnly", "false")
     Set editor = New obj_UiControlElement
     If Not editor.Configure(editorNode, context, source, diagnostic) Then Exit Function

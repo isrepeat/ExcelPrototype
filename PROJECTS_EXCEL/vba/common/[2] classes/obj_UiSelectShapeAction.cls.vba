@@ -273,7 +273,8 @@ Private Sub private_UpdateHeader()
     On Error Resume Next
     Set headerShape = m_worksheet.Shapes(m_headerShapeName)
     If headerShape Is Nothing Then Exit Sub
-    If m_items.Count = 0 Then
+    ' Keep the editable field arrow visible even when the list is empty.
+    If m_items.Count = 0 And Not m_editable Then
         headerShape.TextFrame2.TextRange.Text = m_selectedValue
         Exit Sub
     End If

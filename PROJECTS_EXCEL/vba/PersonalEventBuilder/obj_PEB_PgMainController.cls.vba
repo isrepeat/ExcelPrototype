@@ -28,6 +28,8 @@ Private m_modeId As String
 Private m_modeDirection As String
 Private m_eventType As String
 Private m_modeConfig As Object
+Private m_reporterFields As Collection
+Private m_reporterActive As Boolean
 
 ' //
 ' // Lifecycle
@@ -139,8 +141,17 @@ Public Sub Dispose()
     Set m_lookupResult = Nothing
     Set m_modeFields = Nothing
     Set m_modeConfig = Nothing
+    Set m_reporterFields = Nothing
+    m_reporterActive = False
     Set m_pageBase = Nothing
 End Sub
+
+Public Function ReportNameChangedHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    ReportNameChangedHandler = private_SearchReporter(True)
+End Function
 
 Public Function PersonNameChangedHandler() As Boolean
     Dim diagnostic As String
@@ -164,6 +175,12 @@ Public Function SearchPersonnelHandler() As Boolean
     Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_reporterActive Then
+        If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+            Exit Function
+        End If
+    End If
+    m_reporterActive = False
     If Not private_TryReadFormValue("ModeForm", formKind) Then Exit Function
     If Not private_ReadModeConfig("forms." & VBA.CStr(formKind) & ".lookup.key", keyField, diagnostic) Then GoTo Failure
     If Not private_TryReadFormValue(keyField, text) Then Exit Function
@@ -346,6 +363,14 @@ Private Function private_ApplyResolvedOrder() As Boolean
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     m_acceptedOrderNumber = VBA.CStr(number)
     m_acceptedOrderDate = orderDate
+    If m_reporterActive Then
+        If Not private_SearchReporter(False) Then
+            private_ApplyResolvedOrder = private_SetActionStatus(m_messages("OrderAppliedRefreshError"), True)
+            Exit Function
+        End If
+        private_ApplyResolvedOrder = private_SetActionStatus(acceptedText, False)
+        Exit Function
+    End If
 
     ' Refresh derived tickets and restore the previously selected personnel record.
     If m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selectedObject, isObject) Then
@@ -383,6 +408,10 @@ Public Function RefreshPersonnelHandler() As Boolean
     m_lookupService.InvalidateCache
     m_candidateEnricher.InvalidateCache
     m_orderResolver.InvalidateCache
+    If m_reporterActive Then
+        RefreshPersonnelHandler = private_SearchReporter(False)
+        Exit Function
+    End If
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
 End Function
 
@@ -495,6 +524,145 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_SearchReporter(ByVal clearDependents As Boolean) As Boolean
+    Dim key As String
+    Dim text As Variant
+    Dim result As obj_LookupResult
+    Dim projected As obj_LookupResult
+    Dim column As Object
+    Dim updates As Object
+    Dim diagnostic As String
+    Dim status As String
+    Dim records As Collection
+
+    On Error GoTo EH
+    If Not private_ReporterFields(diagnostic) Then
+        GoTo Failed
+    End If
+    If Not private_ReadModeConfig("reporter.lookup.key", key, diagnostic) Then
+        GoTo Failed
+    End If
+    If Not private_TryReadFormValue(key, text) Then
+        Err.Raise 5, , "Reporter lookup key binding not found: " & key
+    End If
+
+    ' Keep reporter selection separate from the primary personnel selection.
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Err.Raise 5, , "Cannot clear the previous candidate selection."
+    End If
+    If clearDependents Then
+        For Each column In m_reporterFields
+            If column("formField") <> key Then
+                updates("Form." & column("formField")) = VBA.vbNullString
+            End If
+        Next column
+    End If
+    If updates.Count > 0 Then
+        If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
+            GoTo Failed
+        End If
+    End If
+    m_reporterActive = True
+
+    ' Reuse the personnel directory without enriching reporter records with absence data.
+    If Not m_lookupService.TrySearch(VBA.CStr(text), result, diagnostic) Then
+        GoTo Failed
+    End If
+    Set projected = New obj_LookupResult
+    If Not projected.Initialize(result.Records, m_reporterFields, result.HasMore, diagnostic) Then
+        GoTo Failed
+    End If
+    Set m_lookupResult = projected
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projected) Then
+        Err.Raise 5, , "Cannot publish reporter candidates."
+    End If
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < m_lookupProfile.MinChars Then
+        status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))
+    ElseIf projected.RowCount = 0 Then
+        status = m_messages("PersonnelEmpty")
+    ElseIf projected.HasMore Then
+        status = VBA.Replace$(m_messages("PersonnelMore"), "{count}", VBA.CStr(projected.RowCount))
+    Else
+        status = VBA.Replace$(m_messages("PersonnelCount"), "{count}", VBA.CStr(projected.RowCount))
+    End If
+    If Not private_SetActionStatus(status, False) Then
+        Exit Function
+    End If
+    ' Publishing candidates requests a layout refresh after the handler returns.
+    ' A full page rebuild must not dispose a control while its handler is executing.
+    private_SearchReporter = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    ' On failure, clear stale records from the previous selection context.
+    If Not m_reporterFields Is Nothing Then
+        Set records = New Collection
+        Set projected = New obj_LookupResult
+        If projected.Initialize(records, m_reporterFields, False, status) Then
+            Set m_lookupResult = projected
+            m_reporterActive = True
+            m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", projected
+        End If
+    End If
+    private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
+End Function
+
+Private Function private_ReporterFields(ByRef diagnostic As String) As Boolean
+    Dim countText As String
+    Dim index As Long
+    Dim prefix As String
+    Dim value As String
+    Dim column As Object
+    Dim fields As Collection
+    Dim caption As String
+
+    If Not m_reporterFields Is Nothing Then
+        private_ReporterFields = True
+        Exit Function
+    End If
+    If Not private_ReadModeConfig("reporter.fields.count", countText, diagnostic) Then
+        Exit Function
+    End If
+    If Not VBA.IsNumeric(countText) Then
+        Err.Raise 5, , "Reporter field count must be numeric."
+    End If
+    If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
+        Err.Raise 5, , "Reporter field count must be an integer from 1 to 16."
+    End If
+    Set fields = New Collection
+    For index = 1 To VBA.CLng(countText)
+        prefix = "reporter.fields." & VBA.CStr(index)
+        Set column = VBA.CreateObject("Scripting.Dictionary")
+        If Not private_ReadModeConfig(prefix & ".formField", value, diagnostic) Then
+            Exit Function
+        End If
+        column("formField") = value
+        If Not private_ReadModeConfig(prefix & ".record", value, diagnostic) Then
+            Exit Function
+        End If
+        column("name") = value
+        If Not private_ReadModeConfig(prefix & ".captionKey", value, diagnostic) Then
+            Exit Function
+        End If
+        If Not ex_Core.fn_TryGetWorkbookConfigValue(value, caption) Then
+            diagnostic = "Required reporter caption not found: " & value
+            Exit Function
+        End If
+        column("caption") = caption
+        If Not private_ReadModeConfig(prefix & ".sourceAlias", value, diagnostic) Then
+            Exit Function
+        End If
+        column("sourceAlias") = value
+        column("apply") = True
+        fields.Add column
+    Next index
+    Set m_reporterFields = fields
+    private_ReporterFields = True
+End Function
+
 Private Function private_Export(ByVal action As String) As Boolean
     Dim pebExportService As obj_PEB_ExportService
     Dim pebExptrWord As obj_PEB_ExptrWord
@@ -747,6 +915,7 @@ Private Function private_LoadMode( _
         If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", text) Then Exit Function
     Next mode
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
+    m_reporterActive = False
     If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
@@ -871,9 +1040,14 @@ Private Function private_ApplyModeRecord( _
     Dim column As Object
     Dim value As Variant
     Dim updates As Object
+    Dim fields As Collection
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
-    For Each column In m_modeFields
+    Set fields = m_modeFields
+    If m_reporterActive Then
+        Set fields = m_reporterFields
+    End If
+    For Each column In fields
         If column("apply") Then
             value = VBA.vbNullString
             If Not record.TryGetValue(column("name"), value) Then
