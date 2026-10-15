@@ -415,6 +415,38 @@ Public Function RefreshPersonnelHandler() As Boolean
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
 End Function
 
+Public Function DummyMode11Handler() As Boolean
+    DummyMode11Handler = True
+End Function
+
+Public Function DummyMode12Handler() As Boolean
+    DummyMode12Handler = True
+End Function
+
+Public Function DummyMode13Handler() As Boolean
+    DummyMode13Handler = True
+End Function
+
+Public Function DummyMode14Handler() As Boolean
+    DummyMode14Handler = True
+End Function
+
+Public Function DummyMode21Handler() As Boolean
+    DummyMode21Handler = True
+End Function
+
+Public Function DummyMode22Handler() As Boolean
+    DummyMode22Handler = True
+End Function
+
+Public Function DummyMode23Handler() As Boolean
+    DummyMode23Handler = True
+End Function
+
+Public Function DummyMode24Handler() As Boolean
+    DummyMode24Handler = True
+End Function
+
 Public Function AutoFillPersonnelChangedHandler() As Boolean
     Dim autoFill As Variant
     Dim selectedValue As Variant
@@ -435,6 +467,51 @@ Public Function AutoFillPersonnelChangedHandler() As Boolean
         If Not private_SetActionStatus(m_messages("AutoFillDisabled"), False) Then Exit Function
     End If
     AutoFillPersonnelChangedHandler = m_pageBase.FlushUpdates()
+End Function
+
+Public Function TryRefreshSourceLegend(ByRef diagnostic As String) As Boolean
+    Dim sourceAliases As String
+    Dim dateFormat As String
+    Dim entryTemplate As String
+    Dim unavailableText As String
+    Dim title As String
+    Dim sourceAlias As Variant
+    Dim sourcePath As String
+    Dim sourceCaption As String
+    Dim modifiedText As String
+    Dim entryText As String
+    Dim fileSystem As Object
+    Dim sourceFile As Object
+
+    On Error GoTo EH
+    If m_pageBase Is Nothing Or m_isDisposed Then Exit Function
+    If Not private_ReadModeConfig("legend.sources", sourceAliases, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("legend.dateFormat", dateFormat, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("text.SourceLegendEntry", entryTemplate, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("text.SourceLegendUnavailable", unavailableText, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("text.SourceLegendTitle", title, diagnostic) Then Exit Function
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not m_pageBase.BindingContext.SetValue("Text", "SourceLegendTitle", title) Then Exit Function
+    For Each sourceAlias In VBA.Split(sourceAliases, "|")
+        If Not private_ReadModeConfig("lookup." & sourceAlias & ".source.path", sourcePath, diagnostic) Then Exit Function
+        If VBA.Mid$(sourcePath, 2, 1) <> ":" And VBA.Left$(sourcePath, 2) <> "\\" Then
+            sourcePath = fileSystem.BuildPath(ThisWorkbook.Path, sourcePath)
+        End If
+        sourcePath = fileSystem.GetAbsolutePathName(sourcePath)
+        sourceCaption = fileSystem.GetFileName(sourcePath)
+        modifiedText = unavailableText
+        If fileSystem.FileExists(sourcePath) Then
+            Set sourceFile = fileSystem.GetFile(sourcePath)
+            modifiedText = VBA.Format$(sourceFile.DateLastModified, dateFormat)
+        End If
+        entryText = VBA.Replace$(entryTemplate, "{source}", sourceCaption)
+        entryText = VBA.Replace$(entryText, "{modified}", modifiedText)
+        If Not m_pageBase.BindingContext.SetValue("Text", "SourceLegend" & sourceAlias & "Entry", entryText) Then Exit Function
+    Next sourceAlias
+    TryRefreshSourceLegend = True
+    Exit Function
+EH:
+    diagnostic = "Source legend: " & VBA.Err.Description
 End Function
 
 Public Function ArrivalTreatmentHandler() As Boolean
@@ -934,6 +1011,7 @@ Private Function private_LoadMode( _
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
+    If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
     private_LoadMode = True
     Exit Function
 EH:
@@ -942,7 +1020,6 @@ End Function
 
 Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     Dim diagnostic As String
-    Dim nextForm As String
     Dim caption As String
     Dim status As String
 
@@ -951,8 +1028,6 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
         private_SwitchMode = True
         Exit Function
     End If
-    If Not private_ReadModeConfig("modes." & modeId & ".form", nextForm, diagnostic) Then GoTo Failed
-    If Not private_ClearPersonnelGroup(True, nextForm, diagnostic) Then GoTo Failed
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
@@ -981,7 +1056,7 @@ Private Function private_ClearPersonnelGroup( _
     On Error GoTo EH
     If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
     Set updates = VBA.CreateObject("Scripting.Dictionary")
-    ' Mode changes clear the union of the old and new lookup groups.
+    ' Очищаем зависимости при изменении ключа поиска; смена режима сохраняет значения формы.
     For Each formKind In VBA.Array(VBA.CStr(currentForm), nextForm)
         If VBA.Len(VBA.CStr(formKind)) > 0 Then
             If Not private_ReadModeConfig("forms." & formKind & ".lookup.key", key, diagnostic) Then Exit Function
@@ -1073,6 +1148,7 @@ Private Function private_TryEnrichResult( _
     If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
     If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then Exit Function
     Set result = enrichedResult
+    If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
     private_TryEnrichResult = True
 End Function
 
