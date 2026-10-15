@@ -730,3 +730,5 @@ value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недосту
 value	PersonalEventBuilder::text.SourceLegendSample	Текст
 value	PersonalEventBuilder::text.SourceLegendSeparator	—
 value	PersonalEventBuilder::text.DummyMode	Недоступно
+value	PersonalEventBuilder::text.ExtendedModes	Розширені режими
+value	PersonalEventBuilder::text.ExtendedModeItems	Dummy 1,Dummy 2,Dummy 3

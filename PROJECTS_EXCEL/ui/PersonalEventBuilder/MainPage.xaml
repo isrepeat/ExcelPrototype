@@ -166,7 +166,7 @@
   <grid row="2"
         column="2">
     <stackPanel name="ModesPanel"
-                row="4"
+                row="1"
                 column="1"
                 orientation="horizontal">
       <stackPanel name="ArrivalModes"
@@ -252,29 +252,32 @@
                          style="disabledButton"
                          caption="{Binding Path=Text.DummyMode}"
                          command="{Binding Path=Commands.DummyMode23}"/>
-        <controls:button name="DummyMode24"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode24}"/>
+        <controls:select name="ExtendedModes"
+                         style="secondaryButton"
+                         value="{Binding Path=Form.ExtendedMode}"
+                         items="{Binding Path=Text.ExtendedModeItems}"
+                         panelStyle="formSelectPanel"
+                         itemStyle="formSelectItem"
+                         itemHeight="25"/>
       </stackPanel>
     </stackPanel>
     <controls:label name="OrderQueryLabel"
                     row="1"
-                    column="1"
-                    columnSpan="4"
+                    column="9"
+                    columnSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
                      row="2"
-                     column="1"
-                     columnSpan="4"
+                     column="9"
+                     columnSpan="2"
                      style="lookupKeyField"
                      panelStyle="formSelectPanel"
                      itemStyle="formSelectItem"
                      value="{Binding Path=Form.OrderQuery}"
                      editable="true"
-                     shapeWidth="1/12"
+                     shapeWidth="1/6"
                      shapeHeight="1"
                      shapeHorizontalAlignment="right"
                      shapeVerticalAlignment="center"
@@ -284,24 +287,27 @@
                      onChange="{Binding Path=Commands.OrderQueryChanged}"/>
     <controls:label name="OrderYearLabel"
                     row="1"
-                    column="5"
+                    column="11"
                     columnSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:input name="OrderYear"
                     row="2"
-                    column="5"
+                    column="11"
                     columnSpan="2"
                     style="lookupKeyField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
-    <controls:label name="AcceptedOrder"
-                    row="1"
-                    column="7"
-                    rowSpan="2"
-                    columnSpan="10"
-                    style="statusText"
-                    text="{Binding Path=Form.AcceptedOrderText}"/>
+    <controls:checkbox name="AutoFillPersonnel"
+                       row="9"
+                       column="1"
+                       columnSpan="2"
+                       style="secondaryButton"
+                       value="{Binding Path=Form.AutoFillPersonnel}"
+                       caption="{Binding Path=Text.AutoFillPersonnelLabel}"
+                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
     <controls:label name="WordPreview"
                     row="3"
                     column="9"
@@ -356,16 +362,6 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
-    <controls:checkbox name="AutoFillPersonnel"
-                       row="3"
-                       column="18"
-                       columnSpan="3"
-                       style="secondaryButton"
-                       value="{Binding Path=Form.AutoFillPersonnel}"
-                       caption="{Binding Path=Text.AutoFillPersonnelLabel}"
-                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
-                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
-                       onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
     <controls:label name="LastStatusLabel"
                     row="7"
                     column="18"
@@ -688,6 +684,11 @@
               styles="{width:15;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="usedRange"
+              selector="row=1"
+              styles="{
+                rowHeight:10;
+              }"/>
         <rule target="usedRange"
               selector="row=13"
               styles="{
