@@ -454,6 +454,11 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
+    ' Apply the configured cell format before Excel receives the bound value.
+    If Not m_isSelect Or m_editable Then
+        uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
+            m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    End If
     m_targetRange.Value2 = value
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly
@@ -463,16 +468,12 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 #End If
     If m_isSelect Then
         If m_editable Then
-            uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
-                m_uiControlBase.ControlNode, uiRenderContext.BindingContext
             m_targetRange.NumberFormat = "@"
         Else
             m_targetRange.NumberFormat = ";;;"
         End If
         If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
     Else
-        uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
-            m_uiControlBase.ControlNode, uiRenderContext.BindingContext
         On Error Resume Next
         m_targetRange.Cells(1, 1).Validation.Delete
         On Error GoTo 0

@@ -192,11 +192,16 @@ Public Function ResolveRegions( _
                         If target = "range" Then ex_UiStyleDiagnostics.fn_Raise "RangeSelector"
                         Set selectedArea = sheet.Range(sheet.Cells(rowFirst, colFirst), sheet.Cells(rowLast, colLast))
                     End If
-                    Set selected = VBA.CreateObject("Scripting.Dictionary")
-                    Set selected("area") = selectedArea
-                    Set selected("shape") = Nothing
-                    selected.Add "part", ""
-                    result.Add selected
+                    If target = "usedrange" Then
+                        Set selectedArea = Application.Intersect(selectedArea, sheet.UsedRange)
+                    End If
+                    If Not selectedArea Is Nothing Then
+                        Set selected = VBA.CreateObject("Scripting.Dictionary")
+                        Set selected("area") = selectedArea
+                        Set selected("shape") = Nothing
+                        selected.Add "part", ""
+                        result.Add selected
+                    End If
                 Next scopePart
             End If
     End Select
@@ -381,8 +386,12 @@ Private Sub private_Span( _
     first = VBA.CLng(parts(0))
     last = first
     If UBound(parts) = 1 Then
-        If Not VBA.IsNumeric(parts(1)) Then ex_UiStyleDiagnostics.fn_Raise "Span", text
-        last = VBA.CLng(parts(1))
+        If VBA.Len(parts(1)) = 0 Then
+            last = maximum
+        Else
+            If Not VBA.IsNumeric(parts(1)) Then ex_UiStyleDiagnostics.fn_Raise "Span", text
+            last = VBA.CLng(parts(1))
+        End If
     End If
     If first < minimum Or last < first Or last > maximum Then ex_UiStyleDiagnostics.fn_Raise "SpanBounds", text
 End Sub

@@ -30,6 +30,10 @@ Private m_eventType As String
 Private m_modeConfig As Object
 Private m_reporterFields As Collection
 Private m_reporterActive As Boolean
+Private m_hospitalActive As Boolean
+Private m_hospitalFields As Collection
+Private m_hospitalProfile As obj_LookupProfile
+Private m_hospitalService As obj_LookupService
 
 ' //
 ' // Lifecycle
@@ -142,21 +146,56 @@ Public Sub Dispose()
     Set m_modeFields = Nothing
     Set m_modeConfig = Nothing
     Set m_reporterFields = Nothing
+    If Not m_hospitalService Is Nothing Then m_hospitalService.Dispose
+    If Not m_hospitalProfile Is Nothing Then m_hospitalProfile.Dispose
+    Set m_hospitalService = Nothing
+    Set m_hospitalProfile = Nothing
+    Set m_hospitalFields = Nothing
+    m_hospitalActive = False
     m_reporterActive = False
     Set m_pageBase = Nothing
 End Sub
 
 Public Function ReportNameChangedHandler() As Boolean
+    Dim autoFill As Variant
+
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
-    ReportNameChangedHandler = private_SearchReporter(True)
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    If Not VBA.CBool(autoFill) Then
+        ReportNameChangedHandler = True
+        Exit Function
+    End If
+    ReportNameChangedHandler = private_SearchSecondary(True)
+End Function
+
+Public Function HospitalChangedHandler() As Boolean
+    Dim autoFill As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    If Not VBA.CBool(autoFill) Then
+        HospitalChangedHandler = True
+        Exit Function
+    End If
+    HospitalChangedHandler = private_SearchSecondary(True, True)
 End Function
 
 Public Function PersonNameChangedHandler() As Boolean
     Dim diagnostic As String
+    Dim autoFill As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    ' Manual entry must not trigger lookup, dependency clearing or candidate updates.
+    If Not VBA.CBool(autoFill) Then
+        PersonNameChangedHandler = True
+        Exit Function
+    End If
     If Not private_ClearPersonnelGroup(False, VBA.vbNullString, diagnostic) Then
         private_SetActionStatus diagnostic, True
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
@@ -175,12 +214,13 @@ Public Function SearchPersonnelHandler() As Boolean
     Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If m_reporterActive Then
+    If m_reporterActive Or m_hospitalActive Then
         If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
             Exit Function
         End If
     End If
     m_reporterActive = False
+    m_hospitalActive = False
     If Not private_TryReadFormValue("ModeForm", formKind) Then Exit Function
     If Not private_ReadModeConfig("forms." & VBA.CStr(formKind) & ".lookup.key", keyField, diagnostic) Then GoTo Failure
     If Not private_TryReadFormValue(keyField, text) Then Exit Function
@@ -363,8 +403,8 @@ Private Function private_ApplyResolvedOrder() As Boolean
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     m_acceptedOrderNumber = VBA.CStr(number)
     m_acceptedOrderDate = orderDate
-    If m_reporterActive Then
-        If Not private_SearchReporter(False) Then
+    If m_reporterActive Or m_hospitalActive Then
+        If Not private_SearchSecondary(False, m_hospitalActive) Then
             private_ApplyResolvedOrder = private_SetActionStatus(m_messages("OrderAppliedRefreshError"), True)
             Exit Function
         End If
@@ -408,8 +448,9 @@ Public Function RefreshPersonnelHandler() As Boolean
     m_lookupService.InvalidateCache
     m_candidateEnricher.InvalidateCache
     m_orderResolver.InvalidateCache
-    If m_reporterActive Then
-        RefreshPersonnelHandler = private_SearchReporter(False)
+    If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
+    If m_reporterActive Or m_hospitalActive Then
+        RefreshPersonnelHandler = private_SearchSecondary(False, m_hospitalActive)
         Exit Function
     End If
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
@@ -601,7 +642,10 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_SearchReporter(ByVal clearDependents As Boolean) As Boolean
+Private Function private_SearchSecondary( _
+    ByVal clearDependents As Boolean, _
+    Optional ByVal hospital As Boolean = False _
+) As Boolean
     Dim key As String
     Dim text As Variant
     Dim result As obj_LookupResult
@@ -611,25 +655,46 @@ Private Function private_SearchReporter(ByVal clearDependents As Boolean) As Boo
     Dim diagnostic As String
     Dim status As String
     Dim records As Collection
+    Dim fields As Collection
+    Dim profile As obj_LookupProfile
+    Dim service As obj_LookupService
+    Dim group As String
 
     On Error GoTo EH
-    If Not private_ReporterFields(diagnostic) Then
+    group = "reporter"
+    If hospital Then group = "hospital"
+    If Not private_SecondaryFields(group, fields, diagnostic) Then
         GoTo Failed
     End If
-    If Not private_ReadModeConfig("reporter.lookup.key", key, diagnostic) Then
+    If hospital Then
+        If m_hospitalService Is Nothing Then
+            Set m_hospitalProfile = New obj_LookupProfile
+            If Not m_hospitalProfile.Initialize("PersonalEventBuilder::lookup.Hospital", diagnostic) Then GoTo Failed
+            Set m_hospitalService = New obj_LookupService
+            If Not m_hospitalService.Initialize(m_hospitalProfile) Then
+                Err.Raise 5, , "Cannot initialize hospital lookup service."
+            End If
+        End If
+        Set profile = m_hospitalProfile
+        Set service = m_hospitalService
+    Else
+        Set profile = m_lookupProfile
+        Set service = m_lookupService
+    End If
+    If Not private_ReadModeConfig(group & ".lookup.key", key, diagnostic) Then
         GoTo Failed
     End If
     If Not private_TryReadFormValue(key, text) Then
-        Err.Raise 5, , "Reporter lookup key binding not found: " & key
+        Err.Raise 5, , "Secondary lookup key binding not found: " & key
     End If
 
-    ' Keep reporter selection separate from the primary personnel selection.
+    ' Secondary lookups share the candidate area without changing primary personnel fields.
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Err.Raise 5, , "Cannot clear the previous candidate selection."
     End If
     If clearDependents Then
-        For Each column In m_reporterFields
+        For Each column In fields
             If column("formField") <> key Then
                 updates("Form." & column("formField")) = VBA.vbNullString
             End If
@@ -640,22 +705,23 @@ Private Function private_SearchReporter(ByVal clearDependents As Boolean) As Boo
             GoTo Failed
         End If
     End If
-    m_reporterActive = True
+    m_reporterActive = Not hospital
+    m_hospitalActive = hospital
 
-    ' Reuse the personnel directory without enriching reporter records with absence data.
-    If Not m_lookupService.TrySearch(VBA.CStr(text), result, diagnostic) Then
+    ' Search the selected directory without enriching secondary records with absence data.
+    If Not service.TrySearch(VBA.CStr(text), result, diagnostic) Then
         GoTo Failed
     End If
     Set projected = New obj_LookupResult
-    If Not projected.Initialize(result.Records, m_reporterFields, result.HasMore, diagnostic) Then
+    If Not projected.Initialize(result.Records, fields, result.HasMore, diagnostic) Then
         GoTo Failed
     End If
     Set m_lookupResult = projected
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projected) Then
-        Err.Raise 5, , "Cannot publish reporter candidates."
+        Err.Raise 5, , "Cannot publish secondary candidates."
     End If
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < m_lookupProfile.MinChars Then
-        status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < profile.MinChars Then
+        status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(profile.MinChars))
     ElseIf projected.RowCount = 0 Then
         status = m_messages("PersonnelEmpty")
     ElseIf projected.HasMore Then
@@ -668,18 +734,19 @@ Private Function private_SearchReporter(ByVal clearDependents As Boolean) As Boo
     End If
     ' Publishing candidates requests a layout refresh after the handler returns.
     ' A full page rebuild must not dispose a control while its handler is executing.
-    private_SearchReporter = True
+    private_SearchSecondary = True
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
 Failed:
     ' On failure, clear stale records from the previous selection context.
-    If Not m_reporterFields Is Nothing Then
+    If Not fields Is Nothing Then
         Set records = New Collection
         Set projected = New obj_LookupResult
-        If projected.Initialize(records, m_reporterFields, False, status) Then
+        If projected.Initialize(records, fields, False, status) Then
             Set m_lookupResult = projected
-            m_reporterActive = True
+            m_reporterActive = Not hospital
+            m_hospitalActive = hospital
             m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", projected
         End If
     End If
@@ -687,7 +754,11 @@ Failed:
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 
-Private Function private_ReporterFields(ByRef diagnostic As String) As Boolean
+Private Function private_SecondaryFields( _
+    ByVal group As String, _
+    ByRef result As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
     Dim countText As String
     Dim index As Long
     Dim prefix As String
@@ -696,22 +767,27 @@ Private Function private_ReporterFields(ByRef diagnostic As String) As Boolean
     Dim fields As Collection
     Dim caption As String
 
-    If Not m_reporterFields Is Nothing Then
-        private_ReporterFields = True
+    If group = "hospital" Then
+        Set result = m_hospitalFields
+    Else
+        Set result = m_reporterFields
+    End If
+    If Not result Is Nothing Then
+        private_SecondaryFields = True
         Exit Function
     End If
-    If Not private_ReadModeConfig("reporter.fields.count", countText, diagnostic) Then
+    If Not private_ReadModeConfig(group & ".fields.count", countText, diagnostic) Then
         Exit Function
     End If
     If Not VBA.IsNumeric(countText) Then
-        Err.Raise 5, , "Reporter field count must be numeric."
+        Err.Raise 5, , "Secondary field count must be numeric."
     End If
     If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
-        Err.Raise 5, , "Reporter field count must be an integer from 1 to 16."
+        Err.Raise 5, , "Secondary field count must be an integer from 1 to 16."
     End If
     Set fields = New Collection
     For index = 1 To VBA.CLng(countText)
-        prefix = "reporter.fields." & VBA.CStr(index)
+        prefix = group & ".fields." & VBA.CStr(index)
         Set column = VBA.CreateObject("Scripting.Dictionary")
         If Not private_ReadModeConfig(prefix & ".formField", value, diagnostic) Then
             Exit Function
@@ -725,7 +801,7 @@ Private Function private_ReporterFields(ByRef diagnostic As String) As Boolean
             Exit Function
         End If
         If Not ex_Core.fn_TryGetWorkbookConfigValue(value, caption) Then
-            diagnostic = "Required reporter caption not found: " & value
+            diagnostic = "Required secondary caption not found: " & value
             Exit Function
         End If
         column("caption") = caption
@@ -736,8 +812,13 @@ Private Function private_ReporterFields(ByRef diagnostic As String) As Boolean
         column("apply") = True
         fields.Add column
     Next index
-    Set m_reporterFields = fields
-    private_ReporterFields = True
+    If group = "hospital" Then
+        Set m_hospitalFields = fields
+    Else
+        Set m_reporterFields = fields
+    End If
+    Set result = fields
+    private_SecondaryFields = True
 End Function
 
 Private Function private_Export(ByVal action As String) As Boolean
@@ -928,7 +1009,7 @@ Private Function private_LoadMode( _
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function
     If direction <> "Arrival" And direction <> "Departure" Then Err.Raise 5, , "Invalid mode direction: " & modeId
     If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
-    If VBA.Len(m_modeId) > 0 And Not m_reporterActive Then
+    If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
         If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
             ' These modes share the same projection and derived event fields.
@@ -1007,6 +1088,7 @@ Private Function private_LoadMode( _
     Next mode
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
     m_reporterActive = False
+    m_hospitalActive = False
     If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
@@ -1108,14 +1190,10 @@ Private Function private_PrepareModeRecords( _
     Dim record As obj_LookupRecord
     Dim supplement As obj_LookupRecord
     Dim fields As Object
-    Dim eventDate As Variant
 
     For Each record In records
-        eventDate = VBA.vbNullString
-        If m_modeDirection = "Departure" Then record.TryGetValue "Absence.DepartureDate", eventDate
         Set fields = VBA.CreateObject("Scripting.Dictionary")
         fields("Event.Type") = m_eventType
-        fields("Event.Date") = eventDate
         Set supplement = New obj_LookupRecord
         If Not supplement.Initialize(record.Key, fields) Then Exit Function
         If Not record.TryMerge(supplement, True) Then
@@ -1139,6 +1217,9 @@ Private Function private_ApplyModeRecord( _
     Set fields = m_modeFields
     If m_reporterActive Then
         Set fields = m_reporterFields
+    End If
+    If m_hospitalActive Then
+        Set fields = m_hospitalFields
     End If
     For Each column In fields
         If column("apply") Then

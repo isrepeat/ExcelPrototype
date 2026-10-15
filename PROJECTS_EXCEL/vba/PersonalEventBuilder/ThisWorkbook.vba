@@ -21,6 +21,7 @@ Private Sub Workbook_Open()
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_OPEN_STAGE | Name=ActivateHotkeys"
     ex_Core.fn_Diagnostic_Flush
     ex_AppCommands.fn_RegisterHotkeys
+    ex_PersonalEventBuilder.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_OPEN_STAGE_COMPLETED | Name=ActivateHotkeys"
     ex_Core.fn_Diagnostic_Flush
@@ -58,6 +59,7 @@ Private Sub Workbook_Activate()
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_ACTIVATE_STARTED | Workbook=" & _
         ThisWorkbook.Name
     ex_AppCommands.fn_RegisterHotkeys
+    ex_PersonalEventBuilder.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_ACTIVATE_COMPLETED"
     ex_Core.fn_Diagnostic_Flush

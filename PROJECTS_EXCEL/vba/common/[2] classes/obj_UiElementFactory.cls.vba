@@ -213,6 +213,7 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     schema.AddAttribute "backColor", "string", False, "", False, 0
     schema.AddAttribute "textColor", "string", False, "", False, 0
     schema.AddAttribute "fontColor", "string", False, "", False, 0
+    schema.AddAttribute "cellType", "enum", False, "text|date|general", False, 0
     schema.AddAttribute "fontName", "string", False, "", False, 0
     schema.AddAttribute "fontSize", "string", False, "", False, 0
     schema.AddAttribute "fontBold", "string", False, "", False, 0
