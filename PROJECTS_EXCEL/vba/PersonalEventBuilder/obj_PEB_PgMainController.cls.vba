@@ -412,6 +412,58 @@ Public Function ArrivalTreatmentHandler() As Boolean
     ArrivalTreatmentHandler = private_SwitchMode("ArrivalTreatment")
 End Function
 
+Public Function PreviewWordHandler() As Boolean
+    PreviewWordHandler = private_Export("PreviewWord")
+End Function
+
+Public Function ExportWordHandler() As Boolean
+    Dim enabled As String
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    On Error GoTo EH
+    enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
+    If enabled = "false" Then
+        ExportWordHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.ExportWordUnavailable"), True)
+        Exit Function
+    End If
+    If enabled <> "true" Then
+        Err.Raise 5, , "Word enabled must be true or false."
+    End If
+    ExportWordHandler = private_Export("Word")
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    private_SetActionStatus diagnostic, True
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
+End Function
+
+Public Function ExportMovementHandler() As Boolean
+    Dim enabled As String
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    On Error GoTo EH
+    enabled = ex_PEB_Export.fn_Config("export.Movement.enabled")
+    If enabled = "false" Then
+        ExportMovementHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.ExportMovementUnavailable"), True)
+        Exit Function
+    End If
+    If enabled <> "true" Then
+        Err.Raise 5, , "Movement enabled must be true or false."
+    End If
+    ExportMovementHandler = private_Export("Movement")
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    private_SetActionStatus diagnostic, True
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
+End Function
+
 Public Function ArrivalAnnualLeaveHandler() As Boolean
     ArrivalAnnualLeaveHandler = private_SwitchMode("ArrivalAnnualLeave")
 End Function
@@ -443,6 +495,95 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_Export(ByVal action As String) As Boolean
+    Dim pebExportService As obj_PEB_ExportService
+    Dim pebExptrWord As obj_PEB_ExptrWord
+    Dim pebExptrMovement As obj_PEB_ExptrMovement
+    Dim values As Object
+    Dim diagnostic As String
+    Dim exporter As String
+    Dim success As Boolean
+    Dim status As String
+    Dim failureTemplate As String
+    Dim messageTitle As String
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    On Error GoTo EH
+    failureTemplate = ex_PEB_Export.fn_Config("text.ExportFailed")
+    messageTitle = ex_PEB_Export.fn_Config("text.ExportTitle")
+    status = ex_PEB_Export.fn_Config("text.Export" & action & "Success")
+    exporter = action
+    If action = "PreviewWord" Then
+        exporter = "Word"
+    End If
+    If action = "PreviewWord" Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then
+            Exit Function
+        End If
+    End If
+    Set pebExportService = New obj_PEB_ExportService
+    If Not pebExportService.Initialize() Then
+        Err.Raise 5, , "Cannot initialize export service."
+    End If
+    If Not pebExportService.TryPrepare( _
+        m_pageBase.BindingContext, _
+        exporter, _
+        values, _
+        diagnostic, _
+        action <> "PreviewWord" _
+    ) Then GoTo Failed
+    If action = "PreviewWord" Then
+        success = m_pageBase.BindingContext.SetValue( _
+            "Form", _
+            "WordPreviewText", _
+            VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbLf) _
+        )
+        If Not success Then
+            diagnostic = "Cannot publish the Word preview binding."
+        End If
+    ElseIf exporter = "Word" Then
+        Set pebExptrWord = New obj_PEB_ExptrWord
+        If Not pebExptrWord.Initialize() Then
+            Err.Raise 5, , "Cannot initialize Word exporter."
+        End If
+        success = pebExptrWord.TryExport(values, diagnostic)
+        status = VBA.Replace$(status, "{path}", VBA.CStr(values("WordOutput")))
+    Else
+        Set pebExptrMovement = New obj_PEB_ExptrMovement
+        If Not pebExptrMovement.Initialize() Then
+            Err.Raise 5, , "Cannot initialize Movement exporter."
+        End If
+        success = pebExptrMovement.TryExport(values, diagnostic)
+    End If
+    If Not success Then
+        GoTo Failed
+    End If
+    private_SetActionStatus status, False
+    private_Export = True
+Cleanup:
+    If Not pebExptrWord Is Nothing Then
+        pebExptrWord.Dispose
+    End If
+    If Not pebExptrMovement Is Nothing Then
+        pebExptrMovement.Dispose
+    End If
+    If Not pebExportService Is Nothing Then
+        pebExportService.Dispose
+    End If
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    If VBA.Len(failureTemplate) > 0 Then
+        diagnostic = VBA.Replace$(failureTemplate, "{details}", diagnostic)
+    End If
+    private_SetActionStatus diagnostic, True
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, messageTitle
+    GoTo Cleanup
+End Function
+
 Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolean
     Dim sheet As Worksheet
     Dim table As ListObject
@@ -606,6 +747,7 @@ Private Function private_LoadMode( _
         If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", text) Then Exit Function
     Next mode
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "EventType", eventType) Then Exit Function
