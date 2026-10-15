@@ -1,0 +1,78 @@
+Attribute VB_Name = "ex_PEB_Export"
+Option Explicit
+
+' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
+' namespace API {
+' --------------------------------------
+Public Function fn_Config(ByVal key As String) As String
+    Dim value As String
+
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::" & key, value) Then
+        Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::" & key
+    End If
+    If VBA.Len(VBA.Trim$(value)) = 0 Then
+        Err.Raise 5, , "Empty configuration key: PersonalEventBuilder::" & key
+    End If
+    fn_Config = value
+End Function
+
+Public Function fn_Count(ByVal key As String) As Long
+    Dim value As String
+    Dim number As Double
+
+    value = fn_Config(key)
+    If Not VBA.IsNumeric(value) Then
+        Err.Raise 5, , "Invalid configuration count: " & key
+    End If
+    number = VBA.CDbl(value)
+    If number < 0 Or number > 1000 Or number <> VBA.Fix(number) Then
+        Err.Raise 5, , "Invalid configuration count: " & key
+    End If
+    fn_Count = VBA.CLng(number)
+End Function
+
+Public Function fn_Path(ByVal value As String) As String
+    Dim fileSystem As Object
+
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    value = VBA.Replace$(value, "/", "\")
+    If VBA.Left$(value, 2) <> "\\" And VBA.Mid$(value, 2, 1) <> ":" Then
+        value = fileSystem.BuildPath(ThisWorkbook.Path, value)
+    End If
+    fn_Path = fileSystem.GetAbsolutePathName(value)
+End Function
+
+Public Function fn_Text(ByVal value As Variant) As String
+    If VBA.IsError(value) Then
+        Err.Raise 5, , "An export value contains an Excel error."
+    End If
+    If VBA.IsNull(value) Or VBA.IsEmpty(value) Then
+        Exit Function
+    End If
+    fn_Text = VBA.Trim$(VBA.CStr(value))
+End Function
+
+Public Function fn_Required( _
+    ByVal values As Object, _
+    ByVal key As String _
+) As Variant
+    If Not values.Exists(key) Then
+        Err.Raise 5, , "Unknown export field: " & key
+    End If
+    If VBA.IsObject(values(key)) Then
+        Err.Raise 5, , "Scalar export field required: " & key
+    End If
+    fn_Required = values(key)
+End Function
+' --------------------------------------
+' } // namespace API
+' --------------------------------------

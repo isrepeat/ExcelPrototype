@@ -251,6 +251,13 @@
                     columnSpan="10"
                     style="statusText"
                     text="{Binding Path=Form.AcceptedOrderText}"/>
+    <controls:label name="WordPreview"
+                    row="3"
+                    column="7"
+                    rowSpan="7"
+                    columnSpan="10"
+                    style="wordPreview"
+                    text="{Binding Path=Form.WordPreviewText}"/>
 
     <controls:label name="PersonnelSection"
                     row="10"
@@ -321,9 +328,32 @@
                     columnSpan="2"
                     style="{Binding Path=Form.ActionStatusStyle}"
                     text="{Binding Path=Form.ActionStatus}"/>
+    <controls:button name="PreviewWord"
+                     row="4"
+                     column="18"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.PreviewWord}"
+                     command="{Binding Path=Commands.PreviewWord}"/>
+    <controls:button name="ExportMovement"
+                     row="6"
+                     column="18"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ExportMovement}"
+                     command="{Binding Path=Commands.ExportMovement}"/>
   </grid>
 
   <styles>
+    <controlStyle name="wordPreview"
+                  indent="1"
+                  backColor="#262626"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"
+                  overflow="wrap"/>
     <controlStyle name="lookupKeyField"
                   backColor="#3A3A3A"
                   textColor="#F4A46B"
