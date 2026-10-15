@@ -33,6 +33,8 @@ Private m_localColumn As Long
 Private m_readOnlyDirty As Boolean
 Private m_visualDirty As Boolean
 Private m_textDirty As Boolean
+Private m_candidateValuesDirty As Boolean
+Private m_candidateLayoutDirty As Boolean
 
 ' //
 ' // Lifecycle
@@ -192,6 +194,10 @@ End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
     obj_IUiElement_Render = m_control.Render(diagnostic)
+    If obj_IUiElement_Render Then
+        m_candidateValuesDirty = False
+        m_candidateLayoutDirty = False
+    End If
     If Not obj_IUiElement_Render Then diagnostic = "Cannot render control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
 End Function
 
@@ -261,6 +267,27 @@ Public Function DependsOnLayout(ByVal name As String) As Boolean
     DependsOnLayout = (VBA.StrComp(ex_UiElementFactory.fn_Attribute(m_definition, "alignToForm"), name, VBA.vbTextCompare) = 0)
 End Function
 
+Public Function TryRefreshValues( _
+    ByVal pending As Object, _
+    ByRef refreshed As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim candidates As obj_UiCandidatesControl
+    Dim dependency As String
+
+    refreshed = False
+    TryRefreshValues = True
+    If Not TypeOf m_control Is obj_UiCandidatesControl Then Exit Function
+    If Not m_candidateValuesDirty Or m_candidateLayoutDirty Then Exit Function
+    dependency = ex_UiElementFactory.fn_Attribute(m_definition, "alignToForm")
+    If pending.Exists(dependency) Then
+        If pending(dependency) Then Exit Function
+    End If
+    Set candidates = m_control
+    TryRefreshValues = candidates.TryRefreshValues(refreshed, diagnostic)
+    If refreshed Then m_candidateValuesDirty = False
+End Function
+
 Public Function RebuildStructure(ByRef diagnostic As String) As Boolean
     If VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type")) <> "form" Then
         RebuildStructure = True
@@ -298,6 +325,13 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
                 If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
                     If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                             VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
+                        If TypeOf m_control Is obj_UiCandidatesControl Then
+                            If nodeAttribute.nodeName = "itemsSource" Then
+                                m_candidateValuesDirty = True
+                            Else
+                                m_candidateLayoutDirty = True
+                            End If
+                        End If
                         If TypeOf m_control Is obj_UiFieldControl Then
                             ' Cell bindings already propagate values without refreshing control presentation.
                             If nodeAttribute.nodeName = "value" Then GoTo NextAttribute

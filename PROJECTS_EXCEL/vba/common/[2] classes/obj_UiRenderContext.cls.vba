@@ -320,6 +320,8 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Dim oldElements As Object
     Dim oldElement As obj_IUiElement
     Dim layoutChanged As Variant
+    Dim refreshed As Boolean
+    Dim tableSettingsCaptured As Boolean
 
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
@@ -346,6 +348,7 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     If needsLayout Then
         previousExpand = Application.AutoCorrect.AutoExpandListRange
         previousFill = Application.AutoCorrect.AutoFillFormulasInLists
+        tableSettingsCaptured = True
     End If
     On Error GoTo Failed
     Application.EnableEvents = False
@@ -360,6 +363,26 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Set m_pending = pending
     Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
     m_dirty.CompareMode = VBA.vbTextCompare
+    If needsLayout Then
+        ' A source replacement does not imply new geometry when its rendered schema is unchanged.
+        For Each key In pending.Keys
+            If pending(key) And m_elements.Exists(key) Then
+                Set registered = m_elements(key)
+                If TypeOf registered Is obj_UiControlElement Then
+                    Set controlElement = registered
+                    If Not controlElement.TryRefreshValues(pending, refreshed, diagnostic) Then GoTo CleanExit
+                    If refreshed Then pending.Remove key
+                End If
+            End If
+        Next key
+        needsLayout = False
+        For Each layoutChanged In pending.Items
+            If layoutChanged Then
+                needsLayout = True
+                Exit For
+            End If
+        Next layoutChanged
+    End If
     If needsLayout Then
         Set oldAreas = VBA.CreateObject("Scripting.Dictionary")
         oldAreas.CompareMode = VBA.vbTextCompare
@@ -469,7 +492,7 @@ CleanExit:
     End If
     m_rendering = False
     Set m_pending = Nothing
-    If needsLayout Then
+    If tableSettingsCaptured Then
         Application.AutoCorrect.AutoExpandListRange = previousExpand
         Application.AutoCorrect.AutoFillFormulasInLists = previousFill
     End If

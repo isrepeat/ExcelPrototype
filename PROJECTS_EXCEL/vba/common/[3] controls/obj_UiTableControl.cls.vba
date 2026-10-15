@@ -33,6 +33,9 @@ Private m_selectedRow As Long
 Private m_tablePlan As Object
 Private m_sourceOverride As obj_IUiTableSource
 Private m_selectionMode As String
+Private m_renderedSchema As String
+Private m_renderedValues As Variant
+Private m_renderedSelection As obj_IUiSelectionSource
 
 ' //
 ' // Lifecycle
@@ -175,6 +178,9 @@ Public Sub Dispose()
     Set m_targetRange = Nothing
     Set m_tablePlan = Nothing
     Set m_sourceOverride = Nothing
+    Set m_renderedSelection = Nothing
+    m_renderedValues = Empty
+    m_renderedSchema = VBA.vbNullString
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_renderContext = Nothing
@@ -185,6 +191,126 @@ Public Sub SetSource(ByVal source As obj_IUiTableSource)
     Set m_sourceOverride = source
     Set m_table = Nothing
 End Sub
+
+Public Function TryRefreshValues( _
+    ByRef refreshed As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim table As obj_UiRawTable
+    Dim selection As obj_IUiSelectionSource
+    Dim headerPresentation As obj_IUiHeaderPresentation
+    Dim columnLayout As obj_IUiColumnLayout
+    Dim item As Object
+    Dim previousItem As Object
+    Dim buffer As Variant
+    Dim columnValues As Variant
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim targetRow As Long
+    Dim changed As Boolean
+    Dim startedAt As Double
+    Dim selectedValue As Variant
+    Dim selected As Object
+    Dim selectedIsObject As Boolean
+
+    On Error GoTo EH
+    refreshed = False
+    TryRefreshValues = True
+    If m_targetRange Is Nothing Or m_sourceOverride Is Nothing Then Exit Function
+    If Not IsArray(m_renderedValues) Then Exit Function
+    If m_sourceOverride.TableCount <> 1 Then Exit Function
+    Set table = m_sourceOverride.GetTable(1)
+    If table Is Nothing Then Exit Function
+    If private_SourceSchema(m_sourceOverride, table) <> m_renderedSchema Then Exit Function
+    If Not TypeOf m_sourceOverride Is obj_IUiSelectionSource Then Exit Function
+    If m_renderedSelection Is Nothing Then Exit Function
+    Set selection = m_sourceOverride
+    For rowIndex = 1 To table.RowCount
+        Set item = selection.GetItemAt(rowIndex)
+        Set previousItem = m_renderedSelection.GetItemAt(rowIndex)
+        If Not item Is previousItem Then Exit Function
+    Next rowIndex
+    If VBA.Len(m_selectedSource) > 0 Then
+        If Not m_renderContext.BindingContext.TryGetValue( _
+                m_selectedSource, m_selectedPath, selectedValue, selected, selectedIsObject) Then
+            VBA.Err.Raise 5, , "Cannot resolve the current table selection."
+        End If
+        If selectedIsObject Then
+            If m_selectedRow <= 0 Then Exit Function
+            Set item = selection.GetItemAt(m_selectedRow)
+            If Not item Is selected Then Exit Function
+        ElseIf m_selectedRow > 0 Then
+            Exit Function
+        End If
+    End If
+
+    startedAt = VBA.Timer
+    ReDim buffer(1 To m_targetRange.Rows.Count, 1 To m_targetRange.Columns.Count)
+    targetRow = 1
+    If VBA.Len(table.Title) > 0 Then
+        buffer(targetRow, 1) = table.Title
+        targetRow = targetRow + 1
+    End If
+    If TypeOf m_sourceOverride Is obj_IUiHeaderPresentation Then Set headerPresentation = m_sourceOverride
+    If TypeOf m_sourceOverride Is obj_IUiColumnLayout Then Set columnLayout = m_sourceOverride
+    If m_showHeaders And IsArray(table.Headers) Then
+        For columnIndex = 1 To table.ColumnCount
+            If headerPresentation Is Nothing Then
+                buffer(targetRow, columnIndex) = table.HeaderAt(columnIndex)
+            Else
+                buffer(targetRow, columnIndex) = headerPresentation.HeaderTextAt(columnIndex)
+            End If
+        Next columnIndex
+        targetRow = targetRow + 1
+    End If
+    For rowIndex = 1 To table.RowCount
+        For columnIndex = 1 To table.ColumnCount
+            buffer(targetRow, columnIndex) = table.ValueAt(rowIndex, columnIndex)
+        Next columnIndex
+        targetRow = targetRow + 1
+    Next rowIndex
+
+    ' Keep styles, merged cells and selection routes; write changed columns only.
+    For columnIndex = 1 To table.ColumnCount
+        If Not columnLayout Is Nothing Then
+            If columnLayout.ColumnSpanAt(columnIndex) = 0 Then GoTo NextValueColumn
+        End If
+        changed = False
+        For rowIndex = 1 To UBound(buffer, 1)
+            If Not private_SameCellValue(buffer(rowIndex, columnIndex), m_renderedValues(rowIndex, columnIndex)) Then
+                changed = True
+                Exit For
+            End If
+        Next rowIndex
+        If changed Then
+            If private_SourceColumnSpan(m_sourceOverride, columnIndex) > 1 Then
+                For rowIndex = 1 To UBound(buffer, 1)
+                    If Not private_SameCellValue(buffer(rowIndex, columnIndex), m_renderedValues(rowIndex, columnIndex)) Then
+                        m_targetRange.Cells(rowIndex, columnIndex).Value2 = buffer(rowIndex, columnIndex)
+                    End If
+                Next rowIndex
+            Else
+                ReDim columnValues(1 To UBound(buffer, 1), 1 To 1)
+                For rowIndex = 1 To UBound(buffer, 1)
+                    columnValues(rowIndex, 1) = buffer(rowIndex, columnIndex)
+                Next rowIndex
+                m_targetRange.Columns(columnIndex).Value2 = columnValues
+            End If
+        End If
+NextValueColumn:
+    Next columnIndex
+    Set m_source = m_sourceOverride
+    Set m_table = table
+    Set m_selectionSource = selection
+    Set m_renderedSelection = selection
+    m_renderedValues = buffer
+    refreshed = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Table.RefreshValues", startedAt
+    Exit Function
+EH:
+    diagnostic = "Table.RefreshValues: " & VBA.Err.Description
+    TryRefreshValues = False
+End Function
 
 ' //
 ' // Private
@@ -410,6 +536,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             End If
         End If
     End If
+    m_renderedSchema = private_SourceSchema(m_source, rawTable)
+    m_renderedValues = buffer
+    Set m_renderedSelection = m_selectionSource
     private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.Render", startedAt
 End Function
@@ -417,6 +546,56 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_SourceSchema( _
+    ByVal source As obj_IUiTableSource, _
+    ByVal table As obj_UiRawTable _
+) As String
+    Dim columnIndex As Long
+    Dim metadata As obj_IUiColumnMetadata
+    Dim key As String
+    Dim name As String
+
+    key = VBA.CStr(table.RowCount) & "|" & VBA.CStr(table.ColumnCount) & "|" & VBA.CStr(m_showHeaders)
+    key = key & "|" & VBA.CStr(VBA.Len(table.Title)) & ":" & table.Title
+    If Not source Is Nothing Then
+        If TypeOf source Is obj_IUiColumnMetadata Then Set metadata = source
+    End If
+    For columnIndex = 1 To table.ColumnCount
+        name = VBA.CStr(table.HeaderAt(columnIndex))
+        key = key & "|" & VBA.CStr(VBA.Len(name)) & ":" & name
+        key = key & "|" & VBA.CStr(private_SourceColumnSpan(source, columnIndex))
+        If Not metadata Is Nothing Then
+            name = metadata.SourceAliasAt(columnIndex)
+            key = key & "|" & VBA.CStr(VBA.Len(name)) & ":" & name
+        End If
+    Next columnIndex
+    private_SourceSchema = key
+End Function
+
+Private Function private_SourceColumnSpan( _
+    ByVal source As obj_IUiTableSource, _
+    ByVal columnIndex As Long _
+) As Long
+    Dim layout As obj_IUiColumnLayout
+
+    private_SourceColumnSpan = 1
+    If source Is Nothing Then Exit Function
+    If TypeOf source Is obj_IUiColumnLayout Then
+        Set layout = source
+        private_SourceColumnSpan = layout.ColumnSpanAt(columnIndex)
+    End If
+End Function
+
+Private Function private_SameCellValue(ByVal first As Variant, ByVal second As Variant) As Boolean
+    If VBA.IsError(first) Or VBA.IsError(second) Then Exit Function
+    If VBA.VarType(first) <> VBA.VarType(second) Then Exit Function
+    If VBA.IsNull(first) Then
+        private_SameCellValue = True
+    Else
+        private_SameCellValue = (first = second)
+    End If
+End Function
+
 Private Function private_ColumnSpanAt(ByVal columnIndex As Long) As Long
     Dim columnLayout As obj_IUiColumnLayout
 
