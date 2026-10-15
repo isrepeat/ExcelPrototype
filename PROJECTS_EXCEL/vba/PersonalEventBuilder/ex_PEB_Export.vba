@@ -1,10 +1,13 @@
 Attribute VB_Name = "ex_PEB_Export"
 Option Explicit
 
+Private m_configSnapshot As Object
+
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    Set m_configSnapshot = Nothing
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -16,14 +19,58 @@ End Sub
 Public Function fn_Config(ByVal key As String) As String
     Dim value As String
 
-    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::" & key, value) Then
-        Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::" & key
+    If Not m_configSnapshot Is Nothing Then
+        If Not m_configSnapshot.Exists("PersonalEventBuilder::" & key) Then
+            Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::" & key
+        End If
+        value = m_configSnapshot("PersonalEventBuilder::" & key)
+    Else
+        If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::" & key, value) Then
+            Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::" & key
+        End If
     End If
     If VBA.Len(VBA.Trim$(value)) = 0 Then
         Err.Raise 5, , "Empty configuration key: PersonalEventBuilder::" & key
     End If
     fn_Config = value
 End Function
+
+Public Sub fn_BeginConfigSnapshot()
+    Dim sheet As Worksheet
+    Dim table As ListObject
+    Dim data As Variant
+    Dim keyColumn As Long
+    Dim row As Long
+    Dim key As String
+
+    Set m_configSnapshot = Nothing
+    For Each sheet In ThisWorkbook.Worksheets
+        For Each table In sheet.ListObjects
+            If VBA.StrComp(table.Name, "tbConfig", VBA.vbTextCompare) = 0 Then
+                keyColumn = table.ListColumns("Key").Index
+                If table.DataBodyRange Is Nothing Or keyColumn >= table.ListColumns.Count Then
+                    Err.Raise 5, , "Export configuration table is empty or invalid."
+                End If
+                data = table.DataBodyRange.Value2
+                Set m_configSnapshot = VBA.CreateObject("Scripting.Dictionary")
+                m_configSnapshot.CompareMode = VBA.vbTextCompare
+                For row = 1 To UBound(data, 1)
+                    key = VBA.Trim$(VBA.CStr(data(row, keyColumn)))
+                    If m_configSnapshot.Exists(key) Then
+                        Err.Raise 5, , "Duplicate configuration key: " & key
+                    End If
+                    m_configSnapshot.Add key, VBA.Trim$(VBA.CStr(data(row, keyColumn + 1)))
+                Next row
+                Exit Sub
+            End If
+        Next table
+    Next sheet
+    Err.Raise 5, , "Export configuration table not found: tbConfig"
+End Sub
+
+Public Sub fn_EndConfigSnapshot()
+    Set m_configSnapshot = Nothing
+End Sub
 
 Public Function fn_Count(ByVal key As String) As Long
     Dim value As String
