@@ -67,6 +67,14 @@ Public Function DispatchShape(ByVal name As String) As Boolean
     DispatchShape = handler.HandleEvent("click", name)
 End Function
 
+Public Sub UnregisterCell(ByVal cell As Range)
+    Dim key As String
+
+    If m_cells Is Nothing Or cell Is Nothing Then Exit Sub
+    key = cell.Address(False, False)
+    If m_cells.Exists(key) Then m_cells.Remove key
+End Sub
+
 Public Function DispatchCells(ByVal target As Range) As Boolean
     Dim cell As Range
     Dim handler As obj_IUiEventHandler
@@ -131,6 +139,7 @@ Public Function DispatchSelection( _
 End Function
 
 Public Sub UnregisterShape(ByVal name As String)
+    If m_shapes Is Nothing Then Exit Sub
     If m_shapes.Exists(name) Then m_shapes.Remove name
 End Sub
 

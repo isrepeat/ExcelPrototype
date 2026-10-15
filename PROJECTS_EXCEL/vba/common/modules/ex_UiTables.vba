@@ -84,7 +84,8 @@ End Function
 
 Public Sub fn_Prepare( _
     ByVal sheet As Worksheet, _
-    ByVal plans As Collection _
+    ByVal plans As Collection, _
+    Optional ByVal updateScope As Range _
 )
     Dim plan As Object
     Dim other As Object
@@ -169,6 +170,9 @@ Public Sub fn_Prepare( _
     ' Release moved and removed tables before expanding the remaining tables.
     For Each key In owned.Keys
         Set table = owned(key)
+        If Not updateScope Is Nothing Then
+            If Application.Intersect(table.Range, updateScope) Is Nothing Then GoTo NextOwnedTable
+        End If
         keep = False
         If owners.Exists(key) Then
             Set plan = owners(key)
@@ -182,8 +186,12 @@ Public Sub fn_Prepare( _
             Set marker = private_FindMarker(sheet, VBA.CStr(key))
             If Not marker Is Nothing Then marker.Delete
         End If
+NextOwnedTable:
     Next key
     For Each plan In plans
+        If Not updateScope Is Nothing Then
+            If Application.Intersect(plan("range"), updateScope) Is Nothing Then GoTo NextPreparedPlan
+        End If
         If plan("smart") Then
             Set marker = private_FindMarker(sheet, plan("marker"))
             Set table = Nothing
@@ -204,8 +212,12 @@ Public Sub fn_Prepare( _
                 table.Range.ClearFormats
             End If
         End If
+NextPreparedPlan:
     Next plan
     For Each plan In smartPlans
+        If Not updateScope Is Nothing Then
+            If Application.Intersect(plan("range"), updateScope) Is Nothing Then GoTo NextSmartPlan
+        End If
         Set marker = private_FindMarker(sheet, plan("marker"))
         Set table = Nothing
         If Not marker Is Nothing Then Set table = private_MarkerTable(marker, sheet)
@@ -213,6 +225,7 @@ Public Sub fn_Prepare( _
             Set area = plan("range")
             If table.Range.Address <> area.Address Then table.Resize area
         End If
+NextSmartPlan:
     Next plan
     Exit Sub
 EH_PREPARE:

@@ -149,6 +149,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_context Is Nothing Then m_context.UnregisterForm m_name
     If Not m_panel Is Nothing Then m_panel.Dispose
     Set m_panel = Nothing
     Set m_context = Nothing

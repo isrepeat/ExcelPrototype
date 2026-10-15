@@ -107,3 +107,28 @@ EH:
         VBA.vbExclamation, "Page update"
     Resume CleanExit
 End Function
+
+Public Function FlushUpdates() As Boolean
+    Dim previousScreenUpdating As Boolean
+    Dim context As obj_UiRenderContext
+    Dim targetWorksheet As Worksheet
+    Dim diagnostic As String
+
+    If m_uiBindingContext Is Nothing Then Exit Function
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Function
+    Set targetWorksheet = Application.ActiveSheet
+    If Not ex_UiRuntime.fn_TryGetContext(targetWorksheet, context) Then Exit Function
+    If Not context.BindingContext Is m_uiBindingContext Then Exit Function
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH
+    Application.ScreenUpdating = False
+    FlushUpdates = context.FlushLayout(diagnostic)
+    If Not FlushUpdates Then VBA.Err.Raise 5, , diagnostic
+CleanExit:
+    Application.ScreenUpdating = previousScreenUpdating
+    Exit Function
+EH:
+    ex_WindowsUi.fn_ShowMessage "The page cannot be updated: " & VBA.Err.Description, _
+        VBA.vbExclamation, "Page update"
+    Resume CleanExit
+End Function

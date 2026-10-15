@@ -30,6 +30,8 @@ Private m_targetWorksheet As Worksheet
 Private m_uiPageDefinition As obj_UiPageDefinition
 Private m_uiFolderPath As String
 Private m_uiBindingContext As obj_UiBindingContext
+Private m_dirty As Object
+Private m_pending As Object
 
 ' //
 ' // Lifecycle
@@ -61,33 +63,66 @@ Public Sub RegisterElement(ByVal name As String, ByVal element As obj_IUiElement
     Set m_elements(name) = element
 End Sub
 
-Public Function InvalidateVisual(ByVal name As String, ByRef diagnostic As String) As Boolean
-    Dim element As obj_IUiElement
-    Dim previousEvents As Boolean
-    Dim previousExpand As Boolean
-    Dim previousFill As Boolean
+Public Sub UnregisterElement(ByVal name As String, ByVal element As obj_IUiElement)
+    Dim registered As obj_IUiElement
 
+    If m_elements Is Nothing Then Exit Sub
+    If Not m_elements.Exists(name) Then Exit Sub
+    Set registered = m_elements(name)
+    If Not registered Is element Then Exit Sub
+    m_elements.Remove name
+    If Not m_dirty Is Nothing Then
+        If m_dirty.Exists(name) Then m_dirty.Remove name
+    End If
+    If Not m_pending Is Nothing Then
+        If m_pending.Exists(name) Then m_pending.Remove name
+    End If
+    m_styles.ForgetControl name
+End Sub
+
+Public Sub UnregisterForm(ByVal name As String)
+    If m_forms Is Nothing Then Exit Sub
+    If m_forms.Exists(name) Then m_forms.Remove name
+End Sub
+
+Public Sub UnregisterShapeLayout(ByVal name As String)
+    m_styles.ForgetShape name
+    If m_shapeLayouts Is Nothing Then Exit Sub
+    If m_shapeLayouts.Exists(name) Then m_shapeLayouts.Remove name
+End Sub
+
+Public Sub MarkDirty(ByVal name As String, ByVal layoutChanged As Boolean)
+    Dim key As Variant
+    Dim registered As obj_IUiElement
+    Dim controlElement As obj_UiControlElement
+
+    If m_isDisposed Or Not m_hasRendered Or m_rendering Then Exit Sub
+    If Not m_elements.Exists(name) Then VBA.Err.Raise 5, , "Element was not found: " & name
+    If m_dirty.Exists(name) Then
+        If m_dirty(name) Then Exit Sub
+        m_dirty(name) = VBA.CBool(m_dirty(name)) Or layoutChanged
+    Else
+        m_dirty.Add name, layoutChanged
+    End If
+    If layoutChanged Then
+        For Each key In m_elements.Keys
+            Set registered = m_elements(key)
+            If TypeOf registered Is obj_UiControlElement Then
+                Set controlElement = registered
+                If controlElement.DependsOnLayout(name) Then Me.MarkDirty VBA.CStr(key), True
+            End If
+        Next key
+    End If
+End Sub
+
+Public Function InvalidateVisual(ByVal name As String, ByRef diagnostic As String) As Boolean
+    If Not m_isInitialized Or m_isDisposed Or Not m_hasRendered Then Exit Function
     If Not m_elements.Exists(name) Then
         diagnostic = "Element was not found: " & name
         Exit Function
     End If
-    Set element = m_elements(name)
-    previousEvents = Application.EnableEvents
-    previousExpand = Application.AutoCorrect.AutoExpandListRange
-    previousFill = Application.AutoCorrect.AutoFillFormulasInLists
-    On Error GoTo EH_VISUAL
-    Application.EnableEvents = False
-    Application.AutoCorrect.AutoExpandListRange = False
-    Application.AutoCorrect.AutoFillFormulasInLists = False
-    InvalidateVisual = element.Render(diagnostic)
-CleanVisual:
-    Application.AutoCorrect.AutoExpandListRange = previousExpand
-    Application.AutoCorrect.AutoFillFormulasInLists = previousFill
-    Application.EnableEvents = previousEvents
-    Exit Function
-EH_VISUAL:
-    diagnostic = VBA.Err.Description
-    Resume CleanVisual
+    Me.MarkDirty name, False
+    InvalidateVisual = Me.FlushLayout(diagnostic)
 End Function
 
 Public Sub RegisterForm(ByVal name As String, ByVal form As obj_IUiControl)
@@ -232,7 +267,11 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
 
-    If m_rendering Or Not m_needsMeasure Then
+    If Not m_needsMeasure Then
+        FlushLayout = Me.FlushUpdates(diagnostic)
+        Exit Function
+    End If
+    If m_rendering Then
         FlushLayout = True
         Exit Function
     End If
@@ -256,6 +295,173 @@ CleanLayout:
 EH_LAYOUT:
     diagnostic = VBA.Err.Description
     Resume CleanLayout
+End Function
+
+Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
+    Dim previousEvents As Boolean
+    Dim previousScreen As Boolean
+    Dim previousExpand As Boolean
+    Dim previousFill As Boolean
+    Dim pending As Object
+    Dim key As Variant
+    Dim registered As obj_IUiElement
+    Dim controlElement As obj_UiControlElement
+    Dim scope As Range
+    Dim area As Range
+    Dim rows As Long
+    Dim columns As Long
+    Dim needsLayout As Boolean
+    Dim startedAt As Double
+    Dim part As Range
+    Dim oldAreas As Object
+    Dim oldArea As Range
+    Dim oldElements As Object
+    Dim oldElement As obj_IUiElement
+
+    diagnostic = VBA.vbNullString
+    If Not m_isInitialized Or m_isDisposed Then
+        diagnostic = "Cannot flush updates: the UI render context is not initialized or has been disposed."
+        Exit Function
+    End If
+    ' Полный рендер сам прочитает актуальные bindings; промежуточный flush не является ошибкой.
+    If m_rendering Or Not m_hasRendered Then
+        FlushUpdates = True
+        Exit Function
+    End If
+    If m_dirty.Count = 0 Then
+        FlushUpdates = True
+        Exit Function
+    End If
+    previousEvents = Application.EnableEvents
+    previousScreen = Application.ScreenUpdating
+    previousExpand = Application.AutoCorrect.AutoExpandListRange
+    previousFill = Application.AutoCorrect.AutoFillFormulasInLists
+    On Error GoTo Failed
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    Application.AutoCorrect.AutoExpandListRange = False
+    Application.AutoCorrect.AutoFillFormulasInLists = False
+    startedAt = VBA.Timer
+    m_rendering = True
+    Set pending = m_dirty
+    Set m_pending = pending
+    Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
+    m_dirty.CompareMode = VBA.vbTextCompare
+    Set oldAreas = VBA.CreateObject("Scripting.Dictionary")
+    oldAreas.CompareMode = VBA.vbTextCompare
+    Set oldElements = VBA.CreateObject("Scripting.Dictionary")
+    oldElements.CompareMode = VBA.vbTextCompare
+    For Each key In m_elements.Keys
+        Set registered = m_elements(key)
+        If TypeOf registered Is obj_UiControlElement Then
+            Set controlElement = registered
+            Set oldArea = controlElement.RenderArea
+            If Not oldArea Is Nothing Then
+                Set oldAreas(key) = oldArea
+                Set oldElements(key) = registered
+            End If
+        End If
+    Next key
+
+    ' Перестраиваем владельцев структуры до расчёта зависимых контролов.
+    For Each key In pending.Keys
+        If Not pending.Exists(key) Then GoTo NextStructure
+        If pending(key) And m_elements.Exists(key) Then
+            needsLayout = True
+            Set registered = m_elements(key)
+            If TypeOf registered Is obj_UiControlElement Then
+                Set controlElement = registered
+                m_styles.ForgetControl VBA.CStr(key)
+                Set area = controlElement.RenderArea
+                private_UnionArea scope, area
+                If Not controlElement.RebuildStructure(diagnostic) Then GoTo CleanExit
+            End If
+        End If
+NextStructure:
+    Next key
+    If needsLayout Then
+        Set m_tablePlans = New Collection
+        If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
+        If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
+        ' Изменение размеров может сдвинуть соседей в stackPanel или grid.
+        For Each key In oldAreas.Keys
+            If m_elements.Exists(key) Then
+                Set registered = m_elements(key)
+                Set oldElement = oldElements(key)
+                If registered Is oldElement Then
+                    Set controlElement = registered
+                    Set oldArea = oldAreas(key)
+                    Set area = controlElement.RenderArea
+                    If Not area Is Nothing Then
+                        If area.Address <> oldArea.Address Then
+                            pending(key) = True
+                            private_UnionArea scope, oldArea
+                        End If
+                    End If
+                End If
+            End If
+        Next key
+        m_rows = rows
+        m_columns = columns
+        For Each key In pending.Keys
+            If pending(key) And m_elements.Exists(key) Then
+                Set registered = m_elements(key)
+                If TypeOf registered Is obj_UiControlElement Then
+                    Set controlElement = registered
+                    private_UnionArea scope, controlElement.RenderArea
+                End If
+            End If
+        Next key
+        If Not scope Is Nothing Then
+            ex_UiTables.fn_Prepare m_targetWorksheet, m_tablePlans, scope
+            For Each part In scope.Areas
+                ex_UiTables.fn_ClearRange part
+            Next part
+            m_styles.BeginPartialRender scope
+        End If
+    End If
+
+    ' Обновляем только dirty-контролы, сохраняя остальные объекты листа.
+    For Each key In pending.Keys
+        If m_elements.Exists(key) Then
+            Set registered = m_elements(key)
+            If TypeOf registered Is obj_UiControlElement Then
+                Set controlElement = registered
+                If pending(key) Then
+                    m_styles.ForgetControl VBA.CStr(key)
+                    If Not registered.Render(diagnostic) Then GoTo CleanExit
+                Else
+                    If Not controlElement.RefreshVisual(diagnostic) Then GoTo CleanExit
+                End If
+            Else
+                If Not registered.Render(diagnostic) Then GoTo CleanExit
+            End If
+        End If
+    Next key
+    If Not scope Is Nothing Then m_styles.CompletePartialRender
+    If needsLayout Then private_ArrangeShapes
+    FlushUpdates = True
+    ex_Core.fn_Diagnostic_WritePerf "Page.FlushDirty | Sheet=" & m_targetWorksheet.Name & " | Count=" & VBA.CStr(pending.Count), startedAt
+CleanExit:
+    m_styles.EndPartialRender
+    If Not FlushUpdates Then
+        ' Сохраняем неудавшиеся обновления для повторной попытки.
+        If Not pending Is Nothing Then
+            For Each key In pending.Keys
+                If m_elements.Exists(key) Then m_dirty(key) = pending(key)
+            Next key
+        End If
+    End If
+    m_rendering = False
+    Set m_pending = Nothing
+    Application.AutoCorrect.AutoExpandListRange = previousExpand
+    Application.AutoCorrect.AutoFillFormulasInLists = previousFill
+    Application.ScreenUpdating = previousScreen
+    Application.EnableEvents = previousEvents
+    Exit Function
+Failed:
+    diagnostic = VBA.Err.Source & ": " & VBA.Err.Description
+    Resume CleanExit
 End Function
 
 Public Function RenderTree(ByRef diagnostic As String) As Boolean
@@ -310,6 +516,7 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
         ex_Core.fn_Diagnostic_WritePerf "Page.CompleteRender | Sheet=" & m_targetWorksheet.Name, stageStartedAt
     End If
     m_hasRendered = RenderTree
+    If RenderTree Then m_dirty.RemoveAll
 CleanExit:
     m_rendering = False
     Application.AutoCorrect.AutoExpandListRange = previousExpand
@@ -368,6 +575,8 @@ Public Function Initialize( _
     m_forms.CompareMode = VBA.vbTextCompare
     Set m_elements = VBA.CreateObject("Scripting.Dictionary")
     m_elements.CompareMode = VBA.vbTextCompare
+    Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
+    m_dirty.CompareMode = VBA.vbTextCompare
     Initialize = True
     m_isInitialized = Initialize
 End Function
@@ -405,8 +614,10 @@ Public Sub Dispose()
     End If
     If Not m_elements Is Nothing Then
         For Each key In m_elements.Keys
-            Set element = m_elements(key)
-            element.Dispose
+            If m_elements.Exists(key) Then
+                Set element = m_elements(key)
+                element.Dispose
+            End If
         Next key
     End If
     If Not m_styles Is Nothing Then m_styles.Dispose
@@ -415,6 +626,8 @@ Public Sub Dispose()
     Set m_router = Nothing
     Set m_forms = Nothing
     Set m_elements = Nothing
+    Set m_dirty = Nothing
+    Set m_pending = Nothing
     Set m_tablePlans = Nothing
     Set m_shapeLayouts = Nothing
     Set m_uiBindingContext = Nothing
@@ -439,6 +652,15 @@ Private Sub private_ArrangeShapes()
         Set entry = m_shapeLayouts(key)
         private_ArrangeShape entry
     Next key
+End Sub
+
+Private Sub private_UnionArea(ByRef scope As Range, ByVal area As Range)
+    If area Is Nothing Then Exit Sub
+    If scope Is Nothing Then
+        Set scope = area
+    Else
+        Set scope = Application.Union(scope, area)
+    End If
 End Sub
 
 Private Sub private_ArrangeShape(ByVal entry As Collection)

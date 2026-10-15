@@ -14,6 +14,7 @@ Option Explicit
 Implements obj_IUiControl
 Implements obj_IUiEventHandler
 Implements obj_IUiCellRefreshListener
+Implements obj_IUiBindingTarget
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -116,6 +117,18 @@ Private Function obj_IUiControl_Validate(ByVal errors As Collection) As Boolean
     obj_IUiControl_Validate = True
 End Function
 
+Private Function obj_IUiBindingTarget_RefreshBindings( _
+    ByVal context As obj_UiRenderContext _
+) As Boolean
+    If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
+    If m_targetRange Is Nothing Or m_cellBinding Is Nothing Then Exit Function
+    m_targetRange.Locked = m_readOnly
+    m_cellBinding.SetTwoWay Not m_readOnly
+    If Not m_checkboxShape Is Nothing Then m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
+    context.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, context.BindingContext
+    obj_IUiBindingTarget_RefreshBindings = True
+End Function
+
 Private Function obj_IUiEventHandler_HandleEvent( _
     ByVal kind As String, _
     ByVal payload As Variant _
@@ -156,11 +169,28 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
+    Dim shapeName As Variant
+
     If m_isDisposed Then
         Exit Sub
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_renderContext Is Nothing Then
+        If Not m_targetRange Is Nothing Then m_renderContext.Router.UnregisterCell m_targetRange.Cells(1, 1)
+        m_renderContext.Router.UnregisterSelection m_uiControlBase.ControlName
+        If Not m_selectAction Is Nothing Then
+            For Each shapeName In m_selectAction.ShapeNames
+                m_renderContext.Router.UnregisterShape VBA.CStr(shapeName)
+                m_renderContext.UnregisterShapeLayout VBA.CStr(shapeName)
+                m_renderContext.TargetWorksheet.Shapes(VBA.CStr(shapeName)).Delete
+            Next shapeName
+        End If
+        If Not m_checkboxShape Is Nothing Then
+            m_renderContext.Router.UnregisterShape m_checkboxShape.Name
+            m_checkboxShape.Delete
+        End If
+    End If
     If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
     If Not m_selectAction Is Nothing Then m_selectAction.Dispose
     Set m_cellBinding = Nothing
@@ -354,6 +384,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If Not m_selectAction Is Nothing Then
         For Each shapeNameToRemove In m_selectAction.ShapeNames
             uiRenderContext.Router.UnregisterShape VBA.CStr(shapeNameToRemove)
+            uiRenderContext.UnregisterShapeLayout VBA.CStr(shapeNameToRemove)
             uiRenderContext.TargetWorksheet.Shapes(VBA.CStr(shapeNameToRemove)).Delete
         Next shapeNameToRemove
         m_selectAction.Dispose

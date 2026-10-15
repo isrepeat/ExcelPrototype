@@ -119,6 +119,7 @@ Private Function private_RenderPage( _
     Dim fileSystem As Object
     Dim startedAt As Double
     Dim previousScreenUpdating As Boolean
+    Dim previousEvents As Boolean
     Dim renderErrorNumber As Long
     Dim renderErrorDescription As String
     Dim clearStartedAt As Double
@@ -185,7 +186,10 @@ Private Function private_RenderPage( _
     ex_Core.fn_Diagnostic_WriteLog "UI_TREE_BUILD_COMPLETED | Sheet=" & targetWorksheet.Name
 #End If
     previousScreenUpdating = Application.ScreenUpdating
+    previousEvents = Application.EnableEvents
     On Error GoTo EH_RENDER_PAGE
+    ' Очистка листа не должна запускать обработчики нового контекста до завершения рендера.
+    Application.EnableEvents = False
     Application.ScreenUpdating = False
     If m_pages.Exists(targetWorksheet.Name) Then
         Set previousContext = m_pages(targetWorksheet.Name)
@@ -219,6 +223,7 @@ Private Function private_RenderPage( _
     ex_Core.fn_Diagnostic_WritePerf "Page.Render | Sheet=" & targetWorksheet.Name, startedAt
 CleanRenderPage:
     Application.ScreenUpdating = previousScreenUpdating
+    Application.EnableEvents = previousEvents
     If renderErrorNumber <> 0 Then
         VBA.Err.Raise renderErrorNumber, "ex_UiRuntime.RenderPage", renderErrorDescription
     End If

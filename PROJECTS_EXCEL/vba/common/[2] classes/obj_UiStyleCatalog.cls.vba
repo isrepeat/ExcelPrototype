@@ -21,6 +21,7 @@ Private m_pageDocument As Object
 Private m_targetWorksheet As Worksheet
 Private m_pipeline As obj_UiStylePipeline
 Private m_overlays As Object
+Private m_partialScope As Range
 
 ' //
 ' // Lifecycle
@@ -55,6 +56,7 @@ Public Sub Dispose()
     Set m_pipeline = Nothing
     Set m_overlays = Nothing
     Set m_inlineCaptions = Nothing
+    Set m_partialScope = Nothing
 End Sub
 
 Public Sub BeginPage( _
@@ -206,6 +208,41 @@ Public Sub ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
     Me.ApplyStage "default"
 End Sub
 
+Public Sub ForgetControl(ByVal name As String)
+    If Not m_pipeline Is Nothing Then m_pipeline.ForgetControl name
+    If Not m_overlays Is Nothing Then
+        If m_overlays.Exists(name) Then m_overlays.Remove name
+    End If
+End Sub
+
+Public Sub ForgetShape(ByVal name As String)
+    If m_inlineCaptions Is Nothing Then Exit Sub
+    If m_inlineCaptions.Exists(name) Then m_inlineCaptions.Remove name
+End Sub
+
+Public Sub BeginPartialRender(ByVal scope As Range)
+    Set m_partialScope = scope
+    private_ApplyStage "default", True, False, scope
+End Sub
+
+Public Sub CompletePartialRender()
+    Dim entry As Variant
+    Dim shape As Object
+
+    private_ApplyStage "default", False, True, m_partialScope
+    If m_inlineCaptions Is Nothing Then Exit Sub
+    For Each entry In m_inlineCaptions.Items
+        Set shape = entry(0)
+        If Not Application.Intersect(shape.TopLeftCell, m_partialScope) Is Nothing Then
+            ex_UiInlineText.fn_ApplyCaption shape, VBA.CStr(entry(1)), VBA.CLng(entry(2))
+        End If
+    Next entry
+End Sub
+
+Public Sub EndPartialRender()
+    Set m_partialScope = Nothing
+End Sub
+
 Public Sub BeginRender( _
     ByVal rows As Long, _
     ByVal columns As Long _
@@ -332,15 +369,16 @@ Private Sub private_ApplyStage( _
             Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, pageScope)
             operation = "ApplyRegions"
             private_ApplyRegions regions, properties
-            If rule("target") = "sheet" Then private_ApplyWorksheetProperties m_targetWorksheet, properties
+            If rule("target") = "sheet" And m_partialScope Is Nothing Then private_ApplyWorksheetProperties m_targetWorksheet, properties
         End If
     Next rule
     If Not sheetOnly And Not m_overlays Is Nothing Then
         For Each regionKey In m_overlays.Keys
             Set region = m_overlays(regionKey)
             Set area = region("area")
+            If Not m_partialScope Is Nothing Then Set area = Application.Intersect(area, m_partialScope)
             Set properties = region("properties")
-            private_ApplyProperties area, Nothing, properties
+            If Not area Is Nothing Then private_ApplyProperties area, Nothing, properties
         Next regionKey
     End If
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyStage | Name=" & stageName, startedAt
@@ -366,6 +404,15 @@ Private Sub private_ApplyRegions( _
     For Each region In regions
         Set rowArea = region("area")
         Set shape = region("shape")
+        If Not m_partialScope Is Nothing Then
+            If rowArea Is Nothing Then
+                If shape Is Nothing Then GoTo NextRegion
+                If Application.Intersect(shape.TopLeftCell, m_partialScope) Is Nothing Then GoTo NextRegion
+            Else
+                Set rowArea = Application.Intersect(rowArea, m_partialScope)
+                If rowArea Is Nothing Then GoTo NextRegion
+            End If
+        End If
         If region("part") = "row" And Not rowArea Is Nothing And shape Is Nothing Then
             If batch Is Nothing Then
                 Set batch = rowArea
@@ -386,6 +433,7 @@ Private Sub private_ApplyRegions( _
             End If
             private_ApplyProperties rowArea, shape, properties
         End If
+NextRegion:
     Next region
     If Not batch Is Nothing Then private_ApplyProperties batch, Nothing, properties
 End Sub

@@ -24,6 +24,12 @@ Private m_intrinsicColumns As String
 Private m_context As obj_UiRenderContext
 Private m_bindingContext As obj_UiBindingContext
 Private m_control As obj_IUiControl
+Private m_source As String
+Private m_rows As Long
+Private m_columns As Long
+Private m_area As Range
+Private m_localRow As Long
+Private m_localColumn As Long
 
 ' //
 ' // Lifecycle
@@ -34,6 +40,13 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
+' //
+' // Properties
+' //
+Public Property Get RenderArea() As Range
+    Set RenderArea = m_area
+End Property
 
 ' //
 ' // Interface
@@ -69,6 +82,9 @@ Private Function obj_IUiElement_Configure( _
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONTEXT_ATTACH_STARTED | Name=" & controlName
 #End If
     Set m_context = context
+    m_source = source
+    m_localRow = ex_UiElementFactory.fn_Long(definition, "row", 1)
+    m_localColumn = ex_UiElementFactory.fn_Long(definition, "column", 1)
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_CONTEXT_ATTACH_COMPLETED | Name=" & controlName
 #End If
@@ -145,6 +161,8 @@ Private Function obj_IUiElement_Measure( _
         m_definition.setAttribute "columnSpan", m_intrinsicColumns
     End If
     obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
+    m_rows = rows
+    m_columns = columns
 End Function
 
 Private Function obj_IUiElement_Arrange( _
@@ -152,7 +170,21 @@ Private Function obj_IUiElement_Arrange( _
     ByVal column As Long, _
     ByRef diagnostic As String _
 ) As Boolean
+    Dim localRow As Long
+    Dim localColumn As Long
+    Dim candidates As obj_UiCandidatesControl
+
     obj_IUiElement_Arrange = m_control.Arrange(row, column, diagnostic)
+    If obj_IUiElement_Arrange And m_rows > 0 And m_columns > 0 Then
+        localRow = m_localRow
+        localColumn = m_localColumn
+        If TypeOf m_control Is obj_UiCandidatesControl Then
+            Set candidates = m_control
+            localColumn = candidates.TableStartColumn
+        End If
+        Set m_area = m_context.TargetWorksheet.Cells(row + localRow - 1, column + localColumn - 1).Resize( _
+            m_rows - localRow + 1, m_columns - localColumn + 1)
+    End If
 End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
@@ -173,6 +205,8 @@ Private Sub obj_IUiLayoutSlot_SetSize(ByVal rows As Long, ByVal columns As Long)
         Case "label", "button", "checkbox", "input", "select"
             m_definition.setAttribute "rowSpan", VBA.CStr(rows)
             m_definition.setAttribute "columnSpan", VBA.CStr(columns)
+            m_rows = rows + m_localRow - 1
+            m_columns = columns + m_localColumn - 1
     End Select
 End Sub
 
@@ -186,12 +220,44 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     If Not m_control Is Nothing Then m_control.Dispose
+    If Not m_context Is Nothing Then m_context.UnregisterElement ex_UiElementFactory.fn_Attribute(m_definition, "name"), Me
     Set m_control = Nothing
     If Not m_bindingContext Is Nothing Then m_bindingContext.Unsubscribe Me
     Set m_bindingContext = Nothing
     Set m_context = Nothing
     Set m_definition = Nothing
+    Set m_area = Nothing
 End Sub
+
+Public Function RefreshVisual(ByRef diagnostic As String) As Boolean
+    Dim target As obj_IUiBindingTarget
+
+    If TypeOf m_control Is obj_IUiBindingTarget Then
+        Set target = m_control
+        RefreshVisual = target.RefreshBindings(m_context)
+    Else
+        RefreshVisual = m_control.Render(diagnostic)
+    End If
+    If Not RefreshVisual And VBA.Len(diagnostic) = 0 Then diagnostic = "Cannot refresh control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
+End Function
+
+Public Function DependsOnLayout(ByVal name As String) As Boolean
+    DependsOnLayout = (VBA.StrComp(ex_UiElementFactory.fn_Attribute(m_definition, "alignToForm"), name, VBA.vbTextCompare) = 0)
+End Function
+
+Public Function RebuildStructure(ByRef diagnostic As String) As Boolean
+    If VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type")) <> "form" Then
+        RebuildStructure = True
+        Exit Function
+    End If
+    If Not m_control Is Nothing Then m_control.Dispose
+    Set m_control = ex_UiControlFactory.fn_Create(m_definition)
+    If m_control Is Nothing Then
+        diagnostic = "Cannot recreate control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
+        Exit Function
+    End If
+    RebuildStructure = m_control.Configure(m_definition, m_context, m_source, diagnostic)
+End Function
 
 ' //
 ' // Private
@@ -207,8 +273,6 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
     Dim nodeAttribute As Object
     Dim source As String
     Dim path As String
-    Dim target As obj_IUiBindingTarget
-    Dim previousEvents As Boolean
 
     If m_isDisposed Or m_control Is Nothing Then Exit Sub
     For Each nodeAttribute In m_definition.Attributes
@@ -218,15 +282,13 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
                 If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
                     If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                             VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
-                        If TypeOf m_control Is obj_IUiBindingTarget Then
-                            Set target = m_control
-                            previousEvents = Application.EnableEvents
-                            On Error GoTo EH_REFRESH
-                            Application.EnableEvents = False
-                            target.RefreshBindings m_context
-                            Application.EnableEvents = previousEvents
+                        If TypeOf m_control Is obj_IUiBindingTarget And _
+                                nodeAttribute.nodeName <> "itemsSource" And _
+                                nodeAttribute.nodeName <> "rowSpan" And _
+                                nodeAttribute.nodeName <> "columnSpan" Then
+                            m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), False
                         ElseIf nodeAttribute.nodeName <> "value" Then
-                            m_context.InvalidateMeasure
+                            m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
                         End If
                         Exit Sub
                     End If
@@ -235,7 +297,4 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
         End If
     Next nodeAttribute
     Exit Sub
-EH_REFRESH:
-    Application.EnableEvents = previousEvents
-    VBA.Err.Raise VBA.Err.Number, "Control.RefreshBindings", VBA.Err.Description
 End Sub

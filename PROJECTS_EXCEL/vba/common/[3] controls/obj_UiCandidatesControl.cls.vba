@@ -19,7 +19,7 @@ Private m_control As obj_IUiControl
 Private m_definition As Object
 Private m_context As obj_UiRenderContext
 Private m_column As Long
-Private m_tableColumn As Long
+Private m_tableStartColumn As Long
 
 ' //
 ' // Lifecycle
@@ -30,6 +30,13 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
+' //
+' // Properties
+' //
+Public Property Get TableStartColumn() As Long
+    TableStartColumn = m_tableStartColumn
+End Property
 
 ' //
 ' // Interface
@@ -169,7 +176,7 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
     End If
     If Not private_AlignToForm(table, columnSpans, diagnostic) Then Exit Function
     Set tableDefinition = m_definition.cloneNode(True)
-    tableDefinition.setAttribute "column", VBA.CStr(m_tableColumn)
+    tableDefinition.setAttribute "column", VBA.CStr(m_tableStartColumn)
     If Not m_control.Configure(tableDefinition, m_context, VBA.vbNullString, diagnostic) Then Exit Function
     Set candidatesSource = New obj_UiCandidatesSource
     If Not candidatesSource.Initialize(table, selectionSource, sourceAliases, columnSpans) Then
@@ -236,7 +243,7 @@ Private Function private_AlignToForm( _
     If fieldCount > reservedColumns Then Err.Raise 5, , "Alignment form exceeds its reserved columnSpan: " & formName
     Set beforeColumns = private_ExtraColumns("columnsBefore")
     Set afterColumns = private_ExtraColumns("columnsAfter")
-    m_tableColumn = m_column - beforeColumns.Count
+    m_tableStartColumn = m_column - beforeColumns.Count
     totalColumns = beforeColumns.Count + fieldCount + afterColumns.Count
     firstColumn = private_ReadLong(m_definition, "workspaceFirstColumn", 0)
     lastColumn = private_ReadLong(m_definition, "workspaceLastColumn", 0)
@@ -244,11 +251,11 @@ Private Function private_AlignToForm( _
     If beforeColumns.Count + afterColumns.Count > 0 And firstColumn = 0 Then
         Err.Raise 5, , "Additional candidate columns require explicit workspace column bounds."
     End If
-    If m_tableColumn < 1 Then Err.Raise 5, , "No space for candidate columns before the form."
+    If m_tableStartColumn < 1 Then Err.Raise 5, , "No space for candidate columns before the form."
     If firstColumn > 0 Then
         If lastColumn < firstColumn Then Err.Raise 5, , "Invalid candidate workspace column bounds."
-        If m_tableColumn < firstColumn Then Err.Raise 5, , "No space for candidate columns before the form."
-        If m_tableColumn + totalColumns - 1 > lastColumn Then
+        If m_tableStartColumn < firstColumn Then Err.Raise 5, , "No space for candidate columns before the form."
+        If m_tableStartColumn + totalColumns - 1 > lastColumn Then
             Err.Raise 5, , "No space for candidate columns after the form."
         End If
     End If

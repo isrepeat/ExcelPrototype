@@ -130,8 +130,7 @@ Private Function obj_IUiEventHandler_HandleEvent( _
             rawBinding, VBA.vbNullString, sourceName, bindingPath, m_renderContext.BindingContext) Then Exit Function
     If Not m_renderContext.BindingContext.TrySetPathValue( _
             sourceName, bindingPath, Not VBA.CBool(checked)) Then Exit Function
-    obj_IUiEventHandler_HandleEvent = private_RefreshCaption()
-    If Not obj_IUiEventHandler_HandleEvent Then Exit Function
+    obj_IUiEventHandler_HandleEvent = True
     changeBinding = private_ReadAttribute(m_uiControlBase.ControlNode, "onChange")
     If VBA.Len(changeBinding) > 0 Then
         If Not ex_UiBindingRuntime.fn_TryResolveCommand(changeBinding, m_renderContext.BindingContext, changeCommand) Then
