@@ -213,7 +213,8 @@ Public Sub RegisterShapeLayout( _
     ByVal area As Range, _
     ByVal node As Object, _
     Optional ByVal defaultWidth As String = "1", _
-    Optional ByVal defaultHorizontal As String = "left" _
+    Optional ByVal defaultHorizontal As String = "left", _
+    Optional ByVal wrapCaption As Boolean = False _
 )
     Dim entry As Collection
 
@@ -227,6 +228,7 @@ Public Sub RegisterShapeLayout( _
     entry.Add private_ShapeFraction(node, "shapeHeight", "1")
     entry.Add private_ShapeAlignment(node, "shapeHorizontalAlignment", defaultHorizontal, "left|center|right")
     entry.Add private_ShapeAlignment(node, "shapeVerticalAlignment", "top", "top|center|bottom")
+    entry.Add wrapCaption
     Set m_shapeLayouts(shape.Name) = entry
     private_ArrangeShape entry
 End Sub
@@ -689,6 +691,7 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     End Select
     shape.Left = area.Left + horizontalOffset
     shape.Top = area.Top + verticalOffset
+    If entry(7) Then ex_UiInlineText.fn_WrapCaption shape
 End Sub
 
 Private Function private_ShapeFraction( _

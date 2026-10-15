@@ -170,7 +170,7 @@
                 orientation="horizontal">
       <stackPanel name="ArrivalModes"
                   rowSpan="5"
-                  columnSpan="3"
+                  columnSpan="2"
                   orientation="vertical"
                   horizontalAlignment="stretch">
         <controls:button name="FromTreatment"
@@ -192,7 +192,7 @@
       </stackPanel>
       <stackPanel name="DepartureModes"
                   rowSpan="5"
-                  columnSpan="3"
+                  columnSpan="2"
                   orientation="vertical"
                   horizontalAlignment="stretch">
         <controls:button name="ToTreatment"
@@ -211,6 +211,50 @@
                          style="{Binding Path=Settings.DepartureFamilyLeaveStyle}"
                          caption="{Binding Path=Text.DepartureFamilyLeave}"
                          command="{Binding Path=Commands.DepartureFamilyLeave}"/>
+      </stackPanel>
+      <stackPanel name="DummyModes1"
+                  rowSpan="5"
+                  columnSpan="2"
+                  orientation="vertical"
+                  horizontalAlignment="stretch">
+        <controls:button name="DummyMode11"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode11}"/>
+        <controls:button name="DummyMode12"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode12}"/>
+        <controls:button name="DummyMode13"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode13}"/>
+        <controls:button name="DummyMode14"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode14}"/>
+      </stackPanel>
+      <stackPanel name="DummyModes2"
+                  rowSpan="5"
+                  columnSpan="2"
+                  orientation="vertical"
+                  horizontalAlignment="stretch">
+        <controls:button name="DummyMode21"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode21}"/>
+        <controls:button name="DummyMode22"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode22}"/>
+        <controls:button name="DummyMode23"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode23}"/>
+        <controls:button name="DummyMode24"
+                         style="disabledButton"
+                         caption="{Binding Path=Text.DummyMode}"
+                         command="{Binding Path=Commands.DummyMode24}"/>
       </stackPanel>
     </stackPanel>
     <controls:label name="OrderQueryLabel"
@@ -259,9 +303,9 @@
                     text="{Binding Path=Form.AcceptedOrderText}"/>
     <controls:label name="WordPreview"
                     row="3"
-                    column="7"
+                    column="9"
                     rowSpan="7"
-                    columnSpan="10"
+                    columnSpan="8"
                     style="wordPreview"
                     text="{Binding Path=Form.WordPreviewText}"/>
 
@@ -301,20 +345,20 @@
     <controls:label name="ActionsSection"
                     row="1"
                     column="18"
-                    columnSpan="2"
+                    columnSpan="3"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
                      row="2"
                      column="18"
-                     columnSpan="2"
+                     columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
     <controls:checkbox name="AutoFillPersonnel"
                        row="3"
                        column="18"
-                       columnSpan="2"
+                       columnSpan="3"
                        style="secondaryButton"
                        value="{Binding Path=Form.AutoFillPersonnel}"
                        caption="{Binding Path=Text.AutoFillPersonnelLabel}"
@@ -324,33 +368,84 @@
     <controls:label name="LastStatusLabel"
                     row="7"
                     column="18"
-                    columnSpan="2"
+                    columnSpan="3"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
     <controls:label name="ActionStatus"
                     row="8"
                     column="18"
                     rowSpan="3"
-                    columnSpan="2"
+                    columnSpan="3"
                     style="{Binding Path=Form.ActionStatusStyle}"
                     text="{Binding Path=Form.ActionStatus}"/>
     <controls:button name="PreviewWord"
                      row="4"
                      column="18"
-                     columnSpan="2"
+                     columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.PreviewWord}"
                      command="{Binding Path=Commands.PreviewWord}"/>
     <controls:button name="ExportMovement"
                      row="6"
                      column="18"
-                     columnSpan="2"
+                     columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ExportMovement}"
                      command="{Binding Path=Commands.ExportMovement}"/>
+    <controls:label name="SourceLegendTitle"
+                    row="14"
+                    column="18"
+                    columnSpan="3"
+                    style="sectionTitle"
+                    text="{Binding Path=Text.SourceLegendTitle}"/>
+    <controls:label name="SourceLegendPersonnel"
+                    row="15"
+                    column="20"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendPersonnelEntry}"/>
+    <controls:label name="SourceLegendAbsence"
+                    row="16"
+                    column="20"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendAbsenceEntry}"/>
+    <controls:label name="LegendPersonnelSample"
+                    row="15"
+                    column="18"
+                    style="legendSample"
+                    text="{Binding Path=Text.SourceLegendSample}"/>
+    <controls:label name="LegendPersonnelSeparator"
+                    row="15"
+                    column="19"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendSeparator}"/>
+    <controls:label name="LegendAbsenceSample"
+                    row="16"
+                    column="18"
+                    style="legendSample"
+                    text="{Binding Path=Text.SourceLegendSample}"/>
+    <controls:label name="LegendAbsenceSeparator"
+                    row="16"
+                    column="19"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendSeparator}"/>
   </grid>
 
   <styles>
+    <controlStyle name="legendSample"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="legendDescription"
+                  backColor="#262626"
+                  textColor="#909090"
+                  horizontal="center"
+                  vertical="center"
+                  overflow="wrap"/>
+    <controlStyle name="personnelSource"
+                  backColor="#2D2D2D"
+                  fontColor="#FFFFFF"/>
+    <controlStyle name="absenceSource"
+                  backColor="#303A35"
+                  fontColor="#F4A46B"/>
     <controlStyle name="wordPreview"
                   indent="1"
                   backColor="#262626"
@@ -578,10 +673,16 @@
                 width:2;
               }"/>
         <rule target="column"
-              selector="address=S:T"
+              selector="address=S:S"
               styles="{
-                width:16;
+                width:15;
               }"/>
+        <rule target="column"
+              selector="address=T:T"
+              styles="{width:3;}"/>
+        <rule target="column"
+              selector="address=U:U"
+              styles="{width:15;}"/>
       </layer>
       <layer name="table-parts">
         <rule target="control"
@@ -629,18 +730,21 @@
               }"/>
       </layer>
       <layer name="candidate-sources">
+        <rule target="control"
+              selector="name=SourceLegendTitle"
+              styles="{fontColor:#909090;}"/>
+        <rule target="control"
+              selector="name=LegendPersonnelSample"
+              style="personnelSource"/>
+        <rule target="control"
+              selector="name=LegendAbsenceSample"
+              style="absenceSource"/>
         <rule target="controlPart"
               selector="type=candidates;part=rows;sourceAlias=Personnel"
-              styles="{
-                backColor:#2D2D2D;
-                fontColor:#FFFFFF;
-              }"/>
+              style="personnelSource"/>
         <rule target="controlPart"
               selector="type=candidates;part=rows;sourceAlias=Absence"
-              styles="{
-                backColor:#303A35;
-                fontColor:#F4A46B;
-              }"/>
+              style="absenceSource"/>
         <rule target="controlPart"
               selector="type=candidates;part=rows;sourceAlias=Personnel;tags=even"
               styles="{

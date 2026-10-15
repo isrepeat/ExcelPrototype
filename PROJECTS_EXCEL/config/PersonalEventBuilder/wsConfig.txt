@@ -692,3 +692,13 @@ value	PersonalEventBuilder::export.Word.constants.9.name	MetaTvoTables
 value	PersonalEventBuilder::export.Word.constants.9.kind	emptyCollection
 value	PersonalEventBuilder::export.Word.constants.10.name	MetaTables
 value	PersonalEventBuilder::export.Word.constants.10.kind	emptyCollection
+value	PersonalEventBuilder::legend.sources	Personnel|Absence
+value	PersonalEventBuilder::legend.dateFormat	dd.mm.yyyy
+value	PersonalEventBuilder::text.SourceLegendTitle	ДЖЕРЕЛА ДАНИХ
+value	PersonalEventBuilder::text.SourceLegendPersonnel	ШПО
+value	PersonalEventBuilder::text.SourceLegendAbsence	ЕЖОС
+value	PersonalEventBuilder::text.SourceLegendEntry	{source} ({modified})
+value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
+value	PersonalEventBuilder::text.SourceLegendSample	Текст
+value	PersonalEventBuilder::text.SourceLegendSeparator	—
+value	PersonalEventBuilder::text.DummyMode	Недоступно

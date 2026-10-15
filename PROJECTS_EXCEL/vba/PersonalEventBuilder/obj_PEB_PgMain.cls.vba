@@ -45,7 +45,13 @@ Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
 End Function
 
 Private Function obj_IPage_Render() As Boolean
+    Dim diagnostic As String
+
     If m_pageBase Is Nothing Then Exit Function
+    If Not m_controller.TryRefreshSourceLegend(diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Source legend"
+        Exit Function
+    End If
     obj_IPage_Render = m_pageBase.Render()
 End Function
 
@@ -142,6 +148,8 @@ Private Function private_TryRegisterBindings() As Boolean
             "OrderQueryLabel", "OrderYearLabel", "LastStatus", _
             "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
+            "SourceLegendSample", "SourceLegendSeparator", _
+            "DummyMode", _
             "PreviewWord", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
@@ -202,7 +210,9 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
-            "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged")
+            "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", _
+            "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
+            "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand
         If Not lookupCommand.Initialize(m_controller, VBA.CStr(orderCommand) & "Handler") Then Exit Function
         If Not uiBindingContext.SetObject("Commands", VBA.CStr(orderCommand), lookupCommand) Then Exit Function

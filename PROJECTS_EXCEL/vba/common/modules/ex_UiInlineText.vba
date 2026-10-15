@@ -12,6 +12,25 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Sub fn_WrapCaption(ByVal shape As Object)
+    Dim textFrame As Object
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    On Error GoTo EH
+    Set textFrame = shape.TextFrame2
+    textFrame.AutoSize = msoAutoSizeNone
+    ' Reserve the full button height for wrapped text without changing the font size.
+    textFrame.MarginTop = 0
+    textFrame.MarginBottom = 0
+    textFrame.WordWrap = msoTrue
+    Exit Sub
+EH:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    VBA.Err.Raise errorNumber, "Caption.Wrap", "Shape '" & shape.Name & "': " & errorDescription
+End Sub
+
 Public Sub fn_ApplyCaption( _
     ByVal shape As Object, _
     ByVal rawText As String, _
