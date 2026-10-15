@@ -21,6 +21,63 @@ Public Function fn_CreatePage(ByVal pageId As String) As obj_IPage
     Set fn_CreatePage = New obj_PEB_PgMain
 End Function
 
+Public Sub fn_RegisterHotkeys()
+    Dim keySequence As String
+
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::hotkeys.preview", keySequence) Then
+        VBA.Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::hotkeys.preview"
+    End If
+    If VBA.Len(VBA.Trim$(keySequence)) = 0 Then
+        VBA.Err.Raise 5, , "Empty configuration key: PersonalEventBuilder::hotkeys.preview"
+    End If
+    If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_PreviewWord") Then
+        VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
+    End If
+End Sub
+
+Public Sub fn_PreviewWord()
+    Dim runtimeContext As Object
+    Dim uiRenderContext As obj_UiRenderContext
+    Dim uiCommand As obj_UiCommand
+    Dim diagnostic As String
+    Dim previousScreenUpdating As Boolean
+    Dim busyEntered As Boolean
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH_PREVIEW
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, uiRenderContext) Then GoTo CleanPreview
+    If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
+            "{Binding Path=Commands.PreviewWord}", uiRenderContext.BindingContext, uiCommand) Then
+        GoTo CleanPreview
+    End If
+    busyEntered = ex_UiBusy.fn_Begin()
+    Application.ScreenUpdating = False
+    uiCommand.Execute
+    Set uiRenderContext = Nothing
+    If ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, uiRenderContext) Then
+        If Not uiRenderContext.FlushLayout(diagnostic) Then
+            VBA.Err.Raise 5, , diagnostic
+        End If
+    End If
+CleanPreview:
+    Application.ScreenUpdating = previousScreenUpdating
+    If busyEntered Then ex_UiBusy.fn_End
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_PREVIEW:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    Application.ScreenUpdating = previousScreenUpdating
+    If busyEntered Then ex_UiBusy.fn_End
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    VBA.Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_PreviewWord", errorDescription
+End Sub
+
 Public Function fn_Initialize() As Boolean
     Dim runtimeContext As Object
     Dim profileId As String
@@ -51,6 +108,7 @@ Public Function fn_Initialize() As Boolean
         ex_Core.fn_Diagnostic_Flush
         Exit Function
     End If
+    fn_RegisterHotkeys
     ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_STAGE_COMPLETED | Name=RenderInitialPage"
     ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_COMPLETED | Workbook=" & _
         ThisWorkbook.Name & " | ElapsedMs=" & _

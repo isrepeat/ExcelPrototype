@@ -6,6 +6,7 @@ value	ThisWorkbook::uiPath	..\..\ui
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonalEventBuilder
 value	ThisWorkbook::logMode	Immediate
 value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
+value	PersonalEventBuilder::hotkeys.preview	^3
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
 value	PersonalEventBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
@@ -309,8 +310,6 @@ value	PersonalEventBuilder::forms.Leave.fields.11.name	IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.12.name	EventDate
 value	PersonalEventBuilder::forms.Leave.fields.12.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
-value	PersonalEventBuilder::forms.Leave.fields.12.record	Event.Date
-value	PersonalEventBuilder::forms.Leave.fields.12.sourceAlias	Absence
 value	PersonalEventBuilder::forms.Leave.fields.13.name	TicketNumber
 value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
 value	PersonalEventBuilder::forms.Leave.fields.13.record	Absence.TicketNumber
@@ -362,10 +361,39 @@ value	PersonalEventBuilder::forms.Treatment.fields.15.name	DocumentNumber
 value	PersonalEventBuilder::forms.Treatment.fields.15.captionKey	PersonalEventBuilder::text.ModeDocumentNumberLabel
 value	PersonalEventBuilder::forms.Treatment.fields.16.name	EventDate
 value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
-value	PersonalEventBuilder::forms.Treatment.fields.16.record	Event.Date
-value	PersonalEventBuilder::forms.Treatment.fields.16.sourceAlias	Absence
 value	PersonalEventBuilder::personnel.autoFill.default	true
 value	PersonalEventBuilder::reporter.lookup.key	ReportName
+value	PersonalEventBuilder::hospital.lookup.key	Hospital
+value	PersonalEventBuilder::hospital.fields.count	2
+value	PersonalEventBuilder::hospital.fields.1.formField	Hospital
+value	PersonalEventBuilder::hospital.fields.1.record	Hospital.Name
+value	PersonalEventBuilder::hospital.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
+value	PersonalEventBuilder::hospital.fields.1.sourceAlias	Hospital
+value	PersonalEventBuilder::hospital.fields.2.formField	HospitalShortName
+value	PersonalEventBuilder::hospital.fields.2.record	Hospital.ShortName
+value	PersonalEventBuilder::hospital.fields.2.captionKey	PersonalEventBuilder::text.ModeHospitalShortNameLabel
+value	PersonalEventBuilder::hospital.fields.2.sourceAlias	Hospital
+value	PersonalEventBuilder::lookup.Hospital.key	Hospital.ShortName
+value	PersonalEventBuilder::lookup.Hospital.loadingText	Завантаження лікувальних закладів...
+value	PersonalEventBuilder::lookup.Hospital.minChars	2
+value	PersonalEventBuilder::lookup.Hospital.maxResults	50
+value	PersonalEventBuilder::lookup.Hospital.source.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::lookup.Hospital.source.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::lookup.Hospital.source.range	A3:F10000
+value	PersonalEventBuilder::lookup.Hospital.columns.count	2
+value	PersonalEventBuilder::lookup.Hospital.columns.1.name	Hospital.Name
+value	PersonalEventBuilder::lookup.Hospital.columns.1.header	Назва
+value	PersonalEventBuilder::lookup.Hospital.columns.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
+value	PersonalEventBuilder::lookup.Hospital.columns.1.sourceAlias	Hospital
+value	PersonalEventBuilder::lookup.Hospital.columns.2.name	Hospital.ShortName
+value	PersonalEventBuilder::lookup.Hospital.columns.2.header	Позначення
+value	PersonalEventBuilder::lookup.Hospital.columns.2.captionKey	PersonalEventBuilder::text.ModeHospitalShortNameLabel
+value	PersonalEventBuilder::lookup.Hospital.columns.2.sourceAlias	Hospital
+value	PersonalEventBuilder::lookup.Hospital.display.count	0
+value	PersonalEventBuilder::lookup.Hospital.search.count	1
+value	PersonalEventBuilder::lookup.Hospital.search.1.name	Hospital.Name
+value	PersonalEventBuilder::lookup.Hospital.search.1.match	contains
+value	PersonalEventBuilder::lookup.Hospital.apply.count	0
 value	PersonalEventBuilder::reporter.fields.count	3
 value	PersonalEventBuilder::reporter.fields.1.formField	ReportRank
 value	PersonalEventBuilder::reporter.fields.1.record	Personnel.Rank
@@ -380,9 +408,9 @@ value	PersonalEventBuilder::reporter.fields.3.record	Personnel.PositionCode
 value	PersonalEventBuilder::reporter.fields.3.captionKey	PersonalEventBuilder::text.ModeReportPositionCodeLabel
 value	PersonalEventBuilder::reporter.fields.3.sourceAlias	Personnel
 value	PersonalEventBuilder::forms.Leave.lookup.key	PersonName
-value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|EventDate|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.Treatment.lookup.key	PersonName
-value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition|EventDate
+value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
 value	PersonalEventBuilder::text.CheckboxChecked	☑
 value	PersonalEventBuilder::text.CheckboxUnchecked	☐

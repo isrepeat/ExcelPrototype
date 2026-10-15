@@ -60,8 +60,7 @@
     <field name="EventDate"
            type="text"
            value="{Binding Path=EventDate}"
-           label="{Binding Path=Text.ModeEventDateLabel}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           label="{Binding Path=Text.ModeEventDateLabel}"/>
     <field name="TicketNumber"
            type="text"
            value="{Binding Path=TicketNumber}"
@@ -75,7 +74,9 @@
     <field name="Hospital"
            type="text"
            value="{Binding Path=Hospital}"
-           label="{Binding Path=Text.ModeHospitalLabel}"/>
+           label="{Binding Path=Text.ModeHospitalLabel}"
+           fieldStyle="lookupKeyField"
+           onChange="{Binding Path=Commands.HospitalChanged}"/>
     <field name="HospitalShortName"
            type="text"
            value="{Binding Path=HospitalShortName}"
@@ -456,6 +457,7 @@
                   vertical="top"
                   overflow="wrap"/>
     <controlStyle name="lookupKeyField"
+                  cellType="text"
                   backColor="#3A3A3A"
                   textColor="#F4A46B"
                   fontName="Calibri"
@@ -546,6 +548,7 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="formField"
+                  cellType="text"
                   indent="0"
                   paddingLeft="10"
                   paddingRight="10"
@@ -685,6 +688,16 @@
               styles="{width:15;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="usedRange"
+              selector="row=13"
+              styles="{
+                rowHeight:45;
+              }"/>
+        <rule target="usedRange"
+              selector="row=16:"
+              styles="{
+                rowHeight:45;
+              }"/>
         <rule target="control"
               selector="name=OrderQuery"
               styles="{

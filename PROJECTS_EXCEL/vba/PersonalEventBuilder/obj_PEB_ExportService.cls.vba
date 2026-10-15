@@ -295,6 +295,8 @@ Cleanup:
         tableSource.Dispose
     End If
     If errorNumber <> 0 Then
+        ' Propagate the saved error instead of entering this handler again.
+        On Error GoTo 0
         Err.Raise errorNumber, , errorText
     End If
     Exit Sub
