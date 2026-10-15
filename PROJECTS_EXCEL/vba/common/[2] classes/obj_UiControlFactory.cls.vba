@@ -207,6 +207,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
 End Function
 
 Private Sub private_AddShapeLayoutSchema(ByVal schema As obj_UiMarkupSchema)
+    schema.AddAttribute "shapePlacement", "enum", False, "freeFloating|move|moveAndSize", False, 0
     schema.AddAttribute "shapeWidth", "string", False, "", False, 0
     schema.AddAttribute "shapeHeight", "string", False, "", False, 0
     schema.AddAttribute "shapeHorizontalAlignment", "enum", False, "left|center|right", False, 0

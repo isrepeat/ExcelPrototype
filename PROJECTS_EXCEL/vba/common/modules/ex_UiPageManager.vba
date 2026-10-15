@@ -59,6 +59,11 @@ Public Function fn_HandleCellChange(ByVal target As Range) As Boolean
     If Not m_activePage Is Nothing Then pageHandled = m_activePage.HandleCellChange(target)
     fn_HandleCellChange = bindingHandled Or pageHandled
 End Function
+
+Public Function fn_RenderPage() As Boolean
+    If m_activePage Is Nothing Then Exit Function
+    fn_RenderPage = m_activePage.Render()
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

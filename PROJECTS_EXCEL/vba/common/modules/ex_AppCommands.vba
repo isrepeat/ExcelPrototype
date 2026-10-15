@@ -135,7 +135,7 @@ Public Sub fn_UpdatePage()
     If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
     On Error GoTo EH_UPDATE
-    If Not ex_UiRuntime.fn_UpdateActivePage() Then
+    If Not ex_UiPageManager.fn_RenderPage() Then
         ex_Core.fn_Diagnostic_WriteLog "HOTKEY_PAGE_UPDATE_FAILED"
     End If
     ex_RuntimeLifecycle.fn_Leave runtimeContext

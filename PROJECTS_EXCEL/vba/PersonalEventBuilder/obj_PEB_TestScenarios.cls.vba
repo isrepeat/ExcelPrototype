@@ -14,6 +14,8 @@ Private m_isDisposed As Boolean
 
 Private m_excel As Object
 Private m_book As Object
+Private m_scenarioBook As Object
+Private m_absenceBook As Object
 Private m_seed As Boolean
 Private m_prepared As Boolean
 
@@ -49,7 +51,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
     End If
-    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("test.scenarios.path"))
+    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Movement.path"))
     productionPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("test.scenarios.productionPath"))
     testRoot = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("test.scenarios.root"))
     If VBA.Right$(testRoot, 1) <> "\" Then testRoot = testRoot & "\"
@@ -57,9 +59,6 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         Err.Raise 5, , "Scenario workbook must be inside the configured test data directory."
     End If
     If VBA.StrComp(path, productionPath, VBA.vbTextCompare) = 0 Then Err.Raise 5, , "Scenario source resolves to production."
-    If VBA.StrComp(path, ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Movement.path")), VBA.vbTextCompare) <> 0 Then
-        Err.Raise 5, , "Scenario source must equal the TEST Movement target."
-    End If
     If Not VBA.CreateObject("Scripting.FileSystemObject").FileExists(path) Then Err.Raise 53, , path
     For Each openBook In Application.Workbooks
         If VBA.StrComp(openBook.FullName, path, VBA.vbTextCompare) = 0 Then
@@ -73,9 +72,42 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     m_excel.DisplayAlerts = False
     m_excel.EnableEvents = False
     m_excel.AutomationSecurity = 3
+    ex_PEB_Testing.fn_ReportPhase "OpenMovement"
     Set m_book = m_excel.Workbooks.Open(path, 0, False)
     If m_book.ReadOnly Then Err.Raise 70, , "Scenario workbook is locked or read-only: " & path
     If m_book.Date1904 Then Err.Raise 5, , "Scenario workbook must use the 1900 date system."
+    ex_PEB_Testing.fn_PumpUi
+    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("test.scenarios.path"))
+    If VBA.StrComp(VBA.Left$(path, VBA.Len(testRoot)), testRoot, VBA.vbTextCompare) <> 0 Then
+        Err.Raise 5, , "Scenario workbook must be inside the configured test data directory."
+    End If
+    If VBA.StrComp(path, m_book.FullName, VBA.vbTextCompare) = 0 Then Err.Raise 5, , "Scenario and Movement workbooks must differ."
+    For Each openBook In Application.Workbooks
+        If VBA.StrComp(openBook.FullName, path, VBA.vbTextCompare) = 0 Then
+            Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.TestCloseBook"), "{path}", path)
+        End If
+    Next openBook
+    ex_PEB_Testing.fn_ReportPhase "OpenScenarios"
+    Set m_scenarioBook = m_excel.Workbooks.Open(path, 0, False)
+    If m_scenarioBook.ReadOnly Then Err.Raise 70, , "Scenario workbook is locked or read-only: " & path
+    If m_scenarioBook.Date1904 Then Err.Raise 5, , "Scenario workbook must use the 1900 date system."
+    ex_PEB_Testing.fn_PumpUi
+    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("lookup.Absence.source.path"))
+    If VBA.StrComp(VBA.Left$(path, VBA.Len(testRoot)), testRoot, VBA.vbTextCompare) <> 0 Then
+        Err.Raise 5, , "Absence workbook must be inside the configured test data directory."
+    End If
+    If VBA.StrComp(path, m_book.FullName, VBA.vbTextCompare) = 0 Then Err.Raise 5, , "Absence and Movement workbooks must differ."
+    If VBA.StrComp(path, m_scenarioBook.FullName, VBA.vbTextCompare) = 0 Then Err.Raise 5, , "Absence and Scenario workbooks must differ."
+    For Each openBook In Application.Workbooks
+        If VBA.StrComp(openBook.FullName, path, VBA.vbTextCompare) = 0 Then
+            Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.TestCloseBook"), "{path}", path)
+        End If
+    Next openBook
+    ex_PEB_Testing.fn_ReportPhase "OpenAbsence"
+    Set m_absenceBook = m_excel.Workbooks.Open(path, 0, False)
+    If m_absenceBook.ReadOnly Then Err.Raise 70, , "Absence workbook is locked or read-only: " & path
+    If m_absenceBook.Date1904 Then Err.Raise 5, , "Absence workbook must use the 1900 date system."
+    ex_PEB_Testing.fn_PumpUi
     m_excel.Calculation = xlCalculationManual
     m_isInitialized = True
     Initialize = True
@@ -90,6 +122,10 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
+    If Not m_scenarioBook Is Nothing Then m_scenarioBook.Close False
+    Set m_scenarioBook = Nothing
+    If Not m_absenceBook Is Nothing Then m_absenceBook.Close False
+    Set m_absenceBook = Nothing
     If Not m_book Is Nothing Then m_book.Close False
     Set m_book = Nothing
     If Not m_excel Is Nothing Then m_excel.Quit
@@ -205,7 +241,10 @@ Public Function TryPrepare( _
     updates("Form.ActionStatusStyle") = "actionSuccess"
     updates("Form.AcceptedOrderText") = updates("Form.OrderQuery")
 
-    If seedHistory Then private_Seed history, movement, scenarioId, personId
+    If seedHistory Then
+        private_SeedAbsence scenarioId, personId, VBA.CStr(updates("Form.PersonName"))
+        private_Seed history, movement, scenarioId, personId
+    End If
     m_seed = seedHistory
     m_prepared = True
     TryPrepare = True
@@ -222,7 +261,10 @@ Public Function TryCommit( _
     If Not m_isInitialized Or m_isDisposed Or Not m_prepared Then Err.Raise 5, , "Scenario transaction is not prepared."
     If m_seed Then
         m_excel.Calculate
-        If persist Then m_book.Save
+        If persist Then
+            m_absenceBook.Save
+            m_book.Save
+        End If
     End If
     m_prepared = False
     TryCommit = True
@@ -413,10 +455,16 @@ Public Function TryArchive( _
     Dim fields As String
     Dim stage As Variant
     Dim key As Variant
+    Dim operation As String
+    Dim errorNumber As Long
+    Dim errorDescription As String
+    Dim errorSource As String
 
     On Error GoTo EH
+    operation = "ValidateSession"
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Scenario session is not initialized."
     If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
+    operation = "PrepareResultsTable"
     Set results = private_ArchiveTable("results", VBA.Split(ex_PEB_Export.fn_Config("test.audit.resultFields"), "|"))
     fields = ex_PEB_Export.fn_Config("test.audit.recordFields")
     Set movement = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
@@ -424,11 +472,16 @@ Public Function TryArchive( _
     For Each column In movement.ListColumns
         fields = fields & "|" & column.Name
     Next column
+    operation = "PrepareRecordsTable"
     Set records = private_ArchiveTable("records", VBA.Split(fields, "|"))
+    operation = "PrepareInputsTable"
     Set inputs = private_ArchiveTable("inputs", VBA.Split(ex_PEB_Export.fn_Config("test.audit.inputFields"), "|"))
+    operation = "WriteResults"
     private_ArchiveRow results, report
+    operation = "WriteSnapshots"
     private_ArchiveState records, report, before, after, "Before"
     private_ArchiveState records, report, after, before, "After"
+    operation = "WriteInputs"
     For Each stage In VBA.Array("Fixture", "Prepared")
         Set source = fixture
         If stage = "Prepared" Then Set source = prepared
@@ -443,11 +496,23 @@ Public Function TryArchive( _
             Next key
         End If
     Next stage
+    operation = "SaveAbsence"
+    m_absenceBook.Save
+    operation = "SaveMovement"
     m_book.Save
+    operation = "SaveScenarios"
+    m_scenarioBook.Save
     TryArchive = True
     Exit Function
 EH:
-    diagnostic = VBA.Replace$(ex_PEB_Export.fn_Config("text.TestsArchiveFailed"), "{error}", VBA.Err.Description)
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    errorSource = VBA.Err.Source
+    ex_Core.fn_Diagnostic_WriteLog "TEST_ARCHIVE_ERROR | Stage=" & operation & " | Number=" & VBA.CStr(errorNumber) & _
+        " | Source=" & errorSource & " | Description=" & errorDescription
+    ex_Core.fn_Diagnostic_Flush
+    diagnostic = VBA.Replace$(ex_PEB_Export.fn_Config("text.TestsArchiveFailed"), "{error}", _
+        operation & " | " & VBA.CStr(errorNumber) & " | " & errorDescription)
 End Function
 
 ' //
@@ -466,27 +531,17 @@ Private Function private_ArchiveTable( _
 
     sheetName = ex_PEB_Export.fn_Config("test.audit." & kind & ".sheet")
     tableName = ex_PEB_Export.fn_Config("test.audit." & kind & ".table")
-    For Each candidate In m_book.Worksheets
+    For Each candidate In m_scenarioBook.Worksheets
         If candidate.Name = sheetName Then Set sheet = candidate
     Next candidate
     If sheet Is Nothing Then
-        Set sheet = m_book.Worksheets.Add(, m_book.Worksheets(m_book.Worksheets.Count))
-        sheet.Name = sheetName
+        Err.Raise 5, , "Required archive worksheet is missing: " & sheetName
     End If
     For Each candidate In sheet.ListObjects
         If candidate.Name = tableName Then Set table = candidate
     Next candidate
     If table Is Nothing Then
-        If m_excel.WorksheetFunction.CountA(sheet.UsedRange) > 0 Then Err.Raise 5, , "Archive worksheet contains unrelated data: " & sheetName
-        For index = 0 To UBound(headers)
-            sheet.Cells(1, index + 1).NumberFormat = "@"
-            sheet.Cells(1, index + 1).Value2 = headers(index)
-        Next index
-        Set table = sheet.ListObjects.Add(xlSrcRange, sheet.Range(sheet.Cells(1, 1), sheet.Cells(2, UBound(headers) + 1)), , xlYes)
-        table.Name = tableName
-        table.TableStyle = ex_PEB_Export.fn_Config("test.audit.tableStyle")
-        table.ListRows(1).Delete
-        sheet.UsedRange.Columns.ColumnWidth = ex_PEB_Export.fn_Count("test.audit.columnWidth")
+        Err.Raise 5, , "Required archive table is missing: " & tableName
     End If
     If table.ListColumns.Count <> UBound(headers) + 1 Then Err.Raise 5, , "Archive schema differs: " & tableName
     For index = 0 To UBound(headers)
@@ -504,22 +559,22 @@ Private Sub private_ArchiveRow( _
     Dim column As Object
     Dim index As Long
 
-    If table.ListRows.Count >= ex_PEB_Export.fn_Count("test.audit.maxRows") Then Err.Raise 5, , "Archive row limit reached: " & table.Name
     ReDim data(1 To 1, 1 To table.ListColumns.Count)
     For Each column In table.ListColumns
         index = column.Index
         If values.Exists(column.Name) Then data(1, index) = values(column.Name)
     Next column
-    Set row = table.ListRows.Add
-    row.Range.NumberFormat = "@"
-    row.Range.Value2 = data
-    row.Range.WrapText = True
-    row.Range.RowHeight = ex_PEB_Export.fn_Count("test.audit.rowHeight")
-    For Each column In table.ListColumns
-        If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("test.audit.dateHeaders") & "|", "|" & column.Name & "|", VBA.vbBinaryCompare) > 0 Then
-            row.Range.Cells(1, column.Index).NumberFormat = "dd.mm.yyyy hh:mm:ss"
+    If table.ListRows.Count > 0 Then
+        Set row = table.ListRows(table.ListRows.Count)
+        If m_excel.WorksheetFunction.CountA(row.Range) > 0 Then Set row = Nothing
+    End If
+    If row Is Nothing Then
+        If table.ListRows.Count >= ex_PEB_Export.fn_Count("test.audit.maxRows", table.Parent.Rows.Count - table.HeaderRowRange.Row) Then
+            Err.Raise 5, , "Archive row limit reached: " & table.Name
         End If
-    Next column
+        Set row = table.ListRows.Add
+    End If
+    row.Range.Value2 = data
 End Sub
 
 Private Sub private_ArchiveState( _
@@ -626,7 +681,7 @@ Private Function private_FormText( _
 End Function
 
 Private Function private_Table(ByVal kind As String) As Object
-    Set private_Table = m_book.Worksheets(ex_PEB_Export.fn_Config("test.scenarios." & kind & ".sheet")).ListObjects( _
+    Set private_Table = m_scenarioBook.Worksheets(ex_PEB_Export.fn_Config("test.scenarios." & kind & ".sheet")).ListObjects( _
         ex_PEB_Export.fn_Config("test.scenarios." & kind & ".table"))
 End Function
 
@@ -663,6 +718,75 @@ Private Function private_Find( _
         Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.TestStepMissing"), "{step}", scenarioId & "/" & VBA.CStr(stepId))
     End If
 End Function
+
+Private Sub private_SeedAbsence( _
+    ByVal scenarioId As String, _
+    ByVal personId As String, _
+    ByVal personName As String _
+)
+    Dim source As Object
+    Dim target As Object
+    Dim records As New Collection
+    Dim record As Object
+    Dim output As Object
+    Dim mapping As Variant
+    Dim parts As Variant
+    Dim field As Variant
+    Dim rowIndex As Long
+    Dim matched As Boolean
+    Dim nameHeader As String
+    Dim hasEvent As String
+    Dim value As Variant
+
+    Set source = private_Table("absence")
+    Set target = m_absenceBook.Worksheets(ex_PEB_Export.fn_Config("lookup.Absence.source.sheet")).ListObjects( _
+        ex_PEB_Export.fn_Config("test.absence.table"))
+    nameHeader = ex_PEB_Export.fn_Config("test.absence.nameHeader")
+    If target.Parent.ProtectContents Then Err.Raise 5, , "Absence worksheet is protected."
+
+    ' Validate and stage the entire scenario before changing the target table.
+    For rowIndex = 1 To source.ListRows.Count
+        If ex_PEB_Export.fn_Text(private_Value(source, rowIndex, "id")) = scenarioId Then
+            matched = True
+            If ex_PEB_Export.fn_Text(private_Value(source, rowIndex, "personId")) <> personId Then
+                Err.Raise 5, , "Absence fixture person differs from scenario person."
+            End If
+            If ex_PEB_Export.fn_Text(source.DataBodyRange.Cells(rowIndex, source.ListColumns(nameHeader).Index).Value2) <> personName Then
+                Err.Raise 5, , "Absence fixture name differs from scenario name."
+            End If
+            hasEvent = ex_PEB_Export.fn_Text(source.DataBodyRange.Cells(rowIndex, source.ListColumns( _
+                ex_PEB_Export.fn_Config("test.absence.eventFlagHeader")).Index).Value2)
+            If hasEvent <> "0" And hasEvent <> "1" Then Err.Raise 5, , "Absence fixture event flag must be 0 or 1."
+            If hasEvent = "1" Then
+                Set record = VBA.CreateObject("Scripting.Dictionary")
+                For Each mapping In VBA.Split(ex_PEB_Export.fn_Config("test.absence.fields"), "|")
+                    parts = VBA.Split(mapping, "=", 2)
+                    If UBound(parts) <> 1 Then Err.Raise 5, , "Invalid Absence fixture mapping: " & mapping
+                    value = source.DataBodyRange.Cells(rowIndex, source.ListColumns(parts(1)).Index).Value2
+                    If VBA.IsError(value) Then Err.Raise 5, , "Excel error in Absence fixture: " & parts(1)
+                    record.Add VBA.CStr(target.ListColumns(parts(0)).Index), value
+                Next mapping
+                records.Add record
+            End If
+        End If
+    Next rowIndex
+    If Not matched Then Err.Raise 5, , "Absence fixture is missing for scenario: " & scenarioId
+
+    ' The source has no IPN column; replace only rows for the validated scenario name.
+    For rowIndex = target.ListRows.Count To 1 Step -1
+        If ex_PEB_Export.fn_Text(target.DataBodyRange.Cells(rowIndex, target.ListColumns(nameHeader).Index).Value2) = personName Then
+            target.ListRows(rowIndex).Delete
+        End If
+    Next rowIndex
+    For Each record In records
+        Set output = target.ListRows.Add
+        For Each field In record.Keys
+            value = record(field)
+            If VBA.VarType(value) = VBA.vbString Then output.Range.Cells(1, VBA.CLng(field)).NumberFormat = "@"
+            output.Range.Cells(1, VBA.CLng(field)).Value2 = value
+        Next field
+    Next record
+End Sub
 
 Private Sub private_Seed( _
     ByVal history As Object, _

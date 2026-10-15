@@ -5,21 +5,51 @@
       zoom="80%">
   <grid row="2"
         column="2">
-    <controls:label name="TestPlaceholder"
-                    row="1"
-                    column="1"
-                    columnSpan="8"
-                    style="sectionTitle"
-                    text="{Binding Path=Text.TestsPageTitle}"/>
     <controls:button name="EnvironmentSwitch"
-                     row="3"
-                     column="1"
-                     columnSpan="4"
+                     row="1"
+                     column="17"
                      style="secondaryButton"
                      caption="{Binding Path=Text.EnvironmentSwitch}"
-                     command="{Binding Path=Commands.EnvironmentSwitch}"/>
+                     command="{Binding Path=Commands.EnvironmentSwitch}"
+                     shapePlacement="moveAndSize"/>
+    <controls:button name="OpenTests"
+                     row="1"
+                     column="9"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.TestsRefresh}"
+                     command="{Binding Path=Commands.OpenTests}"/>
+    <controls:label name="TestStatus"
+                    row="2"
+                    column="1"
+                    columnSpan="16"
+                    text="{Binding Path=Form.ActionStatus}"/>
+    <controls:table name="TestCatalog"
+                  itemsSource="{Binding Path=Data.TestCatalog}"
+                  row="4"
+                  column="1"
+                  style="testCatalog"
+                  representation="Smart"
+                  excelTableName="tbPebTestCatalog"
+                  showHeaders="true"/>
   </grid>
   <styles>
+    <controlStyle name="testCatalog"
+                  backColor="#2D2D2D"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"
+                  overflow="wrap"/>
+    <controlStyle name="testCheckbox"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="sectionTitle"
                   indent="0"
                   paddingLeft="10"
@@ -67,8 +97,11 @@
               selector="address=B:Q"
               styles="{width:15;}"/>
         <rule target="column"
+              selector="address=E:E"
+              styles="{width:35;}"/>
+        <rule target="column"
               selector="address=R:R"
-              styles="{width:2;}"/>
+              styles="{width:17;}"/>
         <rule target="column"
               selector="address=S:S"
               styles="{width:15;}"/>
@@ -80,6 +113,18 @@
               styles="{width:15;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="controlPart"
+              selector="type=table;name=TestCatalog;part=rows;columnAlias=Подія / сценарій"
+              styles="{horizontal:left;}"/>
+        <rule target="controlPart"
+              selector="type=table;name=TestCatalog;part=header;columnAlias=Подія / сценарій"
+              styles="{horizontal:left;}"/>
+        <rule target="controlPart"
+              selector="type=table;part=header"
+              styles="{backColor:#3A3A3A;fontColor:#FFFFFF;fontBold:true;}"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=even"
+              styles="{backColor:#383838;}"/>
         <rule target="usedRange"
               selector="row=1"
               styles="{rowHeight:10;}"/>

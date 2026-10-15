@@ -9,7 +9,7 @@ value	PersonalEventBuilder::test.panel.captions	Сценарій|Крок|Очі
 value	PersonalEventBuilder::test.panel.spans	1|1|1|1|2|2|1|1|1|5
 value	PersonalEventBuilder::text.TestsProgress	Тести: {percent}% ({completed}/{total}). {state}
 value	PersonalEventBuilder::text.TestsStopping	Скасування: нові операції не запускаються, очікувані кроки позначаються SKIP.
-value	PersonalEventBuilder::text.TestsArchiveFailed	Не вдалося зберегти журнал у test_РУХ; незбережені зміни буде відкинуто. {error}
+value	PersonalEventBuilder::text.TestsArchiveFailed	Не вдалося зберегти тестові книги та журнал у TestScenarios.xlsx; незбережені зміни буде відкинуто. {error}
 value	PersonalEventBuilder::test.audit.results.sheet	Тест_Результати
 value	PersonalEventBuilder::test.audit.results.table	tbTestResults
 value	PersonalEventBuilder::test.audit.records.sheet	Тест_Записи
@@ -19,11 +19,7 @@ value	PersonalEventBuilder::test.audit.inputs.table	tbTestInputs
 value	PersonalEventBuilder::test.audit.resultFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|Timestamp|TotalSteps|CompletedSteps|RunState
 value	PersonalEventBuilder::test.audit.recordFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|Result|Timestamp|Phase|StateAvailable|RecordIndex|ChangeKind
 value	PersonalEventBuilder::test.audit.inputFields	RunId|ScenarioId|StepId|ModeId|EventName|PersonId|Result|Timestamp|InputStage|Field|Value|ValueType
-value	PersonalEventBuilder::test.audit.tableStyle	TableStyleMedium2
-value	PersonalEventBuilder::test.audit.columnWidth	22
-value	PersonalEventBuilder::test.audit.rowHeight	36
 value	PersonalEventBuilder::test.audit.maxRows	100000
-value	PersonalEventBuilder::test.audit.dateHeaders	Timestamp|Вибуття|Прибуття|Прибуття.План
 value	PersonalEventBuilder::text.TestsFinished	Завершено. {summary}
 value	PersonalEventBuilder::text.TestsStopped	Зупинено. {summary}
 value	PersonalEventBuilder::text.TestsRunError	Помилка запуску. {summary}
@@ -32,7 +28,7 @@ value	PersonalEventBuilder::text.TestsBusy	Тести виконуються. З
 value	PersonalEventBuilder::test.ui.maxScenarios	200
 value	PersonalEventBuilder::text.OpenTests	Тестування РУХ
 value	PersonalEventBuilder::text.TestsPageTitle	Тестування експорту РУХ — TEST
-value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у test_РУХ. Скасування між кроками.
+value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у TestScenarios.xlsx. Скасування між кроками.
 value	PersonalEventBuilder::text.TestsSelectAll	Вибрати всі
 value	PersonalEventBuilder::text.TestsSelectNone	Зняти вибір
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
@@ -40,6 +36,14 @@ value	PersonalEventBuilder::text.TestsStop	Зупинити
 value	PersonalEventBuilder::text.TestsRefresh	Оновити список
 value	PersonalEventBuilder::text.TestsResults	Результати запусків
 value	PersonalEventBuilder::text.TestsRunning	Тести виконуються. Зупинка можлива між кроками.
+value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
+value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
+value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
+value	PersonalEventBuilder::text.TestPhase.Prepare	Відновлення початкового стану та підготовка даних.
+value	PersonalEventBuilder::text.TestPhase.Snapshot	Знімок записів перед експортом.
+value	PersonalEventBuilder::text.TestPhase.Export	Виконання експорту РУХ.
+value	PersonalEventBuilder::text.TestPhase.Verify	Перевірка записів після експорту.
+value	PersonalEventBuilder::text.TestPhase.Archive	Збереження звіту та тестових книг.
 value	PersonalEventBuilder::text.TestsSummary	PASS: {pass} | FAIL: {fail} | SKIP: {skip} | ERROR: {error}
 value	PersonalEventBuilder::text.TestsCancelled	Запуск зупинено користувачем.
 value	PersonalEventBuilder::text.TestsPreviousFailed	Попередній крок сценарію не пройдено; наступний крок не виконується.
@@ -50,14 +54,18 @@ value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків �
 value	PersonalEventBuilder::text.TestsRefreshRequired	Оновіть список сценаріїв на сторінці тестування.
 value	PersonalEventBuilder::text.TestsSelectRequired	Позначте хоча б один сценарій.
 value	PersonalEventBuilder::test.scenarios.headers.name	Назва
+value	PersonalEventBuilder::test.scenarios.headers.catalogOperation	Операція
+value	PersonalEventBuilder::test.scenarios.headers.catalogEvent	Подія / сценарій
+value	PersonalEventBuilder::text.TestCustomOperation	Custom
 value	PersonalEventBuilder::test.scenarios.headers.ruleStatus	RuleStatus
 value	PersonalEventBuilder::test.scenarios.headers.openCount	ExpectedOpenCount
 value	PersonalEventBuilder::test.scenarios.headers.arrival	Прибуття
 value	PersonalEventBuilder::test.runner.codeAliases	NoOpenDeparture=DepartureCreated|PreviousDepartureClosed=DepartureCreated|MatchingOpenDeparture=ArrivalClosed
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
-value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Сценарій|Назва|Кроків|Правило
+value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Сценарій|Операція|Подія / сценарій|Кроків|Правило
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
 value	PersonalEventBuilder::test.ui.rowHeight	36
+value	PersonalEventBuilder::test.ui.checkboxTransparency	95
 value	PersonalEventBuilder::text.TestScenarioItems	S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
 value	PersonalEventBuilder::text.NextTest	Наступний крок
@@ -69,15 +77,23 @@ value	PersonalEventBuilder::text.TestCloseBook	Збережіть і закри�
 value	PersonalEventBuilder::text.TestStepMissing	Має бути рівно один запис сценарію/кроку {step}. Крок відсутній або дублюється.
 value	PersonalEventBuilder::text.TestLoaded	Сценарій {scenario}, крок {step}. Очікування: {expected} ({code}). Експорт запускається окремо.
 value	PersonalEventBuilder::text.TestFailed	Сценарій не завантажено: {error}
-value	PersonalEventBuilder::test.scenarios.path	../../tests/PersonalEventBuilder/Dependencies/test_РУХ.xlsx
-value	PersonalEventBuilder::test.scenarios.root	../../tests/PersonalEventBuilder/Dependencies
+value	PersonalEventBuilder::test.scenarios.path	../../tests/PersonalEventBuilder/TestScenarios.xlsx
+value	PersonalEventBuilder::test.scenarios.root	../../tests/PersonalEventBuilder
 value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
 value	PersonalEventBuilder::test.scenarios.cases.sheet	Тест_Сценарії
 value	PersonalEventBuilder::test.scenarios.cases.table	tbTestScenarios
+value	PersonalEventBuilder::test.scenarios.cases.readRange	auto
 value	PersonalEventBuilder::test.scenarios.history.sheet	Тест_Історія
 value	PersonalEventBuilder::test.scenarios.history.table	tbTestHistory
+value	PersonalEventBuilder::test.scenarios.absence.sheet	Тест_ЄЖОС
+value	PersonalEventBuilder::test.scenarios.absence.table	tbTestAbsence
+value	PersonalEventBuilder::test.absence.table	ВІДСУТНІ
+value	PersonalEventBuilder::test.absence.nameHeader	66
+value	PersonalEventBuilder::test.absence.eventFlagHeader	HasEvent
+value	PersonalEventBuilder::test.absence.fields	65=65|66=66|67=67|68=68|69=69|70=70|71 (А)=71 (А)|71 (Б)=71 (Б)|72=72|73=73|74=74|75 (А)=75 (А)|75 (Б)=75 (Б)|76=76|Стовпець1=Стовпець1
 value	PersonalEventBuilder::test.scenarios.steps.sheet	Тест_Кроки
 value	PersonalEventBuilder::test.scenarios.steps.table	tbTestSteps
+value	PersonalEventBuilder::test.scenarios.steps.readRange	auto
 value	PersonalEventBuilder::test.scenarios.headers.id	ScenarioId
 value	PersonalEventBuilder::test.scenarios.headers.step	StepId
 value	PersonalEventBuilder::test.scenarios.headers.personId	ІПН
@@ -96,7 +112,7 @@ value	ThisWorkbook::config.source	../../config/PersonalEventBuilder/wsConfig.txt
 value	PersonalEventBuilder::environment.name	PROD
 value	PersonalEventBuilder::environment.config.TEST	../../config/PersonalEventBuilder/wsConfig.test.txt
 value	PersonalEventBuilder::environment.config.PROD	../../config/PersonalEventBuilder/wsConfig.txt
-value	PersonalEventBuilder::text.EnvironmentSwitch	PROD → TEST
+value	PersonalEventBuilder::text.EnvironmentSwitch	[[color=#F4A46B]]PROD[[/color]][[color=#909090]] / TEST[[/color]]
 value	PersonalEventBuilder::text.EnvironmentSwitchPending	Перемикання середовища: {environment}. Дані форми буде очищено.
 value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
