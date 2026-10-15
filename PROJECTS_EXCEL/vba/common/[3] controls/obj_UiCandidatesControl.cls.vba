@@ -126,6 +126,19 @@ Public Sub Dispose()
     Set m_context = Nothing
 End Sub
 
+Public Function TryRefreshValues( _
+    ByRef refreshed As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    On Error GoTo EH
+    refreshed = False
+    If Not private_PrepareSource(diagnostic) Then Exit Function
+    TryRefreshValues = m_tableControl.TryRefreshValues(refreshed, diagnostic)
+    Exit Function
+EH:
+    diagnostic = "Candidates.RefreshValues: " & VBA.Err.Description
+End Function
+
 ' //
 ' // Private
 ' //

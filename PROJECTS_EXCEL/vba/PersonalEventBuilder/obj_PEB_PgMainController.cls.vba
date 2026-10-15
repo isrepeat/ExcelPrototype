@@ -912,6 +912,7 @@ Private Function private_LoadMode( _
     Dim projectedResult As obj_LookupResult
     Dim hasMore As Boolean
     Dim modes As Variant
+    Dim currentForm As Variant
 
     On Error GoTo EH
     modes = VBA.Array("ArrivalTreatment", _
@@ -927,6 +928,19 @@ Private Function private_LoadMode( _
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function
     If direction <> "Arrival" And direction <> "Departure" Then Err.Raise 5, , "Invalid mode direction: " & modeId
     If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
+    If VBA.Len(m_modeId) > 0 And Not m_reporterActive Then
+        If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
+        If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
+            ' These modes share the same projection and derived event fields.
+            If Not m_pageBase.BindingContext.SetValue("Settings", m_modeId & "Style", "secondaryButton") Then Exit Function
+            If Not m_pageBase.BindingContext.SetValue("Settings", modeId & "Style", "activeModeButton") Then Exit Function
+            If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
+            If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
+            m_modeId = modeId
+            private_LoadMode = True
+            Exit Function
+        End If
+    End If
     If Not private_ReadModeConfig("forms." & formKind & ".fields.count", countText, diagnostic) Then Exit Function
     If Not VBA.IsNumeric(countText) Then Err.Raise 5, , "Invalid mode field count: " & formKind
     If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
@@ -1011,7 +1025,6 @@ Private Function private_LoadMode( _
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
-    If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
     private_LoadMode = True
     Exit Function
 EH:
@@ -1022,17 +1035,22 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     Dim diagnostic As String
     Dim caption As String
     Dim status As String
+    Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If modeId = m_modeId Then
         private_SwitchMode = True
         Exit Function
     End If
+    startedAt = VBA.Timer
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Prepare", startedAt
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
+    startedAt = VBA.Timer
     private_SwitchMode = m_pageBase.FlushUpdates()
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Flush", startedAt
     Exit Function
 Failed:
     private_SetActionStatus diagnostic, True
