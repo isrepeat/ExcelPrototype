@@ -149,7 +149,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", _
-            "DummyMode", _
+            "DummyMode", "ExtendedModeItems", _
             "PreviewWord", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
@@ -157,6 +157,7 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
         If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
     Next textKey
+    If Not uiBindingContext.SetValue("Form", "ExtendedMode", ex_PEB_Export.fn_Config("text.ExtendedModes")) Then Exit Function
     If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.OrderUnaccepted", configuredText) Then
         ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text.OrderUnaccepted", vbExclamation, "Configuration"
         Exit Function
