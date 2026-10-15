@@ -319,6 +319,7 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Dim oldArea As Range
     Dim oldElements As Object
     Dim oldElement As obj_IUiElement
+    Dim layoutChanged As Variant
 
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
@@ -334,53 +335,65 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
         FlushUpdates = True
         Exit Function
     End If
+    For Each layoutChanged In m_dirty.Items
+        If layoutChanged Then
+            needsLayout = True
+            Exit For
+        End If
+    Next layoutChanged
     previousEvents = Application.EnableEvents
     previousScreen = Application.ScreenUpdating
-    previousExpand = Application.AutoCorrect.AutoExpandListRange
-    previousFill = Application.AutoCorrect.AutoFillFormulasInLists
+    If needsLayout Then
+        previousExpand = Application.AutoCorrect.AutoExpandListRange
+        previousFill = Application.AutoCorrect.AutoFillFormulasInLists
+    End If
     On Error GoTo Failed
     Application.EnableEvents = False
     Application.ScreenUpdating = False
-    Application.AutoCorrect.AutoExpandListRange = False
-    Application.AutoCorrect.AutoFillFormulasInLists = False
+    If needsLayout Then
+        Application.AutoCorrect.AutoExpandListRange = False
+        Application.AutoCorrect.AutoFillFormulasInLists = False
+    End If
     startedAt = VBA.Timer
     m_rendering = True
     Set pending = m_dirty
     Set m_pending = pending
     Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
     m_dirty.CompareMode = VBA.vbTextCompare
-    Set oldAreas = VBA.CreateObject("Scripting.Dictionary")
-    oldAreas.CompareMode = VBA.vbTextCompare
-    Set oldElements = VBA.CreateObject("Scripting.Dictionary")
-    oldElements.CompareMode = VBA.vbTextCompare
-    For Each key In m_elements.Keys
-        Set registered = m_elements(key)
-        If TypeOf registered Is obj_UiControlElement Then
-            Set controlElement = registered
-            Set oldArea = controlElement.RenderArea
-            If Not oldArea Is Nothing Then
-                Set oldAreas(key) = oldArea
-                Set oldElements(key) = registered
-            End If
-        End If
-    Next key
-
-    ' Перестраиваем владельцев структуры до расчёта зависимых контролов.
-    For Each key In pending.Keys
-        If Not pending.Exists(key) Then GoTo NextStructure
-        If pending(key) And m_elements.Exists(key) Then
-            needsLayout = True
+    If needsLayout Then
+        Set oldAreas = VBA.CreateObject("Scripting.Dictionary")
+        oldAreas.CompareMode = VBA.vbTextCompare
+        Set oldElements = VBA.CreateObject("Scripting.Dictionary")
+        oldElements.CompareMode = VBA.vbTextCompare
+        For Each key In m_elements.Keys
             Set registered = m_elements(key)
             If TypeOf registered Is obj_UiControlElement Then
                 Set controlElement = registered
-                m_styles.ForgetControl VBA.CStr(key)
-                Set area = controlElement.RenderArea
-                private_UnionArea scope, area
-                If Not controlElement.RebuildStructure(diagnostic) Then GoTo CleanExit
+                Set oldArea = controlElement.RenderArea
+                If Not oldArea Is Nothing Then
+                    Set oldAreas(key) = oldArea
+                    Set oldElements(key) = registered
+                End If
             End If
-        End If
+        Next key
+
+        ' Rebuild structural owners before measuring dependent controls.
+        For Each key In pending.Keys
+            If Not pending.Exists(key) Then GoTo NextStructure
+            If pending(key) And m_elements.Exists(key) Then
+                needsLayout = True
+                Set registered = m_elements(key)
+                If TypeOf registered Is obj_UiControlElement Then
+                    Set controlElement = registered
+                    m_styles.ForgetControl VBA.CStr(key)
+                    Set area = controlElement.RenderArea
+                    private_UnionArea scope, area
+                    If Not controlElement.RebuildStructure(diagnostic) Then GoTo CleanExit
+                End If
+            End If
 NextStructure:
-    Next key
+        Next key
+    End If
     If needsLayout Then
         Set m_tablePlans = New Collection
         If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
@@ -456,8 +469,10 @@ CleanExit:
     End If
     m_rendering = False
     Set m_pending = Nothing
-    Application.AutoCorrect.AutoExpandListRange = previousExpand
-    Application.AutoCorrect.AutoFillFormulasInLists = previousFill
+    If needsLayout Then
+        Application.AutoCorrect.AutoExpandListRange = previousExpand
+        Application.AutoCorrect.AutoFillFormulasInLists = previousFill
+    End If
     Application.ScreenUpdating = previousScreen
     Application.EnableEvents = previousEvents
     Exit Function

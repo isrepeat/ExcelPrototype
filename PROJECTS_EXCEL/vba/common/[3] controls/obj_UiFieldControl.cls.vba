@@ -33,6 +33,7 @@ Private m_isSelect As Boolean
 Private m_editable As Boolean
 Private m_isCheckbox As Boolean
 Private m_readOnly As Boolean
+Private m_appliedReadOnly As Boolean
 Private m_cellBinding As obj_UiCellBinding
 Private m_selectAction As obj_UiSelectShapeAction
 Private m_checkboxShape As Shape
@@ -123,6 +124,7 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
     If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
     If m_targetRange Is Nothing Or m_cellBinding Is Nothing Then Exit Function
     m_targetRange.Locked = m_readOnly
+    m_appliedReadOnly = m_readOnly
     m_cellBinding.SetTwoWay Not m_readOnly
     If Not m_checkboxShape Is Nothing Then m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
     context.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, context.BindingContext
@@ -207,6 +209,29 @@ Public Sub Dispose()
     m_changeCommandRaw = VBA.vbNullString
     Set m_changeCommand = Nothing
 End Sub
+
+Public Function RefreshReadOnly() As Boolean
+    Dim raw As String
+    Dim resolved As String
+    Dim readOnly As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_targetRange Is Nothing Or m_cellBinding Is Nothing Then Exit Function
+    raw = private_ReadAttribute(m_uiControlBase.ControlNode, "readOnly")
+    If VBA.Len(raw) = 0 Then raw = "false"
+    If Not ex_UiBindingRuntime.fn_TryResolveText(raw, m_renderContext.BindingContext, resolved) Then Exit Function
+    resolved = VBA.LCase$(resolved)
+    If resolved <> "true" And resolved <> "false" Then VBA.Err.Raise 5, , "Invalid input readOnly value."
+    readOnly = (resolved = "true")
+    If readOnly <> m_appliedReadOnly Then
+        m_targetRange.Locked = readOnly
+        m_cellBinding.SetTwoWay Not readOnly
+        If Not m_checkboxShape Is Nothing Then m_checkboxShape.ControlFormat.Enabled = Not readOnly
+        m_appliedReadOnly = readOnly
+    End If
+    m_readOnly = readOnly
+    RefreshReadOnly = True
+End Function
 
 Public Function CreateDropdownShapes( _
     ByVal controlId As Long, _
@@ -431,6 +456,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 #End If
     m_targetRange.Value2 = value
     m_targetRange.Locked = m_readOnly
+    m_appliedReadOnly = m_readOnly
     If Not m_isSelect And Not m_isCheckbox Then m_targetRange.WrapText = True
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_COMPLETED | Name=" & m_uiControlBase.ControlName
