@@ -96,11 +96,13 @@ Public Function TryPrepare( _
     On Error GoTo EH
     ex_PEB_Export.fn_BeginConfigSnapshot
     ex_Core.fn_Diagnostic_WritePerf "Preview.ConfigSnapshot", startedAt
-    ' Reload templates per operation so edits to the XML are visible immediately.
-    If Not m_pebDslRenderer Is Nothing Then m_pebDslRenderer.Dispose
-    If Not m_pebWordTemplates Is Nothing Then m_pebWordTemplates.Dispose
-    Set m_pebDslRenderer = Nothing
-    Set m_pebWordTemplates = Nothing
+    ' Keep templates for an isolated test run; interactive operations still reload XML.
+    If Not ex_PEB_Testing.fn_IsRunning() Then
+        If Not m_pebDslRenderer Is Nothing Then m_pebDslRenderer.Dispose
+        If Not m_pebWordTemplates Is Nothing Then m_pebWordTemplates.Dispose
+        Set m_pebDslRenderer = Nothing
+        Set m_pebWordTemplates = Nothing
+    End If
     diagnostic = VBA.vbNullString
     Set values = Nothing
     If Not m_isInitialized Or m_isDisposed Then
@@ -474,10 +476,12 @@ Private Sub private_PrepareMovementBasis(ByVal values As Object)
     Next index
     private_AddConstants values
     private_AddAliases values
-    Set m_pebWordTemplates = New obj_PEB_WordTemplates
-    If Not m_pebWordTemplates.Initialize(diagnostic) Then Err.Raise 5, , diagnostic
-    Set m_pebDslRenderer = New obj_PEB_DslRenderer
-    If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , "Cannot initialize DSL renderer."
+    If m_pebWordTemplates Is Nothing Then
+        Set m_pebWordTemplates = New obj_PEB_WordTemplates
+        If Not m_pebWordTemplates.Initialize(diagnostic) Then Err.Raise 5, , diagnostic
+        Set m_pebDslRenderer = New obj_PEB_DslRenderer
+        If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , "Cannot initialize DSL renderer."
+    End If
     template = ex_PEB_Export.fn_Config("export.Movement.basis.template")
     If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then Err.Raise 5, , diagnostic
     prefix = ex_PEB_Export.fn_Config("export.Movement.basis.prefix")

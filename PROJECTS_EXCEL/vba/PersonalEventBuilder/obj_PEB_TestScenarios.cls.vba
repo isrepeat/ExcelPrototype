@@ -19,11 +19,16 @@ Private m_absenceBook As Object
 Private m_seed As Boolean
 Private m_prepared As Boolean
 Private m_orderResolver As obj_OrderResolver
+Private m_fixtureTables As Object
+Private m_archiveBatches As Object
+Private m_fixtureRows As Object
 
 ' //
 ' // Lifecycle
 ' //
 Private Sub Class_Initialize()
+    Set m_fixtureTables = VBA.CreateObject("Scripting.Dictionary")
+    Set m_fixtureRows = VBA.CreateObject("Scripting.Dictionary")
 End Sub
 
 Private Sub Class_Terminate()
@@ -46,6 +51,8 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     Dim productionPath As String
     Dim testRoot As String
     Dim openBook As Workbook
+    Dim started As Double
+    Dim bootstrap As Object
 
     If m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
@@ -72,9 +79,20 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     m_excel.Visible = False
     m_excel.DisplayAlerts = False
     m_excel.EnableEvents = False
+    m_excel.ScreenUpdating = False
     m_excel.AutomationSecurity = 3
+    ' Excel requires an open workbook before accepting calculation settings.
+    Set bootstrap = m_excel.Workbooks.Add(xlWBATWorksheet)
+    m_excel.Calculation = xlCalculationManual
+    m_excel.CalculateBeforeSave = False
     ex_PEB_Testing.fn_ReportPhase "OpenMovement"
+    started = VBA.Timer
     Set m_book = m_excel.Workbooks.Open(path, 0, False)
+    ex_Core.fn_Diagnostic_WritePerf "Test.OpenMovement", started
+    bootstrap.Close False
+    Set bootstrap = Nothing
+    m_excel.Calculation = xlCalculationManual
+    m_excel.CalculateBeforeSave = False
     If m_book.ReadOnly Then Err.Raise 70, , "Scenario workbook is locked or read-only: " & path
     If m_book.Date1904 Then Err.Raise 5, , "Scenario workbook must use the 1900 date system."
     ex_PEB_Testing.fn_PumpUi
@@ -89,7 +107,9 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         End If
     Next openBook
     ex_PEB_Testing.fn_ReportPhase "OpenScenarios"
+    started = VBA.Timer
     Set m_scenarioBook = m_excel.Workbooks.Open(path, 0, False)
+    ex_Core.fn_Diagnostic_WritePerf "Test.OpenScenarios", started
     If m_scenarioBook.ReadOnly Then Err.Raise 70, , "Scenario workbook is locked or read-only: " & path
     If m_scenarioBook.Date1904 Then Err.Raise 5, , "Scenario workbook must use the 1900 date system."
     ex_PEB_Testing.fn_PumpUi
@@ -105,13 +125,17 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         End If
     Next openBook
     ex_PEB_Testing.fn_ReportPhase "OpenAbsence"
+    started = VBA.Timer
     Set m_absenceBook = m_excel.Workbooks.Open(path, 0, False)
+    ex_Core.fn_Diagnostic_WritePerf "Test.OpenAbsence", started
     If m_absenceBook.ReadOnly Then Err.Raise 70, , "Absence workbook is locked or read-only: " & path
     If m_absenceBook.Date1904 Then Err.Raise 5, , "Absence workbook must use the 1900 date system."
     ex_PEB_Testing.fn_PumpUi
     m_excel.Calculation = xlCalculationManual
-    private_SyncRegistry
-    m_scenarioBook.Save
+    started = VBA.Timer
+    ex_PEB_Testing.fn_ReportPhase "Registry"
+    If Not private_RegistryCurrent() Then private_SyncRegistry
+    ex_Core.fn_Diagnostic_WritePerf "Test.SyncRegistry", started
     m_isInitialized = True
     Initialize = True
     Exit Function
@@ -127,6 +151,9 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_orderResolver Is Nothing Then m_orderResolver.Dispose
     Set m_orderResolver = Nothing
+    Set m_fixtureTables = Nothing
+    Set m_fixtureRows = Nothing
+    Set m_archiveBatches = Nothing
     If Not m_scenarioBook Is Nothing Then m_scenarioBook.Close False
     Set m_scenarioBook = Nothing
     If Not m_absenceBook Is Nothing Then m_absenceBook.Close False
@@ -137,6 +164,16 @@ Public Sub Dispose()
     Set m_excel = Nothing
     On Error GoTo 0
 End Sub
+
+Public Function TryCheckpoint(ByRef diagnostic As String) As Boolean
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Scenario session is not initialized."
+    If Not m_scenarioBook.Saved Then m_scenarioBook.Save
+    TryCheckpoint = True
+    Exit Function
+EH:
+    diagnostic = VBA.Replace$(ex_PEB_Export.fn_Config("text.TestsArchiveFailed"), "{error}", VBA.Err.Description)
+End Function
 
 Public Function TryPrepare( _
     ByVal scenarioId As String, _
@@ -162,8 +199,10 @@ Public Function TryPrepare( _
     Dim personId As String
     Dim requiredKey As String
     Dim action As String
+    Dim started As Double
 
     On Error GoTo EH
+    started = VBA.Timer
     If Not m_isInitialized Or m_isDisposed Or m_prepared Then Err.Raise 5, , "Scenario loader is not ready."
     If VBA.Len(scenarioId) = 0 Or stepOrder < 1 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestChooseScenario")
     Set scenarios = private_Table("cases")
@@ -203,7 +242,7 @@ Public Function TryPrepare( _
         field = parts(0)
         header = parts(1)
         If Not updates.Exists("Form." & field) Then Err.Raise 5, , "Unknown scenario form field: " & field
-        value = steps.DataBodyRange.Cells(stepRow, steps.ListColumns(header).Index).Value2
+        value = private_FixtureValue(steps, stepRow, VBA.CStr(header))
         updates("Form." & field) = private_FormText(value, VBA.CStr(field))
     Next mapping
     If VBA.Len(updates("Form.PersonName")) = 0 Or updates("Form.PersonId") <> personId Then
@@ -236,6 +275,7 @@ Public Function TryPrepare( _
     m_seed = seedHistory
     m_prepared = True
     TryPrepare = True
+    ex_Core.fn_Diagnostic_WritePerf "Test.Prepare", started
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -248,7 +288,7 @@ Public Function TryCommit( _
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Or Not m_prepared Then Err.Raise 5, , "Scenario transaction is not prepared."
     If m_seed Then
-        m_excel.Calculate
+        private_Calculate
         If persist Then
             m_absenceBook.Save
             m_book.Save
@@ -286,19 +326,32 @@ Public Function TryCatalog( _
     Dim movement As Object
     Dim column As Object
     Dim archiveFields As String
+    Dim started As Double
+    Dim scenarioSteps As Object
+    Dim stepRows As Collection
+    Dim stepIndex As Variant
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Scenario session is not initialized."
+    started = VBA.Timer
     Set cases = private_Table("cases")
     Set steps = private_Table("steps")
     Set catalog = New Collection
     Set ids = VBA.CreateObject("Scripting.Dictionary")
     Set allSteps = VBA.CreateObject("Scripting.Dictionary")
+    Set scenarioSteps = VBA.CreateObject("Scripting.Dictionary")
     ' Validate every step, including rows that do not belong to a declared scenario.
     For stepRow = 1 To steps.ListRows.Count
         stepIdentity = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepId"))
         If VBA.Len(stepIdentity) = 0 Or allSteps.Exists(stepIdentity) Then Err.Raise 5, , "Missing or duplicate StepId: " & stepIdentity
         allSteps.Add stepIdentity, Nothing
+        id = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "id"))
+        If Not scenarioSteps.Exists(id) Then
+            Set stepRows = New Collection
+            scenarioSteps.Add id, stepRows
+        End If
+        Set stepRows = scenarioSteps(id)
+        stepRows.Add stepRow
     Next stepRow
     For rowIndex = 1 To cases.ListRows.Count
         id = ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "id"))
@@ -312,7 +365,10 @@ Public Function TryCatalog( _
             Err.Raise 5, , "Unknown scenario rule status: " & id
         End If
         Set numbered = VBA.CreateObject("Scripting.Dictionary")
-        For stepRow = 1 To steps.ListRows.Count
+        If Not scenarioSteps.Exists(id) Then Err.Raise 5, , "Scenario has no steps: " & id
+        Set stepRows = scenarioSteps(id)
+        For Each stepIndex In stepRows
+            stepRow = VBA.CLng(stepIndex)
             If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "id")) = id Then
                 number = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "step"))
                 If Not VBA.IsNumeric(number) Then Err.Raise 5, , "Invalid step number: " & id
@@ -341,7 +397,7 @@ Public Function TryCatalog( _
                 End If
                 Set fixtureInput = VBA.CreateObject("Scripting.Dictionary")
                 For Each inputColumn In steps.ListColumns
-                    fixtureInput(inputColumn.Name) = steps.DataBodyRange.Cells(stepRow, inputColumn.Index).Value2
+                    fixtureInput(inputColumn.Name) = private_FixtureValue(steps, stepRow, inputColumn.Name)
                 Next inputColumn
                 Set testStep("Input") = fixtureInput
                 testStep("Expected") = VBA.vbNullString
@@ -350,7 +406,7 @@ Public Function TryCatalog( _
                 Set allSteps(stepIdentity) = testStep
                 numbered.Add number, testStep
             End If
-        Next stepRow
+        Next stepIndex
         If numbered.Count = 0 Then Err.Raise 5, , "Scenario has no steps: " & id
         Set ordered = New Collection
         For index = 1 To numbered.Count
@@ -378,6 +434,7 @@ Public Function TryCatalog( _
     Set archive = private_ArchiveTable("records", VBA.Split(archiveFields, "|"))
     If catalog.Count = 0 Then Err.Raise 5, , "Scenario catalog is empty."
     TryCatalog = True
+    ex_Core.fn_Diagnostic_WritePerf "Test.Catalog", started
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -406,47 +463,63 @@ Public Function TrySnapshot( _
     Dim raw As Variant
     Dim token As String
     Dim cells As Object
+    Dim data As Variant
+    Dim formulas As Variant
+    Dim formulaMask As Variant
+    Dim headers() As String
+    Dim columnIndex As Long
+    Dim started As Double
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Scenario session is not initialized."
-    If recalculate Then m_excel.Calculate
+    started = VBA.Timer
+    If recalculate Then private_Calculate
     Set table = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
         ex_PEB_Export.fn_Config("export.Movement.table"))
     idColumn = table.ListColumns(ex_PEB_Export.fn_Config("test.scenarios.headers.personId")).Index
     arrivalColumn = table.ListColumns(ex_PEB_Export.fn_Config("test.scenarios.headers.arrival")).Index
     skipColumns = "|" & ex_PEB_Export.fn_Config("test.scenarios.formulaColumns") & "|"
+    If table.ListRows.Count > 0 Then
+        data = table.DataBodyRange.Value2
+        formulas = table.DataBodyRange.FormulaR1C1
+        formulaMask = private_FormulaMask(table.DataBodyRange)
+    End If
+    ReDim headers(1 To table.ListColumns.Count)
+    For Each column In table.ListColumns
+        headers(column.Index) = column.Name
+    Next column
     For index = 1 To table.ListRows.Count
         Set row = VBA.CreateObject("Scripting.Dictionary")
         Set cells = VBA.CreateObject("Scripting.Dictionary")
         signature = VBA.vbNullString
         rowIntegrity = VBA.vbNullString
         hasData = False
-        For Each column In table.ListColumns
-            cells(column.Name) = table.DataBodyRange.Cells(index, column.Index).Value2
-            If table.DataBodyRange.Cells(index, column.Index).HasFormula Then
-                text = VBA.CStr(table.DataBodyRange.Cells(index, column.Index).FormulaR1C1)
+        For columnIndex = 1 To UBound(headers)
+            cells(headers(columnIndex)) = data(index, columnIndex)
+            If formulaMask(index, columnIndex) Then
+                text = VBA.CStr(formulas(index, columnIndex))
                 rowIntegrity = rowIntegrity & "F" & VBA.CStr(VBA.Len(text)) & ":" & text & "|"
-            ElseIf VBA.InStr(1, skipColumns, "|" & column.Name & "|", VBA.vbBinaryCompare) > 0 Then
-                raw = table.DataBodyRange.Cells(index, column.Index).Value2
+            ElseIf VBA.InStr(1, skipColumns, "|" & headers(columnIndex) & "|", VBA.vbBinaryCompare) > 0 Then
+                raw = data(index, columnIndex)
                 token = VBA.CStr(VBA.VarType(raw)) & ":" & private_RawText(raw)
                 rowIntegrity = rowIntegrity & "P" & VBA.CStr(VBA.Len(token)) & ":" & token & "|"
             Else
-                raw = table.DataBodyRange.Cells(index, column.Index).Value2
+                raw = data(index, columnIndex)
                 text = private_RawText(raw)
-                row(column.Name) = text
+                row(headers(columnIndex)) = text
                 token = VBA.CStr(VBA.VarType(raw)) & ":" & text
                 signature = signature & VBA.CStr(VBA.Len(token)) & ":" & token & "|"
                 If VBA.Len(text) > 0 Then hasData = True
             End If
-        Next column
+        Next columnIndex
         integrity = integrity & VBA.CStr(VBA.Len(rowIntegrity)) & ":" & rowIntegrity & "|"
         If hasData Then
             Set row("_cells") = cells
             row("_integrity") = rowIntegrity
             row("_signature") = signature & rowIntegrity
             records.Add row
-            If ex_PEB_Export.fn_Text(table.DataBodyRange.Cells(index, idColumn).Value2) = personId Then
-                If VBA.Len(ex_PEB_Export.fn_Text(table.DataBodyRange.Cells(index, arrivalColumn).Value2)) = 0 Then openCount = openCount + 1
+            If ex_PEB_Export.fn_Text(data(index, idColumn)) = personId Then
+                If VBA.Len(ex_PEB_Export.fn_Text(data(index, arrivalColumn))) = 0 Then openCount = openCount + 1
             End If
         End If
     Next index
@@ -455,6 +528,7 @@ Public Function TrySnapshot( _
     state("OpenCount") = openCount
     state("Integrity") = integrity
     TrySnapshot = True
+    ex_Core.fn_Diagnostic_WritePerf "Test.Snapshot", started
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -466,7 +540,8 @@ Public Function TryArchive( _
     ByVal after As Object, _
     ByVal fixture As Object, _
     ByVal prepared As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal checkpoint As Boolean = True _
 ) As Boolean
     Dim results As Object
     Dim records As Object
@@ -483,8 +558,11 @@ Public Function TryArchive( _
     Dim errorDescription As String
     Dim errorSource As String
     Dim objectValue As Object
+    Dim started As Double
+    Dim saveStarted As Double
 
     On Error GoTo EH
+    started = VBA.Timer
     operation = "ValidateSession"
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Scenario session is not initialized."
     If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
@@ -501,6 +579,7 @@ Public Function TryArchive( _
     operation = "PrepareInputsTable"
     Set inputs = private_ArchiveTable("inputs", VBA.Split(ex_PEB_Export.fn_Config("test.audit.inputFields"), "|"))
     operation = "WriteResults"
+    Set m_archiveBatches = VBA.CreateObject("Scripting.Dictionary")
     private_ArchiveRow results, report
     operation = "WriteSnapshots"
     private_ArchiveState records, report, before, after, "Before"
@@ -527,13 +606,23 @@ Public Function TryArchive( _
             Next key
         End If
     Next stage
+    operation = "FlushArchive"
+    private_FlushArchive results
+    private_FlushArchive records
+    private_FlushArchive inputs
+    Set m_archiveBatches = Nothing
+    saveStarted = VBA.Timer
     operation = "SaveAbsence"
-    m_absenceBook.Save
+    If Not m_absenceBook.Saved Then m_absenceBook.Save
     operation = "SaveMovement"
-    m_book.Save
+    If Not m_book.Saved Then m_book.Save
     operation = "SaveScenarios"
-    m_scenarioBook.Save
+    If checkpoint Then
+        If Not m_scenarioBook.Saved Then m_scenarioBook.Save
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "Test.Save", saveStarted
     TryArchive = True
+    ex_Core.fn_Diagnostic_WritePerf "Test.Archive", started
     Exit Function
 EH:
     errorNumber = VBA.Err.Number
@@ -585,27 +674,51 @@ Private Sub private_ArchiveRow( _
     ByVal table As Object, _
     ByVal values As Object _
 )
-    Dim row As Object
-    Dim data() As Variant
-    Dim column As Object
-    Dim index As Long
+    Dim batch As Collection
 
-    ReDim data(1 To 1, 1 To table.ListColumns.Count)
-    For Each column In table.ListColumns
-        index = column.Index
-        If values.Exists(column.Name) Then data(1, index) = values(column.Name)
-    Next column
+    If Not m_archiveBatches.Exists(table.Name) Then
+        Set batch = New Collection
+        m_archiveBatches.Add table.Name, batch
+    End If
+    Set batch = m_archiveBatches(table.Name)
+    batch.Add values
+End Sub
+
+Private Sub private_FlushArchive(ByVal table As Object)
+    Dim batch As Collection
+    Dim values As Object
+    Dim data() As Variant
+    Dim headers As Variant
+    Dim index As Long
+    Dim columnIndex As Long
+    Dim firstRow As Long
+    Dim totalRows As Long
+    Dim started As Double
+
+    If Not m_archiveBatches.Exists(table.Name) Then Exit Sub
+    started = VBA.Timer
+    Set batch = m_archiveBatches(table.Name)
+    firstRow = table.ListRows.Count + 1
     If table.ListRows.Count > 0 Then
-        Set row = table.ListRows(table.ListRows.Count)
-        If m_excel.WorksheetFunction.CountA(row.Range) > 0 Then Set row = Nothing
+        If m_excel.WorksheetFunction.CountA(table.ListRows(table.ListRows.Count).Range) = 0 Then firstRow = firstRow - 1
     End If
-    If row Is Nothing Then
-        If table.ListRows.Count >= ex_PEB_Export.fn_Count("test.audit.maxRows", table.Parent.Rows.Count - table.HeaderRowRange.Row) Then
-            Err.Raise 5, , "Archive row limit reached: " & table.Name
-        End If
-        Set row = table.ListRows.Add
+    totalRows = firstRow + batch.Count - 1
+    If totalRows > ex_PEB_Export.fn_Count("test.audit.maxRows", table.Parent.Rows.Count - table.HeaderRowRange.Row) Then
+        Err.Raise 5, , "Archive row limit reached: " & table.Name
     End If
-    row.Range.Value2 = data
+    headers = table.HeaderRowRange.Value2
+    ReDim data(1 To batch.Count, 1 To table.ListColumns.Count)
+    For index = 1 To batch.Count
+        Set values = batch(index)
+        For columnIndex = 1 To UBound(data, 2)
+            If values.Exists(headers(1, columnIndex)) Then data(index, columnIndex) = values(headers(1, columnIndex))
+        Next columnIndex
+    Next index
+    If totalRows > table.ListRows.Count Then
+        table.Resize table.HeaderRowRange.Resize(totalRows + 1, table.ListColumns.Count)
+    End If
+    table.DataBodyRange.Rows(firstRow).Resize(batch.Count, table.ListColumns.Count).Value2 = data
+    ex_Core.fn_Diagnostic_WritePerf "Test.ArchiveBatch", started
 End Sub
 
 Private Sub private_ArchiveState( _
@@ -680,6 +793,76 @@ Private Function private_RawText(ByVal value As Variant) As String
     If VBA.IsError(value) Then Err.Raise 5, , "Excel error in Movement snapshot."
     If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit Function
     private_RawText = VBA.CStr(value)
+End Function
+
+Private Function private_RegistryCurrent() As Boolean
+    Dim table As Object
+    Dim target As Object
+    Dim column As Object
+    Dim sheet As Object
+    Dim candidate As Object
+    Dim kind As Variant
+    Dim values As Variant
+    Dim actual As Variant
+    Dim binding As Variant
+    Dim parts As Variant
+    Dim index As Long
+    Dim maximum As Long
+    Dim rangeName As String
+    Dim reference As String
+    Dim runtimeHeader As String
+
+    ' Any stale or missing registry component is repaired by the regular synchronizer.
+    On Error GoTo Stale
+    Set table = m_scenarioBook.Worksheets(ex_PEB_Export.fn_Config("test.registry.sheet")).ListObjects( _
+        ex_PEB_Export.fn_Config("test.registry.table"))
+    runtimeHeader = ex_PEB_Export.fn_Config("test.registry.runtimeHeader")
+    For Each kind In VBA.Split(ex_PEB_Export.fn_Config("test.registry.kinds"), "|")
+        values = ex_PEB_Testing.fn_RegistryValues(VBA.CStr(kind))
+        If UBound(values) + 1 > maximum Then maximum = UBound(values) + 1
+        Set column = table.ListColumns(VBA.CStr(kind))
+        actual = column.DataBodyRange.Value2
+        For index = LBound(values) To UBound(values)
+            If actual(index + 1, 1) <> values(index) Then Exit Function
+            If kind = "ModeId" Then
+                If table.ListColumns(runtimeHeader).DataBodyRange.Cells(index + 1, 1).Value2 <> _
+                    ex_PEB_Testing.fn_ResolveTestMode(values(index)) Then Exit Function
+            End If
+        Next index
+        For index = UBound(values) + 2 To table.ListRows.Count
+            If VBA.Len(ex_PEB_Export.fn_Text(actual(index, 1))) > 0 Then Exit Function
+        Next index
+        rangeName = ex_PEB_Export.fn_Config("test.registry." & kind & ".rangeName")
+        reference = "='" & VBA.Replace$(table.Parent.Name, "'", "''") & "'!" & _
+            column.DataBodyRange.Cells(1, 1).Resize(UBound(values) + 1, 1).Address
+        If m_scenarioBook.Names(rangeName).RefersToRange.Address(True, True, xlA1, True) <> _
+            column.DataBodyRange.Cells(1, 1).Resize(UBound(values) + 1, 1).Address(True, True, xlA1, True) Then Exit Function
+    Next kind
+    If table.ListRows.Count <> maximum Then Exit Function
+    For Each binding In VBA.Split(ex_PEB_Export.fn_Config("test.registry.bindings"), "|")
+        parts = VBA.Split(binding, ":")
+        Set target = Nothing
+        For Each sheet In m_scenarioBook.Worksheets
+            For Each candidate In sheet.ListObjects
+                If candidate.Name = parts(0) Then Set target = candidate
+            Next candidate
+        Next sheet
+        If target Is Nothing Then Exit Function
+        Set column = target.ListColumns(parts(1))
+        rangeName = ex_PEB_Export.fn_Config("test.registry." & parts(2) & ".rangeName")
+        If Not column.DataBodyRange Is Nothing Then
+            With column.DataBodyRange.Validation
+                If VBA.IsNull(.Type) Or VBA.IsNull(.Formula1) Then Exit Function
+                If .Type <> xlValidateList Or .Formula1 <> "=" & rangeName Then Exit Function
+                If .AlertStyle <> xlValidAlertStop Then Exit Function
+                If Not .IgnoreBlank Or Not .InCellDropdown Or Not .ShowError Then Exit Function
+                If .ErrorTitle <> ex_PEB_Export.fn_Config("test.registry.errorTitle") Then Exit Function
+                If .ErrorMessage <> ex_PEB_Export.fn_Config("test.registry.errorMessage") Then Exit Function
+            End With
+        End If
+    Next binding
+    private_RegistryCurrent = True
+Stale:
 End Function
 
 Private Sub private_SyncRegistry()
@@ -891,7 +1074,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
             expectedRow("RecordId") = recordId
             For Each column In movement.ListColumns
                 If VBA.InStr(1, skipColumns, "|" & column.Name & "|", VBA.vbBinaryCompare) = 0 Then
-                    expectedRow(column.Name) = table.DataBodyRange.Cells(rowIndex, table.ListColumns(column.Name).Index).Value2
+                    expectedRow(column.Name) = private_FixtureValue(table, rowIndex, column.Name)
                     If VBA.IsError(expectedRow(column.Name)) Then Err.Raise 5, , "Excel error in expected row: " & stepId & "/" & column.Name
                 End If
             Next column
@@ -1009,9 +1192,86 @@ Private Function private_Value( _
     ByVal rowIndex As Long, _
     ByVal key As String _
 ) As Variant
-    private_Value = table.DataBodyRange.Cells(rowIndex, table.ListColumns(ex_PEB_Export.fn_Config( _
-        "test.scenarios.headers." & key)).Index).Value2
+    private_Value = private_FixtureValue(table, rowIndex, ex_PEB_Export.fn_Config("test.scenarios.headers." & key))
     If VBA.IsError(private_Value) Then Err.Raise 5, , "Excel error in scenario column: " & key
+End Function
+
+Private Function private_FixtureValue( _
+    ByVal table As Object, _
+    ByVal rowIndex As Long, _
+    ByVal header As String _
+) As Variant
+    Dim data As Variant
+    Dim headers As Variant
+    Dim rows As Collection
+    Dim record As Object
+    Dim index As Long
+    Dim columnIndex As Long
+
+    If Not m_fixtureTables.Exists(table.Name) Then
+        data = table.DataBodyRange.Value2
+        headers = table.HeaderRowRange.Value2
+        Set rows = New Collection
+        For index = 1 To UBound(data, 1)
+            Set record = VBA.CreateObject("Scripting.Dictionary")
+            record.CompareMode = VBA.vbTextCompare
+            For columnIndex = 1 To UBound(data, 2)
+                record.Add headers(1, columnIndex), data(index, columnIndex)
+            Next columnIndex
+            rows.Add record
+        Next index
+        m_fixtureTables.Add table.Name, rows
+    End If
+    Set rows = m_fixtureTables(table.Name)
+    Set record = rows(rowIndex)
+    If Not record.Exists(header) Then Err.Raise 5, , "Missing fixture column: " & table.Name & "/" & header
+    private_FixtureValue = record(header)
+End Function
+
+Private Sub private_Calculate()
+    Dim started As Double
+
+    started = VBA.Timer
+    ' Preserve cross-sheet dependencies in the isolated Excel instance.
+    m_excel.Calculate
+    ex_Core.fn_Diagnostic_WritePerf "Test.Calculate", started
+End Sub
+
+Private Function private_FormulaMask(ByVal source As Object) As Variant
+    Dim mask() As Boolean
+    Dim formulas As Object
+    Dim area As Object
+    Dim firstRow As Long
+    Dim firstColumn As Long
+    Dim lastRow As Long
+    Dim lastColumn As Long
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    ReDim mask(1 To source.Rows.Count, 1 To source.Columns.Count)
+    ' SpecialCells distinguishes formulas from literal strings beginning with "=".
+    On Error Resume Next
+    Set formulas = source.SpecialCells(xlCellTypeFormulas)
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    On Error GoTo 0
+    If errorNumber <> 0 And errorNumber <> 1004 Then Err.Raise errorNumber, , errorDescription
+    If Not formulas Is Nothing Then
+        For Each area In formulas.Areas
+            firstRow = area.Row - source.Row + 1
+            firstColumn = area.Column - source.Column + 1
+            lastRow = firstRow + area.Rows.Count - 1
+            lastColumn = firstColumn + area.Columns.Count - 1
+            For rowIndex = firstRow To lastRow
+                For columnIndex = firstColumn To lastColumn
+                    mask(rowIndex, columnIndex) = True
+                Next columnIndex
+            Next rowIndex
+        Next area
+    End If
+    private_FormulaMask = mask
 End Function
 
 Private Function private_Find( _
@@ -1022,6 +1282,13 @@ Private Function private_Find( _
     Dim rowIndex As Long
     Dim matches As Long
     Dim selected As Boolean
+    Dim identity As String
+
+    identity = table.Name & "/" & VBA.CStr(VBA.Len(scenarioId)) & ":" & scenarioId & "/" & VBA.CStr(stepOrder)
+    If m_fixtureRows.Exists(identity) Then
+        private_Find = m_fixtureRows(identity)
+        Exit Function
+    End If
 
     For rowIndex = 1 To table.ListRows.Count
         selected = (ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "id")) = scenarioId)
@@ -1036,6 +1303,7 @@ Private Function private_Find( _
     If matches <> 1 Then
         Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.TestStepMissing"), "{step}", scenarioId & "/" & VBA.CStr(stepOrder))
     End If
+    m_fixtureRows.Add identity, private_Find
 End Function
 
 Private Sub private_SeedAbsence( _
@@ -1124,15 +1392,24 @@ Private Sub private_Seed( _
     Dim sourceColumn As Long
     Dim value As Variant
     Dim skipColumns As String
+    Dim mask As Variant
+    Dim existingFormulas As Variant
+    Dim data() As Variant
+    Dim started As Double
 
+    started = VBA.Timer
     If movement.Parent.ProtectContents Then Err.Raise 5, , "Movement worksheet is protected."
     skipColumns = "|" & ex_PEB_Export.fn_Config("test.scenarios.formulaColumns") & "|"
     Set formulas = VBA.CreateObject("Scripting.Dictionary")
+    If movement.ListRows.Count > 0 Then
+        mask = private_FormulaMask(movement.DataBodyRange)
+        existingFormulas = movement.DataBodyRange.FormulaR1C1
+    End If
     For Each column In movement.ListColumns
         sourceColumn = history.ListColumns(column.Name).Index
         For rowIndex = 1 To movement.ListRows.Count
-            If column.DataBodyRange.Cells(rowIndex, 1).HasFormula Then
-                formula = column.DataBodyRange.Cells(rowIndex, 1).FormulaR1C1
+            If mask(rowIndex, column.Index) Then
+                formula = existingFormulas(rowIndex, column.Index)
                 If formulas.Exists(column.Name) Then
                     If formulas(column.Name) <> formula Then Err.Raise 5, , "Mixed formulas in Movement column: " & column.Name
                 Else
@@ -1165,19 +1442,21 @@ Private Sub private_Seed( _
     For Each column In movement.ListColumns
         If Not formulas.Exists(column.Name) Then column.DataBodyRange.ClearContents
     Next column
-    For outputIndex = 1 To records.Count
-        rowIndex = VBA.CLng(records(outputIndex))
-        For Each column In movement.ListColumns
-            If Not formulas.Exists(column.Name) Then
-                value = history.DataBodyRange.Cells(rowIndex, history.ListColumns(column.Name).Index).Value2
+    For Each column In movement.ListColumns
+        If Not formulas.Exists(column.Name) And records.Count > 0 Then
+            ReDim data(1 To records.Count, 1 To 1)
+            For outputIndex = 1 To records.Count
+                rowIndex = VBA.CLng(records(outputIndex))
+                value = private_FixtureValue(history, rowIndex, column.Name)
                 If VBA.IsError(value) Then Err.Raise 5, , "Excel error in history column: " & column.Name
                 If VBA.VarType(value) = VBA.vbString Then
                     column.DataBodyRange.Cells(outputIndex, 1).NumberFormat = "@"
                 End If
-                column.DataBodyRange.Cells(outputIndex, 1).Value2 = value
-            End If
-        Next column
-    Next outputIndex
+                data(outputIndex, 1) = value
+            Next outputIndex
+            column.DataBodyRange.Resize(records.Count, 1).Value2 = data
+        End If
+    Next column
     For Each key In formulas.Keys
         If VBA.Len(formulas(key)) > 0 Then
             movement.ListColumns(key).DataBodyRange.FormulaR1C1 = formulas(key)
@@ -1185,4 +1464,5 @@ Private Sub private_Seed( _
             movement.ListColumns(key).DataBodyRange.ClearContents
         End If
     Next key
+    ex_Core.fn_Diagnostic_WritePerf "Test.SeedMovement", started
 End Sub

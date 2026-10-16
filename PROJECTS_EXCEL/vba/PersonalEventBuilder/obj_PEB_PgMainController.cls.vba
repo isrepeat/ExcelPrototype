@@ -710,14 +710,6 @@ Public Function CancelTestsHandler() As Boolean
     CancelTestsHandler = True
 End Function
 
-Public Function TestSelectAllHandler() As Boolean
-    TestSelectAllHandler = ex_PEB_Testing.fn_SelectAll(True)
-End Function
-
-Public Function TestSelectNoneHandler() As Boolean
-    TestSelectNoneHandler = ex_PEB_Testing.fn_SelectAll(False)
-End Function
-
 Public Function TestRunHandler() As Boolean
     TestRunHandler = ex_PEB_Testing.fn_RunSelected()
 End Function

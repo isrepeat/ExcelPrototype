@@ -630,15 +630,25 @@ Private Sub private_ApplyProperties( _
 )
     Dim colorValue As Long
     Dim indentLevel As Double
+    Dim fillTransparency As Double
 
     If properties Is Nothing Then Exit Sub
     If properties.Exists("backcolor") Then
-        If private_TryParseColor(properties("backcolor"), colorValue) Then
+        If private_TryParseBackground(properties("backcolor"), colorValue, fillTransparency) Then
             If targetShape Is Nothing Then
-                targetRange.Interior.Pattern = xlSolid
-                targetRange.Interior.Color = colorValue
+                If fillTransparency = 1 Then
+                    targetRange.Interior.Pattern = xlNone
+                ElseIf fillTransparency = 0 Then
+                    targetRange.Interior.Pattern = xlSolid
+                    targetRange.Interior.Color = colorValue
+                Else
+                    ex_UiStyleDiagnostics.fn_Raise "Property", "backColor alpha requires a shape"
+                End If
             Else
+                targetShape.Fill.Visible = msoTrue
+                targetShape.Fill.Solid
                 targetShape.Fill.ForeColor.RGB = colorValue
+                targetShape.Fill.Transparency = fillTransparency
             End If
         End If
     End If
@@ -966,6 +976,28 @@ Private Sub private_ApplyVerticalAlignment( _
             End If
     End Select
 End Sub
+
+Private Function private_TryParseBackground( _
+    ByVal colorText As String, _
+    ByRef outColor As Long, _
+    ByRef outTransparency As Double _
+) As Boolean
+    Dim alpha As Long
+
+    outTransparency = 0
+    colorText = VBA.Trim$(colorText)
+    If VBA.Left$(colorText, 1) = "#" Then colorText = VBA.Mid$(colorText, 2)
+    If VBA.Len(colorText) = 8 Then
+        If Not colorText Like "[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]" Then
+            ex_UiStyleDiagnostics.fn_Raise "Property", "backColor=#" & colorText
+        End If
+        ' XAML uses ARGB: alpha is opacity, whereas Excel expects transparency.
+        alpha = VBA.CLng("&H" & VBA.Left$(colorText, 2))
+        outTransparency = 1# - alpha / 255#
+        colorText = VBA.Mid$(colorText, 3)
+    End If
+    private_TryParseBackground = private_TryParseColor(colorText, outColor)
+End Function
 
 Private Function private_TryParseColor(ByVal colorText As String, ByRef outColor As Long) As Boolean
     Dim redValue As Long

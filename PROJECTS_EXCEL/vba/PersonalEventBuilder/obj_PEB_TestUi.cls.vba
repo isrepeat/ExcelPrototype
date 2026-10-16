@@ -14,6 +14,10 @@ Private m_isDisposed As Boolean
 
 Private m_sheet As Worksheet
 Private m_checkboxes As Collection
+Private m_checkboxNames As Collection
+Private m_previews As Object
+Private m_allSelected As Boolean
+Private m_allPreviews As Boolean
 Private m_selectionCommand As obj_UiCommand
 Private m_catalog As Collection
 Private m_selected As Object
@@ -62,6 +66,7 @@ End Property
 Public Function Initialize() As Boolean
     If m_isInitialized Or m_isDisposed Then Exit Function
     Set m_selected = VBA.CreateObject("Scripting.Dictionary")
+    Set m_previews = VBA.CreateObject("Scripting.Dictionary")
     Set m_reports = New Collection
     m_isInitialized = True
     Initialize = True
@@ -96,6 +101,7 @@ Public Sub Dispose()
     Application.ScreenUpdating = previousScreen
     Set m_sheet = Nothing
     Set m_selected = Nothing
+    Set m_previews = Nothing
     Set m_runSelection = Nothing
     Set m_catalog = Nothing
     Set m_reports = Nothing
@@ -125,6 +131,7 @@ Public Function OpenPage() As Boolean
     Set retained = VBA.CreateObject("Scripting.Dictionary")
     For Each scenario In m_catalog
         If m_selected.Exists(scenario("Id")) Then retained.Add scenario("Id"), True
+        If Not m_previews.Exists(scenario("Id")) Then m_previews.Add scenario("Id"), True
     Next scenario
     Set m_selected = retained
     Set m_sheet = ThisWorkbook.Worksheets(ex_PEB_Export.fn_Config("test.ui.mainSheet"))
@@ -136,22 +143,24 @@ Public Function OpenPage() As Boolean
     Application.EnableEvents = False
     private_ClearCheckboxes
     Set m_checkboxes = New Collection
+    Set m_checkboxNames = New Collection
     For index = m_sheet.Shapes.Count To 1 Step -1
         If VBA.Left$(m_sheet.Shapes(index).Name, 5) = "pebt_" Then m_sheet.Shapes(index).Delete
     Next index
     captions = VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogCaptions"), "|")
-    If UBound(captions) <> 5 Then Err.Raise 5, , "Test catalog captions must contain six columns."
+    If UBound(captions) <> 6 Then Err.Raise 5, , "Test catalog captions must contain seven columns."
     Set rawTable = New obj_UiRawTable
     If m_catalog.Count > 0 Then
-        ReDim values(1 To m_catalog.Count, 1 To 6)
+        ReDim values(1 To m_catalog.Count, 1 To 7)
         For index = 1 To m_catalog.Count
             Set scenario = m_catalog(index)
             values(index, 1) = VBA.vbNullString
-            values(index, 2) = scenario("Id")
-            values(index, 3) = scenario("Operation")
-            values(index, 4) = scenario("EventLabel")
-            values(index, 5) = scenario("Steps").Count
-            values(index, 6) = scenario("RuleStatus")
+            values(index, 2) = VBA.vbNullString
+            values(index, 3) = scenario("Id")
+            values(index, 4) = scenario("Operation")
+            values(index, 5) = scenario("EventLabel")
+            values(index, 6) = scenario("Steps").Count
+            values(index, 7) = scenario("RuleStatus")
         Next index
         If Not rawTable.Initialize(values, captions) Then Err.Raise 5, , "Cannot initialize scenario table data."
     Else
@@ -162,11 +171,20 @@ Public Function OpenPage() As Boolean
     context.MarkDirty "TestCatalog", True
     If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
     rowIndex = m_baseRow + 5
+    If Not m_selectionCommand Is Nothing Then m_selectionCommand.Dispose
+    Set m_selectionCommand = New obj_UiCommand
+    If Not m_selectionCommand.Initialize(Me, "SelectionChanged") Then Err.Raise 5, , "Cannot initialize test selection command."
+    If Not context.BindingContext.SetObject("Commands", "TestSelectionChanged", m_selectionCommand) Then Err.Raise 5, , "Cannot bind test selection command."
+    If Not context.BindingContext.SetValue("TestSelection", "Caption", VBA.vbNullString) Then Err.Raise 5, , "Cannot bind test checkbox caption."
+    private_CreateCheckbox "AllC", m_baseRow + 3, 2, False
+    private_CreateCheckbox "AllP", m_baseRow + 3, 3, False
     For index = 1 To m_catalog.Count
         Set scenario = m_catalog(index)
-        private_CreateCheckbox index, rowIndex, m_selected.Exists(scenario("Id"))
+        private_CreateCheckbox "C" & VBA.CStr(index), rowIndex, 2, m_selected.Exists(scenario("Id"))
+        private_CreateCheckbox "P" & VBA.CStr(index), rowIndex, 3, VBA.CBool(m_previews(scenario("Id")))
         rowIndex = rowIndex + 1
     Next index
+    private_RefreshCheckboxes
     ex_Core.fn_Diagnostic_WriteLog "TEST_UI_STAGE | Name=DrawResults"
     ex_Core.fn_Diagnostic_Flush
     private_DrawResults
@@ -194,54 +212,46 @@ End Function
 Public Function SelectionChanged() As Boolean
     Dim index As Long
     Dim context As obj_UiRenderContext
-    Dim value As Variant
-    Dim resolved As Object
-    Dim isObject As Boolean
     Dim id As String
 
     private_Guard
     If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Exit Function
     If Not m_running Then
-        For index = 1 To m_catalog.Count
-            If Not context.BindingContext.TryGetValue("TestSelection", "C" & VBA.CStr(index), value, resolved, isObject) Then Exit Function
-            If isObject Or VBA.VarType(value) <> VBA.vbBoolean Then Exit Function
-            id = m_catalog(index)("Id")
-            If m_selected.Exists(id) Then m_selected.Remove id
-            If VBA.CBool(value) Then m_selected.Add id, True
-        Next index
+        If private_CheckboxValue(context, "AllC") <> m_allSelected Then
+            private_SelectAll private_CheckboxValue(context, "AllC")
+        ElseIf private_CheckboxValue(context, "AllP") <> m_allPreviews Then
+            For index = 1 To m_catalog.Count
+                m_previews(m_catalog(index)("Id")) = private_CheckboxValue(context, "AllP")
+            Next index
+        Else
+            For index = 1 To m_catalog.Count
+                id = m_catalog(index)("Id")
+                If m_selected.Exists(id) Then m_selected.Remove id
+                If private_CheckboxValue(context, "C" & VBA.CStr(index)) Then m_selected.Add id, True
+                m_previews(id) = private_CheckboxValue(context, "P" & VBA.CStr(index))
+            Next index
+        End If
     End If
     private_RefreshCheckboxes
     SelectionChanged = True
 End Function
-
-Public Sub SelectAll(ByVal selected As Boolean)
-    Dim scenario As Object
-    Dim index As Long
-
-    private_Guard
-    If m_running Or m_catalog Is Nothing Then Exit Sub
-    Set m_selected = VBA.CreateObject("Scripting.Dictionary")
-    For index = 1 To m_catalog.Count
-        Set scenario = m_catalog(index)
-        If selected Then
-            m_selected.Add scenario("Id"), True
-        End If
-    Next index
-    private_RefreshCheckboxes
-End Sub
 
 Public Sub RunSelected()
     Dim key As Variant
     Dim scenario As Object
     Dim diagnostic As String
 
+    On Error GoTo EH
     private_Guard
     If m_running Then Exit Sub
-    If m_selected.Count = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestsSelectRequired")
-    On Error GoTo EH
+    If m_selected.Count = 0 Then
+        ex_WindowsUi.fn_ShowMessage ex_PEB_Export.fn_Config("text.TestsSelectRequired"), _
+            VBA.vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
+        Exit Sub
+    End If
     Set m_runSelection = VBA.CreateObject("Scripting.Dictionary")
     For Each key In m_selected.Keys
-        m_runSelection.Add key, True
+        m_runSelection.Add key, VBA.CBool(m_previews(key))
     Next key
     Set m_reports = New Collection
     m_running = True
@@ -347,6 +357,7 @@ End Sub
 
 Public Function NavigatePreview(ByVal item As Object) As Boolean
     Dim index As Long
+    Dim previewIndex As Long
     Dim context As obj_UiRenderContext
     Dim area As Range
     Dim report As Object
@@ -355,12 +366,14 @@ Public Function NavigatePreview(ByVal item As Object) As Boolean
     If item Is Nothing Then Exit Function
     For index = 1 To m_reports.Count
         Set report = m_reports(index)
+        If report("PreviewEnabled") Then previewIndex = previewIndex + 1
         If VBA.CStr(report("ScenarioId")) = VBA.CStr(item("ScenarioId")) And _
                 VBA.CStr(report("StepId")) = VBA.CStr(item("StepId")) Then Exit For
     Next index
     If index > m_reports.Count Then Exit Function
+    If Not report("PreviewEnabled") Then Exit Function
     If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Exit Function
-    If Not context.TryGetItemArea("TestDocuments", index, area) Then Exit Function
+    If Not context.TryGetItemArea("TestDocuments", previewIndex, area) Then Exit Function
     Application.Goto area.Cells(1, 1), True
     NavigatePreview = True
 End Function
@@ -368,6 +381,30 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_SelectAll(ByVal selected As Boolean)
+    Dim scenario As Object
+
+    Set m_selected = VBA.CreateObject("Scripting.Dictionary")
+    For Each scenario In m_catalog
+        If selected Then m_selected.Add scenario("Id"), True
+    Next scenario
+End Sub
+
+Private Function private_CheckboxValue( _
+    ByVal context As obj_UiRenderContext, _
+    ByVal key As String _
+) As Boolean
+    Dim value As Variant
+    Dim resolved As Object
+    Dim isObject As Boolean
+
+    If Not context.BindingContext.TryGetValue("TestSelection", key, value, resolved, isObject) Then
+        Err.Raise 5, , "Missing test selection binding: " & key
+    End If
+    If isObject Or VBA.VarType(value) <> VBA.vbBoolean Then Err.Raise 5, , "Invalid test selection binding: " & key
+    private_CheckboxValue = VBA.CBool(value)
+End Function
+
 Private Sub private_Guard()
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Test UI is not initialized."
     If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
@@ -375,8 +412,12 @@ End Sub
 
 Private Sub private_Finish(ByVal diagnostic As String)
     Dim text As String
+    Dim checkpointDiagnostic As String
 
     ex_PEB_Testing.fn_CancelTick
+    If Not m_runner Is Nothing Then
+        If Not m_runner.TryCheckpoint(checkpointDiagnostic) Then diagnostic = diagnostic & " " & checkpointDiagnostic
+    End If
     If Not m_runner Is Nothing Then m_runner.Dispose
     Set m_runner = Nothing
     m_running = False
@@ -445,8 +486,9 @@ Private Function private_Summary() As String
 End Function
 
 Private Sub private_CreateCheckbox( _
-    ByVal index As Long, _
+    ByVal key As String, _
     ByVal row As Long, _
+    ByVal column As Long, _
     ByVal selected As Boolean _
 )
     Dim context As obj_UiRenderContext
@@ -458,22 +500,15 @@ Private Sub private_CreateCheckbox( _
     Dim columns As Long
 
     If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Err.Raise 5, , "Test page render context is missing."
-    If index = 1 Then
-        If Not m_selectionCommand Is Nothing Then m_selectionCommand.Dispose
-        Set m_selectionCommand = New obj_UiCommand
-        If Not m_selectionCommand.Initialize(Me, "SelectionChanged") Then Err.Raise 5, , "Cannot initialize test selection command."
-        If Not context.BindingContext.SetObject("Commands", "TestSelectionChanged", m_selectionCommand) Then Err.Raise 5, , "Cannot bind test selection command."
-        If Not context.BindingContext.SetValue("TestSelection", "Caption", VBA.vbNullString) Then Err.Raise 5, , "Cannot bind test checkbox caption."
-    End If
-    If Not context.BindingContext.SetValue("TestSelection", "C" & VBA.CStr(index), selected) Then Err.Raise 5, , "Cannot bind test checkbox value."
+    If Not context.BindingContext.SetValue("TestSelection", key, selected) Then Err.Raise 5, , "Cannot bind test checkbox value."
     Set document = VBA.CreateObject("Msxml2.DOMDocument.6.0")
     Set definition = document.createElement("control")
-    definition.setAttribute "name", "pebt_C" & VBA.CStr(index)
+    definition.setAttribute "name", "pebt_" & key
     definition.setAttribute "type", "checkbox"
     definition.setAttribute "row", "1"
     definition.setAttribute "column", "1"
     definition.setAttribute "style", "testCheckbox"
-    definition.setAttribute "value", "{Binding Path=TestSelection.C" & VBA.CStr(index) & "}"
+    definition.setAttribute "value", "{Binding Path=TestSelection." & key & "}"
     definition.setAttribute "caption", "{Binding Path=TestSelection.Caption}"
     definition.setAttribute "checkedGlyph", "{Binding Path=Text.CheckboxChecked}"
     definition.setAttribute "uncheckedGlyph", "{Binding Path=Text.CheckboxUnchecked}"
@@ -481,9 +516,10 @@ Private Sub private_CreateCheckbox( _
     Set control = ex_UiControlFactory.fn_Create(definition)
     If control Is Nothing Then Err.Raise 5, , "Checkbox control factory is unavailable."
     m_checkboxes.Add control
+    m_checkboxNames.Add "chk_pebt_" & key
     If Not control.Configure(definition, context, VBA.vbNullString, diagnostic) Then Err.Raise 5, , diagnostic
     If Not control.Measure(rows, columns, diagnostic) Then Err.Raise 5, , diagnostic
-    If Not control.Arrange(row, 2, diagnostic) Then Err.Raise 5, , diagnostic
+    If Not control.Arrange(row, column, diagnostic) Then Err.Raise 5, , diagnostic
     If Not control.Render(diagnostic) Then Err.Raise 5, , diagnostic
 End Sub
 
@@ -491,11 +527,20 @@ Private Sub private_RefreshCheckboxes()
     Dim context As obj_UiRenderContext
     Dim target As obj_IUiBindingTarget
     Dim index As Long
+    Dim previewCount As Long
 
     If m_checkboxes Is Nothing Then Exit Sub
     If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Err.Raise 5, , "Test page render context is missing."
-    For index = 1 To m_checkboxes.Count
+    For index = 1 To m_catalog.Count
         If Not context.BindingContext.SetValue("TestSelection", "C" & VBA.CStr(index), m_selected.Exists(m_catalog(index)("Id"))) Then Err.Raise 5, , "Cannot refresh test selection."
+        If Not context.BindingContext.SetValue("TestSelection", "P" & VBA.CStr(index), VBA.CBool(m_previews(m_catalog(index)("Id")))) Then Err.Raise 5, , "Cannot refresh preview selection."
+        If m_previews(m_catalog(index)("Id")) Then previewCount = previewCount + 1
+    Next index
+    m_allSelected = (m_catalog.Count > 0 And m_selected.Count = m_catalog.Count)
+    m_allPreviews = (m_catalog.Count > 0 And previewCount = m_catalog.Count)
+    If Not context.BindingContext.SetValue("TestSelection", "AllC", m_allSelected) Then Err.Raise 5, , "Cannot refresh master selection."
+    If Not context.BindingContext.SetValue("TestSelection", "AllP", m_allPreviews) Then Err.Raise 5, , "Cannot refresh master preview selection."
+    For index = 1 To m_checkboxes.Count
         Set target = m_checkboxes(index)
         If Not target.RefreshBindings(context) Then Err.Raise 5, , "Cannot refresh test checkbox."
     Next index
@@ -510,15 +555,16 @@ Private Sub private_ClearCheckboxes()
     If m_checkboxes Is Nothing Then Exit Sub
     ex_UiRuntime.fn_TryGetContext m_sheet, context
     For index = 1 To m_checkboxes.Count
-        shapeName = "chk_pebt_C" & VBA.CStr(index)
+        shapeName = m_checkboxNames(index)
         If Not context Is Nothing Then context.Router.UnregisterShape shapeName
         Set control = m_checkboxes(index)
         control.Dispose
     Next index
     For index = m_sheet.Shapes.Count To 1 Step -1
-        If VBA.Left$(m_sheet.Shapes(index).Name, 10) = "chk_pebt_C" Then m_sheet.Shapes(index).Delete
+        If VBA.Left$(m_sheet.Shapes(index).Name, 9) = "chk_pebt_" Then m_sheet.Shapes(index).Delete
     Next index
     Set m_checkboxes = Nothing
+    Set m_checkboxNames = Nothing
 End Sub
 
 
@@ -568,19 +614,21 @@ Private Sub private_BindPreviews(ByVal context As obj_UiRenderContext)
 
     Set previews = New Collection
     For Each report In m_reports
-        Set item = VBA.CreateObject("Scripting.Dictionary")
-        text = ex_PEB_Export.fn_Config("text.TestPreviewHeading")
-        text = VBA.Replace$(text, "{scenario}", VBA.CStr(report("ScenarioId")))
-        text = VBA.Replace$(text, "{step}", VBA.CStr(report("StepId")))
-        text = VBA.Replace$(text, "{event}", VBA.CStr(report("EventName")))
-        text = text & VBA.vbLf & VBA.vbLf & VBA.CStr(report("PreviewText"))
-        If report.Exists("PreviewDiagnostic") Then
-            If VBA.Len(report("PreviewDiagnostic")) > 0 Then
-                text = text & VBA.vbLf & ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & report("PreviewDiagnostic")
+        If report("PreviewEnabled") Then
+            Set item = VBA.CreateObject("Scripting.Dictionary")
+            text = ex_PEB_Export.fn_Config("text.TestPreviewHeading")
+            text = VBA.Replace$(text, "{scenario}", VBA.CStr(report("ScenarioId")))
+            text = VBA.Replace$(text, "{step}", VBA.CStr(report("StepId")))
+            text = VBA.Replace$(text, "{event}", VBA.CStr(report("EventName")))
+            text = text & VBA.vbLf & VBA.vbLf & VBA.CStr(report("PreviewText"))
+            If report.Exists("PreviewDiagnostic") Then
+                If VBA.Len(report("PreviewDiagnostic")) > 0 Then
+                    text = text & VBA.vbLf & ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & report("PreviewDiagnostic")
+                End If
             End If
+            item.Add "Text", text
+            previews.Add item
         End If
-        item.Add "Text", text
-        previews.Add item
     Next report
     If Not context.BindingContext.SetObject("Data", "TestPreviews", previews) Then Err.Raise 5, , "Cannot bind test previews."
     context.MarkDirty "TestDocuments", True
