@@ -72,7 +72,8 @@ Public Function TryPrepare( _
     ByVal exporter As String, _
     ByRef values As Object, _
     ByRef diagnostic As String, _
-    Optional ByVal prepareOutput As Boolean = True _
+    Optional ByVal prepareOutput As Boolean = True, _
+    Optional ByVal wordInputs As Object = Nothing _
 ) As Boolean
     Dim key As Variant
     Dim scalar As Variant
@@ -89,6 +90,7 @@ Public Function TryPrepare( _
     Dim templateName As String
     Dim startedAt As Double
     Dim stageStartedAt As Double
+    Dim additionalInputs As Object
 
     startedAt = VBA.Timer
     On Error GoTo EH
@@ -153,6 +155,7 @@ Public Function TryPrepare( _
     Next key
 
     private_PrepareTicket values
+    private_PrepareFoodSupport values
 
     ' Enrich the snapshot using only the selected exporter's directories.
     stageStartedAt = VBA.Timer
@@ -171,6 +174,14 @@ Public Function TryPrepare( _
         stageStartedAt = VBA.Timer
         private_AddConstants values
         private_AddAliases values
+        Set additionalInputs = wordInputs
+        If additionalInputs Is Nothing Then
+            If uiBindingContext.TryGetValue("Data", "WordContext", scalar, objectValue, isObject) Then
+                If Not isObject Then Err.Raise 5, , "Data.WordContext must be a dictionary."
+                Set additionalInputs = objectValue
+            End If
+        End If
+        private_CompleteWordContext values, additionalInputs
         If m_pebWordTemplates Is Nothing Then
             Set m_pebWordTemplates = New obj_PEB_WordTemplates
             If Not m_pebWordTemplates.Initialize(diagnostic) Then
@@ -182,6 +193,22 @@ Public Function TryPrepare( _
             End If
         End If
         templateName = ex_PEB_Export.fn_Config("export.Word." & mode & ".templateName")
+        If Not additionalInputs Is Nothing Then
+            If additionalInputs.Exists("TemplateName") Then
+                If ex_PEB_Export.fn_Text(additionalInputs("TemplateName")) <> templateName Then
+                    If Not additionalInputs.Exists("RequiresFoodSupportEnroll") Or Not additionalInputs.Exists("RequiresFoodSupportRemove") Then
+                        Err.Raise 5, , "An alternate XML template requires explicit food-support transition flags."
+                    End If
+                End If
+                templateName = ex_PEB_Export.fn_Text(additionalInputs("TemplateName"))
+            End If
+        End If
+        values("TemplateName") = templateName
+        For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & templateName & ".requiredKeys"), "|")
+            If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then
+                Err.Raise 5, , "Required Word context value is empty: " & key
+            End If
+        Next key
         If Not m_pebWordTemplates.TryGetText(templateName, template, diagnostic) Then
             GoTo Failed
         End If
@@ -194,6 +221,11 @@ Public Function TryPrepare( _
         End If
         values("WordText") = rendered
         If prepareOutput Then
+            template = m_pebWordTemplates.DocumentFilepath
+            If VBA.Len(template) > 0 Then
+                If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then GoTo Failed
+                values("XmlDocumentFilepath") = rendered
+            End If
             template = ex_PEB_Export.fn_Config("export.Word.output")
             If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then
                 GoTo Failed
@@ -215,6 +247,196 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_CompleteWordContext( _
+    ByVal values As Object, _
+    ByVal inputs As Object _
+)
+    Dim key As Variant
+    Dim scalarKeys As String
+    Dim booleanKeys As String
+    Dim collectionKeys As String
+    Dim index As Long
+    Dim prefix As String
+    Dim output As String
+    Dim items As Collection
+    Dim normalized As Collection
+    Dim item As Variant
+    Dim row As Object
+    Dim field As Variant
+    Dim allowed As String
+    Dim required As String
+
+    scalarKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.scalarInputs") & "|"
+    booleanKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.booleanInputs") & "|"
+    collectionKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.collectionInputs") & "|"
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.optionalText"), "|")
+        If Not values.Exists(key) Then values.Add VBA.CStr(key), VBA.vbNullString
+    Next key
+    values("RequiresFoodSupportRemove") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.removeDirection"))
+    values("RequiresFoodSupportEnroll") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.enrollDirection"))
+    If Not inputs Is Nothing Then
+        If VBA.TypeName(inputs) <> "Dictionary" Then Err.Raise 5, , "Word context inputs must be a dictionary."
+        For Each key In inputs.Keys
+            If VBA.InStr(1, scalarKeys, "|" & key & "|", VBA.vbBinaryCompare) > 0 Then
+                If VBA.IsObject(inputs(key)) Or VBA.IsArray(inputs(key)) Or VBA.IsNull(inputs(key)) Or VBA.IsError(inputs(key)) Then Err.Raise 5, , "Invalid Word context scalar: " & key
+                values(key) = inputs(key)
+            ElseIf VBA.InStr(1, booleanKeys, "|" & key & "|", VBA.vbBinaryCompare) > 0 Then
+                If VBA.VarType(inputs(key)) <> VBA.vbBoolean Then Err.Raise 5, , "Word context Boolean required: " & key
+                values(key) = inputs(key)
+            ElseIf VBA.InStr(1, collectionKeys, "|" & key & "|", VBA.vbBinaryCompare) > 0 Then
+                If Not VBA.IsObject(inputs(key)) Then Err.Raise 5, , "Word context collection required: " & key
+                Set items = inputs(key)
+                If VBA.TypeName(items) <> "Collection" Then Err.Raise 5, , "Word context requires Collection: " & key
+                Set normalized = New Collection
+                allowed = "|" & ex_PEB_Export.fn_Config("export.Word.context." & key & ".fields") & "|"
+                required = ex_PEB_Export.fn_Config("export.Word.context." & key & ".required")
+                For Each item In items
+                    If Not VBA.IsObject(item) Then Err.Raise 5, , "Word metadata row must be a dictionary: " & key
+                    If VBA.TypeName(item) <> "Dictionary" Then Err.Raise 5, , "Word metadata row must be a dictionary: " & key
+                    Set row = VBA.CreateObject("Scripting.Dictionary")
+                    row.CompareMode = VBA.vbBinaryCompare
+                    For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context." & key & ".fields"), "|")
+                        row(field) = VBA.vbNullString
+                    Next field
+                    For Each field In item.Keys
+                        If VBA.InStr(1, allowed, "|" & field & "|", VBA.vbBinaryCompare) = 0 Then Err.Raise 5, , "Unknown Word metadata field: " & field
+                        If VBA.IsObject(item(field)) Or VBA.IsArray(item(field)) Or VBA.IsNull(item(field)) Or VBA.IsError(item(field)) Then Err.Raise 5, , "Invalid Word metadata value: " & field
+                        row(field) = item(field)
+                    Next field
+                    For Each field In VBA.Split(required, "|")
+                        If VBA.Len(ex_PEB_Export.fn_Text(row(field))) = 0 Then Err.Raise 5, , "Required Word metadata field is empty: " & field
+                    Next field
+                    If VBA.CStr(key) = "MetaTvoTables" Then
+                        For index = 1 To ex_PEB_Export.fn_Count("export.Word.meta.lookups.count")
+                            private_Enrich row, "export.Word.meta.lookups." & VBA.CStr(index)
+                        Next index
+                    End If
+                    If row.Exists("DocDateShort") Then
+                        If VBA.Len(ex_PEB_Export.fn_Text(row("DocDateShort"))) > 0 Then row("DocDateShort") = VBA.Format$(private_Date(row("DocDateShort"), "DocDateShort"), "dd.mm.yyyy")
+                    End If
+                    normalized.Add row
+                Next item
+                Set values(key) = normalized
+            Else
+                Err.Raise 5, , "Unknown Word context input: " & key
+            End If
+        Next key
+    End If
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.dateInputs"), "|")
+        If VBA.Len(ex_PEB_Export.fn_Text(values(key))) > 0 Then values(key) = VBA.Format$(private_Date(values(key), VBA.CStr(key)), "dd.mm.yyyy")
+    Next key
+    For index = 1 To ex_PEB_Export.fn_Count("export.Word.context.lookups.count")
+        prefix = "export.Word.context.lookups." & VBA.CStr(index)
+        output = ex_PEB_Export.fn_Config(prefix & ".output")
+        If Not values.Exists(output) Then private_Enrich values, prefix
+    Next index
+    values("RequiresFoodSupportChange") = values("RequiresFoodSupportEnroll") Or values("RequiresFoodSupportRemove")
+    values("EnrollToFoodSupportDateShort") = VBA.Format$(values("FoodSupportDate"), "dd.mm.yyyy")
+    values("RemoveFromFoodSupportDateShort") = VBA.Format$(values("FoodSupportDate"), "dd.mm.yyyy")
+    values("WordTemplateFileName") = VBA.CreateObject("Scripting.FileSystemObject").GetFileName(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    values("ManualOrderNo") = values("AcceptedOrderNumber")
+    private_PrepareVacationDuration values
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.requiredKeys"), "|")
+        If Not values.Exists(key) Then Err.Raise 5, , "Word XML context provider is missing: " & key
+    Next key
+End Sub
+
+Private Sub private_PrepareVacationDuration(ByVal values As Object)
+    Dim text As String
+    Dim rx As Object
+    Dim matches As Object
+    Dim operand As Object
+    Dim days As Long
+    Dim total As Long
+    Dim additional As Long
+    Dim unit As String
+    Dim reason As String
+    Dim reasonKey As String
+    Dim mapping As Variant
+    Dim parts As Variant
+    Dim phrase As String
+    Dim extras As String
+    Dim ending As Date
+    Dim starting As Date
+
+    text = ex_PEB_Export.fn_Text(values("DurationDays"))
+    If VBA.Len(text) = 0 Then Exit Sub
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Pattern = ex_PEB_Export.fn_Config("export.Word.duration.fullPattern")
+    If Not rx.Test(text) Then Err.Raise 5, , "Invalid vacation duration: " & text
+    Set matches = rx.Execute(text)
+    days = VBA.CLng(matches(0).SubMatches(0))
+    If days < 1 Then Err.Raise 5, , "Vacation duration must be positive."
+    total = days
+    If days Mod 100 >= 11 And days Mod 100 <= 14 Then
+        unit = ex_PEB_Export.fn_Config("export.Word.duration.unit.many")
+    ElseIf days Mod 10 = 1 Then
+        unit = ex_PEB_Export.fn_Config("export.Word.duration.unit.one")
+    ElseIf days Mod 10 >= 2 And days Mod 10 <= 4 Then
+        unit = ex_PEB_Export.fn_Config("export.Word.duration.unit.few")
+    Else
+        unit = ex_PEB_Export.fn_Config("export.Word.duration.unit.many")
+    End If
+    phrase = ex_PEB_Export.fn_Config("export.Word.duration.phrase")
+    phrase = VBA.Replace$(phrase, "{days}", VBA.CStr(days))
+    values("VacationDurationPhrase") = VBA.Replace$(phrase, "{unit}", unit)
+    rx.Global = True
+    rx.IgnoreCase = True
+    rx.Pattern = ex_PEB_Export.fn_Config("export.Word.duration.operandPattern")
+    For Each operand In rx.Execute(text)
+        additional = VBA.CLng(operand.SubMatches(0))
+        If additional < 1 Then Err.Raise 5, , "Additional duration must be positive."
+        reason = VBA.LCase$(VBA.Trim$(VBA.CStr(operand.SubMatches(1))))
+        reasonKey = VBA.vbNullString
+        If VBA.Len(reason) > 0 Then
+            For Each mapping In VBA.Split(ex_PEB_Export.fn_Config("export.Word.duration.reasonKeys"), "|")
+                parts = VBA.Split(mapping, "=", 2)
+                If reason = parts(0) Then reasonKey = parts(1)
+            Next mapping
+            If VBA.Len(reasonKey) = 0 Then Err.Raise 5, , "Unknown additional vacation reason: " & reason
+        End If
+        If additional = 1 Then
+            unit = ex_PEB_Export.fn_Config("export.Word.duration.additionalUnit.one")
+        Else
+            unit = ex_PEB_Export.fn_Config("export.Word.duration.additionalUnit.many")
+        End If
+        phrase = ex_PEB_Export.fn_Config("export.Word.duration.additionalPhrase")
+        phrase = VBA.Replace$(phrase, "{days}", VBA.CStr(additional))
+        phrase = VBA.Replace$(phrase, "{unit}", unit)
+        If VBA.Len(reasonKey) > 0 Then
+            If additional = 1 Then
+                phrase = phrase & ex_PEB_Export.fn_Config("export.Word.duration." & reasonKey & ".one")
+            Else
+                phrase = phrase & ex_PEB_Export.fn_Config("export.Word.duration." & reasonKey & ".many")
+            End If
+        End If
+        extras = extras & phrase
+        total = total + additional
+    Next operand
+    If VBA.Len(extras) > 0 Then extras = extras & ","
+    values("AdditionalDurationPhrases") = extras
+    values("VacationDays") = days
+    values("VacationTotalDays") = total
+    starting = private_Date(values("DateFromShort"), "DateFromShort")
+    ending = VBA.DateAdd("d", total - 1, starting)
+    values("DateToShort") = VBA.Format$(ending, "dd.mm.yyyy")
+    values("VacationDatesSameMonth") = (VBA.Year(starting) = VBA.Year(ending) And VBA.Month(starting) = VBA.Month(ending))
+    values("VacationDatesSameYear") = (VBA.Year(starting) = VBA.Year(ending))
+End Sub
+
+Private Sub private_PrepareFoodSupport(ByVal values As Object)
+    Dim effectiveDate As Date
+    Dim eventDate As Date
+    Dim offsetDays As Long
+
+    offsetDays = ex_PEB_Export.fn_Count("export.Movement.foodSupport.minimumOrderOffsetDays")
+    If offsetDays < 1 Then Err.Raise 5, , "Food support order offset must be at least one day."
+    effectiveDate = VBA.DateAdd("d", offsetDays, private_Date(values("AcceptedOrderDate"), "AcceptedOrderDate"))
+    eventDate = private_Date(values("EventDate"), "EventDate")
+    If eventDate > effectiveDate Then effectiveDate = eventDate
+    values("FoodSupportDate") = effectiveDate
+End Sub
+
 Private Sub private_PrepareTicket(ByVal values As Object)
     Dim ticket As String
     Dim pattern As Object

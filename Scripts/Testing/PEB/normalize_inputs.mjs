@@ -124,6 +124,108 @@ const runtimeMode = step => {
   throw new Error(`Unknown fixture mode: ${step.ModeId}`);
 };
 const outcomes = new Map(tableRows("Expected_WORD", "tbExpectedWord").map(row => [row.StepId, row]));
+if (process.argv.includes("--food-fixtures-only")) {
+  const rows = tableRows("Expected_РУХ", "tbExpectedMovementRows");
+  const serialDate = value => {
+    if (typeof value === "number") return value;
+    const [day, month, year] = value.split(".").map(Number);
+    return (Date.UTC(year, month - 1, day) - Date.UTC(1899, 11, 30)) / 86400000;
+  };
+  const offset = Number(settings["export.Movement.foodSupport.minimumOrderOffsetDays"]);
+  if (!Number.isInteger(offset) || offset < 1) throw new Error("Invalid food support offset.");
+  for (const row of rows) {
+    for (const [basisHeader, foodHeader] of [["Вибуття.Підстава", "Вибуття.Продовольче"], ["Прибуття.Підстава", "Прибуття.Продовольче"]]) {
+      const origin = steps.find(step => row[basisHeader]?.includes(`№\u00a0${step.IncomingNumber} від`));
+      if (origin) row[foodHeader] = Math.max(serialDate(origin.EventDate), serialDate(origin.AcceptedOrderDate) + offset);
+    }
+  }
+  const name = settings["test.scenarios.expectedRows.sheet"];
+  const table = source[name].tables.find(item => item.name === settings["test.scenarios.expectedRows.table"]);
+  const top = Number(table.ref.split(":")[0].match(/\d+/)[0]);
+  const last = Number(table.ref.split(":")[1].match(/\d+/)[0]);
+  const columnCount = table.ref.split(":")[1].replace(/\d/g, "").split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0);
+  const columns = source[name].rows[top - 1].slice(0, columnCount);
+  const sheet = workbook.worksheets.getItem(name);
+  sheet.getRange(table.ref).values = [columns, ...rows.map(row => columns.map(header => row[header] ?? null))];
+  for (const header of ["Вибуття.Продовольче", "Прибуття.Продовольче"]) sheet.getRangeByIndexes(top, columns.indexOf(header), last - top, 1).setNumberFormat("dd.mm.yyyy");
+  const baseline = path.join(output, "food-original.xlsx");
+  const generated = path.join(output, "food-generated.xlsx");
+  await fs.copyFile(fixture, baseline);
+  await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, name], { stdio: "inherit" });
+  execFileSync(python, ["-X", "utf8", bridge, "format-food-dates", fixture, table.name], { stdio: "inherit" });
+  console.log("Updated food support expectations for all event directions; historical values retained.");
+  process.exit(0);
+}
+if (process.argv.includes("--order-fixtures-only")) {
+  const baseDate = settings["test.fixtures.baseDate"];
+  const orderPath = path.resolve(root, "PROJECTS_EXCEL/workbook/PersonalEventBuilder", settings["orders.source.path"]);
+  const candidates = JSON.parse(execFileSync(python, ["-X", "utf8", "-c", `
+import datetime,json,sys,openpyxl
+from openpyxl.utils.datetime import from_excel
+w=openpyxl.load_workbook(sys.argv[1],data_only=True)
+rows=list(w[sys.argv[2]][sys.argv[3]])
+headers=[cell.value for cell in rows[0]]
+d=headers.index(sys.argv[4]);n=headers.index(sys.argv[5]);unique={};found=set()
+for row in rows[1:]:
+    date=row[d].value;number=row[n].value
+    if date is None and number is None:continue
+    if not str(number).isdigit():raise ValueError('Invalid order number')
+    number=str(int(number))
+    if isinstance(date,(int,float)):date=from_excel(date,w.epoch)
+    if isinstance(date,str):date=datetime.datetime.strptime(date,'%d.%m.%Y')
+    if not isinstance(date,(datetime.datetime,datetime.date)):raise ValueError('Invalid order date')
+    key=(date.year,number);value=date.strftime('%d.%m.%Y')
+    if key in unique and unique[key]!=value:raise ValueError('Conflicting order dates')
+    unique[key]=value
+    if value==sys.argv[6]:found.add(number)
+print(json.dumps(sorted(found)))
+`, orderPath, settings["orders.source.sheet"], settings["orders.source.range"], settings["orders.dateHeader"], settings["orders.numberHeader"], baseDate], { encoding: "utf8" }));
+  if (candidates.length !== 1) throw new Error(`Expected exactly one fixture order for ${baseDate}; found ${candidates.length}.`);
+  const serialDate = text => {
+    const [day, month, year] = text.split(".").map(Number);
+    return (Date.UTC(year, month - 1, day) - Date.UTC(1899, 11, 30)) / 86400000;
+  };
+  const anchor = serialDate(baseDate);
+  const cases = tableRows("Тест_Сценарії", "tbTestScenarios");
+  if (cases.some(row => row["Дата тесту"] !== anchor)) throw new Error("Fixture anchor differs; shift chronological offsets explicitly before rebasing orders.");
+  const tickets = new Map();
+  for (const step of steps) {
+    if (step.TicketNumber) {
+      const old = step.TicketNumber;
+      step.TicketNumber = old.replace(/^\d{4}\/[^/]+\//, `${baseDate.slice(-4)}/${candidates[0]}/`);
+      tickets.set(old, step.TicketNumber);
+    }
+    step.AcceptedOrderNumber = candidates[0];
+    step.AcceptedOrderDate = anchor;
+  }
+  const expected = tableRows("Expected_РУХ", "tbExpectedMovementRows");
+  for (const row of expected) {
+    for (const [basisHeader, orderHeader] of [["Вибуття.Підстава", "Вибуття.Наказ"], ["Прибуття.Підстава", "Прибуття.Наказ"]]) {
+      const origin = steps.find(step => row[basisHeader]?.includes(`№\u00a0${step.IncomingNumber} від`));
+      if (origin) row[orderHeader] = origin.AcceptedOrderNumber;
+    }
+    if (tickets.has(row["Супровідний документ"])) row["Супровідний документ"] = tickets.get(row["Супровідний документ"]);
+  }
+  for (const word of outcomes.values()) {
+    if (word.Outcome !== "Success") continue;
+    for (const [old, value] of tickets) word.ExpectedText = word.ExpectedText.replaceAll(`відпускний квиток №\u00a0${old}`, `відпускний квиток №\u00a0${value}`);
+  }
+  for (const [name, tableName, records] of [["Тест_Кроки", "tbTestSteps", steps], ["Expected_РУХ", "tbExpectedMovementRows", expected], ["Expected_WORD", "tbExpectedWord", [...outcomes.values()]]]) {
+    const table = source[name].tables.find(item => item.name === tableName);
+    const top = Number(table.ref.split(":")[0].match(/\d+/)[0]);
+    const columnCount = table.ref.split(":")[1].replace(/\d/g, "").split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0);
+    const columns = source[name].rows[top - 1].slice(0, columnCount);
+    workbook.worksheets.getItem(name).getRange(table.ref).values = [columns, ...records.map(row => columns.map(header => row[header] ?? null))];
+  }
+  const baseline = path.join(output, "orders-original.xlsx");
+  const generated = path.join(output, "orders-generated.xlsx");
+  await fs.copyFile(fixture, baseline);
+  await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
+  console.log(`Fixture orders verified against source: ${candidates[0]} / ${baseDate}; event chronology unchanged.`);
+  process.exit(0);
+}
 if (process.argv.includes("--document-fixtures-only")) {
   const shortDate = value => typeof value === "string" ? value : new Date(Date.UTC(1899, 11, 30) + value * 86400000).toISOString().slice(0, 10).split("-").reverse().join(".");
   const basis = (number, date) => `рапорт лейтенанта БОНДАРЕНКА О.Ю. (вх.\u00a0№\u00a0${number} від\u00a0${shortDate(date)}).`;
@@ -155,8 +257,8 @@ if (process.argv.includes("--document-fixtures-only")) {
   const historical = new Map();
   for (const [index, row] of history.entries()) {
     const marker = `ТЕСТ-${row.ScenarioId}-H${String(index + 1).padStart(2, "0")}`;
-    row["Вибуття.Підстава"] = basis(`1656/${1200 + index}-в (${marker})`, row["Вибуття"]);
-    if (row["Прибуття"]) row["Прибуття.Підстава"] = basis(`1656/${1300 + index}-в (${marker}-A)`, row["Прибуття"]);
+    row["Вибуття.Підстава"] = "Тестовий рапорт про вибуття";
+    if (row["Прибуття"]) row["Прибуття.Підстава"] = "Тестовий рапорт про прибуття";
     if (["Щорічна відпустка", "Відпустка для лікування", "Відпустка за сімейними обставинами"].includes(row["Подія"])) {
       row["Супровідний документ"] = `${shortDate(row["Вибуття"]).slice(-4)}/${row["Вибуття.Наказ"]}/7 (${marker})`;
     }

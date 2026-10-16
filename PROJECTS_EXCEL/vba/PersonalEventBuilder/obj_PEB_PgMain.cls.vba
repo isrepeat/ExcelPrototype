@@ -108,10 +108,14 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim configuredText As String
     Dim confirmSelectionKey As String
     Dim orderOptions As Collection
+    Dim wordContext As Object
 
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    Set wordContext = VBA.CreateObject("Scripting.Dictionary")
+    wordContext.CompareMode = VBA.vbBinaryCompare
+    If Not uiBindingContext.SetObject("Data", "WordContext", wordContext) Then Exit Function
     Set rawTable = New obj_UiRawTable
     If Not rawTable.InitializeEmpty(VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogCaptions"), "|")) Then Exit Function
     If Not uiBindingContext.SetObject("Data", "TestCatalog", rawTable) Then Exit Function

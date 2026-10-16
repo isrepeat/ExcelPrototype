@@ -18,6 +18,7 @@ Private m_scenarioBook As Object
 Private m_absenceBook As Object
 Private m_seed As Boolean
 Private m_prepared As Boolean
+Private m_orderResolver As obj_OrderResolver
 
 ' //
 ' // Lifecycle
@@ -124,6 +125,8 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
+    If Not m_orderResolver Is Nothing Then m_orderResolver.Dispose
+    Set m_orderResolver = Nothing
     If Not m_scenarioBook Is Nothing Then m_scenarioBook.Close False
     Set m_scenarioBook = Nothing
     If Not m_absenceBook Is Nothing Then m_absenceBook.Close False
@@ -216,8 +219,7 @@ Public Function TryPrepare( _
     Next field
     updates("Form.AutoFillPersonnel") = False
     updates("Form.WordPreviewText") = VBA.vbNullString
-    updates("Form.OrderQuery") = updates("Form.AcceptedOrderNumber") & " / " & updates("Form.AcceptedOrderDate")
-    updates("Form.OrderYear") = VBA.Right$(updates("Form.AcceptedOrderDate"), 4)
+    private_ResolveOrder updates
     updates("Form.OrderChoice") = VBA.vbNullString
     status = ex_PEB_Export.fn_Config("text.TestLoaded")
     status = VBA.Replace$(status, "{scenario}", scenarioId)
@@ -226,7 +228,6 @@ Public Function TryPrepare( _
     status = VBA.Replace$(status, "{code}", ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepId")))
     updates("Form.ActionStatus") = status
     updates("Form.ActionStatusStyle") = "actionSuccess"
-    updates("Form.AcceptedOrderText") = updates("Form.OrderQuery")
 
     If seedHistory Then
         private_SeedAbsence scenarioId, personId, VBA.CStr(updates("Form.PersonName"))
@@ -763,6 +764,43 @@ Private Sub private_SyncRegistry()
             End With
         End If
     Next binding
+End Sub
+
+Private Sub private_ResolveOrder(ByVal updates As Object)
+    Dim matches As Collection
+    Dim record As obj_LookupRecord
+    Dim number As Variant
+    Dim orderDate As Variant
+    Dim query As String
+    Dim year As String
+    Dim diagnostic As String
+    Dim caption As String
+
+    If m_orderResolver Is Nothing Then
+        Set m_orderResolver = New obj_OrderResolver
+        If Not m_orderResolver.Initialize("PersonalEventBuilder::orders", "PersonalEventBuilder::text", diagnostic) Then
+            Set m_orderResolver = Nothing
+            Err.Raise 5, , diagnostic
+        End If
+    End If
+    query = updates("Form.AcceptedOrderNumber") & " / " & updates("Form.AcceptedOrderDate")
+    year = VBA.Right$(updates("Form.AcceptedOrderDate"), 4)
+    If Not m_orderResolver.TrySearch(query, year, matches, diagnostic) Then Err.Raise 5, , diagnostic
+    If matches.Count = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderEmpty")
+    If matches.Count <> 1 Then
+        diagnostic = VBA.Replace$(ex_PEB_Export.fn_Config("text.OrderFoundMany"), "{count}", VBA.CStr(matches.Count))
+        Err.Raise 5, , diagnostic
+    End If
+    Set record = matches(1)
+    If Not record.TryGetValue("OrderNumber", number) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderSourceError")
+    If Not record.TryGetValue("OrderDate", orderDate) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderSourceError")
+    updates("Form.AcceptedOrderNumber") = VBA.CStr(number)
+    updates("Form.AcceptedOrderDate") = VBA.Format$(VBA.CDate(orderDate), "dd.mm.yyyy")
+    updates("Form.OrderYear") = VBA.CStr(VBA.Year(VBA.CDate(orderDate)))
+    updates("Form.OrderQuery") = updates("Form.AcceptedOrderNumber") & " / " & updates("Form.AcceptedOrderDate")
+    caption = ex_PEB_Export.fn_Config("text.OrderAccepted")
+    caption = VBA.Replace$(caption, "{number}", VBA.CStr(number))
+    updates("Form.AcceptedOrderText") = VBA.Replace$(caption, "{date}", updates("Form.AcceptedOrderDate"))
 End Sub
 
 Private Sub private_LoadExpectations(ByVal allSteps As Object)

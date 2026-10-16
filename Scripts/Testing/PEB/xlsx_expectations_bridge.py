@@ -395,6 +395,122 @@ def finalize_movement_enums(path, expected_table):
     print("Movement event dropdown and calculated За межі column updated.")
 
 
+def format_food_dates(path, table_name):
+    # Меняем только числовой формат двух колонок, сохраняя остальные свойства стилей.
+    with zipfile.ZipFile(path) as archive:
+        data = {name: archive.read(name) for name in archive.namelist()}
+    styles = xml(data, "xl/styles.xml")
+    formats = styles.find("m:numFmts", NS)
+    if formats is None:
+        formats = ET.Element(f"{{{MAIN}}}numFmts")
+        styles.insert(0, formats)
+    date_format = "dd.mm.yyyy"
+    number_format = next((item.get("numFmtId") for item in formats if item.get("formatCode") == date_format), None)
+    if number_format is None:
+        number_format = str(max([163] + [int(item.get("numFmtId")) for item in formats]) + 1)
+        ET.SubElement(formats, f"{{{MAIN}}}numFmt", {"numFmtId": number_format, "formatCode": date_format})
+    formats.set("count", str(len(formats)))
+    cell_styles = styles.find("m:cellXfs", NS)
+    mapped_styles = {}
+    found = False
+    for part in sheet_parts(data).values():
+        if rel_path(part) not in data:
+            continue
+        for relationship in xml(data, rel_path(part)):
+            if not relationship.get("Type").endswith("/table"):
+                continue
+            table = xml(data, target(part, relationship.get("Target")))
+            if table.get("name") != table_name:
+                continue
+            found = True
+            left, top, _, bottom = range_boundaries(table.get("ref"))
+            headers = [column.get("name") for column in table.find("m:tableColumns", NS)]
+            columns = {left + headers.index(header) for header in ("Вибуття.Продовольче", "Прибуття.Продовольче")}
+            sheet = xml(data, part)
+            for row in sheet.findall("m:sheetData/m:row", NS):
+                if not top < int(row.get("r")) <= bottom:
+                    continue
+                for cell in row:
+                    if column_index(cell.get("r")) not in columns:
+                        continue
+                    index = int(cell.get("s", "0"))
+                    if index not in mapped_styles:
+                        clone = copy.deepcopy(cell_styles[index])
+                        clone.set("numFmtId", number_format)
+                        clone.set("applyNumberFormat", "1")
+                        encoded = serialize(clone)
+                        match = next((i for i, style in enumerate(cell_styles) if serialize(style) == encoded), None)
+                        if match is None:
+                            match = len(cell_styles)
+                            cell_styles.append(clone)
+                        mapped_styles[index] = str(match)
+                    cell.set("s", mapped_styles[index])
+            data[part] = serialize(sheet)
+    if not found:
+        raise ValueError(f"Missing expected Movement table: {table_name}")
+    cell_styles.set("count", str(len(cell_styles)))
+    data["xl/styles.xml"] = serialize(styles)
+    temporary = str(path) + ".food.tmp"
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in data.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+
+
+def localize_movement_formulas(path):
+    # Удаляем ссылки копии тестовых формул на исходный РУХ, сохраняя остальные внешние связи.
+    with zipfile.ZipFile(path) as archive:
+        data = {name: archive.read(name) for name in archive.namelist()}
+    changed = 0
+    for name in list(data):
+        if not (name.startswith("xl/worksheets/") or name.startswith("xl/tables/")) or not name.endswith(".xml"):
+            continue
+        node = xml(data, name)
+        edited = False
+        for formula in list(node.iter()):
+            if ET.QName(formula).localname not in ("f", "calculatedColumnFormula") or not formula.text:
+                continue
+            text = formula.text
+            for table in ("ТВ", "Список"):
+                text = text.replace(f"[2]!{table}[", f"{table}[")
+            if text != formula.text:
+                formula.text = text
+                if ET.QName(formula).localname == "f":
+                    cell = formula.getparent()
+                    cache = cell.find("m:v", NS)
+                    if cache is not None:
+                        cell.remove(cache)
+                    cell.attrib.pop("t", None)
+                changed += 1
+                edited = True
+        if edited:
+            data[name] = serialize(node)
+    if not changed:
+        print("No external Movement self-references found.")
+        return
+    book = xml(data, "xl/workbook.xml")
+    calculation = book.find("m:calcPr", NS)
+    if calculation is None:
+        calculation = ET.SubElement(book, f"{{{MAIN}}}calcPr")
+    calculation.set("fullCalcOnLoad", "1")
+    calculation.set("forceFullCalc", "1")
+    data["xl/workbook.xml"] = serialize(book)
+    temporary = str(path) + ".local.tmp"
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in data.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+    print(f"Localized {changed} Movement formulas; styles and external link parts retained.")
+
+
 def preserve_existing_cells(original, destination, edited, name):
     baseline = xml(original, destination)
     data = baseline.find("m:sheetData", NS)
@@ -648,5 +764,9 @@ if __name__ == "__main__":
         finalize_registry(sys.argv[2], sys.argv[3])
     elif sys.argv[1] == "finalize-movement-enums":
         finalize_movement_enums(sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == "format-food-dates":
+        format_food_dates(sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == "localize-movement-formulas":
+        localize_movement_formulas(sys.argv[2])
     else:
         raise SystemExit("Expected dump or assemble")

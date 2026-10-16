@@ -586,6 +586,7 @@ value	PersonalEventBuilder::export.Word.bookmark	EventBody
 value	PersonalEventBuilder::export.Word.output	./Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
 value	PersonalEventBuilder::export.Word.lookups.count	7
 value	PersonalEventBuilder::export.Movement.lookups.count	0
+value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
 value	PersonalEventBuilder::export.ticket.form	Leave
 value	PersonalEventBuilder::export.ticket.qualifiedPattern	^\d{4}/[^/]+/[^/]+$
 value	PersonalEventBuilder::export.ticket.numberTemplate	{orderYear}/{orderNum}/{ticketNum}
@@ -674,13 +675,15 @@ value	PersonalEventBuilder::export.Movement.profiles.Arrival.identity.3.field	Ev
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.identity.3.header	Прибуття
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.identity.4.field	AcceptedOrderNumber
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.identity.4.header	Прибуття.Наказ
-value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.count	3
+value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.count	4
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.1.field	EventDate
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.1.header	Прибуття
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.2.field	AcceptedOrderNumber
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.2.header	Прибуття.Наказ
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.3.field	MovementBasis
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.3.header	Прибуття.Підстава
+value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.4.field	FoodSupportDate
+value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.4.header	Прибуття.Продовольче
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.join.count	2
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.join.1.field	PersonId
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.join.1.header	ІПН
@@ -699,7 +702,7 @@ value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.3.field	
 value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.3.header	Вибуття
 value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.4.field	AcceptedOrderNumber
 value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.4.header	Вибуття.Наказ
-value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.count	8
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.count	9
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.1.field	PersonId
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.1.header	ІПН
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.2.field	PersonName
@@ -716,6 +719,8 @@ value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.7.field	Mo
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.7.header	Вибуття.Підстава
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.8.field	TicketDocument
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.8.header	Супровідний документ
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.9.field	FoodSupportDate
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.9.header	Вибуття.Продовольче
 value	PersonalEventBuilder::export.Word.templates.path	./PersonalEventBuilderWordResultTemplates.xml
 value	PersonalEventBuilder::export.dsl.months.1	січня
 value	PersonalEventBuilder::export.dsl.months.2	лютого
@@ -805,6 +810,152 @@ value	PersonalEventBuilder::export.Word.ToVacationForCuring.previewRequired	Pers
 value	PersonalEventBuilder::export.Word.ToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.ToVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.Word.ToVacationForFamily.lookups.count	0
+value	PersonalEventBuilder::export.Word.context.templates.FromBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalGenitive
+value	PersonalEventBuilder::export.Word.context.templates.FromVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromAnnualMainVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromVacationForFamily.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromOutpatientExaminationOrVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromMedicalCompanyForTreatment.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
+value	PersonalEventBuilder::export.Word.context.templates.ToAnnualMainVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
+value	PersonalEventBuilder::export.Word.context.templates.ToVacationForFamily.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.ToMaternityLeave.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.ToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.ToOutpatientExaminationOrVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.ToMedicalCompanyForTreatment.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalDative|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToFamilyVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToAnnualVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.scalarInputs	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
+value	PersonalEventBuilder::export.Word.context.booleanInputs	RequiresFoodSupportRemove|RequiresFoodSupportEnroll
+value	PersonalEventBuilder::export.Word.context.collectionInputs	MetaDocumentTables|MetaTvoTables|MetaTables
+value	PersonalEventBuilder::export.Word.context.optionalText	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
+value	PersonalEventBuilder::export.Word.context.dateInputs	VlkDateShort|PrevVacationTicketDateShort
+value	PersonalEventBuilder::export.Word.context.removeDirection	Departure
+value	PersonalEventBuilder::export.Word.context.enrollDirection	Arrival
+value	PersonalEventBuilder::export.Word.context.requiredKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIOAccusative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|MetaDocumentTables|MetaTvoTables|MetaTables|WordTemplateFileName|ManualOrderNo
+value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName
+value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
+value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.required	DocumentNote
+value	PersonalEventBuilder::export.Word.context.MetaTvoTables.fields	PersonRank|PersonId|PositionCode
+value	PersonalEventBuilder::export.Word.context.MetaTvoTables.required	PersonRank|PersonId|PositionCode
+value	PersonalEventBuilder::export.Word.context.MetaTables.fields	__sectionTitle|FIO|DocumentNote
+value	PersonalEventBuilder::export.Word.context.MetaTables.required	__sectionTitle
+value	PersonalEventBuilder::export.Word.context.lookups.count	4
+value	PersonalEventBuilder::export.Word.meta.lookups.count	5
+value	PersonalEventBuilder::export.Word.duration.fullPattern	^\s*(\d+)((?:\s*\+\s*\d+(?:\s*\([^)]*\))?)*)\s*$
+value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
+value	PersonalEventBuilder::export.Word.duration.unit.one	календарну добу
+value	PersonalEventBuilder::export.Word.duration.unit.few	календарні доби
+value	PersonalEventBuilder::export.Word.duration.unit.many	календарних діб
+value	PersonalEventBuilder::export.Word.duration.phrase	терміном на {days} {unit}
+value	PersonalEventBuilder::export.Word.duration.additionalUnit.one	доби
+value	PersonalEventBuilder::export.Word.duration.additionalUnit.many	діб
+value	PersonalEventBuilder::export.Word.duration.additionalPhrase	, без урахування {days} {unit}
+value	PersonalEventBuilder::export.Word.duration.reasonKeys	дорога=road|донація=donation|донація крові=donation
+value	PersonalEventBuilder::export.Word.duration.road.one	, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку
+value	PersonalEventBuilder::export.Word.duration.road.many	, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку
+value	PersonalEventBuilder::export.Word.duration.donation.one	, наданої за донацію крові
+value	PersonalEventBuilder::export.Word.duration.donation.many	, наданих за донацію крові
+value	PersonalEventBuilder::export.Word.context.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.1.output	HospitalGenitive
+value	PersonalEventBuilder::export.Word.context.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.1.valueHeader	Родовий
+value	PersonalEventBuilder::export.Word.context.lookups.1.when.field	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.2.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.2.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.context.lookups.2.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.2.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.2.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.2.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.2.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.context.lookups.2.when.field	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.2.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.3.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.3.output	HospitalDative
+value	PersonalEventBuilder::export.Word.context.lookups.3.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.3.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.3.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.3.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.3.valueHeader	Давальний
+value	PersonalEventBuilder::export.Word.context.lookups.3.when.field	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.3.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.4.input	ToHospitalShort
+value	PersonalEventBuilder::export.Word.context.lookups.4.output	ToHospitalAccusative
+value	PersonalEventBuilder::export.Word.context.lookups.4.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.4.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.4.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.4.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.4.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.context.lookups.4.when.field	ToHospitalShort
+value	PersonalEventBuilder::export.Word.context.lookups.4.when.pattern	\S
+value	PersonalEventBuilder::export.Word.meta.lookups.1.input	PersonRank
+value	PersonalEventBuilder::export.Word.meta.lookups.1.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.1.sheet	Звання
+value	PersonalEventBuilder::export.Word.meta.lookups.1.range	A1:E12000
+value	PersonalEventBuilder::export.Word.meta.lookups.1.keyHeader	Звання
+value	PersonalEventBuilder::export.Word.meta.lookups.1.valueHeader	Родовий
+value	PersonalEventBuilder::export.Word.meta.lookups.1.output	RankGenitive
+value	PersonalEventBuilder::export.Word.meta.lookups.1.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.meta.lookups.2.input	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.2.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.2.sheet	АЛФ
+value	PersonalEventBuilder::export.Word.meta.lookups.2.range	A1:J12000
+value	PersonalEventBuilder::export.Word.meta.lookups.2.keyHeader	ІПН
+value	PersonalEventBuilder::export.Word.meta.lookups.2.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.meta.lookups.2.output	FIOAccusative
+value	PersonalEventBuilder::export.Word.meta.lookups.2.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.2.when.pattern	\S
+value	PersonalEventBuilder::export.Word.meta.lookups.3.input	PositionCode
+value	PersonalEventBuilder::export.Word.meta.lookups.3.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.3.sheet	Посади
+value	PersonalEventBuilder::export.Word.meta.lookups.3.range	A1:E12000
+value	PersonalEventBuilder::export.Word.meta.lookups.3.keyHeader	Код
+value	PersonalEventBuilder::export.Word.meta.lookups.3.valueHeader	Родовий
+value	PersonalEventBuilder::export.Word.meta.lookups.3.output	PositionGenitive
+value	PersonalEventBuilder::export.Word.meta.lookups.3.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.3.when.pattern	\S
+value	PersonalEventBuilder::export.Word.meta.lookups.4.input	PersonRank
+value	PersonalEventBuilder::export.Word.meta.lookups.4.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.4.sheet	Звання
+value	PersonalEventBuilder::export.Word.meta.lookups.4.range	A1:E12000
+value	PersonalEventBuilder::export.Word.meta.lookups.4.keyHeader	Звання
+value	PersonalEventBuilder::export.Word.meta.lookups.4.valueHeader	Давальний
+value	PersonalEventBuilder::export.Word.meta.lookups.4.output	RankDative
+value	PersonalEventBuilder::export.Word.meta.lookups.4.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.4.when.pattern	\S
+value	PersonalEventBuilder::export.Word.meta.lookups.5.input	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.5.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.5.sheet	АЛФ
+value	PersonalEventBuilder::export.Word.meta.lookups.5.range	A1:J12000
+value	PersonalEventBuilder::export.Word.meta.lookups.5.keyHeader	ІПН
+value	PersonalEventBuilder::export.Word.meta.lookups.5.valueHeader	Давальний
+value	PersonalEventBuilder::export.Word.meta.lookups.5.output	FIODative
+value	PersonalEventBuilder::export.Word.meta.lookups.5.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.5.when.pattern	\S
 value	PersonalEventBuilder::export.Word.aliases.count	18
 value	PersonalEventBuilder::export.Word.aliases.1.name	IPN
 value	PersonalEventBuilder::export.Word.aliases.1.kind	value
