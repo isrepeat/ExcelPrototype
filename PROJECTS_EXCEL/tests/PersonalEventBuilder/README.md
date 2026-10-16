@@ -182,6 +182,18 @@ These are fixtures, not an automated test runner or implemented business rules. 
 
 Movement export changes the fixture workbook when enabled. Regenerate the fixture set before repeating scenarios that require the initial history.
 
+## Runner performance
+
+The runner keeps fixture inputs and Word templates in memory for one run. Start a new run to pick up edited inputs or templates. Interactive previews continue to reload templates per operation. Each runner callback shares one configuration snapshot, including nested export operations. Registry contents, named ranges and dropdowns are checked before synchronization; unchanged registries are not rewritten.
+
+Movement snapshots read values and formulas in bulk and retain formula, type and unrelated-row integrity checks. Journals are appended in batches. Modified dependency workbooks are saved after each step; the scenario journal is saved at scenario boundaries and explicitly flushed on completion, cancellation or a reported error. A process crash can lose journal entries from the current unfinished scenario.
+
+The configuration defaults are `test.runner.tickSeconds=0`, `test.runner.batchMilliseconds=100`, and `test.runner.uiRefreshMilliseconds=100`. Batches yield between steps and keep cancellation checks inside steps. The time budget cannot interrupt a synchronous Excel operation.
+
+The catalog has independent execution and preview checkboxes. The master checkbox above each column selects or clears that entire column; individual changes update its master state. New scenarios have previews enabled by default. Both choices are frozen when a run starts. With preview disabled, Movement steps skip the additional Word preparation and no preview document block is rendered. Dedicated `PreviewWord` steps still validate the expected text or diagnostic, but their document blocks are also omitted when preview is disabled. Mixed runs show only enabled preview blocks, and result links use the filtered block indices.
+
+Performance logs include `Test.OpenMovement`, `Test.OpenScenarios`, `Test.OpenAbsence`, `Test.SyncRegistry`, `Test.Catalog`, `Test.Prepare`, `Test.SeedMovement`, `Test.Calculate`, `Test.Snapshot`, `Test.ArchiveBatch`, `Test.Save` and `Test.Archive`. These timings overlap where an outer stage includes inner stages; do not sum all entries to estimate total duration. Runtime performance must be measured after explicitly importing the updated VBA and configuration into the working workbook.
+
 ## Regeneration and validation
 
 Use the bundled Node and Python executables. Create a `node_modules` junction in `Scripts/Testing/PEB` pointing to the bundled Node packages and set `PEB_PYTHON` to the bundled Python executable. Run `Scripts/Testing/PEB/build_fixtures.mjs` with Node. It reads production configuration only to discover the source files and creates six dummy workbooks.

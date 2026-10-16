@@ -184,7 +184,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "SourceLegendSample", "SourceLegendSeparator", _
             "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
             "TestScenarioItems", "LoadTest", "NextTest", "OpenTests", "TestsStop", "TestsPageTitle", _
-            "TestsSelectAll", "TestsSelectNone", "TestsRun", _
+            "TestsRun", _
             "TestsResults", "PreviewWord", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
@@ -261,7 +261,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
-            "LoadTest", "NextTest", "OpenTests", "CancelTests", "TestPreview", "TestSelectAll", "TestSelectNone", "TestRun", _
+            "LoadTest", "NextTest", "OpenTests", "CancelTests", "TestPreview", "TestRun", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand

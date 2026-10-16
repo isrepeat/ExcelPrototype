@@ -2,12 +2,14 @@ Attribute VB_Name = "ex_PEB_Export"
 Option Explicit
 
 Private m_configSnapshot As Object
+Private m_configSnapshotDepth As Long
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     Set m_configSnapshot = Nothing
+    m_configSnapshotDepth = 0
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -42,8 +44,12 @@ Public Sub fn_BeginConfigSnapshot()
     Dim keyColumn As Long
     Dim row As Long
     Dim key As String
+    Dim snapshot As Object
 
-    Set m_configSnapshot = Nothing
+    If m_configSnapshotDepth > 0 Then
+        m_configSnapshotDepth = m_configSnapshotDepth + 1
+        Exit Sub
+    End If
     For Each sheet In ThisWorkbook.Worksheets
         For Each table In sheet.ListObjects
             If VBA.StrComp(table.Name, "tbConfig", VBA.vbTextCompare) = 0 Then
@@ -52,15 +58,17 @@ Public Sub fn_BeginConfigSnapshot()
                     Err.Raise 5, , "Export configuration table is empty or invalid."
                 End If
                 data = table.DataBodyRange.Value2
-                Set m_configSnapshot = VBA.CreateObject("Scripting.Dictionary")
-                m_configSnapshot.CompareMode = VBA.vbTextCompare
+                Set snapshot = VBA.CreateObject("Scripting.Dictionary")
+                snapshot.CompareMode = VBA.vbTextCompare
                 For row = 1 To UBound(data, 1)
                     key = VBA.Trim$(VBA.CStr(data(row, keyColumn)))
-                    If m_configSnapshot.Exists(key) Then
+                    If snapshot.Exists(key) Then
                         Err.Raise 5, , "Duplicate configuration key: " & key
                     End If
-                    m_configSnapshot.Add key, VBA.Trim$(VBA.CStr(data(row, keyColumn + 1)))
+                    snapshot.Add key, VBA.Trim$(VBA.CStr(data(row, keyColumn + 1)))
                 Next row
+                Set m_configSnapshot = snapshot
+                m_configSnapshotDepth = 1
                 Exit Sub
             End If
         Next table
@@ -69,7 +77,8 @@ Public Sub fn_BeginConfigSnapshot()
 End Sub
 
 Public Sub fn_EndConfigSnapshot()
-    Set m_configSnapshot = Nothing
+    If m_configSnapshotDepth > 0 Then m_configSnapshotDepth = m_configSnapshotDepth - 1
+    If m_configSnapshotDepth = 0 Then Set m_configSnapshot = Nothing
 End Sub
 
 Public Function fn_Count( _

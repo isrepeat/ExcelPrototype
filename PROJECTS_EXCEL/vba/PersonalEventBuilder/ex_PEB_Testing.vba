@@ -6,6 +6,7 @@ Private m_tickAt As Date
 Private m_tickPending As Boolean
 Private m_tickProcedure As String
 Private m_advancing As Boolean
+Private m_lastPhaseFlush As Double
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -214,7 +215,7 @@ Public Sub fn_ScheduleTick(Optional ByVal immediate As Boolean = False)
     If m_testUi Is Nothing Or m_tickPending Then Exit Sub
     If Not m_testUi.IsRunning Then Exit Sub
     delay = ex_PEB_Export.fn_Count("test.runner.tickSeconds")
-    If delay < 1 Then Err.Raise 5, , "test.runner.tickSeconds must be positive."
+    If delay < 0 Then Err.Raise 5, , "test.runner.tickSeconds must not be negative."
     If immediate Then delay = 0
     m_tickAt = VBA.Now + VBA.TimeSerial(0, 0, delay)
     m_tickProcedure = private_Callback()
@@ -243,9 +244,17 @@ Failed:
 End Sub
 
 Public Sub fn_ReportPhase(ByVal key As String)
+    Dim elapsed As Double
+    Dim nowAt As Double
+
     If m_testUi Is Nothing Then Exit Sub
     If Not m_testUi.IsRunning Then Exit Sub
     m_testUi.ReportPhase key
+    nowAt = VBA.Timer
+    elapsed = nowAt - m_lastPhaseFlush
+    If elapsed < 0 Then elapsed = elapsed + 86400#
+    If elapsed * 1000# < ex_PEB_Export.fn_Count("test.runner.uiRefreshMilliseconds") Then Exit Sub
+    m_lastPhaseFlush = nowAt
     private_FlushMain
     fn_PumpUi
 End Sub
@@ -274,6 +283,10 @@ Public Sub fn_Tick()
     Dim entered As Boolean
     Dim more As Boolean
     Dim diagnostic As String
+    Dim started As Double
+    Dim elapsed As Double
+    Dim budget As Long
+    Dim configEntered As Boolean
 
     If m_advancing Then Exit Sub
     If Not m_tickPending Then Exit Sub
@@ -290,9 +303,22 @@ Public Sub fn_Tick()
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     m_advancing = True
-    more = m_testUi.Advance()
+    ex_PEB_Export.fn_BeginConfigSnapshot
+    configEntered = True
+    budget = ex_PEB_Export.fn_Count("test.runner.batchMilliseconds")
+    If budget < 1 Then Err.Raise 5, , "test.runner.batchMilliseconds must be positive."
+    started = VBA.Timer
+    Do
+        more = m_testUi.Advance()
+        If Not more Then Exit Do
+        fn_PumpUi
+        If m_testUi.StopRequested Then Exit Do
+        elapsed = VBA.Timer - started
+        If elapsed < 0 Then elapsed = elapsed + 86400#
+    Loop While elapsed * 1000# < budget
     private_FlushMain
 CleanExit:
+    If configEntered Then ex_PEB_Export.fn_EndConfigSnapshot
     m_advancing = False
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreen
@@ -313,14 +339,6 @@ End Sub
 Public Function fn_NavigatePreview(ByVal item As Object) As Boolean
     If m_testUi Is Nothing Then Exit Function
     fn_NavigatePreview = m_testUi.NavigatePreview(item)
-End Function
-
-Public Function fn_SelectAll(ByVal selected As Boolean) As Boolean
-    If m_testUi Is Nothing Then Exit Function
-    If m_testUi.IsRunning Then Exit Function
-    m_testUi.SelectAll selected
-    private_FlushMain
-    fn_SelectAll = True
 End Function
 
 Public Function fn_RunSelected() As Boolean

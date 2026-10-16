@@ -63,6 +63,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     On Error GoTo EH
     Set m_session = New obj_PEB_TestScenarios
     If Not m_session.Initialize(diagnostic) Then GoTo Failed
+    ex_PEB_Testing.fn_ReportPhase "Catalog"
     If Not m_session.TryCatalog(m_catalog, diagnostic) Then GoTo Failed
     Set m_exportService = New obj_PEB_ExportService
     If Not m_exportService.Initialize() Then Err.Raise 5, , "Cannot initialize the test export service."
@@ -90,6 +91,14 @@ Public Sub Dispose()
     Set m_values = Nothing
 End Sub
 
+Public Function TryCheckpoint(ByRef diagnostic As String) As Boolean
+    If Not m_isInitialized Or m_isDisposed Then
+        TryCheckpoint = True
+        Exit Function
+    End If
+    TryCheckpoint = m_session.TryCheckpoint(diagnostic)
+End Function
+
 Public Function TryBegin( _
     ByVal selected As Object, _
     ByRef diagnostic As String _
@@ -114,6 +123,8 @@ Public Function TryBegin( _
                 item("ScenarioId") = scenario("Id")
                 item("ScenarioName") = scenario("Name")
                 item("RuleStatus") = scenario("RuleStatus")
+                If VBA.VarType(selected(scenario("Id"))) <> VBA.vbBoolean Then Err.Raise 5, , "Invalid preview selection."
+                item("PreviewEnabled") = VBA.CBool(selected(scenario("Id")))
                 Set item("Step") = testStep
                 m_queue.Add item
             Next testStep
@@ -140,6 +151,8 @@ Public Function TryAdvance( _
     Dim testStep As Object
     Dim reason As String
     Dim archiveDiagnostic As String
+    Dim checkpoint As Boolean
+    Dim nextItem As Object
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Or m_queue Is Nothing Then Err.Raise 5, , "Test queue is not initialized."
@@ -158,6 +171,8 @@ Public Function TryAdvance( _
     report("EventName") = testStep("EventName")
     report("PersonId") = testStep("PersonId")
     report("Action") = testStep("Action")
+    report("PreviewEnabled") = item("PreviewEnabled")
+    If Not report("PreviewEnabled") Then report("PreviewLink") = VBA.vbNullString
     report("StepOrder") = testStep("Order")
     report("Operation") = "preview"
     If testStep("Action") = "ExportMovement" Then
@@ -209,7 +224,12 @@ Public Function TryAdvance( _
     If m_completed + 1 = m_queue.Count Then report("RunState") = "Completed"
     If m_cancelled Then report("RunState") = "Cancelled"
     If m_fatal Then report("RunState") = "Aborted"
-    If Not m_session.TryArchive(report, m_before, m_after, testStep("Input"), m_values, archiveDiagnostic) Then
+    checkpoint = m_cancelled Or m_fatal Or m_completed + 1 = m_queue.Count
+    If Not checkpoint Then
+        Set nextItem = m_queue(m_completed + 2)
+        checkpoint = (nextItem("ScenarioId") <> item("ScenarioId"))
+    End If
+    If Not m_session.TryArchive(report, m_before, m_after, testStep("Input"), m_values, archiveDiagnostic, checkpoint) Then
         report("Result") = "ERROR"
         report("Details") = report("Details") & " " & archiveDiagnostic
         diagnostic = archiveDiagnostic
@@ -298,11 +318,7 @@ Private Function private_RunStep( _
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
     If Not m_session.TryPrepare(scenarioId, testStep("Order"), testStep("Order") = 1, modeId, updates, status, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Prepare"
-    ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
-    If Not m_session.TrySnapshot(VBA.CStr(updates("Form.PersonId")), before, diagnostic) Then GoTo Cleanup
-    ex_PEB_Testing.fn_ReportPhase "Snapshot"
-    ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
     Set binding = New obj_UiBindingContext
     If Not binding.Initialize() Then Err.Raise 5, , "Cannot create isolated test form bindings."
@@ -340,15 +356,16 @@ Private Function private_RunStep( _
     End If
     If Not m_exportService.TryPrepare(binding, "Movement", values, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Inputs"
-    If m_exportService.TryPrepare(binding, "Word", previewValues, previewDiagnostic, False) Then
-        report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText")), VBA.vbCrLf, VBA.vbLf)
-    Else
-        report("PreviewText") = ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & previewDiagnostic
+    If report("PreviewEnabled") Then
+        If m_exportService.TryPrepare(binding, "Word", previewValues, previewDiagnostic, False) Then
+            report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText")), VBA.vbCrLf, VBA.vbLf)
+        Else
+            report("PreviewText") = ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & previewDiagnostic
+        End If
     End If
     If Not m_session.TryCommit(diagnostic, False) Then GoTo Cleanup
     If Not m_session.TrySnapshot(VBA.CStr(values("PersonId")), before, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Commit"
-    ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
 
     ' Exercise the same exporter as the PEB button, in the validated private TEST workbook.

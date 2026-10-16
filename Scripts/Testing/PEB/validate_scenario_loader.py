@@ -170,6 +170,21 @@ def source_checks(settings):
     assert 'private_Value(steps, stepRow, "openCount")' not in loader
     assert 'private_ValidateRows(after, testStep, checkDiagnostic)' in runner
     assert 'private_ValidateWord(binding, testStep, report, values)' in runner
+    assert 'test.runner.captureMovementPreview' not in runner, "Movement preview must not be disabled by a performance setting"
+    assert 'report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText"))' in runner
+    assert 'If report("PreviewEnabled") Then' in runner
+    assert 'item("PreviewEnabled") = VBA.CBool(selected(scenario("Id")))' in runner
+    ui = (folder / "obj_PEB_TestUi.cls.vba").read_text(encoding="utf-8-sig")
+    assert 'm_runSelection.Add key, VBA.CBool(m_previews(key))' in ui
+    assert 'private_CreateCheckbox "AllC"' in ui and 'private_CreateCheckbox "AllP"' in ui
+    assert 'context.TryGetItemArea("TestDocuments", previewIndex, area)' in ui
+    assert 'If Not report("PreviewEnabled") Then Exit Function' in ui
+    assert len(settings["test.ui.catalogCaptions"].split("|")) == 7
+    run_ui = ui.split("Public Sub RunSelected()", 1)[1].split("End Sub", 1)[0]
+    assert run_ui.index("On Error GoTo EH") < run_ui.index("private_Guard")
+    empty_selection = run_ui.split("If m_selected.Count = 0 Then", 1)[1].split("End If", 1)[0]
+    assert 'fn_ShowMessage ex_PEB_Export.fn_Config("text.TestsSelectRequired")' in empty_selection
+    assert "Exit Sub" in empty_selection and "Err.Raise" not in empty_selection
     assert 'VBA.StrComp(expected, actual, VBA.vbBinaryCompare)' in runner
     assert 'testStep("Order") = 1' in runner and 'testStep("Id") = 1' not in runner
     assert 'test.scenarios.headers.stepId' in catalog and 'TestPreviewOperation' in catalog

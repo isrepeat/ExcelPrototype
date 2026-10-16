@@ -6,31 +6,17 @@
       styleSources="../PersonalEventBuilder/CommonControlStyles.xaml">
   <grid row="2"
         column="2">
-    <controls:button name="TestSelectAll"
-                     row="1"
-                     column="1"
-                     columnSpan="4"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.TestsSelectAll}"
-                     command="{Binding Path=Commands.TestSelectAll}"/>
     <controls:button name="TestRun"
                      row="1"
-                     column="5"
-                     columnSpan="4"
+                     column="1"
+                     columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.TestsRun}"
                      command="{Binding Path=Commands.TestRun}"/>
-    <controls:button name="TestSelectNone"
-                     row="2"
-                     column="1"
-                     columnSpan="4"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.TestsSelectNone}"
-                     command="{Binding Path=Commands.TestSelectNone}"/>
     <controls:button name="TestStop"
-                     row="2"
-                     column="5"
-                     columnSpan="4"
+                     row="1"
+                     column="3"
+                     columnSpan="2"
                      style="testStopButton"
                      caption="{Binding Path=Text.TestsStop}"
                      command="{Binding Path=Commands.CancelTests}"/>
@@ -44,7 +30,8 @@
     <controls:label name="TestStatus"
                     row="3"
                     column="1"
-                    columnSpan="16"
+                    columnSpan="10"
+                    style="testStatus"
                     text="{Binding Path=Form.ActionStatus}"/>
     <stackPanel row="5"
                 column="1"
@@ -88,6 +75,10 @@
     </stackPanel>
   </grid>
   <styles>
+    <controlStyle name="testStatus"
+                  indent="1"
+                  horizontal="left"
+                  vertical="center"/>
     <controlStyle name="testDocument"
                   backColor="#3B3B3B"
                   textColor="#FFFFFF"
@@ -107,11 +98,12 @@
                   vertical="center"
                   overflow="wrap"/>
     <controlStyle name="testCheckbox"
-                  backColor="#2D2D2D"
+                  backColor="#1A2D2D2D"
                   textColor="#F4A46B"
                   fontName="Calibri"
                   fontSize="11"
                   borderColor="#2D2D2D"
+                  borderLineStyle="none"
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
@@ -179,7 +171,7 @@
                 width:15;
               }"/>
         <rule target="column"
-              selector="address=E:E"
+              selector="address=F:F"
               styles="{
                 width:35;
               }"/>
@@ -207,11 +199,6 @@
       <layer name="table-parts">
         <rule target="controlPart"
               selector="type=table;name=TestCatalog;part=rows;columnAlias=Подія / сценарій"
-              styles="{
-                horizontal:left;
-              }"/>
-        <rule target="controlPart"
-              selector="type=table;name=TestCatalog;part=header;columnAlias=Подія / сценарій"
               styles="{
                 horizontal:left;
               }"/>
@@ -251,12 +238,12 @@
         <rule target="usedRange"
               selector="row=2"
               styles="{
-                rowHeight:36;
+                rowHeight:29;
               }"/>
         <rule target="usedRange"
               selector="row=3"
               styles="{
-                rowHeight:36;
+                rowHeight:15;
               }"/>
       </layer>
     </stylePipelineStage>

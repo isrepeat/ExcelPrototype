@@ -1,6 +1,12 @@
 value	ThisWorkbook::id	PersonalEventBuilder
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilderTest
-value	PersonalEventBuilder::test.runner.tickSeconds	1
+value	PersonalEventBuilder::test.runner.tickSeconds	0
+value	PersonalEventBuilder::test.runner.batchMilliseconds	100
+value	PersonalEventBuilder::test.runner.uiRefreshMilliseconds	100
+value	PersonalEventBuilder::test.progress.Registry	0
+value	PersonalEventBuilder::test.progress.Catalog	0
+value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
+value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
 value	PersonalEventBuilder::test.registry.sheet	Test_Registry
 value	PersonalEventBuilder::test.fixtures.baseDate	15.10.2026
 value	PersonalEventBuilder::test.registry.table	tbTestRegistry
@@ -78,8 +84,6 @@ value	PersonalEventBuilder::test.ui.maxScenarios	200
 value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
 value	PersonalEventBuilder::text.TestsPageTitle	Тестування РУХ та WORD — TEST
 value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у TestScenarios.xlsx. Скасування між кроками.
-value	PersonalEventBuilder::text.TestsSelectAll	Вибрати всі
-value	PersonalEventBuilder::text.TestsSelectNone	Зняти вибір
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
 value	PersonalEventBuilder::text.TestsStop	Зупинити
 value	PersonalEventBuilder::text.TestsResults	Результати запусків
@@ -114,7 +118,7 @@ value	PersonalEventBuilder::test.scenarios.headers.openCount	ExpectedOpenCount
 value	PersonalEventBuilder::test.scenarios.headers.arrival	Прибуття
 value	PersonalEventBuilder::test.runner.codeAliases	NoOpenDeparture=DepartureCreated|PreviousDepartureClosed=DepartureCreated|MatchingOpenDeparture=ArrivalClosed
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
-value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Сценарій|Операція|Подія / сценарій|Кроків|Правило
+value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Прев’ю|Сценарій|Операція|Подія / сценарій|Кроків|Правило
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
 value	PersonalEventBuilder::text.TestScenarioItems	S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,W01,W02,W03,W04,W05,W06,W07,W08,W09
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
