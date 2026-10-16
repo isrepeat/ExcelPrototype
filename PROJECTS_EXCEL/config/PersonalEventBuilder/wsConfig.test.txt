@@ -620,6 +620,12 @@ value	PersonalEventBuilder::export.Word.bookmark	EventBody
 value	PersonalEventBuilder::export.Word.output	../../tests/PersonalEventBuilder/Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
 value	PersonalEventBuilder::export.Word.lookups.count	7
 value	PersonalEventBuilder::export.Movement.lookups.count	0
+value	PersonalEventBuilder::export.ticket.form	Leave
+value	PersonalEventBuilder::export.ticket.qualifiedPattern	^\d{4}/[^/]+/[^/]+$
+value	PersonalEventBuilder::export.ticket.numberTemplate	{orderYear}/{orderNum}/{ticketNum}
+value	PersonalEventBuilder::export.Movement.basis.lookupSource	Word
+value	PersonalEventBuilder::export.Movement.basis.template	{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.
+value	PersonalEventBuilder::export.Movement.basis.prefix	Підстава:
 value	PersonalEventBuilder::export.Movement.path	../../tests/PersonalEventBuilder/Dependencies/test_РУХ.xlsx
 value	PersonalEventBuilder::export.Movement.sheet	Відсутні
 value	PersonalEventBuilder::export.Movement.table	ТВ
@@ -646,49 +652,49 @@ value	PersonalEventBuilder::export.Word.lookups.3.valueHeader	Родовий
 value	PersonalEventBuilder::export.Word.lookups.3.path	../../tests/PersonalEventBuilder/Dependencies/test_ШПО.xlsx
 value	PersonalEventBuilder::export.events.FromHospital	Стаціонарне лікування
 value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.FromHospital.profile	Arrival
 value	PersonalEventBuilder::export.Movement.FromHospital.destinationField	HospitalShortName
 value	PersonalEventBuilder::export.Word.FromHospital.templateName	FromHospital
 value	PersonalEventBuilder::export.events.FromAnnualMainVacation	Щорічна відпустка
 value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.FromAnnualMainVacation.profile	Arrival
 value	PersonalEventBuilder::export.Movement.FromAnnualMainVacation.destinationField	Destination
 value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.templateName	FromAnnualMainVacation
 value	PersonalEventBuilder::export.events.FromVacationForCuring	Відпустка для лікування
 value	PersonalEventBuilder::export.Word.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.FromVacationForCuring.profile	Arrival
 value	PersonalEventBuilder::export.Movement.FromVacationForCuring.destinationField	Destination
 value	PersonalEventBuilder::export.Word.FromVacationForCuring.templateName	FromVacationForCuring
 value	PersonalEventBuilder::export.events.FromVacationForFamily	Відпустка за сімейними обставинами
 value	PersonalEventBuilder::export.Word.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.FromVacationForFamily.profile	Arrival
 value	PersonalEventBuilder::export.Movement.FromVacationForFamily.destinationField	Destination
 value	PersonalEventBuilder::export.Word.FromVacationForFamily.templateName	FromVacationForFamily
 value	PersonalEventBuilder::export.events.ToHospital	Стаціонарне лікування
 value	PersonalEventBuilder::export.Word.ToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.ToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName
+value	PersonalEventBuilder::export.Movement.ToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToHospital.profile	Departure
 value	PersonalEventBuilder::export.Movement.ToHospital.destinationField	HospitalShortName
 value	PersonalEventBuilder::export.Word.ToHospital.templateName	ToHospital
 value	PersonalEventBuilder::export.events.ToAnnualMainVacation	Щорічна відпустка
 value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToAnnualMainVacation.profile	Departure
 value	PersonalEventBuilder::export.Movement.ToAnnualMainVacation.destinationField	Destination
 value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.templateName	ToAnnualMainVacation
 value	PersonalEventBuilder::export.events.ToVacationForCuring	Відпустка для лікування
 value	PersonalEventBuilder::export.Word.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToVacationForCuring.profile	Departure
 value	PersonalEventBuilder::export.Movement.ToVacationForCuring.destinationField	Destination
 value	PersonalEventBuilder::export.Word.ToVacationForCuring.templateName	ToVacationForCuring
 value	PersonalEventBuilder::export.events.ToVacationForFamily	Відпустка за сімейними обставинами
 value	PersonalEventBuilder::export.Word.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToVacationForFamily.profile	Departure
 value	PersonalEventBuilder::export.Movement.ToVacationForFamily.destinationField	Destination
 value	PersonalEventBuilder::export.Word.ToVacationForFamily.templateName	ToVacationForFamily
@@ -707,7 +713,7 @@ value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.1.field	Even
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.1.header	Прибуття
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.2.field	AcceptedOrderNumber
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.2.header	Прибуття.Наказ
-value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.3.field	IncomingNumber
+value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.3.field	MovementBasis
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.fields.3.header	Прибуття.Підстава
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.join.count	2
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.join.1.field	PersonId
@@ -727,7 +733,7 @@ value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.3.field	
 value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.3.header	Вибуття
 value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.4.field	AcceptedOrderNumber
 value	PersonalEventBuilder::export.Movement.profiles.Departure.identity.4.header	Вибуття.Наказ
-value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.count	7
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.count	8
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.1.field	PersonId
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.1.header	ІПН
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.2.field	PersonName
@@ -740,8 +746,10 @@ value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.5.field	Ac
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.5.header	Вибуття.Наказ
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.6.field	Destination
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.6.header	Куди
-value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.7.field	IncomingNumber
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.7.field	MovementBasis
 value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.7.header	Вибуття.Підстава
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.8.field	TicketDocument
+value	PersonalEventBuilder::export.Movement.profiles.Departure.fields.8.header	Супровідний документ
 value	PersonalEventBuilder::export.Word.templates.path	./PersonalEventBuilderWordResultTemplates.xml
 value	PersonalEventBuilder::export.dsl.months.1	січня
 value	PersonalEventBuilder::export.dsl.months.2	лютого

@@ -216,4 +216,5 @@ const original = path.join(workDirectory, "original.xlsx");
 if (path.resolve(fixture) !== path.resolve(original)) await fs.copyFile(fixture, original);
 execFileSync(python, ["-X", "utf8", bridge, "assemble", original, generated, outputFixture, ...changed, "--allow-layout-migration"], { stdio: "inherit" });
 execFileSync(process.execPath, [path.join(scriptDirectory, "normalize_inputs.mjs"), "--allow-layout-migration"], { stdio: "inherit" });
+execFileSync(process.execPath, [path.join(scriptDirectory, "normalize_inputs.mjs"), "--document-fixtures-only"], { stdio: "inherit" });
 console.log(`Migrated ${cases.length} scenarios, ${steps.length} steps, ${movement.length} Movement outcomes, ${snapshots.length} expected rows and ${word.length} Word baselines.`);

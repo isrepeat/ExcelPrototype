@@ -124,6 +124,75 @@ const runtimeMode = step => {
   throw new Error(`Unknown fixture mode: ${step.ModeId}`);
 };
 const outcomes = new Map(tableRows("Expected_WORD", "tbExpectedWord").map(row => [row.StepId, row]));
+if (process.argv.includes("--document-fixtures-only")) {
+  const shortDate = value => typeof value === "string" ? value : new Date(Date.UTC(1899, 11, 30) + value * 86400000).toISOString().slice(0, 10).split("-").reverse().join(".");
+  const basis = (number, date) => `рапорт лейтенанта БОНДАРЕНКА О.Ю. (вх.\u00a0№\u00a0${number} від\u00a0${shortDate(date)}).`;
+  const replacements = new Map();
+  const scenarioTickets = new Map();
+  for (const [index, step] of steps.entries()) {
+    const oldIncoming = step.IncomingNumber;
+    const oldTicket = step.TicketNumber;
+    const marker = oldIncoming?.match(/ТЕСТ-[A-Za-z0-9-]+/)?.[0];
+    if (!marker) throw new Error(`Missing fixture document marker: ${step.StepId}`);
+    step.IncomingNumber = `1656/${1234 + index}-в (${marker})`;
+    if (settings[`modes.${runtimeMode(step)}.form`] === "Leave") {
+      const ticket = `${shortDate(step.AcceptedOrderDate).slice(-4)}/${step.AcceptedOrderNumber}/7 (${marker})`;
+      if (runtimeMode(step).startsWith("To")) scenarioTickets.set(step.ScenarioId, ticket);
+      step.TicketNumber = scenarioTickets.get(step.ScenarioId) ?? ticket;
+      step.TicketDate = step.TicketDate ?? step.EventDate;
+    }
+    const replacement = { basis: basis(step.IncomingNumber, step.IncomingDate), ticket: step.TicketNumber ?? null };
+    replacements.set(oldIncoming, replacement);
+    replacements.set(basis(oldIncoming, step.IncomingDate), replacement);
+    const word = outcomes.get(step.StepId);
+    if (word?.Outcome === "Success") {
+      word.ExpectedText = word.ExpectedText.replaceAll(`вх.\u00a0№\u00a0${oldIncoming}`, `вх.\u00a0№\u00a0${step.IncomingNumber}`);
+      if (oldTicket && step.TicketNumber) word.ExpectedText = word.ExpectedText.replaceAll(`відпускний квиток №\u00a0${oldTicket}`, `відпускний квиток №\u00a0${step.TicketNumber}`);
+    }
+  }
+  const history = tableRows("Тест_Історія", "tbTestHistory");
+  const naturalKey = (scenario, row) => JSON.stringify([scenario, ...["ІПН", "Подія", "Вибуття", "Вибуття.Наказ"].map(header => row[header])]);
+  const historical = new Map();
+  for (const [index, row] of history.entries()) {
+    const marker = `ТЕСТ-${row.ScenarioId}-H${String(index + 1).padStart(2, "0")}`;
+    row["Вибуття.Підстава"] = basis(`1656/${1200 + index}-в (${marker})`, row["Вибуття"]);
+    if (row["Прибуття"]) row["Прибуття.Підстава"] = basis(`1656/${1300 + index}-в (${marker}-A)`, row["Прибуття"]);
+    if (["Щорічна відпустка", "Відпустка для лікування", "Відпустка за сімейними обставинами"].includes(row["Подія"])) {
+      row["Супровідний документ"] = `${shortDate(row["Вибуття"]).slice(-4)}/${row["Вибуття.Наказ"]}/7 (${marker})`;
+    }
+    historical.set(naturalKey(row.ScenarioId, row), row);
+  }
+  const expected = tableRows("Expected_РУХ", "tbExpectedMovementRows");
+  for (const row of expected) {
+    const previous = historical.get(naturalKey(stepById.get(row.StepId).ScenarioId, row));
+    const departure = replacements.get(row["Вибуття.Підстава"]);
+    const arrival = replacements.get(row["Прибуття.Підстава"]);
+    if (departure) {
+      row["Вибуття.Підстава"] = departure.basis;
+      row["Супровідний документ"] = departure.ticket;
+    } else if (previous) {
+      row["Вибуття.Підстава"] = previous["Вибуття.Підстава"];
+      row["Супровідний документ"] = previous["Супровідний документ"];
+    }
+    if (arrival) row["Прибуття.Підстава"] = arrival.basis;
+    else if (previous?.["Прибуття"]) row["Прибуття.Підстава"] = previous["Прибуття.Підстава"];
+  }
+  for (const [name, tableName, records] of [["Тест_Кроки", "tbTestSteps", steps], ["Тест_Історія", "tbTestHistory", history],
+    ["Expected_РУХ", "tbExpectedMovementRows", expected], ["Expected_WORD", "tbExpectedWord", [...outcomes.values()]]]) {
+    const table = source[name].tables.find(item => item.name === tableName);
+    const top = Number(table.ref.split(":")[0].match(/\d+/)[0]);
+    const columnCount = table.ref.split(":")[1].replace(/\d/g, "").split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0);
+    const columns = source[name].rows[top - 1].slice(0, columnCount);
+    workbook.worksheets.getItem(name).getRange(table.ref).values = [columns, ...records.map(row => columns.map(header => row[header] ?? null))];
+  }
+  const baseline = path.join(output, "documents-original.xlsx");
+  const generated = path.join(output, "documents-generated.xlsx");
+  await fs.copyFile(fixture, baseline);
+  await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
+  console.log("Updated incoming documents, qualified tickets and literal Movement/Word expectations.");
+  process.exit(0);
+}
 for (const step of steps) {
   for (const header of headers.slice(5, -1)) step[header] = eventCellValue(step[header]);
   if (["ToHospital", "FromHospital"].includes(runtimeMode(step))) {

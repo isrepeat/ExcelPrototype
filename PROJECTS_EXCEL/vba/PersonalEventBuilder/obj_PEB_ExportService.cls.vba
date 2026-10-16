@@ -152,11 +152,16 @@ Public Function TryPrepare( _
         End If
     Next key
 
+    private_PrepareTicket values
+
     ' Enrich the snapshot using only the selected exporter's directories.
     stageStartedAt = VBA.Timer
     For index = 1 To ex_PEB_Export.fn_Count("export." & exporter & ".lookups.count")
         private_Enrich values, "export." & exporter & ".lookups." & VBA.CStr(index)
     Next index
+    If exporter = "Movement" Then
+        private_PrepareMovementBasis values
+    End If
     If exporter = "Word" Then
         ' XML задаёт текст пунктов, конфигурация задаёт источники и соответствия полей.
         For index = 1 To ex_PEB_Export.fn_Count("export.Word." & mode & ".lookups.count")
@@ -210,6 +215,54 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_PrepareTicket(ByVal values As Object)
+    Dim ticket As String
+    Dim pattern As Object
+    Dim qualified As String
+
+    values("TicketDocument") = VBA.vbNullString
+    If ex_PEB_Export.fn_Text(values("ModeForm")) <> ex_PEB_Export.fn_Config("export.ticket.form") Then Exit Sub
+    ticket = ex_PEB_Export.fn_Text(values("TicketNumber"))
+    If VBA.Len(ticket) = 0 Then Exit Sub
+    Set pattern = VBA.CreateObject("VBScript.RegExp")
+    pattern.Pattern = ex_PEB_Export.fn_Config("export.ticket.qualifiedPattern")
+    If pattern.Test(ticket) Then
+        qualified = ticket
+    Else
+        qualified = ex_PEB_Export.fn_Config("export.ticket.numberTemplate")
+        qualified = VBA.Replace(qualified, "{orderYear}", VBA.CStr(VBA.Year(private_Date(values("AcceptedOrderDate"), "AcceptedOrderDate"))))
+        qualified = VBA.Replace(qualified, "{orderNum}", ex_PEB_Export.fn_Text(values("AcceptedOrderNumber")))
+        qualified = VBA.Replace(qualified, "{ticketNum}", ticket)
+    End If
+    values("TicketNumber") = qualified
+    values("TicketDocument") = qualified
+End Sub
+
+Private Sub private_PrepareMovementBasis(ByVal values As Object)
+    Dim index As Long
+    Dim source As String
+    Dim template As String
+    Dim rendered As String
+    Dim diagnostic As String
+    Dim prefix As String
+
+    source = ex_PEB_Export.fn_Config("export.Movement.basis.lookupSource")
+    For index = 1 To ex_PEB_Export.fn_Count("export." & source & ".lookups.count")
+        private_Enrich values, "export." & source & ".lookups." & VBA.CStr(index)
+    Next index
+    private_AddConstants values
+    private_AddAliases values
+    Set m_pebWordTemplates = New obj_PEB_WordTemplates
+    If Not m_pebWordTemplates.Initialize(diagnostic) Then Err.Raise 5, , diagnostic
+    Set m_pebDslRenderer = New obj_PEB_DslRenderer
+    If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , "Cannot initialize DSL renderer."
+    template = ex_PEB_Export.fn_Config("export.Movement.basis.template")
+    If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then Err.Raise 5, , diagnostic
+    prefix = ex_PEB_Export.fn_Config("export.Movement.basis.prefix")
+    If VBA.Left$(rendered, VBA.Len(prefix)) <> prefix Then Err.Raise 5, , "Movement basis prefix is missing."
+    values("MovementBasis") = VBA.Trim$(VBA.Mid$(rendered, VBA.Len(prefix) + 1))
+End Sub
+
 Private Function private_Date( _
     ByVal value As Variant, _
     ByVal key As String _
