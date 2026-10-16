@@ -103,6 +103,7 @@ End Sub
 Private Function private_TryRegisterBindings() As Boolean
     Dim uiBindingContext As obj_UiBindingContext
     Dim rawTable As obj_UiRawTable
+    Dim previews As Collection
     Dim textKey As Variant
     Dim configuredText As String
     Dim confirmSelectionKey As String
@@ -114,6 +115,12 @@ Private Function private_TryRegisterBindings() As Boolean
     Set rawTable = New obj_UiRawTable
     If Not rawTable.InitializeEmpty(VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogCaptions"), "|")) Then Exit Function
     If Not uiBindingContext.SetObject("Data", "TestCatalog", rawTable) Then Exit Function
+    Set rawTable = New obj_UiRawTable
+    If Not rawTable.InitializeEmpty(VBA.Split(ex_PEB_Export.fn_Config("test.panel.captions"), "|"), _
+            VBA.vbNullString, VBA.Split(ex_PEB_Export.fn_Config("test.panel.fields"), "|")) Then Exit Function
+    If Not uiBindingContext.SetObject("Data", "TestResults", rawTable) Then Exit Function
+    Set previews = New Collection
+    If Not uiBindingContext.SetObject("Data", "TestPreviews", previews) Then Exit Function
     If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::candidates.selectionMode", configuredText) Then
         ex_WindowsUi.fn_ShowMessage "Required configuration key not found: PersonalEventBuilder::candidates.selectionMode", vbExclamation, "Configuration"
         Exit Function
@@ -173,7 +180,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "SourceLegendSample", "SourceLegendSeparator", _
             "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
             "TestScenarioItems", "LoadTest", "NextTest", "OpenTests", "TestsStop", "TestsPageTitle", "TestsRefresh", _
-            "PreviewWord", "ExportWord", "ExportMovement")
+            "TestsResults", "PreviewWord", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function
@@ -249,7 +256,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
-            "LoadTest", "NextTest", "OpenTests", "CancelTests", _
+            "LoadTest", "NextTest", "OpenTests", "CancelTests", "TestPreview", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand

@@ -15,10 +15,12 @@ value	PersonalEventBuilder::test.progress.Verify	7
 value	PersonalEventBuilder::test.progress.Archive	8
 value	PersonalEventBuilder::test.panel.row	72
 value	PersonalEventBuilder::test.panel.candidateOffset	20
-value	PersonalEventBuilder::test.panel.displayRows	40
-value	PersonalEventBuilder::test.panel.fields	ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details
-value	PersonalEventBuilder::test.panel.captions	Сценарій|Крок|Очікувалось|Отримано|Очікуваний код|Фактичний код|Відкр. очік.|Відкр. факт.|Результат|Деталі
-value	PersonalEventBuilder::test.panel.spans	1|1|1|1|2|2|1|1|1|5
+value	PersonalEventBuilder::test.panel.fields	ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|PreviewLink
+value	PersonalEventBuilder::test.panel.captions	Сценарій|Крок|Очікувалось|Отримано|Очікуваний код|Фактичний код|Відкр. очік.|Відкр. факт.|Результат|Деталі|Прев’ю
+value	PersonalEventBuilder::text.TestPreviewLink	Переглянути
+value	PersonalEventBuilder::text.TestPreviewHeading	{scenario} · Крок {step} · {event}
+value	PersonalEventBuilder::text.TestPreviewNotRun	Прев’ю не сформовано: крок не виконувався.
+value	PersonalEventBuilder::text.TestPreviewError	Не вдалося сформувати прев’ю документа:
 value	PersonalEventBuilder::text.TestsProgress	Тести: {percent}% ({completed}/{total}). {state}
 value	PersonalEventBuilder::text.TestsStopping	Скасування: нові операції не запускаються, очікувані кроки позначаються SKIP.
 value	PersonalEventBuilder::text.TestsArchiveFailed	Не вдалося зберегти тестові книги та журнал у TestScenarios.xlsx; незбережені зміни буде відкинуто. {error}
@@ -120,7 +122,6 @@ value	PersonalEventBuilder::test.scenarios.headers.expected	ExpectedDecision
 value	PersonalEventBuilder::test.scenarios.headers.code	ExpectedCode
 value	PersonalEventBuilder::test.scenarios.fields	PersonId=ІПН|PersonName=ПІБ|EventDate=EventDate|AcceptedOrderNumber=AcceptedOrderNumber|Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName
 value	PersonalEventBuilder::test.scenarios.dateFields	EventDate|AcceptedOrderDate|IncomingDate|DocumentDate|TicketDate
-value	PersonalEventBuilder::test.scenarios.defaults	AcceptedOrderDate=15.10.2026
 value	PersonalEventBuilder::test.scenarios.optionalFields	AcceptedOrderDate|PersonRank|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|TicketNumber|TicketDate|Document|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
 value	ThisWorkbook::config.source	../../config/PersonalEventBuilder/wsConfig.txt

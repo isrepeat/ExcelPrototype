@@ -23,8 +23,6 @@ Private m_reports As Collection
 Private m_running As Boolean
 Private m_stop As Boolean
 Private m_baseRow As Long
-Private m_resultRow As Long
-Private m_endRow As Long
 Private m_completed As Long
 Private m_phasePercent As Double
 Private m_total As Long
@@ -138,17 +136,9 @@ Public Function OpenPage() As Boolean
     Application.EnableEvents = False
     private_ClearCheckboxes
     Set m_checkboxes = New Collection
-    If m_endRow >= m_resultRow And m_resultRow > 0 Then
-        m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).ClearContents
-        m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).UnMerge
-    End If
     For index = m_sheet.Shapes.Count To 1 Step -1
         If VBA.Left$(m_sheet.Shapes(index).Name, 5) = "pebt_" Then m_sheet.Shapes(index).Delete
     Next index
-    m_resultRow = m_baseRow + m_catalog.Count + 6
-    m_endRow = m_resultRow + ex_PEB_Export.fn_Count("test.panel.displayRows")
-    m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).UnMerge
-    m_sheet.Range(m_sheet.Cells(m_resultRow - 1, 2), m_sheet.Cells(m_endRow, 17)).NumberFormat = "@"
     private_Button "All", m_baseRow, 2, 2, "TestsSelectAll"
     private_Button "None", m_baseRow, 4, 2, "TestsSelectNone"
     private_Button "Run", m_baseRow, 6, 2, "TestsRun"
@@ -183,8 +173,6 @@ Public Function OpenPage() As Boolean
     Next index
     ex_Core.fn_Diagnostic_WriteLog "TEST_UI_STAGE | Name=DrawResults"
     ex_Core.fn_Diagnostic_Flush
-    private_Cell m_resultRow - 1, 2, 16, ex_PEB_Export.fn_Config("text.TestsResults")
-    private_ResultHeader
     private_DrawResults
     m_sheet.Activate
     Application.Goto m_sheet.Cells(1, 1), True
@@ -194,6 +182,7 @@ Public Function OpenPage() As Boolean
 CleanRender:
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreen
+    On Error GoTo 0
     If VBA.Len(diagnostic) > 0 Then Err.Raise 5, , diagnostic
     Exit Function
 EH_RENDER:
@@ -360,6 +349,26 @@ Public Sub PublishResult(ByVal report As Object)
     private_DrawResults
 End Sub
 
+Public Function NavigatePreview(ByVal item As Object) As Boolean
+    Dim index As Long
+    Dim context As obj_UiRenderContext
+    Dim area As Range
+    Dim report As Object
+
+    private_Guard
+    If item Is Nothing Then Exit Function
+    For index = 1 To m_reports.Count
+        Set report = m_reports(index)
+        If VBA.CStr(report("ScenarioId")) = VBA.CStr(item("ScenarioId")) And _
+                VBA.CStr(report("StepId")) = VBA.CStr(item("StepId")) Then Exit For
+    Next index
+    If index > m_reports.Count Then Exit Function
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Exit Function
+    If Not context.TryGetItemArea("TestDocuments", index, area) Then Exit Function
+    Application.Goto area.Cells(1, 1), True
+    NavigatePreview = True
+End Function
+
 ' //
 ' // Private
 ' //
@@ -523,23 +532,6 @@ Private Sub private_ClearCheckboxes()
     Set m_checkboxes = Nothing
 End Sub
 
-Private Sub private_Cell( _
-    ByVal row As Long, _
-    ByVal column As Long, _
-    ByVal span As Long, _
-    ByVal value As String _
-)
-    Dim area As Range
-
-    Set area = m_sheet.Cells(row, column).Resize(1, span)
-    area.UnMerge
-    If span > 1 Then area.Merge
-    area.NumberFormat = "@"
-    area.Cells(1, 1).Value2 = value
-    area.WrapText = True
-    area.VerticalAlignment = xlCenter
-    m_sheet.Rows(row).RowHeight = ex_PEB_Export.fn_Count("test.ui.rowHeight")
-End Sub
 
 Private Sub private_Button( _
     ByVal name As String, _
@@ -559,48 +551,60 @@ Private Sub private_Button( _
     shape.Placement = xlMoveAndSize
 End Sub
 
-Private Sub private_ResultHeader()
-    Dim captions As Variant
-    Dim spans As Variant
-    Dim index As Long
-    Dim column As Long
-
-    captions = VBA.Split(ex_PEB_Export.fn_Config("test.panel.captions"), "|")
-    spans = VBA.Split(ex_PEB_Export.fn_Config("test.panel.spans"), "|")
-    If UBound(captions) <> UBound(spans) Then Err.Raise 5, , "Test panel columns differ."
-    column = 2
-    For index = 0 To UBound(captions)
-        private_Cell m_resultRow, column, VBA.CLng(spans(index)), VBA.CStr(captions(index))
-        column = column + VBA.CLng(spans(index))
-    Next index
-    If column <> 18 Then Err.Raise 5, , "Test panel must occupy columns B:Q."
-End Sub
-
 Private Sub private_DrawResults()
+    Dim context As obj_UiRenderContext
+    Dim rawTable As obj_UiRawTable
     Dim fields As Variant
-    Dim spans As Variant
+    Dim captions As Variant
+    Dim values As Variant
     Dim report As Object
     Dim index As Long
     Dim fieldIndex As Long
-    Dim first As Long
-    Dim row As Long
-    Dim column As Long
+    Dim rowCount As Long
+    Dim diagnostic As String
 
-    If m_sheet Is Nothing Or m_resultRow = 0 Then Exit Sub
+    If m_sheet Is Nothing Then Exit Sub
     fields = VBA.Split(ex_PEB_Export.fn_Config("test.panel.fields"), "|")
-    spans = VBA.Split(ex_PEB_Export.fn_Config("test.panel.spans"), "|")
-    If UBound(fields) <> UBound(spans) Then Err.Raise 5, , "Test panel fields differ."
-    m_sheet.Range(m_sheet.Cells(m_resultRow + 1, 2), m_sheet.Cells(m_endRow, 17)).ClearContents
-    first = m_reports.Count - ex_PEB_Export.fn_Count("test.panel.displayRows") + 1
-    If first < 1 Then first = 1
-    row = m_resultRow + 1
-    For index = first To m_reports.Count
-        Set report = m_reports(index)
-        column = 2
-        For fieldIndex = 0 To UBound(fields)
-            private_Cell row, column, VBA.CLng(spans(fieldIndex)), ex_PEB_Export.fn_Text(report(fields(fieldIndex)))
-            column = column + VBA.CLng(spans(fieldIndex))
-        Next fieldIndex
-        row = row + 1
-    Next index
+    captions = VBA.Split(ex_PEB_Export.fn_Config("test.panel.captions"), "|")
+    If UBound(fields) <> UBound(captions) Then Err.Raise 5, , "Test panel fields differ."
+    rowCount = m_reports.Count
+    Set rawTable = New obj_UiRawTable
+    If rowCount > 0 Then
+        ReDim values(1 To rowCount, 1 To UBound(fields) + 1)
+        For index = 1 To m_reports.Count
+            Set report = m_reports(index)
+            For fieldIndex = 0 To UBound(fields)
+                values(index, fieldIndex + 1) = ex_PEB_Export.fn_Text(report(fields(fieldIndex)))
+            Next fieldIndex
+        Next index
+        If Not rawTable.Initialize(values, captions, VBA.vbNullString, fields) Then Err.Raise 5, , "Cannot initialize test result data."
+        If Not rawTable.SetRecords(m_reports) Then Err.Raise 5, , "Cannot attach result row records."
+    Else
+        If Not rawTable.InitializeEmpty(captions, VBA.vbNullString, fields) Then Err.Raise 5, , "Cannot initialize empty test results."
+    End If
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then Err.Raise 5, , "Test page render context is missing."
+    private_BindPreviews context
+    If Not context.BindingContext.SetObject("Data", "TestResults", rawTable) Then Err.Raise 5, , "Cannot bind test results."
+    context.MarkDirty "TestResults", True
+    If Not context.FlushUpdates(diagnostic) Then Err.Raise 5, , diagnostic
+End Sub
+
+Private Sub private_BindPreviews(ByVal context As obj_UiRenderContext)
+    Dim previews As Collection
+    Dim report As Object
+    Dim item As Object
+    Dim text As String
+
+    Set previews = New Collection
+    For Each report In m_reports
+        Set item = VBA.CreateObject("Scripting.Dictionary")
+        text = ex_PEB_Export.fn_Config("text.TestPreviewHeading")
+        text = VBA.Replace$(text, "{scenario}", VBA.CStr(report("ScenarioId")))
+        text = VBA.Replace$(text, "{step}", VBA.CStr(report("StepId")))
+        text = VBA.Replace$(text, "{event}", VBA.CStr(report("EventName")))
+        item.Add "Text", text & VBA.vbLf & VBA.vbLf & VBA.CStr(report("PreviewText"))
+        previews.Add item
+    Next report
+    If Not context.BindingContext.SetObject("Data", "TestPreviews", previews) Then Err.Raise 5, , "Cannot bind test previews."
+    context.MarkDirty "TestDocuments", True
 End Sub

@@ -24,16 +24,56 @@
                     column="1"
                     columnSpan="16"
                     text="{Binding Path=Form.ActionStatus}"/>
-    <controls:table name="TestCatalog"
-                  itemsSource="{Binding Path=Data.TestCatalog}"
-                  row="4"
-                  column="1"
-                  style="testCatalog"
-                  representation="Smart"
-                  excelTableName="tbPebTestCatalog"
-                  showHeaders="true"/>
+    <stackPanel row="4"
+                column="1"
+                orientation="vertical">
+      <controls:table name="TestCatalog"
+                      itemsSource="{Binding Path=Data.TestCatalog}"
+                      style="testCatalog"
+                      representation="Smart"
+                      excelTableName="tbPebTestCatalog"
+                      showAutoFilter="false"
+                      showHeaders="true"/>
+      <controls:label name="TestResultsTitle"
+                      columnSpan="16"
+                      text="{Binding Path=Text.TestsResults}"/>
+      <controls:table name="TestResults"
+                      itemsSource="{Binding Path=Data.TestResults}"
+                      style="testCatalog"
+                      representation="Smart"
+                      excelTableName="tbPebTestResults"
+                      showAutoFilter="false"
+                      showHeaders="true">
+        <controls:table.cellTemplates>
+          <controls:cellTemplate columnAlias="PreviewLink"
+                                 mode="replace">
+            <controls:button name="PreviewLink"
+                             style="secondaryButton"
+                             caption="{Binding Path=Cell.Value}"
+                             command="{Binding Path=Commands.TestPreview}"/>
+          </controls:cellTemplate>
+        </controls:table.cellTemplates>
+      </controls:table>
+      <controls:items name="TestDocuments"
+                      itemsSource="{Binding Path=Data.TestPreviews}"
+                      gapRows="1">
+        <controls:label name="TestDocument"
+                        rowSpan="7"
+                        columnSpan="6"
+                        style="testDocument"
+                        text="{Binding Path=Item.Text}"/>
+      </controls:items>
+    </stackPanel>
   </grid>
   <styles>
+    <controlStyle name="testDocument"
+                  backColor="#3B3B3B"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"
+                  overflow="wrap"/>
     <controlStyle name="testCatalog"
                   backColor="#2D2D2D"
                   textColor="#FFFFFF"
@@ -125,6 +165,12 @@
         <rule target="controlPart"
               selector="type=table;part=row;tags=even"
               styles="{backColor:#383838;}"/>
+        <rule target="controlPart"
+              selector="type=table;part=header"
+              styles="{borderColor:#000000;borderWeight:thin;borderLineStyle:continuous;borderScope:all;}"/>
+        <rule target="controlPart"
+              selector="type=table;part=rows"
+              styles="{borderColor:#000000;borderWeight:thin;borderLineStyle:continuous;borderScope:all;}"/>
         <rule target="usedRange"
               selector="row=1"
               styles="{rowHeight:10;}"/>

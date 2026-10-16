@@ -37,7 +37,7 @@ The archive is append-only and schema-checked. A save failure ends the run with 
 - S09 intentionally exposes the missing general guard against a new departure while another departure remains open. It should currently FAIL. Decide and implement the business policy separately.
 - S15 is an unresolved exception policy and remains SKIP/PendingRule. Clarify allowed exceptions before adding assertions.
 - Coverage currently targets the eight Movement export modes. Word preview/document output and additional modes need separate fixtures and expected output assertions.
-- The initial step schema lacks AcceptedOrderDate; configuration explicitly supplies 15.10.2026. Richer form/Word cases need optional input columns and matching test directory records. Existing copied dependencies are not all anonymized synthetic data.
+- All scenario inputs, including order dates, rank, position and document details, are stored in tbTestSteps. The loader does not supply configured default data. Word cases require matching test directory records. Existing copied dependencies are not all anonymized synthetic data.
 - The user-cleared native ТВ has no formulas inside its helper columns. Existing formulas are preserved/reapplied where present; absent formulas are not invented.
 - Verify SaveAs behavior during a pending timer; there is no AfterSave callback rebinding implementation.
 - The older Scenarios.xlsx and synthetic-fixture generator are separate from the active native test_РУХ scenario workflow. Do not regenerate or merge them over the current user workbook. validate_fixtures.py targets the older generated set and may report its missing dependencies.
