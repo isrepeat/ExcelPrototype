@@ -2,6 +2,8 @@
 
 ## Catalog loading and page lifecycle
 
+Progress includes completed export steps and completed stages of the current step: floor(100 * (completedSteps + completedStages / stageCount) / totalSteps). Each step has eight equally weighted stages: restore the scenario, capture the initial snapshot, prepare export inputs, calculate and capture the definitive pre-export snapshot, execute the export, capture the post-export snapshot, assert the result, and archive the report and working books. Each milestone is reported after its operation finishes. Opening the execution session contributes zero; multi-step scenarios contribute one unit per export step. These are completed-work milestones, not elapsed-time estimates. An archive failure retains the partial percentage instead of reporting completion.
+
 Scenario classification is stored in the Операція and Подія / сценарій columns of Тест_Сценарії. S01-S08 show departure/arrival and the event type separately. S09-S16 are Custom and retain their descriptive names. The UI groups departure cases first, arrival cases second, and Custom cases last; both classification columns are filterable in the Smart table. Scenario identities, inputs and execution rules are unchanged.
 
 Displaying or refreshing the catalog uses the existing ADO query executor against the saved scenario and step worksheets only. It does not create Excel.Application, open working Movement/Absence books or initialize the exporter. Full scenario validation and the private execution session start on the first scheduled runner callback after Run.

@@ -1,6 +1,18 @@
 value	ThisWorkbook::id	PersonalEventBuilder
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::test.runner.tickSeconds	1
+value	PersonalEventBuilder::test.progress.OpenMovement	0
+value	PersonalEventBuilder::test.progress.OpenScenarios	0
+value	PersonalEventBuilder::test.progress.OpenAbsence	0
+value	PersonalEventBuilder::test.progress.stageCount	8
+value	PersonalEventBuilder::test.progress.Prepare	1
+value	PersonalEventBuilder::test.progress.Snapshot	2
+value	PersonalEventBuilder::test.progress.Inputs	3
+value	PersonalEventBuilder::test.progress.Commit	4
+value	PersonalEventBuilder::test.progress.Export	5
+value	PersonalEventBuilder::test.progress.AfterSnapshot	6
+value	PersonalEventBuilder::test.progress.Verify	7
+value	PersonalEventBuilder::test.progress.Archive	8
 value	PersonalEventBuilder::test.panel.row	72
 value	PersonalEventBuilder::test.panel.candidateOffset	20
 value	PersonalEventBuilder::test.panel.displayRows	40
@@ -39,11 +51,14 @@ value	PersonalEventBuilder::text.TestsRunning	Тести виконуються.
 value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
 value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
 value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
-value	PersonalEventBuilder::text.TestPhase.Prepare	Відновлення початкового стану та підготовка даних.
-value	PersonalEventBuilder::text.TestPhase.Snapshot	Знімок записів перед експортом.
-value	PersonalEventBuilder::text.TestPhase.Export	Виконання експорту РУХ.
-value	PersonalEventBuilder::text.TestPhase.Verify	Перевірка записів після експорту.
-value	PersonalEventBuilder::text.TestPhase.Archive	Збереження звіту та тестових книг.
+value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
+value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
+value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експорту підготовлено.
+value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
+value	PersonalEventBuilder::text.TestPhase.Export	Виконання експорту РУХ завершено.
+value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
+value	PersonalEventBuilder::text.TestPhase.Verify	Результат перевірено та порівняно з очікуванням.
+value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
 value	PersonalEventBuilder::text.TestsSummary	PASS: {pass} | FAIL: {fail} | SKIP: {skip} | ERROR: {error}
 value	PersonalEventBuilder::text.TestsCancelled	Запуск зупинено користувачем.
 value	PersonalEventBuilder::text.TestsPreviousFailed	Попередній крок сценарію не пройдено; наступний крок не виконується.
