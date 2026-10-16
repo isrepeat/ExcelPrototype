@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
 import { eventCellValue } from "./event_cell_values.mjs";
+import { applyFixtureStyle, fixtureStyle } from "./fixture_styles.mjs";
 
 process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -62,13 +63,11 @@ if (process.argv.includes("--registry-only")) {
   const lastColumn = String.fromCharCode(64 + headers.length);
   const range = `A1:${lastColumn}${rows + 1}`;
   registry.getRange(range).values = values;
-  registry.tables.add(range, true, settings["test.registry.table"]).style = "TableStyleDark1";
-  registry.getRange(range).format = { fill: "#303030", font: { name: "Times New Roman", size: 12, color: "#FFFFFF" }, wrapText: true, verticalAlignment: "center" };
-  registry.getRange(range).format.columnWidth = 28;
-  registry.getRange(range).format.rowHeight = 38;
-  registry.getRange(`A1:${lastColumn}1`).format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center" };
+  registry.tables.add(range, true, settings["test.registry.table"]).style = fixtureStyle("workbook").tableStyle;
+  applyFixtureStyle(registry.getRange(range), "registryBody");
+  applyFixtureStyle(registry.getRange(`A1:${lastColumn}1`), "header");
   registry.getRange(`A${rows + 3}`).values = [[settings["test.registry.sourceCaption"]]];
-  registry.showGridLines = false;
+  registry.showGridLines = fixtureStyle("workbook").showGridLines === "true";
   const modes = settings["test.registry.ModeId.values"].split("|");
   const reverse = new Map(modes.map(mode => [settings[`test.registry.ModeId.${mode}.runtimeMode`], mode]));
   const originalSteps = source["Тест_Кроки"].rows;
@@ -346,20 +345,17 @@ sheet.getUsedRange().clear({ applyTo: "all" });
 const values = [headers, ...steps.map(step => headers.map(header => step[header] ?? null))];
 const range = `A1:${columnName(headers.length - 1)}${values.length}`;
 sheet.getRange(range).values = values;
-sheet.tables.add(range, true, "tbTestSteps").style = "TableStyleDark1";
-sheet.getRange(range).format = { fill: "#303030", font: { name: "Times New Roman", size: 12, color: "#FFFFFF" }, wrapText: true, verticalAlignment: "center" };
-sheet.getRange(range).format.rowHeight = 62;
-sheet.getRange(range).format.columnWidth = 20;
-sheet.getRange(`A1:${columnName(headers.length - 1)}1`).format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, wrapText: true, horizontalAlignment: "center" };
-sheet.getRange("A1:E28").format.columnWidth = 18;
+sheet.tables.add(range, true, "tbTestSteps").style = fixtureStyle("workbook").tableStyle;
+applyFixtureStyle(sheet.getRange(range), "inputBody");
+applyFixtureStyle(sheet.getRange(`A1:${columnName(headers.length - 1)}1`), "header");
+applyFixtureStyle(sheet.getRange("A1:E28"), "inputMetadata");
 for (let index = 0; index < headers.length; index++) {
   const cells = sheet.getRange(`${columnName(index)}2:${columnName(index)}${values.length}`);
   if (headers[index].endsWith("Date")) {
-    cells.setNumberFormat("dd\\.mm\\.yyyy");
-    cells.format.horizontalAlignment = "center";
+    applyFixtureStyle(cells, "date");
   }
-  if (["Hospital", "PersonName", "ReportName", "Document", "Notes"].includes(headers[index])) cells.format.columnWidth = 35;
-  if (["Hospital", "Notes"].includes(headers[index])) cells.format.columnWidth = 55;
+  if (["Hospital", "PersonName", "ReportName", "Document", "Notes"].includes(headers[index])) applyFixtureStyle(cells, "inputText");
+  if (["Hospital", "Notes"].includes(headers[index])) applyFixtureStyle(cells, "inputLongText");
 }
 for (const name of ["Тест_Історія", "Expected_РУХ", "Expected_WORD"]) {
   const rows = source[name].rows;
@@ -370,18 +366,17 @@ for (const name of ["Тест_Історія", "Expected_РУХ"]) {
   const top = rows.findIndex(row => row.includes("Куди") && row.includes("Подія"));
   const column = columnName(rows[top].indexOf("Куди"));
   const destination = workbook.worksheets.getItem(name).getRange(`${column}${top + 1}:${column}${rows.length}`);
-  destination.format.columnWidth = 55;
-  destination.format.wrapText = true;
-  workbook.worksheets.getItem(name).getRange(`A${top + 2}:${columnName(rows[top].length - 1)}${rows.length}`).format.rowHeight = 80;
+  applyFixtureStyle(destination, "nativeDestination");
+  applyFixtureStyle(workbook.worksheets.getItem(name).getRange(`A${top + 2}:${columnName(rows[top].length - 1)}${rows.length}`), "nativeRows");
 }
 // В Expected_РУХ верхняя таблица уже нижней, поэтому учитываем полный размер матрицы.
 const expectedRows = source["Expected_РУХ"].rows;
 const width = Math.max(...expectedRows.map(row => row.length));
 workbook.worksheets.getItem("Expected_РУХ").getRange(`A1:${columnName(width - 1)}${expectedRows.length}`).values = expectedRows.map(row => Array.from({ length: width }, (_, index) => row[index] ?? null));
 const wordSheet = workbook.worksheets.getItem("Expected_WORD");
-wordSheet.getRange("A1:D10").format = { fill: "#303030", font: { name: "Times New Roman", size: 12, color: "#FFFFFF" }, wrapText: true, verticalAlignment: "top" };
-wordSheet.getRange("A1:D1").format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center" };
-wordSheet.getRange("A2:D3").format.rowHeight = 210;
+applyFixtureStyle(wordSheet.getRange("A1:D10"), "wordBody");
+applyFixtureStyle(wordSheet.getRange("A1:D1"), "header");
+applyFixtureStyle(wordSheet.getRange("A2:D3"), "wordLongRows");
 workbook.recalculate();
 for (const [name, range, filename] of [["Тест_Кроки", "F1:N4", "inputs.png"], ["Тест_Кроки", "O1:Z4", "documents.png"], ["Expected_WORD", "A1:C3", "word.png"]]) {
   const preview = await workbook.render({ sheetName: name, range, scale: 1 });

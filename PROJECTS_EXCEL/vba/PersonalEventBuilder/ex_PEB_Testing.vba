@@ -315,50 +315,21 @@ Public Function fn_NavigatePreview(ByVal item As Object) As Boolean
     fn_NavigatePreview = m_testUi.NavigatePreview(item)
 End Function
 
-Public Sub fn_Click()
-    Dim runtimeContext As Object
-    Dim caller As String
-    Dim entered As Boolean
-    Dim previousEvents As Boolean
-
-    previousEvents = Application.EnableEvents
-    On Error GoTo EH
-    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
-    Application.EnableEvents = False
-    caller = VBA.CStr(Application.Caller)
-    If caller = "pebt_Stop" Then
-        fn_RequestStop
-        private_FlushMain
-        GoTo CleanExit
-    End If
-    If m_testUi Is Nothing Then
-        fn_Open
-        GoTo CleanExit
-    End If
-    If m_testUi.IsRunning Then GoTo CleanExit
-    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then GoTo CleanExit
-    entered = True
-    Select Case caller
-        Case "pebt_All"
-            m_testUi.SelectAll True
-        Case "pebt_None"
-            m_testUi.SelectAll False
-        Case "pebt_Run"
-            m_testUi.RunSelected
-        Case "pebt_Refresh"
-            m_testUi.OpenPage
-        Case Else
-            Err.Raise 5, , "Unknown test UI command: " & caller
-    End Select
+Public Function fn_SelectAll(ByVal selected As Boolean) As Boolean
+    If m_testUi Is Nothing Then Exit Function
+    If m_testUi.IsRunning Then Exit Function
+    m_testUi.SelectAll selected
     private_FlushMain
-CleanExit:
-    Application.EnableEvents = previousEvents
-    If entered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
-    Exit Sub
-EH:
-    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, VBA.vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
-    Resume CleanExit
-End Sub
+    fn_SelectAll = True
+End Function
+
+Public Function fn_RunSelected() As Boolean
+    If m_testUi Is Nothing Then Exit Function
+    If m_testUi.IsRunning Then Exit Function
+    m_testUi.RunSelected
+    private_FlushMain
+    fn_RunSelected = True
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

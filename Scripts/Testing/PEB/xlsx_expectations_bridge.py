@@ -7,6 +7,7 @@ import posixpath
 import os
 import re
 import sys
+from pathlib import Path
 import zipfile
 from lxml import etree as ET
 
@@ -20,6 +21,19 @@ REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 DOCREL = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
 CT = "http://schemas.openxmlformats.org/package/2006/content-types"
 NS = {"m": MAIN, "r": REL}
+
+
+def fixture_styles():
+    path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/ui/PersonalEventBuilderTest/FixtureStyles.xaml"
+    nodes = ET.parse(str(path)).findall("{urn:excelprototype:profiles}controlStyle")
+    result = {}
+    for node in nodes:
+        attributes = dict(node.attrib)
+        name = attributes.pop("name")
+        if name in result:
+            raise ValueError(f"Duplicate fixture style: {name}")
+        result[name] = attributes
+    return result
 
 
 def dump(path):
@@ -404,7 +418,7 @@ def format_food_dates(path, table_name):
     if formats is None:
         formats = ET.Element(f"{{{MAIN}}}numFmts")
         styles.insert(0, formats)
-    date_format = "dd.mm.yyyy"
+    date_format = fixture_styles()["nativeDate"]["numberFormat"]
     number_format = next((item.get("numFmtId") for item in formats if item.get("formatCode") == date_format), None)
     if number_format is None:
         number_format = str(max([163] + [int(item.get("numFmtId")) for item in formats]) + 1)
@@ -727,7 +741,7 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
                 table.set("id", old_table.get("id"))
                 table.find("m:tableStyleInfo", NS).set("name", old_table.find("m:tableStyleInfo", NS).get("name"))
             else:
-                table.find("m:tableStyleInfo", NS).set("name", "TableStyleDark_my")
+                table.find("m:tableStyleInfo", NS).set("name", fixture_styles()["workbook"]["nativeTableStyle"])
                 table_part = f"xl/tables/table{table_id}.xml"
                 table.set("id", str(table_id))
                 table_id += 1
@@ -753,7 +767,9 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
 
 
 if __name__ == "__main__":
-    if sys.argv[1] == "dump":
+    if sys.argv[1] == "fixture-styles":
+        print(json.dumps(fixture_styles(), ensure_ascii=False))
+    elif sys.argv[1] == "dump":
         dump(sys.argv[2])
     elif sys.argv[1] == "assemble":
         assemble(*sys.argv[2:5], [name for name in sys.argv[5:] if name != "--allow-layout-migration"],

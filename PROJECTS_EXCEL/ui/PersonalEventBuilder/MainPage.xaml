@@ -2,7 +2,8 @@
 <page xmlns="urn:excelprototype:profiles"
       xmlns:controls="urn:excelprototype:controls"
       version="1"
-      zoom="80%">
+      zoom="80%"
+      styleSources="CommonControlStyles.xaml">
   <fieldCatalog name="EventFields">
     <field name="Destination"
            type="text"

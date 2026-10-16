@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
 import { eventCellValue } from "./event_cell_values.mjs";
+import { applyFixtureStyle, fixtureStyle } from "./fixture_styles.mjs";
 
 process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
 
@@ -111,28 +112,19 @@ function replaceTable(name, tableName, headers, rows, startRow = 1, clear = true
   const range = `A${startRow}:${columnName(headers.length - 1)}${startRow + values.length - 1}`;
   sheet.getRange(range).values = values;
   const table = sheet.tables.add(range, true, tableName);
-  table.style = "TableStyleDark1";
+  table.style = fixtureStyle("workbook").tableStyle;
   const grid = sheet.getRange(range);
-  grid.format.font = { name: "Times New Roman", size: 12, color: "#FFFFFF" };
-  grid.format.fill = "#303030";
-  grid.format.wrapText = true;
-  grid.format.verticalAlignment = "center";
-  grid.format.rowHeight = 38;
-  grid.format.columnWidth = 21;
-  sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.font.bold = true;
-  sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.fill = "#151515";
-  sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.rowHeight = 60;
-  sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.horizontalAlignment = "center";
-  if (!source[name]) sheet.showGridLines = false;
+  applyFixtureStyle(grid, "tableBody");
+  applyFixtureStyle(sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`), "tableHeader");
+  if (!source[name]) sheet.showGridLines = fixtureStyle("workbook").showGridLines === "true";
   for (let column = 0; column < headers.length; column++) {
     const header = headers[column];
     const cells = sheet.getRange(`${columnName(column)}${startRow + 1}:${columnName(column)}${startRow + values.length - 1}`);
     if (["EventDate", "AcceptedOrderDate", "IncomingDate", "TicketDate", "Дата тесту", "Вибуття", "Прибуття", "Прибуття.План"].includes(header)) {
-      cells.setNumberFormat("dd\\.mm\\.yyyy");
-      cells.format.horizontalAlignment = "center";
+      applyFixtureStyle(cells, "date");
     }
-    if (["StepOrder", "AcceptedOrderNumber", "ExpectedOpenCount"].includes(header)) cells.format.horizontalAlignment = "center";
-    if (["ПІБ", "Назва", "Подія / сценарій", "Початковий стан", "Посада"].includes(header)) cells.format.columnWidth = 32;
+    if (["StepOrder", "AcceptedOrderNumber", "ExpectedOpenCount"].includes(header)) applyFixtureStyle(cells, "centered");
+    if (["ПІБ", "Назва", "Подія / сценарій", "Початковий стан", "Посада"].includes(header)) applyFixtureStyle(cells, "recordName");
   }
   if (!changed.includes(name)) changed.push(name);
   return sheet;
@@ -162,14 +154,14 @@ const movementSheet = replaceTable("Expected_РУХ", "tbExpectedMovement", ["St
 replaceTable("Expected_РУХ", "tbExpectedMovementRows", ["StepId", "RecordId", ...nativeHeaders], snapshots.map(row => ({ ...row,
   ...Object.fromEntries(nativeHeaders.map(header => [header, eventCellValue(row[header])])) })), movement.length + 5, false);
 movementSheet.getRange(`A${movement.length + 3}`).values = [["Очікувані рядки після кроку"]];
-movementSheet.getRange(`A${movement.length + 3}:F${movement.length + 3}`).format.font = { name: "Times New Roman", size: 12, bold: true, color: "#202020" };
-movementSheet.getRange("C2:C19").format.columnWidth = 28;
+applyFixtureStyle(movementSheet.getRange(`A${movement.length + 3}:F${movement.length + 3}`), "sectionTitle");
+applyFixtureStyle(movementSheet.getRange("C2:C19"), "code");
 const wordSheet = replaceTable("Expected_WORD", "tbExpectedWord", ["StepId", "Outcome", "ExpectedText", "ExpectedError"], word);
-wordSheet.getRange("C1:C10").format.columnWidth = 100;
-wordSheet.getRange("D1:D10").format.columnWidth = 60;
-wordSheet.getRange("A2:D9").format.rowHeight = 175;
-wordSheet.getRange("A10:D10").format.rowHeight = 75;
-wordSheet.getRange("A2:D10").format.verticalAlignment = "top";
+applyFixtureStyle(wordSheet.getRange("C1:C10"), "wordText");
+applyFixtureStyle(wordSheet.getRange("D1:D10"), "wordError");
+applyFixtureStyle(wordSheet.getRange("A2:D9"), "wordRows");
+applyFixtureStyle(wordSheet.getRange("A10:D10"), "wordErrorRow");
+applyFixtureStyle(wordSheet.getRange("A2:D10"), "topAligned");
 wordSheet.getRange("B2:B10").dataValidation = { rule: { type: "list", values: ["Success", "Error", "Pending"] } };
 movementSheet.getRange("D2:D19").dataValidation = { rule: { type: "list", values: ["Snapshot", "Unchanged", "Pending"] } };
 
@@ -180,9 +172,9 @@ const resultHeaders = [...source["Тест_Результати"].rows[0], "Step
 resultSheet.tables.items.find(table => table.name === resultTable.name).delete();
 resultSheet.getRange(`A1:${columnName(resultHeaders.length - 1)}1`).values = [resultHeaders];
 const report = resultSheet.tables.add(`A1:${columnName(resultHeaders.length - 1)}${resultTable.ref.match(/\d+$/)[0]}`, true, resultTable.name);
-report.style = "TableStyleDark1";
-resultSheet.getRange("W1:AE1").format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, wrapText: true };
-resultSheet.getRange("W1:AE126").format.columnWidth = 24;
+report.style = fixtureStyle("workbook").tableStyle;
+applyFixtureStyle(resultSheet.getRange("W1:AE1"), "header");
+applyFixtureStyle(resultSheet.getRange("W1:AE126"), "report");
 changed.push("Тест_Результати");
 
 for (const name of ["Тест_Результати", "Тест_Записи", "Тест_ВхідніДані"]) {
