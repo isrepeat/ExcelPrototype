@@ -4,6 +4,7 @@ import os from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
+import { eventCellValue } from "./event_cell_values.mjs";
 
 process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
 
@@ -43,7 +44,7 @@ const oldSteps = records("Тест_Кроки");
 const cases = records("Тест_Сценарії");
 const history = records("Тест_Історія");
 const absence = records("Тест_ЄЖОС");
-const nativeHeaders = source["Тест_Історія"].rows[0].slice(3).filter(header => !["Валідація", "Статус потенціально незакритих записів"].includes(header));
+const nativeHeaders = source["Тест_Історія"].rows[0].filter(header => !["ScenarioId", "RowId", "TargetTable", "Валідація", "Статус потенціально незакритих записів"].includes(header));
 const inputHeaders = ["ScenarioId", "StepId", "StepOrder", "Action", ...source["Тест_Кроки"].rows[0].filter(header => !["ScenarioId", "StepId", "ExpectedDecision", "ExpectedCode", "ExpectedOpenCount", "PersonPosition"].includes(header))];
 const movement = [];
 const snapshots = [];
@@ -61,7 +62,7 @@ for (const step of oldSteps) {
   const state = stateByScenario.get(step.ScenarioId);
   if (step.ExpectedDecision !== "Allow") continue;
   // Описываем эталонный результат независимо от конфигурации экспортёра.
-  if (step.ModeId.startsWith("Departure")) {
+  if (step.ModeId.startsWith("To")) {
     state.push({ RecordId: `R${String(state.length + 1).padStart(2, "0")}`, "ІПН": step["ІПН"], "ПІБ": step["ПІБ"], "Подія": step["Подія"],
       "Вибуття": step.EventDate, "Вибуття.Наказ": step.AcceptedOrderNumber, "Куди": step.Destination, "Вибуття.Підстава": step.IncomingNumber });
   } else {
@@ -94,7 +95,7 @@ for (let index = 0; index < 9; index++) {
   let text;
   if (baseline.ModeId === "ToHospital") text = `У військову частину А0209, з\u00a015\u00a0жовтня 2026\u00a0року:\n\n${person[0].toLowerCase()}${person.slice(1)}.\n\n${basis}.`;
   else if (baseline.ModeId === "FromHospital") text = `${dateHeading}\n\nЗ військової частини А0209:\n\n${person[0].toLowerCase()}${person.slice(1)}.\n\n${basis}.`;
-  else if (baseline.ModeId.startsWith("Departure")) text = `${person}, у м. Тестоград, з\u00a015\u00a0жовтня 2026\u00a0року.\n\n${basis}${ticket}.`;
+  else if (baseline.ModeId.startsWith("To")) text = `${person}, у м. Тестоград, з\u00a015\u00a0жовтня 2026\u00a0року.\n\n${basis}${ticket}.`;
   else text = `${dateHeading}\n\n${person}.\n\n${basis}${ticket}.`;
   word.push({ StepId: stepId, Outcome: index === 8 ? "Error" : "Success", ExpectedText: index === 8 ? null : text,
     ExpectedError: index === 8 ? "Export lookup must return exactly one row: export.Word.ToHospital.lookups.1" : null });
@@ -158,7 +159,8 @@ function appendFixtures(name, rows) {
 appendFixtures("Тест_Сценарії", cases);
 appendFixtures("Тест_ЄЖОС", absence);
 const movementSheet = replaceTable("Expected_РУХ", "tbExpectedMovement", ["StepId", "ExpectedDecision", "ExpectedCode", "StateCheck", "ExpectedOpenCount"], movement);
-replaceTable("Expected_РУХ", "tbExpectedMovementRows", ["StepId", "RecordId", ...nativeHeaders], snapshots, movement.length + 5, false);
+replaceTable("Expected_РУХ", "tbExpectedMovementRows", ["StepId", "RecordId", ...nativeHeaders], snapshots.map(row => ({ ...row,
+  ...Object.fromEntries(nativeHeaders.map(header => [header, eventCellValue(row[header])])) })), movement.length + 5, false);
 movementSheet.getRange(`A${movement.length + 3}`).values = [["Очікувані рядки після кроку"]];
 movementSheet.getRange(`A${movement.length + 3}:F${movement.length + 3}`).format.font = { name: "Times New Roman", size: 12, bold: true, color: "#202020" };
 movementSheet.getRange("C2:C19").format.columnWidth = 28;

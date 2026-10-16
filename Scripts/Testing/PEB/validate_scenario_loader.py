@@ -81,7 +81,7 @@ def validate(tables, settings):
         assert table["sheet"] == settings[f"test.scenarios.{kind}.sheet"], f"Wrong sheet for {kind}"
     for kind, key in (("movement", "tbExpectedMovement"), ("word", "tbExpectedWord")):
         assert tables[key]["headers"] == settings[f"test.expected.{kind}Headers"].split("|")
-    native = tables["tbTestHistory"]["headers"][3:]
+    native = [header for header in tables["tbTestHistory"]["headers"] if header not in ("ScenarioId", "RowId", "TargetTable")]
     helpers = settings["test.scenarios.formulaColumns"].split("|")
     assert tables["tbExpectedMovementRows"]["headers"] == ["StepId", "RecordId"] + [header for header in native if header not in helpers]
     for kind in ("results", "inputs", "records"):

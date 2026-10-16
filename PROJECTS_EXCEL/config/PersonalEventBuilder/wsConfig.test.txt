@@ -167,7 +167,6 @@ value	PersonalEventBuilder::test.expected.rowKeys	ІПН|Подія|Вибутт
 value	PersonalEventBuilder::text.TestsFieldMismatch	{step} / {record} / {field}: очікувалось «{expected}», отримано «{actual}».
 value	PersonalEventBuilder::test.scenarios.headers.personId	ІПН
 value	PersonalEventBuilder::test.scenarios.headers.stepPersonId	PersonId
-value	PersonalEventBuilder::test.scenarios.headers.historyTarget	TargetTable
 value	PersonalEventBuilder::test.scenarios.headers.mode	ModeId
 value	PersonalEventBuilder::test.scenarios.headers.expected	ExpectedDecision
 value	PersonalEventBuilder::test.scenarios.headers.code	ExpectedCode
