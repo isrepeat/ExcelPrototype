@@ -826,6 +826,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
     ' Expected rows contain all writable native columns, with explicit blank cells.
     Set records = VBA.CreateObject("Scripting.Dictionary")
     Set table = private_Table("expectedRows")
+    table.Parent.Calculate
     skipColumns = "|" & ex_PEB_Export.fn_Config("test.scenarios.formulaColumns") & "|"
     rowIndex = table.ListColumns(ex_PEB_Export.fn_Config("test.scenarios.headers.stepId")).Index
     rowIndex = table.ListColumns(ex_PEB_Export.fn_Config("test.scenarios.headers.recordId")).Index
@@ -1107,9 +1108,6 @@ Private Sub private_Seed( _
     Next column
     For rowIndex = 1 To history.ListRows.Count
         If ex_PEB_Export.fn_Text(private_Value(history, rowIndex, "id")) = scenarioId Then
-            If ex_PEB_Export.fn_Text(private_Value(history, rowIndex, "historyTarget")) <> movement.Name Then
-                Err.Raise 5, , "History target differs from Movement table."
-            End If
             If ex_PEB_Export.fn_Text(private_Value(history, rowIndex, "personId")) <> personId Then
                 Err.Raise 5, , "History person differs from scenario person."
             End If

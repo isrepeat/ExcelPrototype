@@ -4,6 +4,7 @@ import os from "node:os";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
+import { eventCellValue } from "./event_cell_values.mjs";
 
 process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
 const directory = path.dirname(fileURLToPath(import.meta.url));
@@ -24,6 +25,25 @@ if (process.argv.includes("--inspect")) {
 
 const settings = Object.fromEntries((await fs.readFile(path.join(root, "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt"), "utf8"))
   .split(/\r?\n/).filter(line => line.trim()).map(line => { const fields = line.split("\t"); return [fields[1].split("::").at(-1), fields[2]]; }));
+if (process.argv.includes("--movement-enums-only")) {
+  const name = settings["test.scenarios.expectedRows.sheet"];
+  const table = source[name].tables.find(item => item.name === settings["test.scenarios.expectedRows.table"]);
+  if (!source[name].tables.some(item => item.name === "tbMovementEnums")) throw new Error("Missing tbMovementEnums in scenario workbook.");
+  const firstRow = Number(table.ref.split(":")[0].match(/\d+/)[0]);
+  const lastRow = Number(table.ref.split(":")[1].match(/\d+/)[0]);
+  const headers = source[name].rows[firstRow - 1];
+  const sheet = workbook.worksheets.getItem(name);
+  const formula = '=IF([@Подія]="","",IF(AND(OR([@Подія]="Стаціонарне лікування",[@Подія]="Відпустка для лікування"),[@Куди]="Медична рота А7383"),"Ні",XLOOKUP([@Подія],tbMovementEnums[Подія],tbMovementEnums[За межі])))';
+  sheet.getRangeByIndexes(firstRow, headers.indexOf("За межі"), lastRow - firstRow, 1).formulas = Array.from({ length: lastRow - firstRow }, () => [formula]);
+  sheet.getRangeByIndexes(firstRow, headers.indexOf("Подія"), lastRow - firstRow, 1).dataValidation = { rule: { type: "list", formula1: "_PEB_MovementEvents" } };
+  const baseline = path.join(output, "enums-original.xlsx");
+  const generated = path.join(output, "enums-generated.xlsx");
+  await fs.copyFile(fixture, baseline);
+  await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, name], { stdio: "inherit" });
+  execFileSync(python, ["-X", "utf8", bridge, "finalize-movement-enums", fixture, settings["test.scenarios.expectedRows.table"]], { stdio: "inherit" });
+  process.exit(0);
+}
 if (process.argv.includes("--registry-only")) {
   const kinds = settings["test.registry.kinds"].split("|");
   const rows = Math.max(...kinds.map(kind => settings[`test.registry.${kind}.values`].split("|").length));
@@ -105,6 +125,7 @@ const runtimeMode = step => {
 };
 const outcomes = new Map(tableRows("Expected_WORD", "tbExpectedWord").map(row => [row.StepId, row]));
 for (const step of steps) {
+  for (const header of headers.slice(5, -1)) step[header] = eventCellValue(step[header]);
   if (["ToHospital", "FromHospital"].includes(runtimeMode(step))) {
     const negative = outcomes.get(step.StepId)?.Outcome === "Error";
     step.Hospital = negative ? null : hospital[1];
@@ -123,6 +144,9 @@ for (const sheetName of ["Тест_Історія", "Expected_РУХ"]) {
   const eventColumn = rows[headerIndex].indexOf("Подія");
   const destinationColumn = rows[headerIndex].indexOf("Куди");
   for (const row of rows.slice(headerIndex + 1)) {
+    for (let index = 0; index < rows[headerIndex].length; index++) {
+      if (!["ScenarioId", "RowId", "TargetTable", "StepId", "RecordId"].includes(rows[headerIndex][index])) row[index] = eventCellValue(row[index]);
+    }
     if (row[eventColumn] === settings["export.events.ToHospital"]) row[destinationColumn] = hospital[0];
   }
 }

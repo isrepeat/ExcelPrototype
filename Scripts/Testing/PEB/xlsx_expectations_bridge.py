@@ -301,6 +301,100 @@ def finalize_registry(path, config_path):
     print(f"Registry named ranges and {len(settings['test.registry.bindings'].split('|'))} dropdown bindings updated.")
 
 
+def finalize_movement_enums(path, expected_table):
+    book_values = openpyxl.load_workbook(path, data_only=False)
+    sheet_values = next(sheet for sheet in book_values if expected_table in sheet.tables)
+    expected = sheet_values.tables[expected_table]
+    enums = sheet_values.tables["tbMovementEnums"]
+    left, top, right, bottom = range_boundaries(enums.ref)
+    headers = [sheet_values.cell(top, column).value for column in range(left, right + 1)]
+    event_column = left + headers.index("Подія")
+    flag_column = left + headers.index("За межі")
+    lookup = {}
+    for index in range(top + 1, bottom + 1):
+        event = sheet_values.cell(index, event_column).value
+        if event is None or event in lookup:
+            raise ValueError("Movement enumeration events must be populated and unique.")
+        lookup[event] = sheet_values.cell(index, flag_column).value
+    with zipfile.ZipFile(path) as archive:
+        data = {name: archive.read(name) for name in archive.namelist()}
+    part = sheet_parts(data)[sheet_values.title]
+    sheet = xml(data, part)
+    left, top, right, bottom = range_boundaries(expected.ref)
+    headers = [column.name for column in expected.tableColumns]
+    event_column = left + headers.index("Подія")
+    destination_column = left + headers.index("Куди")
+    flag_column = left + headers.index("За межі")
+    current_event = f'{expected_table}[[#This Row],[Подія]]'
+    current_destination = f'{expected_table}[[#This Row],[Куди]]'
+    formula = f'IF({current_event}="","",IF(AND(OR({current_event}="Стаціонарне лікування",{current_event}="Відпустка для лікування"),{current_destination}="Медична рота А7383"),"Ні",_xlfn.XLOOKUP({current_event},tbMovementEnums[Подія],tbMovementEnums[За межі])))'
+    for row in sheet.findall("m:sheetData/m:row", NS):
+        index = int(row.get("r"))
+        if not top < index <= bottom:
+            continue
+        event = sheet_values.cell(index, event_column).value
+        destination = sheet_values.cell(index, destination_column).value
+        if event and event not in lookup:
+            raise ValueError(f"Unknown expected Movement event: {event}")
+        value = "" if not event else ("Ні" if event in ("Стаціонарне лікування", "Відпустка для лікування") and destination == "Медична рота А7383" else lookup[event])
+        if value is None:
+            raise ValueError(f"Missing За межі for event: {event}")
+        address = f"{get_column_letter(flag_column)}{index}"
+        cell = next(cell for cell in row if cell.get("r") == address)
+        for child in list(cell):
+            if ET.QName(child).localname in ("f", "v", "is"):
+                cell.remove(child)
+        cell.set("t", "str")
+        ET.SubElement(cell, f"{{{MAIN}}}f").text = formula
+        ET.SubElement(cell, f"{{{MAIN}}}v").text = str(value)
+    for relationship in xml(data, rel_path(part)):
+        if relationship.get("Type").endswith("/table"):
+            table_part = target(part, relationship.get("Target"))
+            table = xml(data, table_part)
+            if table.get("name") == expected_table:
+                column = next(column for column in table.find("m:tableColumns", NS) if column.get("name") == "За межі")
+                previous = column.find("m:calculatedColumnFormula", NS)
+                if previous is not None:
+                    column.remove(previous)
+                ET.SubElement(column, f"{{{MAIN}}}calculatedColumnFormula").text = formula
+                data[table_part] = serialize(table)
+    book = xml(data, "xl/workbook.xml")
+    names = book.find("m:definedNames", NS)
+    if names is None:
+        names = ET.Element(f"{{{MAIN}}}definedNames")
+        anchor = book.find("m:calcPr", NS)
+        book.insert(list(book).index(anchor) if anchor is not None else len(book), names)
+    for name in list(names):
+        if name.get("name") == "_PEB_MovementEvents":
+            names.remove(name)
+    ET.SubElement(names, f"{{{MAIN}}}definedName", {"name": "_PEB_MovementEvents"}).text = "tbMovementEnums[Подія]"
+    validations = sheet.find("m:dataValidations", NS)
+    if validations is None:
+        validations = ET.Element(f"{{{MAIN}}}dataValidations")
+        anchor = sheet.find("m:tableParts", NS)
+        sheet.insert(list(sheet).index(anchor) if anchor is not None else len(sheet), validations)
+    reference = f"{get_column_letter(event_column)}{top + 1}:{get_column_letter(event_column)}{bottom}"
+    for validation in list(validations):
+        if validation.get("sqref") == reference:
+            validations.remove(validation)
+    validation = ET.SubElement(validations, f"{{{MAIN}}}dataValidation", {
+        "type": "list", "allowBlank": "1", "showErrorMessage": "1", "errorStyle": "stop", "sqref": reference})
+    ET.SubElement(validation, f"{{{MAIN}}}formula1").text = "_PEB_MovementEvents"
+    validations.set("count", str(len(validations)))
+    data[part] = serialize(sheet)
+    data["xl/workbook.xml"] = serialize(book)
+    temporary = str(path) + ".enums.tmp"
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in data.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+    print("Movement event dropdown and calculated За межі column updated.")
+
+
 def preserve_existing_cells(original, destination, edited, name):
     baseline = xml(original, destination)
     data = baseline.find("m:sheetData", NS)
@@ -386,6 +480,14 @@ def update_values_preserving_layout(original, generated, destination, source_par
         for cell in row:
             address = cell.get("r")
             existing = next((item for item in target_row if item.get("r") == address), None)
+            if existing is not None and existing.find("m:f", NS) is not None:
+                incoming = None
+                if cell.get("t") == "s":
+                    incoming = "".join(strings[int(cell.find("m:v", NS).text)].itertext())
+                elif cell.get("t") == "inlineStr":
+                    incoming = "".join(cell.find("m:is", NS).itertext())
+                if incoming == "=" + existing.find("m:f", NS).text:
+                    continue
             if existing is None:
                 existing = ET.SubElement(target_row, f"{{{MAIN}}}c", {"r": address})
                 style = styles.get(column_index(address))
@@ -544,5 +646,7 @@ if __name__ == "__main__":
         clean_fixture(sys.argv[2])
     elif sys.argv[1] == "finalize-registry":
         finalize_registry(sys.argv[2], sys.argv[3])
+    elif sys.argv[1] == "finalize-movement-enums":
+        finalize_movement_enums(sys.argv[2], sys.argv[3])
     else:
         raise SystemExit("Expected dump or assemble")
