@@ -602,7 +602,13 @@ Private Sub private_BindPreviews(ByVal context As obj_UiRenderContext)
         text = VBA.Replace$(text, "{scenario}", VBA.CStr(report("ScenarioId")))
         text = VBA.Replace$(text, "{step}", VBA.CStr(report("StepId")))
         text = VBA.Replace$(text, "{event}", VBA.CStr(report("EventName")))
-        item.Add "Text", text & VBA.vbLf & VBA.vbLf & VBA.CStr(report("PreviewText"))
+        text = text & VBA.vbLf & VBA.vbLf & VBA.CStr(report("PreviewText"))
+        If report.Exists("PreviewDiagnostic") Then
+            If VBA.Len(report("PreviewDiagnostic")) > 0 Then
+                text = text & VBA.vbLf & ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & report("PreviewDiagnostic")
+            End If
+        End If
+        item.Add "Text", text
         previews.Add item
     Next report
     If Not context.BindingContext.SetObject("Data", "TestPreviews", previews) Then Err.Raise 5, , "Cannot bind test previews."

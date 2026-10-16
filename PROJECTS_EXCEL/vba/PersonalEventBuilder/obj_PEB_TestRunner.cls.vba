@@ -157,8 +157,14 @@ Public Function TryAdvance( _
     report("ModeId") = testStep("ModeId")
     report("EventName") = testStep("EventName")
     report("PersonId") = testStep("PersonId")
-    report("Operation") = ex_PEB_Export.fn_Config("export.Movement.profiles." & _
-        ex_PEB_Export.fn_Config("export.Movement." & testStep("ModeId") & ".profile") & ".operation")
+    report("Action") = testStep("Action")
+    report("StepOrder") = testStep("Order")
+    report("Operation") = "preview"
+    If testStep("Action") = "ExportMovement" Then
+        report("Operation") = ex_PEB_Export.fn_Config("export.Movement.profiles." & _
+            ex_PEB_Export.fn_Config("export.Movement." & testStep("ModeId") & ".profile") & ".operation")
+        report("StateCheck") = testStep("StateCheck")
+    End If
     report("Timestamp") = VBA.Now
     Set m_before = Nothing
     Set m_after = Nothing
@@ -174,11 +180,21 @@ Public Function TryAdvance( _
     End If
     If VBA.Len(reason) > 0 Then
         report("Result") = "SKIP"
+        If testStep("Action") = "PreviewWord" Then
+            report("WordResult") = "SKIP"
+        Else
+            report("MovementResult") = "SKIP"
+        End If
         report("Actual") = "Skipped"
         report("Details") = reason
     Else
         If Not private_RunStep(item("ScenarioId"), testStep, report, diagnostic) Then
             report("Result") = "ERROR"
+            If testStep("Action") = "PreviewWord" Then
+                report("WordResult") = "ERROR"
+            Else
+                report("MovementResult") = "ERROR"
+            End If
             report("Actual") = "Error"
             report("ActualCode") = "RunnerError"
             report("Details") = diagnostic
@@ -186,6 +202,7 @@ Public Function TryAdvance( _
         End If
         m_failedSequence = (report("Result") <> "PASS")
     End If
+    If report("Result") <> "PASS" Then m_failedSequence = True
     report("TotalSteps") = m_queue.Count
     report("CompletedSteps") = m_completed + 1
     report("RunState") = "Running"
@@ -235,6 +252,15 @@ Private Function private_Report( _
     report("ExpectedOpen") = testStep("OpenCount")
     report("PreviewText") = ex_PEB_Export.fn_Config("text.TestPreviewNotRun")
     report("PreviewLink") = ex_PEB_Export.fn_Config("text.TestPreviewLink")
+    report("MovementResult") = "NotApplicable"
+    report("WordResult") = "NotApplicable"
+    If testStep("Action") = "PreviewWord" Then
+        report("WordResult") = "NotRun"
+        report("ExpectedPreviewText") = testStep("ExpectedText")
+        report("ExpectedPreviewError") = testStep("ExpectedError")
+    Else
+        report("MovementResult") = "NotRun"
+    End If
     Set private_Report = report
 End Function
 
@@ -270,7 +296,7 @@ Private Function private_RunStep( _
     On Error GoTo EH
     started = VBA.Timer
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
-    If Not m_session.TryPrepare(scenarioId, testStep("Id"), testStep("Id") = 1, modeId, updates, status, diagnostic) Then GoTo Cleanup
+    If Not m_session.TryPrepare(scenarioId, testStep("Order"), testStep("Order") = 1, modeId, updates, status, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Prepare"
     ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
@@ -291,6 +317,27 @@ Private Function private_RunStep( _
     If Not binding.SetValue("Form", "ModeDirection", direction) Then Err.Raise 5, , "Cannot set test direction."
     If Not binding.SetValue("Form", "EventType", ex_PEB_Export.fn_Config("text." & direction & "Type")) Then Err.Raise 5, , "Cannot set test event type."
     If Not binding.SetValue("Form", "ModeForm", ex_PEB_Export.fn_Config("modes." & modeId & ".form")) Then Err.Raise 5, , "Cannot set test form layout."
+    If testStep("Action") = "PreviewWord" Then
+        ex_PEB_Testing.fn_ReportPhase "Inputs"
+        If Not m_session.TryCommit(diagnostic, False) Then GoTo Cleanup
+        If Not m_session.TrySnapshot(VBA.CStr(updates("Form.PersonId")), before, diagnostic) Then GoTo Cleanup
+        ex_PEB_Testing.fn_ReportPhase "Commit"
+        If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
+        assertion = private_ValidateWord(binding, testStep, report, values)
+        ex_PEB_Testing.fn_ReportPhase "Export"
+        If Not m_session.TrySnapshot(VBA.CStr(updates("Form.PersonId")), after, diagnostic) Then GoTo Cleanup
+        ex_PEB_Testing.fn_ReportPhase "AfterSnapshot"
+        If Not private_Unchanged(before, after) Then
+            assertion = False
+            report("Details") = report("Details") & " " & ex_PEB_Export.fn_Config("text.TestsUnexpectedMutation")
+        End If
+        report("Result") = "FAIL"
+        If assertion Then report("Result") = "PASS"
+        report("WordResult") = report("Result")
+        ex_PEB_Testing.fn_ReportPhase "Verify"
+        private_RunStep = True
+        GoTo Cleanup
+    End If
     If Not m_exportService.TryPrepare(binding, "Movement", values, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Inputs"
     If m_exportService.TryPrepare(binding, "Word", previewValues, previewDiagnostic, False) Then
@@ -325,15 +372,29 @@ Private Function private_RunStep( _
     assertion = assertion And (VBA.CDbl(testStep("OpenCount")) = VBA.CDbl(after("OpenCount")))
     If success Then
         assertion = private_ValidateMutation(before, after, values, checkDiagnostic) And assertion
-    Else
+    End If
+    If Not success Or testStep("StateCheck") = "Unchanged" Then
         assertion = unchanged And assertion
-        If Not unchanged Then checkDiagnostic = ex_PEB_Export.fn_Config("text.TestsUnexpectedMutation")
+        If Not unchanged Then private_AddDetail checkDiagnostic, ex_PEB_Export.fn_Config("text.TestsUnexpectedMutation")
+    End If
+    If testStep("StateCheck") = "Snapshot" Then
+        assertion = private_ValidateRows(after, testStep, checkDiagnostic) And assertion
     End If
     report("Actual") = actualDecision
     report("ActualCode") = actualCode
     report("ActualOpen") = after("OpenCount")
+    If actualDecision <> testStep("Expected") Then
+        private_AddDetail checkDiagnostic, private_Mismatch(testStep("Id"), "РУХ", "Decision", testStep("Expected"), actualDecision)
+    End If
+    If actualCode <> expectedCode Then
+        private_AddDetail checkDiagnostic, private_Mismatch(testStep("Id"), "РУХ", "Code", expectedCode, actualCode)
+    End If
+    If VBA.CDbl(testStep("OpenCount")) <> VBA.CDbl(after("OpenCount")) Then
+        private_AddDetail checkDiagnostic, private_Mismatch(testStep("Id"), "РУХ", "OpenCount", VBA.CStr(testStep("OpenCount")), VBA.CStr(after("OpenCount")))
+    End If
     report("Result") = "FAIL"
     If assertion Then report("Result") = "PASS"
+    report("MovementResult") = report("Result")
     report("Details") = exportDiagnostic
     If VBA.Len(checkDiagnostic) > 0 Then report("Details") = report("Details") & " " & checkDiagnostic
     If Not assertion And VBA.Len(report("Details")) = 0 Then report("Details") = ex_PEB_Export.fn_Config("text.TestsMismatch")
@@ -343,6 +404,11 @@ Private Function private_RunStep( _
 Cancelled:
     m_cancelled = True
     report("Result") = "SKIP"
+    If testStep("Action") = "PreviewWord" Then
+        report("WordResult") = "SKIP"
+    Else
+        report("MovementResult") = "SKIP"
+    End If
     report("Actual") = "Skipped"
     report("Details") = ex_PEB_Export.fn_Config("text.TestsCancelled")
     private_RunStep = True
@@ -372,6 +438,202 @@ Private Function private_ExpectedCode(ByVal code As String) As String
         If pair(0) = code Then private_ExpectedCode = pair(1)
     Next mapping
 End Function
+
+Private Function private_ValidateRows( _
+    ByVal state As Object, _
+    ByVal testStep As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim expectedRows As Collection
+    Dim actualRows As Collection
+    Dim expectedRow As Object
+    Dim actualRow As Object
+    Dim actualCells As Object
+    Dim actualByKey As Object
+    Dim matched As Object
+    Dim key As String
+    Dim field As Variant
+    Dim result As Boolean
+
+    Set expectedRows = testStep("ExpectedRows")
+    Set actualRows = state("Rows")
+    Set actualByKey = VBA.CreateObject("Scripting.Dictionary")
+    Set matched = VBA.CreateObject("Scripting.Dictionary")
+    result = True
+    If actualRows.Count <> expectedRows.Count Then
+        private_AddDetail diagnostic, private_Mismatch(testStep("Id"), "Rows", "Count", VBA.CStr(expectedRows.Count), VBA.CStr(actualRows.Count))
+        result = False
+    End If
+    For Each actualRow In actualRows
+        Set actualCells = actualRow("_cells")
+        key = private_RowIdentity(actualCells)
+        If actualByKey.Exists(key) Then
+            private_AddDetail diagnostic, private_Mismatch(testStep("Id"), "Rows", "Identity", "Unique", key)
+            result = False
+        Else
+            actualByKey.Add key, actualCells
+        End If
+    Next actualRow
+    For Each expectedRow In expectedRows
+        key = private_RowIdentity(expectedRow)
+        If Not actualByKey.Exists(key) Then
+            private_AddDetail diagnostic, private_Mismatch(testStep("Id"), expectedRow("RecordId"), "Identity", key, "Missing")
+            result = False
+        Else
+            matched(key) = True
+            Set actualCells = actualByKey(key)
+            For Each field In expectedRow.Keys
+                If field <> "RecordId" Then
+                    If Not private_SameValue(expectedRow(field), actualCells(field)) Then
+                        private_AddDetail diagnostic, private_Mismatch(testStep("Id"), expectedRow("RecordId"), VBA.CStr(field), _
+                            private_ValueText(expectedRow(field)), private_ValueText(actualCells(field)))
+                        If VBA.TypeName(expectedRow(field)) <> VBA.TypeName(actualCells(field)) Then
+                            private_AddDetail diagnostic, private_Mismatch(testStep("Id"), expectedRow("RecordId"), "Type(" & field & ")", _
+                                VBA.TypeName(expectedRow(field)), VBA.TypeName(actualCells(field)))
+                        End If
+                        result = False
+                    End If
+                End If
+            Next field
+        End If
+    Next expectedRow
+    For Each actualRow In actualRows
+        Set actualCells = actualRow("_cells")
+        key = private_RowIdentity(actualCells)
+        If Not matched.Exists(key) Then
+            private_AddDetail diagnostic, private_Mismatch(testStep("Id"), "Rows", "Identity", "Absent", key)
+            result = False
+        End If
+    Next actualRow
+    private_ValidateRows = result
+End Function
+
+Private Function private_ValidateWord( _
+    ByVal binding As obj_UiBindingContext, _
+    ByVal testStep As Object, _
+    ByVal report As Object, _
+    ByRef values As Object _
+) As Boolean
+    Dim diagnostic As String
+    Dim success As Boolean
+    Dim expected As String
+    Dim actual As String
+    Dim position As Long
+    Dim line As Long
+    Dim column As Long
+    Dim index As Long
+    Dim details As String
+
+    success = m_exportService.TryPrepare(binding, "Word", values, diagnostic, False)
+    report("Actual") = "Error"
+    report("ActualCode") = "PreviewError"
+    report("PreviewDiagnostic") = diagnostic
+    report("PreviewText") = VBA.vbNullString
+    If success Then
+        report("Actual") = "Success"
+        report("ActualCode") = VBA.vbNullString
+        actual = private_NormalizeNewlines(VBA.CStr(values("WordText")))
+        report("PreviewText") = actual
+    End If
+    If report("Actual") <> testStep("Expected") Then
+        report("Details") = private_Mismatch(testStep("Id"), "WORD", "Outcome", testStep("Expected"), report("Actual"))
+        If Not success Then
+            details = report("Details")
+            private_AddDetail details, diagnostic
+            report("Details") = details
+        End If
+        Exit Function
+    End If
+    If success Then
+        expected = private_NormalizeNewlines(VBA.CStr(testStep("ExpectedText")))
+    Else
+        expected = private_NormalizeNewlines(VBA.CStr(testStep("ExpectedError")))
+        actual = private_NormalizeNewlines(diagnostic)
+    End If
+    If VBA.StrComp(expected, actual, VBA.vbBinaryCompare) = 0 Then
+        private_ValidateWord = True
+        Exit Function
+    End If
+    position = 1
+    Do While position <= VBA.Len(expected) And position <= VBA.Len(actual)
+        If VBA.Mid$(expected, position, 1) <> VBA.Mid$(actual, position, 1) Then Exit Do
+        position = position + 1
+    Loop
+    line = 1
+    column = 1
+    For index = 1 To position - 1
+        If VBA.Mid$(expected, index, 1) = VBA.vbLf Then
+            line = line + 1
+            column = 1
+        Else
+            column = column + 1
+        End If
+    Next index
+    report("Details") = private_Mismatch(testStep("Id"), "WORD", "Text " & VBA.CStr(line) & ":" & VBA.CStr(column), _
+        VBA.Mid$(expected, position, 80), VBA.Mid$(actual, position, 80))
+End Function
+
+Private Function private_RowIdentity(ByVal row As Object) As String
+    Dim header As Variant
+    Dim text As String
+
+    For Each header In VBA.Split(ex_PEB_Export.fn_Config("test.expected.rowKeys"), "|")
+        text = private_ValueText(row(header))
+        private_RowIdentity = private_RowIdentity & VBA.CStr(VBA.Len(text)) & ":" & text & "|"
+    Next header
+End Function
+
+Private Function private_SameValue( _
+    ByVal expected As Variant, _
+    ByVal actual As Variant _
+) As Boolean
+    If VBA.IsError(expected) Or VBA.IsError(actual) Then Exit Function
+    If VBA.Len(private_ValueText(expected)) = 0 And VBA.Len(private_ValueText(actual)) = 0 Then
+        private_SameValue = True
+    ElseIf VBA.VarType(expected) = VBA.vbString Or VBA.VarType(actual) = VBA.vbString Then
+        If VBA.VarType(expected) <> VBA.VarType(actual) Then Exit Function
+        private_SameValue = (VBA.StrComp(VBA.CStr(expected), VBA.CStr(actual), VBA.vbBinaryCompare) = 0)
+    ElseIf VBA.VarType(expected) = VBA.vbBoolean Or VBA.VarType(actual) = VBA.vbBoolean Then
+        If VBA.VarType(expected) <> VBA.VarType(actual) Then Exit Function
+        private_SameValue = (expected = actual)
+    ElseIf VBA.IsNumeric(expected) And VBA.IsNumeric(actual) Then
+        private_SameValue = (VBA.CDbl(expected) = VBA.CDbl(actual))
+    End If
+End Function
+
+Private Function private_ValueText(ByVal value As Variant) As String
+    If VBA.IsEmpty(value) Or VBA.IsNull(value) Then Exit Function
+    private_ValueText = VBA.CStr(value)
+End Function
+
+Private Function private_NormalizeNewlines(ByVal text As String) As String
+    private_NormalizeNewlines = VBA.Replace$(VBA.Replace$(text, VBA.vbCrLf, VBA.vbLf), VBA.vbCr, VBA.vbLf)
+End Function
+
+Private Function private_Mismatch( _
+    ByVal stepId As String, _
+    ByVal recordId As String, _
+    ByVal field As String, _
+    ByVal expected As String, _
+    ByVal actual As String _
+) As String
+    Dim text As String
+
+    text = ex_PEB_Export.fn_Config("text.TestsFieldMismatch")
+    text = VBA.Replace$(text, "{step}", stepId)
+    text = VBA.Replace$(text, "{record}", recordId)
+    text = VBA.Replace$(text, "{field}", field)
+    text = VBA.Replace$(text, "{expected}", expected)
+    private_Mismatch = VBA.Replace$(text, "{actual}", actual)
+End Function
+
+Private Sub private_AddDetail( _
+    ByRef details As String, _
+    ByVal text As String _
+)
+    If VBA.Len(details) > 0 Then details = details & VBA.vbLf
+    details = VBA.Left$(details & text, 30000)
+End Sub
 
 Private Function private_Unchanged( _
     ByVal before As Object, _

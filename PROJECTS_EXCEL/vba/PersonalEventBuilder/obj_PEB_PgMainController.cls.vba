@@ -38,7 +38,7 @@ Private m_exportService As obj_PEB_ExportService
 Private m_environmentSwitchPending As Boolean
 Private m_testBusy As Boolean
 Private m_testScenario As String
-Private m_testStep As Long
+Private m_testStepOrder As Long
 
 ' //
 ' // Lifecycle
@@ -730,7 +730,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     Dim isObject As Boolean
     Dim key As Variant
     Dim scenarioId As String
-    Dim stepId As Long
+    Dim stepOrder As Long
     Dim modeId As String
     Dim oldMode As String
     Dim oldDirection As String
@@ -754,15 +754,15 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
     If Not private_TryReadFormValue("TestScenario", scalar) Then Err.Raise 5, , "Cannot read Form.TestScenario."
     scenarioId = VBA.Trim$(VBA.CStr(scalar))
-    stepId = 1
+    stepOrder = 1
     If nextStep Then
-        If scenarioId <> m_testScenario Or m_testStep < 1 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestLoadFirst")
-        stepId = m_testStep + 1
+        If scenarioId <> m_testScenario Or m_testStepOrder < 1 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestLoadFirst")
+        stepOrder = m_testStepOrder + 1
     End If
     m_testBusy = True
     Set pebTestScenarios = New obj_PEB_TestScenarios
     If Not pebTestScenarios.Initialize(diagnostic) Then GoTo Failed
-    If Not pebTestScenarios.TryPrepare(scenarioId, stepId, Not nextStep, modeId, updates, status, diagnostic) Then GoTo Failed
+    If Not pebTestScenarios.TryPrepare(scenarioId, stepOrder, Not nextStep, modeId, updates, status, diagnostic) Then GoTo Failed
 
     ' Snapshot the form before publishing any mode or input changes.
     Set snapshot = VBA.CreateObject("Scripting.Dictionary")
@@ -807,7 +807,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     If Not m_pageBase.FlushUpdates() Then Err.Raise 5, , "Cannot render the loaded scenario."
     If Not pebTestScenarios.TryCommit(diagnostic) Then GoTo Failed
     m_testScenario = scenarioId
-    m_testStep = stepId
+    m_testStepOrder = stepOrder
     Set m_pendingOrder = Nothing
     private_LoadTest = True
 Cleanup:

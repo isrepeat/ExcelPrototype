@@ -135,7 +135,7 @@ End Sub
 
 Public Function TryPrepare( _
     ByVal scenarioId As String, _
-    ByVal stepId As Long, _
+    ByVal stepOrder As Long, _
     ByVal seedHistory As Boolean, _
     ByRef modeId As String, _
     ByRef updates As Object, _
@@ -157,17 +157,18 @@ Public Function TryPrepare( _
     Dim column As Object
     Dim prefix As String
     Dim personId As String
+    Dim requiredKey As String
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Or m_prepared Then Err.Raise 5, , "Scenario loader is not ready."
-    If VBA.Len(scenarioId) = 0 Or stepId < 1 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestChooseScenario")
+    If VBA.Len(scenarioId) = 0 Or stepOrder < 1 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestChooseScenario")
     Set scenarios = private_Table("cases")
     Set steps = private_Table("steps")
     Set history = private_Table("history")
     Set movement = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
         ex_PEB_Export.fn_Config("export.Movement.table"))
     scenarioRow = private_Find(scenarios, scenarioId, 0)
-    stepRow = private_Find(steps, scenarioId, stepId)
+    stepRow = private_Find(steps, scenarioId, stepOrder)
     personId = ex_PEB_Export.fn_Text(private_Value(scenarios, scenarioRow, "personId"))
     If VBA.Len(personId) = 0 Then Err.Raise 5, , "Scenario person identity is empty."
     If ex_PEB_Export.fn_Text(private_Value(scenarios, scenarioRow, "target")) <> movement.Name Then
@@ -215,7 +216,11 @@ Public Function TryPrepare( _
     If VBA.Len(updates("Form.PersonName")) = 0 Or updates("Form.PersonId") <> personId Then
         Err.Raise 5, , "Scenario form identity is missing or inconsistent."
     End If
-    For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Movement." & modeId & ".required"), "|")
+    requiredKey = "export.Movement." & modeId & ".required"
+    If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action")) = "PreviewWord" Then
+        requiredKey = "export.Word." & modeId & ".previewRequired"
+    End If
+    For Each field In VBA.Split(ex_PEB_Export.fn_Config(requiredKey), "|")
         If Not updates.Exists("Form." & field) Then Err.Raise 5, , "Unknown required scenario field: " & field
         If VBA.Len(updates("Form." & field)) = 0 Then Err.Raise 5, , "Required scenario field is empty: " & field
     Next field
@@ -226,9 +231,9 @@ Public Function TryPrepare( _
     updates("Form.OrderChoice") = VBA.vbNullString
     status = ex_PEB_Export.fn_Config("text.TestLoaded")
     status = VBA.Replace$(status, "{scenario}", scenarioId)
-    status = VBA.Replace$(status, "{step}", VBA.CStr(stepId))
-    status = VBA.Replace$(status, "{expected}", ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "expected")))
-    status = VBA.Replace$(status, "{code}", ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "code")))
+    status = VBA.Replace$(status, "{step}", VBA.CStr(stepOrder))
+    status = VBA.Replace$(status, "{expected}", ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action")))
+    status = VBA.Replace$(status, "{code}", ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepId")))
     updates("Form.ActionStatus") = status
     updates("Form.ActionStatusStyle") = "actionSuccess"
     updates("Form.AcceptedOrderText") = updates("Form.OrderQuery")
@@ -283,6 +288,13 @@ Public Function TryCatalog( _
     Dim number As String
     Dim fixtureInput As Object
     Dim inputColumn As Object
+    Dim allSteps As Object
+    Dim stepIdentity As String
+    Dim action As String
+    Dim archive As Object
+    Dim movement As Object
+    Dim column As Object
+    Dim archiveFields As String
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Scenario session is not initialized."
@@ -290,6 +302,13 @@ Public Function TryCatalog( _
     Set steps = private_Table("steps")
     Set catalog = New Collection
     Set ids = VBA.CreateObject("Scripting.Dictionary")
+    Set allSteps = VBA.CreateObject("Scripting.Dictionary")
+    ' Validate every step, including rows that do not belong to a declared scenario.
+    For stepRow = 1 To steps.ListRows.Count
+        stepIdentity = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepId"))
+        If VBA.Len(stepIdentity) = 0 Or allSteps.Exists(stepIdentity) Then Err.Raise 5, , "Missing or duplicate StepId: " & stepIdentity
+        allSteps.Add stepIdentity, Nothing
+    Next stepRow
     For rowIndex = 1 To cases.ListRows.Count
         id = ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "id"))
         If VBA.Len(id) = 0 Or ids.Exists(id) Then Err.Raise 5, , "Missing or duplicate scenario identity: " & id
@@ -310,29 +329,28 @@ Public Function TryCatalog( _
                 number = VBA.CStr(VBA.CLng(number))
                 If numbered.Exists(number) Then Err.Raise 5, , "Duplicate scenario step: " & id & "/" & number
                 Set testStep = VBA.CreateObject("Scripting.Dictionary")
-                testStep("Id") = VBA.CLng(number)
+                stepIdentity = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepId"))
+                testStep("Id") = stepIdentity
+                testStep("Order") = VBA.CLng(number)
+                testStep("ScenarioId") = id
+                action = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action"))
+                If action <> "ExportMovement" And action <> "PreviewWord" Then Err.Raise 5, , "Unknown test action: " & stepIdentity
+                testStep("Action") = action
                 testStep("ModeId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
                 testStep("EventName") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "event"))
                 testStep("PersonId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "personId"))
+                If testStep("PersonId") <> ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "personId")) Then
+                    Err.Raise 5, , "Scenario and step identities differ: " & stepIdentity
+                End If
                 Set fixtureInput = VBA.CreateObject("Scripting.Dictionary")
                 For Each inputColumn In steps.ListColumns
                     fixtureInput(inputColumn.Name) = steps.DataBodyRange.Cells(stepRow, inputColumn.Index).Value2
                 Next inputColumn
                 Set testStep("Input") = fixtureInput
-                testStep("Expected") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "expected"))
-                testStep("Code") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "code"))
-                testStep("OpenCount") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "openCount"))
-                Select Case testStep("Expected")
-                    Case "Allow", "Block", "NoChange", "Pending"
-                    Case Else
-                        Err.Raise 5, , "Unknown expected test decision: " & id & "/" & number
-                End Select
-                If testStep("Expected") <> "Pending" Then
-                    If Not VBA.IsNumeric(testStep("OpenCount")) Then Err.Raise 5, , "ExpectedOpenCount must be numeric: " & id
-                    If VBA.CDbl(testStep("OpenCount")) < 0 Or VBA.CDbl(testStep("OpenCount")) <> VBA.Fix(VBA.CDbl(testStep("OpenCount"))) Then
-                        Err.Raise 5, , "ExpectedOpenCount must be a nonnegative integer: " & id
-                    End If
-                End If
+                testStep("Expected") = VBA.vbNullString
+                testStep("Code") = VBA.vbNullString
+                testStep("OpenCount") = VBA.vbNullString
+                Set allSteps(stepIdentity) = testStep
                 numbered.Add number, testStep
             End If
         Next stepRow
@@ -345,6 +363,22 @@ Public Function TryCatalog( _
         Set item("Steps") = ordered
         catalog.Add item
     Next rowIndex
+    For stepRow = 1 To steps.ListRows.Count
+        If Not ids.Exists(ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "id"))) Then
+            Err.Raise 5, , "Step references an unknown scenario: " & private_Value(steps, stepRow, "stepId")
+        End If
+    Next stepRow
+    private_LoadExpectations allSteps
+    ' Validate archive schemas before any scenario mutates the working sources.
+    Set archive = private_ArchiveTable("results", VBA.Split(ex_PEB_Export.fn_Config("test.audit.resultFields"), "|"))
+    Set archive = private_ArchiveTable("inputs", VBA.Split(ex_PEB_Export.fn_Config("test.audit.inputFields"), "|"))
+    archiveFields = ex_PEB_Export.fn_Config("test.audit.recordFields")
+    Set movement = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
+        ex_PEB_Export.fn_Config("export.Movement.table"))
+    For Each column In movement.ListColumns
+        archiveFields = archiveFields & "|" & column.Name
+    Next column
+    Set archive = private_ArchiveTable("records", VBA.Split(archiveFields, "|"))
     If catalog.Count = 0 Then Err.Raise 5, , "Scenario catalog is empty."
     TryCatalog = True
     Exit Function
@@ -451,6 +485,7 @@ Public Function TryArchive( _
     Dim errorNumber As Long
     Dim errorDescription As String
     Dim errorSource As String
+    Dim objectValue As Object
 
     On Error GoTo EH
     operation = "ValidateSession"
@@ -482,7 +517,14 @@ Public Function TryArchive( _
                 Set row = private_ArchiveMetadata(report)
                 row("InputStage") = stage
                 row("Field") = key
-                row("Value") = source(key)
+                If VBA.IsObject(source(key)) Then
+                    Set objectValue = source(key)
+                    If VBA.TypeName(objectValue) <> "Collection" Then Err.Raise 5, , "Unsupported archive object: " & key
+                    If objectValue.Count <> 0 Then Err.Raise 5, , "Archive requires explicit serialization of nonempty collections: " & key
+                    row("Value") = "Collection(0)"
+                Else
+                    row("Value") = source(key)
+                End If
                 row("ValueType") = VBA.VarType(source(key))
                 private_ArchiveRow inputs, row
             Next key
@@ -643,6 +685,175 @@ Private Function private_RawText(ByVal value As Variant) As String
     private_RawText = VBA.CStr(value)
 End Function
 
+Private Sub private_LoadExpectations(ByVal allSteps As Object)
+    Dim table As Object
+    Dim movement As Object
+    Dim column As Object
+    Dim testStep As Object
+    Dim expectedRow As Object
+    Dim rows As Collection
+    Dim seen As Object
+    Dim records As Object
+    Dim key As Variant
+    Dim header As Variant
+    Dim rowIndex As Long
+    Dim stepId As String
+    Dim recordId As String
+    Dim outcome As String
+    Dim check As String
+    Dim count As Variant
+    Dim skipColumns As String
+
+    Set movement = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
+        ex_PEB_Export.fn_Config("export.Movement.table"))
+    Set seen = VBA.CreateObject("Scripting.Dictionary")
+    Set table = private_Table("expectedMovement")
+    private_RequireHeaders table, "test.expected.movementHeaders"
+    For rowIndex = 1 To table.ListRows.Count
+        stepId = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "stepId"))
+        If Not allSteps.Exists(stepId) Then Err.Raise 5, , "Movement expectation references an unknown StepId: " & stepId
+        If seen.Exists(stepId) Then Err.Raise 5, , "Duplicate Movement expectation: " & stepId
+        seen.Add stepId, True
+        Set testStep = allSteps(stepId)
+        If testStep("Action") <> "ExportMovement" Then Err.Raise 5, , "Movement expectation has an incompatible action: " & stepId
+        outcome = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "expected"))
+        Select Case outcome
+            Case "Allow", "Block", "NoChange", "Pending"
+            Case Else
+                Err.Raise 5, , "Unknown expected Movement decision: " & stepId
+        End Select
+        check = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "stateCheck"))
+        If outcome = "Allow" Then
+            If check <> "Snapshot" Then Err.Raise 5, , "Allowed export requires Snapshot: " & stepId
+        ElseIf outcome = "Pending" Then
+            If check <> "Pending" Then Err.Raise 5, , "Pending export requires Pending state check: " & stepId
+        Else
+            If check <> "Unchanged" Then Err.Raise 5, , "Rejected export requires Unchanged: " & stepId
+        End If
+        count = private_Value(table, rowIndex, "openCount")
+        If outcome <> "Pending" Then
+            If Not VBA.IsNumeric(count) Then Err.Raise 5, , "ExpectedOpenCount must be numeric: " & stepId
+            If VBA.CDbl(count) < 0 Or VBA.CDbl(count) <> VBA.Fix(VBA.CDbl(count)) Then
+                Err.Raise 5, , "ExpectedOpenCount must be a nonnegative integer: " & stepId
+            End If
+        End If
+        testStep("Expected") = outcome
+        testStep("Code") = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "code"))
+        If VBA.Len(testStep("Code")) = 0 Then Err.Raise 5, , "Expected Movement code is missing: " & stepId
+        testStep("OpenCount") = count
+        testStep("StateCheck") = check
+        Set rows = New Collection
+        Set testStep("ExpectedRows") = rows
+    Next rowIndex
+
+    ' Expected rows contain all writable native columns, with explicit blank cells.
+    Set records = VBA.CreateObject("Scripting.Dictionary")
+    Set table = private_Table("expectedRows")
+    skipColumns = "|" & ex_PEB_Export.fn_Config("test.scenarios.formulaColumns") & "|"
+    rowIndex = table.ListColumns(ex_PEB_Export.fn_Config("test.scenarios.headers.stepId")).Index
+    rowIndex = table.ListColumns(ex_PEB_Export.fn_Config("test.scenarios.headers.recordId")).Index
+    For Each column In movement.ListColumns
+        If VBA.InStr(1, skipColumns, "|" & column.Name & "|", VBA.vbBinaryCompare) = 0 Then
+            rowIndex = table.ListColumns(column.Name).Index
+        End If
+    Next column
+    For Each header In VBA.Split(ex_PEB_Export.fn_Config("test.expected.rowKeys"), "|")
+        rowIndex = table.ListColumns(header).Index
+    Next header
+    For rowIndex = 1 To table.ListRows.Count
+        If m_excel.WorksheetFunction.CountA(table.ListRows(rowIndex).Range) > 0 Then
+            stepId = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "stepId"))
+            If Not seen.Exists(stepId) Then Err.Raise 5, , "Expected row references an unknown Movement StepId: " & stepId
+            Set testStep = allSteps(stepId)
+            If testStep("StateCheck") <> "Snapshot" Then Err.Raise 5, , "Expected rows require Snapshot: " & stepId
+            recordId = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "recordId"))
+            If VBA.Len(recordId) = 0 Then Err.Raise 5, , "Expected RecordId is missing: " & stepId
+            key = stepId & VBA.vbNullChar & "RecordId:" & recordId
+            If records.Exists(key) Then Err.Raise 5, , "Duplicate expected RecordId: " & stepId & "/" & recordId
+            records.Add key, True
+            Set expectedRow = VBA.CreateObject("Scripting.Dictionary")
+            expectedRow("RecordId") = recordId
+            For Each column In movement.ListColumns
+                If VBA.InStr(1, skipColumns, "|" & column.Name & "|", VBA.vbBinaryCompare) = 0 Then
+                    expectedRow(column.Name) = table.DataBodyRange.Cells(rowIndex, table.ListColumns(column.Name).Index).Value2
+                    If VBA.IsError(expectedRow(column.Name)) Then Err.Raise 5, , "Excel error in expected row: " & stepId & "/" & column.Name
+                End If
+            Next column
+            If ex_PEB_Export.fn_Text(expectedRow(ex_PEB_Export.fn_Config("test.scenarios.headers.personId"))) <> testStep("PersonId") Then
+                Err.Raise 5, , "Expected row person differs from scenario person: " & stepId
+            End If
+            key = stepId & VBA.vbNullChar & "Identity:" & private_ExpectedIdentity(expectedRow)
+            If records.Exists(key) Then Err.Raise 5, , "Duplicate expected row identity: " & stepId & "/" & recordId
+            records.Add key, True
+            Set rows = testStep("ExpectedRows")
+            rows.Add expectedRow
+        End If
+    Next rowIndex
+    For Each key In allSteps.Keys
+        Set testStep = allSteps(key)
+        If testStep("Action") = "ExportMovement" Then
+            If Not seen.Exists(key) Then Err.Raise 5, , "Movement expectation is missing: " & key
+            If testStep("StateCheck") = "Snapshot" Then
+                Set rows = testStep("ExpectedRows")
+                If rows.Count = 0 Then Err.Raise 5, , "Expected snapshot is empty: " & key
+            End If
+        End If
+    Next key
+
+    Set seen = VBA.CreateObject("Scripting.Dictionary")
+    Set table = private_Table("expectedWord")
+    private_RequireHeaders table, "test.expected.wordHeaders"
+    For rowIndex = 1 To table.ListRows.Count
+        stepId = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "stepId"))
+        If Not allSteps.Exists(stepId) Then Err.Raise 5, , "Word expectation references an unknown StepId: " & stepId
+        If seen.Exists(stepId) Then Err.Raise 5, , "Duplicate Word expectation: " & stepId
+        seen.Add stepId, True
+        Set testStep = allSteps(stepId)
+        If testStep("Action") <> "PreviewWord" Then Err.Raise 5, , "Word expectation has an incompatible action: " & stepId
+        outcome = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "wordOutcome"))
+        If outcome <> "Success" And outcome <> "Error" And outcome <> "Pending" Then Err.Raise 5, , "Unknown Word outcome: " & stepId
+        testStep("Expected") = outcome
+        If outcome = "Error" Then testStep("Code") = "PreviewError"
+        testStep("ExpectedText") = private_Value(table, rowIndex, "wordText")
+        testStep("ExpectedError") = private_Value(table, rowIndex, "wordError")
+        If outcome = "Success" Then
+            If VBA.Len(testStep("ExpectedText")) = 0 Or VBA.Len(testStep("ExpectedError")) > 0 Then
+                Err.Raise 5, , "Successful Word expectation requires text and no error: " & stepId
+            End If
+        ElseIf outcome = "Error" Then
+            If VBA.Len(testStep("ExpectedError")) = 0 Or VBA.Len(testStep("ExpectedText")) > 0 Then
+                Err.Raise 5, , "Word error expectation requires an exact diagnostic and no text: " & stepId
+            End If
+        End If
+    Next rowIndex
+    For Each key In allSteps.Keys
+        Set testStep = allSteps(key)
+        If testStep("Action") = "PreviewWord" And Not seen.Exists(key) Then Err.Raise 5, , "Word expectation is missing: " & key
+    Next key
+End Sub
+
+Private Sub private_RequireHeaders( _
+    ByVal table As Object, _
+    ByVal configKey As String _
+)
+    Dim header As Variant
+    Dim index As Long
+
+    For Each header In VBA.Split(ex_PEB_Export.fn_Config(configKey), "|")
+        index = table.ListColumns(header).Index
+    Next header
+End Sub
+
+Private Function private_ExpectedIdentity(ByVal row As Object) As String
+    Dim header As Variant
+    Dim text As String
+
+    For Each header In VBA.Split(ex_PEB_Export.fn_Config("test.expected.rowKeys"), "|")
+        text = private_RawText(row(header))
+        private_ExpectedIdentity = private_ExpectedIdentity & VBA.CStr(VBA.Len(text)) & ":" & text & "|"
+    Next header
+End Function
+
 Private Function private_FormText( _
     ByVal value As Variant, _
     ByVal field As String _
@@ -690,7 +901,7 @@ End Function
 Private Function private_Find( _
     ByVal table As Object, _
     ByVal scenarioId As String, _
-    ByVal stepId As Long _
+    ByVal stepOrder As Long _
 ) As Long
     Dim rowIndex As Long
     Dim matches As Long
@@ -698,8 +909,8 @@ Private Function private_Find( _
 
     For rowIndex = 1 To table.ListRows.Count
         selected = (ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "id")) = scenarioId)
-        If selected And stepId > 0 Then
-            selected = (ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "step")) = VBA.CStr(stepId))
+        If selected And stepOrder > 0 Then
+            selected = (ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "step")) = VBA.CStr(stepOrder))
         End If
         If selected Then
             matches = matches + 1
@@ -707,7 +918,7 @@ Private Function private_Find( _
         End If
     Next rowIndex
     If matches <> 1 Then
-        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.TestStepMissing"), "{step}", scenarioId & "/" & VBA.CStr(stepId))
+        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.TestStepMissing"), "{step}", scenarioId & "/" & VBA.CStr(stepOrder))
     End If
 End Function
 
