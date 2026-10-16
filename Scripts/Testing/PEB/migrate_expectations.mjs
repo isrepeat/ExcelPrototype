@@ -92,12 +92,12 @@ for (let index = 0; index < 9; index++) {
   const basis = `Підстава: рапорт лейтенанта БОНДАРЕНКА О.Ю. (вх.\u00a0№\u00a0${incoming} від\u00a015.10.2026)`;
   const ticket = `; відпускний квиток №\u00a0${incoming} від\u00a015.10.2026`;
   let text;
-  if (baseline.ModeId === "DepartureTreatment") text = `У військову частину А0209, з\u00a015\u00a0жовтня 2026\u00a0року:\n\n${person[0].toLowerCase()}${person.slice(1)}.\n\n${basis}.`;
-  else if (baseline.ModeId === "ArrivalTreatment") text = `${dateHeading}\n\nЗ військової частини А0209:\n\n${person[0].toLowerCase()}${person.slice(1)}.\n\n${basis}.`;
+  if (baseline.ModeId === "ToHospital") text = `У військову частину А0209, з\u00a015\u00a0жовтня 2026\u00a0року:\n\n${person[0].toLowerCase()}${person.slice(1)}.\n\n${basis}.`;
+  else if (baseline.ModeId === "FromHospital") text = `${dateHeading}\n\nЗ військової частини А0209:\n\n${person[0].toLowerCase()}${person.slice(1)}.\n\n${basis}.`;
   else if (baseline.ModeId.startsWith("Departure")) text = `${person}, у м. Тестоград, з\u00a015\u00a0жовтня 2026\u00a0року.\n\n${basis}${ticket}.`;
   else text = `${dateHeading}\n\n${person}.\n\n${basis}${ticket}.`;
   word.push({ StepId: stepId, Outcome: index === 8 ? "Error" : "Success", ExpectedText: index === 8 ? null : text,
-    ExpectedError: index === 8 ? "Export lookup must return exactly one row: export.Word.DepartureTreatment.lookups.1" : null });
+    ExpectedError: index === 8 ? "Export lookup must return exactly one row: export.Word.ToHospital.lookups.1" : null });
 }
 
 const changed = [];
@@ -122,7 +122,6 @@ function replaceTable(name, tableName, headers, rows, startRow = 1, clear = true
   sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.fill = "#151515";
   sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.rowHeight = 60;
   sheet.getRange(`A${startRow}:${columnName(headers.length - 1)}${startRow}`).format.horizontalAlignment = "center";
-  sheet.freezePanes.freezeRows(1);
   if (!source[name]) sheet.showGridLines = false;
   for (let column = 0; column < headers.length; column++) {
     const header = headers[column];
@@ -213,6 +212,6 @@ const generated = path.join(workDirectory, "artifact.xlsx");
 await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
 const original = path.join(workDirectory, "original.xlsx");
 if (path.resolve(fixture) !== path.resolve(original)) await fs.copyFile(fixture, original);
-execFileSync(python, ["-X", "utf8", bridge, "assemble", original, generated, outputFixture, ...changed], { stdio: "inherit" });
-execFileSync(process.execPath, [path.join(scriptDirectory, "normalize_inputs.mjs")], { stdio: "inherit" });
+execFileSync(python, ["-X", "utf8", bridge, "assemble", original, generated, outputFixture, ...changed, "--allow-layout-migration"], { stdio: "inherit" });
+execFileSync(process.execPath, [path.join(scriptDirectory, "normalize_inputs.mjs"), "--allow-layout-migration"], { stdio: "inherit" });
 console.log(`Migrated ${cases.length} scenarios, ${steps.length} steps, ${movement.length} Movement outcomes, ${snapshots.length} expected rows and ${word.length} Word baselines.`);

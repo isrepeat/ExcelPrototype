@@ -8,7 +8,7 @@ import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
 process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(directory, "../../..");
-const fixture = path.join(root, "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx");
+const fixture = process.env.PEB_INPUTS_SOURCE ?? path.join(root, "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx");
 const python = process.env.PEB_PYTHON;
 if (!python) throw new Error("Set PEB_PYTHON to the bundled Python executable.");
 const bridge = path.join(directory, "xlsx_expectations_bridge.py");
@@ -49,7 +49,6 @@ if (process.argv.includes("--registry-only")) {
   registry.getRange(`A1:${lastColumn}1`).format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center" };
   registry.getRange(`A${rows + 3}`).values = [[settings["test.registry.sourceCaption"]]];
   registry.showGridLines = false;
-  registry.freezePanes.freezeRows(1);
   const modes = settings["test.registry.ModeId.values"].split("|");
   const reverse = new Map(modes.map(mode => [settings[`test.registry.ModeId.${mode}.runtimeMode`], mode]));
   const originalSteps = source["Тест_Кроки"].rows;
@@ -106,7 +105,7 @@ const runtimeMode = step => {
 };
 const outcomes = new Map(tableRows("Expected_WORD", "tbExpectedWord").map(row => [row.StepId, row]));
 for (const step of steps) {
-  if (runtimeMode(step).endsWith("Treatment")) {
+  if (["ToHospital", "FromHospital"].includes(runtimeMode(step))) {
     const negative = outcomes.get(step.StepId)?.Outcome === "Error";
     step.Hospital = negative ? null : hospital[1];
     step.HospitalShortName = negative ? "ТЕСТ-ЛЗ-01" : hospital[0];
@@ -124,14 +123,14 @@ for (const sheetName of ["Тест_Історія", "Expected_РУХ"]) {
   const eventColumn = rows[headerIndex].indexOf("Подія");
   const destinationColumn = rows[headerIndex].indexOf("Куди");
   for (const row of rows.slice(headerIndex + 1)) {
-    if (row[eventColumn] === settings["export.events.DepartureTreatment"]) row[destinationColumn] = hospital[1];
+    if (row[eventColumn] === settings["export.events.ToHospital"]) row[destinationColumn] = hospital[0];
   }
 }
 for (const row of source.Expected_WORD.rows.slice(1)) {
   const step = stepById.get(row[0]);
-  if (!step || row[1] !== "Success" || !runtimeMode(step).endsWith("Treatment")) continue;
+  if (!step || row[1] !== "Success" || !["ToHospital", "FromHospital"].includes(runtimeMode(step))) continue;
   const paragraphs = row[2].replace(/\r\n?/g, "\n").split("\n\n");
-  if (runtimeMode(step).startsWith("Departure")) {
+  if (runtimeMode(step).startsWith("To")) {
     const date = paragraphs[0].match(/, з([\s\S]*)$/);
     if (!date) throw new Error(`Unexpected treatment text baseline: ${step.StepId}`);
     paragraphs[0] = `У ${lowerFirst(hospital[4])}, з${date[1]}`;
@@ -167,7 +166,6 @@ for (let index = 0; index < headers.length; index++) {
   if (["Hospital", "PersonName", "ReportName", "Document", "Notes"].includes(headers[index])) cells.format.columnWidth = 35;
   if (["Hospital", "Notes"].includes(headers[index])) cells.format.columnWidth = 55;
 }
-sheet.freezePanes.freezeRows(1);
 for (const name of ["Тест_Історія", "Expected_РУХ", "Expected_WORD"]) {
   const rows = source[name].rows;
   workbook.worksheets.getItem(name).getRange(`A1:${columnName(rows[0].length - 1)}${rows.length}`).values = rows;
@@ -198,6 +196,7 @@ const baseline = path.join(output, "original.xlsx");
 const generated = path.join(output, "generated.xlsx");
 await fs.copyFile(fixture, baseline);
 await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
-execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
+execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD",
+  ...(process.argv.includes("--allow-layout-migration") ? ["--allow-layout-migration"] : [])], { stdio: "inherit" });
 console.log(`Updated ${steps.length} steps with ${headers.length} universal columns and hospital ${hospital[0]}.`);
 execFileSync(process.execPath, [fileURLToPath(import.meta.url), "--registry-only"], { stdio: "inherit" });

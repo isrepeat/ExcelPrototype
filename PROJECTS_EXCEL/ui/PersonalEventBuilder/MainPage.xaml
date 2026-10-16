@@ -175,21 +175,21 @@
                   orientation="vertical"
                   horizontalAlignment="stretch">
         <controls:button name="FromTreatment"
-                         style="{Binding Path=Settings.ArrivalTreatmentStyle}"
-                         caption="{Binding Path=Text.ArrivalTreatment}"
-                         command="{Binding Path=Commands.ArrivalTreatment}"/>
+                         style="{Binding Path=Settings.FromHospitalStyle}"
+                         caption="{Binding Path=Text.FromHospital}"
+                         command="{Binding Path=Commands.FromHospital}"/>
         <controls:button name="FromAnnualLeave"
-                         style="{Binding Path=Settings.ArrivalAnnualLeaveStyle}"
-                         caption="{Binding Path=Text.ArrivalAnnualLeave}"
-                         command="{Binding Path=Commands.ArrivalAnnualLeave}"/>
+                         style="{Binding Path=Settings.FromAnnualMainVacationStyle}"
+                         caption="{Binding Path=Text.FromAnnualMainVacation}"
+                         command="{Binding Path=Commands.FromAnnualMainVacation}"/>
         <controls:button name="FromMedicalLeave"
-                         style="{Binding Path=Settings.ArrivalMedicalLeaveStyle}"
-                         caption="{Binding Path=Text.ArrivalMedicalLeave}"
-                         command="{Binding Path=Commands.ArrivalMedicalLeave}"/>
+                         style="{Binding Path=Settings.FromVacationForCuringStyle}"
+                         caption="{Binding Path=Text.FromVacationForCuring}"
+                         command="{Binding Path=Commands.FromVacationForCuring}"/>
         <controls:button name="FromFamilyLeave"
-                         style="{Binding Path=Settings.ArrivalFamilyLeaveStyle}"
-                         caption="{Binding Path=Text.ArrivalFamilyLeave}"
-                         command="{Binding Path=Commands.ArrivalFamilyLeave}"/>
+                         style="{Binding Path=Settings.FromVacationForFamilyStyle}"
+                         caption="{Binding Path=Text.FromVacationForFamily}"
+                         command="{Binding Path=Commands.FromVacationForFamily}"/>
       </stackPanel>
       <stackPanel name="DepartureModes"
                   rowSpan="5"
@@ -197,21 +197,21 @@
                   orientation="vertical"
                   horizontalAlignment="stretch">
         <controls:button name="ToTreatment"
-                         style="{Binding Path=Settings.DepartureTreatmentStyle}"
-                         caption="{Binding Path=Text.DepartureTreatment}"
-                         command="{Binding Path=Commands.DepartureTreatment}"/>
+                         style="{Binding Path=Settings.ToHospitalStyle}"
+                         caption="{Binding Path=Text.ToHospital}"
+                         command="{Binding Path=Commands.ToHospital}"/>
         <controls:button name="ToAnnualLeave"
-                         style="{Binding Path=Settings.DepartureAnnualLeaveStyle}"
-                         caption="{Binding Path=Text.DepartureAnnualLeave}"
-                         command="{Binding Path=Commands.DepartureAnnualLeave}"/>
+                         style="{Binding Path=Settings.ToAnnualMainVacationStyle}"
+                         caption="{Binding Path=Text.ToAnnualMainVacation}"
+                         command="{Binding Path=Commands.ToAnnualMainVacation}"/>
         <controls:button name="ToMedicalLeave"
-                         style="{Binding Path=Settings.DepartureMedicalLeaveStyle}"
-                         caption="{Binding Path=Text.DepartureMedicalLeave}"
-                         command="{Binding Path=Commands.DepartureMedicalLeave}"/>
+                         style="{Binding Path=Settings.ToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.ToVacationForCuring}"
+                         command="{Binding Path=Commands.ToVacationForCuring}"/>
         <controls:button name="ToFamilyLeave"
-                         style="{Binding Path=Settings.DepartureFamilyLeaveStyle}"
-                         caption="{Binding Path=Text.DepartureFamilyLeave}"
-                         command="{Binding Path=Commands.DepartureFamilyLeave}"/>
+                         style="{Binding Path=Settings.ToVacationForFamilyStyle}"
+                         caption="{Binding Path=Text.ToVacationForFamily}"
+                         command="{Binding Path=Commands.ToVacationForFamily}"/>
       </stackPanel>
       <stackPanel name="DummyModes1"
                   rowSpan="5"

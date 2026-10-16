@@ -344,7 +344,96 @@ def preserve_existing_cells(original, destination, edited, name):
     return baseline
 
 
-def assemble(original_path, generated_path, output_path, names):
+def update_values_preserving_layout(original, generated, destination, source_part, strings):
+    # Обновляем содержимое ячеек, сохраняя исходное оформление и объекты листа.
+    if rel_path(destination) not in original or rel_path(source_part) not in generated:
+        return False
+    def tables(data, part):
+        result = {}
+        for relationship in xml(data, rel_path(part)):
+            if relationship.get("Type").endswith("/table"):
+                table_part = target(part, relationship.get("Target"))
+                table = xml(data, table_part)
+                result[table.get("name")] = (table_part, table)
+        return result
+    old_tables = tables(original, destination)
+    new_tables = tables(generated, source_part)
+    if old_tables.keys() != new_tables.keys():
+        return False
+    for name, (_, old) in old_tables.items():
+        new = new_tables[name][1]
+        if [column.get("name") for column in old.find("m:tableColumns", NS)] != [column.get("name") for column in new.find("m:tableColumns", NS)]:
+            return False
+        if range_boundaries(old.get("ref"))[:2] != range_boundaries(new.get("ref"))[:2]:
+            return False
+    baseline = xml(original, destination)
+    edited = xml(generated, source_part)
+    data = baseline.find("m:sheetData", NS)
+    old_rows = {int(row.get("r")): row for row in data}
+    styles = {}
+    for cell in data.findall("m:row/m:c", NS):
+        styles[column_index(cell.get("r"))] = cell.get("s")
+    for row in edited.findall("m:sheetData/m:row", NS):
+        index = int(row.get("r"))
+        if index not in old_rows:
+            preceding = [number for number in old_rows if number < index]
+            previous = old_rows[max(preceding)] if preceding else None
+            attributes = dict(previous.attrib) if previous is not None else {}
+            attributes["r"] = str(index)
+            attributes.pop("spans", None)
+            old_rows[index] = ET.SubElement(data, f"{{{MAIN}}}row", attributes)
+        target_row = old_rows[index]
+        for cell in row:
+            address = cell.get("r")
+            existing = next((item for item in target_row if item.get("r") == address), None)
+            if existing is None:
+                existing = ET.SubElement(target_row, f"{{{MAIN}}}c", {"r": address})
+                style = styles.get(column_index(address))
+                if style is not None:
+                    existing.set("s", style)
+            for child in list(existing):
+                if ET.QName(child).localname in ("v", "f", "is"):
+                    existing.remove(child)
+            existing.attrib.pop("t", None)
+            if cell.get("t") == "s":
+                string = copy.deepcopy(strings[int(cell.find("m:v", NS).text)])
+                string.tag = f"{{{MAIN}}}is"
+                existing.append(string)
+                existing.set("t", "inlineStr")
+            else:
+                if cell.get("t") is not None:
+                    existing.set("t", cell.get("t"))
+                for child in cell:
+                    if ET.QName(child).localname in ("v", "f", "is"):
+                        existing.append(copy.deepcopy(child))
+        target_row[:] = sorted(target_row, key=lambda cell: column_index(cell.get("r")))
+    data[:] = sorted(data, key=lambda row: int(row.get("r")))
+    for name, (part, table) in old_tables.items():
+        reference = new_tables[name][1].get("ref")
+        left, _, right, old_bottom = range_boundaries(table.get("ref"))
+        new_bottom = range_boundaries(reference)[3]
+        for row in data:
+            if new_bottom < int(row.get("r")) <= old_bottom:
+                for cell in row:
+                    if left <= column_index(cell.get("r")) <= right:
+                        for child in list(cell):
+                            if ET.QName(child).localname in ("v", "f", "is"):
+                                cell.remove(child)
+                        cell.attrib.pop("t", None)
+        table.set("ref", reference)
+        auto_filter = table.find("m:autoFilter", NS)
+        if auto_filter is not None:
+            auto_filter.set("ref", reference)
+        original[part] = serialize(table)
+    dimension = baseline.find("m:dimension", NS)
+    cells = data.findall("m:row/m:c", NS)
+    if dimension is not None and cells:
+        dimension.set("ref", f"A1:{get_column_letter(max(column_index(cell.get('r')) for cell in cells))}{max(old_rows)}")
+    original[destination] = serialize(baseline)
+    return True
+
+
+def assemble(original_path, generated_path, output_path, names, allow_layout_migration=False):
     with zipfile.ZipFile(original_path) as archive:
         original = {name: archive.read(name) for name in archive.namelist()}
     with zipfile.ZipFile(generated_path) as archive:
@@ -352,7 +441,7 @@ def assemble(original_path, generated_path, output_path, names):
     baseline = dict(original)
     original_sheets = sheet_parts(original)
     generated_sheets = sheet_parts(generated)
-    offsets = merge_styles(original, generated)
+    offsets = None
     strings = xml(generated, "xl/sharedStrings.xml").findall("m:si", NS) if "xl/sharedStrings.xml" in generated else []
     book = xml(original, "xl/workbook.xml")
     sheets = book.find("m:sheets", NS)
@@ -366,6 +455,16 @@ def assemble(original_path, generated_path, output_path, names):
     for name in names:
         source_part = generated_sheets[name]
         destination = original_sheets.get(name)
+        if destination is not None and update_values_preserving_layout(original, generated, destination, source_part, strings):
+            modified.add(destination)
+            for relationship in xml(original, rel_path(destination)):
+                if relationship.get("Type").endswith("/table"):
+                    modified.add(target(destination, relationship.get("Target")))
+            continue
+        if destination is not None and not allow_layout_migration:
+            raise ValueError(f"Sheet schema changed: {name}. Explicit --allow-layout-migration is required.")
+        if offsets is None:
+            offsets = merge_styles(original, generated)
         if destination is None:
             destination = f"xl/worksheets/sheet{sheet_id}.xml"
             relationship_id = f"rIdExpected{sheet_id}"
@@ -439,7 +538,8 @@ if __name__ == "__main__":
     if sys.argv[1] == "dump":
         dump(sys.argv[2])
     elif sys.argv[1] == "assemble":
-        assemble(*sys.argv[2:5], sys.argv[5:])
+        assemble(*sys.argv[2:5], [name for name in sys.argv[5:] if name != "--allow-layout-migration"],
+                 allow_layout_migration="--allow-layout-migration" in sys.argv[5:])
     elif sys.argv[1] == "clean-fixture":
         clean_fixture(sys.argv[2])
     elif sys.argv[1] == "finalize-registry":

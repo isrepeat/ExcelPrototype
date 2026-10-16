@@ -564,8 +564,8 @@ EH:
     diagnostic = "Source legend: " & VBA.Err.Description
 End Function
 
-Public Function ArrivalTreatmentHandler() As Boolean
-    ArrivalTreatmentHandler = private_SwitchMode("ArrivalTreatment")
+Public Function FromHospitalHandler() As Boolean
+    FromHospitalHandler = private_SwitchMode("FromHospital")
 End Function
 
 Public Function EnvironmentSwitchHandler() As Boolean
@@ -664,32 +664,32 @@ EH:
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 
-Public Function ArrivalAnnualLeaveHandler() As Boolean
-    ArrivalAnnualLeaveHandler = private_SwitchMode("ArrivalAnnualLeave")
+Public Function FromAnnualMainVacationHandler() As Boolean
+    FromAnnualMainVacationHandler = private_SwitchMode("FromAnnualMainVacation")
 End Function
 
-Public Function ArrivalMedicalLeaveHandler() As Boolean
-    ArrivalMedicalLeaveHandler = private_SwitchMode("ArrivalMedicalLeave")
+Public Function FromVacationForCuringHandler() As Boolean
+    FromVacationForCuringHandler = private_SwitchMode("FromVacationForCuring")
 End Function
 
-Public Function ArrivalFamilyLeaveHandler() As Boolean
-    ArrivalFamilyLeaveHandler = private_SwitchMode("ArrivalFamilyLeave")
+Public Function FromVacationForFamilyHandler() As Boolean
+    FromVacationForFamilyHandler = private_SwitchMode("FromVacationForFamily")
 End Function
 
-Public Function DepartureTreatmentHandler() As Boolean
-    DepartureTreatmentHandler = private_SwitchMode("DepartureTreatment")
+Public Function ToHospitalHandler() As Boolean
+    ToHospitalHandler = private_SwitchMode("ToHospital")
 End Function
 
-Public Function DepartureAnnualLeaveHandler() As Boolean
-    DepartureAnnualLeaveHandler = private_SwitchMode("DepartureAnnualLeave")
+Public Function ToAnnualMainVacationHandler() As Boolean
+    ToAnnualMainVacationHandler = private_SwitchMode("ToAnnualMainVacation")
 End Function
 
-Public Function DepartureMedicalLeaveHandler() As Boolean
-    DepartureMedicalLeaveHandler = private_SwitchMode("DepartureMedicalLeave")
+Public Function ToVacationForCuringHandler() As Boolean
+    ToVacationForCuringHandler = private_SwitchMode("ToVacationForCuring")
 End Function
 
-Public Function DepartureFamilyLeaveHandler() As Boolean
-    DepartureFamilyLeaveHandler = private_SwitchMode("DepartureFamilyLeave")
+Public Function ToVacationForFamilyHandler() As Boolean
+    ToVacationForFamilyHandler = private_SwitchMode("ToVacationForFamily")
 End Function
 
 Public Function LoadTestHandler() As Boolean
@@ -1208,14 +1208,14 @@ Private Function private_LoadMode( _
     Dim currentForm As Variant
 
     On Error GoTo EH
-    modes = VBA.Array("ArrivalTreatment", _
-            "ArrivalAnnualLeave", _
-            "ArrivalMedicalLeave", _
-            "ArrivalFamilyLeave", _
-            "DepartureTreatment", _
-            "DepartureAnnualLeave", _
-            "DepartureMedicalLeave", _
-            "DepartureFamilyLeave")
+    modes = VBA.Array("FromHospital", _
+            "FromAnnualMainVacation", _
+            "FromVacationForCuring", _
+            "FromVacationForFamily", _
+            "ToHospital", _
+            "ToAnnualMainVacation", _
+            "ToVacationForCuring", _
+            "ToVacationForFamily")
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function

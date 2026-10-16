@@ -33,14 +33,14 @@ Each lookup under `export.Word.lookups.<index>` or `export.Word.<ModeId>.lookups
 
 | Current mode | XML template |
 | --- | --- |
-| ArrivalTreatment | FromHospital |
-| ArrivalAnnualLeave | FromAnnualMainVacation |
-| ArrivalMedicalLeave | FromVacationForCuring |
-| ArrivalFamilyLeave | FromVacationForFamily |
-| DepartureTreatment | ToHospital |
-| DepartureAnnualLeave | ToAnnualMainVacation |
-| DepartureMedicalLeave | ToVacationForCuring |
-| DepartureFamilyLeave | ToVacationForFamily |
+| FromHospital | FromHospital |
+| FromAnnualMainVacation | FromAnnualMainVacation |
+| FromVacationForCuring | FromVacationForCuring |
+| FromVacationForFamily | FromVacationForFamily |
+| ToHospital | ToHospital |
+| ToAnnualMainVacation | ToAnnualMainVacation |
+| ToVacationForCuring | ToVacationForCuring |
+| ToVacationForFamily | ToVacationForFamily |
 
 For one event, `groupHeader` blocks render in `groupBy` order before the point body. This is not whole-order grouping or sorting. The other 26 XML templates remain in the file without mode buttons.
 
