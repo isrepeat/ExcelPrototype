@@ -109,6 +109,8 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     If m_absenceBook.Date1904 Then Err.Raise 5, , "Absence workbook must use the 1900 date system."
     ex_PEB_Testing.fn_PumpUi
     m_excel.Calculation = xlCalculationManual
+    private_SyncRegistry
+    m_scenarioBook.Save
     m_isInitialized = True
     Initialize = True
     Exit Function
@@ -156,6 +158,7 @@ Public Function TryPrepare( _
     Dim prefix As String
     Dim personId As String
     Dim requiredKey As String
+    Dim action As String
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Or m_prepared Then Err.Raise 5, , "Scenario loader is not ready."
@@ -167,12 +170,19 @@ Public Function TryPrepare( _
         ex_PEB_Export.fn_Config("export.Movement.table"))
     scenarioRow = private_Find(scenarios, scenarioId, 0)
     stepRow = private_Find(steps, scenarioId, stepOrder)
+    action = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action"))
+    If Not ex_PEB_Testing.fn_RegistryContains("Action", action) Then Err.Raise 5, , "Unknown test action: " & action
+    Select Case action
+        Case "ExportMovement", "PreviewWord"
+        Case Else
+            Err.Raise 5, , "Test action has no executor: " & action
+    End Select
     personId = ex_PEB_Export.fn_Text(private_Value(scenarios, scenarioRow, "personId"))
     If VBA.Len(personId) = 0 Then Err.Raise 5, , "Scenario person identity is empty."
     If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepPersonId")) <> personId Then
         Err.Raise 5, , "Scenario and step identities differ."
     End If
-    modeId = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
+    modeId = ex_PEB_Testing.fn_ResolveTestMode(ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode")))
     prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".form")
     prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".direction")
 
@@ -197,7 +207,7 @@ Public Function TryPrepare( _
         Err.Raise 5, , "Scenario form identity is missing or inconsistent."
     End If
     requiredKey = "export.Movement." & modeId & ".required"
-    If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action")) = "PreviewWord" Then
+    If action = "PreviewWord" Then
         requiredKey = "export.Word." & modeId & ".previewRequired"
     End If
     For Each field In VBA.Split(ex_PEB_Export.fn_Config(requiredKey), "|")
@@ -297,7 +307,7 @@ Public Function TryCatalog( _
         item("Id") = id
         item("Name") = ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "name"))
         item("RuleStatus") = ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "ruleStatus"))
-        If item("RuleStatus") <> "Defined" And item("RuleStatus") <> "PendingRule" Then
+        If Not ex_PEB_Testing.fn_RegistryContains("RuleStatus", item("RuleStatus")) Then
             Err.Raise 5, , "Unknown scenario rule status: " & id
         End If
         Set numbered = VBA.CreateObject("Scripting.Dictionary")
@@ -314,9 +324,15 @@ Public Function TryCatalog( _
                 testStep("Order") = VBA.CLng(number)
                 testStep("ScenarioId") = id
                 action = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action"))
-                If action <> "ExportMovement" And action <> "PreviewWord" Then Err.Raise 5, , "Unknown test action: " & stepIdentity
+                If Not ex_PEB_Testing.fn_RegistryContains("Action", action) Then Err.Raise 5, , "Unknown test action: " & stepIdentity
+                Select Case action
+                    Case "ExportMovement", "PreviewWord"
+                    Case Else
+                        Err.Raise 5, , "Test action has no executor: " & stepIdentity
+                End Select
                 testStep("Action") = action
-                testStep("ModeId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
+                testStep("FixtureModeId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
+                testStep("ModeId") = ex_PEB_Testing.fn_ResolveTestMode(testStep("FixtureModeId"))
                 testStep("EventName") = ex_PEB_Export.fn_Config("export.events." & testStep("ModeId"))
                 testStep("PersonId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepPersonId"))
                 If testStep("PersonId") <> ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "personId")) Then
@@ -665,6 +681,90 @@ Private Function private_RawText(ByVal value As Variant) As String
     private_RawText = VBA.CStr(value)
 End Function
 
+Private Sub private_SyncRegistry()
+    Dim sheet As Object
+    Dim table As Object
+    Dim candidateSheet As Object
+    Dim candidateTable As Object
+    Dim column As Object
+    Dim targetTable As Object
+    Dim values As Variant
+    Dim kind As Variant
+    Dim binding As Variant
+    Dim parts As Variant
+    Dim index As Long
+    Dim maximum As Long
+    Dim rangeName As String
+    Dim reference As String
+    Dim runtimeHeader As String
+    Dim definedName As Object
+    Dim candidateName As Object
+
+    Set sheet = m_scenarioBook.Worksheets(ex_PEB_Export.fn_Config("test.registry.sheet"))
+    Set table = sheet.ListObjects(ex_PEB_Export.fn_Config("test.registry.table"))
+    runtimeHeader = ex_PEB_Export.fn_Config("test.registry.runtimeHeader")
+    For Each kind In VBA.Split(ex_PEB_Export.fn_Config("test.registry.kinds"), "|")
+        values = ex_PEB_Testing.fn_RegistryValues(VBA.CStr(kind))
+        If UBound(values) + 1 > maximum Then maximum = UBound(values) + 1
+    Next kind
+    Do While table.ListRows.Count < maximum
+        table.ListRows.Add
+    Loop
+    Do While table.ListRows.Count > maximum
+        table.ListRows(table.ListRows.Count).Delete
+    Loop
+    table.DataBodyRange.ClearContents
+    For Each kind In VBA.Split(ex_PEB_Export.fn_Config("test.registry.kinds"), "|")
+        values = ex_PEB_Testing.fn_RegistryValues(VBA.CStr(kind))
+        Set column = table.ListColumns(VBA.CStr(kind))
+        For index = LBound(values) To UBound(values)
+            column.DataBodyRange.Cells(index + 1, 1).Value2 = values(index)
+            If kind = "ModeId" Then
+                table.ListColumns(runtimeHeader).DataBodyRange.Cells(index + 1, 1).Value2 = ex_PEB_Testing.fn_ResolveTestMode(values(index))
+            End If
+        Next index
+        rangeName = ex_PEB_Export.fn_Config("test.registry." & kind & ".rangeName")
+        reference = "='" & VBA.Replace$(sheet.Name, "'", "''") & "'!" & column.DataBodyRange.Cells(1, 1).Resize(UBound(values) + 1, 1).Address
+        Set definedName = Nothing
+        For Each candidateName In m_scenarioBook.Names
+            If VBA.StrComp(candidateName.Name, rangeName, VBA.vbTextCompare) = 0 Then Set definedName = candidateName
+        Next candidateName
+        If definedName Is Nothing Then
+            m_scenarioBook.Names.Add Name:=rangeName, RefersTo:=reference
+        Else
+            definedName.RefersTo = reference
+        End If
+    Next kind
+
+    sheet.Cells(table.HeaderRowRange.Row + maximum + 2, table.HeaderRowRange.Column).Value2 = ex_PEB_Export.fn_Config("test.registry.sourceCaption")
+
+    ' Rebind dropdowns to configuration-backed named ranges, never literal lists.
+    For Each binding In VBA.Split(ex_PEB_Export.fn_Config("test.registry.bindings"), "|")
+        parts = VBA.Split(binding, ":")
+        If UBound(parts) <> 2 Then Err.Raise 5, , "Invalid registry binding: " & binding
+        Set targetTable = Nothing
+        For Each candidateSheet In m_scenarioBook.Worksheets
+            For Each candidateTable In candidateSheet.ListObjects
+                If candidateTable.Name = parts(0) Then Set targetTable = candidateTable
+            Next candidateTable
+        Next candidateSheet
+        If targetTable Is Nothing Then Err.Raise 5, , "Registry target table is missing: " & parts(0)
+        rangeName = ex_PEB_Export.fn_Config("test.registry." & parts(2) & ".rangeName")
+        Set column = targetTable.ListColumns(parts(1))
+        If Not column.DataBodyRange Is Nothing Then
+            With column.DataBodyRange.Validation
+                .Delete
+                .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=" & rangeName
+                .IgnoreBlank = True
+                .InCellDropdown = True
+                .ShowError = True
+                .ErrorTitle = ex_PEB_Export.fn_Config("test.registry.errorTitle")
+                .ErrorMessage = ex_PEB_Export.fn_Config("test.registry.errorMessage")
+            End With
+        End If
+    Next binding
+End Sub
+
 Private Sub private_LoadExpectations(ByVal allSteps As Object)
     Dim table As Object
     Dim movement As Object
@@ -697,12 +797,9 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
         Set testStep = allSteps(stepId)
         If testStep("Action") <> "ExportMovement" Then Err.Raise 5, , "Movement expectation has an incompatible action: " & stepId
         outcome = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "expected"))
-        Select Case outcome
-            Case "Allow", "Block", "NoChange", "Pending"
-            Case Else
-                Err.Raise 5, , "Unknown expected Movement decision: " & stepId
-        End Select
+        If Not ex_PEB_Testing.fn_RegistryContains("ExpectedDecision", outcome) Then Err.Raise 5, , "Unknown expected Movement decision: " & stepId
         check = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "stateCheck"))
+        If Not ex_PEB_Testing.fn_RegistryContains("StateCheck", check) Then Err.Raise 5, , "Unknown state check: " & stepId
         If outcome = "Allow" Then
             If check <> "Snapshot" Then Err.Raise 5, , "Allowed export requires Snapshot: " & stepId
         ElseIf outcome = "Pending" Then
@@ -719,7 +816,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
         End If
         testStep("Expected") = outcome
         testStep("Code") = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "code"))
-        If VBA.Len(testStep("Code")) = 0 Then Err.Raise 5, , "Expected Movement code is missing: " & stepId
+        If Not ex_PEB_Testing.fn_RegistryContains("ExpectedCode", testStep("Code")) Then Err.Raise 5, , "Unknown expected Movement code: " & stepId
         testStep("OpenCount") = count
         testStep("StateCheck") = check
         Set rows = New Collection
@@ -791,7 +888,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
         Set testStep = allSteps(stepId)
         If testStep("Action") <> "PreviewWord" Then Err.Raise 5, , "Word expectation has an incompatible action: " & stepId
         outcome = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "wordOutcome"))
-        If outcome <> "Success" And outcome <> "Error" And outcome <> "Pending" Then Err.Raise 5, , "Unknown Word outcome: " & stepId
+        If Not ex_PEB_Testing.fn_RegistryContains("Outcome", outcome) Then Err.Raise 5, , "Unknown Word outcome: " & stepId
         testStep("Expected") = outcome
         If outcome = "Error" Then testStep("Code") = "PreviewError"
         testStep("ExpectedText") = private_Value(table, rowIndex, "wordText")

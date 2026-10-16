@@ -12,6 +12,7 @@ from lxml import etree as ET
 
 import openpyxl
 from openpyxl.utils.cell import get_column_letter
+from openpyxl.utils.cell import range_boundaries
 from openpyxl.utils.datetime import to_excel
 
 MAIN = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
@@ -198,6 +199,108 @@ def clean_fixture(path):
     print("Removed fixture columns: " + ", ".join(removed))
 
 
+def finalize_registry(path, config_path):
+    with open(config_path, encoding="utf-8-sig") as source:
+        settings = {parts[1].split("::", 1)[-1]: parts[2] for line in source.read().splitlines()
+                    if line.strip() for parts in [line.split("\t")]}
+    with zipfile.ZipFile(path) as archive:
+        data = {name: archive.read(name) for name in archive.namelist()}
+    tables = {}
+    parts = sheet_parts(data)
+    for name, sheet_part in parts.items():
+        if rel_path(sheet_part) not in data:
+            continue
+        for relationship in xml(data, rel_path(sheet_part)):
+            if relationship.get("Type").endswith("/table"):
+                table_part = target(sheet_part, relationship.get("Target"))
+                table = xml(data, table_part)
+                tables[table.get("name")] = (sheet_part, table)
+    registry_sheet = settings["test.registry.sheet"]
+    kinds = settings["test.registry.kinds"].split("|")
+    book = xml(data, "xl/workbook.xml")
+    names = book.find("m:definedNames", NS)
+    if names is None:
+        names = ET.Element(f"{{{MAIN}}}definedNames")
+        anchor = book.find("m:calcPr", NS)
+        book.insert(list(book).index(anchor) if anchor is not None else len(book), names)
+    for column, kind in enumerate(kinds, 1):
+        name = settings[f"test.registry.{kind}.rangeName"]
+        for old in list(names):
+            if old.get("name") == name:
+                names.remove(old)
+        count = len(settings[f"test.registry.{kind}.values"].split("|"))
+        node = ET.SubElement(names, f"{{{MAIN}}}definedName", {"name": name})
+        node.text = f"'{registry_sheet}'!${get_column_letter(column)}$2:${get_column_letter(column)}${count + 1}"
+    sheets = {}
+    strings = xml(data, "xl/sharedStrings.xml").findall("m:si", NS) if "xl/sharedStrings.xml" in data else []
+    step_part, step_table = tables[settings["test.scenarios.steps.table"]]
+    steps = sheets.setdefault(step_part, xml(data, step_part))
+    columns = [column.get("name") for column in step_table.find("m:tableColumns", NS)]
+    left, top, right, bottom = range_boundaries(step_table.get("ref"))
+    mode_column = left + columns.index(settings["test.scenarios.headers.mode"])
+    modes = settings["test.registry.ModeId.values"].split("|")
+    reverse = {settings[f"test.registry.ModeId.{mode}.runtimeMode"]: mode for mode in modes}
+    for cell in steps.findall("m:sheetData/m:row/m:c", NS):
+        if column_index(cell.get("r")) != mode_column or int(re.search(r"\d+", cell.get("r")).group()) <= top:
+            continue
+        if cell.get("t") == "s":
+            value = "".join(strings[int(cell.find("m:v", NS).text)].itertext())
+        elif cell.get("t") == "inlineStr":
+            value = "".join(cell.find("m:is", NS).itertext())
+        else:
+            value = cell.findtext("m:v", default="", namespaces=NS)
+        if not value:
+            continue
+        if value not in modes:
+            if value not in reverse:
+                raise ValueError(f"Cannot migrate test mode: {value}")
+            for child in list(cell):
+                cell.remove(child)
+            cell.set("t", "inlineStr")
+            string = ET.SubElement(cell, f"{{{MAIN}}}is")
+            ET.SubElement(string, f"{{{MAIN}}}t").text = reverse[value]
+    following = {"hyperlinks", "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks",
+                 "customProperties", "cellWatches", "ignoredErrors", "smartTags", "drawing", "legacyDrawing",
+                 "legacyDrawingHF", "picture", "oleObjects", "controls", "webPublishItems", "tableParts", "extLst"}
+    for binding in settings["test.registry.bindings"].split("|"):
+        table_name, field, kind = binding.split(":")
+        part, table = tables[table_name]
+        sheet = sheets.setdefault(part, xml(data, part))
+        headers = [column.get("name") for column in table.find("m:tableColumns", NS)]
+        left, top, right, bottom = range_boundaries(table.get("ref"))
+        column = left + headers.index(field)
+        validations = sheet.find("m:dataValidations", NS)
+        if validations is None:
+            validations = ET.Element(f"{{{MAIN}}}dataValidations")
+            position = next((index for index, item in enumerate(sheet) if ET.QName(item).localname in following), len(sheet))
+            sheet.insert(position, validations)
+        for old in list(validations):
+            for address in old.get("sqref").split():
+                c1, r1, c2, r2 = range_boundaries(address)
+                if c1 <= column <= c2 and r1 <= bottom and r2 >= top + 1:
+                    validations.remove(old)
+                    break
+        node = ET.SubElement(validations, f"{{{MAIN}}}dataValidation", {
+            "type": "list", "allowBlank": "1", "showDropDown": "0", "showErrorMessage": "1", "errorStyle": "stop",
+            "errorTitle": settings["test.registry.errorTitle"], "error": settings["test.registry.errorMessage"],
+            "sqref": f"{get_column_letter(column)}{top + 1}:{get_column_letter(column)}{bottom}"})
+        ET.SubElement(node, f"{{{MAIN}}}formula1").text = "=" + settings[f"test.registry.{kind}.rangeName"]
+        validations.set("count", str(len(validations)))
+    data["xl/workbook.xml"] = serialize(book)
+    for part, sheet in sheets.items():
+        data[part] = serialize(sheet)
+    temporary = str(path) + ".registry.tmp"
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in data.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+    print(f"Registry named ranges and {len(settings['test.registry.bindings'].split('|'))} dropdown bindings updated.")
+
+
 def preserve_existing_cells(original, destination, edited, name):
     baseline = xml(original, destination)
     data = baseline.find("m:sheetData", NS)
@@ -339,5 +442,7 @@ if __name__ == "__main__":
         assemble(*sys.argv[2:5], sys.argv[5:])
     elif sys.argv[1] == "clean-fixture":
         clean_fixture(sys.argv[2])
+    elif sys.argv[1] == "finalize-registry":
+        finalize_registry(sys.argv[2], sys.argv[3])
     else:
         raise SystemExit("Expected dump or assemble")

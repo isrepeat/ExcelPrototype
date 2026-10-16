@@ -26,6 +26,46 @@ Public Function fn_IsRunning() As Boolean
     If Not m_testUi Is Nothing Then fn_IsRunning = m_testUi.IsRunning
 End Function
 
+Public Function fn_RegistryValues(ByVal kind As String) As Variant
+    Dim values As Variant
+    Dim value As Variant
+    Dim seen As Object
+
+    values = VBA.Split(ex_PEB_Export.fn_Config("test.registry." & kind & ".values"), "|")
+    Set seen = VBA.CreateObject("Scripting.Dictionary")
+    For Each value In values
+        If VBA.Len(value) = 0 Or value <> VBA.Trim$(value) Then Err.Raise 5, , "Invalid registry value: " & kind
+        If seen.Exists(value) Then Err.Raise 5, , "Duplicate registry value: " & kind & "/" & value
+        seen.Add value, True
+    Next value
+    fn_RegistryValues = values
+End Function
+
+Public Function fn_RegistryContains( _
+    ByVal kind As String, _
+    ByVal value As String _
+) As Boolean
+    Dim candidate As Variant
+
+    For Each candidate In fn_RegistryValues(kind)
+        If VBA.StrComp(candidate, value, VBA.vbBinaryCompare) = 0 Then
+            fn_RegistryContains = True
+            Exit Function
+        End If
+    Next candidate
+End Function
+
+Public Function fn_ResolveTestMode(ByVal templateId As String) As String
+    Dim modeId As String
+
+    If Not fn_RegistryContains("ModeId", templateId) Then Err.Raise 5, , "Unknown test template identity: " & templateId
+    modeId = ex_PEB_Export.fn_Config("test.registry.ModeId." & templateId & ".runtimeMode")
+    If ex_PEB_Export.fn_Config("export.Word." & modeId & ".templateName") <> templateId Then
+        Err.Raise 5, , "Test registry and Word template mapping differ: " & templateId
+    End If
+    fn_ResolveTestMode = modeId
+End Function
+
 Public Function fn_ReadCatalog( _
     ByRef catalog As Collection, _
     ByRef diagnostic As String _
@@ -88,7 +128,8 @@ Public Function fn_ReadCatalog( _
                     item("Operation") = ex_PEB_Export.fn_Text(data.ValueAt(row, 4))
                     item("EventLabel") = ex_PEB_Export.fn_Text(data.ValueAt(row, 5))
                     If VBA.Len(item("Operation")) = 0 Or VBA.Len(item("EventLabel")) = 0 Then Err.Raise 5, , "Scenario classification is missing: " & id
-                    If item("RuleStatus") <> "Defined" And item("RuleStatus") <> "PendingRule" Then Err.Raise 5, , "Invalid scenario rule status: " & id
+                    If Not fn_RegistryContains("RuleStatus", item("RuleStatus")) Then Err.Raise 5, , "Invalid scenario rule status: " & id
+                    If Not fn_RegistryContains("Operation", item("Operation")) Then Err.Raise 5, , "Invalid scenario operation: " & id
                     Set numbers = VBA.CreateObject("Scripting.Dictionary")
                     Set item("Numbers") = numbers
                     cases.Add id, item
@@ -104,7 +145,7 @@ Public Function fn_ReadCatalog( _
                     stepId = ex_PEB_Export.fn_Text(data.ValueAt(row, 3))
                     If VBA.Len(stepId) = 0 Or stepIds.Exists(stepId) Then Err.Raise 5, , "Missing or duplicate StepId: " & stepId
                     action = ex_PEB_Export.fn_Text(data.ValueAt(row, 4))
-                    If action <> "ExportMovement" And action <> "PreviewWord" Then Err.Raise 5, , "Unknown test action: " & stepId
+                    If Not fn_RegistryContains("Action", action) Then Err.Raise 5, , "Unknown test action: " & stepId
                     stepIds.Add stepId, True
                     numbers.Add number, stepId
                 End If

@@ -1,6 +1,40 @@
 value	ThisWorkbook::id	PersonalEventBuilder
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilderTest
 value	PersonalEventBuilder::test.runner.tickSeconds	1
+value	PersonalEventBuilder::test.registry.sheet	Test_Registry
+value	PersonalEventBuilder::test.registry.table	tbTestRegistry
+value	PersonalEventBuilder::test.registry.kinds	ModeId|Action|RuleStatus|ExpectedDecision|StateCheck|Outcome|ExpectedCode|Operation|Result
+value	PersonalEventBuilder::test.registry.runtimeHeader	RuntimeModeId
+value	PersonalEventBuilder::test.registry.errorTitle	Неприпустиме значення
+value	PersonalEventBuilder::test.registry.errorMessage	Оберіть значення зі списку реєстру.
+value	PersonalEventBuilder::test.registry.sourceCaption	Джерело списків: wsConfig.test.txt. Змінюйте конфігурацію; списки оновлюються під час відкриття тестової сесії.
+value	PersonalEventBuilder::test.registry.bindings	tbTestSteps:ModeId:ModeId|tbTestSteps:Action:Action|tbTestScenarios:RuleStatus:RuleStatus|tbTestScenarios:Операція:Operation|tbExpectedMovement:ExpectedDecision:ExpectedDecision|tbExpectedMovement:StateCheck:StateCheck|tbExpectedMovement:ExpectedCode:ExpectedCode|tbExpectedWord:Outcome:Outcome
+value	PersonalEventBuilder::test.registry.ModeId.values	FromHospital|FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|ToHospital|ToAnnualMainVacation|ToVacationForFamily|ToVacationForCuring
+value	PersonalEventBuilder::test.registry.ModeId.rangeName	_PEB_ModeId
+value	PersonalEventBuilder::test.registry.ModeId.ToHospital.runtimeMode	DepartureTreatment
+value	PersonalEventBuilder::test.registry.ModeId.FromHospital.runtimeMode	ArrivalTreatment
+value	PersonalEventBuilder::test.registry.ModeId.ToAnnualMainVacation.runtimeMode	DepartureAnnualLeave
+value	PersonalEventBuilder::test.registry.ModeId.FromAnnualMainVacation.runtimeMode	ArrivalAnnualLeave
+value	PersonalEventBuilder::test.registry.ModeId.ToVacationForCuring.runtimeMode	DepartureMedicalLeave
+value	PersonalEventBuilder::test.registry.ModeId.FromVacationForCuring.runtimeMode	ArrivalMedicalLeave
+value	PersonalEventBuilder::test.registry.ModeId.ToVacationForFamily.runtimeMode	DepartureFamilyLeave
+value	PersonalEventBuilder::test.registry.ModeId.FromVacationForFamily.runtimeMode	ArrivalFamilyLeave
+value	PersonalEventBuilder::test.registry.Action.values	ExportMovement|PreviewWord
+value	PersonalEventBuilder::test.registry.Action.rangeName	_PEB_Action
+value	PersonalEventBuilder::test.registry.RuleStatus.values	Defined|PendingRule
+value	PersonalEventBuilder::test.registry.RuleStatus.rangeName	_PEB_RuleStatus
+value	PersonalEventBuilder::test.registry.ExpectedDecision.values	Allow|Block|NoChange|Pending
+value	PersonalEventBuilder::test.registry.ExpectedDecision.rangeName	_PEB_ExpectedDecision
+value	PersonalEventBuilder::test.registry.StateCheck.values	Snapshot|Unchanged|Pending
+value	PersonalEventBuilder::test.registry.StateCheck.rangeName	_PEB_StateCheck
+value	PersonalEventBuilder::test.registry.Outcome.values	Success|Error|Pending
+value	PersonalEventBuilder::test.registry.Outcome.rangeName	_PEB_Outcome
+value	PersonalEventBuilder::test.registry.ExpectedCode.values	DepartureCreated|ArrivalClosed|DuplicateEvent|OpenDepartureExists|AmbiguousOpenDeparture|OpenDepartureNotFound|ArrivalBeforeDeparture|ExceptionRuleNotDefined|ExportError|NoOpenDeparture|PreviousDepartureClosed|MatchingOpenDeparture
+value	PersonalEventBuilder::test.registry.ExpectedCode.rangeName	_PEB_ExpectedCode
+value	PersonalEventBuilder::test.registry.Operation.values	Вибуття|Прибуття|Custom|PreviewWord
+value	PersonalEventBuilder::test.registry.Operation.rangeName	_PEB_Operation
+value	PersonalEventBuilder::test.registry.Result.values	PASS|FAIL|SKIP|ERROR
+value	PersonalEventBuilder::test.registry.Result.rangeName	_PEB_Result
 value	PersonalEventBuilder::test.progress.OpenMovement	0
 value	PersonalEventBuilder::test.progress.OpenScenarios	0
 value	PersonalEventBuilder::test.progress.OpenAbsence	0
