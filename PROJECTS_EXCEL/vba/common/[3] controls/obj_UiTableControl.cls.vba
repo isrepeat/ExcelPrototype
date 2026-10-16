@@ -36,6 +36,7 @@ Private m_selectionMode As String
 Private m_renderedSchema As String
 Private m_renderedValues As Variant
 Private m_renderedSelection As obj_IUiSelectionSource
+Private m_cellTemplates As obj_UiTableCellTemplates
 
 ' //
 ' // Lifecycle
@@ -169,6 +170,8 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_cellTemplates Is Nothing Then m_cellTemplates.Dispose
+    Set m_cellTemplates = Nothing
     If Not m_renderContext Is Nothing Then m_renderContext.Router.UnregisterSelection m_uiControlBase.ControlName
     Set m_selectionSource = Nothing
     Set m_selectCommand = Nothing
@@ -216,6 +219,7 @@ Public Function TryRefreshValues( _
     On Error GoTo EH
     refreshed = False
     TryRefreshValues = True
+    If m_uiControlBase.ControlNode.SelectNodes("*[local-name()='table.cellTemplates']").Length > 0 Then Exit Function
     If m_targetRange Is Nothing Or m_sourceOverride Is Nothing Then Exit Function
     If Not IsArray(m_renderedValues) Then Exit Function
     If m_sourceOverride.TableCount <> 1 Then Exit Function
@@ -412,6 +416,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim fieldRange As Range
     Dim columnLayout As obj_IUiColumnLayout
     Dim headerPresentation As obj_IUiHeaderPresentation
+    Dim templateDiagnostic As String
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -420,6 +425,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         ex_Core.fn_Diagnostic_WriteLog "UI_TABLE_RENDER_SKIPPED_NO_SOURCE | Source=" & m_sourceRaw
         Exit Function
     End If
+    If Not m_cellTemplates Is Nothing Then m_cellTemplates.Clear
     ReDim buffer(1 To m_targetRange.Rows.Count, 1 To m_targetRange.Columns.Count)
     targetRow = 1
     Set rawTable = m_table
@@ -539,6 +545,15 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_renderedSchema = private_SourceSchema(m_source, rawTable)
     m_renderedValues = buffer
     Set m_renderedSelection = m_selectionSource
+    If m_uiControlBase.ControlNode.SelectNodes("*[local-name()='table.cellTemplates']").Length > 0 Then
+        If m_cellTemplates Is Nothing Then
+            Set m_cellTemplates = New obj_UiTableCellTemplates
+            If Not m_cellTemplates.Initialize(uiRenderContext) Then Err.Raise 5, , "Cannot initialize table cell templates."
+        End If
+        If Not m_cellTemplates.TryRender(m_uiControlBase.ControlNode, rawTable, m_source, m_bodyRange, templateDiagnostic) Then
+            Err.Raise 5, , templateDiagnostic
+        End If
+    End If
     private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.Render", startedAt
 End Function

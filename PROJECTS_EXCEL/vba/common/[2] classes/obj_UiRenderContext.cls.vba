@@ -63,6 +63,23 @@ Public Sub RegisterElement(ByVal name As String, ByVal element As obj_IUiElement
     Set m_elements(name) = element
 End Sub
 
+Public Function TryGetItemArea( _
+    ByVal name As String, _
+    ByVal index As Long, _
+    ByRef area As Range _
+) As Boolean
+    Dim registered As obj_IUiElement
+    Dim element As obj_UiControlElement
+
+    Set area = Nothing
+    If m_elements Is Nothing Then Exit Function
+    If Not m_elements.Exists(name) Then Exit Function
+    Set registered = m_elements(name)
+    If Not TypeOf registered Is obj_UiControlElement Then Exit Function
+    Set element = registered
+    TryGetItemArea = element.TryGetItemArea(index, area)
+End Function
+
 Public Sub UnregisterElement(ByVal name As String, ByVal element As obj_IUiElement)
     Dim registered As obj_IUiElement
 

@@ -142,6 +142,20 @@ Public Function HasSource(ByVal sourceName As String) As Boolean
     HasSource = m_sources.Exists(VBA.Trim$(sourceName))
 End Function
 
+Public Sub RemoveValue( _
+    ByVal sourceName As String, _
+    ByVal keyName As String _
+)
+    Dim sourceMap As Object
+
+    If m_sources Is Nothing Then Exit Sub
+    If Not m_sources.Exists(sourceName) Then Exit Sub
+    Set sourceMap = m_sources(sourceName)
+    If Not sourceMap.Exists(keyName) Then Exit Sub
+    sourceMap.Remove keyName
+    private_NotifyValueChanged sourceName, keyName
+End Sub
+
 Public Function SetValue( _
     ByVal sourceName As String, _
     ByVal keyName As String, _

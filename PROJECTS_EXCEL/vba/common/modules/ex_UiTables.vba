@@ -70,6 +70,10 @@ Public Function fn_CreatePlan( _
     plan.Add "owner", owner
     plan.Add "marker", MARKER_PREFIX & private_Hash(target.Parent.CodeName & "|" & owner)
     plan.Add "smart", mode = "Smart"
+    plan.Add "showAutoFilter", True
+    If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "showAutoFilter")) > 0 Then
+        plan("showAutoFilter") = VBA.CBool(ex_UiElementFactory.fn_Attribute(definition, "showAutoFilter"))
+    End If
     plan.Add "range", Empty
     Set plan("range") = area
     plan.Add "layoutRange", Empty
@@ -105,6 +109,9 @@ Public Sub fn_Prepare( _
     Dim parts As Collection
     Dim part As Range
     Dim smartPlans As New Collection
+    Dim tableFilter As AutoFilter
+    Dim errorNumber As Long
+    Dim errorText As String
 
     On Error GoTo EH_PREPARE
     Set names = VBA.CreateObject("Scripting.Dictionary")
@@ -200,7 +207,10 @@ NextOwnedTable:
                 Set area = plan("range")
                 Set previousRange = table.Range
                 table.ShowTotals = False
-                If table.AutoFilter.FilterMode Then table.AutoFilter.ShowAllData
+                Set tableFilter = table.AutoFilter
+                If Not tableFilter Is Nothing Then
+                    If tableFilter.FilterMode Then tableFilter.ShowAllData
+                End If
                 ' Shrink all old ranges before expanding adjacent tables.
                 Set part = Application.Intersect(table.Range, area)
                 If table.Range.Address <> part.Address Then table.Resize part
@@ -213,6 +223,15 @@ NextOwnedTable:
             End If
         End If
 NextPreparedPlan:
+    Next plan
+    ' Remove merges left by the previous layout before growing relocated tables.
+    For Each plan In smartPlans
+        If Not updateScope Is Nothing Then
+            If Application.Intersect(plan("range"), updateScope) Is Nothing Then GoTo NextUnmergedPlan
+        End If
+        Set area = plan("range")
+        private_UnmergeOutsideTables area
+NextUnmergedPlan:
     Next plan
     For Each plan In smartPlans
         If Not updateScope Is Nothing Then
@@ -229,7 +248,14 @@ NextSmartPlan:
     Next plan
     Exit Sub
 EH_PREPARE:
-    Err.Raise Err.Number, "ex_UiTables.fn_Prepare", Err.Description
+    errorNumber = Err.Number
+    errorText = Err.Description
+    If Not plan Is Nothing Then
+        errorText = errorText & " | Owner=" & VBA.CStr(plan("owner"))
+        Set area = plan("range")
+        errorText = errorText & " | Range=" & area.Address
+    End If
+    Err.Raise errorNumber, "ex_UiTables.fn_Prepare", errorText
 End Sub
 
 Public Sub fn_Apply(ByVal plan As Object)
@@ -255,6 +281,7 @@ Public Sub fn_Apply(ByVal plan As Object)
     table.TableStyle = ""
     table.ShowTotals = False
     table.ShowHeaders = True
+    table.ShowAutoFilter = VBA.CBool(plan("showAutoFilter"))
 End Sub
 
 Public Function fn_TryEnsureSmart( _
@@ -301,6 +328,7 @@ Public Function fn_TryEnsureSmart( _
     plan.Add "owner", owner
     plan.Add "marker", MARKER_PREFIX & private_Hash(sheet.CodeName & "|" & owner)
     plan.Add "smart", True
+    plan.Add "showAutoFilter", True
     plan.Add "range", Empty
     Set plan("range") = tableRange
     automaticName = VBA.Len(excelTableName) = 0
@@ -403,6 +431,32 @@ End Sub
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
+Private Sub private_UnmergeOutsideTables(ByVal area As Range)
+    Dim parts As Collection
+    Dim nextParts As Collection
+    Dim part As Range
+    Dim overlap As Range
+    Dim table As ListObject
+
+    Set parts = New Collection
+    parts.Add area
+    For Each table In area.Parent.ListObjects
+        Set nextParts = New Collection
+        For Each part In parts
+            Set overlap = Application.Intersect(part, table.Range)
+            If overlap Is Nothing Then
+                nextParts.Add part
+            Else
+                private_Subtract part, overlap, nextParts
+            End If
+        Next part
+        Set parts = nextParts
+    Next table
+    For Each part In parts
+        part.UnMerge
+    Next part
+End Sub
+
 Private Sub private_Subtract( _
     ByVal area As Range, _
     ByVal cut As Range, _
