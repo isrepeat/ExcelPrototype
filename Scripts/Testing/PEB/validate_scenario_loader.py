@@ -175,9 +175,9 @@ def source_checks(settings):
     service = (folder / "obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
     assert '"export.Movement." & mode & ".destinationField"' in service
     assert 'values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))' in service
-    assert "Hospital" in settings["export.Movement.DepartureTreatment.required"].split("|")
+    assert "HospitalShortName" in settings["export.Movement.ToHospital.required"].split("|")
     for mode in {runtime_mode(step, settings) for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"]}:
-        assert settings[f"export.Movement.{mode}.destinationField"] == ("Hospital" if mode.endswith("Treatment") else "Destination")
+        assert settings[f"export.Movement.{mode}.destinationField"] == ("HospitalShortName" if mode in ("ToHospital", "FromHospital") else "Destination")
     for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_TestUi.cls.vba"):
         text = (folder / filename).read_text(encoding="utf-8-sig")
         procedures = re.findall(r"(?im)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)", text)
@@ -227,7 +227,7 @@ def directory_checks(tables, settings):
                        if sheet.cell(row, key_column).value == step[header]]
             if expected[step["StepId"]]["Outcome"] == "Success":
                 assert len(matches) == 1 and matches[0], f"Missing preview lookup: {step['StepId']}/{prefix}"
-            elif "Treatment.lookups" in prefix:
+            elif ".ToHospital.lookups" in prefix or ".FromHospital.lookups" in prefix:
                 assert not matches, f"Negative hospital fixture unexpectedly resolves: {step['StepId']}"
     print("PASS: native Movement schema, TEST routing and all Word fixture directory dependencies.")
 

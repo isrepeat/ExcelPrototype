@@ -264,28 +264,28 @@ Private Function private_TryRegisterCommands() As Boolean
         If Not uiBindingContext.SetObject("Commands", VBA.CStr(orderCommand), lookupCommand) Then Exit Function
     Next orderCommand
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "ArrivalTreatmentHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "ArrivalTreatment", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "FromHospitalHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromHospital", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "ArrivalAnnualLeaveHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "ArrivalAnnualLeave", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "FromAnnualMainVacationHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromAnnualMainVacation", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "ArrivalMedicalLeaveHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "ArrivalMedicalLeave", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "FromVacationForCuringHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromVacationForCuring", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "ArrivalFamilyLeaveHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "ArrivalFamilyLeave", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "FromVacationForFamilyHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromVacationForFamily", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "DepartureTreatmentHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "DepartureTreatment", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "ToHospitalHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToHospital", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "DepartureAnnualLeaveHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "DepartureAnnualLeave", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "ToAnnualMainVacationHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToAnnualMainVacation", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "DepartureMedicalLeaveHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "DepartureMedicalLeave", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "ToVacationForCuringHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToVacationForCuring", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
-    If Not lookupCommand.Initialize(m_controller, "DepartureFamilyLeaveHandler") Then Exit Function
-    If Not uiBindingContext.SetObject("Commands", "DepartureFamilyLeave", lookupCommand) Then Exit Function
+    If Not lookupCommand.Initialize(m_controller, "ToVacationForFamilyHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToVacationForFamily", lookupCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function
