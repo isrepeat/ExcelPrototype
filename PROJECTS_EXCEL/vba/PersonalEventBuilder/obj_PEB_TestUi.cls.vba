@@ -26,6 +26,7 @@ Private m_baseRow As Long
 Private m_resultRow As Long
 Private m_endRow As Long
 Private m_completed As Long
+Private m_phasePercent As Double
 Private m_total As Long
 Private m_pass As Long
 Private m_fail As Long
@@ -261,6 +262,7 @@ Public Sub RunSelected()
     m_running = True
     m_stop = False
     m_completed = 0
+    m_phasePercent = 0
     m_total = 0
     For Each scenario In m_catalog
         If m_runSelection.Exists(scenario("Id")) Then m_total = m_total + scenario("Steps").Count
@@ -294,7 +296,11 @@ Public Sub RequestStop()
 End Sub
 
 Public Sub ReportPhase(ByVal key As String)
+    Dim percent As Double
+
     If Not m_running Then Exit Sub
+    percent = 100# * ex_PEB_Export.fn_Count("test.progress." & key, 8) / ex_PEB_Export.fn_Count("test.progress.stageCount", 8)
+    If percent > m_phasePercent Then m_phasePercent = percent
     If m_stop Then
         private_Progress ex_PEB_Export.fn_Config("text.TestsStopping")
     Else
@@ -323,6 +329,7 @@ Public Function Advance() As Boolean
     If m_stop Then m_runner.RequestStop
     success = m_runner.TryAdvance(report, diagnostic)
     If Not report Is Nothing Then Me.PublishResult report
+    If m_runner.Completed > m_completed Then m_phasePercent = 0
     m_completed = m_runner.Completed
     private_Progress ex_PEB_Export.fn_Config("text.TestsRunning")
     If Not success Then GoTo Failed
@@ -404,7 +411,7 @@ Private Sub private_Progress(ByVal state As String)
     Dim percent As Long
     Dim style As String
 
-    If m_total > 0 Then percent = VBA.CLng(VBA.Fix(100# * m_completed / m_total))
+    If m_total > 0 Then percent = VBA.CLng(VBA.Fix((100# * m_completed + m_phasePercent) / m_total))
     m_status = ex_PEB_Export.fn_Config("text.TestsProgress")
     m_status = VBA.Replace$(m_status, "{percent}", VBA.CStr(percent))
     m_status = VBA.Replace$(m_status, "{completed}", VBA.CStr(m_completed))
