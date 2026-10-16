@@ -45,11 +45,15 @@ Public Function fn_ReadCatalog( _
     Dim index As Long
     Dim row As Long
     Dim started As Double
+    Dim stepIds As Object
+    Dim stepId As String
+    Dim action As String
 
     started = VBA.Timer
     On Error GoTo Failed
     Set catalog = New Collection
     Set cases = VBA.CreateObject("Scripting.Dictionary")
+    Set stepIds = VBA.CreateObject("Scripting.Dictionary")
     Set executor = New obj_AdoQueryExecutor
     If Not executor.Initialize() Then Err.Raise 5, , "Cannot initialize catalog reader."
     For Each kind In VBA.Array("cases", "steps")
@@ -68,6 +72,8 @@ Public Function fn_ReadCatalog( _
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.catalogEvent")
         Else
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.step")
+            query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.stepId")
+            query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.action")
         End If
         If Not executor.TryExecute(source, query, data, diagnostic) Then GoTo CleanExit
         For row = 1 To data.RowCount
@@ -95,7 +101,12 @@ Public Function fn_ReadCatalog( _
                     Set numbers = cases(id)("Numbers")
                     number = VBA.CStr(VBA.CLng(number))
                     If numbers.Exists(number) Then Err.Raise 5, , "Duplicate scenario step: " & id
-                    numbers.Add number, True
+                    stepId = ex_PEB_Export.fn_Text(data.ValueAt(row, 3))
+                    If VBA.Len(stepId) = 0 Or stepIds.Exists(stepId) Then Err.Raise 5, , "Missing or duplicate StepId: " & stepId
+                    action = ex_PEB_Export.fn_Text(data.ValueAt(row, 4))
+                    If action <> "ExportMovement" And action <> "PreviewWord" Then Err.Raise 5, , "Unknown test action: " & stepId
+                    stepIds.Add stepId, True
+                    numbers.Add number, stepId
                 End If
             End If
         Next row
@@ -112,13 +123,13 @@ Public Function fn_ReadCatalog( _
         Set steps = New Collection
         For index = 1 To numbers.Count
             If Not numbers.Exists(VBA.CStr(index)) Then Err.Raise 5, , "Scenario steps are not consecutive: " & item("Id")
-            steps.Add index
+            steps.Add numbers(VBA.CStr(index))
         Next index
         Set item("Steps") = steps
         item.Remove "Numbers"
     Next item
     Set ordered = New Collection
-    For Each kind In VBA.Array("DepartureType", "ArrivalType", "TestCustomOperation")
+    For Each kind In VBA.Array("DepartureType", "ArrivalType", "TestCustomOperation", "TestPreviewOperation")
         For Each item In catalog
             If item("Operation") = ex_PEB_Export.fn_Config("text." & kind) Then ordered.Add item
         Next item
