@@ -195,7 +195,7 @@ def directory_checks(tables, settings):
     workbook_root = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
     movement = openpyxl.load_workbook(workbook_root / settings["export.Movement.path"])
     target = movement[settings["export.Movement.sheet"]].tables[settings["export.Movement.table"]]
-    assert [column.name for column in target.tableColumns] == tables["tbTestHistory"]["headers"][3:]
+    assert [column.name for column in target.tableColumns] == [header for header in tables["tbTestHistory"]["headers"] if header not in ("ScenarioId", "RowId", "TargetTable")]
     assert settings["environment.name"] == "TEST"
     test_root = (workbook_root / settings["test.scenarios.root"]).resolve()
     for key in ("export.Movement.path", "test.scenarios.path", "lookup.Absence.source.path"):
