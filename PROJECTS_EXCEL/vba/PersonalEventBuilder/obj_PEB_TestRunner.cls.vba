@@ -192,13 +192,13 @@ Public Function TryAdvance( _
     If m_completed + 1 = m_queue.Count Then report("RunState") = "Completed"
     If m_cancelled Then report("RunState") = "Cancelled"
     If m_fatal Then report("RunState") = "Aborted"
-    ex_PEB_Testing.fn_ReportPhase "Archive"
     If Not m_session.TryArchive(report, m_before, m_after, testStep("Input"), m_values, archiveDiagnostic) Then
         report("Result") = "ERROR"
         report("Details") = report("Details") & " " & archiveDiagnostic
         diagnostic = archiveDiagnostic
         Exit Function
     End If
+    ex_PEB_Testing.fn_ReportPhase "Archive"
     m_completed = m_completed + 1
     TryAdvance = True
     Exit Function
@@ -265,13 +265,13 @@ Private Function private_RunStep( _
 
     On Error GoTo EH
     started = VBA.Timer
-    ex_PEB_Testing.fn_ReportPhase "Prepare"
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
     If Not m_session.TryPrepare(scenarioId, testStep("Id"), testStep("Id") = 1, modeId, updates, status, diagnostic) Then GoTo Cleanup
+    ex_PEB_Testing.fn_ReportPhase "Prepare"
     ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
-    ex_PEB_Testing.fn_ReportPhase "Snapshot"
     If Not m_session.TrySnapshot(VBA.CStr(updates("Form.PersonId")), before, diagnostic) Then GoTo Cleanup
+    ex_PEB_Testing.fn_ReportPhase "Snapshot"
     ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
     Set binding = New obj_UiBindingContext
@@ -288,19 +288,21 @@ Private Function private_RunStep( _
     If Not binding.SetValue("Form", "EventType", ex_PEB_Export.fn_Config("text." & direction & "Type")) Then Err.Raise 5, , "Cannot set test event type."
     If Not binding.SetValue("Form", "ModeForm", ex_PEB_Export.fn_Config("modes." & modeId & ".form")) Then Err.Raise 5, , "Cannot set test form layout."
     If Not m_exportService.TryPrepare(binding, "Movement", values, diagnostic) Then GoTo Cleanup
+    ex_PEB_Testing.fn_ReportPhase "Inputs"
     If Not m_session.TryCommit(diagnostic, False) Then GoTo Cleanup
     If Not m_session.TrySnapshot(VBA.CStr(values("PersonId")), before, diagnostic) Then GoTo Cleanup
+    ex_PEB_Testing.fn_ReportPhase "Commit"
     ex_PEB_Testing.fn_PumpUi
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
 
     ' Exercise the same exporter as the PEB button, in the validated private TEST workbook.
     Set exporter = New obj_PEB_ExptrMovement
     If Not exporter.Initialize() Then Err.Raise 5, , "Cannot initialize the Movement exporter."
-    ex_PEB_Testing.fn_ReportPhase "Export"
     If ex_PEB_Testing.fn_StopRequested() Then GoTo Cancelled
     success = exporter.TryExport(values, exportDiagnostic, actualCode, m_session.TargetWorkbook)
-    ex_PEB_Testing.fn_ReportPhase "Verify"
+    ex_PEB_Testing.fn_ReportPhase "Export"
     If Not m_session.TrySnapshot(VBA.CStr(values("PersonId")), after, diagnostic, True) Then GoTo Cleanup
+    ex_PEB_Testing.fn_ReportPhase "AfterSnapshot"
     unchanged = private_Unchanged(before, after)
     actualDecision = "Block"
     If success Then
@@ -326,6 +328,7 @@ Private Function private_RunStep( _
     report("Details") = exportDiagnostic
     If VBA.Len(checkDiagnostic) > 0 Then report("Details") = report("Details") & " " & checkDiagnostic
     If Not assertion And VBA.Len(report("Details")) = 0 Then report("Details") = ex_PEB_Export.fn_Config("text.TestsMismatch")
+    ex_PEB_Testing.fn_ReportPhase "Verify"
     private_RunStep = True
     GoTo Cleanup
 Cancelled:
