@@ -233,6 +233,8 @@ Private Function private_Report( _
     report("Expected") = testStep("Expected")
     report("ExpectedCode") = private_ExpectedCode(VBA.CStr(testStep("Code")))
     report("ExpectedOpen") = testStep("OpenCount")
+    report("PreviewText") = ex_PEB_Export.fn_Config("text.TestPreviewNotRun")
+    report("PreviewLink") = ex_PEB_Export.fn_Config("text.TestPreviewLink")
     Set private_Report = report
 End Function
 
@@ -246,6 +248,8 @@ Private Function private_RunStep( _
     Dim exporter As obj_PEB_ExptrMovement
     Dim updates As Object
     Dim values As Object
+    Dim previewValues As Object
+    Dim previewDiagnostic As String
     Dim before As Object
     Dim after As Object
     Dim key As Variant
@@ -289,6 +293,11 @@ Private Function private_RunStep( _
     If Not binding.SetValue("Form", "ModeForm", ex_PEB_Export.fn_Config("modes." & modeId & ".form")) Then Err.Raise 5, , "Cannot set test form layout."
     If Not m_exportService.TryPrepare(binding, "Movement", values, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Inputs"
+    If m_exportService.TryPrepare(binding, "Word", previewValues, previewDiagnostic, False) Then
+        report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText")), VBA.vbCrLf, VBA.vbLf)
+    Else
+        report("PreviewText") = ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & previewDiagnostic
+    End If
     If Not m_session.TryCommit(diagnostic, False) Then GoTo Cleanup
     If Not m_session.TrySnapshot(VBA.CStr(values("PersonId")), before, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Commit"

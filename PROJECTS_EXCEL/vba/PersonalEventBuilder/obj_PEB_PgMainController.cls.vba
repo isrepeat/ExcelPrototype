@@ -701,6 +701,10 @@ Public Function OpenTestsHandler() As Boolean
     OpenTestsHandler = ex_PEB_Testing.fn_Open()
 End Function
 
+Public Function TestPreviewHandler(ByVal item As Object) As Boolean
+    TestPreviewHandler = ex_PEB_Testing.fn_NavigatePreview(item)
+End Function
+
 Public Function CancelTestsHandler() As Boolean
     ex_PEB_Testing.fn_RequestStop
     CancelTestsHandler = True

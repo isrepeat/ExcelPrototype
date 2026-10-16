@@ -258,6 +258,11 @@ EH:
     Resume CleanExit
 End Sub
 
+Public Function fn_NavigatePreview(ByVal item As Object) As Boolean
+    If m_testUi Is Nothing Then Exit Function
+    fn_NavigatePreview = m_testUi.NavigatePreview(item)
+End Function
+
 Public Sub fn_Click()
     Dim runtimeContext As Object
     Dim caller As String

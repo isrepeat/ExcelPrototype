@@ -153,7 +153,6 @@ Public Function TryPrepare( _
     Dim field As Variant
     Dim header As String
     Dim value As Variant
-    Dim defaults As Object
     Dim stepColumns As Object
     Dim column As Object
     Dim prefix As String
@@ -185,21 +184,14 @@ Public Function TryPrepare( _
     prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".direction")
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
-    Set defaults = VBA.CreateObject("Scripting.Dictionary")
     Set stepColumns = VBA.CreateObject("Scripting.Dictionary")
     For Each column In steps.ListColumns
         stepColumns.Add column.Name, column.Index
     Next column
-    For Each mapping In VBA.Split(ex_PEB_Export.fn_Config("test.scenarios.defaults"), "|")
-        parts = VBA.Split(mapping, "=", 2)
-        If UBound(parts) <> 1 Then Err.Raise 5, , "Invalid scenario default: " & mapping
-        defaults.Add VBA.CStr(parts(0)), parts(1)
-    Next mapping
-    ' Clear every export input, then apply the configured step projection and explicit defaults.
+    ' Clear every export input, then read all scenario values from the fixture tables.
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
         If field <> "ModeId" And field <> "ModeDirection" And field <> "ModeForm" And field <> "EventType" Then
             value = VBA.vbNullString
-            If defaults.Exists(field) Then value = defaults(field)
             updates("Form." & field) = private_FormText(value, VBA.CStr(field))
         End If
     Next field
