@@ -12,7 +12,6 @@ Option Explicit
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
-Private Const COMMON_STYLE_CATALOG_FILE_NAME As String = "CommonControlStyles.xaml"
 Private Const SHEET_SCOPE_MIN_COLUMN As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private m_inlineCaptions As Object
@@ -64,9 +63,6 @@ Public Sub BeginPage( _
     ByVal pageDocument As Object, _
     ByVal uiFolderPath As String _
 )
-    Dim fileSystem As Object
-    Dim commonStyleDocument As Object
-    Dim commonStylePath As String
     Dim startedAt As Double
 
     startedAt = VBA.Timer
@@ -74,20 +70,7 @@ Public Sub BeginPage( _
     m_stylesByName.CompareMode = VBA.vbTextCompare
     Set m_targetWorksheet = targetWorksheet
     Set m_pageDocument = pageDocument
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    commonStylePath = uiFolderPath & "\" & COMMON_STYLE_CATALOG_FILE_NAME
-    If fileSystem.FileExists(commonStylePath) Then
-        ex_Core.fn_Diagnostic_WriteLog "STYLE_CATALOG_LOAD_STARTED | Path=" & commonStylePath
-        Set commonStyleDocument = VBA.CreateObject("Msxml2.DOMDocument.6.0")
-        commonStyleDocument.async = False
-        If commonStyleDocument.Load(commonStylePath) Then
-            private_RegisterStyleNodes commonStyleDocument
-            ex_Core.fn_Diagnostic_WriteLog "STYLE_CATALOG_LOAD_COMPLETED | Path=" & commonStylePath
-        Else
-            ex_Core.fn_Diagnostic_WriteLog "STYLE_CATALOG_LOAD_ERROR | Path=" & _
-                commonStylePath & " | Description=" & commonStyleDocument.parseError.reason
-        End If
-    End If
+    private_LoadStyleSources pageDocument, uiFolderPath
     private_RegisterStyleNodes pageDocument
     Set m_pipeline = New obj_UiStylePipeline
     If Not m_pipeline.Initialize(pageDocument) Then ex_UiStyleDiagnostics.fn_Raise "Initialize"
@@ -492,6 +475,61 @@ End Sub
 ' //
 ' // Private
 ' //
+Private Sub private_LoadStyleSources( _
+    ByVal pageDocument As Object, _
+    ByVal uiFolderPath As String _
+)
+    Dim fileSystem As Object
+    Dim loadedPaths As Object
+    Dim styleDocument As Object
+    Dim root As Object
+    Dim versionNode As Object
+    Dim source As Variant
+    Dim sources As String
+    Dim path As String
+    Dim rootName As String
+
+    sources = VBA.Trim$(private_ReadAttribute(pageDocument.documentElement, "styleSources"))
+    If VBA.Len(sources) = 0 Then Exit Sub
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    Set loadedPaths = VBA.CreateObject("Scripting.Dictionary")
+    loadedPaths.CompareMode = VBA.vbTextCompare
+    For Each source In VBA.Split(sources, ";")
+        path = VBA.Trim$(VBA.CStr(source))
+        If VBA.Len(path) = 0 Then Err.Raise 5, , "Empty file path in page styleSources."
+        path = VBA.Replace$(path, "/", "\")
+        If VBA.Len(fileSystem.GetDriveName(path)) = 0 And VBA.Left$(path, 1) <> "\" Then
+            path = fileSystem.BuildPath(uiFolderPath, path)
+        End If
+        path = fileSystem.GetAbsolutePathName(path)
+        If loadedPaths.Exists(path) Then Err.Raise 5, , "Duplicate page style source: " & path
+        loadedPaths.Add path, True
+        If Not fileSystem.FileExists(path) Then Err.Raise 53, , "Page style source file not found: " & path
+
+        ex_Core.fn_Diagnostic_WriteLog "STYLE_CATALOG_LOAD_STARTED | Path=" & path
+        Set styleDocument = VBA.CreateObject("Msxml2.DOMDocument.6.0")
+        styleDocument.async = False
+        styleDocument.resolveExternals = False
+        styleDocument.validateOnParse = False
+        styleDocument.setProperty "ProhibitDTD", True
+        If Not styleDocument.Load(path) Then
+            Err.Raise 5, , "Cannot load page style source: " & path & " | " & styleDocument.parseError.reason
+        End If
+        Set root = styleDocument.documentElement
+        If root Is Nothing Then Err.Raise 5, , "Page style source has no root element: " & path
+        rootName = VBA.CStr(root.baseName)
+        If root.namespaceURI <> "urn:excelprototype:profiles" Or (rootName <> "styleCatalog" And rootName <> "styles") Then
+            Err.Raise 5, , "Page style source requires a styleCatalog or styles root in the profiles namespace: " & path
+        End If
+        Set versionNode = root.getAttributeNode("version")
+        If Not versionNode Is Nothing Then
+            If VBA.CStr(versionNode.Text) <> "1" Then Err.Raise 5, , "Unsupported page style source version: " & path
+        End If
+        private_RegisterStyleNodes styleDocument
+        ex_Core.fn_Diagnostic_WriteLog "STYLE_CATALOG_LOAD_COMPLETED | Path=" & path
+    Next source
+End Sub
+
 Private Sub private_RegisterStyleNodes(ByVal styleDocument As Object)
     Dim styleNode As Object
     Dim styleName As String

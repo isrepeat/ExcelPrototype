@@ -120,7 +120,7 @@ Public Function TryBegin( _
         End If
     Next scenario
     For Each key In selected.Keys
-        If Not known.Exists(key) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestsRefreshRequired")
+        If Not known.Exists(key) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestsReopenRequired")
     Next key
     TryBegin = True
     Exit Function

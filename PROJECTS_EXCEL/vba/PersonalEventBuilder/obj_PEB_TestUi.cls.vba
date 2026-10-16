@@ -139,10 +139,6 @@ Public Function OpenPage() As Boolean
     For index = m_sheet.Shapes.Count To 1 Step -1
         If VBA.Left$(m_sheet.Shapes(index).Name, 5) = "pebt_" Then m_sheet.Shapes(index).Delete
     Next index
-    private_Button "All", m_baseRow, 2, 2, "TestsSelectAll"
-    private_Button "None", m_baseRow, 4, 2, "TestsSelectNone"
-    private_Button "Run", m_baseRow, 6, 2, "TestsRun"
-    private_Button "Stop", m_baseRow, 8, 2, "TestsStop"
     captions = VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogCaptions"), "|")
     If UBound(captions) <> 5 Then Err.Raise 5, , "Test catalog captions must contain six columns."
     Set rawTable = New obj_UiRawTable
@@ -165,7 +161,7 @@ Public Function OpenPage() As Boolean
     If Not context.BindingContext.SetObject("Data", "TestCatalog", rawTable) Then Err.Raise 5, , "Cannot bind scenario table data."
     context.MarkDirty "TestCatalog", True
     If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
-    rowIndex = m_baseRow + 4
+    rowIndex = m_baseRow + 5
     For index = 1 To m_catalog.Count
         Set scenario = m_catalog(index)
         private_CreateCheckbox index, rowIndex, m_selected.Exists(scenario("Id"))
@@ -489,13 +485,6 @@ Private Sub private_CreateCheckbox( _
     If Not control.Measure(rows, columns, diagnostic) Then Err.Raise 5, , diagnostic
     If Not control.Arrange(row, 2, diagnostic) Then Err.Raise 5, , diagnostic
     If Not control.Render(diagnostic) Then Err.Raise 5, , diagnostic
-    With m_sheet.Shapes("chk_pebt_C" & VBA.CStr(index))
-        .Fill.Visible = msoTrue
-        .Fill.Solid
-        .Fill.ForeColor.RGB = m_sheet.Cells(row, 2).Interior.Color
-        .Fill.Transparency = VBA.CSng(ex_PEB_Export.fn_Count("test.ui.checkboxTransparency")) / 100!
-        .Line.Visible = msoFalse
-    End With
 End Sub
 
 Private Sub private_RefreshCheckboxes()
@@ -532,24 +521,6 @@ Private Sub private_ClearCheckboxes()
     Set m_checkboxes = Nothing
 End Sub
 
-
-Private Sub private_Button( _
-    ByVal name As String, _
-    ByVal row As Long, _
-    ByVal column As Long, _
-    ByVal span As Long, _
-    ByVal caption As String _
-)
-    Dim area As Range
-    Dim shape As Shape
-
-    Set area = m_sheet.Cells(row, column).Resize(1, span)
-    Set shape = m_sheet.Shapes.AddShape(msoShapeRectangle, area.Left, area.Top, area.Width, area.Height)
-    shape.Name = "pebt_" & name
-    shape.TextFrame2.TextRange.Text = ex_PEB_Export.fn_Config("text." & caption)
-    shape.OnAction = "'" & VBA.Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_PEB_Testing.fn_Click"
-    shape.Placement = xlMoveAndSize
-End Sub
 
 Private Sub private_DrawResults()
     Dim context As obj_UiRenderContext

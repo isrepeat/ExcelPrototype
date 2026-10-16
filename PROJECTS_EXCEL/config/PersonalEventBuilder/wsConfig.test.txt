@@ -82,7 +82,6 @@ value	PersonalEventBuilder::text.TestsSelectAll	Вибрати всі
 value	PersonalEventBuilder::text.TestsSelectNone	Зняти вибір
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
 value	PersonalEventBuilder::text.TestsStop	Зупинити
-value	PersonalEventBuilder::text.TestsRefresh	Оновити список
 value	PersonalEventBuilder::text.TestsResults	Результати запусків
 value	PersonalEventBuilder::text.TestsRunning	Тести виконуються. Зупинка можлива між кроками.
 value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
@@ -103,7 +102,7 @@ value	PersonalEventBuilder::text.TestsPendingRule	Очікуване прави�
 value	PersonalEventBuilder::text.TestsUnexpectedMutation	Відхилена операція змінила дані ТВ.
 value	PersonalEventBuilder::text.TestsMismatch	Рішення, код або кількість відкритих подій не відповідають очікуванню.
 value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків ТВ або записані поля не відповідають операції.
-value	PersonalEventBuilder::text.TestsRefreshRequired	Оновіть список сценаріїв на сторінці тестування.
+value	PersonalEventBuilder::text.TestsReopenRequired	Склад сценаріїв змінився. Повторно відкрийте панель тестування.
 value	PersonalEventBuilder::text.TestsSelectRequired	Позначте хоча б один сценарій.
 value	PersonalEventBuilder::test.scenarios.headers.name	Назва
 value	PersonalEventBuilder::test.scenarios.headers.catalogOperation	Операція
@@ -117,8 +116,6 @@ value	PersonalEventBuilder::test.runner.codeAliases	NoOpenDeparture=DepartureCre
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
 value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Сценарій|Операція|Подія / сценарій|Кроків|Правило
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
-value	PersonalEventBuilder::test.ui.rowHeight	36
-value	PersonalEventBuilder::test.ui.checkboxTransparency	95
 value	PersonalEventBuilder::text.TestScenarioItems	S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,W01,W02,W03,W04,W05,W06,W07,W08,W09
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
 value	PersonalEventBuilder::text.NextTest	Наступний крок
