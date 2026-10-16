@@ -62,6 +62,9 @@ def validate(tables, settings):
     word = unique(tables["tbExpectedWord"]["rows"], "StepId")
     snapshots = tables["tbExpectedMovementRows"]["rows"]
     assert not {"ExpectedDecision", "ExpectedCode", "ExpectedOpenCount"}.intersection(tables["tbTestSteps"]["headers"])
+    assert "PersonPosition" not in tables["tbTestSteps"]["headers"]
+    assert set(tables["tbTestSteps"]["headers"]) == set(settings["test.scenarios.stepHeaders"].split("|"))
+    assert "Цільова таблиця" not in tables["tbTestScenarios"]["headers"]
     for kind in ("cases", "steps", "history", "absence", "expectedMovement", "expectedRows", "expectedWord"):
         table = tables[settings[f"test.scenarios.{kind}.table"]]
         assert table["sheet"] == settings[f"test.scenarios.{kind}.sheet"], f"Wrong sheet for {kind}"
@@ -82,11 +85,11 @@ def validate(tables, settings):
         assert any(row["ScenarioId"] == scenario_id for row in tables["tbTestAbsence"]["rows"]), f"Missing Absence fixture: {scenario_id}"
     for step_id, step in steps.items():
         assert step["ScenarioId"] in cases, f"Unknown scenario: {step_id}"
-        assert step["ІПН"] == cases[step["ScenarioId"]]["ІПН"], f"Wrong participant: {step_id}"
+        assert step["PersonId"] == cases[step["ScenarioId"]]["ІПН"], f"Wrong participant: {step_id}"
         assert step["Action"] in ("ExportMovement", "PreviewWord"), f"Unknown action: {step_id}"
         expected = movement if step["Action"] == "ExportMovement" else word
         assert step_id in expected, f"Missing expectation: {step_id}"
-        assert step["Подія"] == settings[f"export.events.{step['ModeId']}"]
+        assert settings[f"export.events.{step['ModeId']}"]
     for step_id, expectation in movement.items():
         assert step_id in steps and steps[step_id]["Action"] == "ExportMovement", f"Orphan Movement expectation: {step_id}"
         decision = expectation["ExpectedDecision"]
@@ -100,7 +103,7 @@ def validate(tables, settings):
             assert len({row["RecordId"] for row in rows}) == len(rows)
             keys = settings["test.expected.rowKeys"].split("|")
             assert len({tuple(row[field] for field in keys) for row in rows}) == len(rows), f"Duplicate snapshot identity: {step_id}"
-            assert all(row["ІПН"] == steps[step_id]["ІПН"] for row in rows)
+            assert all(row["ІПН"] == steps[step_id]["PersonId"] for row in rows)
             assert sum(row["Прибуття"] is None for row in rows) == expectation["ExpectedOpenCount"], f"Wrong expected open count: {step_id}"
         else:
             assert not rows, f"Unexpected snapshot: {step_id}"
@@ -158,6 +161,12 @@ def source_checks(settings):
     assert 'VBA.StrComp(expected, actual, VBA.vbBinaryCompare)' in runner
     assert 'testStep("Order") = 1' in runner and 'testStep("Id") = 1' not in runner
     assert 'test.scenarios.headers.stepId' in catalog and 'TestPreviewOperation' in catalog
+    service = (folder / "obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
+    assert '"export.Movement." & mode & ".destinationField"' in service
+    assert 'values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))' in service
+    assert "Hospital" in settings["export.Movement.DepartureTreatment.required"].split("|")
+    for mode in {step["ModeId"] for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"]}:
+        assert settings[f"export.Movement.{mode}.destinationField"] == ("Hospital" if mode.endswith("Treatment") else "Destination")
     for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_TestUi.cls.vba"):
         text = (folder / filename).read_text(encoding="utf-8-sig")
         procedures = re.findall(r"(?im)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)", text)
@@ -193,7 +202,7 @@ def directory_checks(tables, settings):
             input_field = settings[f"{prefix}.input"]
             if input_field.startswith("Report"):
                 continue
-            header = {"PersonId": "ІПН"}.get(input_field, input_field)
+            header = input_field
             lookup_path = (workbook_root / settings[f"{prefix}.path"]).resolve()
             if lookup_path not in books:
                 books[lookup_path] = openpyxl.load_workbook(lookup_path, data_only=True)
@@ -217,8 +226,11 @@ def preservation_check(path):
     for name in ("Тест_Історія",):
         assert list(before[name].values) == list(after[name].values), f"History changed: {name}"
     for name in ("Тест_Сценарії", "Тест_ЄЖОС"):
+        omitted = {"Цільова таблиця"} if name == "Тест_Сценарії" else set()
+        old_headers = [cell.value for cell in before[name][1]]
+        included = [index for index, header in enumerate(old_headers) if header not in omitted]
         for old_row, new_row in zip(before[name].values, after[name].values):
-            assert old_row == new_row, f"Original inputs changed: {name}"
+            assert tuple(old_row[index] for index in included) == new_row, f"Original inputs changed: {name}"
     for name in ("Тест_Результати", "Тест_Записи", "Тест_ВхідніДані"):
         old_sheet = before[name]
         new_sheet = after[name]

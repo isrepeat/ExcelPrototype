@@ -132,15 +132,14 @@ value	PersonalEventBuilder::test.expected.wordHeaders	StepId|Outcome|ExpectedTex
 value	PersonalEventBuilder::test.expected.rowKeys	ІПН|Подія|Вибуття|Вибуття.Наказ
 value	PersonalEventBuilder::text.TestsFieldMismatch	{step} / {record} / {field}: очікувалось «{expected}», отримано «{actual}».
 value	PersonalEventBuilder::test.scenarios.headers.personId	ІПН
-value	PersonalEventBuilder::test.scenarios.headers.target	Цільова таблиця
+value	PersonalEventBuilder::test.scenarios.headers.stepPersonId	PersonId
 value	PersonalEventBuilder::test.scenarios.headers.historyTarget	TargetTable
 value	PersonalEventBuilder::test.scenarios.headers.mode	ModeId
-value	PersonalEventBuilder::test.scenarios.headers.event	Подія
 value	PersonalEventBuilder::test.scenarios.headers.expected	ExpectedDecision
 value	PersonalEventBuilder::test.scenarios.headers.code	ExpectedCode
-value	PersonalEventBuilder::test.scenarios.fields	PersonId=ІПН|PersonName=ПІБ|EventDate=EventDate|AcceptedOrderNumber=AcceptedOrderNumber|Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName
+value	PersonalEventBuilder::test.scenarios.fields	Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName|PersonRank=PersonRank|PersonName=PersonName|PersonId=PersonId|PositionCode=PositionCode|ReportRank=ReportRank|ReportName=ReportName|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|Document=Document|DocumentDate=DocumentDate|DocumentNumber=DocumentNumber|EventDate=EventDate|TicketNumber=TicketNumber|TicketDate=TicketDate|AcceptedOrderNumber=AcceptedOrderNumber|AcceptedOrderDate=AcceptedOrderDate
+value	PersonalEventBuilder::test.scenarios.stepHeaders	ScenarioId|StepId|StepOrder|Action|ModeId|AcceptedOrderNumber|AcceptedOrderDate|Destination|Hospital|HospitalShortName|PersonRank|PersonName|PersonId|PositionCode|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|Document|DocumentDate|DocumentNumber|EventDate|TicketNumber|TicketDate|Notes
 value	PersonalEventBuilder::test.scenarios.dateFields	EventDate|AcceptedOrderDate|IncomingDate|DocumentDate|TicketDate
-value	PersonalEventBuilder::test.scenarios.optionalFields	AcceptedOrderDate|PersonRank|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|TicketNumber|TicketDate|Document|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
 value	ThisWorkbook::config.source	../../config/PersonalEventBuilder/wsConfig.txt
 value	PersonalEventBuilder::environment.name	PROD
@@ -616,41 +615,49 @@ value	PersonalEventBuilder::export.events.ArrivalTreatment	Лікування
 value	PersonalEventBuilder::export.Word.ArrivalTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.ArrivalTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.ArrivalTreatment.profile	Arrival
+value	PersonalEventBuilder::export.Movement.ArrivalTreatment.destinationField	Hospital
 value	PersonalEventBuilder::export.Word.ArrivalTreatment.templateName	FromHospital
 value	PersonalEventBuilder::export.events.ArrivalAnnualLeave	Щорічна відпустка
 value	PersonalEventBuilder::export.Word.ArrivalAnnualLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.ArrivalAnnualLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.ArrivalAnnualLeave.profile	Arrival
+value	PersonalEventBuilder::export.Movement.ArrivalAnnualLeave.destinationField	Destination
 value	PersonalEventBuilder::export.Word.ArrivalAnnualLeave.templateName	FromAnnualMainVacation
 value	PersonalEventBuilder::export.events.ArrivalMedicalLeave	Відпустка для лікування
 value	PersonalEventBuilder::export.Word.ArrivalMedicalLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.ArrivalMedicalLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.ArrivalMedicalLeave.profile	Arrival
+value	PersonalEventBuilder::export.Movement.ArrivalMedicalLeave.destinationField	Destination
 value	PersonalEventBuilder::export.Word.ArrivalMedicalLeave.templateName	FromVacationForCuring
 value	PersonalEventBuilder::export.events.ArrivalFamilyLeave	Відпустка за сімейними обставинами
 value	PersonalEventBuilder::export.Word.ArrivalFamilyLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.ArrivalFamilyLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.ArrivalFamilyLeave.profile	Arrival
+value	PersonalEventBuilder::export.Movement.ArrivalFamilyLeave.destinationField	Destination
 value	PersonalEventBuilder::export.Word.ArrivalFamilyLeave.templateName	FromVacationForFamily
 value	PersonalEventBuilder::export.events.DepartureTreatment	Лікування
 value	PersonalEventBuilder::export.Word.DepartureTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Movement.DepartureTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::export.Movement.DepartureTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|Hospital
 value	PersonalEventBuilder::export.Movement.DepartureTreatment.profile	Departure
+value	PersonalEventBuilder::export.Movement.DepartureTreatment.destinationField	Hospital
 value	PersonalEventBuilder::export.Word.DepartureTreatment.templateName	ToHospital
 value	PersonalEventBuilder::export.events.DepartureAnnualLeave	Щорічна відпустка
 value	PersonalEventBuilder::export.Word.DepartureAnnualLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.DepartureAnnualLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.DepartureAnnualLeave.profile	Departure
+value	PersonalEventBuilder::export.Movement.DepartureAnnualLeave.destinationField	Destination
 value	PersonalEventBuilder::export.Word.DepartureAnnualLeave.templateName	ToAnnualMainVacation
 value	PersonalEventBuilder::export.events.DepartureMedicalLeave	Відпустка для лікування
 value	PersonalEventBuilder::export.Word.DepartureMedicalLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.DepartureMedicalLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.DepartureMedicalLeave.profile	Departure
+value	PersonalEventBuilder::export.Movement.DepartureMedicalLeave.destinationField	Destination
 value	PersonalEventBuilder::export.Word.DepartureMedicalLeave.templateName	ToVacationForCuring
 value	PersonalEventBuilder::export.events.DepartureFamilyLeave	Відпустка за сімейними обставинами
 value	PersonalEventBuilder::export.Word.DepartureFamilyLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Movement.DepartureFamilyLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::export.Movement.DepartureFamilyLeave.profile	Departure
+value	PersonalEventBuilder::export.Movement.DepartureFamilyLeave.destinationField	Destination
 value	PersonalEventBuilder::export.Word.DepartureFamilyLeave.templateName	ToVacationForFamily
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.operation	close
 value	PersonalEventBuilder::export.Movement.profiles.Arrival.identity.count	4
