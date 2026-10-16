@@ -54,6 +54,9 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     Dim name As String
     Dim path As String
     Dim fileSystem As Object
+    Dim reference As Object
+    Dim expression As Object
+    Dim knownKeys As String
 
     diagnostic = VBA.vbNullString
     If m_isInitialized Or m_isDisposed Then
@@ -87,6 +90,18 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     If node.getAttribute("version") <> "1" Then
         Err.Raise 5, , "Unsupported Word DSL XML version."
     End If
+    knownKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.xmlKeys") & "|"
+    Set expression = VBA.CreateObject("VBScript.RegExp")
+    expression.Global = True
+    expression.Pattern = "\[([A-Z][A-Za-z0-9_]*)\]"
+    For Each textNode In document.selectNodes("//p:text | //p:groupHeader")
+        For Each reference In expression.Execute(textNode.Text)
+            name = VBA.CStr(reference.SubMatches(0))
+            If VBA.InStr(1, knownKeys, "|" & name & "|", VBA.vbBinaryCompare) = 0 Then
+                Err.Raise 5, , "Word XML placeholder has no declared context provider: " & name
+            End If
+        Next reference
+    Next textNode
     Set m_templates = VBA.CreateObject("Scripting.Dictionary")
     m_templates.CompareMode = VBA.vbBinaryCompare
     Set m_sharedTemplates = VBA.CreateObject("Scripting.Dictionary")

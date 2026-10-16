@@ -1,6 +1,7 @@
 """Проверка схем сценариев и контрактов исходного кода без запуска Office."""
 
 import copy
+import datetime
 import re
 import sys
 from xml.etree import ElementTree as ET
@@ -191,10 +192,146 @@ def source_checks(settings):
     print("PASS: VBA source/configuration contracts and procedure structure.")
 
 
+def word_context_checks(settings):
+    root = ET.parse(ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml").getroot()
+    ns = {"p": "urn:excelprototype:profiles"}
+    text = "\n".join(root.itertext())
+    roots = set(re.findall(r"(?<!\.)\[([A-Z][A-Za-z0-9_]*)\]", text))
+    row_keys = set(re.findall(r"item\.\[([A-Z][A-Za-z0-9_]*)\]", text))
+    provided = set(settings["export.fields"].split("|"))
+    for group, name in [("lookups", "output"), ("aliases", "name"), ("constants", "name"), ("context.lookups", "output")]:
+        for index in range(1, int(settings[f"export.Word.{group}.count"]) + 1):
+            provided.add(settings[f"export.Word.{group}.{index}.{name}"])
+    provided.update(settings["export.Word.context.optionalText"].split("|"))
+    service = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
+    provided.update(re.findall(r'values\("([A-Za-z0-9_]+)"\)\s*=', service))
+    assert roots <= provided, f"Missing Word context providers: {sorted(roots - provided)}"
+    declared = set(settings["export.Word.context.requiredKeys"].split("|"))
+    assert roots <= declared and declared <= provided
+    for template in root.findall("p:template", ns):
+        required = set(settings[f"export.Word.context.templates.{template.attrib['name']}.requiredKeys"].split("|"))
+        assert required <= declared, f"Undeclared required Word fields: {template.attrib['name']}"
+    meta_keys = set()
+    for kind in settings["export.Word.context.collectionInputs"].split("|"):
+        fields = set(settings[f"export.Word.context.{kind}.fields"].split("|"))
+        required = set(settings[f"export.Word.context.{kind}.required"].split("|"))
+        assert required <= fields
+        meta_keys.update(fields)
+    for index in range(1, int(settings["export.Word.meta.lookups.count"]) + 1):
+        meta_keys.add(settings[f"export.Word.meta.lookups.{index}.output"])
+    assert row_keys <= meta_keys, f"Missing metadata row providers: {row_keys - meta_keys}"
+    xml_keys = set(settings["export.Word.context.xmlKeys"].split("|"))
+    assert roots | row_keys <= xml_keys
+    parser = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_WordTemplates.cls.vba").read_text(encoding="utf-8-sig")
+    assert "Word XML placeholder has no declared context provider" in parser
+    assert "private_CompleteWordContext values, additionalInputs" in service
+    assert service.index("    private_PrepareFoodSupport values") < service.index('    If exporter = "Word" Then')
+    full = re.compile(settings["export.Word.duration.fullPattern"])
+    operands = re.compile(settings["export.Word.duration.operandPattern"])
+    for duration, total in [("1", 1), ("21", 21), ("15+2 (дорога) +1 (донація крові)", 18)]:
+        match = full.fullmatch(duration)
+        assert match and int(match.group(1)) + sum(int(item.group(1)) for item in operands.finditer(duration)) == total
+    for duration in ["", "15+bad", "15-2"]:
+        assert not full.fullmatch(duration)
+    workbook_root = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
+    for group in ["context.lookups", "meta.lookups"]:
+        for index in range(1, int(settings[f"export.Word.{group}.count"]) + 1):
+            prefix = f"export.Word.{group}.{index}"
+            book = openpyxl.load_workbook(workbook_root / settings[prefix + ".path"], data_only=True)
+            sheet = book[settings[prefix + ".sheet"]]
+            area = list(sheet[settings[prefix + ".range"]])
+            headers = [cell.value for cell in area[0]]
+            assert settings[prefix + ".keyHeader"] in headers and settings[prefix + ".valueHeader"] in headers
+    print(f"PASS: all {len(root.findall('p:template', ns))} XML templates covered: {len(roots)} root placeholders, {len(row_keys)} row placeholders; context sources and duration grammar.")
+
+
+def food_checks(tables, settings):
+    offset = int(settings["export.Movement.foodSupport.minimumOrderOffsetDays"])
+    assert offset >= 1
+    def as_date(value):
+        if isinstance(value, str):
+            value = datetime.datetime.strptime(value, "%d.%m.%Y")
+        if isinstance(value, (int, float)):
+            value = openpyxl.utils.datetime.from_excel(value)
+        return value.date() if isinstance(value, datetime.datetime) else value
+    anchor = datetime.date(2026, 10, 15)
+    for days, expected in [(-1, 1), (0, 1), (1, 1), (5, 5)]:
+        assert max(anchor + datetime.timedelta(days=days), anchor + datetime.timedelta(days=offset)) == anchor + datetime.timedelta(days=max(expected, offset))
+    steps = tables["tbTestSteps"]["rows"]
+    checked = 0
+    for row in tables["tbExpectedMovementRows"]["rows"]:
+        for basis, food in [("Вибуття.Підстава", "Вибуття.Продовольче"), ("Прибуття.Підстава", "Прибуття.Продовольче")]:
+            origins = [step for step in steps if row[basis] and f"№\u00a0{step['IncomingNumber']} від" in row[basis]]
+            if not origins:
+                continue
+            assert len(origins) == 1
+            step = origins[0]
+            expected = max(as_date(step["EventDate"]), as_date(step["AcceptedOrderDate"]) + datetime.timedelta(days=offset))
+            assert as_date(row[food]) == expected, f"Incorrect food support date: {row['StepId']}/{food}"
+            checked += 1
+    assert checked > 0
+    for profile, index, header in [("Departure", 9, "Вибуття.Продовольче"), ("Arrival", 4, "Прибуття.Продовольче")]:
+        assert settings[f"export.Movement.profiles.{profile}.fields.{index}.field"] == "FoodSupportDate"
+        assert settings[f"export.Movement.profiles.{profile}.fields.{index}.header"] == header
+    source = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
+    assert 'private_PrepareFoodSupport values' in source
+    assert 'If eventDate > effectiveDate Then effectiveDate = eventDate' in source
+    print(f"PASS: {checked} food support expectations, boundary dates and both export mappings.")
+
+
+def order_checks(tables, settings):
+    source = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder" / settings["orders.source.path"]
+    book = openpyxl.load_workbook(source, data_only=True)
+    rows = list(book[settings["orders.source.sheet"]][settings["orders.source.range"]])
+    headers = [cell.value for cell in rows[0]]
+    date_column = headers.index(settings["orders.dateHeader"])
+    number_column = headers.index(settings["orders.numberHeader"])
+    pairs = set()
+    dates = {}
+    for row in rows[1:]:
+        date = row[date_column].value
+        number = row[number_column].value
+        if date is None and number is None:
+            continue
+        assert str(number).isdigit(), "Invalid source order number"
+        number = str(int(number))
+        if isinstance(date, (int, float)):
+            date = openpyxl.utils.datetime.from_excel(date, book.epoch)
+        if isinstance(date, str):
+            date = datetime.datetime.strptime(date, "%d.%m.%Y")
+        assert isinstance(date, (datetime.datetime, datetime.date)), "Invalid source order date"
+        date = date.date() if isinstance(date, datetime.datetime) else date
+        key = (date.year, number)
+        assert key not in dates or dates[key] == date, "Conflicting order dates in source"
+        dates[key] = date
+        pairs.add((number, date))
+    for step in tables["tbTestSteps"]["rows"]:
+        date = step["AcceptedOrderDate"]
+        if isinstance(date, str):
+            date = datetime.datetime.strptime(date, "%d.%m.%Y")
+        if isinstance(date, (int, float)):
+            date = openpyxl.utils.datetime.from_excel(date)
+        date = date.date() if isinstance(date, datetime.datetime) else date
+        assert (str(int(step["AcceptedOrderNumber"])), date) in pairs, f"Unknown order pair: {step['StepId']}"
+    base = datetime.datetime.strptime(settings["test.fixtures.baseDate"], "%d.%m.%Y").date()
+    assert ("115", base) not in pairs, "Negative fixture must remain absent"
+    assert ("999999999", base) not in pairs
+    text = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
+    prepare = text[text.index("Public Function TryPrepare("):text.index("End Function", text.index("Public Function TryPrepare("))]
+    assert prepare.index("private_ResolveOrder updates") < prepare.index("private_SeedAbsence")
+    assert 'm_orderResolver.TrySearch(query, year, matches, diagnostic)' in text
+    assert 'If matches.Count = 0 Then Err.Raise' in text and 'If matches.Count <> 1 Then' in text
+    print("PASS: all step order pairs exist in the UI source; shared resolver runs before history seeding.")
+
+
 def directory_checks(tables, settings):
     workbook_root = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
     movement = openpyxl.load_workbook(workbook_root / settings["export.Movement.path"])
     target = movement[settings["export.Movement.sheet"]].tables[settings["export.Movement.table"]]
+    for column in target.tableColumns:
+        formula = column.calculatedColumnFormula
+        if formula is not None:
+            assert "[2]!ТВ[" not in formula.attr_text and "[2]!Список[" not in formula.attr_text, f"External Movement self-reference: {column.name}"
     assert [column.name for column in target.tableColumns] == [header for header in tables["tbTestHistory"]["headers"] if header not in ("ScenarioId", "RowId", "TargetTable")]
     assert settings["environment.name"] == "TEST"
     test_root = (workbook_root / settings["test.scenarios.root"]).resolve()
@@ -307,6 +444,9 @@ if __name__ == "__main__":
     counts = validate(tables, settings)
     negative_checks(tables, settings)
     source_checks(settings)
+    order_checks(tables, settings)
+    food_checks(tables, settings)
+    word_context_checks(settings)
     directory_checks(tables, settings)
     registry_checks(book, tables, settings)
     if len(sys.argv) > 1:
