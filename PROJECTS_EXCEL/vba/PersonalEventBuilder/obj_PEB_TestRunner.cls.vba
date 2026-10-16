@@ -154,7 +154,7 @@ Public Function TryAdvance( _
     Set report = private_Report(m_runId, item("ScenarioId"), testStep)
     report("ScenarioName") = item("ScenarioName")
     report("RuleStatus") = item("RuleStatus")
-    report("ModeId") = testStep("ModeId")
+    report("ModeId") = testStep("FixtureModeId")
     report("EventName") = testStep("EventName")
     report("PersonId") = testStep("PersonId")
     report("Action") = testStep("Action")

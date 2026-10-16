@@ -3,6 +3,7 @@
 import copy
 import re
 import sys
+from xml.etree import ElementTree as ET
 from pathlib import Path
 
 import openpyxl
@@ -55,12 +56,22 @@ def unique(rows, field):
     return result
 
 
+def runtime_mode(step, settings):
+    assert step["ModeId"] in settings["test.registry.ModeId.values"].split("|"), f"Unknown template ID: {step['ModeId']}"
+    return settings[f"test.registry.ModeId.{step['ModeId']}.runtimeMode"]
+
+
 def validate(tables, settings):
     cases = unique(tables["tbTestScenarios"]["rows"], "ScenarioId")
     steps = unique(tables["tbTestSteps"]["rows"], "StepId")
     movement = unique(tables["tbExpectedMovement"]["rows"], "StepId")
     word = unique(tables["tbExpectedWord"]["rows"], "StepId")
     snapshots = tables["tbExpectedMovementRows"]["rows"]
+    for binding in settings["test.registry.bindings"].split("|"):
+        table, field, kind = binding.split(":")
+        allowed = settings[f"test.registry.{kind}.values"].split("|")
+        assert allowed and len(allowed) == len(set(allowed)), f"Invalid registry: {kind}"
+        assert all(row[field] in allowed for row in tables[table]["rows"]), f"Unknown reserved value: {table}/{field}"
     assert not {"ExpectedDecision", "ExpectedCode", "ExpectedOpenCount"}.intersection(tables["tbTestSteps"]["headers"])
     assert "PersonPosition" not in tables["tbTestSteps"]["headers"]
     assert set(tables["tbTestSteps"]["headers"]) == set(settings["test.scenarios.stepHeaders"].split("|"))
@@ -89,7 +100,7 @@ def validate(tables, settings):
         assert step["Action"] in ("ExportMovement", "PreviewWord"), f"Unknown action: {step_id}"
         expected = movement if step["Action"] == "ExportMovement" else word
         assert step_id in expected, f"Missing expectation: {step_id}"
-        assert settings[f"export.events.{step['ModeId']}"]
+        assert settings[f"export.events.{runtime_mode(step, settings)}"]
     for step_id, expectation in movement.items():
         assert step_id in steps and steps[step_id]["Action"] == "ExportMovement", f"Orphan Movement expectation: {step_id}"
         decision = expectation["ExpectedDecision"]
@@ -165,7 +176,7 @@ def source_checks(settings):
     assert '"export.Movement." & mode & ".destinationField"' in service
     assert 'values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))' in service
     assert "Hospital" in settings["export.Movement.DepartureTreatment.required"].split("|")
-    for mode in {step["ModeId"] for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"]}:
+    for mode in {runtime_mode(step, settings) for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"]}:
         assert settings[f"export.Movement.{mode}.destinationField"] == ("Hospital" if mode.endswith("Treatment") else "Destination")
     for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_TestUi.cls.vba"):
         text = (folder / filename).read_text(encoding="utf-8-sig")
@@ -195,9 +206,10 @@ def directory_checks(tables, settings):
     for step in tables["tbTestSteps"]["rows"]:
         if step["Action"] != "PreviewWord":
             continue
+        mode = runtime_mode(step, settings)
         for prefix in [f"export.Word.lookups.{index}" for index in range(1, int(settings["export.Word.lookups.count"]) + 1)] + [
-            f"export.Word.{step['ModeId']}.lookups.{index}"
-            for index in range(1, int(settings[f"export.Word.{step['ModeId']}.lookups.count"]) + 1)
+            f"export.Word.{mode}.lookups.{index}"
+            for index in range(1, int(settings[f"export.Word.{mode}.lookups.count"]) + 1)
         ]:
             input_field = settings[f"{prefix}.input"]
             if input_field.startswith("Report"):
@@ -218,6 +230,43 @@ def directory_checks(tables, settings):
             elif "Treatment.lookups" in prefix:
                 assert not matches, f"Negative hospital fixture unexpectedly resolves: {step['StepId']}"
     print("PASS: native Movement schema, TEST routing and all Word fixture directory dependencies.")
+
+
+def registry_checks(book, tables, settings):
+    kinds = settings["test.registry.kinds"].split("|")
+    registry = tables[settings["test.registry.table"]]
+    assert registry["sheet"] == settings["test.registry.sheet"]
+    assert registry["headers"] == kinds + [settings["test.registry.runtimeHeader"]]
+    templates = {node.get("name") for node in ET.parse(ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml").getroot()
+                 if node.tag.endswith("}template")}
+    for column, kind in enumerate(kinds, 1):
+        expected = settings[f"test.registry.{kind}.values"].split("|")
+        actual = [row[kind] for row in registry["rows"] if row[kind] is not None]
+        assert actual == expected, f"Registry sheet is stale: {kind}"
+        name = settings[f"test.registry.{kind}.rangeName"]
+        assert len(name) <= 31 and name in book.defined_names
+        sheet, address = next(book.defined_names[name].destinations)
+        assert sheet == settings["test.registry.sheet"]
+        left, top, right, bottom = range_boundaries(address)
+        assert (left, top, right, bottom) == (column, 2, column, len(expected) + 1)
+    for template in settings["test.registry.ModeId.values"].split("|"):
+        assert template in templates, f"Unknown XML template: {template}"
+        mode = settings[f"test.registry.ModeId.{template}.runtimeMode"]
+        assert settings[f"export.Word.{mode}.templateName"] == template
+    for binding in settings["test.registry.bindings"].split("|"):
+        table_name, field, kind = binding.split(":")
+        sheet = book[tables[table_name]["sheet"]]
+        table = sheet.tables[table_name]
+        left, top, right, bottom = range_boundaries(table.ref)
+        column = left + tables[table_name]["headers"].index(field)
+        cell = sheet.cell(top + 1, column).coordinate
+        expected = settings[f"test.registry.{kind}.rangeName"]
+        found = [rule for rule in sheet.data_validations.dataValidation if cell in rule.sqref]
+        assert len(found) == 1 and found[0].type == "list" and found[0].formula1.lstrip("=") == expected, f"Missing dropdown: {binding}"
+        assert found[0].errorStyle == "stop" and found[0].showErrorMessage
+    loader = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
+    assert "private_SyncRegistry" in loader and 'fn_RegistryContains("ExpectedCode"' in loader
+    print("PASS: TEST configuration registry, XML identifiers, named ranges and all dropdown bindings.")
 
 
 def preservation_check(path):
@@ -253,11 +302,13 @@ if __name__ == "__main__":
     for key in settings:
         if key.startswith(("test.expected.", "test.scenarios.", "test.audit.")):
             assert settings[key] == production[key], f"PROD/TEST schema differs: {key}"
-    tables = load_tables(openpyxl.load_workbook(FIXTURE))
+    book = openpyxl.load_workbook(FIXTURE)
+    tables = load_tables(book)
     counts = validate(tables, settings)
     negative_checks(tables, settings)
     source_checks(settings)
     directory_checks(tables, settings)
+    registry_checks(book, tables, settings)
     if len(sys.argv) > 1:
         preservation_check(Path(sys.argv[1]))
     print(f"PASS: {counts[0]} scenarios, {counts[1]} stable steps, {counts[2]} expected Movement rows, {counts[3]} Word expectations. Office was not started.")

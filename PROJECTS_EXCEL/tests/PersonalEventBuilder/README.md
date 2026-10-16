@@ -22,6 +22,16 @@ Manual scenario commit saves both working sources. Automated preparation keeps t
 
 ## Separate scenario workbook
 
+### Configuration-backed reserved words
+
+The TEST profile is the source of reserved values: test.registry.* in wsConfig.test.txt declares ModeId, Action, RuleStatus, ExpectedDecision, StateCheck, Outcome, ExpectedCode, Operation and Result lists. Test_Registry/tbTestRegistry is a generated workbook copy; RuntimeModeId explains the mapping to existing PEB modes. Input dropdowns reference the _PEB_* workbook names, not embedded literal lists. Result is reference-only; historical journals remain untouched.
+
+Test ModeId now uses existing XML template identities: ToHospital/FromHospital, ToAnnualMainVacation/FromAnnualMainVacation, ToVacationForCuring/FromVacationForCuring and ToVacationForFamily/FromVacationForFamily. Only the eight supported modes are selectable. test.registry.ModeId.<TemplateId>.runtimeMode maps each template identity to the internal PEB mode; the resolver verifies its export.Word template mapping. Production UI identifiers stay unchanged. New run reports show the XML identity; prepared export values retain the internal runtime identity.
+
+To change dropdown choices, edit the TEST configuration and import it into PEB through the normal configuration workflow. With TestScenarios closed, loading a scenario or initializing a test run refreshes the registry values, named ranges and dropdown bindings from the active configuration and saves the scenario workbook. Reopen it after the session closes to see the updated choices. Registry sheet edits are overwritten on refresh. Missing or duplicate values and unregistered input words produce explicit errors. Adding a list option does not create an executor or an export profile for a new action/mode.
+
+For development without Office, normalize_inputs.mjs --registry-only refreshes the workbook registry directly from wsConfig.test.txt and migrates legacy step mode identifiers. The validator checks all registry values, existing XML identities, runtime mappings, named ranges and dropdown bindings.
+
 `TestScenarios.xlsx` separates scenario inputs, expected outputs and actual run archives. The four input sheets remain `Тест_Сценарії` / `tbTestScenarios`, `Тест_Історія` / `tbTestHistory`, `Тест_Кроки` / `tbTestSteps`, and `Тест_ЄЖОС` / `tbTestAbsence`. Expectations are stored in `Expected_РУХ` and `Expected_WORD`; Movement retains only its native working sheets.
 
 These tables describe 16 Movement scenarios and nine independent Word preview scenarios for the existing participant. `tbTestHistory` includes ScenarioId, RowId, TargetTable and every existing column from ТВ. A scenario without history rows means that ТВ starts empty. Computed ТВ columns are intentionally blank in the fixture history; the loader preserves/reapplies the working table's formulas rather than overwriting them with blanks.

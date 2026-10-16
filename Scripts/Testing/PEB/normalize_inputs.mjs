@@ -24,6 +24,64 @@ if (process.argv.includes("--inspect")) {
 
 const settings = Object.fromEntries((await fs.readFile(path.join(root, "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt"), "utf8"))
   .split(/\r?\n/).filter(line => line.trim()).map(line => { const fields = line.split("\t"); return [fields[1].split("::").at(-1), fields[2]]; }));
+if (process.argv.includes("--registry-only")) {
+  const kinds = settings["test.registry.kinds"].split("|");
+  const rows = Math.max(...kinds.map(kind => settings[`test.registry.${kind}.values`].split("|").length));
+  const headers = [...kinds, settings["test.registry.runtimeHeader"]];
+  const values = [headers, ...Array.from({ length: rows }, (_, index) => headers.map(kind => {
+    if (kind === settings["test.registry.runtimeHeader"]) {
+      const mode = settings["test.registry.ModeId.values"].split("|")[index];
+      return mode ? settings[`test.registry.ModeId.${mode}.runtimeMode`] : null;
+    }
+    return settings[`test.registry.${kind}.values`].split("|")[index] ?? null;
+  }))];
+  const name = settings["test.registry.sheet"];
+  const registry = source[name] ? workbook.worksheets.getItem(name) : workbook.worksheets.add(name);
+  for (const table of [...registry.tables.items]) table.delete();
+  if (source[name]) registry.getUsedRange().clear({ applyTo: "all" });
+  const lastColumn = String.fromCharCode(64 + headers.length);
+  const range = `A1:${lastColumn}${rows + 1}`;
+  registry.getRange(range).values = values;
+  registry.tables.add(range, true, settings["test.registry.table"]).style = "TableStyleDark1";
+  registry.getRange(range).format = { fill: "#303030", font: { name: "Times New Roman", size: 12, color: "#FFFFFF" }, wrapText: true, verticalAlignment: "center" };
+  registry.getRange(range).format.columnWidth = 28;
+  registry.getRange(range).format.rowHeight = 38;
+  registry.getRange(`A1:${lastColumn}1`).format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center" };
+  registry.getRange(`A${rows + 3}`).values = [[settings["test.registry.sourceCaption"]]];
+  registry.showGridLines = false;
+  registry.freezePanes.freezeRows(1);
+  const modes = settings["test.registry.ModeId.values"].split("|");
+  const reverse = new Map(modes.map(mode => [settings[`test.registry.ModeId.${mode}.runtimeMode`], mode]));
+  const originalSteps = source["Тест_Кроки"].rows;
+  const modeIndex = originalSteps[0].indexOf("ModeId");
+  const stepSheet = workbook.worksheets.getItem("Тест_Кроки");
+  for (let index = 1; index < originalSteps.length; index++) {
+    const mode = originalSteps[index][modeIndex];
+    if (mode && reverse.has(mode)) stepSheet.getCell(index, modeIndex).values = [[reverse.get(mode)]];
+  }
+  for (const binding of settings["test.registry.bindings"].split("|")) {
+    const [tableName, header, kind] = binding.split(":");
+    const sheetName = Object.keys(source).find(name => source[name].tables.some(table => table.name === tableName));
+    const table = source[sheetName].tables.find(table => table.name === tableName);
+    const row = Number(table.ref.split(":")[0].match(/\d+/)[0]);
+    const index = source[sheetName].rows[row - 1].indexOf(header);
+    const last = Number(table.ref.split(":")[1].match(/\d+/)[0]);
+    workbook.worksheets.getItem(sheetName).getRangeByIndexes(row, index, last - row, 1).dataValidation = {
+      rule: { type: "list", formula1: settings[`test.registry.${kind}.rangeName`] }
+    };
+  }
+  workbook.recalculate();
+  const preview = await workbook.render({ sheetName: name, range: "A1:E9", scale: 1 });
+  await fs.writeFile(path.join(output, "registry.png"), new Uint8Array(await preview.arrayBuffer()));
+  const baseline = path.join(output, "registry-original.xlsx");
+  const generated = path.join(output, "registry-generated.xlsx");
+  await fs.copyFile(fixture, baseline);
+  await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, name], { stdio: "inherit" });
+  execFileSync(python, ["-X", "utf8", bridge, "finalize-registry", fixture, path.join(root, "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt")], { stdio: "inherit" });
+  console.log(`Built ${kinds.length} registry groups from TEST configuration using XML template identifiers.`);
+  process.exit(0);
+}
 const hospital = JSON.parse(execFileSync(python, ["-X", "utf8", "-c",
   'import openpyxl,json,sys; s=openpyxl.load_workbook(sys.argv[1],data_only=True)["Лікувальні Заклади"]; r=[list(row[:6]) for row in s.values if row[0]=="КНП МКБЛ №25 ХМР"]; assert len(r)==1 and all(r[0][i] for i in (1,3,4)); print(json.dumps(r[0],ensure_ascii=False))',
   path.join(root, "PROJECTS_EXCEL/workbook/Dependencies/Установи.xlsx")], { encoding: "utf8" }));
@@ -40,9 +98,15 @@ const headers = settings["test.scenarios.stepHeaders"].split("|");
 const steps = tableRows("Тест_Кроки", "tbTestSteps").map(row => ({ ...row,
   PersonId: row.PersonId ?? row["ІПН"], PersonName: row.PersonName ?? row["ПІБ"], Notes: row.Notes ?? row["Примітки"] }));
 const stepById = new Map(steps.map(step => [step.StepId, step]));
+const runtimeMode = step => {
+  const mapped = settings[`test.registry.ModeId.${step.ModeId}.runtimeMode`];
+  if (mapped) return mapped;
+  if (settings[`export.events.${step.ModeId}`]) return step.ModeId;
+  throw new Error(`Unknown fixture mode: ${step.ModeId}`);
+};
 const outcomes = new Map(tableRows("Expected_WORD", "tbExpectedWord").map(row => [row.StepId, row]));
 for (const step of steps) {
-  if (step.ModeId.endsWith("Treatment")) {
+  if (runtimeMode(step).endsWith("Treatment")) {
     const negative = outcomes.get(step.StepId)?.Outcome === "Error";
     step.Hospital = negative ? null : hospital[1];
     step.HospitalShortName = negative ? "ТЕСТ-ЛЗ-01" : hospital[0];
@@ -65,9 +129,9 @@ for (const sheetName of ["Тест_Історія", "Expected_РУХ"]) {
 }
 for (const row of source.Expected_WORD.rows.slice(1)) {
   const step = stepById.get(row[0]);
-  if (!step || row[1] !== "Success" || !step.ModeId.endsWith("Treatment")) continue;
+  if (!step || row[1] !== "Success" || !runtimeMode(step).endsWith("Treatment")) continue;
   const paragraphs = row[2].replace(/\r\n?/g, "\n").split("\n\n");
-  if (step.ModeId.startsWith("Departure")) {
+  if (runtimeMode(step).startsWith("Departure")) {
     const date = paragraphs[0].match(/, з([\s\S]*)$/);
     if (!date) throw new Error(`Unexpected treatment text baseline: ${step.StepId}`);
     paragraphs[0] = `У ${lowerFirst(hospital[4])}, з${date[1]}`;
@@ -136,3 +200,4 @@ await fs.copyFile(fixture, baseline);
 await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
 execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
 console.log(`Updated ${steps.length} steps with ${headers.length} universal columns and hospital ${hospital[0]}.`);
+execFileSync(process.execPath, [fileURLToPath(import.meta.url), "--registry-only"], { stdio: "inherit" });
