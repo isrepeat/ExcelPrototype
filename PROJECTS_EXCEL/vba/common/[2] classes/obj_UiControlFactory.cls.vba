@@ -51,6 +51,8 @@ Private Function obj_IUiControlFactory_Create() As obj_IUiControl
             Set control = New obj_UiCandidatesControl
         Case "tablelist"
             Set control = New obj_UiTableListControl
+        Case "items"
+            Set control = New obj_UiItemsControl
         Case "form"
             Set control = New obj_UiFormControl
         Case "input", "select"
@@ -132,13 +134,29 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 schema.AddAttribute "command", "string", False, "", True
                 schema.AddAttribute "enabled", "boolean", False, "", True
             End If
+        Case "items"
+            schema.RequireAnyAttribute "itemsSource"
+            schema.AddAttribute "itemsSource", "string", True, "", True, 0
+            schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
+            schema.AllowControlChildren
         Case "table", "tablelist", "candidates"
             schema.RequireAnyAttribute "itemsSource"
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
             If m_type = "tablelist" Then schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
             schema.AddAttribute "showHeaders", "boolean", False, "", False, 0
+            schema.AddAttribute "showAutoFilter", "boolean", False, "", False, 0
             schema.AddAttribute "representation", "enum", False, "Raw|Smart", False, 0
             If m_type = "table" Then schema.AddAttribute "excelTableName", "string", False, "", False, 255
+            If m_type = "table" Then
+                Set wrapper = New obj_UiMarkupSchema
+                Set rule = New obj_UiMarkupSchema
+                If Not wrapper.Initialize() Or Not rule.Initialize() Then Err.Raise 5, , "Cannot initialize cell template schema."
+                rule.AddAttribute "columnAlias", "string", True, "", False, 0
+                rule.AddAttribute "mode", "enum", False, "replace|overlay", False, 0
+                rule.AllowControlChildren
+                wrapper.AddChild "cellTemplate", rule, 1, -1, "urn:excelprototype:controls"
+                schema.AddChild "table.cellTemplates", wrapper, 0, 1, "urn:excelprototype:controls"
+            End If
             If m_type = "tablelist" Then
                 Set wrapper = New obj_UiMarkupSchema
                 Set policy = New obj_UiMarkupSchema

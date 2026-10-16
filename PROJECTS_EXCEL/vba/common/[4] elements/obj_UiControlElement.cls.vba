@@ -180,6 +180,7 @@ Private Function obj_IUiElement_Arrange( _
     Dim candidates As obj_UiCandidatesControl
 
     obj_IUiElement_Arrange = m_control.Arrange(row, column, diagnostic)
+    Set m_area = Nothing
     If obj_IUiElement_Arrange And m_rows > 0 And m_columns > 0 Then
         localRow = m_localRow
         localColumn = m_localColumn
@@ -300,6 +301,18 @@ Public Function RebuildStructure(ByRef diagnostic As String) As Boolean
         Exit Function
     End If
     RebuildStructure = m_control.Configure(m_definition, m_context, m_source, diagnostic)
+End Function
+
+Public Function TryGetItemArea( _
+    ByVal index As Long, _
+    ByRef area As Range _
+) As Boolean
+    Dim items As obj_UiItemsControl
+
+    Set area = Nothing
+    If Not TypeOf m_control Is obj_UiItemsControl Then Exit Function
+    Set items = m_control
+    TryGetItemArea = items.TryGetItemArea(index, area)
 End Function
 
 ' //
