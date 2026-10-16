@@ -1,0 +1,138 @@
+import fs from "node:fs/promises";
+import path from "node:path";
+import os from "node:os";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { FileBlob, SpreadsheetFile } from "@oai/artifact-tool";
+
+process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
+const directory = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(directory, "../../..");
+const fixture = path.join(root, "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx");
+const python = process.env.PEB_PYTHON;
+if (!python) throw new Error("Set PEB_PYTHON to the bundled Python executable.");
+const bridge = path.join(directory, "xlsx_expectations_bridge.py");
+const output = process.env.PEB_INPUTS_WORKDIR ?? path.join(os.tmpdir(), "peb-universal-inputs-20261016");
+await fs.mkdir(output, { recursive: true });
+const source = JSON.parse(execFileSync(python, ["-X", "utf8", bridge, "dump", fixture], { encoding: "utf8", maxBuffer: 16000000 }));
+const workbook = await SpreadsheetFile.importXlsx(await FileBlob.load(fixture));
+if (process.argv.includes("--inspect")) {
+  const preview = await workbook.render({ sheetName: "Тест_Кроки", range: "A1:N4", scale: 1 });
+  await fs.writeFile(path.join(output, "before.png"), new Uint8Array(await preview.arrayBuffer()));
+  process.exit(0);
+}
+
+const settings = Object.fromEntries((await fs.readFile(path.join(root, "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt"), "utf8"))
+  .split(/\r?\n/).filter(line => line.trim()).map(line => { const fields = line.split("\t"); return [fields[1].split("::").at(-1), fields[2]]; }));
+const hospital = JSON.parse(execFileSync(python, ["-X", "utf8", "-c",
+  'import openpyxl,json,sys; s=openpyxl.load_workbook(sys.argv[1],data_only=True)["Лікувальні Заклади"]; r=[list(row[:6]) for row in s.values if row[0]=="КНП МКБЛ №25 ХМР"]; assert len(r)==1 and all(r[0][i] for i in (1,3,4)); print(json.dumps(r[0],ensure_ascii=False))',
+  path.join(root, "PROJECTS_EXCEL/workbook/Dependencies/Установи.xlsx")], { encoding: "utf8" }));
+const lowerFirst = text => text[0].toLowerCase() + text.slice(1);
+function tableRows(sheetName, tableName) {
+  const table = source[sheetName].tables.find(item => item.name === tableName);
+  const top = Number(table.ref.split(":")[0].match(/\d+/)[0]);
+  const bottom = Number(table.ref.split(":")[1].match(/\d+/)[0]);
+  const headers = source[sheetName].rows[top - 1];
+  return source[sheetName].rows.slice(top, bottom).filter(row => row.some(value => value !== null))
+    .map(row => Object.fromEntries(headers.map((header, index) => [header, row[index]])));
+}
+const headers = settings["test.scenarios.stepHeaders"].split("|");
+const steps = tableRows("Тест_Кроки", "tbTestSteps").map(row => ({ ...row,
+  PersonId: row.PersonId ?? row["ІПН"], PersonName: row.PersonName ?? row["ПІБ"], Notes: row.Notes ?? row["Примітки"] }));
+const stepById = new Map(steps.map(step => [step.StepId, step]));
+const outcomes = new Map(tableRows("Expected_WORD", "tbExpectedWord").map(row => [row.StepId, row]));
+for (const step of steps) {
+  if (step.ModeId.endsWith("Treatment")) {
+    const negative = outcomes.get(step.StepId)?.Outcome === "Error";
+    step.Hospital = negative ? null : hospital[1];
+    step.HospitalShortName = negative ? "ТЕСТ-ЛЗ-01" : hospital[0];
+    step.Destination = null;
+    step.TicketNumber = null;
+    step.TicketDate = null;
+  } else {
+    step.Hospital = null;
+    step.HospitalShortName = null;
+  }
+}
+for (const sheetName of ["Тест_Історія", "Expected_РУХ"]) {
+  const rows = source[sheetName].rows;
+  const headerIndex = rows.findIndex(row => row.includes("Куди") && row.includes("Подія"));
+  const eventColumn = rows[headerIndex].indexOf("Подія");
+  const destinationColumn = rows[headerIndex].indexOf("Куди");
+  for (const row of rows.slice(headerIndex + 1)) {
+    if (row[eventColumn] === settings["export.events.DepartureTreatment"]) row[destinationColumn] = hospital[1];
+  }
+}
+for (const row of source.Expected_WORD.rows.slice(1)) {
+  const step = stepById.get(row[0]);
+  if (!step || row[1] !== "Success" || !step.ModeId.endsWith("Treatment")) continue;
+  const paragraphs = row[2].replace(/\r\n?/g, "\n").split("\n\n");
+  if (step.ModeId.startsWith("Departure")) {
+    const date = paragraphs[0].match(/, з([\s\S]*)$/);
+    if (!date) throw new Error(`Unexpected treatment text baseline: ${step.StepId}`);
+    paragraphs[0] = `У ${lowerFirst(hospital[4])}, з${date[1]}`;
+  } else {
+    if (!paragraphs[1]?.startsWith("З ")) throw new Error(`Unexpected hospital group header: ${step.StepId}`);
+    paragraphs[1] = `З ${lowerFirst(hospital[3])}:`;
+  }
+  row[2] = paragraphs.join("\n\n");
+}
+const columnName = index => {
+  let result = "";
+  for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) result = String.fromCharCode(65 + (value - 1) % 26) + result;
+  return result;
+};
+const sheet = workbook.worksheets.getItem("Тест_Кроки");
+sheet.tables.items.find(table => table.name === "tbTestSteps").delete();
+sheet.getUsedRange().clear({ applyTo: "all" });
+const values = [headers, ...steps.map(step => headers.map(header => step[header] ?? null))];
+const range = `A1:${columnName(headers.length - 1)}${values.length}`;
+sheet.getRange(range).values = values;
+sheet.tables.add(range, true, "tbTestSteps").style = "TableStyleDark1";
+sheet.getRange(range).format = { fill: "#303030", font: { name: "Times New Roman", size: 12, color: "#FFFFFF" }, wrapText: true, verticalAlignment: "center" };
+sheet.getRange(range).format.rowHeight = 62;
+sheet.getRange(range).format.columnWidth = 20;
+sheet.getRange(`A1:${columnName(headers.length - 1)}1`).format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, wrapText: true, horizontalAlignment: "center" };
+sheet.getRange("A1:E28").format.columnWidth = 18;
+for (let index = 0; index < headers.length; index++) {
+  const cells = sheet.getRange(`${columnName(index)}2:${columnName(index)}${values.length}`);
+  if (headers[index].endsWith("Date")) {
+    cells.setNumberFormat("dd\\.mm\\.yyyy");
+    cells.format.horizontalAlignment = "center";
+  }
+  if (["Hospital", "PersonName", "ReportName", "Document", "Notes"].includes(headers[index])) cells.format.columnWidth = 35;
+  if (["Hospital", "Notes"].includes(headers[index])) cells.format.columnWidth = 55;
+}
+sheet.freezePanes.freezeRows(1);
+for (const name of ["Тест_Історія", "Expected_РУХ", "Expected_WORD"]) {
+  const rows = source[name].rows;
+  workbook.worksheets.getItem(name).getRange(`A1:${columnName(rows[0].length - 1)}${rows.length}`).values = rows;
+}
+for (const name of ["Тест_Історія", "Expected_РУХ"]) {
+  const rows = source[name].rows;
+  const top = rows.findIndex(row => row.includes("Куди") && row.includes("Подія"));
+  const column = columnName(rows[top].indexOf("Куди"));
+  const destination = workbook.worksheets.getItem(name).getRange(`${column}${top + 1}:${column}${rows.length}`);
+  destination.format.columnWidth = 55;
+  destination.format.wrapText = true;
+  workbook.worksheets.getItem(name).getRange(`A${top + 2}:${columnName(rows[top].length - 1)}${rows.length}`).format.rowHeight = 80;
+}
+// В Expected_РУХ верхняя таблица уже нижней, поэтому учитываем полный размер матрицы.
+const expectedRows = source["Expected_РУХ"].rows;
+const width = Math.max(...expectedRows.map(row => row.length));
+workbook.worksheets.getItem("Expected_РУХ").getRange(`A1:${columnName(width - 1)}${expectedRows.length}`).values = expectedRows.map(row => Array.from({ length: width }, (_, index) => row[index] ?? null));
+const wordSheet = workbook.worksheets.getItem("Expected_WORD");
+wordSheet.getRange("A1:D10").format = { fill: "#303030", font: { name: "Times New Roman", size: 12, color: "#FFFFFF" }, wrapText: true, verticalAlignment: "top" };
+wordSheet.getRange("A1:D1").format = { fill: "#151515", font: { name: "Times New Roman", size: 12, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center" };
+wordSheet.getRange("A2:D3").format.rowHeight = 210;
+workbook.recalculate();
+for (const [name, range, filename] of [["Тест_Кроки", "F1:N4", "inputs.png"], ["Тест_Кроки", "O1:Z4", "documents.png"], ["Expected_WORD", "A1:C3", "word.png"]]) {
+  const preview = await workbook.render({ sheetName: name, range, scale: 1 });
+  await fs.writeFile(path.join(output, filename), new Uint8Array(await preview.arrayBuffer()));
+}
+const baseline = path.join(output, "original.xlsx");
+const generated = path.join(output, "generated.xlsx");
+await fs.copyFile(fixture, baseline);
+await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
+execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
+console.log(`Updated ${steps.length} steps with ${headers.length} universal columns and hospital ${hospital[0]}.`);

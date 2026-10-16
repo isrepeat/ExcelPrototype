@@ -127,6 +127,11 @@ Public Function TryPrepare( _
     Next key
     mode = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "ModeId"))
     values.Add "EventName", ex_PEB_Export.fn_Config("export.events." & mode)
+    ' Select the destination input for each Movement mode through configuration.
+    If exporter = "Movement" Then
+        key = ex_PEB_Export.fn_Config("export.Movement." & mode & ".destinationField")
+        values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))
+    End If
     requiredKey = "export." & exporter & "." & mode & ".required"
     If exporter = "Word" And Not prepareOutput Then
         requiredKey = "export.Word." & mode & ".previewRequired"

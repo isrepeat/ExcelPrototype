@@ -4,6 +4,8 @@ import copy
 import datetime
 import json
 import posixpath
+import os
+import re
 import sys
 import zipfile
 from lxml import etree as ET
@@ -116,6 +118,86 @@ def column_index(address):
     return index
 
 
+def remove_fixture_fields(data):
+    removed = []
+    fields = {"tbTestScenarios": "Цільова таблиця", "tbTestSteps": "PersonPosition"}
+    for sheet_name, part in sheet_parts(data).items():
+        relationships_part = rel_path(part)
+        if relationships_part not in data:
+            continue
+        for relationship in xml(data, relationships_part):
+            if not relationship.get("Type").endswith("/table"):
+                continue
+            table_part = target(part, relationship.get("Target"))
+            table = xml(data, table_part)
+            field = fields.get(table.get("name"))
+            if not field:
+                continue
+            columns = table.find("m:tableColumns", NS)
+            match = next((item for item in columns if item.get("name") == field), None)
+            if match is None:
+                continue
+            index = column_index(table.get("ref").split(":")[0]) + list(columns).index(match)
+            sheet = xml(data, part)
+            if sheet.findall(".//m:f", NS):
+                raise ValueError(f"Formula references require explicit migration: {sheet_name}")
+
+            def shift(address):
+                def replace(found):
+                    number = column_index(found.group(1))
+                    if number >= index:
+                        number = max(1, number - 1)
+                    return get_column_letter(number) + found.group(2)
+                return re.sub(r"([A-Z]+)([0-9]+)", replace, address)
+
+            for row in sheet.findall("m:sheetData/m:row", NS):
+                for cell in list(row):
+                    if column_index(cell.get("r")) == index:
+                        row.remove(cell)
+                    else:
+                        cell.set("r", shift(cell.get("r")))
+            for column in sheet.findall("m:cols/m:col", NS):
+                start = int(column.get("min"))
+                end = int(column.get("max"))
+                if start == end == index:
+                    column.getparent().remove(column)
+                else:
+                    column.set("min", str(start - (start > index)))
+                    column.set("max", str(end - (end >= index)))
+            for node in sheet.iter():
+                for attribute in ("ref", "sqref", "activeCell", "topLeftCell"):
+                    if node.get(attribute):
+                        node.set(attribute, shift(node.get(attribute)))
+            columns.remove(match)
+            columns.set("count", str(len(columns)))
+            for node in table.iter():
+                if node.get("ref"):
+                    node.set("ref", shift(node.get("ref")))
+            data[part] = serialize(sheet)
+            data[table_part] = serialize(table)
+            removed.append(f"{sheet_name}/{field}")
+    return removed
+
+
+def clean_fixture(path):
+    with zipfile.ZipFile(path) as archive:
+        data = {name: archive.read(name) for name in archive.namelist()}
+    removed = remove_fixture_fields(data)
+    if not removed:
+        print("No obsolete fixture fields found.")
+        return
+    temporary = str(path) + ".cleanup.tmp"
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in data.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+    print("Removed fixture columns: " + ", ".join(removed))
+
+
 def preserve_existing_cells(original, destination, edited, name):
     baseline = xml(original, destination)
     data = baseline.find("m:sheetData", NS)
@@ -206,7 +288,7 @@ def assemble(original_path, generated_path, output_path, names):
         for rule in node.findall(".//m:cfRule", NS):
             if rule.get("dxfId") is not None:
                 rule.set("dxfId", str(int(rule.get("dxfId")) + offsets["dxfs"]))
-        if name in original_sheets and name != "Тест_Кроки":
+        if name in original_sheets and name in ("Тест_Сценарії", "Тест_ЄЖОС", "Тест_Результати", "Тест_Записи", "Тест_ВхідніДані"):
             node = preserve_existing_cells(original, destination, node, name)
         new_relationships = xml(generated, rel_path(source_part))
         original_tables = {}
@@ -243,6 +325,7 @@ def assemble(original_path, generated_path, output_path, names):
     for name, content in baseline.items():
         if name not in modified and original[name] != content:
             raise AssertionError(f"Untouched workbook part changed: {name}")
+    remove_fixture_fields(original)
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, content in original.items():
             archive.writestr(name, content)
@@ -254,5 +337,7 @@ if __name__ == "__main__":
         dump(sys.argv[2])
     elif sys.argv[1] == "assemble":
         assemble(*sys.argv[2:5], sys.argv[5:])
+    elif sys.argv[1] == "clean-fixture":
+        clean_fixture(sys.argv[2])
     else:
         raise SystemExit("Expected dump or assemble")

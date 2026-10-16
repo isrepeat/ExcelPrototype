@@ -153,8 +153,6 @@ Public Function TryPrepare( _
     Dim field As Variant
     Dim header As String
     Dim value As Variant
-    Dim stepColumns As Object
-    Dim column As Object
     Dim prefix As String
     Dim personId As String
     Dim requiredKey As String
@@ -171,36 +169,18 @@ Public Function TryPrepare( _
     stepRow = private_Find(steps, scenarioId, stepOrder)
     personId = ex_PEB_Export.fn_Text(private_Value(scenarios, scenarioRow, "personId"))
     If VBA.Len(personId) = 0 Then Err.Raise 5, , "Scenario person identity is empty."
-    If ex_PEB_Export.fn_Text(private_Value(scenarios, scenarioRow, "target")) <> movement.Name Then
-        Err.Raise 5, , "Scenario target differs from the configured Movement table."
-    End If
-    If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "personId")) <> personId Then
+    If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepPersonId")) <> personId Then
         Err.Raise 5, , "Scenario and step identities differ."
     End If
     modeId = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
-    If ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "event")) <> ex_PEB_Export.fn_Config("export.events." & modeId) Then
-        Err.Raise 5, , "Step event name differs from the configured Movement event."
-    End If
     prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".form")
     prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".direction")
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
-    Set stepColumns = VBA.CreateObject("Scripting.Dictionary")
-    For Each column In steps.ListColumns
-        stepColumns.Add column.Name, column.Index
-    Next column
     ' Clear every export input, then read all scenario values from the fixture tables.
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
         If field <> "ModeId" And field <> "ModeDirection" And field <> "ModeForm" And field <> "EventType" Then
             value = VBA.vbNullString
-            updates("Form." & field) = private_FormText(value, VBA.CStr(field))
-        End If
-    Next field
-    ' Optional columns allow richer fixtures without inventing values in the loader.
-    For Each field In VBA.Split(ex_PEB_Export.fn_Config("test.scenarios.optionalFields"), "|")
-        If Not updates.Exists("Form." & field) Then Err.Raise 5, , "Unknown optional scenario field: " & field
-        If stepColumns.Exists(field) Then
-            value = steps.DataBodyRange.Cells(stepRow, stepColumns(field)).Value2
             updates("Form." & field) = private_FormText(value, VBA.CStr(field))
         End If
     Next field
@@ -337,8 +317,8 @@ Public Function TryCatalog( _
                 If action <> "ExportMovement" And action <> "PreviewWord" Then Err.Raise 5, , "Unknown test action: " & stepIdentity
                 testStep("Action") = action
                 testStep("ModeId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
-                testStep("EventName") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "event"))
-                testStep("PersonId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "personId"))
+                testStep("EventName") = ex_PEB_Export.fn_Config("export.events." & testStep("ModeId"))
+                testStep("PersonId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepPersonId"))
                 If testStep("PersonId") <> ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "personId")) Then
                     Err.Raise 5, , "Scenario and step identities differ: " & stepIdentity
                 End If
