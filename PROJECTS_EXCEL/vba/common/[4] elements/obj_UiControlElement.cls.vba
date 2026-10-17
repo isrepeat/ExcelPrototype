@@ -342,6 +342,26 @@ Public Function TryGetItemArea( _
     TryGetItemArea = items.TryGetItemArea(index, area)
 End Function
 
+Public Function TryRefreshTableRow( _
+    ByVal rowIndex As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim table As obj_UiTableControl
+    Dim refreshed As Boolean
+
+    If m_isDisposed Or Not TypeOf m_control Is obj_UiTableControl Then
+        diagnostic = "The control is not an active table."
+        Exit Function
+    End If
+    Set table = m_control
+    If Not table.TryRefreshTemplateBindings(refreshed, diagnostic, rowIndex) Then Exit Function
+    If Not refreshed Then
+        diagnostic = "The table requires a full refresh before updating a row."
+        Exit Function
+    End If
+    TryRefreshTableRow = True
+End Function
+
 ' //
 ' // Private
 ' //

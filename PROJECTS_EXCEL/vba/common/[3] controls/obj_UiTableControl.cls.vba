@@ -203,13 +203,16 @@ End Sub
 
 Public Function TryRefreshTemplateBindings( _
     ByRef refreshed As Boolean, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal onlyRow As Long = 0 _
 ) As Boolean
     Dim table As obj_UiRawTable
     Dim rowIndex As Long
     Dim columnIndex As Long
     Dim bodyOffset As Long
     Dim value As Variant
+    Dim firstRow As Long
+    Dim lastRow As Long
 
     On Error GoTo EH
     refreshed = False
@@ -241,11 +244,20 @@ Public Function TryRefreshTemplateBindings( _
     If m_bodyRange Is Nothing Or Not IsArray(m_renderedValues) Then
         Exit Function
     End If
-    If Not m_cellTemplates.CanRefreshBindings(table, m_source) Then
+    If onlyRow < 0 Or onlyRow > table.RowCount Then
+        Err.Raise 5, , "Invalid table refresh row."
+    End If
+    If Not m_cellTemplates.CanRefreshBindings(table, m_source, onlyRow) Then
         Exit Function
     End If
+    firstRow = 1
+    lastRow = table.RowCount
+    If onlyRow > 0 Then
+        firstRow = onlyRow
+        lastRow = onlyRow
+    End If
     bodyOffset = m_bodyRange.Row - m_targetRange.Row
-    For rowIndex = 1 To table.RowCount
+    For rowIndex = firstRow To lastRow
         For columnIndex = 1 To table.ColumnCount
             value = table.ValueAt(rowIndex, columnIndex)
             If Not private_SameCellValue(value, m_renderedValues(bodyOffset + rowIndex, columnIndex)) Then
@@ -254,7 +266,7 @@ Public Function TryRefreshTemplateBindings( _
             End If
         Next columnIndex
     Next rowIndex
-    If Not m_cellTemplates.TryRefreshBindings(table, diagnostic) Then
+    If Not m_cellTemplates.TryRefreshBindings(table, diagnostic, onlyRow) Then
         TryRefreshTemplateBindings = False
         Exit Function
     End If

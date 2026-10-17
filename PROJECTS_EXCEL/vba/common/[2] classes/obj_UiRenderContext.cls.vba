@@ -211,6 +211,45 @@ Public Sub UnregisterElement(ByVal name As String, ByVal element As obj_IUiEleme
     m_styles.ForgetControl name
 End Sub
 
+Public Function TryRefreshTableRow( _
+    ByVal name As String, _
+    ByVal rowIndex As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim registered As obj_IUiElement
+    Dim element As obj_UiControlElement
+    Dim previousEvents As Boolean
+    Dim previousScreen As Boolean
+
+    If m_isDisposed Or rowIndex < 1 Then
+        diagnostic = "Invalid table row refresh request."
+        Exit Function
+    End If
+    If Not m_elements.Exists(name) Then
+        diagnostic = "Table control was not found: " & name
+        Exit Function
+    End If
+    Set registered = m_elements(name)
+    If Not TypeOf registered Is obj_UiControlElement Then
+        diagnostic = "The element is not a table control: " & name
+        Exit Function
+    End If
+    Set element = registered
+    previousEvents = Application.EnableEvents
+    previousScreen = Application.ScreenUpdating
+    On Error GoTo FailedRow
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    TryRefreshTableRow = element.TryRefreshTableRow(rowIndex, diagnostic)
+CleanRow:
+    Application.ScreenUpdating = previousScreen
+    Application.EnableEvents = previousEvents
+    Exit Function
+FailedRow:
+    diagnostic = "Table.RefreshRow: " & VBA.Err.Description
+    Resume CleanRow
+End Function
+
 Public Sub UnregisterForm(ByVal name As String)
     If m_forms Is Nothing Then Exit Sub
     If m_forms.Exists(name) Then m_forms.Remove name
