@@ -46,8 +46,10 @@ def load_movement(settings, workbook, xml_text=None):
         require(len(node) > 0 and all(child.tag == f"{{{NS['p']}}}column" for child in node), "Expected result columns: " + name)
         texts, names = {}, set()
         for column in node:
-            attributes(column, {"name"}, {"name"})
-            column_name = column.get("name").strip()
+            attributes(column, {"configKey"}, {"configKey"})
+            config_key = column.get("configKey").strip()
+            require(config_key in settings and settings[config_key].strip(), "Missing configuration key: " + config_key)
+            column_name = settings[config_key]
             require(column_name.casefold() not in names, "Duplicate result column: " + column_name)
             names.add(column_name.casefold())
             require([child.tag for child in column] == [f"{{{NS['p']}}}text"], "Expected one column text: " + column_name)

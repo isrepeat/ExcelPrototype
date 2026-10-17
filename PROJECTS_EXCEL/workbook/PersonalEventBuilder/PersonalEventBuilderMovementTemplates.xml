@@ -48,7 +48,7 @@
     </sharedTemplate>
   </sharedTemplates>
   <template name="FromBusinessTrip">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -60,7 +60,7 @@
     </column>
   </template>
   <template name="FromHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -71,7 +71,7 @@
     </column>
   </template>
   <template name="FromVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -82,7 +82,7 @@
     </column>
   </template>
   <template name="FromAnnualMainVacation">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -93,7 +93,7 @@
     </column>
   </template>
   <template name="FromVacationForFamily">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -104,7 +104,7 @@
     </column>
   </template>
   <template name="FromOutpatientExaminationOrVlk">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -115,7 +115,7 @@
     </column>
   </template>
   <template name="FromExternalVlk">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -126,7 +126,7 @@
     </column>
   </template>
   <template name="FromMedicalCompanyForTreatment">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -137,7 +137,7 @@
     </column>
   </template>
   <template name="ToHospital">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -148,7 +148,7 @@
     </column>
   </template>
   <template name="ToAnnualMainVacation">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -160,7 +160,7 @@
     </column>
   </template>
   <template name="ToVacationForFamily">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -171,7 +171,7 @@
     </column>
   </template>
   <template name="ToMaternityLeave">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -182,7 +182,7 @@
     </column>
   </template>
   <template name="ToVacationForCuring">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -194,7 +194,7 @@
     </column>
   </template>
   <template name="ToOutpatientExaminationOrVlk">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -205,7 +205,7 @@
     </column>
   </template>
   <template name="ToMedicalCompanyForTreatment">
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -216,7 +216,7 @@
     </column>
   </template>
   <template name="MoveFromHospitalToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -227,7 +227,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -240,7 +240,7 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -251,7 +251,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -264,7 +264,7 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -274,7 +274,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -286,7 +286,7 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -296,7 +296,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -308,7 +308,7 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToVlk">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -318,7 +318,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -330,7 +330,7 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToVlk">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -340,7 +340,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -352,7 +352,7 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToVlk">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -362,7 +362,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -374,7 +374,7 @@
     </column>
   </template>
   <template name="MoveFromVlkToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -384,7 +384,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -396,7 +396,7 @@
     </column>
   </template>
   <template name="MoveFromVlkToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -406,7 +406,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -418,7 +418,7 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyForTreatmentToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -427,7 +427,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -438,7 +438,7 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyForTreatmentToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -449,7 +449,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -462,7 +462,7 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyVacationForCuringToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -472,7 +472,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -484,7 +484,7 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyVacationForCuringToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -496,7 +496,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -510,7 +510,7 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToFamilyVacation">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -521,7 +521,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -534,7 +534,7 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToAnnualVacation">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -545,7 +545,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -558,7 +558,7 @@
     </column>
   </template>
   <template name="MoveFromHospitalToExternalVlk">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -567,7 +567,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -578,7 +578,7 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -588,7 +588,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -600,7 +600,7 @@
     </column>
   </template>
   <template name="MoveFromExternalVlkToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -610,7 +610,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -622,7 +622,7 @@
     </column>
   </template>
   <template name="MoveFromExternalVlkToHospital">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -632,7 +632,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -644,7 +644,7 @@
     </column>
   </template>
   <template name="MoveFromOutpatientVlkToVacationForCuring">
-    <column name="Прибуття.Підстава">
+    <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
@@ -654,7 +654,7 @@
         ]]>
       </text>
     </column>
-    <column name="Вибуття.Підстава">
+    <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^

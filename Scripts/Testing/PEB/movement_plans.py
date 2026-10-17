@@ -1,4 +1,4 @@
-"""Read literal native plan declarations for offline contract checks only."""
+"""Read native plan declarations and configured values for offline checks only."""
 
 from pathlib import Path
 import re
@@ -12,6 +12,11 @@ def load_native_plans(settings, source=None):
             raise ValueError("Native Movement plan: " + message)
     def strings(text):
         return [value.replace('""', '"') for value in re.findall(r'"((?:[^"]|"")*)"', text)]
+    def configured_value(match):
+        key = match.group(1)
+        require(key in settings and settings[key], "Missing configuration key: " + key)
+        return '"' + settings[key].replace('"', '""') + '"'
+    source = re.sub(r'ex_PEB_Export\.fn_Config\("([^"]+)"\)', configured_value, source)
     def body(name):
         match = re.search(r"Private Sub " + name + r"\(\)(.*?)\nEnd Sub", source, re.S)
         require(match, "Missing native builder: " + name)

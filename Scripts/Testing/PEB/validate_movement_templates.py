@@ -13,6 +13,33 @@ def main():
     config = ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder"
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(config / filename)
+        configured = dict(settings)
+        configured["export.Movement.headers.PersonId"] = "Custom person identifier"
+        configured["export.Movement.destinations.MedicalCompany"] = "Custom medical company"
+        plans = load_native_plans(configured)
+        assert plans["values"]["profiles.Departure.fields.1.header"] == "Custom person identifier"
+        assert plans["events"]["ToMedicalCompanyForTreatment"]["destinationValue"] == "Custom medical company"
+        configured["export.Movement.headers.ArrivalBasis"] = "Custom arrival basis"
+        configured["export.Movement.headers.DepartureBasis"] = "Custom departure basis"
+        renamed = load_registry(configured)["movement"]["columns"]
+        assert set(renamed["MoveFromVacationForCuringToHospital"]) == {"Custom arrival basis", "Custom departure basis"}
+        missing_header = dict(settings)
+        del missing_header["export.Movement.headers.ArrivalBasis"]
+        try:
+            load_movement(missing_header, WORKBOOK)
+        except ValueError as error:
+            assert "export.Movement.headers.ArrivalBasis" in str(error)
+        else:
+            raise AssertionError("Missing XML column configuration accepted")
+        for key in ("export.Movement.headers.PersonId", "export.Movement.destinations.MedicalCompany"):
+            missing = dict(settings)
+            del missing[key]
+            try:
+                load_native_plans(missing)
+            except ValueError as error:
+                assert key in str(error)
+            else:
+                raise AssertionError("Missing Movement setting accepted: " + key)
         registry = load_registry(settings)
         movement = registry["movement"]
         assert len(movement["templates"]) == len(movement["events"]) == len(registry["events"]) == 35
@@ -55,8 +82,9 @@ def main():
     reject(lambda tree: text(tree).__setattr__("text", ""))
     reject(lambda tree: text(tree).__setattr__("text", "{#include Missing}"))
     reject(lambda tree: text(tree).__setattr__("text", "{[MissingField]}"))
-    reject(lambda tree: column(tree).attrib.pop("name"))
-    reject(lambda tree: column(tree).set("name", " "))
+    reject(lambda tree: column(tree).attrib.pop("configKey"))
+    reject(lambda tree: column(tree).set("configKey", " "))
+    reject(lambda tree: column(tree).set("name", "LegacyHeader"))
     reject(lambda tree: template(tree).append(deepcopy(column(tree))))
     reject(lambda tree: template(tree).remove(column(tree)))
     reject(lambda tree: tree.find("p:sharedTemplates/p:sharedTemplate/p:text", NS).__setattr__("text", "{#include block.IncomingBasis}"))
@@ -64,14 +92,14 @@ def main():
     reject(lambda tree: template(tree).set("operation", "close"))
     reject(lambda tree: template(tree).set("column", "OldFormat"))
     reject(lambda tree: tree.append(ET.Element(f"{{{NS['p']}}}profiles")))
-    reject(lambda tree: column(tree).set("name", "UnknownHeader"), routed=True)
+    reject(lambda tree: column(tree).set("configKey", "export.Movement.headers.UnknownHeader"), routed=True)
     reject(lambda tree: tree.find("p:template[@name='MoveFromVacationForCuringToHospital']", NS).remove(
         tree.find("p:template[@name='MoveFromVacationForCuringToHospital']/p:column", NS)), routed=True)
 
     custom = deepcopy(root)
     event = custom.find("p:template[@name='MoveFromVacationForCuringToHospital']", NS)
-    event.find("p:column[@name='Прибуття.Підстава']/p:text", NS).text = "Close: {[IncomingNo]}."
-    event.find("p:column[@name='Вибуття.Підстава']/p:text", NS).text = "Open: {[IncomingNo]}."
+    event.find("p:column[@configKey='export.Movement.headers.ArrivalBasis']/p:text", NS).text = "Close: {[IncomingNo]}."
+    event.find("p:column[@configKey='export.Movement.headers.DepartureBasis']/p:text", NS).text = "Open: {[IncomingNo]}."
     loaded = load_registry(settings, movement_text=ET.tostring(custom, encoding="unicode"))
     texts = loaded["movement"]["columns"][event.get("name")]
     assert texts["Прибуття.Підстава"] == "Close: {[IncomingNo]}."
