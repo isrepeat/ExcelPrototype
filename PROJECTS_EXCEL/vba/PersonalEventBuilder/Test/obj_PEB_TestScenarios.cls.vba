@@ -611,14 +611,25 @@ Public Function TryArchive( _
                 row("Field") = key
                 If VBA.IsObject(source(key)) Then
                     Set objectValue = source(key)
-                    If VBA.TypeName(objectValue) <> "Collection" Then Err.Raise 5, , "Unsupported archive object: " & key
-                    If objectValue.Count <> 0 Then Err.Raise 5, , "Archive requires explicit serialization of nonempty collections: " & key
-                    row("Value") = "Collection(0)"
+                    Select Case VBA.TypeName(objectValue)
+                        Case "Collection"
+                            If objectValue.Count <> 0 Then Err.Raise 5, , "Archive requires explicit serialization of nonempty collections: " & key
+                            row("Value") = "Collection(0)"
+                        Case "Dictionary"
+                            row("Value") = "Dictionary(" & VBA.CStr(objectValue.Count) & ")"
+                        Case Else
+                            Err.Raise 5, , "Unsupported archive object: " & key
+                    End Select
                 Else
                     row("Value") = source(key)
                 End If
                 row("ValueType") = VBA.VarType(source(key))
                 private_ArchiveRow inputs, row
+                If VBA.IsObject(source(key)) Then
+                    If VBA.TypeName(objectValue) = "Dictionary" Then
+                        private_ArchiveDictionary inputs, report, VBA.CStr(stage), VBA.CStr(key), objectValue
+                    End If
+                End If
             Next key
         End If
     Next stage
@@ -685,6 +696,33 @@ Private Function private_ArchiveTable( _
     Next index
     Set private_ArchiveTable = table
 End Function
+
+Private Sub private_ArchiveDictionary( _
+    ByVal table As Object, _
+    ByVal report As Object, _
+    ByVal stage As String, _
+    ByVal field As String, _
+    ByVal values As Object _
+)
+    Dim key As Variant
+    Dim row As Object
+
+    ' Store each scalar entry separately so delimiters and multiline texts remain intact.
+    For Each key In values.Keys
+        If VBA.VarType(key) <> VBA.vbString Then
+            Err.Raise 5, , "Archive dictionary requires string keys: " & field
+        End If
+        If VBA.IsObject(values(key)) Or VBA.IsArray(values(key)) Then
+            Err.Raise 5, , "Archive dictionary requires scalar values: " & field & "/" & key
+        End If
+        Set row = private_ArchiveMetadata(report)
+        row("InputStage") = stage
+        row("Field") = field & "[""" & VBA.Replace$(VBA.CStr(key), """", """""") & """]"
+        row("Value") = values(key)
+        row("ValueType") = VBA.VarType(values(key))
+        private_ArchiveRow table, row
+    Next key
+End Sub
 
 Private Sub private_ArchiveRow( _
     ByVal table As Object, _
