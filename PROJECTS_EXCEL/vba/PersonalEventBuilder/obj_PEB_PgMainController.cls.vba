@@ -696,24 +696,6 @@ Public Function LoadTestHandler() As Boolean
     LoadTestHandler = private_LoadTest(False)
 End Function
 
-Public Function OpenTestsHandler() As Boolean
-    If Not m_isInitialized Or m_isDisposed Or m_environmentSwitchPending Then Exit Function
-    OpenTestsHandler = ex_PEB_Testing.fn_Open()
-End Function
-
-Public Function TestPreviewHandler(ByVal item As Object) As Boolean
-    TestPreviewHandler = ex_PEB_Testing.fn_NavigatePreview(item)
-End Function
-
-Public Function CancelTestsHandler() As Boolean
-    ex_PEB_Testing.fn_RequestStop
-    CancelTestsHandler = True
-End Function
-
-Public Function TestRunHandler() As Boolean
-    TestRunHandler = ex_PEB_Testing.fn_RunSelected()
-End Function
-
 Public Function NextTestHandler() As Boolean
     NextTestHandler = private_LoadTest(True)
 End Function
@@ -1078,6 +1060,11 @@ Private Function private_Export(ByVal action As String) As Boolean
         diagnostic, _
         action <> "PreviewWord" _
     ) Then GoTo Failed
+    If exporter = "Word" Then
+        If values("WordPolicy") = "Omit" Then
+            status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
+        End If
+    End If
     If action = "PreviewWord" Then
         success = m_pageBase.BindingContext.SetValue( _
             "Form", _
@@ -1093,7 +1080,11 @@ Private Function private_Export(ByVal action As String) As Boolean
             Err.Raise 5, , "Cannot initialize Word exporter."
         End If
         success = pebExptrWord.TryExport(values, diagnostic)
-        status = VBA.Replace$(status, "{path}", VBA.CStr(values("WordOutput")))
+        If values("WordPolicy") = "Omit" Then
+            status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
+        Else
+            status = VBA.Replace$(status, "{path}", VBA.CStr(values("WordOutput")))
+        End If
     Else
         Set pebExptrMovement = New obj_PEB_ExptrMovement
         If Not pebExptrMovement.Initialize() Then
@@ -1223,7 +1214,9 @@ Private Function private_LoadMode( _
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function
-    If direction <> "Arrival" And direction <> "Departure" Then Err.Raise 5, , "Invalid mode direction: " & modeId
+    If direction <> "Arrival" And direction <> "Departure" And direction <> "StatusChange" Then
+        Err.Raise 5, , "Invalid mode direction: " & modeId
+    End If
     If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function

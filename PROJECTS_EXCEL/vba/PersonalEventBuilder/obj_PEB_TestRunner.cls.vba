@@ -175,7 +175,7 @@ Public Function TryAdvance( _
     If Not report("PreviewEnabled") Then report("PreviewLink") = VBA.vbNullString
     report("StepOrder") = testStep("Order")
     report("Operation") = "preview"
-    If testStep("Action") = "ExportMovement" Then
+    If testStep("Action") = "ExportMovement" Or testStep("Action") = "ExportEvent" Then
         report("Operation") = ex_PEB_Export.fn_Config("export.Movement.profiles." & _
             ex_PEB_Export.fn_Config("export.Movement." & testStep("ModeId") & ".profile") & ".operation")
         report("StateCheck") = testStep("StateCheck")
@@ -199,6 +199,9 @@ Public Function TryAdvance( _
             report("WordResult") = "SKIP"
         Else
             report("MovementResult") = "SKIP"
+            If testStep("Action") = "ExportEvent" Then
+                report("WordResult") = "SKIP"
+            End If
         End If
         report("Actual") = "Skipped"
         report("Details") = reason
@@ -209,6 +212,9 @@ Public Function TryAdvance( _
                 report("WordResult") = "ERROR"
             Else
                 report("MovementResult") = "ERROR"
+                If testStep("Action") = "ExportEvent" Then
+                    report("WordResult") = "ERROR"
+                End If
             End If
             report("Actual") = "Error"
             report("ActualCode") = "RunnerError"
@@ -280,6 +286,11 @@ Private Function private_Report( _
         report("ExpectedPreviewError") = testStep("ExpectedError")
     Else
         report("MovementResult") = "NotRun"
+        If testStep("Action") = "ExportEvent" Then
+            report("WordResult") = "NotRun"
+            report("ExpectedPreviewText") = testStep("WordExpectation")("ExpectedText")
+            report("ExpectedPreviewError") = testStep("WordExpectation")("ExpectedError")
+        End If
     End If
     Set private_Report = report
 End Function
@@ -312,6 +323,9 @@ Private Function private_RunStep( _
     Dim assertion As Boolean
     Dim started As Double
     Dim elapsed As Double
+    Dim wordReport As Object
+    Dim wordPassed As Boolean
+    Dim wordAfter As Object
 
     On Error GoTo EH
     started = VBA.Timer
@@ -356,7 +370,7 @@ Private Function private_RunStep( _
     End If
     If Not m_exportService.TryPrepare(binding, "Movement", values, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Inputs"
-    If report("PreviewEnabled") Then
+    If report("PreviewEnabled") And testStep("Action") <> "ExportEvent" Then
         If m_exportService.TryPrepare(binding, "Word", previewValues, previewDiagnostic, False) Then
             report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText")), VBA.vbCrLf, VBA.vbLf)
         Else
@@ -385,6 +399,27 @@ Private Function private_RunStep( _
     End If
     expectedCode = private_ExpectedCode(VBA.CStr(testStep("Code")))
     assertion = (actualDecision = testStep("Expected") And actualCode = expectedCode)
+    If testStep("Action") = "ExportEvent" Then
+        Set wordReport = VBA.CreateObject("Scripting.Dictionary")
+        For Each key In report.Keys
+            wordReport(key) = report(key)
+        Next key
+        wordPassed = private_ValidateWord(binding, testStep("WordExpectation"), wordReport, previewValues)
+        If Not m_session.TrySnapshot(VBA.CStr(values("PersonId")), wordAfter, diagnostic) Then
+            GoTo Cleanup
+        End If
+        If Not private_Unchanged(after, wordAfter) Then
+            wordPassed = False
+            wordReport("Details") = wordReport("Details") & " " & ex_PEB_Export.fn_Config("text.TestsUnexpectedMutation")
+        End If
+        Set after = wordAfter
+        report("WordResult") = "FAIL"
+        If wordPassed Then
+            report("WordResult") = "PASS"
+        End If
+        report("PreviewText") = wordReport("PreviewText")
+        report("PreviewDiagnostic") = wordReport("PreviewDiagnostic")
+    End If
     If Not VBA.IsNumeric(testStep("OpenCount")) Then Err.Raise 5, , "ExpectedOpenCount must be numeric: " & scenarioId
     assertion = assertion And (VBA.CDbl(testStep("OpenCount")) = VBA.CDbl(after("OpenCount")))
     If success Then
@@ -409,10 +444,21 @@ Private Function private_RunStep( _
     If VBA.CDbl(testStep("OpenCount")) <> VBA.CDbl(after("OpenCount")) Then
         private_AddDetail checkDiagnostic, private_Mismatch(testStep("Id"), "РУХ", "OpenCount", VBA.CStr(testStep("OpenCount")), VBA.CStr(after("OpenCount")))
     End If
+    report("MovementResult") = "FAIL"
+    If assertion Then
+        report("MovementResult") = "PASS"
+    End If
+    If Not wordReport Is Nothing Then
+        assertion = assertion And wordPassed
+    End If
     report("Result") = "FAIL"
     If assertion Then report("Result") = "PASS"
-    report("MovementResult") = report("Result")
     report("Details") = exportDiagnostic
+    If Not wordReport Is Nothing Then
+        If Not wordPassed Then
+            report("Details") = report("Details") & " " & wordReport("Details")
+        End If
+    End If
     If VBA.Len(checkDiagnostic) > 0 Then report("Details") = report("Details") & " " & checkDiagnostic
     If Not assertion And VBA.Len(report("Details")) = 0 Then report("Details") = ex_PEB_Export.fn_Config("text.TestsMismatch")
     ex_PEB_Testing.fn_ReportPhase "Verify"
@@ -425,6 +471,9 @@ Cancelled:
         report("WordResult") = "SKIP"
     Else
         report("MovementResult") = "SKIP"
+        If testStep("Action") = "ExportEvent" Then
+            report("WordResult") = "SKIP"
+        End If
     End If
     report("Actual") = "Skipped"
     report("Details") = ex_PEB_Export.fn_Config("text.TestsCancelled")
@@ -547,7 +596,7 @@ Private Function private_ValidateWord( _
     report("PreviewDiagnostic") = diagnostic
     report("PreviewText") = VBA.vbNullString
     If success Then
-        report("Actual") = "Success"
+        report("Actual") = values("WordOutcome")
         report("ActualCode") = VBA.vbNullString
         actual = private_NormalizeNewlines(VBA.CStr(values("WordText")))
         report("PreviewText") = actual
@@ -693,8 +742,12 @@ Private Function private_ValidateMutation( _
 
     Set oldRows = before("Rows")
     Set newRows = after("Rows")
-    prefix = "export.Movement.profiles." & ex_PEB_Export.fn_Config("export.Movement." & values("ModeId") & ".profile")
+    prefix = "export.Movement.profiles." & values("MovementPlanId")
     operation = ex_PEB_Export.fn_Config(prefix & ".operation")
+    If operation = "transition" Then
+        private_ValidateMutation = private_ValidateTransition(before, after, values, prefix, diagnostic)
+        Exit Function
+    End If
     If operation = "append" Then
         If newRows.Count <> oldRows.Count + 1 Then GoTo Mismatch
         For index = 1 To oldRows.Count
@@ -748,4 +801,90 @@ Private Function private_ValidateMutation( _
     Exit Function
 Mismatch:
     diagnostic = ex_PEB_Export.fn_Config("text.TestsMutationMismatch")
+End Function
+
+Private Function private_ValidateTransition( _
+    ByVal before As Object, _
+    ByVal after As Object, _
+    ByVal values As Object, _
+    ByVal prefix As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim oldRows As Collection
+    Dim newRows As Collection
+    Dim oldRow As Object
+    Dim newRow As Object
+    Dim changed As Long
+    Dim index As Long
+    Dim mappingIndex As Long
+    Dim mappingPrefix As String
+    Dim field As String
+    Dim header As String
+    Dim key As Variant
+    Dim allowed As Object
+
+    Set oldRows = before("Rows")
+    Set newRows = after("Rows")
+    If newRows.Count <> oldRows.Count + 1 Or before("OpenCount") <> after("OpenCount") Then
+        GoTo Mismatch
+    End If
+    mappingPrefix = "export.Movement.profiles." & ex_PEB_Export.fn_Config(prefix & ".closeProfile") & ".fields"
+    Set allowed = VBA.CreateObject("Scripting.Dictionary")
+    For mappingIndex = 1 To ex_PEB_Export.fn_Count(mappingPrefix & ".count")
+        header = ex_PEB_Export.fn_Config(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".header")
+        allowed(header) = True
+    Next mappingIndex
+    For index = 1 To oldRows.Count
+        Set oldRow = oldRows(index)
+        Set newRow = newRows(index)
+        If oldRow("_signature") <> newRow("_signature") Then
+            changed = changed + 1
+            For mappingIndex = 1 To ex_PEB_Export.fn_Count(prefix & ".join.count")
+                header = ex_PEB_Export.fn_Config(prefix & ".join." & VBA.CStr(mappingIndex) & ".header")
+                field = ex_PEB_Export.fn_Config(prefix & ".join." & VBA.CStr(mappingIndex) & ".field")
+                If oldRow(header) <> ex_PEB_Export.fn_Text(values(field)) Then
+                    GoTo Mismatch
+                End If
+            Next mappingIndex
+            For Each key In oldRow.Keys
+                If key <> "_signature" And key <> "_cells" And Not allowed.Exists(key) Then
+                    If oldRow(key) <> newRow(key) Then
+                        GoTo Mismatch
+                    End If
+                End If
+            Next key
+            For mappingIndex = 1 To ex_PEB_Export.fn_Count(mappingPrefix & ".count")
+                header = ex_PEB_Export.fn_Config(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".header")
+                field = ex_PEB_Export.fn_Config(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".field")
+                If Not private_MappedValueMatches(values(field), newRow("_cells")(header)) Then
+                    GoTo Mismatch
+                End If
+            Next mappingIndex
+        End If
+    Next index
+    If changed <> 1 Then
+        GoTo Mismatch
+    End If
+    Set newRow = newRows(newRows.Count)
+    For mappingIndex = 1 To ex_PEB_Export.fn_Count(prefix & ".fields.count")
+        header = ex_PEB_Export.fn_Config(prefix & ".fields." & VBA.CStr(mappingIndex) & ".header")
+        field = ex_PEB_Export.fn_Config(prefix & ".fields." & VBA.CStr(mappingIndex) & ".field")
+        If Not private_MappedValueMatches(values(field), newRow("_cells")(header)) Then
+            GoTo Mismatch
+        End If
+    Next mappingIndex
+    private_ValidateTransition = True
+    Exit Function
+Mismatch:
+    diagnostic = ex_PEB_Export.fn_Config("text.TestsMutationMismatch")
+End Function
+
+Private Function private_MappedValueMatches( _
+    ByVal expected As Variant, _
+    ByVal actual As Variant _
+) As Boolean
+    If VBA.VarType(expected) = VBA.vbDate Then
+        expected = VBA.CDbl(expected)
+    End If
+    private_MappedValueMatches = private_SameValue(expected, actual)
 End Function

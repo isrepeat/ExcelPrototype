@@ -129,8 +129,7 @@ Public Function TryPrepare( _
         End If
         values.Add VBA.CStr(key), scalar
     Next key
-    mode = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "ModeId"))
-    values.Add "EventName", ex_PEB_Export.fn_Config("export.events." & mode)
+    mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
     ' Select the destination input for each Movement mode through configuration.
     If exporter = "Movement" Then
         key = ex_PEB_Export.fn_Config("export.Movement." & mode & ".destinationField")
@@ -155,6 +154,13 @@ Public Function TryPrepare( _
             values(key) = private_Date(scalar, VBA.CStr(key))
         End If
     Next key
+
+    If exporter = "Word" And values("WordPolicy") = "Omit" Then
+        values("WordOutcome") = "Omitted"
+        values("WordText") = VBA.vbNullString
+        TryPrepare = True
+        GoTo CleanupPrepare
+    End If
 
     private_PrepareTicket values
     private_PrepareFoodSupport values
@@ -194,15 +200,12 @@ Public Function TryPrepare( _
                 Err.Raise 5, , "Cannot initialize DSL renderer."
             End If
         End If
-        templateName = ex_PEB_Export.fn_Config("export.Word." & mode & ".templateName")
+        templateName = VBA.CStr(values("RoutedWordTemplate"))
         If Not additionalInputs Is Nothing Then
             If additionalInputs.Exists("TemplateName") Then
                 If ex_PEB_Export.fn_Text(additionalInputs("TemplateName")) <> templateName Then
-                    If Not additionalInputs.Exists("RequiresFoodSupportEnroll") Or Not additionalInputs.Exists("RequiresFoodSupportRemove") Then
-                        Err.Raise 5, , "An alternate XML template requires explicit food-support transition flags."
-                    End If
+                    Err.Raise 5, , "Word template override conflicts with the business event route."
                 End If
-                templateName = ex_PEB_Export.fn_Text(additionalInputs("TemplateName"))
             End If
         End If
         values("TemplateName") = templateName
@@ -222,6 +225,7 @@ Public Function TryPrepare( _
             Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
         End If
         values("WordText") = rendered
+        values("WordOutcome") = "Success"
         If prepareOutput Then
             template = m_pebWordTemplates.DocumentFilepath
             If VBA.Len(template) > 0 Then

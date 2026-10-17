@@ -127,8 +127,14 @@ Private Function private_RenderPage( _
     startedAt = VBA.Timer
     If Not ex_RuntimePaths.fn_TryGetUiFolder(uiRootPath) Then Exit Function
     uiFolderPath = uiRootPath & "\" & uiFolderRelativePath
-    xamlPath = uiFolderPath & "\" & targetWorksheet.Name & ".xaml"
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not private_TryResolveXaml(targetWorksheet, uiFolderPath, xamlPath) Then
+        Exit Function
+    End If
+    If VBA.Len(xamlPath) = 0 Then
+        private_RenderPage = True
+        Exit Function
+    End If
     If Not fileSystem.FileExists(xamlPath) Then
         ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_SKIPPED_NO_XAML | Sheet=" & _
             targetWorksheet.Name & " | Path=" & xamlPath
@@ -139,6 +145,7 @@ Private Function private_RenderPage( _
         private_RenderPage = True
         Exit Function
     End If
+    uiFolderPath = fileSystem.GetParentFolderName(xamlPath)
 
     ex_Core.fn_Diagnostic_WriteLog "UI_PAGE_RENDER_STARTED | Sheet=" & _
         targetWorksheet.Name & " | Path=" & xamlPath
@@ -232,6 +239,87 @@ EH_RENDER_PAGE:
     renderErrorNumber = VBA.Err.Number
     renderErrorDescription = VBA.Err.Description
     Resume CleanRenderPage
+End Function
+
+Private Function private_TryResolveXaml( _
+    ByVal targetWorksheet As Worksheet, _
+    ByVal uiFolderPath As String, _
+    ByRef xamlPath As String _
+) As Boolean
+    Dim mappings As String
+    Dim entry As Variant
+    Dim parts As Variant
+    Dim names As Object
+    Dim fileSystem As Object
+    Dim sheet As Worksheet
+    Dim sheetName As String
+    Dim relativePath As String
+    Dim resolvedPath As String
+    Dim rootPath As String
+    Dim found As Boolean
+
+    On Error GoTo Failed
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    rootPath = fileSystem.GetAbsolutePathName(uiFolderPath)
+    If VBA.Right$(rootPath, 1) <> "\" Then
+        rootPath = rootPath & "\"
+    End If
+    xamlPath = VBA.vbNullString
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::ui.pageMappings", mappings) Then
+        ' Workbooks without an explicit map retain sheet-name-based resolution.
+        xamlPath = fileSystem.BuildPath(uiFolderPath, targetWorksheet.Name & ".xaml")
+        private_TryResolveXaml = True
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(mappings)) = 0 Then
+        Err.Raise 5, , "Empty configuration key: ThisWorkbook::ui.pageMappings"
+    End If
+    Set names = VBA.CreateObject("Scripting.Dictionary")
+    names.CompareMode = VBA.vbTextCompare
+    For Each entry In VBA.Split(mappings, "|")
+        parts = VBA.Split(VBA.CStr(entry), "=", 2)
+        If UBound(parts) <> 1 Then
+            Err.Raise 5, , "Invalid UI page mapping: " & entry
+        End If
+        sheetName = VBA.Trim$(parts(0))
+        relativePath = VBA.Trim$(parts(1))
+        If VBA.Len(sheetName) = 0 Or VBA.Len(relativePath) = 0 Then
+            Err.Raise 5, , "Incomplete UI page mapping: " & entry
+        End If
+        If names.Exists(sheetName) Then
+            Err.Raise 5, , "Duplicate UI page mapping: " & sheetName
+        End If
+        found = False
+        For Each sheet In ThisWorkbook.Worksheets
+            If VBA.StrComp(sheet.Name, sheetName, VBA.vbTextCompare) = 0 Then
+                found = True
+            End If
+        Next sheet
+        If Not found Then
+            Err.Raise 5, , "Mapped worksheet was not found: " & sheetName
+        End If
+        If VBA.InStr(relativePath, ":") > 0 Or VBA.Left$(relativePath, 1) = "\" Or VBA.Left$(relativePath, 1) = "/" Then
+            Err.Raise 5, , "UI page mapping requires a relative XAML path: " & entry
+        End If
+        resolvedPath = fileSystem.GetAbsolutePathName(fileSystem.BuildPath(uiFolderPath, VBA.Replace$(relativePath, "/", "\")))
+        If VBA.StrComp(VBA.Left$(resolvedPath, VBA.Len(rootPath)), rootPath, VBA.vbTextCompare) <> 0 Then
+            Err.Raise 5, , "UI page mapping leaves the UI folder: " & entry
+        End If
+        If VBA.LCase$(fileSystem.GetExtensionName(resolvedPath)) <> "xaml" Then
+            Err.Raise 5, , "UI page mapping requires a XAML file: " & entry
+        End If
+        If Not fileSystem.FileExists(resolvedPath) Then
+            Err.Raise 53, , "Mapped XAML file was not found: " & resolvedPath
+        End If
+        names.Add sheetName, resolvedPath
+    Next entry
+    If names.Exists(targetWorksheet.Name) Then
+        xamlPath = names(targetWorksheet.Name)
+    End If
+    private_TryResolveXaml = True
+    Exit Function
+Failed:
+    ex_WindowsUi.fn_ShowMessage VBA.Err.Description, VBA.vbExclamation, "UI configuration"
 End Function
 
 Private Sub private_ClearUi(ByVal targetWorksheet As Worksheet)

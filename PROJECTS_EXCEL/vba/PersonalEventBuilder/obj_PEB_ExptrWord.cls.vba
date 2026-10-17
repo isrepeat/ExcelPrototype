@@ -13,7 +13,6 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_templatePath As String
-Private m_bookmark As String
 Private m_documentMode As String
 
 ' //
@@ -39,7 +38,6 @@ Public Function Initialize() As Boolean
     End If
     If m_documentMode = "template" Then
         m_templatePath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
-        m_bookmark = ex_PEB_Export.fn_Config("export.Word.bookmark")
     End If
     m_isInitialized = True
     Initialize = True
@@ -67,12 +65,18 @@ Public Function TryExport( _
     Dim published As Boolean
     Dim cleanupError As String
     Dim enabled As String
+    Dim bookmark As String
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Word exporter is not initialized."
     End If
+    If ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordPolicy")) = "Omit" Then
+        TryExport = True
+        Exit Function
+    End If
+    bookmark = ex_PEB_Export.fn_Config("export.Word.anchors." & ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordAnchorId")) & ".bookmark")
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
     If enabled = "false" Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ExportWordUnavailable")
@@ -106,17 +110,17 @@ Public Function TryExport( _
     wordApp.AutomationSecurity = 3
     If m_documentMode = "template" Then
         Set document = wordApp.Documents.Add(m_templatePath, False, 0, False)
-        If Not document.Bookmarks.Exists(m_bookmark) Then
-            Err.Raise 5, , "Word template bookmark not found: " & m_bookmark
+        If Not document.Bookmarks.Exists(bookmark) Then
+            Err.Raise 5, , "Word template bookmark not found: " & bookmark
         End If
-        Set target = document.Bookmarks(m_bookmark).Range
+        Set target = document.Bookmarks(bookmark).Range
     Else
         Set document = wordApp.Documents.Add
         Set target = document.Content
     End If
     target.Text = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
     If m_documentMode = "template" Then
-        document.Bookmarks.Add m_bookmark, target
+        document.Bookmarks.Add bookmark, target
     End If
     document.SaveAs2 temporary, 16
     document.Close 0

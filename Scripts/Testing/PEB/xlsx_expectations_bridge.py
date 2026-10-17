@@ -24,7 +24,7 @@ NS = {"m": MAIN, "r": REL}
 
 
 def fixture_styles():
-    path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/ui/PersonalEventBuilderTest/FixtureStyles.xaml"
+    path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/ui/PersonalEventBuilder/FixtureStyles.xaml"
     nodes = ET.parse(str(path)).findall("{urn:excelprototype:profiles}controlStyle")
     result = {}
     for node in nodes:
@@ -568,6 +568,36 @@ def preserve_existing_cells(original, destination, edited, name):
     return baseline
 
 
+def restore_table_tail_background(sheet, previous_ref, current_ref, table_refs):
+    left, _, right, old_bottom = range_boundaries(previous_ref)
+    new_bottom = range_boundaries(current_ref)[3]
+    if new_bottom >= old_bottom:
+        return
+    bounds = [range_boundaries(reference) for reference in table_refs]
+    rows = sheet.findall("m:sheetData/m:row", NS)
+    backgrounds = {}
+    for row in rows:
+        index = int(row.get("r"))
+        if index <= old_bottom:
+            continue
+        for cell in row:
+            column = column_index(cell.get("r"))
+            if column in backgrounds or not left <= column <= right:
+                continue
+            if any(a <= column <= c and b <= index <= d for a, b, c, d in bounds):
+                continue
+            if cell.find("m:f", NS) is not None or any((child.text or "").strip() for child in cell.findall(".//m:t", NS) + cell.findall("m:v", NS)):
+                continue
+            if cell.get("s") is not None:
+                backgrounds[column] = cell.get("s")
+    for row in rows:
+        if new_bottom < int(row.get("r")) <= old_bottom:
+            for cell in row:
+                style = backgrounds.get(column_index(cell.get("r")))
+                if style is not None:
+                    cell.set("s", style)
+
+
 def update_values_preserving_layout(original, generated, destination, source_part, strings):
     # Обновляем содержимое ячеек, сохраняя исходное оформление и объекты листа.
     if rel_path(destination) not in original or rel_path(source_part) not in generated:
@@ -597,6 +627,17 @@ def update_values_preserving_layout(original, generated, destination, source_par
     styles = {}
     for cell in data.findall("m:row/m:c", NS):
         styles[column_index(cell.get("r"))] = cell.get("s")
+    expanded_styles = {}
+    for name, (_, table) in old_tables.items():
+        left, top, right, old_bottom = range_boundaries(table.get("ref"))
+        new_bottom = range_boundaries(new_tables[name][1].get("ref"))[3]
+        last_body = old_rows.get(old_bottom)
+        if last_body is not None and old_bottom > top:
+            for cell in last_body:
+                column = column_index(cell.get("r"))
+                if left <= column <= right:
+                    for index in range(old_bottom + 1, new_bottom + 1):
+                        expanded_styles[(index, column)] = cell.get("s")
     for row in edited.findall("m:sheetData/m:row", NS):
         index = int(row.get("r"))
         if index not in old_rows:
@@ -605,6 +646,10 @@ def update_values_preserving_layout(original, generated, destination, source_par
             attributes = dict(previous.attrib) if previous is not None else {}
             attributes["r"] = str(index)
             attributes.pop("spans", None)
+            # Honor explicit heights only for newly added rows; existing layout stays intact.
+            for attribute in ("ht", "customHeight"):
+                if attribute in row.attrib:
+                    attributes[attribute] = row.get(attribute)
             old_rows[index] = ET.SubElement(data, f"{{{MAIN}}}row", attributes)
         target_row = old_rows[index]
         for cell in row:
@@ -623,6 +668,10 @@ def update_values_preserving_layout(original, generated, destination, source_par
                 style = styles.get(column_index(address))
                 if style is not None:
                     existing.set("s", style)
+            # Table extensions inherit the last body row, rather than an unrelated footer.
+            style = expanded_styles.get((index, column_index(address)))
+            if style is not None:
+                existing.set("s", style)
             for child in list(existing):
                 if ET.QName(child).localname in ("v", "f", "is"):
                     existing.remove(child)
@@ -640,6 +689,7 @@ def update_values_preserving_layout(original, generated, destination, source_par
                         existing.append(copy.deepcopy(child))
         target_row[:] = sorted(target_row, key=lambda cell: column_index(cell.get("r")))
     data[:] = sorted(data, key=lambda row: int(row.get("r")))
+    previous_refs = [table.get("ref") for _, table in old_tables.values()]
     for name, (part, table) in old_tables.items():
         reference = new_tables[name][1].get("ref")
         left, _, right, old_bottom = range_boundaries(table.get("ref"))
@@ -652,6 +702,8 @@ def update_values_preserving_layout(original, generated, destination, source_par
                             if ET.QName(child).localname in ("v", "f", "is"):
                                 cell.remove(child)
                         cell.attrib.pop("t", None)
+        # Released cells lose table-style overlays; restore the surrounding worksheet background.
+        restore_table_tail_background(baseline, table.get("ref"), reference, previous_refs)
         table.set("ref", reference)
         auto_filter = table.find("m:autoFilter", NS)
         if auto_filter is not None:
@@ -663,6 +715,26 @@ def update_values_preserving_layout(original, generated, destination, source_par
         dimension.set("ref", f"A1:{get_column_letter(max(column_index(cell.get('r')) for cell in cells))}{max(old_rows)}")
     original[destination] = serialize(baseline)
     return True
+
+
+def invalidate_calculation_chain(parts):
+    parts.pop("xl/calcChain.xml", None)
+    for path, attribute, suffix in (
+        ("xl/_rels/workbook.xml.rels", "Type", "/calcChain"),
+        ("[Content_Types].xml", "PartName", "/xl/calcChain.xml"),
+    ):
+        node = xml(parts, path)
+        for child in list(node):
+            if child.get(attribute, "").endswith(suffix):
+                node.remove(child)
+        parts[path] = serialize(node)
+    book = xml(parts, "xl/workbook.xml")
+    calculation = book.find("m:calcPr", NS)
+    if calculation is None:
+        calculation = ET.SubElement(book, f"{{{MAIN}}}calcPr")
+    calculation.set("fullCalcOnLoad", "1")
+    calculation.set("forceFullCalc", "1")
+    parts["xl/workbook.xml"] = serialize(book)
 
 
 def assemble(original_path, generated_path, output_path, names, allow_layout_migration=False):
@@ -760,6 +832,8 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
         if name not in modified and original[name] != content:
             raise AssertionError(f"Untouched workbook part changed: {name}")
     remove_fixture_fields(original)
+    # Formula edits invalidate Excel's cached dependency chain, including deleted cells.
+    invalidate_calculation_chain(original)
     with zipfile.ZipFile(output_path, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, content in original.items():
             archive.writestr(name, content)
@@ -769,6 +843,41 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
 if __name__ == "__main__":
     if sys.argv[1] == "fixture-styles":
         print(json.dumps(fixture_styles(), ensure_ascii=False))
+    elif sys.argv[1] == "restore-table-background":
+        path = Path(sys.argv[2])
+        with zipfile.ZipFile(sys.argv[3]) as archive:
+            previous = {name: archive.read(name) for name in archive.namelist()}
+        with zipfile.ZipFile(path) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        for sheet in sheet_parts(parts).values():
+            relationship_path = rel_path(sheet)
+            if relationship_path not in previous or relationship_path not in parts:
+                continue
+            old_tables = {xml(previous, target(sheet, item.get("Target"))).get("name"): xml(previous, target(sheet, item.get("Target"))).get("ref") for item in xml(previous, relationship_path) if item.get("Type").endswith("/table")}
+            node = xml(parts, sheet)
+            for item in xml(parts, relationship_path):
+                if item.get("Type").endswith("/table"):
+                    table = xml(parts, target(sheet, item.get("Target")))
+                    if table.get("name") in old_tables:
+                        restore_table_tail_background(node, old_tables[table.get("name")], table.get("ref"), old_tables.values())
+            parts[sheet] = serialize(node)
+        temporary = path.with_suffix(".background.tmp.xlsx")
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in parts.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+        print("Restored surrounding worksheet styles in released table rows.")
+    elif sys.argv[1] == "invalidate-calculation-chain":
+        path = Path(sys.argv[2])
+        with zipfile.ZipFile(path) as archive:
+            parts = {name: archive.read(name) for name in archive.namelist()}
+        invalidate_calculation_chain(parts)
+        temporary = path.with_suffix(".recalc.tmp.xlsx")
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as archive:
+            for name, content in parts.items():
+                archive.writestr(name, content)
+        os.replace(temporary, path)
+        print("Removed stale calculation chain; Excel will rebuild dependencies on opening.")
     elif sys.argv[1] == "dump":
         dump(sys.argv[2])
     elif sys.argv[1] == "assemble":

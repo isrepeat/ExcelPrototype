@@ -54,9 +54,123 @@ Public Property Get Router() As obj_UiEventRouter
     Set Router = m_router
 End Property
 
+Public Property Get TargetWorksheet() As Worksheet
+    Set TargetWorksheet = m_targetWorksheet
+End Property
+
+Public Property Get PageDefinition() As obj_UiPageDefinition
+    Set PageDefinition = m_uiPageDefinition
+End Property
+
+Public Property Get BindingContext() As obj_UiBindingContext
+    Set BindingContext = m_uiBindingContext
+End Property
+
+Public Property Get UiFolderPath() As String
+    UiFolderPath = m_uiFolderPath
+End Property
+
 ' //
 ' // API
 ' //
+Public Function Initialize( _
+    ByVal targetWorksheet As Worksheet, _
+    ByVal uiPageDefinition As obj_UiPageDefinition, _
+    ByVal uiFolderPath As String, _
+    ByVal uiBindingContext As obj_UiBindingContext _
+) As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    If targetWorksheet Is Nothing Or uiPageDefinition Is Nothing Or uiBindingContext Is Nothing Then
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(uiFolderPath)) = 0 Then
+        Exit Function
+    End If
+    Set m_targetWorksheet = targetWorksheet
+    Set m_uiPageDefinition = uiPageDefinition
+    m_uiFolderPath = uiFolderPath
+    Set m_uiBindingContext = uiBindingContext
+    Set m_styles = New obj_UiStyleCatalog
+    If Not m_styles.Initialize() Then
+        Exit Function
+    End If
+    Set m_router = New obj_UiEventRouter
+    m_router.Initialize
+    Set m_forms = VBA.CreateObject("Scripting.Dictionary")
+    m_forms.CompareMode = VBA.vbTextCompare
+    Set m_elements = VBA.CreateObject("Scripting.Dictionary")
+    m_elements.CompareMode = VBA.vbTextCompare
+    Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
+    m_dirty.CompareMode = VBA.vbTextCompare
+    Initialize = True
+    m_isInitialized = Initialize
+End Function
+
+Public Sub Dispose()
+    Dim key As Variant
+    Dim element As obj_IUiElement
+
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    m_isDisposed = True
+    m_isInitialized = False
+
+#If ENABLE_LOGGING_VERBOSE Then
+    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_STARTED"
+#End If
+    If Not m_router Is Nothing Then
+#If ENABLE_LOGGING_VERBOSE Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_STARTED"
+#End If
+        m_router.Dispose
+#If ENABLE_LOGGING_VERBOSE Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_COMPLETED"
+#End If
+    End If
+    If Not m_root Is Nothing Then
+#If ENABLE_LOGGING_VERBOSE Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_STARTED"
+#End If
+        m_root.Dispose
+#If ENABLE_LOGGING_VERBOSE Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_COMPLETED"
+#End If
+    End If
+    If Not m_elements Is Nothing Then
+        For Each key In m_elements.Keys
+            If m_elements.Exists(key) Then
+                Set element = m_elements(key)
+                element.Dispose
+            End If
+        Next key
+    End If
+    If Not m_styles Is Nothing Then
+        m_styles.Dispose
+    End If
+    Set m_styles = Nothing
+    Set m_root = Nothing
+    Set m_router = Nothing
+    Set m_forms = Nothing
+    Set m_elements = Nothing
+    Set m_dirty = Nothing
+    Set m_pending = Nothing
+    Set m_tablePlans = Nothing
+    Set m_shapeLayouts = Nothing
+    Set m_uiBindingContext = Nothing
+    If Not m_uiPageDefinition Is Nothing Then
+        m_uiPageDefinition.Dispose
+    End If
+    Set m_uiPageDefinition = Nothing
+    Set m_targetWorksheet = Nothing
+    m_uiFolderPath = VBA.vbNullString
+#If ENABLE_LOGGING_VERBOSE Then
+    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_COMPLETED"
+#End If
+End Sub
+
 Public Sub RegisterElement(ByVal name As String, ByVal element As obj_IUiElement)
     If VBA.Len(name) = 0 Then Exit Sub
     If m_elements.Exists(name) Then VBA.Err.Raise VBA.vbObjectError + 2232, , "Duplicate element: " & name
@@ -381,10 +495,10 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Set m_pending = pending
     Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
     m_dirty.CompareMode = VBA.vbTextCompare
-    If needsLayout Then
-        ' A source replacement does not imply new geometry when its rendered schema is unchanged.
+    If pending.Count > 0 Then
+        ' Consume value-only updates and compatible source replacements before rendering.
         For Each key In pending.Keys
-            If pending(key) And m_elements.Exists(key) Then
+            If m_elements.Exists(key) Then
                 Set registered = m_elements(key)
                 If TypeOf registered Is obj_UiControlElement Then
                     Set controlElement = registered
@@ -587,116 +701,6 @@ EH_RENDER:
     diagnostic = VBA.Err.Source & ": " & VBA.Err.Description
     Resume CleanExit
 End Function
-
-' //
-' // Properties
-' //
-Public Property Get TargetWorksheet() As Worksheet
-    Set TargetWorksheet = m_targetWorksheet
-End Property
-
-Public Property Get PageDefinition() As obj_UiPageDefinition
-    Set PageDefinition = m_uiPageDefinition
-End Property
-
-Public Property Get BindingContext() As obj_UiBindingContext
-    Set BindingContext = m_uiBindingContext
-End Property
-
-Public Property Get UiFolderPath() As String
-    UiFolderPath = m_uiFolderPath
-End Property
-
-' //
-' // API
-' //
-Public Function Initialize( _
-    ByVal targetWorksheet As Worksheet, _
-    ByVal uiPageDefinition As obj_UiPageDefinition, _
-    ByVal uiFolderPath As String, _
-    ByVal uiBindingContext As obj_UiBindingContext _
-) As Boolean
-    If m_isDisposed Or m_isInitialized Then
-        Exit Function
-    End If
-    If targetWorksheet Is Nothing Or uiPageDefinition Is Nothing Or uiBindingContext Is Nothing Then Exit Function
-    If VBA.Len(VBA.Trim$(uiFolderPath)) = 0 Then Exit Function
-    Set m_targetWorksheet = targetWorksheet
-    Set m_uiPageDefinition = uiPageDefinition
-    m_uiFolderPath = uiFolderPath
-    Set m_uiBindingContext = uiBindingContext
-    Set m_styles = New obj_UiStyleCatalog
-    If Not m_styles.Initialize() Then Exit Function
-    Set m_router = New obj_UiEventRouter
-    m_router.Initialize
-    Set m_forms = VBA.CreateObject("Scripting.Dictionary")
-    m_forms.CompareMode = VBA.vbTextCompare
-    Set m_elements = VBA.CreateObject("Scripting.Dictionary")
-    m_elements.CompareMode = VBA.vbTextCompare
-    Set m_dirty = VBA.CreateObject("Scripting.Dictionary")
-    m_dirty.CompareMode = VBA.vbTextCompare
-    Initialize = True
-    m_isInitialized = Initialize
-End Function
-
-Public Sub Dispose()
-    Dim key As Variant
-    Dim element As obj_IUiElement
-
-    If m_isDisposed Then
-        Exit Sub
-    End If
-    m_isDisposed = True
-    m_isInitialized = False
-
-#If ENABLE_LOGGING_VERBOSE Then
-    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_STARTED"
-#End If
-    If Not m_router Is Nothing Then
-#If ENABLE_LOGGING_VERBOSE Then
-        ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_STARTED"
-#End If
-        m_router.Dispose
-#If ENABLE_LOGGING_VERBOSE Then
-        ex_Core.fn_Diagnostic_WriteLog "UI_ROUTER_DISPOSE_COMPLETED"
-#End If
-    End If
-    If Not m_root Is Nothing Then
-#If ENABLE_LOGGING_VERBOSE Then
-        ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_STARTED"
-#End If
-        m_root.Dispose
-#If ENABLE_LOGGING_VERBOSE Then
-        ex_Core.fn_Diagnostic_WriteLog "UI_ROOT_DISPOSE_COMPLETED"
-#End If
-    End If
-    If Not m_elements Is Nothing Then
-        For Each key In m_elements.Keys
-            If m_elements.Exists(key) Then
-                Set element = m_elements(key)
-                element.Dispose
-            End If
-        Next key
-    End If
-    If Not m_styles Is Nothing Then m_styles.Dispose
-    Set m_styles = Nothing
-    Set m_root = Nothing
-    Set m_router = Nothing
-    Set m_forms = Nothing
-    Set m_elements = Nothing
-    Set m_dirty = Nothing
-    Set m_pending = Nothing
-    Set m_tablePlans = Nothing
-    Set m_shapeLayouts = Nothing
-    Set m_uiBindingContext = Nothing
-    If Not m_uiPageDefinition Is Nothing Then m_uiPageDefinition.Dispose
-    Set m_uiPageDefinition = Nothing
-    Set m_targetWorksheet = Nothing
-    m_uiFolderPath = VBA.vbNullString
-#If ENABLE_LOGGING_VERBOSE Then
-    ex_Core.fn_Diagnostic_WriteLog "UI_RENDER_CONTEXT_DISPOSE_COMPLETED"
-#End If
-End Sub
 
 ' //
 ' // Private

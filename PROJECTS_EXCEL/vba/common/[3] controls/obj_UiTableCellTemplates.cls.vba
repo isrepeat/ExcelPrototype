@@ -99,6 +99,78 @@ Public Sub Clear()
     Set m_routes = VBA.CreateObject("Scripting.Dictionary")
 End Sub
 
+Public Function CanRefreshBindings( _
+    ByVal table As obj_UiRawTable, _
+    ByVal source As obj_IUiTableSource _
+) As Boolean
+    Dim entry As Object
+    Dim currentItem As Object
+    Dim previousItem As Object
+    Dim child As obj_IUiControl
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    For Each entry In m_entries
+        If entry("RowIndex") > table.RowCount Or entry("ColumnIndex") > table.ColumnCount Then
+            Exit Function
+        End If
+        Set currentItem = private_RowItem(table, source, entry("RowIndex"))
+        Set previousItem = entry("Item")
+        If Not currentItem Is previousItem Then
+            Exit Function
+        End If
+        Set child = entry("Control")
+        If Not TypeOf child Is obj_IUiBindingTarget Then
+            Exit Function
+        End If
+    Next entry
+    CanRefreshBindings = True
+End Function
+
+Public Function TryRefreshBindings( _
+    ByVal table As obj_UiRawTable, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim entry As Object
+    Dim child As obj_IUiControl
+    Dim target As obj_IUiBindingTarget
+    Dim started As Double
+    Dim scope As Object
+    Dim cell As Object
+    Dim value As Variant
+    Dim isObject As Boolean
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Cell template renderer is not initialized."
+    End If
+    started = VBA.Timer
+    For Each entry In m_entries
+        If Not m_context.BindingContext.TryGetValue("TableCells", VBA.CStr(entry("Name")), value, scope, isObject) Then
+            Err.Raise 5, , "Cell template binding scope is missing."
+        End If
+        If Not isObject Or scope Is Nothing Then
+            Err.Raise 5, , "Cell template binding scope is invalid."
+        End If
+        Set cell = scope("Cell")
+        cell("Value") = table.ValueAt(entry("RowIndex"), entry("ColumnIndex"))
+        Set child = entry("Control")
+        If Not TypeOf child Is obj_IUiBindingTarget Then
+            Err.Raise 5, , "Cell template does not support binding updates."
+        End If
+        Set target = child
+        If Not target.RefreshBindings(m_context) Then
+            Err.Raise 5, , "Cannot refresh cell template bindings: " & entry("Name")
+        End If
+    Next entry
+    TryRefreshBindings = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.Table.RefreshTemplateBindings", started
+    Exit Function
+EH:
+    diagnostic = "Table.RefreshTemplateBindings: " & VBA.Err.Description
+End Function
+
 Public Function TryRender( _
     ByVal definition As Object, _
     ByVal table As obj_UiRawTable, _
@@ -273,6 +345,9 @@ Private Function private_RenderCell( _
     entry.Add "Control", child
     entry.Add "Area", area
     entry.Add "NumberFormat", area.NumberFormat
+    entry.Add "RowIndex", rowIndex
+    entry.Add "ColumnIndex", columnIndex
+    entry.Add "Item", item
     m_entries.Add entry
     If Not m_context.BindingContext.SetObject("TableCells", name, scope) Then Err.Raise 5, , "Cannot initialize cell template context."
     If Not child.Configure(node, m_context, VBA.vbNullString, diagnostic) Then Exit Function

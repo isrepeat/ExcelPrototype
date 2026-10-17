@@ -53,12 +53,7 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
-    If m_isDisposed Or m_isInitialized Then
-        Exit Function
-    End If
-    If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
-    obj_IUiControl_Initialize = m_uiControlBase.Initialize()
-    m_isInitialized = obj_IUiControl_Initialize
+    obj_IUiControl_Initialize = Me.Initialize()
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -164,6 +159,17 @@ End Sub
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    If m_uiControlBase Is Nothing Then
+        Set m_uiControlBase = New obj_UiControlBase
+    End If
+    Initialize = m_uiControlBase.Initialize()
+    m_isInitialized = Initialize
+End Function
+
 Public Sub Dispose()
     If m_isDisposed Then
         Exit Sub
@@ -194,6 +200,70 @@ Public Sub SetSource(ByVal source As obj_IUiTableSource)
     Set m_sourceOverride = source
     Set m_table = Nothing
 End Sub
+
+Public Function TryRefreshTemplateBindings( _
+    ByRef refreshed As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim table As obj_UiRawTable
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim bodyOffset As Long
+    Dim value As Variant
+
+    On Error GoTo EH
+    refreshed = False
+    TryRefreshTemplateBindings = True
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    If m_cellTemplates Is Nothing Or m_source Is Nothing Then
+        Exit Function
+    End If
+    If Not m_sourceOverride Is Nothing Then
+        If Not m_sourceOverride Is m_source Then
+            Exit Function
+        End If
+    End If
+    If m_source.TableCount <> 1 Then
+        Exit Function
+    End If
+    Set table = m_source.GetTable(1)
+    If table Is Nothing Then
+        Exit Function
+    End If
+    If Not table Is m_table Then
+        Exit Function
+    End If
+    If private_SourceSchema(m_source, table) <> m_renderedSchema Then
+        Exit Function
+    End If
+    If m_bodyRange Is Nothing Or Not IsArray(m_renderedValues) Then
+        Exit Function
+    End If
+    If Not m_cellTemplates.CanRefreshBindings(table, m_source) Then
+        Exit Function
+    End If
+    bodyOffset = m_bodyRange.Row - m_targetRange.Row
+    For rowIndex = 1 To table.RowCount
+        For columnIndex = 1 To table.ColumnCount
+            value = table.ValueAt(rowIndex, columnIndex)
+            If Not private_SameCellValue(value, m_renderedValues(bodyOffset + rowIndex, columnIndex)) Then
+                m_bodyRange.Cells(rowIndex, columnIndex).Value2 = value
+                m_renderedValues(bodyOffset + rowIndex, columnIndex) = value
+            End If
+        Next columnIndex
+    Next rowIndex
+    If Not m_cellTemplates.TryRefreshBindings(table, diagnostic) Then
+        TryRefreshTemplateBindings = False
+        Exit Function
+    End If
+    refreshed = True
+    Exit Function
+EH:
+    diagnostic = "Table.RefreshTemplateBindings: " & VBA.Err.Description
+    TryRefreshTemplateBindings = False
+End Function
 
 Public Function TryRefreshValues( _
     ByRef refreshed As Boolean, _

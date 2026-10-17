@@ -62,6 +62,93 @@ Private Function obj_IUiElement_Configure( _
     ByVal source As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    obj_IUiElement_Configure = Me.Configure(definition, context, source, diagnostic)
+End Function
+
+Private Function obj_IUiElement_Measure( _
+    ByRef rows As Long, _
+    ByRef columns As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    If VBA.Len(m_intrinsicRows) = 0 Then
+        m_definition.removeAttribute "rowSpan"
+    Else
+        m_definition.setAttribute "rowSpan", m_intrinsicRows
+    End If
+    If VBA.Len(m_intrinsicColumns) = 0 Then
+        m_definition.removeAttribute "columnSpan"
+    Else
+        m_definition.setAttribute "columnSpan", m_intrinsicColumns
+    End If
+    obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
+    m_rows = rows
+    m_columns = columns
+End Function
+
+Private Function obj_IUiElement_Arrange( _
+    ByVal row As Long, _
+    ByVal column As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim localRow As Long
+    Dim localColumn As Long
+    Dim candidates As obj_UiCandidatesControl
+
+    obj_IUiElement_Arrange = m_control.Arrange(row, column, diagnostic)
+    Set m_area = Nothing
+    If obj_IUiElement_Arrange And m_rows > 0 And m_columns > 0 Then
+        localRow = m_localRow
+        localColumn = m_localColumn
+        If TypeOf m_control Is obj_UiCandidatesControl Then
+            Set candidates = m_control
+            localColumn = candidates.TableStartColumn
+        End If
+        Set m_area = m_context.TargetWorksheet.Cells(row + localRow - 1, column + localColumn - 1).Resize( _
+            m_rows - localRow + 1, m_columns - localColumn + 1)
+    End If
+End Function
+
+Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    obj_IUiElement_Render = m_control.Render(diagnostic)
+    If obj_IUiElement_Render Then
+        m_candidateValuesDirty = False
+        m_candidateLayoutDirty = False
+    End If
+    If Not obj_IUiElement_Render Then
+        diagnostic = "Cannot render control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
+    End If
+End Function
+
+Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
+    obj_IUiElement_Validate = m_control.Validate(errors)
+End Function
+
+Private Sub obj_IUiElement_Dispose()
+    Me.Dispose
+End Sub
+
+Private Sub obj_IUiLayoutSlot_SetSize( _
+    ByVal rows As Long, _
+    ByVal columns As Long _
+)
+    Select Case VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type"))
+        Case "label", "button", "checkbox", "input", "select"
+            m_definition.setAttribute "rowSpan", VBA.CStr(rows)
+            m_definition.setAttribute "columnSpan", VBA.CStr(columns)
+            m_rows = rows + m_localRow - 1
+            m_columns = columns + m_localColumn - 1
+    End Select
+End Sub
+
+' //
+' // API
+' //
+Public Function Configure( _
+    ByVal definition As Object, _
+    ByVal context As obj_UiRenderContext, _
+    ByVal source As String, _
+    ByRef diagnostic As String _
+) As Boolean
     Dim attributeNode As Object
     Dim bindingSource As String
     Dim bindingPath As String
@@ -146,83 +233,10 @@ Private Function obj_IUiElement_Configure( _
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_REGISTER_COMPLETED | Name=" & controlName
 #End If
-    obj_IUiElement_Configure = True
-    m_isInitialized = obj_IUiElement_Configure
+    Configure = True
+    m_isInitialized = Configure
 End Function
 
-Private Function obj_IUiElement_Measure( _
-    ByRef rows As Long, _
-    ByRef columns As Long, _
-    ByRef diagnostic As String _
-) As Boolean
-    If VBA.Len(m_intrinsicRows) = 0 Then
-        m_definition.removeAttribute "rowSpan"
-    Else
-        m_definition.setAttribute "rowSpan", m_intrinsicRows
-    End If
-    If VBA.Len(m_intrinsicColumns) = 0 Then
-        m_definition.removeAttribute "columnSpan"
-    Else
-        m_definition.setAttribute "columnSpan", m_intrinsicColumns
-    End If
-    obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
-    m_rows = rows
-    m_columns = columns
-End Function
-
-Private Function obj_IUiElement_Arrange( _
-    ByVal row As Long, _
-    ByVal column As Long, _
-    ByRef diagnostic As String _
-) As Boolean
-    Dim localRow As Long
-    Dim localColumn As Long
-    Dim candidates As obj_UiCandidatesControl
-
-    obj_IUiElement_Arrange = m_control.Arrange(row, column, diagnostic)
-    Set m_area = Nothing
-    If obj_IUiElement_Arrange And m_rows > 0 And m_columns > 0 Then
-        localRow = m_localRow
-        localColumn = m_localColumn
-        If TypeOf m_control Is obj_UiCandidatesControl Then
-            Set candidates = m_control
-            localColumn = candidates.TableStartColumn
-        End If
-        Set m_area = m_context.TargetWorksheet.Cells(row + localRow - 1, column + localColumn - 1).Resize( _
-            m_rows - localRow + 1, m_columns - localColumn + 1)
-    End If
-End Function
-
-Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
-    obj_IUiElement_Render = m_control.Render(diagnostic)
-    If obj_IUiElement_Render Then
-        m_candidateValuesDirty = False
-        m_candidateLayoutDirty = False
-    End If
-    If Not obj_IUiElement_Render Then diagnostic = "Cannot render control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
-End Function
-
-Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean
-    obj_IUiElement_Validate = m_control.Validate(errors)
-End Function
-
-Private Sub obj_IUiElement_Dispose()
-    Me.Dispose
-End Sub
-
-Private Sub obj_IUiLayoutSlot_SetSize(ByVal rows As Long, ByVal columns As Long)
-    Select Case VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type"))
-        Case "label", "button", "checkbox", "input", "select"
-            m_definition.setAttribute "rowSpan", VBA.CStr(rows)
-            m_definition.setAttribute "columnSpan", VBA.CStr(columns)
-            m_rows = rows + m_localRow - 1
-            m_columns = columns + m_localColumn - 1
-    End Select
-End Sub
-
-' //
-' // API
-' //
 Public Sub Dispose()
     If m_isDisposed Then
         Exit Sub
@@ -274,10 +288,23 @@ Public Function TryRefreshValues( _
     ByRef diagnostic As String _
 ) As Boolean
     Dim candidates As obj_UiCandidatesControl
+    Dim table As obj_UiTableControl
     Dim dependency As String
 
     refreshed = False
     TryRefreshValues = True
+    If TypeOf m_control Is obj_UiTableControl Then
+        dependency = ex_UiElementFactory.fn_Attribute(m_definition, "name")
+        If Not pending.Exists(dependency) Then
+            Exit Function
+        End If
+        If pending(dependency) Then
+            Exit Function
+        End If
+        Set table = m_control
+        TryRefreshValues = table.TryRefreshTemplateBindings(refreshed, diagnostic)
+        Exit Function
+    End If
     If Not TypeOf m_control Is obj_UiCandidatesControl Then Exit Function
     If Not m_candidateValuesDirty Or m_candidateLayoutDirty Then Exit Function
     dependency = ex_UiElementFactory.fn_Attribute(m_definition, "alignToForm")

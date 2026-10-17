@@ -17,6 +17,7 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private Const CHECKBOX_SHAPE_PREFIX As String = "chk_"
+Private m_renderedCaption As String
 Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
@@ -37,12 +38,7 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
-    If m_isDisposed Or m_isInitialized Then
-        Exit Function
-    End If
-    If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
-    obj_IUiControl_Initialize = m_uiControlBase.Initialize()
-    m_isInitialized = obj_IUiControl_Initialize
+    obj_IUiControl_Initialize = Me.Initialize()
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -164,15 +160,30 @@ Private Function private_RefreshCaption() As Boolean
             private_ReadAttribute(m_uiControlBase.ControlNode, glyphAttribute), _
             m_renderContext.BindingContext, glyph) Then Exit Function
     If VBA.Len(glyph) = 0 Then Exit Function
-    m_buttonShape.TextFrame2.TextRange.Text = glyph & "  " & caption
-    m_buttonShape.TextFrame2.WordWrap = msoFalse
-    m_buttonShape.TextFrame2.AutoSize = msoAutoSizeNone
+    caption = glyph & "  " & caption
+    If caption <> m_renderedCaption Then
+        m_buttonShape.TextFrame2.TextRange.Text = caption
+        m_buttonShape.TextFrame2.WordWrap = msoFalse
+        m_buttonShape.TextFrame2.AutoSize = msoAutoSizeNone
+        m_renderedCaption = caption
+    End If
     private_RefreshCaption = True
 End Function
 
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    If m_uiControlBase Is Nothing Then
+        Set m_uiControlBase = New obj_UiControlBase
+    End If
+    Initialize = m_uiControlBase.Initialize()
+    m_isInitialized = Initialize
+End Function
+
 Public Sub Dispose()
     If m_isDisposed Then
         Exit Sub
@@ -225,6 +236,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Set m_buttonShape = uiRenderContext.TargetWorksheet.Shapes.AddShape( _
         msoShapeRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
+    m_renderedCaption = VBA.vbNullString
     m_buttonShape.Placement = xlMoveAndSize
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext

@@ -19,7 +19,14 @@ Public Function fn_CreatePage(ByVal pageId As String) As obj_IPage
         VBA.Err.Raise VBA.vbObjectError + 2211, "ex_PersonalEventBuilder.fn_CreatePage", _
             "The page is not registered in this workbook: " & pageId
     End If
-    Set fn_CreatePage = New obj_PEB_PgMain
+    Select Case ex_PEB_Export.fn_Config("ui.pageClass")
+        Case "obj_PEB_PgMain"
+            Set fn_CreatePage = New obj_PEB_PgMain
+        Case "obj_PEB_PgTests"
+            Set fn_CreatePage = New obj_PEB_PgTests
+        Case Else
+            Err.Raise 5, , "Unknown configured PEB page class: " & ex_PEB_Export.fn_Config("ui.pageClass")
+    End Select
 End Function
 
 Public Sub fn_RegisterHotkeys()

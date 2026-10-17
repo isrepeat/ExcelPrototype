@@ -21,3 +21,4 @@ PROJECTS_EXCEL/**/*.docx
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Dependencies/*.xlsx
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Scenarios.xlsx
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx
+!PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.EventRoutes.xlsx
