@@ -424,7 +424,8 @@ def registry_checks(book, tables, settings):
     for event in settings["test.registry.ModeId.values"].split("|"):
         mode = settings[f"test.registry.ModeId.{event}.runtimeMode"]
         assert mode in settings["events.ids"].split("|"), f"Unknown business event: {mode}"
-        assert settings[f"events.{mode}.word.template"] in templates
+        if settings[f"events.{mode}.word.policy"] == "Render":
+            assert settings[f"events.{mode}.word.template"] in templates
     for binding in settings["test.registry.bindings"].split("|"):
         table_name, field, kind = binding.split(":")
         sheet = book[tables[table_name]["sheet"]]
@@ -477,6 +478,7 @@ def template_coverage_checks(tables, settings):
     rendered = {settings[f"events.{step['ModeId']}.word.template"] for step in successful}
     expected_templates = {settings[f"events.{event}.word.template"] for event in settings["events.ids"].split("|") if settings[f"events.{event}.word.policy"] == "Render"}
     assert rendered == expected_templates, "Missing positive routed Word template coverage"
+    assert rendered == set(templates), "Missing positive coverage of Word XML templates"
     for case in tables["tbTestScenarios"]["rows"]:
         actions = sorted((row for row in steps.values() if row["ScenarioId"] == case["ScenarioId"]), key=lambda row: row["StepOrder"])
         assert 1 <= len(actions) <= 2, f"Too many events in one order: {case['ScenarioId']}"

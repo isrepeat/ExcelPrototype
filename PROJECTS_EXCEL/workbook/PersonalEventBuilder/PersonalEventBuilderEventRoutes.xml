@@ -118,7 +118,6 @@
                 required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
       <word policy="Omit"
             profile="FromOutpatientExaminationOrVlk"
-            template="FromOutpatientExaminationOrVlk"
             anchor="EventBody"/>
     </event>
     <event label="Прибуття зі стаціонарної ВЛК"
@@ -248,7 +247,6 @@
                 required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
       <word policy="Omit"
             profile="ToOutpatientExaminationOrVlk"
-            template="ToOutpatientExaminationOrVlk"
             anchor="EventBody"/>
     </event>
     <event label="Вибуття на лікування в медичну роту"

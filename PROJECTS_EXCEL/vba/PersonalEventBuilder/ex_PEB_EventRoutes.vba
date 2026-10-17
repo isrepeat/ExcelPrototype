@@ -272,13 +272,15 @@ Private Sub private_EnsureLoaded()
         Set child = node.selectSingleNode("p:word")
         private_CheckAttributes child, "policy|profile|template|anchor"
         For Each key In VBA.Array("policy", "profile", "template", "anchor")
-            route.Add "word." & key, private_Attribute(child, VBA.CStr(key))
+            route.Add "word." & key, private_OptionalAttribute(child, VBA.CStr(key))
         Next key
         If route("word.policy") <> "Render" And route("word.policy") <> "Omit" Then
             Err.Raise 5, , "Unknown Word policy: " & identifier
         End If
-        If Not knownTemplates.Exists(route("word.template")) Then
-            Err.Raise 5, , "Unknown Word template: " & identifier & "/" & route("word.template")
+        If route("word.policy") = "Render" Or VBA.Len(route("word.template")) > 0 Then
+            If Not knownTemplates.Exists(route("word.template")) Then
+                Err.Raise 5, , "Unknown Word template: " & identifier & "/" & route("word.template")
+            End If
         End If
         If Not m_anchors.Exists(route("word.anchor")) Then
             Err.Raise 5, , "Unknown Word anchor: " & identifier & "/" & route("word.anchor")
@@ -348,11 +350,11 @@ Private Function private_OptionalAttribute( _
     ByVal node As Object, _
     ByVal name As String _
 ) As String
-    Dim attribute As Object
+    Dim xmlAttribute As Object
 
-    Set attribute = node.getAttributeNode(name)
-    If Not attribute Is Nothing Then
-        private_OptionalAttribute = VBA.Trim$(VBA.CStr(attribute.Text))
+    Set xmlAttribute = node.getAttributeNode(name)
+    If Not xmlAttribute Is Nothing Then
+        private_OptionalAttribute = VBA.Trim$(VBA.CStr(xmlAttribute.Text))
     End If
 End Function
 
@@ -360,15 +362,15 @@ Private Sub private_CheckAttributes( _
     ByVal node As Object, _
     ByVal allowed As String _
 )
-    Dim attribute As Object
+    Dim xmlAttribute As Object
 
-    For Each attribute In node.Attributes
-        If attribute.nodeName <> "xmlns" Then
-            If VBA.InStr(1, "|" & allowed & "|", "|" & attribute.nodeName & "|", VBA.vbBinaryCompare) = 0 Then
-                Err.Raise 5, , "Unknown XML attribute: " & node.nodeName & "/@" & attribute.nodeName
+    For Each xmlAttribute In node.Attributes
+        If xmlAttribute.nodeName <> "xmlns" Then
+            If VBA.InStr(1, "|" & allowed & "|", "|" & xmlAttribute.nodeName & "|", VBA.vbBinaryCompare) = 0 Then
+                Err.Raise 5, , "Unknown XML attribute: " & node.nodeName & "/@" & xmlAttribute.nodeName
             End If
         End If
-    Next attribute
+    Next xmlAttribute
 End Sub
 
 Private Sub private_RequireChildren( _

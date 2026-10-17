@@ -455,7 +455,6 @@ Public Function TrySnapshot( _
     Dim idColumn As Long
     Dim arrivalColumn As Long
     Dim skipColumns As String
-    Dim wordExpectation As Object
     Dim text As String
     Dim signature As String
     Dim openCount As Long
@@ -993,6 +992,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
     Dim movement As Object
     Dim column As Object
     Dim testStep As Object
+    Dim wordExpectation As Object
     Dim expectedRow As Object
     Dim rows As Collection
     Dim seen As Object
