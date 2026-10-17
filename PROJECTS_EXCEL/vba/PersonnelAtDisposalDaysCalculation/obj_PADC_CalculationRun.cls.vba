@@ -72,7 +72,6 @@ Public Sub Calculate()
     Dim parameterSheet As Worksheet
     Dim parameterTable As ListObject
     Dim prepared As Collection
-    Dim oldStatus As Variant
     Dim errorText As String
     Dim errorNumber As Long
 
@@ -81,7 +80,6 @@ Public Sub Calculate()
         ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_ALREADY_RUNNING"), vbExclamation
         Exit Sub
     End If
-    oldStatus = Application.StatusBar
     On Error GoTo Failed
     m_running = True
     If Not private_InitializeServices() Then
@@ -119,7 +117,7 @@ Cleanup:
     private_DisposeServices
     ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=RunCleanup.Completed"
     ex_Core.fn_Diagnostic_Flush
-    Application.StatusBar = oldStatus
+    ex_Core.fn_StatusBar_Clear
     m_running = False
     If m_disposeRequested Then
         Me.Dispose
@@ -273,7 +271,7 @@ Private Sub private_CalculatePreparedPeople( _
     m_runContext.CheckCancel 0
     m_runContext.LogDebug m_configuration.GetText("legacy.MSG_WRITING_RESULT") & count & _
         m_configuration.GetText("legacy.MSG_ROWS")
-    Application.StatusBar = m_configuration.GetText("legacy.MSG_WRITING_RESULTS")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("legacy.MSG_WRITING_RESULTS")
     m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & failures.Count
     m_resultWriter.Publish names, ids, starts, trips, periods, days, thresholds, count, failures
     m_runContext.LogStage "PublishResults.Completed"

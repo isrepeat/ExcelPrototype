@@ -77,22 +77,22 @@ Public Function Calculate( _
     values = Empty
     today = VBA.Date
     m_runContext.CheckCancel 0
-    Application.StatusBar = m_configuration.GetText("status.Reading")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("status.Reading")
     sourceCount = private_ReadPeriods(sourceTable, sourcePeriods)
     If sourceCount = 0 Then
         Exit Function
     End If
-    Application.StatusBar = m_configuration.GetText("status.Sorting")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("status.Sorting")
     private_SortPeriods sourcePeriods, sourceCount
-    Application.StatusBar = m_configuration.GetText("status.Merging")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("status.Merging")
     mergedCount = private_MergePeriodsByPerson(sourcePeriods, sourceCount, mergedPeriods)
-    Application.StatusBar = m_configuration.GetText("status.Filtering")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("status.Filtering")
     count = private_FilterPeriodsByRange(mergedPeriods, mergedCount, startDate, endDate)
     m_runContext.CheckCancel 0
     If count = 0 Then
         Exit Function
     End If
-    Application.StatusBar = m_configuration.GetText("status.Preparing")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("status.Preparing")
     ReDim data(1 To count, 1 To 10)
     For rowIndex = 1 To count
         m_runContext.CheckCancel rowIndex
@@ -174,7 +174,7 @@ Private Function private_ReadPeriods( _
     count = 0
     For rowIndex = 1 To rowCount
         If rowIndex Mod m_interval = 0 Then
-            Application.StatusBar = VBA.Replace( _
+            ex_Core.fn_StatusBar_Show VBA.Replace( _
                 VBA.Replace(m_configuration.GetText("status.ReadingProgress"), "{current}", VBA.CStr(rowIndex)), _
                 "{total}", VBA.CStr(rowCount) _
             )
@@ -378,7 +378,7 @@ Private Function private_MergePeriodsByPerson( _
     Set result(resultCount) = source(1)
     For sourceIndex = 2 To sourceCount
         If sourceIndex Mod m_interval = 0 Then
-            Application.StatusBar = VBA.Replace( _
+            ex_Core.fn_StatusBar_Show VBA.Replace( _
                 VBA.Replace(m_configuration.GetText("status.MergingProgress"), "{current}", VBA.CStr(sourceIndex)), _
                 "{total}", VBA.CStr(sourceCount) _
             )
