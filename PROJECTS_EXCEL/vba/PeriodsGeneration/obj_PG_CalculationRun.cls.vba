@@ -79,7 +79,6 @@ Public Function Calculate() As Boolean
     Dim sourceTable As ListObject
     Dim values As Variant
     Dim count As Long
-    Dim oldStatus As Variant
     Dim errorNumber As Long
     Dim errorText As String
     Dim runtimeContext As Object
@@ -92,7 +91,6 @@ Public Function Calculate() As Boolean
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then
         Exit Function
     End If
-    oldStatus = Application.StatusBar
     On Error GoTo Failed
     m_running = True
     Set m_runContext = New obj_PG_RunContext
@@ -118,7 +116,7 @@ Public Function Calculate() As Boolean
     Set sourceTable = m_dataSource.FindSourceTable()
     count = m_calculationService.Calculate(sourceTable, m_parameters.StartDate, m_parameters.EndDate, values)
     m_runContext.CheckCancel 0
-    Application.StatusBar = m_configuration.GetText("status.Writing")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("status.Writing")
     m_resultWriter.Publish values, count
     m_runContext.LogDebug "Completed | Count=" & count
     ex_WindowsUi.fn_ShowMessage VBA.Replace(m_configuration.GetText("message.Done"), "{count}", VBA.CStr(count)), vbInformation
@@ -126,7 +124,7 @@ Public Function Calculate() As Boolean
 Cleanup:
     Set sourceTable = Nothing
     private_DisposeServices
-    Application.StatusBar = oldStatus
+    ex_Core.fn_StatusBar_Clear
     m_running = False
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     If m_disposeRequested Then

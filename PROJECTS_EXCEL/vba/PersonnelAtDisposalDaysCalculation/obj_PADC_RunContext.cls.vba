@@ -59,7 +59,7 @@ End Sub
 Public Sub RequestCancel()
     private_EnsureReady
     m_cancelled = True
-    Application.StatusBar = m_configuration.GetText("legacy.MSG_CANCELLING_OPERATION")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("legacy.MSG_CANCELLING_OPERATION")
 End Sub
 
 Public Sub CheckCancel(ByVal index As Long)
@@ -79,7 +79,7 @@ Public Sub CheckCancel(ByVal index As Long)
         End If
     End If
     m_lastUiYield = currentTime
-    Application.StatusBar = m_configuration.GetText("legacy.MSG_CALCULATING_DAYS") & index
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("legacy.MSG_CALCULATING_DAYS") & index
     If index = 0 Then
         Me.LogStage "Yield.Started"
     End If

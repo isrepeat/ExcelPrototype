@@ -25,6 +25,7 @@ Private m_diagnosticMode As String
 Private m_diagnosticBuffer As Collection
 Private m_statusBarMessage As String
 Private m_statusBarOwned As Boolean
+Private m_statusBarPrevious As Variant
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -46,29 +47,52 @@ End Sub
 ' namespace StatusBar {
 ' --------------------------------------
 Public Sub fn_StatusBar_Show(ByVal messageText As String)
+    Dim currentMessage As Variant
+    Dim displayText As String
+
+    On Error GoTo EH
     If VBA.Len(VBA.Trim$(messageText)) = 0 Then
         fn_StatusBar_Clear
         Exit Sub
     End If
+    currentMessage = Application.StatusBar
+    If Not m_statusBarOwned Then
+        m_statusBarPrevious = currentMessage
+    ElseIf VBA.CStr(currentMessage) <> m_statusBarMessage Then
+        m_statusBarPrevious = currentMessage
+    End If
+    ' Excel rejects StatusBar strings longer than 255 characters.
+    displayText = VBA.Left$(messageText, 255)
     Application.DisplayStatusBar = True
-    Application.StatusBar = messageText
-    m_statusBarMessage = messageText
+    Application.StatusBar = displayText
+    m_statusBarMessage = displayText
     m_statusBarOwned = True
+    Exit Sub
+EH:
+    private_StatusBarError "Show", VBA.Err.Number, VBA.Err.Source, VBA.Err.Description, VBA.Len(messageText)
 End Sub
 
 Public Sub fn_StatusBar_Clear()
     Dim currentMessage As Variant
 
+    On Error GoTo EH
     If Not m_statusBarOwned Then Exit Sub
     currentMessage = Application.StatusBar
     ' Excel shares the status bar: do not clear a newer message from another owner.
     If VBA.VarType(currentMessage) = VBA.vbString Then
         If VBA.StrComp(VBA.CStr(currentMessage), m_statusBarMessage, VBA.vbBinaryCompare) = 0 Then
-            Application.StatusBar = False
+            Application.StatusBar = m_statusBarPrevious
         End If
     End If
     m_statusBarOwned = False
     m_statusBarMessage = VBA.vbNullString
+    m_statusBarPrevious = Empty
+    Exit Sub
+EH:
+    private_StatusBarError "Clear", VBA.Err.Number, VBA.Err.Source, VBA.Err.Description, VBA.Len(m_statusBarMessage)
+    m_statusBarOwned = False
+    m_statusBarMessage = VBA.vbNullString
+    m_statusBarPrevious = Empty
 End Sub
 ' --------------------------------------
 ' } // namespace StatusBar
@@ -329,6 +353,25 @@ End Function
 ' --------------------------------------
 ' } // namespace Configuration
 ' --------------------------------------
+
+Private Sub private_StatusBarError( _
+    ByVal operation As String, _
+    ByVal errorNumber As Long, _
+    ByVal errorSource As String, _
+    ByVal errorDescription As String, _
+    ByVal textLength As Long _
+)
+    ' Status display and its diagnostics must never interrupt the caller's operation.
+    On Error GoTo EH
+    fn_Diagnostic_WriteError _
+        "StatusBar." & operation & " | TextLength=" & VBA.CStr(textLength), _
+        errorNumber, _
+        errorSource, _
+        errorDescription
+    Exit Sub
+EH:
+    Debug.Print "StatusBar diagnostic failed: " & errorDescription
+End Sub
 
 Private Sub private_Diagnostic_EnsureConfiguration()
     Dim configuredMode As String

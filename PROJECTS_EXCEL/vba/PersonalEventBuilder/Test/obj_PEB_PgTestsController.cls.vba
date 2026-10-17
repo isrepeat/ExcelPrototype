@@ -34,10 +34,7 @@ Private m_pass As Long
 Private m_fail As Long
 Private m_skip As Long
 Private m_error As Long
-Private m_previousStatus As Variant
 Private m_status As String
-Private m_writtenStatus As String
-Private m_ownsStatus As Boolean
 Private m_environmentSwitchPending As Boolean
 Private m_createWordReport As Boolean
 Private m_catalogLoaded As Boolean
@@ -93,7 +90,7 @@ Public Sub Dispose()
         m_runner.Dispose
     End If
     Set m_runner = Nothing
-    private_RestoreStatus
+    ex_Core.fn_StatusBar_Clear
     Set m_pageBase = Nothing
     Set m_sheet = Nothing
     Set m_catalog = Nothing
@@ -232,13 +229,6 @@ Public Sub RunSelected()
     m_fail = 0
     m_skip = 0
     m_error = 0
-    If Not m_ownsStatus Then
-        m_previousStatus = Application.StatusBar
-    ElseIf VBA.CStr(Application.StatusBar) <> m_writtenStatus Then
-        m_previousStatus = Application.StatusBar
-    End If
-    m_writtenStatus = VBA.vbNullString
-    m_ownsStatus = True
     private_SetRunning True
     private_DrawResults
     private_Progress ex_PEB_Export.fn_Config("text.TestsRunning")
@@ -522,26 +512,15 @@ Private Sub private_Finish(ByVal diagnostic As String)
     End If
     If VBA.Len(diagnostic) > 0 Then
         text = text & " " & diagnostic
+        ex_Core.fn_Diagnostic_WriteError "Tests.Finish", 0, "TestRunner", diagnostic
     End If
     private_Progress text
     If Not Application.ActiveWorkbook Is ThisWorkbook Then
-        private_RestoreStatus
+        ex_Core.fn_StatusBar_Clear
     End If
     If VBA.Len(diagnostic) > 0 Then
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
     End If
-End Sub
-
-Private Sub private_RestoreStatus()
-    If Not m_ownsStatus Then
-        Exit Sub
-    End If
-    If VBA.Len(m_writtenStatus) > 0 Then
-        If VBA.CStr(Application.StatusBar) = m_writtenStatus Then
-            Application.StatusBar = m_previousStatus
-        End If
-    End If
-    m_ownsStatus = False
 End Sub
 
 Private Sub private_SetRunning(ByVal running As Boolean)
@@ -563,8 +542,7 @@ Private Sub private_Progress(ByVal state As String)
     m_status = VBA.Replace$(m_status, "{total}", VBA.CStr(m_total))
     m_status = VBA.Replace$(m_status, "{state}", state)
     If Application.ActiveWorkbook Is ThisWorkbook Then
-        Application.StatusBar = m_status
-        m_writtenStatus = m_status
+        ex_Core.fn_StatusBar_Show m_status
     End If
     If Not m_pageBase.BindingContext.SetValue("Form", "ActionStatus", m_status) Then
         Err.Raise 5, , "Cannot update test progress."
