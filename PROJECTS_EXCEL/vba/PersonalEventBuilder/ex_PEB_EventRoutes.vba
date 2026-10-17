@@ -3,7 +3,6 @@ Option Explicit
 
 Private m_events As Object
 Private m_statuses As Object
-Private m_anchors As Object
 Private m_bindingField As String
 
 ' --------------------------------------
@@ -12,7 +11,8 @@ Private m_bindingField As String
 Public Sub fn_Module_Dispose()
     Set m_events = Nothing
     Set m_statuses = Nothing
-    Set m_anchors = Nothing
+    ex_PEB_MovementTemplates.fn_Module_Dispose
+    ex_PEB_MovementPlan.fn_Module_Dispose
     m_bindingField = VBA.vbNullString
 End Sub
 ' --------------------------------------
@@ -64,6 +64,20 @@ Public Function fn_Value( _
     fn_Value = m_events(eventId)(key)
 End Function
 
+Public Function fn_HasRoute( _
+    ByVal eventId As String, _
+    ByVal exporter As String _
+) As Boolean
+    private_EnsureLoaded
+    If Not m_events.Exists(eventId) Then
+        Err.Raise 5, , "Unknown XML business event: " & eventId
+    End If
+    If exporter <> "Word" And exporter <> "Movement" Then
+        Err.Raise 5, , "Unknown routed exporter: " & exporter
+    End If
+    fn_HasRoute = m_events(eventId).Exists(VBA.LCase$(exporter) & ".template")
+End Function
+
 Public Function fn_Apply( _
     ByVal values As Object, _
     ByVal exporter As String _
@@ -77,26 +91,40 @@ Public Function fn_Apply( _
     values("EventId") = eventId
     values("ModeDirection") = fn_Value(eventId, "direction")
     values("ModeForm") = fn_Value(eventId, "form")
-    values("MovementPlanId") = fn_Value(eventId, "movement.profile")
-    values("MovementOperation") = fn_Value(eventId, "movement.operation")
-    statusId = fn_Value(eventId, "movement.targetStatus")
-    If VBA.Len(statusId) = 0 Then
+    If fn_HasRoute(eventId, "Movement") Then
+        values("MovementTemplateId") = fn_Value(eventId, "movement.template")
+        values("MovementPlanId") = fn_Value(eventId, "movement.profile")
+        values("MovementOperation") = fn_Value(eventId, "movement.operation")
+        statusId = fn_Value(eventId, "movement.targetStatus")
+        If VBA.Len(statusId) = 0 Then
+            statusId = fn_Value(eventId, "movement.sourceStatus")
+        End If
+        values("EventName") = m_statuses(statusId)
         statusId = fn_Value(eventId, "movement.sourceStatus")
+        values("SourceEventName") = VBA.vbNullString
+        If VBA.Len(statusId) > 0 Then
+            values("SourceEventName") = m_statuses(statusId)
+        End If
+        values("SourceDestination") = fn_Value(eventId, "movement.sourceDestination")
+    Else
+        values("EventName") = fn_Value(eventId, "label")
+        values("SourceEventName") = VBA.vbNullString
+        values("SourceDestination") = VBA.vbNullString
     End If
-    values("EventName") = m_statuses(statusId)
-    statusId = fn_Value(eventId, "movement.sourceStatus")
-    values("SourceEventName") = VBA.vbNullString
-    If VBA.Len(statusId) > 0 Then
-        values("SourceEventName") = m_statuses(statusId)
-    End If
-    values("SourceDestination") = fn_Value(eventId, "movement.sourceDestination")
     values("WordPolicy") = fn_Value(eventId, "word.policy")
-    values("WordAnchorId") = fn_Value(eventId, "word.anchor")
-    values("WordBookmark") = m_anchors(values("WordAnchorId"))
-    values("RoutedWordTemplate") = fn_Value(eventId, "word.template")
+    values("RoutedWordTemplate") = VBA.vbNullString
+    If fn_HasRoute(eventId, "Word") Then
+        values("RoutedWordTemplate") = fn_Value(eventId, "word.template")
+    End If
     If exporter = "Word" Then
-        fn_Apply = fn_Value(eventId, "word.profile")
+        fn_Apply = eventId
+        If fn_HasRoute(eventId, "Word") Then
+            fn_Apply = fn_Value(eventId, "word.template")
+        End If
     ElseIf exporter = "Movement" Then
+        If Not fn_HasRoute(eventId, "Movement") Then
+            Err.Raise 5, , "Movement route is not configured: " & eventId
+        End If
         destination = fn_Value(eventId, "movement.destinationValue")
         If VBA.Len(destination) = 0 Then
             destination = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, fn_Value(eventId, "movement.destinationField")))
@@ -122,18 +150,12 @@ Private Sub private_EnsureLoaded()
     Dim child As Object
     Dim route As Object
     Dim knownTemplates As Object
-    Dim knownStatusNames As Object
-    Dim statusName As String
+    Dim movementPlan As Object
+    Dim textTemplate As Object
     Dim identifier As String
-    Dim statusId As String
     Dim key As Variant
-    Dim operation As String
     Dim profile As String
-    Dim expected As String
     Dim count As Long
-    Dim joinPrefix As String
-    Dim index As Long
-    Dim closeProfile As String
     Dim message As String
 
     If Not m_events Is Nothing Then
@@ -151,32 +173,25 @@ Private Sub private_EnsureLoaded()
     End If
     m_bindingField = private_Attribute(root, "bindingField")
     private_ValidateFields m_bindingField
-    private_RequireChildren root, "movementStatuses|wordAnchors|events"
+    private_RequireChildren root, "events"
     Set m_statuses = private_Dictionary()
-    Set knownStatusNames = private_Dictionary()
-    For Each node In root.selectNodes("p:movementStatuses/p:status")
-        private_CheckAttributes node, "id|name"
-        identifier = private_Attribute(node, "id")
-        statusName = private_Attribute(node, "name")
-        If knownStatusNames.Exists(statusName) Then
-            Err.Raise 5, , "Duplicate Movement status name: " & statusName
-        End If
-        knownStatusNames.Add statusName, True
-        private_Add m_statuses, identifier, statusName
-    Next node
-    If m_statuses.Count = 0 Then
-        Err.Raise 5, , "Event routes XML contains no Movement statuses."
+    If document.selectNodes("/p:eventRoutes/p:events/p:event/p:movement").Length > 0 Then
+        Set m_statuses = ex_PEB_MovementPlan.fn_Statuses()
     End If
-    Set m_anchors = private_Dictionary()
-    For Each node In root.selectNodes("p:wordAnchors/p:anchor")
-        private_CheckAttributes node, "id|bookmark"
-        private_Add m_anchors, private_Attribute(node, "id"), private_Attribute(node, "bookmark")
-    Next node
-    Set templates = private_LoadXml(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.templates.path")))
     Set knownTemplates = private_Dictionary()
-    For Each node In templates.selectNodes("/p:wordResultTemplates/p:template")
-        private_Add knownTemplates, private_Attribute(node, "name"), True
-    Next node
+    If document.selectNodes("/p:eventRoutes/p:events/p:event/p:word").Length > 0 Then
+        Set templates = private_LoadXml(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.templates.path")))
+        For Each node In templates.documentElement.childNodes
+            If node.nodeType = 1 Then
+                If node.namespaceURI <> "urn:excelprototype:profiles" Or VBA.InStr(1, "|documentFilepath|sharedTemplates|template|", "|" & node.baseName & "|", VBA.vbBinaryCompare) = 0 Then
+                    Err.Raise 5, , "Unknown Word template section: " & node.nodeName
+                End If
+            End If
+        Next node
+        For Each node In templates.selectNodes("/p:wordResultTemplates/p:template")
+            private_Add knownTemplates, private_Attribute(node, "name"), True
+        Next node
+    End If
     Set m_events = private_Dictionary()
     For Each node In root.selectNodes("p:events/p:event")
         private_CheckAttributes node, "id|caption|label|direction|form|visible"
@@ -194,101 +209,31 @@ Private Sub private_EnsureLoaded()
         If route("visible") <> "true" And route("visible") <> "false" Then
             Err.Raise 5, , "Invalid event visibility: " & identifier
         End If
-        private_RequireChildren node, "movement|word"
+        private_ValidateRoutes node
+        route.Add "word.policy", "Omit"
         Set child = node.selectSingleNode("p:movement")
-        private_CheckAttributes child, "operation|profile|sourceStatus|targetStatus|destinationField|destinationValue|sourceDestination|required"
-        For Each key In VBA.Array("operation", "profile", "destinationField", "required")
-            route.Add "movement." & key, private_Attribute(child, VBA.CStr(key))
-        Next key
-        For Each key In VBA.Array("sourceStatus", "targetStatus", "destinationValue", "sourceDestination")
-            route.Add "movement." & key, private_OptionalAttribute(child, VBA.CStr(key))
-        Next key
-        operation = route("movement.operation")
-        Select Case operation
-            Case "Departure"
-                expected = "append"
-            Case "Arrival"
-                expected = "close"
-            Case "Transition"
-                expected = "transition"
-            Case Else
-                Err.Raise 5, , "Unknown Movement operation: " & identifier & "/" & operation
-        End Select
-        profile = "export.Movement.profiles." & route("movement.profile")
-        If ex_PEB_Export.fn_Config(profile & ".operation") <> expected Then
-            Err.Raise 5, , "Movement operation/profile mismatch: " & identifier
+        If Not child Is Nothing Then
+            private_CheckAttributes child, "template"
+            route.Add "movement.template", private_Attribute(child, "template")
+            Set textTemplate = ex_PEB_MovementTemplates.fn_Template(route("movement.template"))
+            Set movementPlan = ex_PEB_MovementPlan.fn_Event(identifier)
+            For Each key In VBA.Array("operation", "profile", "destinationField", "required", "sourceStatus", "targetStatus", "destinationValue", "sourceDestination")
+                route.Add "movement." & key, movementPlan(key)
+            Next key
         End If
-        count = ex_PEB_Export.fn_Count(profile & ".fields.count")
-        If count < 1 Then
-            Err.Raise 5, , "Empty Movement write profile: " & identifier
-        End If
-        count = ex_PEB_Export.fn_Count(profile & ".identity.count")
-        If count < 1 Then
-            Err.Raise 5, , "Empty Movement identity profile: " & identifier
-        End If
-        joinPrefix = profile & ".join"
-        If operation = "Departure" Then
-            joinPrefix = profile & ".guard.join"
-        End If
-        count = ex_PEB_Export.fn_Count(joinPrefix & ".count")
-        If count < 1 Then
-            Err.Raise 5, , "Empty Movement source/guard profile: " & identifier
-        End If
-        For index = 1 To count
-            expected = ex_PEB_Export.fn_Config(joinPrefix & "." & index & ".field")
-            If expected = "SourceDestination" And VBA.Len(route("movement.sourceDestination")) = 0 Then
-                Err.Raise 5, , "Movement source destination is missing: " & identifier
-            End If
-        Next index
-        If operation = "Transition" Then
-            closeProfile = "export.Movement.profiles." & ex_PEB_Export.fn_Config(profile & ".closeProfile")
-            If ex_PEB_Export.fn_Config(closeProfile & ".operation") <> "close" Then
-                Err.Raise 5, , "Invalid transition close profile: " & identifier
-            End If
-            count = ex_PEB_Export.fn_Count(closeProfile & ".fields.count")
-        End If
-        For Each key In VBA.Array("sourceStatus", "targetStatus")
-            statusId = route("movement." & key)
-            If VBA.Len(statusId) > 0 Then
-                If Not m_statuses.Exists(statusId) Then
-                    Err.Raise 5, , "Unknown Movement status: " & identifier & "/" & statusId
-                End If
-            End If
-        Next key
-        If operation <> "Departure" And VBA.Len(route("movement.sourceStatus")) = 0 Then
-            Err.Raise 5, , "Movement source status is missing: " & identifier
-        End If
-        If operation <> "Arrival" And VBA.Len(route("movement.targetStatus")) = 0 Then
-            Err.Raise 5, , "Movement target status is missing: " & identifier
-        End If
-        If operation = "Departure" And VBA.Len(route("movement.sourceStatus")) > 0 Then
-            Err.Raise 5, , "Departure cannot declare a source status: " & identifier
-        End If
-        If operation = "Arrival" And VBA.Len(route("movement.targetStatus")) > 0 Then
-            Err.Raise 5, , "Arrival cannot declare a target status: " & identifier
-        End If
-        private_ValidateFields route("movement.required")
-        private_ValidateFields route("movement.destinationField")
         Set child = node.selectSingleNode("p:word")
-        private_CheckAttributes child, "policy|profile|template|anchor"
-        For Each key In VBA.Array("policy", "profile", "template", "anchor")
-            route.Add "word." & key, private_OptionalAttribute(child, VBA.CStr(key))
-        Next key
-        If route("word.policy") <> "Render" And route("word.policy") <> "Omit" Then
-            Err.Raise 5, , "Unknown Word policy: " & identifier
-        End If
-        If route("word.policy") = "Render" Or VBA.Len(route("word.template")) > 0 Then
+        If Not child Is Nothing Then
+            private_CheckAttributes child, "template"
+            route.Add "word.template", private_Attribute(child, "template")
             If Not knownTemplates.Exists(route("word.template")) Then
                 Err.Raise 5, , "Unknown Word template: " & identifier & "/" & route("word.template")
             End If
+            route("word.policy") = "Render"
+            profile = "export.Word." & route("word.template")
+            private_ValidateFields ex_PEB_Export.fn_Config(profile & ".required")
+            private_ValidateFields ex_PEB_Export.fn_Config(profile & ".previewRequired")
+            count = ex_PEB_Export.fn_Count(profile & ".lookups.count")
         End If
-        If Not m_anchors.Exists(route("word.anchor")) Then
-            Err.Raise 5, , "Unknown Word anchor: " & identifier & "/" & route("word.anchor")
-        End If
-        profile = "export.Word." & route("word.profile")
-        private_ValidateFields ex_PEB_Export.fn_Config(profile & ".required")
-        private_ValidateFields ex_PEB_Export.fn_Config(profile & ".previewRequired")
-        count = ex_PEB_Export.fn_Count(profile & ".lookups.count")
         private_Add m_events, identifier, route
     Next node
     If m_events.Count = 0 Then
@@ -299,6 +244,29 @@ EH:
     message = VBA.Err.Description
     fn_Module_Dispose
     Err.Raise 5, , "Event routes XML: " & message
+End Sub
+
+Private Sub private_ValidateRoutes(ByVal node As Object)
+    Dim child As Object
+    Dim count As Long
+
+    For Each child In node.childNodes
+        If child.nodeType = 1 Then
+            If child.namespaceURI <> "urn:excelprototype:profiles" Or (child.baseName <> "movement" And child.baseName <> "word") Then
+                Err.Raise 5, , "Unknown exporter route: " & child.nodeName
+            End If
+            count = count + 1
+            If child.selectNodes("*").Length > 0 Then
+                Err.Raise 5, , "Exporter route must not contain child elements: " & child.nodeName
+            End If
+        End If
+    Next child
+    If count = 0 Then
+        Err.Raise 5, , "Event must declare at least one exporter route: " & private_Attribute(node, "id")
+    End If
+    If node.selectNodes("p:movement").Length > 1 Or node.selectNodes("p:word").Length > 1 Then
+        Err.Raise 5, , "Duplicate exporter route: " & private_Attribute(node, "id")
+    End If
 End Sub
 
 Private Function private_LoadXml(ByVal path As String) As Object

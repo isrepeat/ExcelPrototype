@@ -253,14 +253,23 @@ Public Function TryPrepare( _
     If VBA.Len(updates("Form.PersonName")) = 0 Or updates("Form.PersonId") <> personId Then
         Err.Raise 5, , "Scenario form identity is missing or inconsistent."
     End If
-    requiredKey = ex_PEB_EventRoutes.fn_Value(modeId, "movement.required")
+    requiredKey = VBA.vbNullString
     If action = "PreviewWord" Then
-        requiredKey = ex_PEB_Export.fn_Config("export.Word." & ex_PEB_EventRoutes.fn_Value(modeId, "word.profile") & ".previewRequired")
+        If ex_PEB_EventRoutes.fn_HasRoute(modeId, "Word") Then
+            requiredKey = ex_PEB_Export.fn_Config("export.Word." & ex_PEB_EventRoutes.fn_Value(modeId, "word.template") & ".previewRequired")
+        End If
+    Else
+        If Not ex_PEB_EventRoutes.fn_HasRoute(modeId, "Movement") Then
+            Err.Raise 5, , "Scenario action requires a Movement route: " & modeId
+        End If
+        requiredKey = ex_PEB_EventRoutes.fn_Value(modeId, "movement.required")
     End If
-    For Each field In VBA.Split(requiredKey, "|")
-        If Not updates.Exists("Form." & field) Then Err.Raise 5, , "Unknown required scenario field: " & field
-        If VBA.Len(updates("Form." & field)) = 0 Then Err.Raise 5, , "Required scenario field is empty: " & field
-    Next field
+    If VBA.Len(requiredKey) > 0 Then
+        For Each field In VBA.Split(requiredKey, "|")
+            If Not updates.Exists("Form." & field) Then Err.Raise 5, , "Unknown required scenario field: " & field
+            If VBA.Len(updates("Form." & field)) = 0 Then Err.Raise 5, , "Required scenario field is empty: " & field
+        Next field
+    End If
     updates("Form.AutoFillPersonnel") = False
     updates("Form.WordPreviewText") = VBA.vbNullString
     private_ResolveOrder updates

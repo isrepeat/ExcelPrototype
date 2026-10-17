@@ -80,7 +80,7 @@ foreach ($modeKey in $modeKeys) {
     foreach ($required in (Read-Config "export.Word.$mode.previewRequired").Split('|')) {
         if (-not $fields.Contains($required)) { throw "Unknown required field: $required" }
     }
-    foreach ($lookupRoot in @('export.Word.lookups', "export.Word.$mode.lookups")) {
+    foreach ($lookupRoot in @('export.shared.lookups', "export.Word.$mode.lookups")) {
         $count = [int](Read-Config "$lookupRoot.count")
         for ($index = 1; $index -le $count; $index++) {
             $prefix = "$lookupRoot.$index"
@@ -93,15 +93,15 @@ foreach ($modeKey in $modeKeys) {
             Add-Declared $fields (Read-Config "$prefix.output")
         }
     }
-    for ($index = 1; $index -le [int](Read-Config 'export.Word.constants.count'); $index++) {
-        $prefix = "export.Word.constants.$index"
+    for ($index = 1; $index -le [int](Read-Config 'export.shared.constants.count'); $index++) {
+        $prefix = "export.shared.constants.$index"
         $kind = Read-Config "$prefix.kind"
         if ($kind -notin @('text','emptyText','boolean','emptyCollection')) { throw "Unknown constant kind: $kind" }
         if ($kind -in @('text','boolean')) { Read-Config "$prefix.value" | Out-Null }
         Add-Declared $fields (Read-Config "$prefix.name")
     }
-    for ($index = 1; $index -le [int](Read-Config 'export.Word.aliases.count'); $index++) {
-        $prefix = "export.Word.aliases.$index"
+    for ($index = 1; $index -le [int](Read-Config 'export.shared.aliases.count'); $index++) {
+        $prefix = "export.shared.aliases.$index"
         if ((Read-Config "$prefix.kind") -notin @('value','shortDate','joinLowerFirst')) { throw "Unknown alias kind: $prefix" }
         foreach ($field in (Read-Config "$prefix.source").Split('|')) {
             if (-not $fields.Contains($field)) { throw "Unknown alias source: $field" }

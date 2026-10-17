@@ -1,0 +1,115 @@
+"""Check independent per-column text templates and native Movement plans."""
+
+from copy import deepcopy
+from xml.etree import ElementTree as ET
+import re
+
+from event_routes import ROOT, WORKBOOK, NS, load_registry, parse_config
+from movement_templates import load_movement
+from movement_plans import load_native_plans
+
+
+def main():
+    config = ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder"
+    for filename in ("wsConfig.txt", "wsConfig.test.txt"):
+        settings = parse_config(config / filename)
+        registry = load_registry(settings)
+        movement = registry["movement"]
+        assert len(movement["templates"]) == len(movement["events"]) == len(registry["events"]) == 35
+        assert len(movement["profiles"]) == 5 and len(movement["values"]) == 167
+        root = movement["root"]
+        assert root.tag == f"{{{NS['p']}}}resultTemplates"
+        assert "Ref." not in ET.tostring(root, encoding="unicode")
+        for name, node in movement["templates"].items():
+            assert set(node.attrib) == {"name"}
+            operation = movement["events"][name]["operation"]
+            expected = {"Прибуття.Підстава"} if operation == "Arrival" else {"Вибуття.Підстава"}
+            if operation == "Transition":
+                expected.add("Прибуття.Підстава")
+            assert set(movement["columns"][name]) == expected
+        assert sum(len(columns) for columns in movement["columns"].values()) == 55
+        for name in ("ToVacationForCuring", "FromAnnualMainVacation"):
+            assert any("block.OptionalVacationTicket" in text for text in movement["columns"][name].values())
+
+    rejected = 0
+    def reject(change, routed=False):
+        nonlocal rejected
+        altered = deepcopy(root)
+        change(altered)
+        try:
+            text = ET.tostring(altered, encoding="unicode")
+            if routed:
+                load_registry(settings, movement_text=text)
+            else:
+                load_movement(settings, WORKBOOK, text)
+        except ValueError:
+            rejected += 1
+        else:
+            raise AssertionError("Malformed column text definition accepted")
+    def template(tree):
+        return tree.find("p:template", NS)
+    def column(tree):
+        return template(tree).find("p:column", NS)
+    def text(tree):
+        return column(tree).find("p:text", NS)
+    reject(lambda tree: text(tree).__setattr__("text", ""))
+    reject(lambda tree: text(tree).__setattr__("text", "{#include Missing}"))
+    reject(lambda tree: text(tree).__setattr__("text", "{[MissingField]}"))
+    reject(lambda tree: column(tree).attrib.pop("name"))
+    reject(lambda tree: column(tree).set("name", " "))
+    reject(lambda tree: template(tree).append(deepcopy(column(tree))))
+    reject(lambda tree: template(tree).remove(column(tree)))
+    reject(lambda tree: tree.find("p:sharedTemplates/p:sharedTemplate/p:text", NS).__setattr__("text", "{#include block.IncomingBasis}"))
+    reject(lambda tree: tree.append(deepcopy(template(tree))))
+    reject(lambda tree: template(tree).set("operation", "close"))
+    reject(lambda tree: template(tree).set("column", "OldFormat"))
+    reject(lambda tree: tree.append(ET.Element(f"{{{NS['p']}}}profiles")))
+    reject(lambda tree: column(tree).set("name", "UnknownHeader"), routed=True)
+    reject(lambda tree: tree.find("p:template[@name='MoveFromVacationForCuringToHospital']", NS).remove(
+        tree.find("p:template[@name='MoveFromVacationForCuringToHospital']/p:column", NS)), routed=True)
+
+    custom = deepcopy(root)
+    event = custom.find("p:template[@name='MoveFromVacationForCuringToHospital']", NS)
+    event.find("p:column[@name='Прибуття.Підстава']/p:text", NS).text = "Close: {[IncomingNo]}."
+    event.find("p:column[@name='Вибуття.Підстава']/p:text", NS).text = "Open: {[IncomingNo]}."
+    loaded = load_registry(settings, movement_text=ET.tostring(custom, encoding="unicode"))
+    texts = loaded["movement"]["columns"][event.get("name")]
+    assert texts["Прибуття.Підстава"] == "Close: {[IncomingNo]}."
+    assert texts["Вибуття.Підстава"] == "Open: {[IncomingNo]}."
+
+    folder = ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder"
+    service = (folder / "obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
+    basis = service.split("Private Sub private_PrepareMovementTexts(", 1)[1].split("\nEnd Sub", 1)[0]
+    assert "m_pebWordTemplates" not in basis and "basis.prefix" not in basis
+    assert "ex_PEB_MovementTemplates.fn_Texts(templateId)" in basis
+    assert 'Set values("MovementColumnTexts") = results' in basis
+    assert 'values("MovementBasis")' not in basis
+    exporter = (folder / "obj_PEB_ExptrMovement.cls.vba").read_text(encoding="utf-8-sig")
+    assert "fn_WriteValue(values, field, header)" in exporter
+    assert 'ex_PEB_MovementPlan.fn_Value(prefix & ".operation")' in exporter
+    for filename in ("ex_PEB_MovementTemplates.vba", "ex_PEB_MovementPlan.vba", "ex_PEB_EventRoutes.vba",
+                     "obj_PEB_ExportService.cls.vba", "obj_PEB_ExptrMovement.cls.vba", "Test/obj_PEB_TestRunner.cls.vba"):
+        text = (folder / filename).read_text(encoding="utf-8-sig")
+        module = re.search(r'Attribute VB_Name = "([^"]+)"', text).group(1)
+        assert len(module) <= 31
+        procedures = re.findall(r"(?im)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)", text)
+        assert len(procedures) == len(set(name.lower() for name in procedures))
+        assert len(procedures) == len(re.findall(r"(?im)^End (?:Function|Sub)$", text))
+        for name, body in re.findall(r"(?ms)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)(.*?)(?=^End (?:Function|Sub)$)", text):
+            declarations = re.findall(r"(?im)^\s*Dim (\w+)\b", body)
+            assert len(declarations) == len(set(name.lower() for name in declarations)), (filename, name)
+            declared = {name.lower()} | {value.lower() for value in re.findall(r"(?im)^Private (\w+) As ", text)}
+            declared.update(value.lower() for value in re.findall(r"(?:Dim |ByVal |ByRef )(\w+) As ", body))
+            assigned = {value.lower() for value in re.findall(r"(?m)^\s*(?:Set )?(\w+)\s*=", body)}
+            assert assigned <= declared, (filename, name, assigned - declared)
+
+    assert "Ref.Form." not in service
+    native = (folder / "ex_PEB_MovementPlan.vba").read_text(encoding="utf-8-sig")
+    assert "DOMDocument" not in native and "selectNodes" not in native
+    assert 'MovementBasis' in native and 'SourceDestination' in native
+
+    print(f"PASS: TEST/PROD, 35 templates and 55 column texts; distinct transition texts accepted; {rejected} invalid definitions rejected. Native plans unchanged; Office/VBA not executed.")
+
+
+if __name__ == "__main__":
+    main()

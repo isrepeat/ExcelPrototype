@@ -232,8 +232,9 @@ def word_context_checks(settings):
     row_keys = set(re.findall(r"item\.\[([A-Z][A-Za-z0-9_]*)\]", text))
     provided = set(settings["export.fields"].split("|"))
     for group, name in [("lookups", "output"), ("aliases", "name"), ("constants", "name"), ("context.lookups", "output")]:
-        for index in range(1, int(settings[f"export.Word.{group}.count"]) + 1):
-            provided.add(settings[f"export.Word.{group}.{index}.{name}"])
+        prefix = "export.Word" if group == "context.lookups" else "export.shared"
+        for index in range(1, int(settings[f"{prefix}.{group}.count"]) + 1):
+            provided.add(settings[f"{prefix}.{group}.{index}.{name}"])
     provided.update(settings["export.Word.context.optionalText"].split("|"))
     service = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
     provided.update(re.findall(r'values\("([A-Za-z0-9_]+)"\)\s*=', service))
@@ -378,8 +379,8 @@ def directory_checks(tables, settings):
         mode = runtime_mode(step, settings)
         if settings[f"events.{mode}.word.policy"] == "Omit":
             continue
-        mode = settings[f"events.{mode}.word.profile"]
-        for prefix in [f"export.Word.lookups.{index}" for index in range(1, int(settings["export.Word.lookups.count"]) + 1)] + [
+        mode = settings[f"events.{mode}.word.template"]
+        for prefix in [f"export.shared.lookups.{index}" for index in range(1, int(settings["export.shared.lookups.count"]) + 1)] + [
             f"export.Word.{mode}.lookups.{index}"
             for index in range(1, int(settings[f"export.Word.{mode}.lookups.count"]) + 1)
         ]:

@@ -373,6 +373,29 @@ Private Function private_Value( _
                     Err.Raise 5, , "dateoffset requires whole days."
                 End If
                 value = VBA.DateAdd("d", offset, private_Date(value))
+            Case "nbspAfterSettlementAbbr"
+                Set rx = VBA.CreateObject("VBScript.RegExp")
+                rx.Global = True
+                rx.IgnoreCase = True
+                ' Match settlement prefixes at a token boundary without crossing line breaks.
+                rx.Pattern = "(^|[ " & VBA.vbTab & VBA.ChrW$(160) & "(,;:])((м|с|сел)\.)[ " & VBA.vbTab & VBA.ChrW$(160) & "]*(?=[A-Za-zА-Яа-яІіЇїЄєҐґЁё])"
+                value = rx.Replace(ex_PEB_Export.fn_Text(value), "$1$2" & VBA.ChrW$(160))
+            Case "nbspAfterNumberSign", "nbspBeforeInitials"
+                Set rx = VBA.CreateObject("VBScript.RegExp")
+                rx.Global = True
+                rx.IgnoreCase = False
+                If formatter = "nbspAfterNumberSign" Then
+                    rx.Pattern = "(" & VBA.ChrW$(&H2116) & ")[ " & VBA.vbTab & VBA.ChrW$(160) & "]*([0-9])"
+                Else
+                    ' Bind the surname to initials, including names preceded by a rank.
+                    rx.Pattern = "([A-Za-zА-Яа-яІіЇїЄєҐґЁё'’ʼ-]+)[ " & VBA.vbTab & VBA.ChrW$(160) & "]+([A-Za-zА-Яа-яІіЇїЄєҐґЁё]\.)"
+                End If
+                value = rx.Replace(ex_PEB_Export.fn_Text(value), "$1" & VBA.ChrW$(160) & "$2")
+                If formatter = "nbspBeforeInitials" Then
+                    ' Keep spaced initials together as part of the same name.
+                    rx.Pattern = "(\.)[ " & VBA.vbTab & VBA.ChrW$(160) & "]+([A-Za-zА-Яа-яІіЇїЄєҐґЁё]\.)"
+                    value = rx.Replace(value, "$1" & VBA.ChrW$(160) & "$2")
+                End If
             Case "regexreplace"
                 Set arguments = private_Split(argument, ",")
                 If arguments.Count <> 2 Then

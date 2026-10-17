@@ -206,7 +206,7 @@ Public Function TryAdvance( _
     report("StepOrder") = testStep("Order")
     report("Operation") = "preview"
     If testStep("Action") = "ExportMovement" Or testStep("Action") = "ExportEvent" Then
-        report("Operation") = ex_PEB_Export.fn_Config("export.Movement.profiles." & _
+        report("Operation") = ex_PEB_MovementPlan.fn_Value("profiles." & _
             ex_PEB_EventRoutes.fn_Value(testStep("ModeId"), "movement.profile") & ".operation")
         report("StateCheck") = testStep("StateCheck")
     End If
@@ -811,8 +811,8 @@ Private Function private_ValidateMutation( _
 
     Set oldRows = before("Rows")
     Set newRows = after("Rows")
-    prefix = "export.Movement.profiles." & values("MovementPlanId")
-    operation = ex_PEB_Export.fn_Config(prefix & ".operation")
+    prefix = "profiles." & values("MovementPlanId")
+    operation = ex_PEB_MovementPlan.fn_Value(prefix & ".operation")
     If operation = "transition" Then
         private_ValidateMutation = private_ValidateTransition(before, after, values, prefix, diagnostic)
         Exit Function
@@ -835,9 +835,9 @@ Private Function private_ValidateMutation( _
         Next index
         If changed <> 1 Then GoTo Mismatch
         If after("OpenCount") <> before("OpenCount") - 1 Then GoTo Mismatch
-        For index = 1 To ex_PEB_Export.fn_Count(prefix & ".join.count")
-            field = ex_PEB_Export.fn_Config(prefix & ".join." & VBA.CStr(index) & ".field")
-            header = ex_PEB_Export.fn_Config(prefix & ".join." & VBA.CStr(index) & ".header")
+        For index = 1 To ex_PEB_MovementPlan.fn_Count(prefix & ".join.count")
+            field = ex_PEB_MovementPlan.fn_Value(prefix & ".join." & VBA.CStr(index) & ".field")
+            header = ex_PEB_MovementPlan.fn_Value(prefix & ".join." & VBA.CStr(index) & ".header")
             If Not changedRow.Exists(header) Then GoTo Mismatch
             If changedRow(header) <> ex_PEB_Export.fn_Text(values(field)) Then GoTo Mismatch
         Next index
@@ -845,11 +845,11 @@ Private Function private_ValidateMutation( _
         Err.Raise 5, , "Unknown Movement test operation: " & operation
     End If
     Set allowed = VBA.CreateObject("Scripting.Dictionary")
-    For index = 1 To ex_PEB_Export.fn_Count(prefix & ".fields.count")
-        field = ex_PEB_Export.fn_Config(prefix & ".fields." & VBA.CStr(index) & ".field")
-        header = ex_PEB_Export.fn_Config(prefix & ".fields." & VBA.CStr(index) & ".header")
+    For index = 1 To ex_PEB_MovementPlan.fn_Count(prefix & ".fields.count")
+        field = ex_PEB_MovementPlan.fn_Value(prefix & ".fields." & VBA.CStr(index) & ".field")
+        header = ex_PEB_MovementPlan.fn_Value(prefix & ".fields." & VBA.CStr(index) & ".header")
         allowed(header) = True
-        expected = values(field)
+        expected = ex_PEB_MovementPlan.fn_WriteValue(values, field, header)
         If VBA.VarType(expected) = VBA.vbDate Then
             expectedText = VBA.CStr(VBA.CDbl(expected))
         Else
@@ -897,10 +897,10 @@ Private Function private_ValidateTransition( _
     If newRows.Count <> oldRows.Count + 1 Or before("OpenCount") <> after("OpenCount") Then
         GoTo Mismatch
     End If
-    mappingPrefix = "export.Movement.profiles." & ex_PEB_Export.fn_Config(prefix & ".closeProfile") & ".fields"
+    mappingPrefix = "profiles." & ex_PEB_MovementPlan.fn_Value(prefix & ".closeProfile") & ".fields"
     Set allowed = VBA.CreateObject("Scripting.Dictionary")
-    For mappingIndex = 1 To ex_PEB_Export.fn_Count(mappingPrefix & ".count")
-        header = ex_PEB_Export.fn_Config(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".header")
+    For mappingIndex = 1 To ex_PEB_MovementPlan.fn_Count(mappingPrefix & ".count")
+        header = ex_PEB_MovementPlan.fn_Value(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".header")
         allowed(header) = True
     Next mappingIndex
     For index = 1 To oldRows.Count
@@ -908,9 +908,9 @@ Private Function private_ValidateTransition( _
         Set newRow = newRows(index)
         If oldRow("_signature") <> newRow("_signature") Then
             changed = changed + 1
-            For mappingIndex = 1 To ex_PEB_Export.fn_Count(prefix & ".join.count")
-                header = ex_PEB_Export.fn_Config(prefix & ".join." & VBA.CStr(mappingIndex) & ".header")
-                field = ex_PEB_Export.fn_Config(prefix & ".join." & VBA.CStr(mappingIndex) & ".field")
+            For mappingIndex = 1 To ex_PEB_MovementPlan.fn_Count(prefix & ".join.count")
+                header = ex_PEB_MovementPlan.fn_Value(prefix & ".join." & VBA.CStr(mappingIndex) & ".header")
+                field = ex_PEB_MovementPlan.fn_Value(prefix & ".join." & VBA.CStr(mappingIndex) & ".field")
                 If oldRow(header) <> ex_PEB_Export.fn_Text(values(field)) Then
                     GoTo Mismatch
                 End If
@@ -922,10 +922,10 @@ Private Function private_ValidateTransition( _
                     End If
                 End If
             Next key
-            For mappingIndex = 1 To ex_PEB_Export.fn_Count(mappingPrefix & ".count")
-                header = ex_PEB_Export.fn_Config(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".header")
-                field = ex_PEB_Export.fn_Config(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".field")
-                If Not private_MappedValueMatches(values(field), newRow("_cells")(header)) Then
+            For mappingIndex = 1 To ex_PEB_MovementPlan.fn_Count(mappingPrefix & ".count")
+                header = ex_PEB_MovementPlan.fn_Value(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".header")
+                field = ex_PEB_MovementPlan.fn_Value(mappingPrefix & "." & VBA.CStr(mappingIndex) & ".field")
+                If Not private_MappedValueMatches(ex_PEB_MovementPlan.fn_WriteValue(values, field, header), newRow("_cells")(header)) Then
                     GoTo Mismatch
                 End If
             Next mappingIndex
@@ -935,10 +935,10 @@ Private Function private_ValidateTransition( _
         GoTo Mismatch
     End If
     Set newRow = newRows(newRows.Count)
-    For mappingIndex = 1 To ex_PEB_Export.fn_Count(prefix & ".fields.count")
-        header = ex_PEB_Export.fn_Config(prefix & ".fields." & VBA.CStr(mappingIndex) & ".header")
-        field = ex_PEB_Export.fn_Config(prefix & ".fields." & VBA.CStr(mappingIndex) & ".field")
-        If Not private_MappedValueMatches(values(field), newRow("_cells")(header)) Then
+    For mappingIndex = 1 To ex_PEB_MovementPlan.fn_Count(prefix & ".fields.count")
+        header = ex_PEB_MovementPlan.fn_Value(prefix & ".fields." & VBA.CStr(mappingIndex) & ".header")
+        field = ex_PEB_MovementPlan.fn_Value(prefix & ".fields." & VBA.CStr(mappingIndex) & ".field")
+        If Not private_MappedValueMatches(ex_PEB_MovementPlan.fn_WriteValue(values, field, header), newRow("_cells")(header)) Then
             GoTo Mismatch
         End If
     Next mappingIndex
