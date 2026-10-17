@@ -1,13 +1,13 @@
 value	ThisWorkbook::id	PersonalEventBuilder
+value	ThisWorkbook::ui.pageMappings	MainPage=MainPage.xaml
+value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
+value	ThisWorkbook::config.source	../../config/PersonalEventBuilder/wsConfig.txt
 value	ThisWorkbook::uiPath	..\..\ui
-value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::logMode	Immediate
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonalEventBuilder
-value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
+value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
-value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
-value	ThisWorkbook::ui.pageMappings	MainPage=MainPage.xaml
-value	ThisWorkbook::config.source	../../config/PersonalEventBuilder/wsConfig.txt
+value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgMain
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
@@ -15,16 +15,16 @@ value	PersonalEventBuilder::test.ui.maxScenarios	200
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
 value	PersonalEventBuilder::test.ui.catalogFields	Selected|PreviewEnabled|ScenarioId|Operation|EventLabel|StepCount|RuleStatus
 value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Прев’ю|Сценарій|Операція|Подія / сценарій|Кроків|Правило
-value	PersonalEventBuilder::test.audit.maxRows	100000
-value	PersonalEventBuilder::test.audit.inputFields	RunId|ScenarioId|StepId|ModeId|EventName|PersonId|Result|Timestamp|InputStage|Field|Value|ValueType
-value	PersonalEventBuilder::test.audit.recordFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|Result|Timestamp|Phase|StateAvailable|RecordIndex|ChangeKind
-value	PersonalEventBuilder::test.audit.resultFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|Timestamp|TotalSteps|CompletedSteps|RunState|StepOrder|Action|StateCheck|MovementResult|WordResult|ExpectedPreviewText|PreviewText|ExpectedPreviewError|PreviewDiagnostic
 value	PersonalEventBuilder::test.audit.inputs.sheet	Тест_ВхідніДані
 value	PersonalEventBuilder::test.audit.inputs.table	tbTestInputs
+value	PersonalEventBuilder::test.audit.maxRows	100000
 value	PersonalEventBuilder::test.audit.records.sheet	Тест_Записи
 value	PersonalEventBuilder::test.audit.records.table	tbTestRecords
 value	PersonalEventBuilder::test.audit.results.sheet	Тест_Результати
 value	PersonalEventBuilder::test.audit.results.table	tbTestResults
+value	PersonalEventBuilder::test.audit.inputFields	RunId|ScenarioId|StepId|ModeId|EventName|PersonId|Result|Timestamp|InputStage|Field|Value|ValueType
+value	PersonalEventBuilder::test.audit.recordFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|Result|Timestamp|Phase|StateAvailable|RecordIndex|ChangeKind
+value	PersonalEventBuilder::test.audit.resultFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|Timestamp|TotalSteps|CompletedSteps|RunState|StepOrder|Action|StateCheck|MovementResult|WordResult|ExpectedPreviewText|PreviewText|ExpectedPreviewError|PreviewDiagnostic
 value	PersonalEventBuilder::test.panel.row	72
 value	PersonalEventBuilder::test.panel.fields	ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|PreviewLink
 value	PersonalEventBuilder::test.panel.captions	Сценарій|Крок|Очікувалось|Отримано|Очікуваний код|Фактичний код|Відкр. очік.|Відкр. факт.|Результат|Деталі|Прев’ю
@@ -58,17 +58,13 @@ value	PersonalEventBuilder::test.progress.AfterSnapshot	6
 value	PersonalEventBuilder::test.progress.OpenScenarios	0
 value	PersonalEventBuilder::test.scenarios.path	../../tests/PersonalEventBuilder/TestScenarios.EventRoutes.xlsx
 value	PersonalEventBuilder::test.scenarios.root	../../tests/PersonalEventBuilder
-value	PersonalEventBuilder::test.scenarios.fields	Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName|PersonRank=PersonRank|PersonName=PersonName|PersonId=PersonId|PositionCode=PositionCode|ReportRank=ReportRank|ReportName=ReportName|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|Document=Document|DocumentDate=DocumentDate|DocumentNumber=DocumentNumber|EventDate=EventDate|TicketNumber=TicketNumber|TicketDate=TicketDate|AcceptedOrderNumber=AcceptedOrderNumber|AcceptedOrderDate=AcceptedOrderDate
-value	PersonalEventBuilder::test.scenarios.dateFields	EventDate|AcceptedOrderDate|IncomingDate|DocumentDate|TicketDate
-value	PersonalEventBuilder::test.scenarios.stepHeaders	ScenarioId|StepId|StepOrder|Action|ModeId|AcceptedOrderNumber|AcceptedOrderDate|Destination|Hospital|HospitalShortName|PersonRank|PersonName|PersonId|PositionCode|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|Document|DocumentDate|DocumentNumber|EventDate|TicketNumber|TicketDate|Notes
-value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
-value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
 value	PersonalEventBuilder::test.scenarios.cases.sheet	Тест_Сценарії
 value	PersonalEventBuilder::test.scenarios.cases.table	tbTestScenarios
 value	PersonalEventBuilder::test.scenarios.cases.readRange	auto
 value	PersonalEventBuilder::test.scenarios.steps.sheet	Тест_Кроки
 value	PersonalEventBuilder::test.scenarios.steps.table	tbTestSteps
 value	PersonalEventBuilder::test.scenarios.steps.readRange	auto
+value	PersonalEventBuilder::test.scenarios.fields	Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName|PersonRank=PersonRank|PersonName=PersonName|PersonId=PersonId|PositionCode=PositionCode|ReportRank=ReportRank|ReportName=ReportName|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|Document=Document|DocumentDate=DocumentDate|DocumentNumber=DocumentNumber|EventDate=EventDate|TicketNumber=TicketNumber|TicketDate=TicketDate|AcceptedOrderNumber=AcceptedOrderNumber|AcceptedOrderDate=AcceptedOrderDate
 value	PersonalEventBuilder::test.scenarios.absence.sheet	Тест_ЄЖОС
 value	PersonalEventBuilder::test.scenarios.absence.table	tbTestAbsence
 value	PersonalEventBuilder::test.scenarios.headers.id	ScenarioId
@@ -93,10 +89,14 @@ value	PersonalEventBuilder::test.scenarios.headers.stepPersonId	PersonId
 value	PersonalEventBuilder::test.scenarios.headers.catalogOperation	Операція
 value	PersonalEventBuilder::test.scenarios.history.sheet	Тест_Історія
 value	PersonalEventBuilder::test.scenarios.history.table	tbTestHistory
+value	PersonalEventBuilder::test.scenarios.dateFields	EventDate|AcceptedOrderDate|IncomingDate|DocumentDate|TicketDate
+value	PersonalEventBuilder::test.scenarios.stepHeaders	ScenarioId|StepId|StepOrder|Action|ModeId|AcceptedOrderNumber|AcceptedOrderDate|Destination|Hospital|HospitalShortName|PersonRank|PersonName|PersonId|PositionCode|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|Document|DocumentDate|DocumentNumber|EventDate|TicketNumber|TicketDate|Notes
 value	PersonalEventBuilder::test.scenarios.expectedRows.sheet	Expected_РУХ
 value	PersonalEventBuilder::test.scenarios.expectedRows.table	tbExpectedMovementRows
 value	PersonalEventBuilder::test.scenarios.expectedWord.sheet	Expected_WORD
 value	PersonalEventBuilder::test.scenarios.expectedWord.table	tbExpectedWord
+value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
+value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
 value	PersonalEventBuilder::test.scenarios.expectedMovement.sheet	Expected_РУХ
 value	PersonalEventBuilder::test.scenarios.expectedMovement.table	tbExpectedMovement
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
@@ -106,10 +106,23 @@ value	PersonalEventBuilder::text.TestsRun	Запустити обрані
 value	PersonalEventBuilder::text.DummyMode	Недоступно
 value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
 value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
+value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
+value	PersonalEventBuilder::text.TestPhase.Export	Виконання тестової дії завершено.
+value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експорту підготовлено.
+value	PersonalEventBuilder::text.TestPhase.Verify	Результат перевірено та порівняно з очікуванням.
+value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
+value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
+value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
+value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
+value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
+value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
+value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
+value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
+value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
+value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
 value	PersonalEventBuilder::text.TestsBusy	Тести виконуються. Зупиніть запуск перед зміною середовища, ручним завантаженням або експортом.
 value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у TestScenarios.xlsx. Скасування між кроками.
 value	PersonalEventBuilder::text.TestsStop	Зупинити
-value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
 value	PersonalEventBuilder::text.ExportWord	Експорт WORD
 value	PersonalEventBuilder::text.LastStatus	Статус останньої дії
 value	PersonalEventBuilder::text.OrderEmpty	Наказів не знайдено. Перевірте номер, дату та рік.
@@ -170,16 +183,18 @@ value	PersonalEventBuilder::text.TestsCancelled	Запуск зупинено к
 value	PersonalEventBuilder::text.TestsPageTitle	Тестування РУХ та WORD — TEST
 value	PersonalEventBuilder::text.AutoFillEnabled	Автопідстановку ввімкнено. Пов’язані поля захищені від ручного редагування.
 value	PersonalEventBuilder::text.CheckboxChecked	☑
+value	PersonalEventBuilder::text.CheckboxPartial	▣
 value	PersonalEventBuilder::text.OrderQueryLabel	№ наказу / дата наказу
 value	PersonalEventBuilder::text.OrderUnaccepted	Наказ не прийнято.
 value	PersonalEventBuilder::text.PersonNameLabel	ПІБ
-value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
 value	PersonalEventBuilder::text.PersonRankLabel	Звання
 value	PersonalEventBuilder::text.PersonUnitLabel	Підрозділ
+value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
 value	PersonalEventBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
 value	PersonalEventBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
 value	PersonalEventBuilder::text.TestPreviewLink	Переглянути
 value	PersonalEventBuilder::text.TestStepMissing	Має бути рівно один запис сценарію/кроку {step}. Крок відсутній або дублюється.
+value	PersonalEventBuilder::text.TestsWordReport	Сформувати зведений Word-документ
 value	PersonalEventBuilder::text.TicketDateLabel	Квиток Дата
 value	PersonalEventBuilder::text.AbsenceTypeLabel	Тип вибуття
 value	PersonalEventBuilder::text.AutoFillDisabled	Автопідстановку вимкнено. Пов’язані поля можна редагувати вручну.
@@ -199,7 +214,6 @@ value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний
 value	PersonalEventBuilder::text.TestPreviewError	Не вдалося сформувати прев’ю документа:
 value	PersonalEventBuilder::text.TestsPendingRule	Очікуване правило ще не визначено.
 value	PersonalEventBuilder::text.CheckboxUnchecked	☐
-value	PersonalEventBuilder::text.CheckboxPartial	▣
 value	PersonalEventBuilder::text.EnvironmentSwitch	[[color=#F4A46B]]PROD[[/color]][[color=#909090]] / TEST[[/color]]
 value	PersonalEventBuilder::text.ExportWordOmitted	Для цієї події пункт Word не формується.
 value	PersonalEventBuilder::text.ExportWordSuccess	Документ збережено: {path}
@@ -276,21 +290,6 @@ value	PersonalEventBuilder::text.ExportMovementUnavailable	Експорт РУХ
 value	PersonalEventBuilder::text.ModeStatusChangeDateLabel	Дата зміни статусу
 value	PersonalEventBuilder::text.ModeHospitalShortNameLabel	Лікарня.СкороченаНазва
 value	PersonalEventBuilder::text.ModeReportPositionCodeLabel	Рапорт.КодПосади
-value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
-value	PersonalEventBuilder::text.TestPhase.Export	Виконання тестової дії завершено.
-value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експорту підготовлено.
-value	PersonalEventBuilder::text.TestPhase.Verify	Результат перевірено та порівняно з очікуванням.
-value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
-value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
-value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
-value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
-value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
-value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
-value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
-value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
-value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
-value	PersonalEventBuilder::modes.default	FromAnnualMainVacation
-value	PersonalEventBuilder::forms.Leave.fields.count	14
 value	PersonalEventBuilder::forms.Leave.fields.1.name	Destination
 value	PersonalEventBuilder::forms.Leave.fields.1.record	Absence.Destination
 value	PersonalEventBuilder::forms.Leave.fields.1.captionKey	PersonalEventBuilder::text.ModeDestinationLabel
@@ -335,9 +334,9 @@ value	PersonalEventBuilder::forms.Leave.fields.14.name	TicketDate
 value	PersonalEventBuilder::forms.Leave.fields.14.record	Absence.TicketDate
 value	PersonalEventBuilder::forms.Leave.fields.14.captionKey	PersonalEventBuilder::text.ModeTicketDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.14.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.count	14
 value	PersonalEventBuilder::forms.Leave.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
-value	PersonalEventBuilder::forms.Treatment.fields.count	16
 value	PersonalEventBuilder::forms.Treatment.fields.1.name	Hospital
 value	PersonalEventBuilder::forms.Treatment.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
 value	PersonalEventBuilder::forms.Treatment.fields.2.name	HospitalShortName
@@ -380,12 +379,11 @@ value	PersonalEventBuilder::forms.Treatment.fields.15.name	DocumentNumber
 value	PersonalEventBuilder::forms.Treatment.fields.15.captionKey	PersonalEventBuilder::text.ModeDocumentNumberLabel
 value	PersonalEventBuilder::forms.Treatment.fields.16.name	EventDate
 value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
+value	PersonalEventBuilder::forms.Treatment.fields.count	16
 value	PersonalEventBuilder::forms.Treatment.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::modes.default	FromAnnualMainVacation
 value	PersonalEventBuilder::events.path	PersonalEventBuilderEventRoutes.xml
-value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
-value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|TicketDate|DocumentDate
-value	PersonalEventBuilder::export.dsl.maxDepth	32
 value	PersonalEventBuilder::export.dsl.months.1	січня
 value	PersonalEventBuilder::export.dsl.months.2	лютого
 value	PersonalEventBuilder::export.dsl.months.3	березня
@@ -398,91 +396,390 @@ value	PersonalEventBuilder::export.dsl.months.9	вересня
 value	PersonalEventBuilder::export.dsl.months.10	жовтня
 value	PersonalEventBuilder::export.dsl.months.11	листопада
 value	PersonalEventBuilder::export.dsl.months.12	грудня
-value	PersonalEventBuilder::export.Word.output	./Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
-value	PersonalEventBuilder::export.Word.enabled	false
-value	PersonalEventBuilder::export.Word.documentMode	blank
-value	PersonalEventBuilder::export.Word.documentTemplate	../Dependencies/WordTemplate.docx
-value	PersonalEventBuilder::export.Word.textAnchors.FromBusinessTrip	FromBusinessTrip
-value	PersonalEventBuilder::export.Word.textAnchors.FromHospital	FromHospital
-value	PersonalEventBuilder::export.Word.textAnchors.FromVacationForCuring	FromVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.FromAnnualMainVacation	FromAnnualMainVacation
-value	PersonalEventBuilder::export.Word.textAnchors.FromVacationForFamily	FromVacationForFamily
-value	PersonalEventBuilder::export.Word.textAnchors.FromExternalVlk	FromExternalVlk
-value	PersonalEventBuilder::export.Word.textAnchors.FromMedicalCompanyForTreatment	FromMedicalCompanyForTreatment
-value	PersonalEventBuilder::export.Word.textAnchors.ToHospital	ToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.ToAnnualMainVacation	ToAnnualMainVacation
-value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForFamily	ToVacationForFamily
-value	PersonalEventBuilder::export.Word.textAnchors.ToMaternityLeave	ToMaternityLeave
-value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForCuring	ToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.ToMedicalCompanyForTreatment	ToMedicalCompanyForTreatment
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToVacationForCuring	MoveFromHospitalToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVacationForCuring	MoveFromVacationForCuringToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToHospital	MoveFromVacationForCuringToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToHospital	MoveFromAnnualVacationToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVlk	MoveFromVacationForCuringToVlk
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToVlk	MoveFromAnnualVacationToVlk
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToVlk	MoveFromFamilyVacationToVlk
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToVacationForCuring	MoveFromVlkToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToHospital	MoveFromVlkToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToHospital	MoveFromMedicalCompanyForTreatmentToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToVacationForCuring	MoveFromMedicalCompanyForTreatmentToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToHospital	MoveFromMedicalCompanyVacationForCuringToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	MoveFromMedicalCompanyVacationForCuringToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToFamilyVacation	MoveFromAnnualVacationToFamilyVacation
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToAnnualVacation	MoveFromFamilyVacationToAnnualVacation
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToExternalVlk	MoveFromHospitalToExternalVlk
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToHospital	MoveFromFamilyVacationToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToVacationForCuring	MoveFromExternalVlkToVacationForCuring
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToHospital	MoveFromExternalVlkToHospital
-value	PersonalEventBuilder::export.Word.textAnchors.MoveFromOutpatientVlkToVacationForCuring	MoveFromOutpatientVlkToVacationForCuring
-value	PersonalEventBuilder::text.TestsWordReport	Сформувати зведений Word-документ
-value	PersonalEventBuilder::export.Word.meta.lookups.count	5
+value	PersonalEventBuilder::export.dsl.maxDepth	32
 value	PersonalEventBuilder::export.Word.meta.lookups.1.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.1.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.1.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.1.input	PersonRank
 value	PersonalEventBuilder::export.Word.meta.lookups.1.range	A1:E12000
 value	PersonalEventBuilder::export.Word.meta.lookups.1.sheet	Звання
 value	PersonalEventBuilder::export.Word.meta.lookups.1.output	RankGenitive
 value	PersonalEventBuilder::export.Word.meta.lookups.1.keyHeader	Звання
 value	PersonalEventBuilder::export.Word.meta.lookups.1.valueHeader	Родовий
-value	PersonalEventBuilder::export.Word.meta.lookups.1.when.field	PersonId
-value	PersonalEventBuilder::export.Word.meta.lookups.1.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.2.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.2.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.2.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.2.input	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.2.range	A1:J12000
 value	PersonalEventBuilder::export.Word.meta.lookups.2.sheet	АЛФ
 value	PersonalEventBuilder::export.Word.meta.lookups.2.output	FIOAccusative
 value	PersonalEventBuilder::export.Word.meta.lookups.2.keyHeader	ІПН
 value	PersonalEventBuilder::export.Word.meta.lookups.2.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.meta.lookups.2.when.field	PersonId
-value	PersonalEventBuilder::export.Word.meta.lookups.2.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.3.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.3.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.3.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.3.input	PositionCode
 value	PersonalEventBuilder::export.Word.meta.lookups.3.range	A1:E12000
 value	PersonalEventBuilder::export.Word.meta.lookups.3.sheet	Посади
 value	PersonalEventBuilder::export.Word.meta.lookups.3.output	PositionGenitive
 value	PersonalEventBuilder::export.Word.meta.lookups.3.keyHeader	Код
 value	PersonalEventBuilder::export.Word.meta.lookups.3.valueHeader	Родовий
-value	PersonalEventBuilder::export.Word.meta.lookups.3.when.field	PersonId
-value	PersonalEventBuilder::export.Word.meta.lookups.3.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.4.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.4.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.4.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.4.input	PersonRank
 value	PersonalEventBuilder::export.Word.meta.lookups.4.range	A1:E12000
 value	PersonalEventBuilder::export.Word.meta.lookups.4.sheet	Звання
 value	PersonalEventBuilder::export.Word.meta.lookups.4.output	RankDative
 value	PersonalEventBuilder::export.Word.meta.lookups.4.keyHeader	Звання
 value	PersonalEventBuilder::export.Word.meta.lookups.4.valueHeader	Давальний
-value	PersonalEventBuilder::export.Word.meta.lookups.4.when.field	PersonId
-value	PersonalEventBuilder::export.Word.meta.lookups.4.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.5.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.Word.meta.lookups.5.when.field	PersonId
+value	PersonalEventBuilder::export.Word.meta.lookups.5.when.pattern	\S
 value	PersonalEventBuilder::export.Word.meta.lookups.5.input	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.5.range	A1:J12000
 value	PersonalEventBuilder::export.Word.meta.lookups.5.sheet	АЛФ
 value	PersonalEventBuilder::export.Word.meta.lookups.5.output	FIODative
 value	PersonalEventBuilder::export.Word.meta.lookups.5.keyHeader	ІПН
 value	PersonalEventBuilder::export.Word.meta.lookups.5.valueHeader	Давальний
-value	PersonalEventBuilder::export.Word.meta.lookups.5.when.field	PersonId
-value	PersonalEventBuilder::export.Word.meta.lookups.5.when.pattern	\S
-value	PersonalEventBuilder::export.shared.aliases.count	18
+value	PersonalEventBuilder::export.Word.meta.lookups.count	5
+value	PersonalEventBuilder::export.Word.output	./Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
+value	PersonalEventBuilder::export.Word.context.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.1.when.field	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.1.output	HospitalGenitive
+value	PersonalEventBuilder::export.Word.context.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.1.valueHeader	Родовий
+value	PersonalEventBuilder::export.Word.context.lookups.2.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.2.when.field	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.2.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.2.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.2.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.2.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.2.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.context.lookups.2.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.2.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.context.lookups.3.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.3.when.field	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.3.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.3.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.context.lookups.3.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.3.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.3.output	HospitalDative
+value	PersonalEventBuilder::export.Word.context.lookups.3.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.3.valueHeader	Давальний
+value	PersonalEventBuilder::export.Word.context.lookups.4.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.context.lookups.4.when.field	ToHospitalShort
+value	PersonalEventBuilder::export.Word.context.lookups.4.when.pattern	\S
+value	PersonalEventBuilder::export.Word.context.lookups.4.input	ToHospitalShort
+value	PersonalEventBuilder::export.Word.context.lookups.4.range	A3:F10000
+value	PersonalEventBuilder::export.Word.context.lookups.4.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.context.lookups.4.output	ToHospitalAccusative
+value	PersonalEventBuilder::export.Word.context.lookups.4.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.context.lookups.4.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.context.lookups.count	4
+value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName
+value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
+value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalGenitive
+value	PersonalEventBuilder::export.Word.context.templates.FromExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.ToMaternityLeave.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.ToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.ToVacationForFamily.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.ToAnnualMainVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
+value	PersonalEventBuilder::export.Word.context.templates.FromVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromVacationForFamily.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromAnnualMainVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.ToMedicalCompanyForTreatment.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.FromMedicalCompanyForTreatment.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalDative|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToFamilyVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToAnnualVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.MetaTables.fields	__sectionTitle|FIO|DocumentNote
+value	PersonalEventBuilder::export.Word.context.MetaTables.required	__sectionTitle
+value	PersonalEventBuilder::export.Word.context.dateInputs	VlkDateShort|PrevVacationTicketDateShort
+value	PersonalEventBuilder::export.Word.context.optionalText	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
+value	PersonalEventBuilder::export.Word.context.requiredKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIOAccusative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|MetaDocumentTables|MetaTvoTables|MetaTables|WordTemplateFileName|ManualOrderNo
+value	PersonalEventBuilder::export.Word.context.scalarInputs	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
+value	PersonalEventBuilder::export.Word.context.MetaTvoTables.fields	PersonRank|PersonId|PositionCode
+value	PersonalEventBuilder::export.Word.context.MetaTvoTables.required	PersonRank|PersonId|PositionCode
+value	PersonalEventBuilder::export.Word.context.booleanInputs	RequiresFoodSupportRemove|RequiresFoodSupportEnroll
+value	PersonalEventBuilder::export.Word.context.enrollDirection	Arrival
+value	PersonalEventBuilder::export.Word.context.removeDirection	Departure
+value	PersonalEventBuilder::export.Word.context.collectionInputs	MetaDocumentTables|MetaTvoTables|MetaTables
+value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
+value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.required	DocumentNote
+value	PersonalEventBuilder::export.Word.enabled	false
+value	PersonalEventBuilder::export.Word.duration.road.one	, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку
+value	PersonalEventBuilder::export.Word.duration.road.many	, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку
+value	PersonalEventBuilder::export.Word.duration.unit.few	календарні доби
+value	PersonalEventBuilder::export.Word.duration.unit.one	календарну добу
+value	PersonalEventBuilder::export.Word.duration.unit.many	календарних діб
+value	PersonalEventBuilder::export.Word.duration.phrase	терміном на {days} {unit}
+value	PersonalEventBuilder::export.Word.duration.donation.one	, наданої за донацію крові
+value	PersonalEventBuilder::export.Word.duration.donation.many	, наданих за донацію крові
+value	PersonalEventBuilder::export.Word.duration.reasonKeys	дорога=road|донація=donation|донація крові=donation
+value	PersonalEventBuilder::export.Word.duration.fullPattern	^\s*(\d+)((?:\s*\+\s*\d+(?:\s*\([^)]*\))?)*)\s*$
+value	PersonalEventBuilder::export.Word.duration.additionalUnit.one	доби
+value	PersonalEventBuilder::export.Word.duration.additionalUnit.many	діб
+value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
+value	PersonalEventBuilder::export.Word.duration.additionalPhrase	, без урахування {days} {unit}
+value	PersonalEventBuilder::export.Word.templates.path	./PersonalEventBuilderWordResultTemplates.xml
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.ToHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.ToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.textAnchors.ToHospital	ToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.FromHospital	FromHospital
+value	PersonalEventBuilder::export.Word.textAnchors.FromExternalVlk	FromExternalVlk
+value	PersonalEventBuilder::export.Word.textAnchors.FromBusinessTrip	FromBusinessTrip
+value	PersonalEventBuilder::export.Word.textAnchors.ToMaternityLeave	ToMaternityLeave
+value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForCuring	ToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForFamily	ToVacationForFamily
+value	PersonalEventBuilder::export.Word.textAnchors.ToAnnualMainVacation	ToAnnualMainVacation
+value	PersonalEventBuilder::export.Word.textAnchors.FromVacationForCuring	FromVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.FromVacationForFamily	FromVacationForFamily
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToHospital	MoveFromVlkToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.FromAnnualMainVacation	FromAnnualMainVacation
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToVlk	MoveFromAnnualVacationToVlk
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToVlk	MoveFromFamilyVacationToVlk
+value	PersonalEventBuilder::export.Word.textAnchors.ToMedicalCompanyForTreatment	ToMedicalCompanyForTreatment
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToHospital	MoveFromExternalVlkToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToExternalVlk	MoveFromHospitalToExternalVlk
+value	PersonalEventBuilder::export.Word.textAnchors.FromMedicalCompanyForTreatment	FromMedicalCompanyForTreatment
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVlk	MoveFromVacationForCuringToVlk
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToVacationForCuring	MoveFromVlkToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToHospital	MoveFromAnnualVacationToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToHospital	MoveFromFamilyVacationToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToVacationForCuring	MoveFromHospitalToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToHospital	MoveFromVacationForCuringToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToFamilyVacation	MoveFromAnnualVacationToFamilyVacation
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToVacationForCuring	MoveFromExternalVlkToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToAnnualVacation	MoveFromFamilyVacationToAnnualVacation
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromOutpatientVlkToVacationForCuring	MoveFromOutpatientVlkToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToHospital	MoveFromMedicalCompanyForTreatmentToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVacationForCuring	MoveFromVacationForCuringToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToHospital	MoveFromMedicalCompanyVacationForCuringToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToVacationForCuring	MoveFromMedicalCompanyForTreatmentToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	MoveFromMedicalCompanyVacationForCuringToVacationForCuring
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.output	HospitalGenitive
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.valueHeader	Родовий
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.documentMode	blank
+value	PersonalEventBuilder::export.Word.FromExternalVlk.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.FromBusinessTrip.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromBusinessTrip.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.ToMaternityLeave.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToMaternityLeave.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.documentTemplate	../Dependencies/WordTemplate.docx
+value	PersonalEventBuilder::export.Word.ToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.ToVacationForFamily.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.FromVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.FromVacationForFamily.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.path	../Dependencies/Установи.xlsx
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.when.pattern	\S
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.input	HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.range	A3:F10000
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.sheet	Лікувальні Заклади
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.output	HospitalAccusative
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.keyHeader	Позначення
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.valueHeader	Знахідний
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.count	1
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToFamilyVacation.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToFamilyVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToFamilyVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToHospital.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::export.shared.inputs.scalars	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort
+value	PersonalEventBuilder::export.shared.inputs.collections	MetaDocumentTables
+value	PersonalEventBuilder::export.shared.inputs.dateScalars	VlkDateShort|PrevVacationTicketDateShort
+value	PersonalEventBuilder::export.shared.inputs.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
+value	PersonalEventBuilder::export.shared.inputs.MetaDocumentTables.required	DocumentNote
 value	PersonalEventBuilder::export.shared.aliases.1.kind	value
 value	PersonalEventBuilder::export.shared.aliases.1.name	IPN
 value	PersonalEventBuilder::export.shared.aliases.1.source	PersonId
@@ -537,169 +834,71 @@ value	PersonalEventBuilder::export.shared.aliases.17.source	AcceptedOrderDate
 value	PersonalEventBuilder::export.shared.aliases.18.kind	joinLowerFirst
 value	PersonalEventBuilder::export.shared.aliases.18.name	ReporterGenitive
 value	PersonalEventBuilder::export.shared.aliases.18.source	ReportPositionGenitive|ReportRankGenitive|ReportPersonInitialsGenitive
-value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName
-value	PersonalEventBuilder::export.Word.context.dateInputs	VlkDateShort|PrevVacationTicketDateShort
-value	PersonalEventBuilder::export.Word.context.optionalText	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
-value	PersonalEventBuilder::export.Word.context.requiredKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIOAccusative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|MetaDocumentTables|MetaTvoTables|MetaTables|WordTemplateFileName|ManualOrderNo
-value	PersonalEventBuilder::export.Word.context.scalarInputs	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
-value	PersonalEventBuilder::export.Word.context.booleanInputs	RequiresFoodSupportRemove|RequiresFoodSupportEnroll
-value	PersonalEventBuilder::export.Word.context.enrollDirection	Arrival
-value	PersonalEventBuilder::export.Word.context.removeDirection	Departure
-value	PersonalEventBuilder::export.Word.context.collectionInputs	MetaDocumentTables|MetaTvoTables|MetaTables
-value	PersonalEventBuilder::export.Word.context.lookups.count	4
-value	PersonalEventBuilder::export.Word.context.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.context.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.context.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.context.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.context.lookups.1.output	HospitalGenitive
-value	PersonalEventBuilder::export.Word.context.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.context.lookups.1.valueHeader	Родовий
-value	PersonalEventBuilder::export.Word.context.lookups.1.when.field	HospitalShortName
-value	PersonalEventBuilder::export.Word.context.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.context.lookups.2.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.context.lookups.2.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.context.lookups.2.range	A3:F10000
-value	PersonalEventBuilder::export.Word.context.lookups.2.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.context.lookups.2.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.context.lookups.2.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.context.lookups.2.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.context.lookups.2.when.field	HospitalShortName
-value	PersonalEventBuilder::export.Word.context.lookups.2.when.pattern	\S
-value	PersonalEventBuilder::export.Word.context.lookups.3.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.context.lookups.3.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.context.lookups.3.range	A3:F10000
-value	PersonalEventBuilder::export.Word.context.lookups.3.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.context.lookups.3.output	HospitalDative
-value	PersonalEventBuilder::export.Word.context.lookups.3.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.context.lookups.3.valueHeader	Давальний
-value	PersonalEventBuilder::export.Word.context.lookups.3.when.field	HospitalShortName
-value	PersonalEventBuilder::export.Word.context.lookups.3.when.pattern	\S
-value	PersonalEventBuilder::export.Word.context.lookups.4.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.context.lookups.4.input	ToHospitalShort
-value	PersonalEventBuilder::export.Word.context.lookups.4.range	A3:F10000
-value	PersonalEventBuilder::export.Word.context.lookups.4.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.context.lookups.4.output	ToHospitalAccusative
-value	PersonalEventBuilder::export.Word.context.lookups.4.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.context.lookups.4.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.context.lookups.4.when.field	ToHospitalShort
-value	PersonalEventBuilder::export.Word.context.lookups.4.when.pattern	\S
-value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
-value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalGenitive
-value	PersonalEventBuilder::export.Word.context.templates.FromExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.FromBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.ToMaternityLeave.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.ToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.ToVacationForFamily.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.ToAnnualMainVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
-value	PersonalEventBuilder::export.Word.context.templates.FromVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.FromVacationForFamily.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.FromAnnualMainVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.ToMedicalCompanyForTreatment.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.FromMedicalCompanyForTreatment.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalDative|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToFamilyVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToAnnualVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
-value	PersonalEventBuilder::export.Word.context.MetaTables.fields	__sectionTitle|FIO|DocumentNote
-value	PersonalEventBuilder::export.Word.context.MetaTables.required	__sectionTitle
-value	PersonalEventBuilder::export.Word.context.MetaTvoTables.fields	PersonRank|PersonId|PositionCode
-value	PersonalEventBuilder::export.Word.context.MetaTvoTables.required	PersonRank|PersonId|PositionCode
-value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
-value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.required	DocumentNote
-value	PersonalEventBuilder::export.shared.lookups.count	7
+value	PersonalEventBuilder::export.shared.aliases.count	18
 value	PersonalEventBuilder::export.shared.lookups.1.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.shared.lookups.1.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.1.input	PersonRank
 value	PersonalEventBuilder::export.shared.lookups.1.range	A1:E12000
 value	PersonalEventBuilder::export.shared.lookups.1.sheet	Звання
 value	PersonalEventBuilder::export.shared.lookups.1.output	RankGenitive
 value	PersonalEventBuilder::export.shared.lookups.1.keyHeader	Звання
 value	PersonalEventBuilder::export.shared.lookups.1.valueHeader	Родовий
-value	PersonalEventBuilder::export.shared.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.shared.lookups.1.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.2.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.2.when.field	ModeForm
+value	PersonalEventBuilder::export.shared.lookups.2.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.2.input	PersonId
 value	PersonalEventBuilder::export.shared.lookups.2.range	A1:J12000
 value	PersonalEventBuilder::export.shared.lookups.2.sheet	АЛФ
 value	PersonalEventBuilder::export.shared.lookups.2.output	PersonAccusative
 value	PersonalEventBuilder::export.shared.lookups.2.keyHeader	ІПН
 value	PersonalEventBuilder::export.shared.lookups.2.valueHeader	Знахідний
-value	PersonalEventBuilder::export.shared.lookups.2.when.field	ModeForm
-value	PersonalEventBuilder::export.shared.lookups.2.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.3.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.3.when.field	ModeForm
+value	PersonalEventBuilder::export.shared.lookups.3.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.3.input	PositionCode
 value	PersonalEventBuilder::export.shared.lookups.3.range	A1:E12000
 value	PersonalEventBuilder::export.shared.lookups.3.sheet	Посади
 value	PersonalEventBuilder::export.shared.lookups.3.output	PositionGenitive
 value	PersonalEventBuilder::export.shared.lookups.3.keyHeader	Код
 value	PersonalEventBuilder::export.shared.lookups.3.valueHeader	Родовий
-value	PersonalEventBuilder::export.shared.lookups.3.when.field	ModeForm
-value	PersonalEventBuilder::export.shared.lookups.3.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.4.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.4.when.field	ModeForm
+value	PersonalEventBuilder::export.shared.lookups.4.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.4.input	PersonId
 value	PersonalEventBuilder::export.shared.lookups.4.range	A1:J12000
 value	PersonalEventBuilder::export.shared.lookups.4.sheet	АЛФ
 value	PersonalEventBuilder::export.shared.lookups.4.output	FIOInitialsGenitive
 value	PersonalEventBuilder::export.shared.lookups.4.keyHeader	ІПН
 value	PersonalEventBuilder::export.shared.lookups.4.valueHeader	ПІП (Родовий)
-value	PersonalEventBuilder::export.shared.lookups.4.when.field	ModeForm
-value	PersonalEventBuilder::export.shared.lookups.4.when.pattern	\S
 value	PersonalEventBuilder::export.shared.lookups.5.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.5.when.field	ReportName
+value	PersonalEventBuilder::export.shared.lookups.5.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
 value	PersonalEventBuilder::export.shared.lookups.5.input	ReportRank
 value	PersonalEventBuilder::export.shared.lookups.5.range	A1:E12000
 value	PersonalEventBuilder::export.shared.lookups.5.sheet	Звання
 value	PersonalEventBuilder::export.shared.lookups.5.output	ReportRankGenitive
 value	PersonalEventBuilder::export.shared.lookups.5.keyHeader	Звання
 value	PersonalEventBuilder::export.shared.lookups.5.valueHeader	Родовий
-value	PersonalEventBuilder::export.shared.lookups.5.when.field	ReportName
-value	PersonalEventBuilder::export.shared.lookups.5.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
 value	PersonalEventBuilder::export.shared.lookups.6.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.6.when.field	ReportName
+value	PersonalEventBuilder::export.shared.lookups.6.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
 value	PersonalEventBuilder::export.shared.lookups.6.input	ReportName
 value	PersonalEventBuilder::export.shared.lookups.6.range	A1:J12000
 value	PersonalEventBuilder::export.shared.lookups.6.sheet	АЛФ
 value	PersonalEventBuilder::export.shared.lookups.6.output	ReportPersonInitialsGenitive
 value	PersonalEventBuilder::export.shared.lookups.6.keyHeader	ПІБ
 value	PersonalEventBuilder::export.shared.lookups.6.valueHeader	ПІП (Родовий)
-value	PersonalEventBuilder::export.shared.lookups.6.when.field	ReportName
-value	PersonalEventBuilder::export.shared.lookups.6.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
 value	PersonalEventBuilder::export.shared.lookups.7.path	../Dependencies/ШПО.xlsx
+value	PersonalEventBuilder::export.shared.lookups.7.when.field	ReportName
+value	PersonalEventBuilder::export.shared.lookups.7.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
 value	PersonalEventBuilder::export.shared.lookups.7.input	ReportPositionCode
 value	PersonalEventBuilder::export.shared.lookups.7.range	A1:E12000
 value	PersonalEventBuilder::export.shared.lookups.7.sheet	Посади
 value	PersonalEventBuilder::export.shared.lookups.7.output	ReportPositionGenitive
 value	PersonalEventBuilder::export.shared.lookups.7.keyHeader	Код
 value	PersonalEventBuilder::export.shared.lookups.7.valueHeader	Родовий
-value	PersonalEventBuilder::export.shared.lookups.7.when.field	ReportName
-value	PersonalEventBuilder::export.shared.lookups.7.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
-value	PersonalEventBuilder::export.Word.duration.phrase	терміном на {days} {unit}
-value	PersonalEventBuilder::export.Word.duration.reasonKeys	дорога=road|донація=donation|донація крові=donation
-value	PersonalEventBuilder::export.Word.duration.fullPattern	^\s*(\d+)((?:\s*\+\s*\d+(?:\s*\([^)]*\))?)*)\s*$
-value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
-value	PersonalEventBuilder::export.Word.duration.additionalPhrase	, без урахування {days} {unit}
-value	PersonalEventBuilder::export.Word.duration.road.one	, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку
-value	PersonalEventBuilder::export.Word.duration.road.many	, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку
-value	PersonalEventBuilder::export.Word.duration.unit.few	календарні доби
-value	PersonalEventBuilder::export.Word.duration.unit.one	календарну добу
-value	PersonalEventBuilder::export.Word.duration.unit.many	календарних діб
-value	PersonalEventBuilder::export.Word.duration.donation.one	, наданої за донацію крові
-value	PersonalEventBuilder::export.Word.duration.donation.many	, наданих за донацію крові
-value	PersonalEventBuilder::export.Word.duration.additionalUnit.one	доби
-value	PersonalEventBuilder::export.Word.duration.additionalUnit.many	діб
-value	PersonalEventBuilder::export.shared.constants.count	10
+value	PersonalEventBuilder::export.shared.lookups.count	7
 value	PersonalEventBuilder::export.shared.constants.1.kind	emptyText
 value	PersonalEventBuilder::export.shared.constants.1.name	VlkNo
 value	PersonalEventBuilder::export.shared.constants.2.kind	emptyText
@@ -722,245 +921,49 @@ value	PersonalEventBuilder::export.shared.constants.9.kind	emptyCollection
 value	PersonalEventBuilder::export.shared.constants.9.name	MetaTvoTables
 value	PersonalEventBuilder::export.shared.constants.10.kind	emptyCollection
 value	PersonalEventBuilder::export.shared.constants.10.name	MetaTables
-value	PersonalEventBuilder::export.Word.templates.path	./PersonalEventBuilderWordResultTemplates.xml
-value	PersonalEventBuilder::export.Word.ToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.output	HospitalGenitive
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.valueHeader	Родовий
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.FromExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromExternalVlk.lookups.count	0
-value	PersonalEventBuilder::export.Word.FromBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromBusinessTrip.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromBusinessTrip.lookups.count	0
-value	PersonalEventBuilder::export.Word.ToMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToMaternityLeave.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.ToMaternityLeave.lookups.count	0
-value	PersonalEventBuilder::export.Word.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.ToVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.ToVacationForFamily.lookups.count	0
-value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
-value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.lookups.count	0
-value	PersonalEventBuilder::export.Word.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromVacationForFamily.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.count	1
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.path	../Dependencies/Установи.xlsx
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.input	HospitalShortName
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.range	A3:F10000
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.output	HospitalAccusative
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.keyHeader	Позначення
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.valueHeader	Знахідний
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.when.field	ModeForm
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.when.pattern	\S
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToFamilyVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToFamilyVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToFamilyVacation.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToHospital.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVacationForCuring.lookups.count	0
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.shared.constants.count	10
 value	PersonalEventBuilder::export.ticket.form	Leave
 value	PersonalEventBuilder::export.ticket.numberTemplate	{orderYear}/{orderNum}/{ticketNum}
 value	PersonalEventBuilder::export.ticket.qualifiedPattern	^\d{4}/[^/]+/[^/]+$
 value	PersonalEventBuilder::export.Movement.path	../Dependencies/РУХ.xlsx
 value	PersonalEventBuilder::export.Movement.sheet	Відсутні
 value	PersonalEventBuilder::export.Movement.table	ТВ
-value	PersonalEventBuilder::export.Movement.enabled	false
-value	PersonalEventBuilder::export.Movement.templates.path	./PersonalEventBuilderMovementTemplates.xml
-value	PersonalEventBuilder::export.Movement.status.HospitalTreatment	Стаціонарне лікування
-value	PersonalEventBuilder::export.Movement.status.AnnualVacation	Щорічна відпустка
+value	PersonalEventBuilder::export.Movement.status.ExternalVlk	ВЛК за межами
+value	PersonalEventBuilder::export.Movement.status.BusinessTrip	Відрядження
 value	PersonalEventBuilder::export.Movement.status.MedicalLeave	Відпустка для лікування
+value	PersonalEventBuilder::export.Movement.status.OutpatientVlk	Амбулаторне ВЛК
+value	PersonalEventBuilder::export.Movement.status.AnnualVacation	Щорічна відпустка
 value	PersonalEventBuilder::export.Movement.status.FamilyVacation	Відпустка за сімейними обставинами
 value	PersonalEventBuilder::export.Movement.status.MaternityLeave	Відпустка у зв'язку з вагітністю та пологами
-value	PersonalEventBuilder::export.Movement.status.BusinessTrip	Відрядження
-value	PersonalEventBuilder::export.Movement.status.OutpatientVlk	Амбулаторне ВЛК
-value	PersonalEventBuilder::export.Movement.status.ExternalVlk	ВЛК за межами
-value	PersonalEventBuilder::export.shared.inputs.scalars	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort
-value	PersonalEventBuilder::export.shared.inputs.dateScalars	VlkDateShort|PrevVacationTicketDateShort
-value	PersonalEventBuilder::export.shared.inputs.collections	MetaDocumentTables
-value	PersonalEventBuilder::export.shared.inputs.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
-value	PersonalEventBuilder::export.shared.inputs.MetaDocumentTables.required	DocumentNote
+value	PersonalEventBuilder::export.Movement.status.HospitalTreatment	Стаціонарне лікування
+value	PersonalEventBuilder::export.Movement.enabled	false
+value	PersonalEventBuilder::export.Movement.headers.PersonId	ІПН
+value	PersonalEventBuilder::export.Movement.headers.EventName	Подія
+value	PersonalEventBuilder::export.Movement.headers.PersonName	ПІБ
+value	PersonalEventBuilder::export.Movement.headers.ArrivalDate	Прибуття
+value	PersonalEventBuilder::export.Movement.headers.Destination	Куди
+value	PersonalEventBuilder::export.Movement.headers.ArrivalBasis	Прибуття.Підстава
+value	PersonalEventBuilder::export.Movement.headers.ArrivalOrder	Прибуття.Наказ
+value	PersonalEventBuilder::export.Movement.headers.DepartureDate	Вибуття
+value	PersonalEventBuilder::export.Movement.headers.DepartureBasis	Вибуття.Підстава
+value	PersonalEventBuilder::export.Movement.headers.DepartureOrder	Вибуття.Наказ
+value	PersonalEventBuilder::export.Movement.headers.TicketDocument	Супровідний документ
+value	PersonalEventBuilder::export.Movement.headers.ArrivalFoodSupport	Прибуття.Продовольче
+value	PersonalEventBuilder::export.Movement.headers.DepartureFoodSupport	Вибуття.Продовольче
+value	PersonalEventBuilder::export.Movement.templates.path	./PersonalEventBuilderMovementTemplates.xml
 value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
+value	PersonalEventBuilder::export.Movement.destinations.MedicalCompany	Медична рота А7383
+value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|TicketDate|DocumentDate
 value	PersonalEventBuilder::legend.sources	Personnel|Absence
 value	PersonalEventBuilder::legend.dateFormat	dd.mm.yyyy
-value	PersonalEventBuilder::orders.rowsAfter	5
-value	PersonalEventBuilder::orders.dateHeader	Дата
-value	PersonalEventBuilder::orders.rowsBefore	5
-value	PersonalEventBuilder::orders.numberHeader	Номер наказа
-value	PersonalEventBuilder::orders.source.path	../Dependencies/Накази.xlsx
-value	PersonalEventBuilder::orders.source.range	D2:H555
-value	PersonalEventBuilder::orders.source.sheet	Накази
 value	PersonalEventBuilder::lookup.Absence.key	Personnel.FullName
-value	PersonalEventBuilder::lookup.Absence.minChars	1
-value	PersonalEventBuilder::lookup.Absence.maxResults	1000
-value	PersonalEventBuilder::lookup.Absence.loadingText	Завантаження даних вибуття...
 value	PersonalEventBuilder::lookup.Absence.apply.count	0
-value	PersonalEventBuilder::lookup.Absence.search.count	1
 value	PersonalEventBuilder::lookup.Absence.search.1.name	Personnel.FullName
 value	PersonalEventBuilder::lookup.Absence.search.1.match	contains
+value	PersonalEventBuilder::lookup.Absence.search.count	1
 value	PersonalEventBuilder::lookup.Absence.source.path	C:\Users\isrepeat\OneDrive\Рабочий стол\ЕЖОС_last.xlsx
 value	PersonalEventBuilder::lookup.Absence.source.range	A5:Q2561
 value	PersonalEventBuilder::lookup.Absence.source.sheet	5. Тимчасово відсутні
-value	PersonalEventBuilder::lookup.Absence.columns.count	5
 value	PersonalEventBuilder::lookup.Absence.columns.1.name	Personnel.FullName
 value	PersonalEventBuilder::lookup.Absence.columns.1.header	66
 value	PersonalEventBuilder::lookup.Absence.columns.1.captionKey	PersonalEventBuilder::text.PersonNameLabel
@@ -975,19 +978,19 @@ value	PersonalEventBuilder::lookup.Absence.columns.4.header	70
 value	PersonalEventBuilder::lookup.Absence.columns.4.captionKey	PersonalEventBuilder::text.DepartureDateLabel
 value	PersonalEventBuilder::lookup.Absence.columns.5.name	Absence.TicketSequence
 value	PersonalEventBuilder::lookup.Absence.columns.5.header	Стовпець1
+value	PersonalEventBuilder::lookup.Absence.columns.count	5
 value	PersonalEventBuilder::lookup.Absence.display.count	0
+value	PersonalEventBuilder::lookup.Absence.minChars	1
+value	PersonalEventBuilder::lookup.Absence.maxResults	1000
+value	PersonalEventBuilder::lookup.Absence.loadingText	Завантаження даних вибуття...
 value	PersonalEventBuilder::lookup.Hospital.key	Hospital.ShortName
-value	PersonalEventBuilder::lookup.Hospital.minChars	2
-value	PersonalEventBuilder::lookup.Hospital.maxResults	50
-value	PersonalEventBuilder::lookup.Hospital.loadingText	Завантаження лікувальних закладів...
 value	PersonalEventBuilder::lookup.Hospital.apply.count	0
-value	PersonalEventBuilder::lookup.Hospital.search.count	1
 value	PersonalEventBuilder::lookup.Hospital.search.1.name	Hospital.Name
 value	PersonalEventBuilder::lookup.Hospital.search.1.match	contains
+value	PersonalEventBuilder::lookup.Hospital.search.count	1
 value	PersonalEventBuilder::lookup.Hospital.source.path	../Dependencies/Установи.xlsx
 value	PersonalEventBuilder::lookup.Hospital.source.range	A3:F10000
 value	PersonalEventBuilder::lookup.Hospital.source.sheet	Лікувальні Заклади
-value	PersonalEventBuilder::lookup.Hospital.columns.count	2
 value	PersonalEventBuilder::lookup.Hospital.columns.1.name	Hospital.Name
 value	PersonalEventBuilder::lookup.Hospital.columns.1.header	Назва
 value	PersonalEventBuilder::lookup.Hospital.columns.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
@@ -996,12 +999,12 @@ value	PersonalEventBuilder::lookup.Hospital.columns.2.name	Hospital.ShortName
 value	PersonalEventBuilder::lookup.Hospital.columns.2.header	Позначення
 value	PersonalEventBuilder::lookup.Hospital.columns.2.captionKey	PersonalEventBuilder::text.ModeHospitalShortNameLabel
 value	PersonalEventBuilder::lookup.Hospital.columns.2.sourceAlias	Hospital
+value	PersonalEventBuilder::lookup.Hospital.columns.count	2
 value	PersonalEventBuilder::lookup.Hospital.display.count	0
+value	PersonalEventBuilder::lookup.Hospital.minChars	2
+value	PersonalEventBuilder::lookup.Hospital.maxResults	50
+value	PersonalEventBuilder::lookup.Hospital.loadingText	Завантаження лікувальних закладів...
 value	PersonalEventBuilder::lookup.Personnel.key	Personnel.TaxId
-value	PersonalEventBuilder::lookup.Personnel.minChars	2
-value	PersonalEventBuilder::lookup.Personnel.maxResults	50
-value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
-value	PersonalEventBuilder::lookup.Personnel.apply.count	10
 value	PersonalEventBuilder::lookup.Personnel.apply.1.field	Absence.Type
 value	PersonalEventBuilder::lookup.Personnel.apply.1.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.1.target	Form.AbsenceType
@@ -1042,15 +1045,15 @@ value	PersonalEventBuilder::lookup.Personnel.apply.10.field	Absence.TicketDate
 value	PersonalEventBuilder::lookup.Personnel.apply.10.policy	overwrite
 value	PersonalEventBuilder::lookup.Personnel.apply.10.target	Form.TicketDate
 value	PersonalEventBuilder::lookup.Personnel.apply.10.required	true
-value	PersonalEventBuilder::lookup.Personnel.search.count	2
+value	PersonalEventBuilder::lookup.Personnel.apply.count	10
 value	PersonalEventBuilder::lookup.Personnel.search.1.name	Personnel.FullName
 value	PersonalEventBuilder::lookup.Personnel.search.1.match	contains
 value	PersonalEventBuilder::lookup.Personnel.search.2.name	Personnel.TaxId
 value	PersonalEventBuilder::lookup.Personnel.search.2.match	contains
+value	PersonalEventBuilder::lookup.Personnel.search.count	2
 value	PersonalEventBuilder::lookup.Personnel.source.path	../Dependencies/ШПО.xlsx
 value	PersonalEventBuilder::lookup.Personnel.source.range	A1:CG10556
 value	PersonalEventBuilder::lookup.Personnel.source.sheet	ОС
-value	PersonalEventBuilder::lookup.Personnel.columns.count	6
 value	PersonalEventBuilder::lookup.Personnel.columns.1.name	Personnel.FullName
 value	PersonalEventBuilder::lookup.Personnel.columns.1.header	Прізвище, ім’я, по батькові
 value	PersonalEventBuilder::lookup.Personnel.columns.1.captionKey	PersonalEventBuilder::text.FullNameHeader
@@ -1068,7 +1071,7 @@ value	PersonalEventBuilder::lookup.Personnel.columns.5.header	Підрозділ
 value	PersonalEventBuilder::lookup.Personnel.columns.5.captionKey	PersonalEventBuilder::text.UnitHeader
 value	PersonalEventBuilder::lookup.Personnel.columns.6.name	Personnel.PositionCode
 value	PersonalEventBuilder::lookup.Personnel.columns.6.header	Код посади
-value	PersonalEventBuilder::lookup.Personnel.display.count	10
+value	PersonalEventBuilder::lookup.Personnel.columns.count	6
 value	PersonalEventBuilder::lookup.Personnel.display.1.name	Absence.Type
 value	PersonalEventBuilder::lookup.Personnel.display.1.captionKey	PersonalEventBuilder::text.AbsenceTypeLabel
 value	PersonalEventBuilder::lookup.Personnel.display.1.sourceAlias	Absence
@@ -1099,8 +1102,18 @@ value	PersonalEventBuilder::lookup.Personnel.display.9.sourceAlias	Absence
 value	PersonalEventBuilder::lookup.Personnel.display.10.name	Absence.TicketDate
 value	PersonalEventBuilder::lookup.Personnel.display.10.captionKey	PersonalEventBuilder::text.TicketDateLabel
 value	PersonalEventBuilder::lookup.Personnel.display.10.sourceAlias	Absence
+value	PersonalEventBuilder::lookup.Personnel.display.count	10
+value	PersonalEventBuilder::lookup.Personnel.minChars	2
+value	PersonalEventBuilder::lookup.Personnel.maxResults	50
+value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
+value	PersonalEventBuilder::orders.source.path	../Dependencies/Накази.xlsx
+value	PersonalEventBuilder::orders.source.range	D2:H555
+value	PersonalEventBuilder::orders.source.sheet	Накази
+value	PersonalEventBuilder::orders.rowsAfter	5
+value	PersonalEventBuilder::orders.dateHeader	Дата
+value	PersonalEventBuilder::orders.rowsBefore	5
+value	PersonalEventBuilder::orders.numberHeader	Номер наказа
 value	PersonalEventBuilder::hotkeys.preview	^3
-value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.fields.1.record	Hospital.Name
 value	PersonalEventBuilder::hospital.fields.1.formField	Hospital
 value	PersonalEventBuilder::hospital.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
@@ -1109,8 +1122,8 @@ value	PersonalEventBuilder::hospital.fields.2.record	Hospital.ShortName
 value	PersonalEventBuilder::hospital.fields.2.formField	HospitalShortName
 value	PersonalEventBuilder::hospital.fields.2.captionKey	PersonalEventBuilder::text.ModeHospitalShortNameLabel
 value	PersonalEventBuilder::hospital.fields.2.sourceAlias	Hospital
+value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.lookup.key	Hospital
-value	PersonalEventBuilder::reporter.fields.count	3
 value	PersonalEventBuilder::reporter.fields.1.record	Personnel.Rank
 value	PersonalEventBuilder::reporter.fields.1.formField	ReportRank
 value	PersonalEventBuilder::reporter.fields.1.captionKey	PersonalEventBuilder::text.ModeReportRankLabel
@@ -1123,6 +1136,7 @@ value	PersonalEventBuilder::reporter.fields.3.record	Personnel.PositionCode
 value	PersonalEventBuilder::reporter.fields.3.formField	ReportPositionCode
 value	PersonalEventBuilder::reporter.fields.3.captionKey	PersonalEventBuilder::text.ModeReportPositionCodeLabel
 value	PersonalEventBuilder::reporter.fields.3.sourceAlias	Personnel
+value	PersonalEventBuilder::reporter.fields.count	3
 value	PersonalEventBuilder::reporter.lookup.key	ReportName
 value	PersonalEventBuilder::personnel.autoFill.default	true
 value	PersonalEventBuilder::candidates.selectionMode	Confirm

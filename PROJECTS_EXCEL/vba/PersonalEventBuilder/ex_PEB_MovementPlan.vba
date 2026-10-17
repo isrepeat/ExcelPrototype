@@ -149,57 +149,215 @@ EH:
 End Sub
 
 Private Sub private_BuildProfiles()
-    private_AddProfile "Arrival", "close", "Прибуття", "", "EventDate", "Вибуття"
+    private_AddProfile "Arrival", "close", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), "", "EventDate", ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     private_AddMappings "profiles.Arrival.join", _
-        VBA.Array("PersonId", "EventName"), _
-        VBA.Array("ІПН", "Подія")
+        VBA.Array( _
+            "PersonId", _
+            "EventName" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName") _
+        )
     private_AddMappings "profiles.Arrival.fields", _
-        VBA.Array("EventDate", "AcceptedOrderNumber", "MovementBasis", "FoodSupportDate"), _
-        VBA.Array("Прибуття", "Прибуття.Наказ", "Прибуття.Підстава", "Прибуття.Продовольче")
+        VBA.Array( _
+            "EventDate", _
+            "AcceptedOrderNumber", _
+            "MovementBasis", _
+            "FoodSupportDate" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalBasis"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport") _
+        )
     private_AddMappings "profiles.Arrival.identity", _
-        VBA.Array("PersonId", "EventName", "EventDate", "AcceptedOrderNumber"), _
-        VBA.Array("ІПН", "Подія", "Прибуття", "Прибуття.Наказ")
+        VBA.Array( _
+            "PersonId", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder") _
+        )
     private_AddProfile "Departure", "append", "", "", "", ""
     private_AddMappings "profiles.Departure.fields", _
-        VBA.Array("PersonId", "PersonName", "EventName", "EventDate", "AcceptedOrderNumber", "Destination", "MovementBasis", "TicketDocument", "FoodSupportDate"), _
-        VBA.Array("ІПН", "ПІБ", "Подія", "Вибуття", "Вибуття.Наказ", "Куди", "Вибуття.Підстава", "Супровідний документ", "Вибуття.Продовольче")
+        VBA.Array( _
+            "PersonId", _
+            "PersonName", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber", _
+            "Destination", _
+            "MovementBasis", _
+            "TicketDocument", _
+            "FoodSupportDate" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.Destination"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureBasis"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
+        )
     private_AddMappings "profiles.Departure.identity", _
-        VBA.Array("PersonId", "EventName", "EventDate", "AcceptedOrderNumber"), _
-        VBA.Array("ІПН", "Подія", "Вибуття", "Вибуття.Наказ")
-    m_values.Add "profiles.Departure.guard.openHeader", "Прибуття"
+        VBA.Array( _
+            "PersonId", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder") _
+        )
+    m_values.Add "profiles.Departure.guard.openHeader", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate")
     private_AddMappings "profiles.Departure.guard.join", _
         VBA.Array("PersonId"), _
-        VBA.Array("ІПН")
-    private_AddProfile "Transition", "transition", "Прибуття", "Arrival", "EventDate", "Вибуття"
+        VBA.Array(ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"))
+    private_AddProfile "Transition", "transition", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), "Arrival", "EventDate", ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     private_AddMappings "profiles.Transition.join", _
-        VBA.Array("PersonId", "SourceEventName"), _
-        VBA.Array("ІПН", "Подія")
+        VBA.Array( _
+            "PersonId", _
+            "SourceEventName" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName") _
+        )
     private_AddMappings "profiles.Transition.fields", _
-        VBA.Array("PersonId", "PersonName", "EventName", "EventDate", "AcceptedOrderNumber", "Destination", "MovementBasis", "TicketDocument", "FoodSupportDate"), _
-        VBA.Array("ІПН", "ПІБ", "Подія", "Вибуття", "Вибуття.Наказ", "Куди", "Вибуття.Підстава", "Супровідний документ", "Вибуття.Продовольче")
+        VBA.Array( _
+            "PersonId", _
+            "PersonName", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber", _
+            "Destination", _
+            "MovementBasis", _
+            "TicketDocument", _
+            "FoodSupportDate" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.Destination"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureBasis"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
+        )
     private_AddMappings "profiles.Transition.identity", _
-        VBA.Array("PersonId", "EventName", "EventDate", "AcceptedOrderNumber"), _
-        VBA.Array("ІПН", "Подія", "Вибуття", "Вибуття.Наказ")
-    private_AddProfile "ArrivalMedicalCompany", "close", "Прибуття", "", "EventDate", "Вибуття"
+        VBA.Array( _
+            "PersonId", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder") _
+        )
+    private_AddProfile "ArrivalMedicalCompany", "close", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), "", "EventDate", ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     private_AddMappings "profiles.ArrivalMedicalCompany.join", _
-        VBA.Array("PersonId", "EventName", "SourceDestination"), _
-        VBA.Array("ІПН", "Подія", "Куди")
+        VBA.Array( _
+            "PersonId", _
+            "EventName", _
+            "SourceDestination" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.Destination") _
+        )
     private_AddMappings "profiles.ArrivalMedicalCompany.fields", _
-        VBA.Array("EventDate", "AcceptedOrderNumber", "MovementBasis", "FoodSupportDate"), _
-        VBA.Array("Прибуття", "Прибуття.Наказ", "Прибуття.Підстава", "Прибуття.Продовольче")
+        VBA.Array( _
+            "EventDate", _
+            "AcceptedOrderNumber", _
+            "MovementBasis", _
+            "FoodSupportDate" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalBasis"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport") _
+        )
     private_AddMappings "profiles.ArrivalMedicalCompany.identity", _
-        VBA.Array("PersonId", "EventName", "EventDate", "AcceptedOrderNumber"), _
-        VBA.Array("ІПН", "Подія", "Прибуття", "Прибуття.Наказ")
-    private_AddProfile "TransitionMedicalCompany", "transition", "Прибуття", "Arrival", "EventDate", "Вибуття"
+        VBA.Array( _
+            "PersonId", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder") _
+        )
+    private_AddProfile "TransitionMedicalCompany", "transition", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), "Arrival", "EventDate", ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     private_AddMappings "profiles.TransitionMedicalCompany.join", _
-        VBA.Array("PersonId", "SourceEventName", "SourceDestination"), _
-        VBA.Array("ІПН", "Подія", "Куди")
+        VBA.Array( _
+            "PersonId", _
+            "SourceEventName", _
+            "SourceDestination" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.Destination") _
+        )
     private_AddMappings "profiles.TransitionMedicalCompany.fields", _
-        VBA.Array("PersonId", "PersonName", "EventName", "EventDate", "AcceptedOrderNumber", "Destination", "MovementBasis", "TicketDocument", "FoodSupportDate"), _
-        VBA.Array("ІПН", "ПІБ", "Подія", "Вибуття", "Вибуття.Наказ", "Куди", "Вибуття.Підстава", "Супровідний документ", "Вибуття.Продовольче")
+        VBA.Array( _
+            "PersonId", _
+            "PersonName", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber", _
+            "Destination", _
+            "MovementBasis", _
+            "TicketDocument", _
+            "FoodSupportDate" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.Destination"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureBasis"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
+        )
     private_AddMappings "profiles.TransitionMedicalCompany.identity", _
-        VBA.Array("PersonId", "EventName", "EventDate", "AcceptedOrderNumber"), _
-        VBA.Array("ІПН", "Подія", "Вибуття", "Вибуття.Наказ")
+        VBA.Array( _
+            "PersonId", _
+            "EventName", _
+            "EventDate", _
+            "AcceptedOrderNumber" _
+        ), _
+        VBA.Array( _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder") _
+        )
 End Sub
 
 Private Sub private_BuildEvents()
@@ -280,8 +438,8 @@ Private Sub private_BuildEvents()
         "HospitalTreatment", _
         "", _
         "Destination", _
-        "Медична рота А7383", _
-        "Медична рота А7383", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "ToHospital", _
@@ -350,7 +508,7 @@ Private Sub private_BuildEvents()
         "", _
         "HospitalTreatment", _
         "Destination", _
-        "Медична рота А7383", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "", _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
@@ -451,7 +609,7 @@ Private Sub private_BuildEvents()
         "HospitalTreatment", _
         "HospitalShortName", _
         "", _
-        "Медична рота А7383", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "MoveFromMedicalCompanyForTreatmentToVacationForCuring", _
@@ -461,7 +619,7 @@ Private Sub private_BuildEvents()
         "MedicalLeave", _
         "Destination", _
         "", _
-        "Медична рота А7383", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "MoveFromMedicalCompanyVacationForCuringToHospital", _
@@ -471,7 +629,7 @@ Private Sub private_BuildEvents()
         "HospitalTreatment", _
         "HospitalShortName", _
         "", _
-        "Медична рота А7383", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "MoveFromMedicalCompanyVacationForCuringToVacationForCuring", _
@@ -481,7 +639,7 @@ Private Sub private_BuildEvents()
         "MedicalLeave", _
         "Destination", _
         "", _
-        "Медична рота А7383", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "MoveFromAnnualVacationToFamilyVacation", _

@@ -140,9 +140,9 @@ Private Sub private_EnsureLoaded()
             End If
         Next child
         For Each columnNode In node.selectNodes("p:column")
-            private_CheckAttributes columnNode, "name"
+            private_CheckAttributes columnNode, "configKey"
             private_RequireChildren columnNode, "text"
-            columnName = private_Attribute(columnNode, "name")
+            columnName = ex_PEB_Export.fn_Config(private_Attribute(columnNode, "configKey"))
             If columns.Exists(columnName) Then
                 Err.Raise 5, , "Duplicate result column: " & identifier & "/" & columnName
             End If
