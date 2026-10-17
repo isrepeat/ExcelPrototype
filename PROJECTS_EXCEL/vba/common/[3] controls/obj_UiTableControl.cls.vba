@@ -261,7 +261,9 @@ Public Function TryRefreshTemplateBindings( _
         For columnIndex = 1 To table.ColumnCount
             value = table.ValueAt(rowIndex, columnIndex)
             If Not private_SameCellValue(value, m_renderedValues(bodyOffset + rowIndex, columnIndex)) Then
-                m_bodyRange.Cells(rowIndex, columnIndex).Value2 = value
+                If Not private_IsShapeTemplateColumn(columnIndex) Then
+                    m_bodyRange.Cells(rowIndex, columnIndex).Value2 = value
+                End If
                 m_renderedValues(bodyOffset + rowIndex, columnIndex) = value
             End If
         Next columnIndex
@@ -434,6 +436,37 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     private_Configure = True
 End Function
 
+Private Function private_IsShapeTemplateColumn(ByVal columnIndex As Long) As Boolean
+    Dim template As Object
+    Dim child As Object
+    Dim aliases As obj_IUiColumnAliases
+    Dim columnAlias As String
+    Dim mode As String
+    Dim kind As String
+
+    If m_table Is Nothing Then Exit Function
+    If Not m_source Is Nothing Then
+        If TypeOf m_source Is obj_IUiColumnAliases Then Set aliases = m_source
+    End If
+    For Each template In m_uiControlBase.ControlNode.SelectNodes("*[local-name()='table.cellTemplates']/*[local-name()='cellTemplate']")
+        columnAlias = ex_UiElementFactory.fn_Attribute(template, "columnAlias")
+        If Not aliases Is Nothing Then
+            If aliases.ColumnAliasAt(columnIndex) = columnAlias Then columnAlias = VBA.CStr(m_table.HeaderAt(columnIndex))
+        End If
+        If columnAlias = VBA.CStr(m_table.HeaderAt(columnIndex)) Then
+            mode = ex_UiElementFactory.fn_Attribute(template, "mode")
+            If mode = "replace" Or VBA.Len(mode) = 0 Then
+                Set child = template.SelectSingleNode("*")
+                If Not child Is Nothing Then
+                    kind = VBA.LCase$(VBA.CStr(child.baseName))
+                    private_IsShapeTemplateColumn = (kind = "checkbox" Or kind = "button")
+                End If
+            End If
+            Exit Function
+        End If
+    Next template
+End Function
+
 Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range
     Dim tableIndex As Long, rows As Long, columns As Long
     Dim rawTable As obj_UiRawTable
@@ -499,6 +532,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim columnLayout As obj_IUiColumnLayout
     Dim headerPresentation As obj_IUiHeaderPresentation
     Dim templateDiagnostic As String
+    Dim displayBuffer As Variant
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -547,7 +581,16 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If Not columnLayout Is Nothing Then
         m_targetRange.UnMerge
     End If
-    m_targetRange.Value2 = buffer
+    ' Shape templates own the visible cell; keep their backing values in memory only.
+    displayBuffer = buffer
+    For columnIndex = 1 To rawTable.ColumnCount
+        If private_IsShapeTemplateColumn(columnIndex) Then
+            For rowIndex = targetRow To UBound(displayBuffer, 1)
+                displayBuffer(rowIndex, columnIndex) = Empty
+            Next rowIndex
+        End If
+    Next columnIndex
+    m_targetRange.Value2 = displayBuffer
     If Not columnLayout Is Nothing Then
         targetRow = 1
         If VBA.Len(rawTable.Title) > 0 Then targetRow = targetRow + 1
