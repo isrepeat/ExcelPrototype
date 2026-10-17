@@ -215,7 +215,7 @@ Public Function TryPrepare( _
     action = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action"))
     If Not ex_PEB_Testing.fn_RegistryContains("Action", action) Then Err.Raise 5, , "Unknown test action: " & action
     Select Case action
-        Case "ExportMovement", "PreviewWord"
+        Case "ExportMovement", "PreviewWord", "ExportEvent"
         Case Else
             Err.Raise 5, , "Test action has no executor: " & action
     End Select
@@ -383,7 +383,7 @@ Public Function TryCatalog( _
                 action = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "action"))
                 If Not ex_PEB_Testing.fn_RegistryContains("Action", action) Then Err.Raise 5, , "Unknown test action: " & stepIdentity
                 Select Case action
-                    Case "ExportMovement", "PreviewWord"
+                    Case "ExportMovement", "PreviewWord", "ExportEvent"
                     Case Else
                         Err.Raise 5, , "Test action has no executor: " & stepIdentity
                 End Select
@@ -454,6 +454,7 @@ Public Function TrySnapshot( _
     Dim idColumn As Long
     Dim arrivalColumn As Long
     Dim skipColumns As String
+    Dim wordExpectation As Object
     Dim text As String
     Dim signature As String
     Dim openCount As Long
@@ -1016,7 +1017,9 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
         If seen.Exists(stepId) Then Err.Raise 5, , "Duplicate Movement expectation: " & stepId
         seen.Add stepId, True
         Set testStep = allSteps(stepId)
-        If testStep("Action") <> "ExportMovement" Then Err.Raise 5, , "Movement expectation has an incompatible action: " & stepId
+        If testStep("Action") <> "ExportMovement" And testStep("Action") <> "ExportEvent" Then
+            Err.Raise 5, , "Movement expectation has an incompatible action: " & stepId
+        End If
         outcome = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "expected"))
         If Not ex_PEB_Testing.fn_RegistryContains("ExpectedDecision", outcome) Then Err.Raise 5, , "Unknown expected Movement decision: " & stepId
         check = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "stateCheck"))
@@ -1090,7 +1093,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
     Next rowIndex
     For Each key In allSteps.Keys
         Set testStep = allSteps(key)
-        If testStep("Action") = "ExportMovement" Then
+        If testStep("Action") = "ExportMovement" Or testStep("Action") = "ExportEvent" Then
             If Not seen.Exists(key) Then Err.Raise 5, , "Movement expectation is missing: " & key
             If testStep("StateCheck") = "Snapshot" Then
                 Set rows = testStep("ExpectedRows")
@@ -1108,26 +1111,42 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
         If seen.Exists(stepId) Then Err.Raise 5, , "Duplicate Word expectation: " & stepId
         seen.Add stepId, True
         Set testStep = allSteps(stepId)
-        If testStep("Action") <> "PreviewWord" Then Err.Raise 5, , "Word expectation has an incompatible action: " & stepId
+        If testStep("Action") <> "PreviewWord" And testStep("Action") <> "ExportEvent" Then
+            Err.Raise 5, , "Word expectation has an incompatible action: " & stepId
+        End If
         outcome = ex_PEB_Export.fn_Text(private_Value(table, rowIndex, "wordOutcome"))
         If Not ex_PEB_Testing.fn_RegistryContains("Outcome", outcome) Then Err.Raise 5, , "Unknown Word outcome: " & stepId
-        testStep("Expected") = outcome
-        If outcome = "Error" Then testStep("Code") = "PreviewError"
-        testStep("ExpectedText") = private_Value(table, rowIndex, "wordText")
-        testStep("ExpectedError") = private_Value(table, rowIndex, "wordError")
+        Set wordExpectation = testStep
+        If testStep("Action") = "ExportEvent" Then
+            Set wordExpectation = VBA.CreateObject("Scripting.Dictionary")
+            wordExpectation("Id") = stepId
+            testStep.Add "WordExpectation", wordExpectation
+        End If
+        wordExpectation("Expected") = outcome
+        If outcome = "Error" And testStep("Action") = "PreviewWord" Then
+            testStep("Code") = "PreviewError"
+        End If
+        wordExpectation("ExpectedText") = private_Value(table, rowIndex, "wordText")
+        wordExpectation("ExpectedError") = private_Value(table, rowIndex, "wordError")
         If outcome = "Success" Then
-            If VBA.Len(testStep("ExpectedText")) = 0 Or VBA.Len(testStep("ExpectedError")) > 0 Then
+            If VBA.Len(wordExpectation("ExpectedText")) = 0 Or VBA.Len(wordExpectation("ExpectedError")) > 0 Then
                 Err.Raise 5, , "Successful Word expectation requires text and no error: " & stepId
             End If
         ElseIf outcome = "Error" Then
-            If VBA.Len(testStep("ExpectedError")) = 0 Or VBA.Len(testStep("ExpectedText")) > 0 Then
+            If VBA.Len(wordExpectation("ExpectedError")) = 0 Or VBA.Len(wordExpectation("ExpectedText")) > 0 Then
                 Err.Raise 5, , "Word error expectation requires an exact diagnostic and no text: " & stepId
+            End If
+        ElseIf outcome = "Omitted" Then
+            If VBA.Len(wordExpectation("ExpectedText")) > 0 Or VBA.Len(wordExpectation("ExpectedError")) > 0 Then
+                Err.Raise 5, , "Omitted Word expectation must contain neither text nor error: " & stepId
             End If
         End If
     Next rowIndex
     For Each key In allSteps.Keys
         Set testStep = allSteps(key)
-        If testStep("Action") = "PreviewWord" And Not seen.Exists(key) Then Err.Raise 5, , "Word expectation is missing: " & key
+        If (testStep("Action") = "PreviewWord" Or testStep("Action") = "ExportEvent") And Not seen.Exists(key) Then
+            Err.Raise 5, , "Word expectation is missing: " & key
+        End If
     Next key
 End Sub
 

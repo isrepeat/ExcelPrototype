@@ -1,7 +1,7 @@
 Attribute VB_Name = "ex_PEB_Testing"
 Option Explicit
 
-Private m_testUi As obj_PEB_TestUi
+Private m_testController As obj_PEB_PgTestsController
 Private m_tickAt As Date
 Private m_tickPending As Boolean
 Private m_tickProcedure As String
@@ -13,8 +13,7 @@ Private m_lastPhaseFlush As Double
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     fn_CancelTick
-    If Not m_testUi Is Nothing Then m_testUi.Dispose
-    Set m_testUi = Nothing
+    Set m_testController = Nothing
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -24,7 +23,9 @@ End Sub
 ' namespace API {
 ' --------------------------------------
 Public Function fn_IsRunning() As Boolean
-    If Not m_testUi Is Nothing Then fn_IsRunning = m_testUi.IsRunning
+    If Not m_testController Is Nothing Then
+        fn_IsRunning = m_testController.IsRunning
+    End If
 End Function
 
 Public Function fn_RegistryValues(ByVal kind As String) As Variant
@@ -61,8 +62,8 @@ Public Function fn_ResolveTestMode(ByVal templateId As String) As String
 
     If Not fn_RegistryContains("ModeId", templateId) Then Err.Raise 5, , "Unknown test template identity: " & templateId
     modeId = ex_PEB_Export.fn_Config("test.registry.ModeId." & templateId & ".runtimeMode")
-    If ex_PEB_Export.fn_Config("export.Word." & modeId & ".templateName") <> templateId Then
-        Err.Raise 5, , "Test registry and Word template mapping differ: " & templateId
+    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("events.ids") & "|", "|" & modeId & "|", VBA.vbBinaryCompare) = 0 Then
+        Err.Raise 5, , "Test registry references an unknown business event: " & modeId
     End If
     fn_ResolveTestMode = modeId
 End Function
@@ -191,18 +192,37 @@ Failed:
     Resume CleanExit
 End Function
 
-Public Function fn_Open() As Boolean
-    If m_testUi Is Nothing Then
-        Set m_testUi = New obj_PEB_TestUi
-        If Not m_testUi.Initialize() Then Exit Function
+Public Sub fn_Attach(ByVal controller As obj_PEB_PgTestsController)
+    If controller Is Nothing Then
+        Err.Raise 5, , "Test page controller is missing."
     End If
-    fn_Open = m_testUi.OpenPage()
-End Function
+    If Not m_testController Is Nothing Then
+        If Not m_testController Is controller Then
+            Err.Raise 5, , "Another test page controller is attached."
+        End If
+    End If
+    Set m_testController = controller
+End Sub
+
+Public Sub fn_Detach(ByVal controller As obj_PEB_PgTestsController)
+    If m_testController Is Nothing Then
+        Exit Sub
+    End If
+    If Not m_testController Is controller Then
+        Exit Sub
+    End If
+    fn_CancelTick
+    Set m_testController = Nothing
+End Sub
 
 Public Sub fn_RequestStop()
-    If m_testUi Is Nothing Then Exit Sub
-    If Not m_testUi.IsRunning Then Exit Sub
-    m_testUi.RequestStop
+    If m_testController Is Nothing Then
+        Exit Sub
+    End If
+    If Not m_testController.IsRunning Then
+        Exit Sub
+    End If
+    m_testController.RequestStop
     If m_advancing Then Exit Sub
     fn_CancelTick
     fn_ScheduleTick True
@@ -212,8 +232,12 @@ Public Sub fn_ScheduleTick(Optional ByVal immediate As Boolean = False)
     Dim delay As Long
 
     If m_advancing Then Exit Sub
-    If m_testUi Is Nothing Or m_tickPending Then Exit Sub
-    If Not m_testUi.IsRunning Then Exit Sub
+    If m_testController Is Nothing Or m_tickPending Then
+        Exit Sub
+    End If
+    If Not m_testController.IsRunning Then
+        Exit Sub
+    End If
     delay = ex_PEB_Export.fn_Count("test.runner.tickSeconds")
     If delay < 0 Then Err.Raise 5, , "test.runner.tickSeconds must not be negative."
     If immediate Then delay = 0
@@ -247,9 +271,13 @@ Public Sub fn_ReportPhase(ByVal key As String)
     Dim elapsed As Double
     Dim nowAt As Double
 
-    If m_testUi Is Nothing Then Exit Sub
-    If Not m_testUi.IsRunning Then Exit Sub
-    m_testUi.ReportPhase key
+    If m_testController Is Nothing Then
+        Exit Sub
+    End If
+    If Not m_testController.IsRunning Then
+        Exit Sub
+    End If
+    m_testController.ReportPhase key
     nowAt = VBA.Timer
     elapsed = nowAt - m_lastPhaseFlush
     If elapsed < 0 Then elapsed = elapsed + 86400#
@@ -260,10 +288,10 @@ Public Sub fn_ReportPhase(ByVal key As String)
 End Sub
 
 Public Function fn_StopRequested() As Boolean
-    If m_testUi Is Nothing Then
+    If m_testController Is Nothing Then
         fn_StopRequested = True
     Else
-        fn_StopRequested = m_testUi.StopRequested
+        fn_StopRequested = m_testController.StopRequested
     End If
 End Function
 
@@ -291,7 +319,9 @@ Public Sub fn_Tick()
     If m_advancing Then Exit Sub
     If Not m_tickPending Then Exit Sub
     fn_CancelTick
-    If m_testUi Is Nothing Then Exit Sub
+    If m_testController Is Nothing Then
+        Exit Sub
+    End If
     previousEvents = Application.EnableEvents
     previousScreen = Application.ScreenUpdating
     On Error GoTo EH
@@ -309,10 +339,12 @@ Public Sub fn_Tick()
     If budget < 1 Then Err.Raise 5, , "test.runner.batchMilliseconds must be positive."
     started = VBA.Timer
     Do
-        more = m_testUi.Advance()
+        more = m_testController.Advance()
         If Not more Then Exit Do
         fn_PumpUi
-        If m_testUi.StopRequested Then Exit Do
+        If m_testController.StopRequested Then
+            Exit Do
+        End If
         elapsed = VBA.Timer - started
         If elapsed < 0 Then elapsed = elapsed + 86400#
     Loop While elapsed * 1000# < budget
@@ -326,28 +358,21 @@ CleanExit:
         ex_RuntimeLifecycle.fn_Leave runtimeContext
         entered = False
     End If
-    If more Then fn_ScheduleTick m_testUi.StopRequested
+    If more Then
+        fn_ScheduleTick m_testController.StopRequested
+    End If
     If VBA.Len(diagnostic) > 0 Then ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
     Exit Sub
 EH:
     diagnostic = VBA.Err.Description
     more = False
-    fn_Module_Dispose
+    If Not m_testController Is Nothing Then
+        m_testController.FailRun diagnostic
+        diagnostic = VBA.vbNullString
+    End If
     Resume CleanExit
 End Sub
 
-Public Function fn_NavigatePreview(ByVal item As Object) As Boolean
-    If m_testUi Is Nothing Then Exit Function
-    fn_NavigatePreview = m_testUi.NavigatePreview(item)
-End Function
-
-Public Function fn_RunSelected() As Boolean
-    If m_testUi Is Nothing Then Exit Function
-    If m_testUi.IsRunning Then Exit Function
-    m_testUi.RunSelected
-    private_FlushMain
-    fn_RunSelected = True
-End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

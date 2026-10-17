@@ -161,6 +161,24 @@ Public Function SetRecords(ByVal records As Collection) As Boolean
     SetRecords = True
 End Function
 
+Public Function SetValueAt( _
+    ByVal rowIndex As Long, _
+    ByVal columnIndex As Long, _
+    ByVal value As Variant _
+) As Boolean
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    If rowIndex < 1 Or rowIndex > m_rowCount Then
+        Exit Function
+    End If
+    If columnIndex < 1 Or columnIndex > m_columnCount Then
+        Exit Function
+    End If
+    m_values(rowIndex, columnIndex) = value
+    SetValueAt = True
+End Function
+
 Public Function ValueAt(ByVal rowIndex As Long, ByVal columnIndex As Long) As Variant
     If rowIndex <= 0 Or rowIndex > m_rowCount Then Exit Function
     If columnIndex <= 0 Or columnIndex > m_columnCount Then Exit Function

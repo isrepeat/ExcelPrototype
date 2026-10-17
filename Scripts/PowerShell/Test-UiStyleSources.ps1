@@ -80,7 +80,7 @@ foreach ($file in Get-ChildItem -LiteralPath $UiRoot -Filter '*.xaml' -Recurse -
     $imports += $paths.Count
 }
 
-$testPath = Join-Path $UiRoot 'PersonalEventBuilderTest\MainPage.xaml'
+$testPath = Join-Path $UiRoot 'PersonalEventBuilder\TestsPage.xaml'
 $testPage = Read-StyleXml $testPath
 $catalog = Get-PageStyleCatalog $testPage $testPath
 if ($catalog['secondaryButton'] -ne $testPath) { throw 'Page-local style did not override the imported definition.' }

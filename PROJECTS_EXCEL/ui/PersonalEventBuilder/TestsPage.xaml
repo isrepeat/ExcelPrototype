@@ -3,7 +3,7 @@
       xmlns:controls="urn:excelprototype:controls"
       version="1"
       zoom="80%"
-      styleSources="../PersonalEventBuilder/CommonControlStyles.xaml">
+      styleSources="CommonControlStyles.xaml">
   <grid row="2"
         column="2">
     <controls:button name="TestRun"
@@ -33,6 +33,24 @@
                     columnSpan="10"
                     style="testStatus"
                     text="{Binding Path=Form.ActionStatus}"/>
+    <controls:checkbox name="TestSelectAll"
+                       row="4"
+                       column="1"
+                       style="testCheckbox"
+                       value="{Binding Path=TestSelection.AllC}"
+                       caption="{Binding Path=TestSelection.Caption}"
+                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       onChange="{Binding Path=Commands.SelectionChanged}"/>
+    <controls:checkbox name="TestPreviewAll"
+                       row="4"
+                       column="2"
+                       style="testCheckbox"
+                       value="{Binding Path=TestSelection.AllP}"
+                       caption="{Binding Path=TestSelection.Caption}"
+                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       onChange="{Binding Path=Commands.SelectionChanged}"/>
     <stackPanel row="5"
                 column="1"
                 orientation="vertical">
@@ -42,7 +60,30 @@
                       representation="Smart"
                       excelTableName="tbPebTestCatalog"
                       showAutoFilter="false"
-                      showHeaders="true"/>
+                      showHeaders="true">
+        <controls:table.cellTemplates>
+          <controls:cellTemplate columnAlias="Selected"
+                                 mode="replace">
+            <controls:checkbox name="SelectScenario"
+                               style="testCheckbox"
+                               value="{Binding Path=Item.Selected}"
+                               caption="{Binding Path=TestSelection.Caption}"
+                               checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                               uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                               onChange="{Binding Path=Commands.SelectionChanged}"/>
+          </controls:cellTemplate>
+          <controls:cellTemplate columnAlias="PreviewEnabled"
+                                 mode="replace">
+            <controls:checkbox name="SelectPreview"
+                               style="testCheckbox"
+                               value="{Binding Path=Item.PreviewEnabled}"
+                               caption="{Binding Path=TestSelection.Caption}"
+                               checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                               uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                               onChange="{Binding Path=Commands.SelectionChanged}"/>
+          </controls:cellTemplate>
+        </controls:table.cellTemplates>
+      </controls:table>
       <controls:label name="TestResultsTitle"
                       columnSpan="16"
                       text="{Binding Path=Text.TestsResults}"/>

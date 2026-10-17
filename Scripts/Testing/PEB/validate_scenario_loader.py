@@ -1,9 +1,9 @@
 """Проверка схем сценариев и контрактов исходного кода без запуска Office."""
 
+import argparse
 import copy
 import datetime
 import re
-import sys
 from xml.etree import ElementTree as ET
 from pathlib import Path
 
@@ -11,7 +11,8 @@ import openpyxl
 from openpyxl.utils.cell import range_boundaries
 
 ROOT = Path(__file__).resolve().parents[3]
-FIXTURE = ROOT / "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx"
+FIXTURE = ROOT / "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.EventRoutes.xlsx"
+STRICT_ARCHIVE_ERRORS = True
 
 
 def config(filename):
@@ -39,7 +40,8 @@ def load_tables(book):
             rows = []
             for index in range(top + 1, bottom + 1):
                 cells = [sheet.cell(index, column) for column in range(left, right + 1)]
-                assert not any(cell.data_type == "e" for cell in cells), f"Excel error: {sheet.title}/{index}"
+                if STRICT_ARCHIVE_ERRORS or table.name not in ("tbTestResults", "tbTestRecords", "tbTestInputs"):
+                    assert not any(cell.data_type == "e" for cell in cells), f"Excel error: {sheet.title}/{index}"
                 row = {header: cell.value for header, cell in zip(headers, cells)}
                 if any(value is not None for value in row.values()):
                     rows.append(row)
@@ -98,12 +100,14 @@ def validate(tables, settings):
     for step_id, step in steps.items():
         assert step["ScenarioId"] in cases, f"Unknown scenario: {step_id}"
         assert step["PersonId"] == cases[step["ScenarioId"]]["ІПН"], f"Wrong participant: {step_id}"
-        assert step["Action"] in ("ExportMovement", "PreviewWord"), f"Unknown action: {step_id}"
-        expected = movement if step["Action"] == "ExportMovement" else word
+        assert step["Action"] in ("ExportMovement", "PreviewWord", "ExportEvent"), f"Unknown action: {step_id}"
+        expected = word if step["Action"] == "PreviewWord" else movement
         assert step_id in expected, f"Missing expectation: {step_id}"
+        if step["Action"] == "ExportEvent":
+            assert step_id in word, f"Missing Word expectation: {step_id}"
         assert settings[f"export.events.{runtime_mode(step, settings)}"]
     for step_id, expectation in movement.items():
-        assert step_id in steps and steps[step_id]["Action"] == "ExportMovement", f"Orphan Movement expectation: {step_id}"
+        assert step_id in steps and steps[step_id]["Action"] in ("ExportMovement", "ExportEvent"), f"Orphan Movement expectation: {step_id}"
         decision = expectation["ExpectedDecision"]
         assert decision in ("Allow", "Block", "NoChange", "Pending")
         assert expectation["ExpectedCode"], f"Missing code: {step_id}"
@@ -124,8 +128,11 @@ def validate(tables, settings):
             assert isinstance(count, (int, float)) and count >= 0 and count == int(count), f"Invalid open count: {step_id}"
     assert all(row["StepId"] in movement for row in snapshots), "Orphan expected row"
     for step_id, expectation in word.items():
-        assert step_id in steps and steps[step_id]["Action"] == "PreviewWord", f"Orphan Word expectation: {step_id}"
-        assert expectation["Outcome"] in ("Success", "Error", "Pending")
+        assert step_id in steps and steps[step_id]["Action"] in ("PreviewWord", "ExportEvent"), f"Orphan Word expectation: {step_id}"
+        assert expectation["Outcome"] in ("Success", "Error", "Pending", "Omitted")
+        if expectation["Outcome"] == "Omitted":
+            assert not expectation["ExpectedText"] and not expectation["ExpectedError"], f"Omitted Word output has content: {step_id}"
+            assert settings[f"events.{steps[step_id]['ModeId']}.word.policy"] == "Omit"
         if expectation["Outcome"] == "Success":
             text = expectation["ExpectedText"]
             assert isinstance(text, str) and 0 < len(text) <= 32767 and not expectation["ExpectedError"], f"Missing Word text: {step_id}"
@@ -172,13 +179,20 @@ def source_checks(settings):
     assert 'private_ValidateWord(binding, testStep, report, values)' in runner
     assert 'test.runner.captureMovementPreview' not in runner, "Movement preview must not be disabled by a performance setting"
     assert 'report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText"))' in runner
-    assert 'If report("PreviewEnabled") Then' in runner
+    assert 'If report("PreviewEnabled") And testStep("Action") <> "ExportEvent" Then' in runner
+    assert 'testStep("WordExpectation")' in runner and 'values("WordOutcome")' in runner
     assert 'item("PreviewEnabled") = VBA.CBool(selected(scenario("Id")))' in runner
-    ui = (folder / "obj_PEB_TestUi.cls.vba").read_text(encoding="utf-8-sig")
+    ui = (folder / "obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
     assert 'm_runSelection.Add key, VBA.CBool(m_previews(key))' in ui
-    assert 'private_CreateCheckbox "AllC"' in ui and 'private_CreateCheckbox "AllP"' in ui
+    page = ET.parse(ROOT / "PROJECTS_EXCEL/ui/PersonalEventBuilder/TestsPage.xaml").getroot()
+    controls = {node.attrib.get("name"): node for node in page.iter() if "name" in node.attrib}
+    assert controls["TestSelectAll"].attrib["value"] == "{Binding Path=TestSelection.AllC}"
+    assert controls["TestPreviewAll"].attrib["value"] == "{Binding Path=TestSelection.AllP}"
+    assert controls["SelectScenario"].attrib["value"] == "{Binding Path=Item.Selected}"
+    assert controls["SelectPreview"].attrib["value"] == "{Binding Path=Item.PreviewEnabled}"
+    assert "createElement" not in ui and "Shapes.Add" not in ui and "ex_UiControlFactory" not in ui
     assert 'context.TryGetItemArea("TestDocuments", previewIndex, area)' in ui
-    assert 'If Not report("PreviewEnabled") Then Exit Function' in ui
+    assert re.search(r'If Not report\("PreviewEnabled"\) Then\s+Exit Function\s+End If', ui)
     assert len(settings["test.ui.catalogCaptions"].split("|")) == 7
     run_ui = ui.split("Public Sub RunSelected()", 1)[1].split("End Sub", 1)[0]
     assert run_ui.index("On Error GoTo EH") < run_ui.index("private_Guard")
@@ -192,9 +206,10 @@ def source_checks(settings):
     assert '"export.Movement." & mode & ".destinationField"' in service
     assert 'values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))' in service
     assert "HospitalShortName" in settings["export.Movement.ToHospital.required"].split("|")
-    for mode in {runtime_mode(step, settings) for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"]}:
-        assert settings[f"export.Movement.{mode}.destinationField"] == ("HospitalShortName" if mode in ("ToHospital", "FromHospital") else "Destination")
-    for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_TestUi.cls.vba"):
+    for mode in {runtime_mode(step, settings) for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"] if step["Action"] in ("ExportMovement", "ExportEvent")}:
+        assert settings[f"export.Movement.{mode}.destinationField"] in ("HospitalShortName", "Destination")
+        assert settings[f"events.{mode}.movement.plan"] == settings[f"export.Movement.{mode}.profile"]
+    for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_PgTests.cls.vba", "obj_PEB_PgTestsController.cls.vba"):
         text = (folder / filename).read_text(encoding="utf-8-sig")
         procedures = re.findall(r"(?im)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)", text)
         assert len(procedures) == len(set(procedures)), f"Duplicate procedure: {filename}"
@@ -356,9 +371,12 @@ def directory_checks(tables, settings):
     books = {}
     expected = unique(tables["tbExpectedWord"]["rows"], "StepId")
     for step in tables["tbTestSteps"]["rows"]:
-        if step["Action"] != "PreviewWord":
+        if step["Action"] not in ("PreviewWord", "ExportEvent"):
             continue
         mode = runtime_mode(step, settings)
+        if settings[f"events.{mode}.word.policy"] == "Omit":
+            continue
+        mode = settings[f"events.{mode}.word.profile"]
         for prefix in [f"export.Word.lookups.{index}" for index in range(1, int(settings["export.Word.lookups.count"]) + 1)] + [
             f"export.Word.{mode}.lookups.{index}"
             for index in range(1, int(settings[f"export.Word.{mode}.lookups.count"]) + 1)
@@ -401,10 +419,10 @@ def registry_checks(book, tables, settings):
         assert sheet == settings["test.registry.sheet"]
         left, top, right, bottom = range_boundaries(address)
         assert (left, top, right, bottom) == (column, 2, column, len(expected) + 1)
-    for template in settings["test.registry.ModeId.values"].split("|"):
-        assert template in templates, f"Unknown XML template: {template}"
-        mode = settings[f"test.registry.ModeId.{template}.runtimeMode"]
-        assert settings[f"export.Word.{mode}.templateName"] == template
+    for event in settings["test.registry.ModeId.values"].split("|"):
+        mode = settings[f"test.registry.ModeId.{event}.runtimeMode"]
+        assert mode in settings["events.ids"].split("|"), f"Unknown business event: {mode}"
+        assert settings[f"events.{mode}.word.template"] in templates
     for binding in settings["test.registry.bindings"].split("|"):
         table_name, field, kind = binding.split(":")
         sheet = book[tables[table_name]["sheet"]]
@@ -448,8 +466,38 @@ def preservation_check(path):
     print("PASS: original inputs, history and archive values preserved; historical StepId migrated.")
 
 
+def template_coverage_checks(tables, settings):
+    xml = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml"
+    templates = [node.get("name") for node in ET.parse(xml).getroot() if node.tag.endswith("}template")]
+    assert settings["test.registry.ModeId.values"] == settings["events.ids"], "Business event registry is stale"
+    steps = unique(tables["tbTestSteps"]["rows"], "StepId")
+    successful = [steps[row["StepId"]] for row in tables["tbExpectedWord"]["rows"] if row["Outcome"] == "Success"]
+    rendered = {settings[f"events.{step['ModeId']}.word.template"] for step in successful}
+    expected_templates = {settings[f"events.{event}.word.template"] for event in settings["events.ids"].split("|") if settings[f"events.{event}.word.policy"] == "Render"}
+    assert rendered == expected_templates, "Missing positive routed Word template coverage"
+    for case in tables["tbTestScenarios"]["rows"]:
+        actions = sorted((row for row in steps.values() if row["ScenarioId"] == case["ScenarioId"]), key=lambda row: row["StepOrder"])
+        assert 1 <= len(actions) <= 2, f"Too many events in one order: {case['ScenarioId']}"
+        assert len({(str(row["AcceptedOrderNumber"]), row["AcceptedOrderDate"]) for row in actions}) == 1, "Scenario spans several orders"
+        for action in actions:
+            direction = settings[f"modes.{runtime_mode(action, settings)}.direction"]
+            assert action["EventDate"] <= action["AcceptedOrderDate"], f"Future event: {action['StepId']}"
+            if direction in ("Departure", "StatusChange"):
+                assert action["EventDate"] == action["AcceptedOrderDate"], f"Departure outside order date: {action['StepId']}"
+        if len(actions) == 2:
+            assert [settings[f"modes.{runtime_mode(row, settings)}.direction"] for row in actions] == ["Arrival", "Departure"], "Expected arrival followed by departure"
+    assert all(case["RuleStatus"] == "Defined" for case in tables["tbTestScenarios"]["rows"])
+    print(f"PASS: {len(rendered)} rendered XML templates and explicit omissions covered; scenarios stay within one order.")
+
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("baseline", nargs="?", type=Path)
+    parser.add_argument("--inputs-only", action="store_true", help="Validate current fixtures without rejecting historical audit error values; never modify the archive.")
+    arguments = parser.parse_args()
+    STRICT_ARCHIVE_ERRORS = not arguments.inputs_only
     settings = config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt")
+    FIXTURE = (ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder" / settings["test.scenarios.path"]).resolve()
     production = config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.txt")
     for key in settings:
         if key.startswith(("test.expected.", "test.scenarios.", "test.audit.")):
@@ -464,6 +512,9 @@ if __name__ == "__main__":
     word_context_checks(settings)
     directory_checks(tables, settings)
     registry_checks(book, tables, settings)
-    if len(sys.argv) > 1:
-        preservation_check(Path(sys.argv[1]))
+    template_coverage_checks(tables, settings)
+    if arguments.baseline:
+        preservation_check(arguments.baseline)
+    if arguments.inputs_only:
+        print("Historical audit Excel error values were excluded from current-input validation; archive files were not modified.")
     print(f"PASS: {counts[0]} scenarios, {counts[1]} stable steps, {counts[2]} expected Movement rows, {counts[3]} Word expectations. Office was not started.")

@@ -72,7 +72,6 @@ Public Function TryExport( _
     Dim writes As Object
     Dim identities As Object
     Dim joins As Object
-    Dim mode As String
     Dim prefix As String
     Dim operation As String
     Dim openHeader As String
@@ -86,6 +85,11 @@ Public Function TryExport( _
     Dim saved As Boolean
     Dim cleanupError As String
     Dim ownsBook As Boolean
+    Dim closingWrites As Object
+    Dim closingRow As Object
+    Dim appendedRow As Object
+    Dim previousValues As Object
+    Dim previousFormats As Object
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
@@ -93,17 +97,23 @@ Public Function TryExport( _
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Movement exporter is not initialized."
     End If
-    mode = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "ModeId"))
-    prefix = "export.Movement.profiles." & ex_PEB_Export.fn_Config("export.Movement." & mode & ".profile")
+    prefix = "export.Movement.profiles." & ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "MovementPlanId"))
     operation = ex_PEB_Export.fn_Config(prefix & ".operation")
-    If operation <> "append" And operation <> "close" Then
+    If operation <> "append" And operation <> "close" And operation <> "transition" Then
         Err.Raise 5, , "Unknown Movement operation: " & operation
     End If
     Set writes = private_Mappings(prefix & ".fields", values)
     Set identities = private_Mappings(prefix & ".identity", values)
-    If operation = "close" Then
+    If operation = "close" Or operation = "transition" Then
         Set joins = private_Mappings(prefix & ".join", values)
         openHeader = ex_PEB_Export.fn_Config(prefix & ".openHeader")
+        Set closingWrites = writes
+        If operation = "transition" Then
+            Set closingWrites = private_Mappings("export.Movement.profiles." & ex_PEB_Export.fn_Config(prefix & ".closeProfile") & ".fields", values)
+        End If
+    Else
+        Set joins = private_Mappings(prefix & ".guard.join", values)
+        openHeader = ex_PEB_Export.fn_Config(prefix & ".guard.openHeader")
     End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fileSystem.FileExists(m_path) Then
@@ -148,15 +158,20 @@ Public Function TryExport( _
     Next column
     private_ValidateHeaders writes, columns
     private_ValidateHeaders identities, columns
-    If operation = "close" Then
+    private_ValidateHeaders joins, columns
+    If Not columns.Exists(openHeader) Then
+        Err.Raise 5, , "Movement open header not found: " & openHeader
+    End If
+    If operation = "close" Or operation = "transition" Then
         private_ValidateHeaders joins, columns
+        private_ValidateHeaders closingWrites, columns
         If Not columns.Exists(openHeader) Then
             Err.Raise 5, , "Movement open header not found: " & openHeader
         End If
-        If Not writes.Exists(openHeader) Then
+        If Not closingWrites.Exists(openHeader) Then
             Err.Raise 5, , "Movement close mapping must populate: " & openHeader
         End If
-        If VBA.Len(ex_PEB_Export.fn_Text(writes(openHeader))) = 0 Then
+        If VBA.Len(ex_PEB_Export.fn_Text(closingWrites(openHeader))) = 0 Then
             Err.Raise 5, , "Movement close value is empty: " & openHeader
         End If
     End If
@@ -168,16 +183,24 @@ Public Function TryExport( _
             resultCode = "DuplicateEvent"
             Err.Raise 5, , "Movement event already exists."
         End If
-        If operation = "close" Then
+        If operation = "close" Or operation = "transition" Then
             If private_Matches(targetRow, joins, columns) Then
                 If VBA.Len(ex_PEB_Export.fn_Text(targetRow.Range.Cells(1, columns(openHeader)).Value2)) = 0 Then
                     found = found + 1
                     selected = rowIndex
                 End If
             End If
+        ElseIf private_Matches(targetRow, joins, columns) Then
+            If VBA.Len(ex_PEB_Export.fn_Text(targetRow.Range.Cells(1, columns(openHeader)).Value2)) = 0 Then
+                found = found + 1
+            End If
         End If
     Next rowIndex
-    If operation = "close" Then
+    If operation = "append" And found > 0 Then
+        resultCode = "OpenDepartureExists"
+        Err.Raise 5, , "Movement departure requires an explicit transition from an existing open event."
+    End If
+    If operation = "close" Or operation = "transition" Then
         If found <> 1 Then
             resultCode = "AmbiguousOpenDeparture"
             If found = 0 Then resultCode = "OpenDepartureNotFound"
@@ -185,15 +208,35 @@ Public Function TryExport( _
         End If
         Set targetRow = table.ListRows(selected)
         private_ValidateChronology targetRow, values, columns, prefix, resultCode
-        For Each key In writes.Keys
+        For Each key In closingWrites.Keys
+            If targetRow.Range.Cells(1, columns(key)).HasFormula Then
+                Err.Raise 5, , "Movement arrival cannot overwrite a formula: " & VBA.CStr(key)
+            End If
             If VBA.Len(ex_PEB_Export.fn_Text(targetRow.Range.Cells(1, columns(key)).Value2)) > 0 Then
                 Err.Raise 5, , "Movement arrival would overwrite populated data: " & VBA.CStr(key)
             End If
         Next key
-    Else
-        Set targetRow = table.ListRows.Add
+        Set closingRow = targetRow
+        Set previousValues = VBA.CreateObject("Scripting.Dictionary")
+        Set previousFormats = VBA.CreateObject("Scripting.Dictionary")
+        For Each key In closingWrites.Keys
+            previousValues(key) = closingRow.Range.Cells(1, columns(key)).Value2
+            previousFormats(key) = closingRow.Range.Cells(1, columns(key)).NumberFormat
+        Next key
     End If
     changed = True
+    If operation = "transition" Then
+        For Each key In closingWrites.Keys
+            If VBA.VarType(closingWrites(key)) = VBA.vbString Then
+                closingRow.Range.Cells(1, columns(key)).NumberFormat = "@"
+            End If
+            closingRow.Range.Cells(1, columns(key)).Value2 = closingWrites(key)
+        Next key
+    End If
+    If operation <> "close" Then
+        Set appendedRow = table.ListRows.Add
+        Set targetRow = appendedRow
+    End If
     For Each key In writes.Keys
         If VBA.VarType(writes(key)) = VBA.vbString Then
             targetRow.Range.Cells(1, columns(key)).NumberFormat = "@"
@@ -204,6 +247,9 @@ Public Function TryExport( _
     saved = True
     resultCode = "DepartureCreated"
     If operation = "close" Then resultCode = "ArrivalClosed"
+    If operation = "transition" Then
+        resultCode = "StatusChanged"
+    End If
     TryExport = True
 Cleanup:
     On Error Resume Next
@@ -226,6 +272,23 @@ Cleanup:
     Exit Function
 EH:
     diagnostic = "Movement export: " & VBA.Err.Description
+    ' Restore borrowed TEST workbooks as well as discarding unsaved owned workbooks.
+    If changed And Not saved And Not ownsBook Then
+        On Error Resume Next
+        If Not appendedRow Is Nothing Then
+            appendedRow.Delete
+        End If
+        If Not previousValues Is Nothing Then
+            For Each key In previousValues.Keys
+                closingRow.Range.Cells(1, columns(key)).Value2 = previousValues(key)
+                closingRow.Range.Cells(1, columns(key)).NumberFormat = previousFormats(key)
+            Next key
+        End If
+        If VBA.Err.Number <> 0 Then
+            diagnostic = diagnostic & " Rollback: " & VBA.Err.Description
+        End If
+        On Error GoTo 0
+    End If
     Resume Cleanup
 End Function
 

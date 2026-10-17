@@ -148,7 +148,9 @@ obj_IUiElement и obj_IUiControl имеют одинаковые сигнату�
 
 ## 5. Полный запуск страницы: стек вызовов
 
-Для листа MainPage runtime ищет MainPage.xaml в папке UI выбранного проекта.
+By default, runtime resolves each worksheet to `<sheet name>.xaml` in the selected UI folder. `ThisWorkbook::ui.pageMappings` overrides this convention with an explicit map, for example `MainPage=MainPage.xaml|Tests=TestsPage.xaml`. Paths are relative to the selected UI folder and may include subfolders. When the key exists, unmapped worksheets are skipped; empty entries, duplicate or missing worksheets, missing XAML files and paths outside the UI folder are configuration errors. Relative style imports are resolved against the mapped XAML file's directory.
+
+PersonalEventBuilder keeps PROD and TEST markup in `ui/PersonalEventBuilder`. PROD config maps `MainPage=MainPage.xaml` and selects `ui.pageClass=obj_PEB_PgMain`; TEST maps `MainPage=TestsPage.xaml` and selects `ui.pageClass=obj_PEB_PgTests`. Both pages implement `obj_IPage`, initialize `obj_PageBase`, register bindings and controller commands, load data before rendering and use the shared renderer. `obj_PEB_PgTestsController` provides catalog records, execution and preview selection, progress and reports. All test controls, including table checkboxes, belong to the XAML tree; there is no post-render overlay or separately owned test UI.
 
 ~~~text
 ex_UiRenderer
@@ -465,7 +467,7 @@ RenderContext.ValidateForm
 
 ## 14. Стили
 
-Каталог obj_UiStyleCatalog принадлежит странице. BeginPage загружает общие стили из CommonControlStyles.xaml и описание текущей страницы. ApplyPagePipeline применяет правила оформления страницы; конкретные контролы применяют свои стили через каталог контекста.
+The page owns obj_UiStyleCatalog. BeginPage loads shared catalogs explicitly declared in the page root's `styleSources` attribute, then registers local definitions. For example, `styleSources="CommonControlStyles.xaml"` imports a sibling file; no catalog filename is implied by runtime code. ApplyPagePipeline applies page styling rules, and individual controls use the same style catalog.
 
 styles не занимает место в layout. Разрешение style через Resources означает получение значения из BindingContext; именованный стиль затем обслуживается каталогом страницы.
 
