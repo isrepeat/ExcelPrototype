@@ -32,6 +32,7 @@ def main():
     assert special[1].get("template") == "ToVacationForCuring"
     for identifier in ("FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk"):
         assert events[identifier][1].get("policy") == "Omit"
+        assert events[identifier][1].get("template") is None
     root = ET.parse(WORKBOOK / test["events.path"]).getroot()
     rejected = 0
     for section, attribute, value in (

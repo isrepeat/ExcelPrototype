@@ -89,9 +89,10 @@ def load_registry(settings, xml_text=None):
         require(operation != "Arrival" or not movement.get("targetStatus"), f"Unexpected arrival target: {identifier}")
         require(set(movement.get("required").split("|")) <= fields, f"Unknown required field: {identifier}")
         require(movement.get("destinationField") in fields, f"Unknown destination field: {identifier}")
-        attributes(word, "policy|profile|template|anchor", "policy|profile|template|anchor")
+        attributes(word, "policy|profile|template|anchor", "policy|profile|anchor")
         require(word.get("policy") in ("Render", "Omit"), f"Unknown Word policy: {identifier}")
-        require(word.get("template") in templates, f"Unknown Word template: {identifier}")
+        if word.get("policy") == "Render" or word.get("template"):
+            require(word.get("template") in templates, f"Unknown Word template: {identifier}")
         require(word.get("anchor") in anchors, f"Unknown Word anchor: {identifier}")
         profile = "export.Word." + word.get("profile")
         for suffix in ("required", "previewRequired"):

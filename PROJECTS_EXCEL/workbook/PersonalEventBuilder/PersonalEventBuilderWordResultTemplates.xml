@@ -330,20 +330,6 @@
     </text>
   </template>
 
-  <template name="FromOutpatientExaminationOrVlk"
-            hash="0x06">
-    <text>
-      <![CDATA[#^
-#_      {#include block.PersonLineUpper}.#^
-#_      {#include block.ReturnToDuty}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
   <template name="FromExternalVlk"
             hash="0x07">
     <text>
@@ -460,19 +446,6 @@
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalVlkCertificate}#^
 #_      {#include block.OptionalVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="ToOutpatientExaminationOrVlk"
-            hash="0x0E">
-    <text>
-      <![CDATA[#^
-#_      {#include block.PersonLineUpper}{#if [HospitalAccusative]}, у {[HospitalAccusative]|lowerFirstLetter}{#endif}.#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
