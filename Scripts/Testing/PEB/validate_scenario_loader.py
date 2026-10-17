@@ -169,9 +169,9 @@ def negative_checks(tables, settings):
 
 def source_checks(settings):
     folder = ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder"
-    loader = (folder / "obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
-    runner = (folder / "obj_PEB_TestRunner.cls.vba").read_text(encoding="utf-8-sig")
-    catalog = (folder / "ex_PEB_Testing.vba").read_text(encoding="utf-8-sig")
+    loader = (folder / "Test/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
+    runner = (folder / "Test/obj_PEB_TestRunner.cls.vba").read_text(encoding="utf-8-sig")
+    catalog = (folder / "Test/ex_PEB_Testing.vba").read_text(encoding="utf-8-sig")
     assert 'private_LoadExpectations allSteps' in loader
     assert 'private_Value(steps, stepRow, "expected")' not in loader
     assert 'private_Value(steps, stepRow, "code")' not in loader
@@ -183,7 +183,7 @@ def source_checks(settings):
     assert 'If report("PreviewEnabled") And testStep("Action") <> "ExportEvent" Then' in runner
     assert 'testStep("WordExpectation")' in runner and 'values("WordOutcome")' in runner
     assert 'item("PreviewEnabled") = VBA.CBool(selected(scenario("Id")))' in runner
-    ui = (folder / "obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
+    ui = (folder / "Test/obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
     assert 'm_runSelection.Add key, VBA.CBool(m_previews(key))' in ui
     page = ET.parse(ROOT / "PROJECTS_EXCEL/ui/PersonalEventBuilder/TestsPage.xaml").getroot()
     controls = {node.attrib.get("name"): node for node in page.iter() if "name" in node.attrib}
@@ -348,7 +348,7 @@ def order_checks(tables, settings):
     base = datetime.datetime.strptime(settings["test.fixtures.baseDate"], "%d.%m.%Y").date()
     assert ("115", base) not in pairs, "Negative fixture must remain absent"
     assert ("999999999", base) not in pairs
-    text = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
+    text = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/Test/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
     prepare = text[text.index("Public Function TryPrepare("):text.index("End Function", text.index("Public Function TryPrepare("))]
     assert prepare.index("private_ResolveOrder updates") < prepare.index("private_SeedAbsence")
     assert 'm_orderResolver.TrySearch(query, year, matches, diagnostic)' in text
@@ -437,7 +437,7 @@ def registry_checks(book, tables, settings):
         found = [rule for rule in sheet.data_validations.dataValidation if cell in rule.sqref]
         assert len(found) == 1 and found[0].type == "list" and found[0].formula1.lstrip("=") == expected, f"Missing dropdown: {binding}"
         assert found[0].errorStyle == "stop" and found[0].showErrorMessage
-    loader = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
+    loader = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/Test/obj_PEB_TestScenarios.cls.vba").read_text(encoding="utf-8-sig")
     assert "private_SyncRegistry" in loader and 'fn_RegistryContains("ExpectedCode"' in loader
     print("PASS: TEST configuration registry, XML identifiers, named ranges and all dropdown bindings.")
 

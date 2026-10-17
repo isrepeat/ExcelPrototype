@@ -469,7 +469,7 @@ value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToVacatio
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToHospital	MoveFromExternalVlkToHospital
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromOutpatientVlkToVacationForCuring	MoveFromOutpatientVlkToVacationForCuring
 value	PersonalEventBuilder::test.word.template	./Template_10.docx
-value	PersonalEventBuilder::test.word.output	../../tests/PersonalEventBuilder/WordResults_{runId}.docx
+value	PersonalEventBuilder::test.word.output	../../tests/PersonalEventBuilder/Results/WordResults_{runId}.docx
 value	PersonalEventBuilder::text.TestsWordTitle	Результати тестування Word — {runId}
 value	PersonalEventBuilder::text.TestsWordHeading	{ScenarioId} / {StepId} — {ScenarioName}
 value	PersonalEventBuilder::text.TestsWordEntry	Результат: {Result}; Word: {WordResult}; стан: {RunState}. {Details}

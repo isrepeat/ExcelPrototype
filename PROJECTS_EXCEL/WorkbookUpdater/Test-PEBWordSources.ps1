@@ -86,7 +86,7 @@ try {
 }
 
 $classes = @{}
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $root 'vba/PersonalEventBuilder') -Filter '*.cls.vba') {
+foreach ($file in Get-ChildItem -LiteralPath (Join-Path $root 'vba/PersonalEventBuilder') -Recurse -Filter '*.cls.vba') {
     $source = [IO.File]::ReadAllText($file.FullName, $utf8)
     if ($source -match 'Attribute VB_Name = "([^"]+)"') { $classes.Add($Matches[1], $source) }
 }
