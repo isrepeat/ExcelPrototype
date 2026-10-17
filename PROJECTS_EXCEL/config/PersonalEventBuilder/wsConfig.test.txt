@@ -225,6 +225,7 @@ value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний
 value	PersonalEventBuilder::text.TestPreviewError	Не вдалося сформувати прев’ю документа:
 value	PersonalEventBuilder::text.TestsPendingRule	Очікуване правило ще не визначено.
 value	PersonalEventBuilder::text.CheckboxUnchecked	☐
+value	PersonalEventBuilder::text.CheckboxPartial	▣
 value	PersonalEventBuilder::text.EnvironmentSwitch	[[color=#909090]]PROD / [[/color]][[color=#F4A46B]]TEST[[/color]]
 value	PersonalEventBuilder::text.ExportWordOmitted	Для цієї події пункт Word не формується.
 value	PersonalEventBuilder::text.ExportWordSuccess	Документ збережено: {path}

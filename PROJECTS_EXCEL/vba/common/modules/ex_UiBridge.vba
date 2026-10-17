@@ -22,7 +22,10 @@ Public Sub fn_OnShapeClick()
     Dim diagnostic As String
     Dim previousScreenUpdating As Boolean
     Dim busyEntered As Boolean
+    Dim startedAt As Double
+    Dim stageStartedAt As Double
 
+    startedAt = VBA.Timer
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
@@ -33,13 +36,17 @@ Public Sub fn_OnShapeClick()
     If TypeOf Application.ActiveSheet Is Worksheet Then
         Set targetWorksheet = Application.ActiveSheet
         If ex_UiRuntime.fn_TryGetContext(targetWorksheet, context) Then
+            stageStartedAt = VBA.Timer
             context.Router.DispatchShape shapeName
+            ex_Core.fn_Diagnostic_WritePerf "Ui.Click.Dispatch | Shape=" & shapeName, stageStartedAt
             ' The command can replace and dispose the page context during rendering.
             Set context = Nothing
             If ex_UiRuntime.fn_TryGetContext(targetWorksheet, context) Then
+                stageStartedAt = VBA.Timer
                 If Not context.FlushLayout(diagnostic) Then
                     VBA.Err.Raise VBA.vbObjectError + 2231, , diagnostic
                 End If
+                ex_Core.fn_Diagnostic_WritePerf "Ui.Click.Flush | Shape=" & shapeName, stageStartedAt
             End If
         End If
     End If
@@ -49,6 +56,7 @@ CleanExit:
     Set context = Nothing
     Set targetWorksheet = Nothing
     ex_RuntimeLifecycle.fn_Leave runtimeContext
+    ex_Core.fn_Diagnostic_WritePerf "Ui.Click.Total | Shape=" & shapeName, startedAt
     Exit Sub
 EH:
     errorNumber = VBA.Err.Number

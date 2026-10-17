@@ -16,6 +16,7 @@ Private m_isDisposed As Boolean
 
 Private m_context As obj_UiRenderContext
 Private m_entries As Collection
+Private m_rowEntries As Object
 Private m_routes As Object
 
 ' //
@@ -54,6 +55,7 @@ Public Function Initialize(ByVal context As obj_UiRenderContext) As Boolean
     If m_isInitialized Or m_isDisposed Or context Is Nothing Then Exit Function
     Set m_context = context
     Set m_entries = New Collection
+    Set m_rowEntries = VBA.CreateObject("Scripting.Dictionary")
     Set m_routes = VBA.CreateObject("Scripting.Dictionary")
     m_isInitialized = True
     Initialize = True
@@ -96,22 +98,26 @@ Public Sub Clear()
         End If
     Next index
     Set m_entries = New Collection
+    Set m_rowEntries = VBA.CreateObject("Scripting.Dictionary")
     Set m_routes = VBA.CreateObject("Scripting.Dictionary")
 End Sub
 
 Public Function CanRefreshBindings( _
     ByVal table As obj_UiRawTable, _
-    ByVal source As obj_IUiTableSource _
+    ByVal source As obj_IUiTableSource, _
+    Optional ByVal rowIndex As Long = 0 _
 ) As Boolean
     Dim entry As Object
     Dim currentItem As Object
     Dim previousItem As Object
     Dim child As obj_IUiControl
+    Dim entries As Collection
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
-    For Each entry In m_entries
+    Set entries = private_EntriesForRow(rowIndex)
+    For Each entry In entries
         If entry("RowIndex") > table.RowCount Or entry("ColumnIndex") > table.ColumnCount Then
             Exit Function
         End If
@@ -130,7 +136,8 @@ End Function
 
 Public Function TryRefreshBindings( _
     ByVal table As obj_UiRawTable, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal rowIndex As Long = 0 _
 ) As Boolean
     Dim entry As Object
     Dim child As obj_IUiControl
@@ -140,13 +147,15 @@ Public Function TryRefreshBindings( _
     Dim cell As Object
     Dim value As Variant
     Dim isObject As Boolean
+    Dim entries As Collection
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Cell template renderer is not initialized."
     End If
     started = VBA.Timer
-    For Each entry In m_entries
+    Set entries = private_EntriesForRow(rowIndex)
+    For Each entry In entries
         If Not m_context.BindingContext.TryGetValue("TableCells", VBA.CStr(entry("Name")), value, scope, isObject) Then
             Err.Raise 5, , "Cell template binding scope is missing."
         End If
@@ -285,6 +294,16 @@ Private Function private_RowItem( _
     Set private_RowItem = item
 End Function
 
+Private Function private_EntriesForRow(ByVal rowIndex As Long) As Collection
+    If rowIndex = 0 Then
+        Set private_EntriesForRow = m_entries
+    ElseIf m_rowEntries.Exists(VBA.CStr(rowIndex)) Then
+        Set private_EntriesForRow = m_rowEntries(VBA.CStr(rowIndex))
+    Else
+        Set private_EntriesForRow = New Collection
+    End If
+End Function
+
 Private Function private_RenderCell( _
     ByVal owner As Object, _
     ByVal template As Object, _
@@ -310,6 +329,7 @@ Private Function private_RenderCell( _
     Dim path As String
     Dim rows As Long
     Dim columns As Long
+    Dim rowEntries As Collection
 
     name = ex_UiElementFactory.fn_Attribute(owner, "name") & "_r" & VBA.CStr(rowIndex) & "c" & VBA.CStr(columnIndex)
     If VBA.Len("btn_" & name) > 31 Then Err.Raise 5, , "Cell template shape name exceeds the Excel limit: " & name
@@ -349,6 +369,13 @@ Private Function private_RenderCell( _
     entry.Add "ColumnIndex", columnIndex
     entry.Add "Item", item
     m_entries.Add entry
+    If Not m_rowEntries.Exists(VBA.CStr(rowIndex)) Then
+        Set rowEntries = New Collection
+        m_rowEntries.Add VBA.CStr(rowIndex), rowEntries
+    Else
+        Set rowEntries = m_rowEntries(VBA.CStr(rowIndex))
+    End If
+    rowEntries.Add entry
     If Not m_context.BindingContext.SetObject("TableCells", name, scope) Then Err.Raise 5, , "Cannot initialize cell template context."
     If Not child.Configure(node, m_context, VBA.vbNullString, diagnostic) Then Exit Function
     If Not child.Measure(rows, columns, diagnostic) Then Exit Function

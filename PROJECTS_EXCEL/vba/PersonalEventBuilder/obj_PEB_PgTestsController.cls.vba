@@ -24,6 +24,7 @@ Private m_runner As obj_PEB_TestRunner
 Private m_reports As Collection
 Private m_allSelected As Boolean
 Private m_allPreviews As Boolean
+Private m_previewCount As Long
 Private m_running As Boolean
 Private m_stop As Boolean
 Private m_completed As Long
@@ -129,6 +130,7 @@ Public Function TryLoadCatalog(ByRef diagnostic As String) As Boolean
         End If
         Set record = VBA.CreateObject("Scripting.Dictionary")
         record("ScenarioId") = scenario("Id")
+        record("UiRowIndex") = m_catalogRecords.Count + 1
         record("Operation") = scenario("Operation")
         record("EventLabel") = scenario("EventLabel")
         record("StepCount") = scenario("Steps").Count
@@ -144,13 +146,18 @@ EH:
     diagnostic = VBA.Err.Description
 End Function
 
-Public Function SelectionChangedHandler() As Boolean
+Public Function SelectionChangedHandler(Optional ByVal item As Object = Nothing) As Boolean
     Dim record As Object
     Dim id As String
     Dim scenario As Object
 
     private_Guard
     If m_environmentSwitchPending Then
+        Exit Function
+    End If
+    If Not item Is Nothing Then
+        private_RefreshSelectionItem item
+        SelectionChangedHandler = True
         Exit Function
     End If
     If Not m_running Then
@@ -167,9 +174,10 @@ Public Function SelectionChangedHandler() As Boolean
                     Err.Raise 5, , "Invalid scenario selection."
                 End If
                 If m_selected.Exists(id) Then
-                    m_selected.Remove id
-                End If
-                If record("Selected") Then
+                    If Not record("Selected") Then
+                        m_selected.Remove id
+                    End If
+                ElseIf record("Selected") Then
                     m_selected.Add id, True
                 End If
                 m_previews(id) = record("PreviewEnabled")
@@ -583,14 +591,8 @@ Private Sub private_RefreshSelection(Optional ByVal bindCatalog As Boolean = Fal
             previewCount = previewCount + 1
         End If
     Next record
-    m_allSelected = (m_catalog.Count > 0 And m_selected.Count = m_catalog.Count)
-    m_allPreviews = (m_catalog.Count > 0 And previewCount = m_catalog.Count)
-    If Not m_pageBase.BindingContext.SetValue("TestSelection", "AllC", m_allSelected) Then
-        Err.Raise 5, , "Cannot refresh master selection."
-    End If
-    If Not m_pageBase.BindingContext.SetValue("TestSelection", "AllP", m_allPreviews) Then
-        Err.Raise 5, , "Cannot refresh master preview selection."
-    End If
+    m_previewCount = previewCount
+    private_RefreshMasterSelection
     If bindCatalog Then
         private_BindCatalog
     Else
@@ -600,12 +602,92 @@ Private Sub private_RefreshSelection(Optional ByVal bindCatalog As Boolean = Fal
         fields = VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogFields"), "|")
         For index = 1 To m_catalogRecords.Count
             For fieldIndex = 0 To UBound(fields)
-                If Not m_catalogTable.SetValueAt(index, fieldIndex + 1, m_catalogRecords(index)(fields(fieldIndex))) Then
-                    Err.Raise 5, , "Cannot update scenario table values."
+                ' Selection changes cannot modify the remaining catalog fields.
+                If fields(fieldIndex) = "Selected" Or fields(fieldIndex) = "PreviewEnabled" Then
+                    If m_catalogTable.ValueAt(index, fieldIndex + 1) <> m_catalogRecords(index)(fields(fieldIndex)) Then
+                        If Not m_catalogTable.SetValueAt(index, fieldIndex + 1, m_catalogRecords(index)(fields(fieldIndex))) Then
+                            Err.Raise 5, , "Cannot update scenario table values."
+                        End If
+                    End If
                 End If
             Next fieldIndex
         Next index
         private_MarkDirty "TestCatalog", False
+    End If
+End Sub
+
+Private Sub private_RefreshMasterSelection()
+    m_allSelected = (m_catalog.Count > 0 And m_selected.Count = m_catalog.Count)
+    m_allPreviews = (m_catalog.Count > 0 And m_previewCount = m_catalog.Count)
+    If Not m_pageBase.BindingContext.SetValue("TestSelection", "AllC", m_allSelected) Then
+        Err.Raise 5, , "Cannot refresh master selection."
+    End If
+    If Not m_pageBase.BindingContext.SetValue("TestSelection", "AllP", m_allPreviews) Then
+        Err.Raise 5, , "Cannot refresh master preview selection."
+    End If
+    If Not m_pageBase.BindingContext.SetValue("TestSelection", "PartialC", m_selected.Count > 0 And Not m_allSelected) Then
+        Err.Raise 5, , "Cannot refresh partial selection."
+    End If
+    If Not m_pageBase.BindingContext.SetValue("TestSelection", "PartialP", m_previewCount > 0 And Not m_allPreviews) Then
+        Err.Raise 5, , "Cannot refresh partial preview selection."
+    End If
+End Sub
+
+Private Sub private_RefreshSelectionItem(ByVal item As Object)
+    Dim rowIndex As Long
+    Dim record As Object
+    Dim id As String
+    Dim fields As Variant
+    Dim fieldIndex As Long
+    Dim context As obj_UiRenderContext
+    Dim diagnostic As String
+
+    rowIndex = VBA.CLng(item("UiRowIndex"))
+    If rowIndex < 1 Or rowIndex > m_catalogRecords.Count Then
+        Err.Raise 5, , "Invalid scenario selection row."
+    End If
+    Set record = m_catalogRecords(rowIndex)
+    If Not record Is item Then
+        Err.Raise 5, , "Scenario selection belongs to an outdated catalog."
+    End If
+    id = record("ScenarioId")
+    If VBA.VarType(record("Selected")) <> VBA.vbBoolean Or VBA.VarType(record("PreviewEnabled")) <> VBA.vbBoolean Then
+        Err.Raise 5, , "Invalid scenario selection."
+    End If
+    If Not m_running Then
+        If m_selected.Exists(id) Then
+            If Not record("Selected") Then
+                m_selected.Remove id
+            End If
+        ElseIf record("Selected") Then
+            m_selected.Add id, True
+        End If
+        If VBA.CBool(m_previews(id)) <> VBA.CBool(record("PreviewEnabled")) Then
+            If record("PreviewEnabled") Then
+                m_previewCount = m_previewCount + 1
+            Else
+                m_previewCount = m_previewCount - 1
+            End If
+            m_previews(id) = record("PreviewEnabled")
+        End If
+    End If
+    ' Restore the stored state when selection is locked during a test run.
+    record("Selected") = m_selected.Exists(id)
+    record("PreviewEnabled") = VBA.CBool(m_previews(id))
+    fields = VBA.Split(ex_PEB_Export.fn_Config("test.ui.catalogFields"), "|")
+    For fieldIndex = 0 To UBound(fields)
+        If fields(fieldIndex) = "Selected" Or fields(fieldIndex) = "PreviewEnabled" Then
+            If Not m_catalogTable.SetValueAt(rowIndex, fieldIndex + 1, record(fields(fieldIndex))) Then
+                Err.Raise 5, , "Cannot update scenario table values."
+            End If
+        End If
+    Next fieldIndex
+    private_RefreshMasterSelection
+    If Not ex_UiRuntime.fn_TryGetContext(m_sheet, context) Then
+        Err.Raise 5, , "Test UI render context is missing."
+    End If
+    If Not context.TryRefreshTableRow("TestCatalog", rowIndex, diagnostic) Then
+        Err.Raise 5, , diagnostic
     End If
 End Sub
 

@@ -18,6 +18,14 @@ Private m_isDisposed As Boolean
 
 Private Const CHECKBOX_SHAPE_PREFIX As String = "chk_"
 Private m_renderedCaption As String
+Private m_valueSource As String
+Private m_valuePath As String
+Private m_checkedGlyph As String
+Private m_uncheckedGlyph As String
+Private m_indeterminate As String
+Private m_indeterminateGlyph As String
+Private m_changeBinding As String
+Private m_commandParameter As String
 Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
@@ -111,53 +119,68 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     Dim checked As Variant
     Dim resolvedObject As Object
     Dim isObject As Boolean
-    Dim sourceName As String
-    Dim bindingPath As String
-    Dim rawBinding As String
     Dim changeCommand As obj_UiCommand
-    Dim changeBinding As String
+    Dim parameter As Variant
+    Dim parameterObject As Object
+    Dim parameterIsObject As Boolean
 
     If Not m_isInitialized Or m_isDisposed Or kind <> "click" Then Exit Function
-    rawBinding = private_ReadAttribute(m_uiControlBase.ControlNode, "value")
-    If Not ex_UiBindingRuntime.fn_TryResolveValue( _
-            rawBinding, m_renderContext.BindingContext, checked, resolvedObject, isObject) Then Exit Function
+    If Not m_renderContext.BindingContext.TryGetValue( _
+            m_valueSource, m_valuePath, checked, resolvedObject, isObject) Then Exit Function
     If isObject Or VBA.VarType(checked) <> VBA.vbBoolean Then Exit Function
-    If Not ex_UiBindingRuntime.fn_TryParseBinding( _
-            rawBinding, VBA.vbNullString, sourceName, bindingPath, m_renderContext.BindingContext) Then Exit Function
     If Not m_renderContext.BindingContext.TrySetPathValue( _
-            sourceName, bindingPath, Not VBA.CBool(checked)) Then Exit Function
+            m_valueSource, m_valuePath, Not VBA.CBool(checked)) Then Exit Function
     obj_IUiEventHandler_HandleEvent = True
-    changeBinding = private_ReadAttribute(m_uiControlBase.ControlNode, "onChange")
-    If VBA.Len(changeBinding) > 0 Then
-        If Not ex_UiBindingRuntime.fn_TryResolveCommand(changeBinding, m_renderContext.BindingContext, changeCommand) Then
+    If VBA.Len(m_changeBinding) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveCommand(m_changeBinding, m_renderContext.BindingContext, changeCommand) Then
             obj_IUiEventHandler_HandleEvent = False
             Exit Function
         End If
-        obj_IUiEventHandler_HandleEvent = changeCommand.Execute()
+        If VBA.Len(m_commandParameter) > 0 Then
+            obj_IUiEventHandler_HandleEvent = False
+            If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+                    m_commandParameter, m_renderContext.BindingContext, parameter, parameterObject, parameterIsObject) Then Exit Function
+            If Not parameterIsObject Or parameterObject Is Nothing Then
+                Err.Raise 5, , "Checkbox commandParameter must resolve to an object."
+            End If
+            obj_IUiEventHandler_HandleEvent = changeCommand.ExecuteWithPayload(parameterObject)
+        Else
+            obj_IUiEventHandler_HandleEvent = changeCommand.Execute()
+        End If
     End If
 End Function
 
 Private Function private_RefreshCaption() As Boolean
     Dim caption As String
     Dim glyph As String
-    Dim glyphAttribute As String
+    Dim rawGlyph As String
+    Dim indeterminate As Variant
     Dim checked As Variant
     Dim resolvedObject As Object
     Dim isObject As Boolean
 
     If m_buttonShape Is Nothing Then Exit Function
     If Not m_uiControlBase.TryGetCaption(m_renderContext.BindingContext, caption) Then Exit Function
-    If Not ex_UiBindingRuntime.fn_TryResolveValue( _
-            private_ReadAttribute(m_uiControlBase.ControlNode, "value"), _
-            m_renderContext.BindingContext, checked, resolvedObject, isObject) Then Exit Function
+    If Not m_renderContext.BindingContext.TryGetValue( _
+            m_valueSource, m_valuePath, checked, resolvedObject, isObject) Then Exit Function
     If isObject Or VBA.VarType(checked) <> VBA.vbBoolean Then Exit Function
     If VBA.CBool(checked) Then
-        glyphAttribute = "checkedGlyph"
+        rawGlyph = m_checkedGlyph
     Else
-        glyphAttribute = "uncheckedGlyph"
+        rawGlyph = m_uncheckedGlyph
+    End If
+    If VBA.Len(m_indeterminate) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+                m_indeterminate, m_renderContext.BindingContext, indeterminate, resolvedObject, isObject) Then Exit Function
+        If isObject Or VBA.VarType(indeterminate) <> VBA.vbBoolean Then
+            Err.Raise 5, , "Checkbox indeterminate must resolve to a Boolean."
+        End If
+        If VBA.CBool(indeterminate) Then
+            rawGlyph = m_indeterminateGlyph
+        End If
     End If
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
-            private_ReadAttribute(m_uiControlBase.ControlNode, glyphAttribute), _
+            rawGlyph, _
             m_renderContext.BindingContext, glyph) Then Exit Function
     If VBA.Len(glyph) = 0 Then Exit Function
     caption = glyph & "  " & caption
@@ -216,6 +239,18 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     If VBA.Len(bindingPath) = 0 Then Exit Function
     If Not ex_UiBindingRuntime.fn_TryResolveValue( _
             rawBinding, m_renderContext.BindingContext, checked, resolvedObject, isObject) Then Exit Function
+    ' Cache the definition, while resolving current values on every refresh.
+    m_valueSource = sourceName
+    m_valuePath = bindingPath
+    m_checkedGlyph = private_ReadAttribute(controlNode, "checkedGlyph")
+    m_uncheckedGlyph = private_ReadAttribute(controlNode, "uncheckedGlyph")
+    m_indeterminate = private_ReadAttribute(controlNode, "indeterminate")
+    m_indeterminateGlyph = private_ReadAttribute(controlNode, "indeterminateGlyph")
+    If VBA.Len(m_indeterminate) > 0 And VBA.Len(m_indeterminateGlyph) = 0 Then
+        Err.Raise 5, , "Checkbox indeterminate requires indeterminateGlyph."
+    End If
+    m_changeBinding = private_ReadAttribute(controlNode, "onChange")
+    m_commandParameter = private_ReadAttribute(controlNode, "commandParameter")
     private_Configure = Not isObject And VBA.VarType(checked) = VBA.vbBoolean
 End Function
 

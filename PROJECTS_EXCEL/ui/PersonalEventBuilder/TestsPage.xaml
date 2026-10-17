@@ -41,6 +41,8 @@
                        caption="{Binding Path=TestSelection.Caption}"
                        checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                        uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       indeterminate="{Binding Path=TestSelection.PartialC}"
+                       indeterminateGlyph="{Binding Path=Text.CheckboxPartial}"
                        onChange="{Binding Path=Commands.SelectionChanged}"/>
     <controls:checkbox name="TestPreviewAll"
                        row="4"
@@ -50,6 +52,8 @@
                        caption="{Binding Path=TestSelection.Caption}"
                        checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                        uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       indeterminate="{Binding Path=TestSelection.PartialP}"
+                       indeterminateGlyph="{Binding Path=Text.CheckboxPartial}"
                        onChange="{Binding Path=Commands.SelectionChanged}"/>
     <stackPanel row="5"
                 column="1"
@@ -70,7 +74,8 @@
                                caption="{Binding Path=TestSelection.Caption}"
                                checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                                uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
-                               onChange="{Binding Path=Commands.SelectionChanged}"/>
+                               onChange="{Binding Path=Commands.SelectionChanged}"
+                               commandParameter="{Binding Path=Item}"/>
           </controls:cellTemplate>
           <controls:cellTemplate columnAlias="PreviewEnabled"
                                  mode="replace">
@@ -80,7 +85,8 @@
                                caption="{Binding Path=TestSelection.Caption}"
                                checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                                uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
-                               onChange="{Binding Path=Commands.SelectionChanged}"/>
+                               onChange="{Binding Path=Commands.SelectionChanged}"
+                               commandParameter="{Binding Path=Item}"/>
           </controls:cellTemplate>
         </controls:table.cellTemplates>
       </controls:table>
