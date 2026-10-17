@@ -22,6 +22,8 @@ Private m_orderResolver As obj_OrderResolver
 Private m_fixtureTables As Object
 Private m_archiveBatches As Object
 Private m_fixtureRows As Object
+Private m_fixtureTable As Object
+Private m_fixtureRecords As Collection
 
 ' //
 ' // Lifecycle
@@ -153,6 +155,8 @@ Public Sub Dispose()
     Set m_orderResolver = Nothing
     Set m_fixtureTables = Nothing
     Set m_fixtureRows = Nothing
+    Set m_fixtureTable = Nothing
+    Set m_fixtureRecords = Nothing
     Set m_archiveBatches = Nothing
     If Not m_scenarioBook Is Nothing Then m_scenarioBook.Close False
     Set m_scenarioBook = Nothing
@@ -319,7 +323,8 @@ Public Function TryCatalog( _
     Dim id As String
     Dim number As String
     Dim fixtureInput As Object
-    Dim inputColumn As Object
+    Dim inputHeaders As Variant
+    Dim inputIndex As Long
     Dim allSteps As Object
     Dim stepIdentity As String
     Dim action As String
@@ -337,6 +342,7 @@ Public Function TryCatalog( _
     started = VBA.Timer
     Set cases = private_Table("cases")
     Set steps = private_Table("steps")
+    inputHeaders = steps.HeaderRowRange.Value2
     Set catalog = New Collection
     Set ids = VBA.CreateObject("Scripting.Dictionary")
     Set allSteps = VBA.CreateObject("Scripting.Dictionary")
@@ -397,9 +403,9 @@ Public Function TryCatalog( _
                     Err.Raise 5, , "Scenario and step identities differ: " & stepIdentity
                 End If
                 Set fixtureInput = VBA.CreateObject("Scripting.Dictionary")
-                For Each inputColumn In steps.ListColumns
-                    fixtureInput(inputColumn.Name) = private_FixtureValue(steps, stepRow, inputColumn.Name)
-                Next inputColumn
+                For inputIndex = 1 To UBound(inputHeaders, 2)
+                    fixtureInput(inputHeaders(1, inputIndex)) = private_FixtureValue(steps, stepRow, VBA.CStr(inputHeaders(1, inputIndex)))
+                Next inputIndex
                 Set testStep("Input") = fixtureInput
                 testStep("Expected") = VBA.vbNullString
                 testStep("Code") = VBA.vbNullString
@@ -1246,8 +1252,17 @@ Private Function private_FixtureValue( _
     Dim record As Object
     Dim index As Long
     Dim columnIndex As Long
+    Dim tableName As String
 
-    If Not m_fixtureTables.Exists(table.Name) Then
+    ' Reuse the current table cache without cross-process Name calls per field.
+    If table Is m_fixtureTable Then
+        Set record = m_fixtureRecords(rowIndex)
+        If Not record.Exists(header) Then Err.Raise 5, , "Missing fixture column: " & table.Name & "/" & header
+        private_FixtureValue = record(header)
+        Exit Function
+    End If
+    tableName = table.Name
+    If Not m_fixtureTables.Exists(tableName) Then
         data = table.DataBodyRange.Value2
         headers = table.HeaderRowRange.Value2
         Set rows = New Collection
@@ -1259,9 +1274,11 @@ Private Function private_FixtureValue( _
             Next columnIndex
             rows.Add record
         Next index
-        m_fixtureTables.Add table.Name, rows
+        m_fixtureTables.Add tableName, rows
     End If
-    Set rows = m_fixtureTables(table.Name)
+    Set rows = m_fixtureTables(tableName)
+    Set m_fixtureTable = table
+    Set m_fixtureRecords = rows
     Set record = rows(rowIndex)
     If Not record.Exists(header) Then Err.Raise 5, , "Missing fixture column: " & table.Name & "/" & header
     private_FixtureValue = record(header)

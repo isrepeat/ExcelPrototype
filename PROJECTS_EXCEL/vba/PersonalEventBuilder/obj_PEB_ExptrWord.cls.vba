@@ -65,7 +65,7 @@ Public Function TryExport( _
     Dim published As Boolean
     Dim cleanupError As String
     Dim enabled As String
-    Dim bookmark As String
+    Dim wordAnchors As obj_PEB_WordAnchors
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
@@ -76,7 +76,6 @@ Public Function TryExport( _
         TryExport = True
         Exit Function
     End If
-    bookmark = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordBookmark"))
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
     If enabled = "false" Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ExportWordUnavailable")
@@ -110,17 +109,13 @@ Public Function TryExport( _
     wordApp.AutomationSecurity = 3
     If m_documentMode = "template" Then
         Set document = wordApp.Documents.Add(m_templatePath, False, 0, False)
-        If Not document.Bookmarks.Exists(bookmark) Then
-            Err.Raise 5, , "Word template bookmark not found: " & bookmark
-        End If
-        Set target = document.Bookmarks(bookmark).Range
+        Set wordAnchors = New obj_PEB_WordAnchors
+        If Not wordAnchors.Initialize(document, diagnostic) Then GoTo Cleanup
+        If Not wordAnchors.TryInsert(document, values, diagnostic) Then GoTo Cleanup
     Else
         Set document = wordApp.Documents.Add
         Set target = document.Content
-    End If
-    target.Text = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
-    If m_documentMode = "template" Then
-        document.Bookmarks.Add bookmark, target
+        target.Text = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
     End If
     document.SaveAs2 temporary, 16
     document.Close 0
@@ -134,6 +129,7 @@ Public Function TryExport( _
     TryExport = True
 Cleanup:
     On Error Resume Next
+    If Not wordAnchors Is Nothing Then wordAnchors.Dispose
     If Not document Is Nothing Then
         document.Close 0
     End If

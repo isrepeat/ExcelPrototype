@@ -12,7 +12,8 @@ value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgTests
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
 value	PersonalEventBuilder::test.ui.maxScenarios	200
-value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
+value	PersonalEventBuilder::test.ui.selectedByDefault	S01|S02|S03
+value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|WordCreateMs|WordInsertMs|WordVerifyMs|WordAppendMs|WordDocumentPath
 value	PersonalEventBuilder::test.ui.catalogFields	Selected|PreviewEnabled|ScenarioId|Operation|EventLabel|StepCount|RuleStatus
 value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Прев’ю|Сценарій|Операція|Подія / сценарій|Кроків|Правило
 value	PersonalEventBuilder::test.audit.maxRows	100000
@@ -49,6 +50,9 @@ value	PersonalEventBuilder::test.progress.Inputs	3
 value	PersonalEventBuilder::test.progress.Verify	7
 value	PersonalEventBuilder::test.progress.Archive	8
 value	PersonalEventBuilder::test.progress.Catalog	0
+value	PersonalEventBuilder::test.progress.WordStart	0
+value	PersonalEventBuilder::test.progress.WordTemplate	0
+value	PersonalEventBuilder::test.progress.WordReport	0
 value	PersonalEventBuilder::test.progress.Prepare	1
 value	PersonalEventBuilder::test.progress.Registry	0
 value	PersonalEventBuilder::test.progress.Snapshot	2
@@ -308,6 +312,9 @@ value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експ
 value	PersonalEventBuilder::text.TestPhase.Verify	Результат перевірено та порівняно з очікуванням.
 value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
 value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
+value	PersonalEventBuilder::text.TestPhase.WordStart	Запуск Word для зведеного документа.
+value	PersonalEventBuilder::text.TestPhase.WordTemplate	Відкриття шаблону Word та індексація якорів.
+value	PersonalEventBuilder::text.TestPhase.WordReport	Підготовка зведеного Word-документа.
 value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
 value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
 value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
@@ -428,6 +435,59 @@ value	PersonalEventBuilder::export.Word.output	../../tests/PersonalEventBuilder/
 value	PersonalEventBuilder::export.Word.enabled	false
 value	PersonalEventBuilder::export.Word.documentMode	blank
 value	PersonalEventBuilder::export.Word.documentTemplate	../Dependencies/WordTemplate.docx
+value	PersonalEventBuilder::export.Word.textAnchors.FromBusinessTrip	FromBusinessTrip
+value	PersonalEventBuilder::export.Word.textAnchors.FromHospital	FromHospital
+value	PersonalEventBuilder::export.Word.textAnchors.FromVacationForCuring	FromVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.FromAnnualMainVacation	FromAnnualMainVacation
+value	PersonalEventBuilder::export.Word.textAnchors.FromVacationForFamily	FromVacationForFamily
+value	PersonalEventBuilder::export.Word.textAnchors.FromExternalVlk	FromExternalVlk
+value	PersonalEventBuilder::export.Word.textAnchors.FromMedicalCompanyForTreatment	FromMedicalCompanyForTreatment
+value	PersonalEventBuilder::export.Word.textAnchors.ToHospital	ToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.ToAnnualMainVacation	ToAnnualMainVacation
+value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForFamily	ToVacationForFamily
+value	PersonalEventBuilder::export.Word.textAnchors.ToMaternityLeave	ToMaternityLeave
+value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForCuring	ToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.ToMedicalCompanyForTreatment	ToMedicalCompanyForTreatment
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToVacationForCuring	MoveFromHospitalToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVacationForCuring	MoveFromVacationForCuringToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToHospital	MoveFromVacationForCuringToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToHospital	MoveFromAnnualVacationToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVlk	MoveFromVacationForCuringToVlk
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToVlk	MoveFromAnnualVacationToVlk
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToVlk	MoveFromFamilyVacationToVlk
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToVacationForCuring	MoveFromVlkToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToHospital	MoveFromVlkToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToHospital	MoveFromMedicalCompanyForTreatmentToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToVacationForCuring	MoveFromMedicalCompanyForTreatmentToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToHospital	MoveFromMedicalCompanyVacationForCuringToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	MoveFromMedicalCompanyVacationForCuringToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToFamilyVacation	MoveFromAnnualVacationToFamilyVacation
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToAnnualVacation	MoveFromFamilyVacationToAnnualVacation
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToExternalVlk	MoveFromHospitalToExternalVlk
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToHospital	MoveFromFamilyVacationToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToVacationForCuring	MoveFromExternalVlkToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToHospital	MoveFromExternalVlkToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromOutpatientVlkToVacationForCuring	MoveFromOutpatientVlkToVacationForCuring
+value	PersonalEventBuilder::test.word.template	./Template_10.docx
+value	PersonalEventBuilder::test.word.output	../../tests/PersonalEventBuilder/WordResults_{runId}.docx
+value	PersonalEventBuilder::text.TestsWordTitle	Результати тестування Word — {runId}
+value	PersonalEventBuilder::text.TestsWordHeading	{ScenarioId} / {StepId} — {ScenarioName}
+value	PersonalEventBuilder::text.TestsWordEntry	Результат: {Result}; Word: {WordResult}; стан: {RunState}. {Details}
+value	PersonalEventBuilder::text.TestsWordSaved	Зведений Word-документ: {path}
+value	PersonalEventBuilder::text.TestsWordTimings	Word, мс: створення={Create}, вставка={Insert}, перевірка={Verify}, перенесення={Append}
+value	PersonalEventBuilder::text.TestsWordNoTiming	—
+value	PersonalEventBuilder::test.word.style.personColor	#548235
+value	PersonalEventBuilder::test.word.style.basisColor	#767171
+value	PersonalEventBuilder::test.word.style.personFields	FIO|FIOAccusative|FIOGenitive|FIODative
+value	PersonalEventBuilder::test.word.style.headingBefore	14
+value	PersonalEventBuilder::test.word.style.headingAfter	10
+value	PersonalEventBuilder::text.TestsWordBasisPrefix	Підстава:
+value	PersonalEventBuilder::text.TestsWordEvent.Arrival	{event}
+value	PersonalEventBuilder::text.TestsWordEvent.Departure	{event}
+value	PersonalEventBuilder::text.TestsWordEvent.StatusChange	Зміна статусу: {event}
+value	PersonalEventBuilder::text.TestsWordEmpty	Документ Word не збережено: вибрані кроки не сформували жодного пункту. Перевірте результати Word у тестах.
+value	PersonalEventBuilder::text.TestsWordSummary	Стан прогону: {RunState}. PASS: {pass}; FAIL: {fail}; SKIP: {skip}; ERROR: {error}.
+value	PersonalEventBuilder::text.TestsWordReport	Сформувати зведений Word-документ
 value	PersonalEventBuilder::export.Word.meta.lookups.count	5
 value	PersonalEventBuilder::export.Word.meta.lookups.1.path	../../tests/PersonalEventBuilder/Dependencies/test_ШПО.xlsx
 value	PersonalEventBuilder::export.Word.meta.lookups.1.input	PersonRank

@@ -25,6 +25,7 @@ Private m_cancelled As Boolean
 Private m_before As Object
 Private m_after As Object
 Private m_values As Object
+Private m_testWordSession As obj_PEB_TestWordSession
 
 ' //
 ' // Lifecycle
@@ -55,6 +56,10 @@ Public Property Get Finished() As Boolean
     If Not m_queue Is Nothing Then Finished = (m_completed >= m_queue.Count)
 End Property
 
+Public Property Get WordDocumentPath() As String
+    If Not m_testWordSession Is Nothing Then WordDocumentPath = m_testWordSession.OutputPath
+End Property
+
 ' //
 ' // API
 ' //
@@ -80,6 +85,8 @@ Public Sub Dispose()
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_testWordSession Is Nothing Then m_testWordSession.Dispose
+    Set m_testWordSession = Nothing
     If Not m_exportService Is Nothing Then m_exportService.Dispose
     If Not m_session Is Nothing Then m_session.Dispose
     Set m_exportService = Nothing
@@ -92,16 +99,32 @@ Public Sub Dispose()
 End Sub
 
 Public Function TryCheckpoint(ByRef diagnostic As String) As Boolean
+    Dim wordDiagnostic As String
+    Dim success As Boolean
+    Dim runState As String
+
     If Not m_isInitialized Or m_isDisposed Then
         TryCheckpoint = True
         Exit Function
     End If
-    TryCheckpoint = m_session.TryCheckpoint(diagnostic)
+    success = m_session.TryCheckpoint(diagnostic)
+    If Not m_testWordSession Is Nothing Then
+        runState = "Interrupted"
+        If Me.Finished Then runState = "Completed"
+        If m_cancelled Then runState = "Cancelled"
+        If m_fatal Then runState = "Aborted"
+        If Not m_testWordSession.TryFinish(runState, wordDiagnostic) Then
+            diagnostic = diagnostic & " " & wordDiagnostic
+            success = False
+        End If
+    End If
+    TryCheckpoint = success
 End Function
 
 Public Function TryBegin( _
     ByVal selected As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal createWordReport As Boolean = False _
 ) As Boolean
     Dim scenario As Object
     Dim testStep As Object
@@ -133,6 +156,13 @@ Public Function TryBegin( _
     For Each key In selected.Keys
         If Not known.Exists(key) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestsReopenRequired")
     Next key
+    If createWordReport Then
+        Set m_testWordSession = New obj_PEB_TestWordSession
+        If Not m_testWordSession.Initialize(m_runId, diagnostic) Then
+            Set m_testWordSession = Nothing
+            Exit Function
+        End If
+    End If
     TryBegin = True
     Exit Function
 EH:
@@ -230,6 +260,13 @@ Public Function TryAdvance( _
     If m_completed + 1 = m_queue.Count Then report("RunState") = "Completed"
     If m_cancelled Then report("RunState") = "Cancelled"
     If m_fatal Then report("RunState") = "Aborted"
+    If Not m_testWordSession Is Nothing Then
+        If Not m_testWordSession.TryAppend(report, diagnostic) Then
+            report("Result") = "ERROR"
+            report("Details") = report("Details") & " " & diagnostic
+            Exit Function
+        End If
+    End If
     checkpoint = m_cancelled Or m_fatal Or m_completed + 1 = m_queue.Count
     If Not checkpoint Then
         Set nextItem = m_queue(m_completed + 2)
@@ -280,6 +317,11 @@ Private Function private_Report( _
     report("PreviewLink") = ex_PEB_Export.fn_Config("text.TestPreviewLink")
     report("MovementResult") = "NotApplicable"
     report("WordResult") = "NotApplicable"
+    report("WordCreateMs") = VBA.vbNullString
+    report("WordInsertMs") = VBA.vbNullString
+    report("WordVerifyMs") = VBA.vbNullString
+    report("WordAppendMs") = VBA.vbNullString
+    report("WordDocumentPath") = VBA.vbNullString
     If testStep("Action") = "PreviewWord" Then
         report("WordResult") = "NotRun"
         report("ExpectedPreviewText") = testStep("ExpectedText")
@@ -372,11 +414,25 @@ Private Function private_RunStep( _
     End If
     If Not m_exportService.TryPrepare(binding, "Movement", values, diagnostic) Then GoTo Cleanup
     ex_PEB_Testing.fn_ReportPhase "Inputs"
-    If report("PreviewEnabled") And testStep("Action") <> "ExportEvent" Then
+    If (report("PreviewEnabled") Or Not m_testWordSession Is Nothing) And testStep("Action") <> "ExportEvent" Then
         If m_exportService.TryPrepare(binding, "Word", previewValues, previewDiagnostic, False) Then
             report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText")), VBA.vbCrLf, VBA.vbLf)
+            If Not m_testWordSession Is Nothing Then
+                report("WordResult") = "Omitted"
+                If previewValues("WordOutcome") = "Success" Then
+                    report("WordResult") = "PASS"
+                    If Not m_testWordSession.TryExercise(previewValues, previewDiagnostic) Then
+                        report("WordResult") = "FAIL"
+                        report("PreviewDiagnostic") = previewDiagnostic
+                    End If
+                End If
+            End If
         Else
             report("PreviewText") = ex_PEB_Export.fn_Config("text.TestPreviewError") & VBA.vbLf & previewDiagnostic
+            If Not m_testWordSession Is Nothing Then
+                report("WordResult") = "FAIL"
+                report("PreviewDiagnostic") = previewDiagnostic
+            End If
         End If
     End If
     If Not m_session.TryCommit(diagnostic, False) Then GoTo Cleanup
@@ -453,9 +509,13 @@ Private Function private_RunStep( _
     If Not wordReport Is Nothing Then
         assertion = assertion And wordPassed
     End If
+    If report("WordResult") = "FAIL" Then assertion = False
     report("Result") = "FAIL"
     If assertion Then report("Result") = "PASS"
     report("Details") = exportDiagnostic
+    If testStep("Action") = "ExportMovement" And report("WordResult") = "FAIL" Then
+        report("Details") = report("Details") & " " & report("PreviewDiagnostic")
+    End If
     If Not wordReport Is Nothing Then
         If Not wordPassed Then
             report("Details") = report("Details") & " " & wordReport("Details")
@@ -602,6 +662,13 @@ Private Function private_ValidateWord( _
         report("ActualCode") = VBA.vbNullString
         actual = private_NormalizeNewlines(VBA.CStr(values("WordText")))
         report("PreviewText") = actual
+        If Not m_testWordSession Is Nothing And values("WordOutcome") = "Success" Then
+            If Not m_testWordSession.TryExercise(values, diagnostic) Then
+                report("PreviewDiagnostic") = diagnostic
+                report("Details") = diagnostic
+                Exit Function
+            End If
+        End If
     End If
     If report("Actual") <> testStep("Expected") Then
         report("Details") = private_Mismatch(testStep("Id"), "WORD", "Outcome", testStep("Expected"), report("Actual"))
