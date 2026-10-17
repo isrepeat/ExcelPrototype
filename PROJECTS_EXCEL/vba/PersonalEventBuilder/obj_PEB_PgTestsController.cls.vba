@@ -39,6 +39,8 @@ Private m_status As String
 Private m_writtenStatus As String
 Private m_ownsStatus As Boolean
 Private m_environmentSwitchPending As Boolean
+Private m_createWordReport As Boolean
+Private m_catalogLoaded As Boolean
 
 ' //
 ' // Lifecycle
@@ -107,6 +109,7 @@ Public Function TryLoadCatalog(ByRef diagnostic As String) As Boolean
     Dim scenario As Object
     Dim record As Object
     Dim retained As Object
+    Dim selectedByDefault As String
 
     On Error GoTo EH
     private_Guard
@@ -120,13 +123,15 @@ Public Function TryLoadCatalog(ByRef diagnostic As String) As Boolean
         Err.Raise 5, , "Scenario catalog exceeds the UI limit."
     End If
     Set retained = VBA.CreateObject("Scripting.Dictionary")
+    selectedByDefault = "|" & ex_PEB_Export.fn_Config("test.ui.selectedByDefault") & "|"
     Set m_catalogRecords = New Collection
     For Each scenario In m_catalog
-        If m_selected.Exists(scenario("Id")) Then
+        If m_selected.Exists(scenario("Id")) Or (Not m_catalogLoaded And _
+                VBA.InStr(1, selectedByDefault, "|" & scenario("Id") & "|", VBA.vbBinaryCompare) > 0) Then
             retained.Add scenario("Id"), True
         End If
         If Not m_previews.Exists(scenario("Id")) Then
-            m_previews.Add scenario("Id"), True
+            m_previews.Add scenario("Id"), False
         End If
         Set record = VBA.CreateObject("Scripting.Dictionary")
         record("ScenarioId") = scenario("Id")
@@ -140,6 +145,7 @@ Public Function TryLoadCatalog(ByRef diagnostic As String) As Boolean
     Set m_selected = retained
     private_RefreshSelection True
     private_DrawResults
+    m_catalogLoaded = True
     TryLoadCatalog = True
     Exit Function
 EH:
@@ -212,6 +218,7 @@ Public Sub RunSelected()
     Next key
     Set m_reports = New Collection
     m_running = True
+    m_createWordReport = private_CheckboxValue("WordReport")
     m_stop = False
     m_completed = 0
     m_phasePercent = 0
@@ -292,7 +299,7 @@ Public Function Advance() As Boolean
         If Not m_runner.Initialize(diagnostic) Then
             GoTo Failed
         End If
-        If Not m_runner.TryBegin(m_runSelection, diagnostic) Then
+        If Not m_runner.TryBegin(m_runSelection, diagnostic, m_createWordReport) Then
             GoTo Failed
         End If
         m_total = m_runner.Total
@@ -483,11 +490,14 @@ End Sub
 Private Sub private_Finish(ByVal diagnostic As String)
     Dim text As String
     Dim checkpointDiagnostic As String
+    Dim wordDocumentPath As String
 
     ex_PEB_Testing.fn_CancelTick
     If Not m_runner Is Nothing Then
         If Not m_runner.TryCheckpoint(checkpointDiagnostic) Then
             diagnostic = diagnostic & " " & checkpointDiagnostic
+        Else
+            wordDocumentPath = m_runner.WordDocumentPath
         End If
     End If
     If Not m_runner Is Nothing Then
@@ -507,6 +517,9 @@ Private Sub private_Finish(ByVal diagnostic As String)
         End If
     End If
     text = VBA.Replace$(text, "{summary}", private_Summary())
+    If VBA.Len(wordDocumentPath) > 0 Then
+        text = text & " " & VBA.Replace$(ex_PEB_Export.fn_Config("text.TestsWordSaved"), "{path}", wordDocumentPath)
+    End If
     If VBA.Len(diagnostic) > 0 Then
         text = text & " " & diagnostic
     End If

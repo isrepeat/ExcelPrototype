@@ -27,6 +27,15 @@
                      caption="{Binding Path=Text.EnvironmentSwitch}"
                      command="{Binding Path=Commands.EnvironmentSwitch}"
                      shapePlacement="moveAndSize"/>
+    <controls:checkbox name="TestWordReport"
+                       row="1"
+                       column="6"
+                       columnSpan="9"
+                       style="testWordCheckbox"
+                       value="{Binding Path=TestSelection.WordReport}"
+                       caption="{Binding Path=Text.TestsWordReport}"
+                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"/>
     <controls:label name="TestStatus"
                     row="3"
                     column="1"
@@ -153,6 +162,15 @@
                   borderLineStyle="none"
                   borderWeight="thin"
                   horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="testWordCheckbox"
+                  backColor="#2D2D2D"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#2D2D2D"
+                  borderLineStyle="none"
+                  horizontal="left"
                   vertical="center"/>
     <controlStyle name="sectionTitle"
                   indent="0"

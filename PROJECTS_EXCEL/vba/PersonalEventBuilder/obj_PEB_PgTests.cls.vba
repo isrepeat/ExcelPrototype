@@ -112,7 +112,7 @@ End Sub
 Private Function private_TryRegisterBindings() As Boolean
     Dim key As Variant
 
-    For Each key In VBA.Array("TestsRun", "TestsStop", "TestsResults", "EnvironmentSwitch", "CheckboxChecked", "CheckboxUnchecked", "CheckboxPartial")
+    For Each key In VBA.Array("TestsRun", "TestsStop", "TestsResults", "TestsWordReport", "EnvironmentSwitch", "CheckboxChecked", "CheckboxUnchecked", "CheckboxPartial")
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(key), ex_PEB_Export.fn_Config("text." & key)) Then
             Exit Function
         End If
@@ -124,6 +124,9 @@ Private Function private_TryRegisterBindings() As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("Settings", "TestsRunning", False) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("TestSelection", "WordReport", True) Then
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("TestSelection", "Caption", VBA.vbNullString) Then
