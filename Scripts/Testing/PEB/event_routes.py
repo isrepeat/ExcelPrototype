@@ -4,6 +4,9 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 import re
 
+from movement_templates import load_movement
+from movement_plans import load_native_plans
+
 ROOT = Path(__file__).resolve().parents[3]
 WORKBOOK = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
 NS = {"p": "urn:excelprototype:profiles"}
@@ -24,7 +27,7 @@ def parse_config(path):
     return result
 
 
-def load_registry(settings, xml_text=None):
+def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
     path = WORKBOOK / settings["events.path"]
     text = xml_text if xml_text is not None else path.read_text(encoding="utf-8-sig")
     if "<!DOCTYPE" in text.upper() or "<!ENTITY" in text.upper():
@@ -50,61 +53,80 @@ def load_registry(settings, xml_text=None):
     require(root.get("version") == "1", "Unsupported version")
     fields = set(settings["export.fields"].split("|"))
     require(root.get("bindingField") in fields, "Unknown binding field")
-    for tag in ("movementStatuses", "wordAnchors", "events"):
+    for tag in ("events",):
         require(len(root.findall(f"p:{tag}", NS)) == 1, f"Expected one {tag}")
-    require({child.tag for child in root} == {f"{{{NS['p']}}}{tag}" for tag in ("movementStatuses", "wordAnchors", "events")}, "Unknown root element")
-    statuses = index(root.findall("p:movementStatuses/p:status", NS), "id")
-    anchors = index(root.findall("p:wordAnchors/p:anchor", NS), "id")
+    require({child.tag for child in root} == {f"{{{NS['p']}}}{tag}" for tag in ("events",)}, "Unknown root element")
     events = index(root.findall("p:events/p:event", NS), "id")
-    require(statuses and anchors and events, "Empty registry section")
+    require(events, "Empty event registry")
+    has_movement = any(event.find("p:movement", NS) is not None for event in events.values())
+    movement_registry = load_movement(settings, WORKBOOK, movement_text) if has_movement else {
+        "statuses": {}, "values": {}, "templates": {},
+    }
+    if has_movement:
+        movement_registry.update(load_native_plans(settings))
+    statuses = {identifier: ET.Element(f"{{{NS['p']}}}status", id=identifier, name=name)
+                for identifier, name in movement_registry["statuses"].items()}
     for node in statuses.values():
         attributes(node, "id|name", "id|name")
     require(len({node.get('name') for node in statuses.values()}) == len(statuses), "Duplicate Movement status name")
-    for node in anchors.values():
-        attributes(node, "id|bookmark", "id|bookmark")
-    templates = index(ET.parse(WORKBOOK / settings["export.Word.templates.path"]).getroot().findall("p:template", NS), "name")
+    templates = {}
+    if any(event.find("p:word", NS) is not None for event in events.values()):
+        text = word_text if word_text is not None else (WORKBOOK / settings["export.Word.templates.path"]).read_text(encoding="utf-8-sig")
+        require("<!DOCTYPE" not in text.upper() and "<!ENTITY" not in text.upper(), "Word DTD/entities are prohibited")
+        word_root = ET.fromstring(text)
+        require(word_root.tag == f"{{{NS['p']}}}wordResultTemplates" and word_root.get("version") == "1", "Invalid Word root/version")
+        require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("documentFilepath", "sharedTemplates", "template")} for child in word_root),
+                "Unknown Word template section")
+        templates = index(word_root.findall("p:template", NS), "name")
     for identifier, event in events.items():
         attributes(event, "id|caption|label|direction|form|visible", "id|caption|label|direction|form|visible")
         require(event.get("direction") in ("Arrival", "Departure", "StatusChange"), f"Invalid direction: {identifier}")
         require(event.get("form") in ("Leave", "Treatment"), f"Invalid form: {identifier}")
         require(event.get("visible") in ("true", "false"), f"Invalid visibility: {identifier}")
-        require([child.tag for child in event] == [f"{{{NS['p']}}}movement", f"{{{NS['p']}}}word"], f"Expected movement and word: {identifier}")
-        movement, word = event
-        attributes(movement, "operation|profile|sourceStatus|targetStatus|destinationField|destinationValue|sourceDestination|required", "operation|profile|destinationField|required")
-        operation = movement.get("operation")
-        require(operation in ("Departure", "Arrival", "Transition"), f"Unknown operation: {identifier}")
-        expected = {"Departure": "append", "Arrival": "close", "Transition": "transition"}[operation]
-        profile = "export.Movement.profiles." + movement.get("profile")
-        require(settings.get(profile + ".operation") == expected, f"Invalid Movement profile/operation: {identifier}")
-        for suffix in ("fields.count", "identity.count"):
-            require(settings.get(profile + "." + suffix, "").isdigit(), f"Missing profile mapping: {identifier}/{suffix}")
-        if operation == "Transition":
-            require(settings.get("export.Movement.profiles." + settings.get(profile + ".closeProfile", "") + ".operation") == "close", f"Invalid close profile: {identifier}")
-        for key in ("sourceStatus", "targetStatus"):
-            value = movement.get(key)
-            require(not value or value in statuses, f"Unknown status: {identifier}/{value}")
-        require(operation == "Departure" or movement.get("sourceStatus"), f"Missing source status: {identifier}")
-        require(operation == "Arrival" or movement.get("targetStatus"), f"Missing target status: {identifier}")
-        require(operation != "Departure" or not movement.get("sourceStatus"), f"Unexpected departure source: {identifier}")
-        require(operation != "Arrival" or not movement.get("targetStatus"), f"Unexpected arrival target: {identifier}")
-        require(set(movement.get("required").split("|")) <= fields, f"Unknown required field: {identifier}")
-        require(movement.get("destinationField") in fields, f"Unknown destination field: {identifier}")
-        attributes(word, "policy|profile|template|anchor", "policy|profile|anchor")
-        require(word.get("policy") in ("Render", "Omit"), f"Unknown Word policy: {identifier}")
-        if word.get("policy") == "Render" or word.get("template"):
+        tags = [child.tag for child in event]
+        allowed = {f"{{{NS['p']}}}movement", f"{{{NS['p']}}}word"}
+        require(tags and len(tags) == len(set(tags)) and set(tags) <= allowed,
+                f"Expected one or both independent exporter routes: {identifier}")
+        movement = event.find("p:movement", NS)
+        word = event.find("p:word", NS)
+        if movement is not None:
+            attributes(movement, "template", "template")
+            require(not list(movement), f"Unexpected Movement route children: {identifier}")
+            name = movement.get("template")
+            require(name in movement_registry["templates"], f"Unknown Movement template: {identifier}/{name}")
+            require(identifier in movement_registry["events"], f"Unknown native Movement event: {identifier}")
+            plan = movement_registry["events"][identifier]
+            prefixes = ["profiles." + plan["profile"] + ".fields"]
+            values = movement_registry["values"]
+            if plan["operation"] == "Transition":
+                prefixes.append("profiles." + values["profiles." + plan["profile"] + ".closeProfile"] + ".fields")
+            allowed_columns, required_columns = set(), set()
+            for prefix in prefixes:
+                for index in range(1, int(values[prefix + ".count"]) + 1):
+                    header = values[f"{prefix}.{index}.header"].casefold()
+                    allowed_columns.add(header)
+                    if values[f"{prefix}.{index}.field"] == "MovementBasis":
+                        required_columns.add(header)
+            provided_columns = {column.casefold() for column in movement_registry["columns"][name]}
+            require(provided_columns <= allowed_columns, f"Text column is not writable: {identifier}")
+            require(required_columns <= provided_columns, f"Missing required text column: {identifier}")
+            movement.attrib.update(plan)
+        if word is not None:
+            attributes(word, "template", "template")
+            require(not list(word), f"Unexpected Word route children: {identifier}")
             require(word.get("template") in templates, f"Unknown Word template: {identifier}")
-        require(word.get("anchor") in anchors, f"Unknown Word anchor: {identifier}")
-        profile = "export.Word." + word.get("profile")
-        for suffix in ("required", "previewRequired"):
-            require(bool(settings.get(profile + "." + suffix)), f"Unknown Word profile: {identifier}")
-        require(settings.get(profile + ".lookups.count", "").isdigit(), f"Invalid Word profile: {identifier}")
-    return {"events": events, "statuses": statuses, "anchors": anchors, "bindingField": root.get("bindingField")}
+            profile = "export.Word." + word.get("template")
+            for suffix in ("required", "previewRequired"):
+                require(bool(settings.get(profile + "." + suffix)), f"Unknown Word preparation settings: {identifier}")
+            require(settings.get(profile + ".lookups.count", "").isdigit(), f"Invalid Word preparation settings: {identifier}")
+    return {"events": events, "statuses": statuses, "bindingField": root.get("bindingField"), "movement": movement_registry}
 
 
 def derived_settings(settings):
     """Expose an in-memory compatibility view; never persist derived keys to wsConfig."""
     registry = load_registry(settings)
     result = dict(settings)
+    result.update({"export.Movement." + key: value for key, value in registry["movement"]["values"].items()})
     events = registry["events"]
     result["events.ids"] = result["test.registry.ModeId.values"] = "|".join(events)
     for identifier, event in events.items():
@@ -112,14 +134,18 @@ def derived_settings(settings):
         for key in ("caption", "form", "direction"):
             result[f"modes.{identifier}.{key}"] = event.get(key)
         result[f"export.events.{identifier}"] = event.get("label")
-        movement, word = event
-        for key, value in word.attrib.items():
-            result[f"events.{identifier}.word.{key}"] = value
-        for key, value in movement.attrib.items():
-            result[f"events.{identifier}.movement.{key}"] = value
-        result[f"export.Movement.{identifier}.profile"] = movement.get("profile")
-        result[f"export.Movement.{identifier}.required"] = movement.get("required")
-        result[f"export.Movement.{identifier}.destinationField"] = movement.get("destinationField")
+        movement = event.find("p:movement", NS)
+        word = event.find("p:word", NS)
+        result[f"events.{identifier}.word.policy"] = "Render" if word is not None else "Omit"
+        if word is not None:
+            for key, value in word.attrib.items():
+                result[f"events.{identifier}.word.{key}"] = value
+        if movement is not None:
+            for key, value in movement.attrib.items():
+                result[f"events.{identifier}.movement.{key}"] = value
+            result[f"export.Movement.{identifier}.profile"] = movement.get("profile")
+            result[f"export.Movement.{identifier}.required"] = movement.get("required")
+            result[f"export.Movement.{identifier}.destinationField"] = movement.get("destinationField")
     return result
 
 

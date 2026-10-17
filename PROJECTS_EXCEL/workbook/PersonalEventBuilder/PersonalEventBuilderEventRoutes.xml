@@ -2,28 +2,6 @@
 <eventRoutes xmlns="urn:excelprototype:profiles"
              version="1"
              bindingField="ModeId">
-  <movementStatuses>
-    <status name="Стаціонарне лікування"
-            id="HospitalTreatment"/>
-    <status name="Щорічна відпустка"
-            id="AnnualVacation"/>
-    <status name="Відпустка для лікування"
-            id="MedicalLeave"/>
-    <status name="Відпустка за сімейними обставинами"
-            id="FamilyVacation"/>
-    <status name="Відпустка у зв'язку з вагітністю та пологами"
-            id="MaternityLeave"/>
-    <status name="Відрядження"
-            id="BusinessTrip"/>
-    <status name="Амбулаторне ВЛК"
-            id="OutpatientVlk"/>
-    <status name="ВЛК за межами"
-            id="ExternalVlk"/>
-  </movementStatuses>
-  <wordAnchors>
-    <anchor id="EventBody"
-            bookmark="EventBody"/>
-  </wordAnchors>
   <events>
     <event label="Прибуття з відрядження"
            caption="Прибуття з відрядження"
@@ -31,15 +9,8 @@
            direction="Arrival"
            form="Leave"
            visible="false">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="BusinessTrip"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromBusinessTrip"
-            template="FromBusinessTrip"
-            anchor="EventBody"/>
+      <movement template="FromBusinessTrip"/>
+      <word template="FromBusinessTrip"/>
     </event>
     <event label="Стаціонарне лікування"
            caption="З лікування"
@@ -47,15 +18,8 @@
            direction="Arrival"
            form="Treatment"
            visible="true">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromHospital"
-            template="FromHospital"
-            anchor="EventBody"/>
+      <movement template="FromHospital"/>
+      <word template="FromHospital"/>
     </event>
     <event label="Відпустка для лікування"
            caption="З відпустки для лікування"
@@ -63,15 +27,8 @@
            direction="Arrival"
            form="Leave"
            visible="true">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromVacationForCuring"
-            template="FromVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="FromVacationForCuring"/>
+      <word template="FromVacationForCuring"/>
     </event>
     <event label="Щорічна відпустка"
            caption="З щорічної відпустки"
@@ -79,15 +36,8 @@
            direction="Arrival"
            form="Leave"
            visible="true">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="AnnualVacation"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromAnnualMainVacation"
-            template="FromAnnualMainVacation"
-            anchor="EventBody"/>
+      <movement template="FromAnnualMainVacation"/>
+      <word template="FromAnnualMainVacation"/>
     </event>
     <event label="Відпустка за сімейними обставинами"
            caption="З відпустки за сімейними обставинами"
@@ -95,15 +45,8 @@
            direction="Arrival"
            form="Leave"
            visible="true">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="FamilyVacation"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromVacationForFamily"
-            template="FromVacationForFamily"
-            anchor="EventBody"/>
+      <movement template="FromVacationForFamily"/>
+      <word template="FromVacationForFamily"/>
     </event>
     <event label="Прибуття з амбулаторного огляду / ВЛК"
            caption="Прибуття з амбулаторного огляду / ВЛК"
@@ -111,14 +54,7 @@
            direction="Arrival"
            form="Treatment"
            visible="false">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="OutpatientVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Omit"
-            profile="FromOutpatientExaminationOrVlk"
-            anchor="EventBody"/>
+      <movement template="FromOutpatientExaminationOrVlk"/>
     </event>
     <event label="Прибуття зі стаціонарної ВЛК"
            caption="Прибуття зі стаціонарної ВЛК"
@@ -126,15 +62,8 @@
            direction="Arrival"
            form="Treatment"
            visible="false">
-      <movement operation="Arrival"
-                profile="Arrival"
-                sourceStatus="ExternalVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromExternalVlk"
-            template="FromExternalVlk"
-            anchor="EventBody"/>
+      <movement template="FromExternalVlk"/>
+      <word template="FromExternalVlk"/>
     </event>
     <event label="Прибуття з лікування в медичній роті"
            caption="Прибуття з лікування в медичній роті"
@@ -142,17 +71,8 @@
            direction="Arrival"
            form="Treatment"
            visible="false">
-      <movement operation="Arrival"
-                profile="ArrivalMedicalCompany"
-                sourceStatus="HospitalTreatment"
-                destinationField="Destination"
-                destinationValue="Медична рота А7383"
-                sourceDestination="Медична рота А7383"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="FromMedicalCompanyForTreatment"
-            template="FromMedicalCompanyForTreatment"
-            anchor="EventBody"/>
+      <movement template="FromMedicalCompanyForTreatment"/>
+      <word template="FromMedicalCompanyForTreatment"/>
     </event>
     <event label="Стаціонарне лікування"
            caption="На лікування"
@@ -160,15 +80,8 @@
            direction="Departure"
            form="Treatment"
            visible="true">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToHospital"
-            template="ToHospital"
-            anchor="EventBody"/>
+      <movement template="ToHospital"/>
+      <word template="ToHospital"/>
     </event>
     <event label="Щорічна відпустка"
            caption="У щорічну відпустку"
@@ -176,15 +89,8 @@
            direction="Departure"
            form="Leave"
            visible="true">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="AnnualVacation"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToAnnualMainVacation"
-            template="ToAnnualMainVacation"
-            anchor="EventBody"/>
+      <movement template="ToAnnualMainVacation"/>
+      <word template="ToAnnualMainVacation"/>
     </event>
     <event label="Відпустка за сімейними обставинами"
            caption="У відпустку за сімейними обставинами"
@@ -192,15 +98,8 @@
            direction="Departure"
            form="Leave"
            visible="true">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="FamilyVacation"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToVacationForFamily"
-            template="ToVacationForFamily"
-            anchor="EventBody"/>
+      <movement template="ToVacationForFamily"/>
+      <word template="ToVacationForFamily"/>
     </event>
     <event label="Вибуття у відпустку у зв’язку з вагітністю та пологами"
            caption="Вибуття у відпустку у зв’язку з вагітністю та пологами"
@@ -208,15 +107,8 @@
            direction="Departure"
            form="Leave"
            visible="false">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="MaternityLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToMaternityLeave"
-            template="ToMaternityLeave"
-            anchor="EventBody"/>
+      <movement template="ToMaternityLeave"/>
+      <word template="ToMaternityLeave"/>
     </event>
     <event label="Відпустка для лікування"
            caption="У відпустку для лікування"
@@ -224,15 +116,8 @@
            direction="Departure"
            form="Leave"
            visible="true">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToVacationForCuring"
-            template="ToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="ToVacationForCuring"/>
+      <word template="ToVacationForCuring"/>
     </event>
     <event label="Вибуття на амбулаторний огляд / ВЛК"
            caption="Вибуття на амбулаторний огляд / ВЛК"
@@ -240,14 +125,7 @@
            direction="Departure"
            form="Treatment"
            visible="false">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="OutpatientVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Omit"
-            profile="ToOutpatientExaminationOrVlk"
-            anchor="EventBody"/>
+      <movement template="ToOutpatientExaminationOrVlk"/>
     </event>
     <event label="Вибуття на лікування в медичну роту"
            caption="Вибуття на лікування в медичну роту"
@@ -255,16 +133,8 @@
            direction="Departure"
            form="Treatment"
            visible="false">
-      <movement operation="Departure"
-                profile="Departure"
-                targetStatus="HospitalTreatment"
-                destinationField="Destination"
-                destinationValue="Медична рота А7383"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToMedicalCompanyForTreatment"
-            template="ToMedicalCompanyForTreatment"
-            anchor="EventBody"/>
+      <movement template="ToMedicalCompanyForTreatment"/>
+      <word template="ToMedicalCompanyForTreatment"/>
     </event>
     <event label="лікування в лікарні → відпустка для лікування"
            caption="лікування в лікарні → відпустка для лікування"
@@ -272,16 +142,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="HospitalTreatment"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromHospitalToVacationForCuring"
-            template="MoveFromHospitalToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromHospitalToVacationForCuring"/>
+      <word template="MoveFromHospitalToVacationForCuring"/>
     </event>
     <event label="відпустка для лікування → відпустка для лікування"
            caption="відпустка для лікування → відпустка для лікування"
@@ -289,16 +151,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="MedicalLeave"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromVacationForCuringToVacationForCuring"
-            template="MoveFromVacationForCuringToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromVacationForCuringToVacationForCuring"/>
+      <word template="MoveFromVacationForCuringToVacationForCuring"/>
     </event>
     <event label="відпустка для лікування → лікування в лікарні"
            caption="відпустка для лікування → лікування в лікарні"
@@ -306,16 +160,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="MedicalLeave"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromVacationForCuringToHospital"
-            template="MoveFromVacationForCuringToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromVacationForCuringToHospital"/>
+      <word template="MoveFromVacationForCuringToHospital"/>
     </event>
     <event label="щорічна відпустка → лікування в лікарні"
            caption="щорічна відпустка → лікування в лікарні"
@@ -323,16 +169,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="AnnualVacation"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromAnnualVacationToHospital"
-            template="MoveFromAnnualVacationToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromAnnualVacationToHospital"/>
+      <word template="MoveFromAnnualVacationToHospital"/>
     </event>
     <event label="відпустка для лікування → ВЛК"
            caption="відпустка для лікування → ВЛК"
@@ -340,16 +178,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="MedicalLeave"
-                targetStatus="ExternalVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromVacationForCuringToVlk"
-            template="MoveFromVacationForCuringToVlk"
-            anchor="EventBody"/>
+      <movement template="MoveFromVacationForCuringToVlk"/>
+      <word template="MoveFromVacationForCuringToVlk"/>
     </event>
     <event label="щорічна відпустка → ВЛК"
            caption="щорічна відпустка → ВЛК"
@@ -357,16 +187,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="AnnualVacation"
-                targetStatus="ExternalVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromAnnualVacationToVlk"
-            template="MoveFromAnnualVacationToVlk"
-            anchor="EventBody"/>
+      <movement template="MoveFromAnnualVacationToVlk"/>
+      <word template="MoveFromAnnualVacationToVlk"/>
     </event>
     <event label="відпустка за сімейними обставинами → ВЛК"
            caption="відпустка за сімейними обставинами → ВЛК"
@@ -374,16 +196,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="FamilyVacation"
-                targetStatus="ExternalVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromFamilyVacationToVlk"
-            template="MoveFromFamilyVacationToVlk"
-            anchor="EventBody"/>
+      <movement template="MoveFromFamilyVacationToVlk"/>
+      <word template="MoveFromFamilyVacationToVlk"/>
     </event>
     <event label="ВЛК → відпустка для лікування"
            caption="ВЛК → відпустка для лікування"
@@ -391,16 +205,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="ExternalVlk"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromVlkToVacationForCuring"
-            template="MoveFromVlkToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromVlkToVacationForCuring"/>
+      <word template="MoveFromVlkToVacationForCuring"/>
     </event>
     <event label="ВЛК → лікування в лікарні"
            caption="ВЛК → лікування в лікарні"
@@ -408,16 +214,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="ExternalVlk"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromVlkToHospital"
-            template="MoveFromVlkToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromVlkToHospital"/>
+      <word template="MoveFromVlkToHospital"/>
     </event>
     <event label="лікування в медичній роті → лікування в лікарні"
            caption="лікування в медичній роті → лікування в лікарні"
@@ -425,17 +223,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="TransitionMedicalCompany"
-                sourceStatus="HospitalTreatment"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                sourceDestination="Медична рота А7383"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromMedicalCompanyForTreatmentToHospital"
-            template="MoveFromMedicalCompanyForTreatmentToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromMedicalCompanyForTreatmentToHospital"/>
+      <word template="MoveFromMedicalCompanyForTreatmentToHospital"/>
     </event>
     <event label="лікування в медичній роті → відпустка для лікування"
            caption="лікування в медичній роті → відпустка для лікування"
@@ -443,17 +232,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="TransitionMedicalCompany"
-                sourceStatus="HospitalTreatment"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                sourceDestination="Медична рота А7383"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromMedicalCompanyForTreatmentToVacationForCuring"
-            template="MoveFromMedicalCompanyForTreatmentToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromMedicalCompanyForTreatmentToVacationForCuring"/>
+      <word template="MoveFromMedicalCompanyForTreatmentToVacationForCuring"/>
     </event>
     <event label="відпустка для лікування в медичній роті → лікування в лікарні"
            caption="відпустка для лікування в медичній роті → лікування в лікарні"
@@ -461,17 +241,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="TransitionMedicalCompany"
-                sourceStatus="MedicalLeave"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                sourceDestination="Медична рота А7383"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromMedicalCompanyVacationForCuringToHospital"
-            template="MoveFromMedicalCompanyVacationForCuringToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromMedicalCompanyVacationForCuringToHospital"/>
+      <word template="MoveFromMedicalCompanyVacationForCuringToHospital"/>
     </event>
     <event label="відпустка для лікування в медичній роті → відпустка для лікування"
            caption="відпустка для лікування в медичній роті → відпустка для лікування"
@@ -479,17 +250,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="TransitionMedicalCompany"
-                sourceStatus="MedicalLeave"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                sourceDestination="Медична рота А7383"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromMedicalCompanyVacationForCuringToVacationForCuring"
-            template="MoveFromMedicalCompanyVacationForCuringToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromMedicalCompanyVacationForCuringToVacationForCuring"/>
+      <word template="MoveFromMedicalCompanyVacationForCuringToVacationForCuring"/>
     </event>
     <event label="щорічна відпустка → відпустка за сімейними обставинами"
            caption="щорічна відпустка → відпустка за сімейними обставинами"
@@ -497,16 +259,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="AnnualVacation"
-                targetStatus="FamilyVacation"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromAnnualVacationToFamilyVacation"
-            template="MoveFromAnnualVacationToFamilyVacation"
-            anchor="EventBody"/>
+      <movement template="MoveFromAnnualVacationToFamilyVacation"/>
+      <word template="MoveFromAnnualVacationToFamilyVacation"/>
     </event>
     <event label="відпустка за сімейними обставинами → щорічна відпустка"
            caption="відпустка за сімейними обставинами → щорічна відпустка"
@@ -514,16 +268,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="FamilyVacation"
-                targetStatus="AnnualVacation"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromFamilyVacationToAnnualVacation"
-            template="MoveFromFamilyVacationToAnnualVacation"
-            anchor="EventBody"/>
+      <movement template="MoveFromFamilyVacationToAnnualVacation"/>
+      <word template="MoveFromFamilyVacationToAnnualVacation"/>
     </event>
     <event label="лікування в лікарні → стаціонарна ВЛК"
            caption="лікування в лікарні → стаціонарна ВЛК"
@@ -531,16 +277,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="HospitalTreatment"
-                targetStatus="ExternalVlk"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromHospitalToExternalVlk"
-            template="MoveFromHospitalToExternalVlk"
-            anchor="EventBody"/>
+      <movement template="MoveFromHospitalToExternalVlk"/>
+      <word template="MoveFromHospitalToExternalVlk"/>
     </event>
     <event label="відпустка за сімейними обставинами → лікування в лікарні"
            caption="відпустка за сімейними обставинами → лікування в лікарні"
@@ -548,16 +286,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="FamilyVacation"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromFamilyVacationToHospital"
-            template="MoveFromFamilyVacationToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromFamilyVacationToHospital"/>
+      <word template="MoveFromFamilyVacationToHospital"/>
     </event>
     <event label="стаціонарна ВЛК → відпустка для лікування"
            caption="стаціонарна ВЛК → відпустка для лікування"
@@ -565,16 +295,8 @@
            direction="StatusChange"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="ExternalVlk"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromExternalVlkToVacationForCuring"
-            template="MoveFromExternalVlkToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromExternalVlkToVacationForCuring"/>
+      <word template="MoveFromExternalVlkToVacationForCuring"/>
     </event>
     <event label="стаціонарна ВЛК → лікування в лікарні"
            caption="стаціонарна ВЛК → лікування в лікарні"
@@ -582,16 +304,8 @@
            direction="StatusChange"
            form="Treatment"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="ExternalVlk"
-                targetStatus="HospitalTreatment"
-                destinationField="HospitalShortName"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="MoveFromExternalVlkToHospital"
-            template="MoveFromExternalVlkToHospital"
-            anchor="EventBody"/>
+      <movement template="MoveFromExternalVlkToHospital"/>
+      <word template="MoveFromExternalVlkToHospital"/>
     </event>
     <event label="Амбулаторне ВЛК → відпустка для лікування"
            caption="Амбулаторне ВЛК → відпустка для лікування"
@@ -599,16 +313,8 @@
            direction="Departure"
            form="Leave"
            visible="false">
-      <movement operation="Transition"
-                profile="Transition"
-                sourceStatus="OutpatientVlk"
-                targetStatus="MedicalLeave"
-                destinationField="Destination"
-                required="PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"/>
-      <word policy="Render"
-            profile="ToVacationForCuring"
-            template="ToVacationForCuring"
-            anchor="EventBody"/>
+      <movement template="MoveFromOutpatientVlkToVacationForCuring"/>
+      <word template="ToVacationForCuring"/>
     </event>
   </events>
 </eventRoutes>

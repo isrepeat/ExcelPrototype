@@ -12,6 +12,7 @@ Option Explicit
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_movementRenderer As obj_PEB_DslRenderer
 Private m_pebDslRenderer As obj_PEB_DslRenderer
 Private m_pebWordTemplates As obj_PEB_WordTemplates
 Private m_lookupTables As Object
@@ -55,6 +56,10 @@ Public Sub Dispose()
     If Not m_pebWordTemplates Is Nothing Then
         m_pebWordTemplates.Dispose
     End If
+    If Not m_movementRenderer Is Nothing Then
+        m_movementRenderer.Dispose
+    End If
+    Set m_movementRenderer = Nothing
     Set m_pebDslRenderer = Nothing
     Set m_pebWordTemplates = Nothing
     If Not m_lookupTables Is Nothing Then
@@ -130,6 +135,12 @@ Public Function TryPrepare( _
         values.Add VBA.CStr(key), scalar
     Next key
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
+    If exporter = "Word" And values("WordPolicy") = "Omit" Then
+        values("WordOutcome") = "Omitted"
+        values("WordText") = VBA.vbNullString
+        TryPrepare = True
+        GoTo CleanupPrepare
+    End If
     requiredKey = "export." & exporter & "." & mode & ".required"
     If exporter = "Word" And Not prepareOutput Then
         requiredKey = "export.Word." & mode & ".previewRequired"
@@ -154,23 +165,23 @@ Public Function TryPrepare( _
         End If
     Next key
 
-    If exporter = "Word" And values("WordPolicy") = "Omit" Then
-        values("WordOutcome") = "Omitted"
-        values("WordText") = VBA.vbNullString
-        TryPrepare = True
-        GoTo CleanupPrepare
-    End If
-
     private_PrepareTicket values
     private_PrepareFoodSupport values
 
-    ' Enrich the snapshot using only the selected exporter's directories.
+    ' Both exporters consume the shared data providers; each owns its output templates.
     stageStartedAt = VBA.Timer
-    For index = 1 To ex_PEB_Export.fn_Count("export." & exporter & ".lookups.count")
-        private_Enrich values, "export." & exporter & ".lookups." & VBA.CStr(index)
+    For index = 1 To ex_PEB_Export.fn_Count("export.shared.lookups.count")
+        private_Enrich values, "export.shared.lookups." & VBA.CStr(index)
     Next index
+    Set additionalInputs = wordInputs
+    If additionalInputs Is Nothing Then
+        If uiBindingContext.TryGetValue("Data", "WordContext", scalar, objectValue, isObject) Then
+            If Not isObject Then Err.Raise 5, , "Data.WordContext must be a dictionary."
+            Set additionalInputs = objectValue
+        End If
+    End If
     If exporter = "Movement" Then
-        private_PrepareMovementBasis values
+        private_PrepareMovementTexts values, additionalInputs
     End If
     If exporter = "Word" Then
         ' XML задаёт текст пунктов, конфигурация задаёт источники и соответствия полей.
@@ -181,13 +192,7 @@ Public Function TryPrepare( _
         stageStartedAt = VBA.Timer
         private_AddConstants values
         private_AddAliases values
-        Set additionalInputs = wordInputs
-        If additionalInputs Is Nothing Then
-            If uiBindingContext.TryGetValue("Data", "WordContext", scalar, objectValue, isObject) Then
-                If Not isObject Then Err.Raise 5, , "Data.WordContext must be a dictionary."
-                Set additionalInputs = objectValue
-            End If
-        End If
+
         private_CompleteWordContext values, additionalInputs
         If m_pebWordTemplates Is Nothing Then
             Set m_pebWordTemplates = New obj_PEB_WordTemplates
@@ -465,31 +470,131 @@ Private Sub private_PrepareTicket(ByVal values As Object)
     values("TicketDocument") = qualified
 End Sub
 
-Private Sub private_PrepareMovementBasis(ByVal values As Object)
-    Dim index As Long
-    Dim source As String
-    Dim template As String
+Private Sub private_PrepareMovementTexts( _
+    ByVal values As Object, _
+    ByVal inputs As Object _
+)
     Dim rendered As String
     Dim diagnostic As String
-    Dim prefix As String
+    Dim templateId As String
+    Dim templates As Object
+    Dim results As Object
+    Dim column As Variant
 
-    source = ex_PEB_Export.fn_Config("export.Movement.basis.lookupSource")
-    For index = 1 To ex_PEB_Export.fn_Count("export." & source & ".lookups.count")
-        private_Enrich values, "export." & source & ".lookups." & VBA.CStr(index)
-    Next index
     private_AddConstants values
     private_AddAliases values
-    If m_pebWordTemplates Is Nothing Then
-        Set m_pebWordTemplates = New obj_PEB_WordTemplates
-        If Not m_pebWordTemplates.Initialize(diagnostic) Then Err.Raise 5, , diagnostic
-        Set m_pebDslRenderer = New obj_PEB_DslRenderer
-        If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , "Cannot initialize DSL renderer."
+    private_CompleteEventInputs values, inputs
+    If m_movementRenderer Is Nothing Then
+        Set m_movementRenderer = New obj_PEB_DslRenderer
+        If Not m_movementRenderer.Initialize(ex_PEB_MovementTemplates.fn_SharedTemplates()) Then
+            Err.Raise 5, , "Cannot initialize Movement DSL renderer."
+        End If
     End If
-    template = ex_PEB_Export.fn_Config("export.Movement.basis.template")
-    If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then Err.Raise 5, , diagnostic
-    prefix = ex_PEB_Export.fn_Config("export.Movement.basis.prefix")
-    If VBA.Left$(rendered, VBA.Len(prefix)) <> prefix Then Err.Raise 5, , "Movement basis prefix is missing."
-    values("MovementBasis") = VBA.Trim$(VBA.Mid$(rendered, VBA.Len(prefix) + 1))
+    templateId = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "MovementTemplateId"))
+    Set templates = ex_PEB_MovementTemplates.fn_Texts(templateId)
+    Set results = VBA.CreateObject("Scripting.Dictionary")
+    results.CompareMode = VBA.vbTextCompare
+    For Each column In templates.Keys
+        If Not m_movementRenderer.TryRender(VBA.CStr(templates(column)), values, rendered, diagnostic) Then
+            Err.Raise 5, , diagnostic
+        End If
+        If VBA.Len(VBA.Trim$(rendered)) = 0 Then
+            Err.Raise 5, , "Movement column text is empty: " & templateId & "/" & column
+        End If
+        results.Add VBA.CStr(column), rendered
+    Next column
+    Set values("MovementColumnTexts") = results
+    ex_PEB_MovementPlan.fn_ValidateTexts values
+End Sub
+
+Private Sub private_CompleteEventInputs( _
+    ByVal values As Object, _
+    ByVal inputs As Object _
+)
+    Dim name As Variant
+    Dim field As Variant
+    Dim fields As String
+    Dim required As String
+    Dim dates As String
+    Dim scalar As Variant
+    Dim items As Collection
+    Dim normalized As Collection
+    Dim item As Variant
+    Dim row As Object
+
+    If Not inputs Is Nothing Then
+        If VBA.TypeName(inputs) <> "Dictionary" Then
+            Err.Raise 5, , "Event inputs must be a dictionary."
+        End If
+    End If
+    dates = "|" & ex_PEB_Export.fn_Config("export.shared.inputs.dateScalars") & "|"
+    For Each name In VBA.Split(ex_PEB_Export.fn_Config("export.shared.inputs.scalars"), "|")
+        If Not values.Exists(name) Then
+            values.Add VBA.CStr(name), VBA.vbNullString
+        End If
+        If Not inputs Is Nothing Then
+            If inputs.Exists(name) Then
+                If VBA.IsObject(inputs(name)) Or VBA.IsArray(inputs(name)) Or VBA.IsNull(inputs(name)) Or VBA.IsError(inputs(name)) Then
+                    Err.Raise 5, , "Invalid event input scalar: " & name
+                End If
+                values(name) = inputs(name)
+            End If
+        End If
+        If VBA.InStr(1, dates, "|" & name & "|", VBA.vbBinaryCompare) > 0 And VBA.Len(ex_PEB_Export.fn_Text(values(name))) > 0 Then
+            values(name) = VBA.Format$(private_Date(values(name), VBA.CStr(name)), "dd.mm.yyyy")
+        End If
+    Next name
+    For Each name In VBA.Split(ex_PEB_Export.fn_Config("export.shared.inputs.collections"), "|")
+        Set normalized = New Collection
+        fields = "|" & ex_PEB_Export.fn_Config("export.shared.inputs." & name & ".fields") & "|"
+        required = ex_PEB_Export.fn_Config("export.shared.inputs." & name & ".required")
+        If Not inputs Is Nothing Then
+            If inputs.Exists(name) Then
+                If Not VBA.IsObject(inputs(name)) Then
+                    Err.Raise 5, , "Event collection required: " & name
+                End If
+                If VBA.TypeName(inputs(name)) <> "Collection" Then
+                    Err.Raise 5, , "Event Collection required: " & name
+                End If
+                Set items = inputs(name)
+                For Each item In items
+                    If Not VBA.IsObject(item) Then
+                        Err.Raise 5, , "Event metadata dictionary required: " & name
+                    End If
+                    If VBA.TypeName(item) <> "Dictionary" Then
+                        Err.Raise 5, , "Event metadata dictionary required: " & name
+                    End If
+                    Set row = VBA.CreateObject("Scripting.Dictionary")
+                    row.CompareMode = VBA.vbBinaryCompare
+                    For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.shared.inputs." & name & ".fields"), "|")
+                        row.Add VBA.CStr(field), VBA.vbNullString
+                    Next field
+                    For Each field In item.Keys
+                        If VBA.InStr(1, fields, "|" & field & "|", VBA.vbBinaryCompare) = 0 Then
+                            Err.Raise 5, , "Unknown event metadata field: " & field
+                        End If
+                        If VBA.IsObject(item(field)) Or VBA.IsArray(item(field)) Or VBA.IsNull(item(field)) Or VBA.IsError(item(field)) Then
+                            Err.Raise 5, , "Invalid event metadata value: " & field
+                        End If
+                        scalar = item(field)
+                        row(field) = scalar
+                    Next field
+                    For Each field In VBA.Split(required, "|")
+                        If VBA.Len(ex_PEB_Export.fn_Text(row(field))) = 0 Then
+                            Err.Raise 5, , "Required event metadata field is empty: " & field
+                        End If
+                    Next field
+                    If row.Exists("DocDateShort") Then
+                        If VBA.Len(ex_PEB_Export.fn_Text(row("DocDateShort"))) > 0 Then
+                            row("DocDateShort") = VBA.Format$(private_Date(row("DocDateShort"), "DocDateShort"), "dd.mm.yyyy")
+                        End If
+                    End If
+                    normalized.Add row
+                Next item
+            End If
+        End If
+        Set values(name) = normalized
+    Next name
 End Sub
 
 Private Function private_Date( _
@@ -708,8 +813,8 @@ Private Sub private_AddConstants(ByVal values As Object)
     Dim value As String
     Dim items As Collection
 
-    For index = 1 To ex_PEB_Export.fn_Count("export.Word.constants.count")
-        prefix = "export.Word.constants." & VBA.CStr(index)
+    For index = 1 To ex_PEB_Export.fn_Count("export.shared.constants.count")
+        prefix = "export.shared.constants." & VBA.CStr(index)
         name = ex_PEB_Export.fn_Config(prefix & ".name")
         kind = ex_PEB_Export.fn_Config(prefix & ".kind")
         If values.Exists(name) Then
@@ -747,8 +852,8 @@ Private Sub private_AddAliases(ByVal values As Object)
     Dim text As String
     Dim part As String
 
-    For index = 1 To ex_PEB_Export.fn_Count("export.Word.aliases.count")
-        prefix = "export.Word.aliases." & VBA.CStr(index)
+    For index = 1 To ex_PEB_Export.fn_Count("export.shared.aliases.count")
+        prefix = "export.shared.aliases." & VBA.CStr(index)
         name = ex_PEB_Export.fn_Config(prefix & ".name")
         kind = ex_PEB_Export.fn_Config(prefix & ".kind")
         source = ex_PEB_Export.fn_Config(prefix & ".source")

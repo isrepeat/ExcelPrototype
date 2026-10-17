@@ -31,8 +31,7 @@ def main():
     assert special[0].get("targetStatus") == "MedicalLeave"
     assert special[1].get("template") == "ToVacationForCuring"
     for identifier in ("FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk"):
-        assert events[identifier][1].get("policy") == "Omit"
-        assert events[identifier][1].get("template") is None
+        assert events[identifier].find("p:word", NS) is None
     root = ET.parse(WORKBOOK / test["events.path"]).getroot()
     rejected = 0
     for section, attribute, value in (
@@ -55,7 +54,7 @@ def main():
             rejected += 1
         else:
             raise AssertionError(f"Invalid XML reference accepted: {section}/{attribute}")
-    for selector in ("p:events", "p:movementStatuses", "p:wordAnchors"):
+    for selector in ("p:events",):
         altered = deepcopy(root)
         container = altered.find(selector, NS)
         container.append(deepcopy(container[0]))

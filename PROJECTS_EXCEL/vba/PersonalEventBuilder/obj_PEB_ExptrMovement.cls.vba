@@ -97,23 +97,24 @@ Public Function TryExport( _
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Movement exporter is not initialized."
     End If
-    prefix = "export.Movement.profiles." & ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "MovementPlanId"))
-    operation = ex_PEB_Export.fn_Config(prefix & ".operation")
+    prefix = "profiles." & ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "MovementPlanId"))
+    operation = ex_PEB_MovementPlan.fn_Value(prefix & ".operation")
     If operation <> "append" And operation <> "close" And operation <> "transition" Then
         Err.Raise 5, , "Unknown Movement operation: " & operation
     End If
+    ex_PEB_MovementPlan.fn_ValidateTexts values
     Set writes = private_Mappings(prefix & ".fields", values)
     Set identities = private_Mappings(prefix & ".identity", values)
     If operation = "close" Or operation = "transition" Then
         Set joins = private_Mappings(prefix & ".join", values)
-        openHeader = ex_PEB_Export.fn_Config(prefix & ".openHeader")
+        openHeader = ex_PEB_MovementPlan.fn_Value(prefix & ".openHeader")
         Set closingWrites = writes
         If operation = "transition" Then
-            Set closingWrites = private_Mappings("export.Movement.profiles." & ex_PEB_Export.fn_Config(prefix & ".closeProfile") & ".fields", values)
+            Set closingWrites = private_Mappings("profiles." & ex_PEB_MovementPlan.fn_Value(prefix & ".closeProfile") & ".fields", values)
         End If
     Else
         Set joins = private_Mappings(prefix & ".guard.join", values)
-        openHeader = ex_PEB_Export.fn_Config(prefix & ".guard.openHeader")
+        openHeader = ex_PEB_MovementPlan.fn_Value(prefix & ".guard.openHeader")
     End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fileSystem.FileExists(m_path) Then
@@ -308,14 +309,18 @@ Private Function private_Mappings( _
 
     Set result = VBA.CreateObject("Scripting.Dictionary")
     result.CompareMode = VBA.vbTextCompare
-    count = ex_PEB_Export.fn_Count(prefix & ".count")
+    count = ex_PEB_MovementPlan.fn_Count(prefix & ".count")
     If count = 0 Then
         Err.Raise 5, , "Movement mappings cannot be empty: " & prefix
     End If
     For index = 1 To count
-        field = ex_PEB_Export.fn_Config(prefix & "." & VBA.CStr(index) & ".field")
-        header = ex_PEB_Export.fn_Config(prefix & "." & VBA.CStr(index) & ".header")
-        value = ex_PEB_Export.fn_Required(values, field)
+        field = ex_PEB_MovementPlan.fn_Value(prefix & "." & VBA.CStr(index) & ".field")
+        header = ex_PEB_MovementPlan.fn_Value(prefix & "." & VBA.CStr(index) & ".header")
+        If VBA.Right$(prefix, 7) = ".fields" Then
+            value = ex_PEB_MovementPlan.fn_WriteValue(values, field, header)
+        Else
+            value = ex_PEB_Export.fn_Required(values, field)
+        End If
         If VBA.InStr(prefix, ".fields") = 0 Then
             If VBA.Len(ex_PEB_Export.fn_Text(value)) = 0 Then
                 Err.Raise 5, , "Movement match field is empty: " & field
@@ -380,8 +385,8 @@ Private Sub private_ValidateChronology( _
     Dim departure As Variant
     Dim arrival As Variant
 
-    header = ex_PEB_Export.fn_Config(prefix & ".departureDateHeader")
-    field = ex_PEB_Export.fn_Config(prefix & ".arrivalDateField")
+    header = ex_PEB_MovementPlan.fn_Value(prefix & ".departureDateHeader")
+    field = ex_PEB_MovementPlan.fn_Value(prefix & ".arrivalDateField")
     If Not columns.Exists(header) Then
         Err.Raise 5, , "Movement departure date header not found: " & header
     End If

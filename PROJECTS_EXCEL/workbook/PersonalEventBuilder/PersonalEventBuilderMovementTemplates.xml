@@ -1,0 +1,668 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resultTemplates xmlns="urn:excelprototype:profiles"
+                 version="1">
+  <sharedTemplates>
+    <sharedTemplate id="block.IncomingBasis">
+      <text><![CDATA[#^
+#_        #let __IsRaportFromSelf = $ex_Helpers.m_RegexIsMatch("{[ReportPerson]}", "^\s*$|^\s*[Сс][Аа][Мм]\s*$");#^
+#_        рапорт #^
+#_        {#if __IsRaportFromSelf}{[RankGenitive]} {[FIOInitialsGenitive]|nbspBeforeInitials}{#else}{[ReporterGenitive]|nbspBeforeInitials}{#endif}#^
+#_        {#space}(вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
+        ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.OptionalBasisDocuments">
+      <text><![CDATA[#^
+        {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {[DocumentNote]|lowerFirstLetter}#^
+#_        {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
+#_        {#if [DocDateShort]}{#space}від {[DocDateShort]}{#endif}#^
+#_        {#endif}#^
+#_        {#for item in MetaDocumentTables}#^
+#_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
+#_            {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
+#_            {item.[DocumentNote]|lowerFirstLetter}#^
+#_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
+#_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
+#_          {#endif}#^
+#_        {#endfor}#^
+        ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.OptionalVacationTicket">
+      <text><![CDATA[#^
+#_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; відпускний квиток{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
+        ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.OptionalBusinessTripCertificate">
+      <text><![CDATA[#^
+#_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; посвідчення про відрядження{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
+        ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.OptionalPreviousVacationTicket">
+      <text><![CDATA[#^
+#_        {#if [PrevVacationTicketNo] #or [PrevVacationTicketDateShort]}; відпускний квиток{#if [PrevVacationTicketNo]} № {[PrevVacationTicketNo]}{#endif}{#if [PrevVacationTicketDateShort]} від {[PrevVacationTicketDateShort]}{#endif}{#endif}#^
+        ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.OptionalVlkCertificate">
+      <text><![CDATA[#^
+#_        {#if [VlkNo] #or [VlkDateShort]}; довідка військово-лікарської комісії{#if [VlkNo]} № {[VlkNo]}{#endif}{#if [VlkDateShort]} від {[VlkDateShort]}{#endif}{#endif}#^
+        ]]></text>
+    </sharedTemplate>
+  </sharedTemplates>
+  <template name="FromBusinessTrip">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalBusinessTripCertificate}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromAnnualMainVacation">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromVacationForFamily">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromOutpatientExaminationOrVlk">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromExternalVlk">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="FromMedicalCompanyForTreatment">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToHospital">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToAnnualMainVacation">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToVacationForFamily">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToMaternityLeave">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToVacationForCuring">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToOutpatientExaminationOrVlk">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToMedicalCompanyForTreatment">
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromHospitalToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromVacationForCuringToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromVacationForCuringToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromAnnualVacationToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromVacationForCuringToVlk">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromAnnualVacationToVlk">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromFamilyVacationToVlk">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromVlkToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromVlkToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromMedicalCompanyForTreatmentToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromMedicalCompanyForTreatmentToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromMedicalCompanyVacationForCuringToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromMedicalCompanyVacationForCuringToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromAnnualVacationToFamilyVacation">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromFamilyVacationToAnnualVacation">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromHospitalToExternalVlk">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromFamilyVacationToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalPreviousVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromExternalVlkToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromExternalVlkToHospital">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromOutpatientVlkToVacationForCuring">
+    <column name="Прибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column name="Вибуття.Підстава">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalVacationTicket}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+</resultTemplates>
