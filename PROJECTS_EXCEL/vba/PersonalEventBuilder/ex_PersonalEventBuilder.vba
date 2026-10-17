@@ -5,6 +5,7 @@ Option Explicit
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     ex_PEB_Testing.fn_Module_Dispose
+    ex_PEB_EventRoutes.fn_Module_Dispose
     ex_UiPageManager.fn_Module_Dispose
 End Sub
 ' --------------------------------------

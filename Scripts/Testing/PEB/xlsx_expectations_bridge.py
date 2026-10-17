@@ -12,6 +12,7 @@ import zipfile
 from lxml import etree as ET
 
 import openpyxl
+from event_routes import derived_settings, parse_config
 from openpyxl.utils.cell import get_column_letter
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.utils.datetime import to_excel
@@ -217,6 +218,7 @@ def finalize_registry(path, config_path):
     with open(config_path, encoding="utf-8-sig") as source:
         settings = {parts[1].split("::", 1)[-1]: parts[2] for line in source.read().splitlines()
                     if line.strip() for parts in [line.split("\t")]}
+    settings = derived_settings(settings)
     with zipfile.ZipFile(path) as archive:
         data = {name: archive.read(name) for name in archive.namelist()}
     tables = {}
@@ -737,11 +739,71 @@ def invalidate_calculation_chain(parts):
     parts["xl/workbook.xml"] = serialize(book)
 
 
-def assemble(original_path, generated_path, output_path, names, allow_layout_migration=False):
+def validate_fixture_layout(parts):
+    settings = parse_config(Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt")
+    for name, part in sheet_parts(parts).items():
+        if rel_path(part) not in parts:
+            continue
+        tables = {}
+        for relationship in xml(parts, rel_path(part)):
+            if relationship.get("Type").endswith("/table"):
+                table = xml(parts, target(part, relationship.get("Target")))
+                tables[table.get("name")] = range_boundaries(table.get("ref"))
+        entries = list(tables.items())
+        for index, (first, a) in enumerate(entries):
+            for second, b in entries[index + 1:]:
+                if max(a[0], b[0]) <= min(a[2], b[2]) and max(a[1], b[1]) <= min(a[3], b[3]):
+                    raise ValueError(f"Overlapping fixture tables: {name}/{first}/{second}")
+        upper = tables.get(settings["test.scenarios.expectedMovement.table"])
+        lower = tables.get(settings["test.scenarios.expectedRows.table"])
+        if upper and lower and lower[1] - upper[3] - 1 < int(settings["test.expected.minimumGapRows"]):
+            raise ValueError(f"Insufficient space for the expected-row caption: {name}")
+
+
+def apply_layout_ranges(original, generated, ranges):
+    if not ranges:
+        return
+    offsets = merge_styles(original, generated)
+    old_sheets = sheet_parts(original)
+    new_sheets = sheet_parts(generated)
+    for specification in ranges:
+        sheet_name, address = specification.rsplit("!", 1)
+        left, top, right, bottom = range_boundaries(address)
+        node = xml(original, old_sheets[sheet_name])
+        source = xml(generated, new_sheets[sheet_name])
+        cells = {cell.get("r"): cell for cell in node.findall("m:sheetData/m:row/m:c", NS)}
+        for cell in source.findall("m:sheetData/m:row/m:c", NS):
+            column, row, _, _ = range_boundaries(cell.get("r"))
+            if left <= column <= right and top <= row <= bottom and cell.get("s") is not None:
+                if cell.get("r") not in cells:
+                    raise ValueError(f"Layout target cell is missing: {specification}/{cell.get('r')}")
+                cells[cell.get("r")].set("s", str(int(cell.get("s")) + offsets["cellXfs"]))
+        merges = node.find("m:mergeCells", NS)
+        if merges is None:
+            merges = ET.Element(f"{{{MAIN}}}mergeCells")
+            following = {"phoneticPr", "conditionalFormatting", "dataValidations", "hyperlinks", "printOptions", "pageMargins", "pageSetup", "headerFooter", "rowBreaks", "colBreaks", "customProperties", "cellWatches", "ignoredErrors", "smartTags", "drawing", "legacyDrawing", "legacyDrawingHF", "picture", "oleObjects", "controls", "webPublishItems", "tableParts", "extLst"}
+            position = next((index for index, child in enumerate(node) if ET.QName(child).localname in following), len(node))
+            node.insert(position, merges)
+        for merge in list(merges):
+            a, b, c, d = range_boundaries(merge.get("ref"))
+            if max(a, left) <= min(c, right) and max(b, top) <= min(d, bottom):
+                if not (left <= a <= c <= right and top <= b <= d <= bottom):
+                    raise ValueError(f"Layout range crosses an existing merge: {specification}")
+                merges.remove(merge)
+        for merge in source.findall("m:mergeCells/m:mergeCell", NS):
+            a, b, c, d = range_boundaries(merge.get("ref"))
+            if left <= a <= c <= right and top <= b <= d <= bottom:
+                merges.append(copy.deepcopy(merge))
+        merges.set("count", str(len(merges)))
+        original[old_sheets[sheet_name]] = serialize(node)
+
+
+def assemble(original_path, generated_path, output_path, names, allow_layout_migration=False, layout_ranges=()):
     with zipfile.ZipFile(original_path) as archive:
         original = {name: archive.read(name) for name in archive.namelist()}
     with zipfile.ZipFile(generated_path) as archive:
         generated = {name: archive.read(name) for name in archive.namelist()}
+    validate_fixture_layout(generated)
     baseline = dict(original)
     original_sheets = sheet_parts(original)
     generated_sheets = sheet_parts(generated)
@@ -828,6 +890,7 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
     original["xl/workbook.xml"] = serialize(book)
     original["xl/_rels/workbook.xml.rels"] = serialize(relationships)
     original["[Content_Types].xml"] = serialize(types)
+    apply_layout_ranges(original, generated, layout_ranges)
     for name, content in baseline.items():
         if name not in modified and original[name] != content:
             raise AssertionError(f"Untouched workbook part changed: {name}")
@@ -881,8 +944,9 @@ if __name__ == "__main__":
     elif sys.argv[1] == "dump":
         dump(sys.argv[2])
     elif sys.argv[1] == "assemble":
-        assemble(*sys.argv[2:5], [name for name in sys.argv[5:] if name != "--allow-layout-migration"],
-                 allow_layout_migration="--allow-layout-migration" in sys.argv[5:])
+        assemble(*sys.argv[2:5], [name for name in sys.argv[5:] if not name.startswith("--")],
+                 allow_layout_migration="--allow-layout-migration" in sys.argv[5:],
+                 layout_ranges=[name.split("=", 1)[1] for name in sys.argv[5:] if name.startswith("--layout-range=")])
     elif sys.argv[1] == "clean-fixture":
         clean_fixture(sys.argv[2])
     elif sys.argv[1] == "finalize-registry":

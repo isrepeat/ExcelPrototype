@@ -33,7 +33,11 @@ Public Function fn_RegistryValues(ByVal kind As String) As Variant
     Dim value As Variant
     Dim seen As Object
 
-    values = VBA.Split(ex_PEB_Export.fn_Config("test.registry." & kind & ".values"), "|")
+    If kind = "ModeId" Then
+        values = ex_PEB_EventRoutes.fn_Ids()
+    Else
+        values = VBA.Split(ex_PEB_Export.fn_Config("test.registry." & kind & ".values"), "|")
+    End If
     Set seen = VBA.CreateObject("Scripting.Dictionary")
     For Each value In values
         If VBA.Len(value) = 0 Or value <> VBA.Trim$(value) Then Err.Raise 5, , "Invalid registry value: " & kind
@@ -58,14 +62,10 @@ Public Function fn_RegistryContains( _
 End Function
 
 Public Function fn_ResolveTestMode(ByVal templateId As String) As String
-    Dim modeId As String
-
-    If Not fn_RegistryContains("ModeId", templateId) Then Err.Raise 5, , "Unknown test template identity: " & templateId
-    modeId = ex_PEB_Export.fn_Config("test.registry.ModeId." & templateId & ".runtimeMode")
-    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("events.ids") & "|", "|" & modeId & "|", VBA.vbBinaryCompare) = 0 Then
-        Err.Raise 5, , "Test registry references an unknown business event: " & modeId
+    If Not fn_RegistryContains("ModeId", templateId) Then
+        Err.Raise 5, , "Unknown XML business event: " & templateId
     End If
-    fn_ResolveTestMode = modeId
+    fn_ResolveTestMode = templateId
 End Function
 
 Public Function fn_ReadCatalog( _

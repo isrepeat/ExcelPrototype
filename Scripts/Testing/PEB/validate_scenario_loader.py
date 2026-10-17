@@ -8,6 +8,7 @@ from xml.etree import ElementTree as ET
 from pathlib import Path
 
 import openpyxl
+from event_routes import derived_settings
 from openpyxl.utils.cell import range_boundaries
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -26,7 +27,7 @@ def config(filename):
         assert parts[1] not in seen, f"Duplicate config key: {parts[1]}"
         seen.add(parts[1])
         settings[parts[1].split("::", 1)[-1]] = parts[2]
-    return settings
+    return derived_settings(settings)
 
 
 def load_tables(book):
@@ -203,12 +204,13 @@ def source_checks(settings):
     assert 'testStep("Order") = 1' in runner and 'testStep("Id") = 1' not in runner
     assert 'test.scenarios.headers.stepId' in catalog and 'TestPreviewOperation' in catalog
     service = (folder / "obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
-    assert '"export.Movement." & mode & ".destinationField"' in service
-    assert 'values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))' in service
+    assert 'ex_PEB_EventRoutes.fn_Apply(values, exporter)' in service
+    routes = (folder / "ex_PEB_EventRoutes.vba").read_text(encoding="utf-8-sig")
+    assert 'fn_Value(eventId, "movement.destinationField")' in routes
     assert "HospitalShortName" in settings["export.Movement.ToHospital.required"].split("|")
     for mode in {runtime_mode(step, settings) for step in load_tables(openpyxl.load_workbook(FIXTURE))["tbTestSteps"]["rows"] if step["Action"] in ("ExportMovement", "ExportEvent")}:
         assert settings[f"export.Movement.{mode}.destinationField"] in ("HospitalShortName", "Destination")
-        assert settings[f"events.{mode}.movement.plan"] == settings[f"export.Movement.{mode}.profile"]
+        assert settings[f"events.{mode}.movement.profile"] == settings[f"export.Movement.{mode}.profile"]
     for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_PgTests.cls.vba", "obj_PEB_PgTestsController.cls.vba"):
         text = (folder / filename).read_text(encoding="utf-8-sig")
         procedures = re.findall(r"(?im)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)", text)

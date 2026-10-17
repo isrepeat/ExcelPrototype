@@ -1164,7 +1164,19 @@ Private Function private_ReadModeConfig( _
     ByRef value As String, _
     ByRef diagnostic As String _
 ) As Boolean
+    Dim parts As Variant
+
     value = VBA.vbNullString
+    On Error GoTo EH
+    If VBA.Left$(key, 6) = "modes." And key <> "modes.default" Then
+        parts = VBA.Split(key, ".")
+        If UBound(parts) <> 2 Then
+            Err.Raise 5, , "Invalid event property: " & key
+        End If
+        value = ex_PEB_EventRoutes.fn_Value(VBA.CStr(parts(1)), VBA.CStr(parts(2)))
+        private_ReadModeConfig = True
+        Exit Function
+    End If
     If Not m_modeConfig Is Nothing Then
         If m_modeConfig.Exists(key) Then
             value = m_modeConfig(key)
@@ -1172,6 +1184,9 @@ Private Function private_ReadModeConfig( _
         End If
     End If
     If Not private_ReadModeConfig Then diagnostic = "Required configuration key not found: PersonalEventBuilder::" & key
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
 End Function
 
 Private Function private_LoadMode( _
@@ -1203,14 +1218,7 @@ Private Function private_LoadMode( _
     Dim currentForm As Variant
 
     On Error GoTo EH
-    modes = VBA.Array("FromHospital", _
-            "FromAnnualMainVacation", _
-            "FromVacationForCuring", _
-            "FromVacationForFamily", _
-            "ToHospital", _
-            "ToAnnualMainVacation", _
-            "ToVacationForCuring", _
-            "ToVacationForFamily")
+    modes = ex_PEB_EventRoutes.fn_VisibleIds()
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function
