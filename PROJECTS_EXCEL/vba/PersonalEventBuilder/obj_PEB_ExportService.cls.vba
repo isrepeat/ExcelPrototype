@@ -130,16 +130,15 @@ Public Function TryPrepare( _
         values.Add VBA.CStr(key), scalar
     Next key
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
-    ' Select the destination input for each Movement mode through configuration.
-    If exporter = "Movement" Then
-        key = ex_PEB_Export.fn_Config("export.Movement." & mode & ".destinationField")
-        values("Destination") = ex_PEB_Export.fn_Required(values, VBA.CStr(key))
-    End If
     requiredKey = "export." & exporter & "." & mode & ".required"
     If exporter = "Word" And Not prepareOutput Then
         requiredKey = "export.Word." & mode & ".previewRequired"
     End If
-    required = VBA.Split(ex_PEB_Export.fn_Config(requiredKey), "|")
+    If exporter = "Movement" Then
+        required = VBA.Split(ex_PEB_EventRoutes.fn_Value(mode, "movement.required"), "|")
+    Else
+        required = VBA.Split(ex_PEB_Export.fn_Config(requiredKey), "|")
+    End If
     For Each key In required
         If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.Trim$(VBA.CStr(key))))) = 0 Then
             Err.Raise 5, , "Required export field is empty: " & VBA.CStr(key)

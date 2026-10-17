@@ -208,6 +208,7 @@ Public Function TryPrepare( _
     Set scenarios = private_Table("cases")
     Set steps = private_Table("steps")
     Set history = private_Table("history")
+    private_ValidateExpectationLayout
     Set movement = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
         ex_PEB_Export.fn_Config("export.Movement.table"))
     scenarioRow = private_Find(scenarios, scenarioId, 0)
@@ -225,8 +226,8 @@ Public Function TryPrepare( _
         Err.Raise 5, , "Scenario and step identities differ."
     End If
     modeId = ex_PEB_Testing.fn_ResolveTestMode(ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode")))
-    prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".form")
-    prefix = ex_PEB_Export.fn_Config("modes." & modeId & ".direction")
+    prefix = ex_PEB_EventRoutes.fn_Value(modeId, "form")
+    prefix = ex_PEB_EventRoutes.fn_Value(modeId, "direction")
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     ' Clear every export input, then read all scenario values from the fixture tables.
@@ -248,11 +249,11 @@ Public Function TryPrepare( _
     If VBA.Len(updates("Form.PersonName")) = 0 Or updates("Form.PersonId") <> personId Then
         Err.Raise 5, , "Scenario form identity is missing or inconsistent."
     End If
-    requiredKey = "export.Movement." & modeId & ".required"
+    requiredKey = ex_PEB_EventRoutes.fn_Value(modeId, "movement.required")
     If action = "PreviewWord" Then
-        requiredKey = "export.Word." & modeId & ".previewRequired"
+        requiredKey = ex_PEB_Export.fn_Config("export.Word." & ex_PEB_EventRoutes.fn_Value(modeId, "word.profile") & ".previewRequired")
     End If
-    For Each field In VBA.Split(ex_PEB_Export.fn_Config(requiredKey), "|")
+    For Each field In VBA.Split(requiredKey, "|")
         If Not updates.Exists("Form." & field) Then Err.Raise 5, , "Unknown required scenario field: " & field
         If VBA.Len(updates("Form." & field)) = 0 Then Err.Raise 5, , "Required scenario field is empty: " & field
     Next field
@@ -390,7 +391,7 @@ Public Function TryCatalog( _
                 testStep("Action") = action
                 testStep("FixtureModeId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "mode"))
                 testStep("ModeId") = ex_PEB_Testing.fn_ResolveTestMode(testStep("FixtureModeId"))
-                testStep("EventName") = ex_PEB_Export.fn_Config("export.events." & testStep("ModeId"))
+                testStep("EventName") = ex_PEB_EventRoutes.fn_Value(testStep("ModeId"), "label")
                 testStep("PersonId") = ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "stepPersonId"))
                 If testStep("PersonId") <> ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "personId")) Then
                     Err.Raise 5, , "Scenario and step identities differ: " & stepIdentity
@@ -1006,6 +1007,7 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
     Dim count As Variant
     Dim skipColumns As String
 
+    private_ValidateExpectationLayout
     Set movement = m_book.Worksheets(ex_PEB_Export.fn_Config("export.Movement.sheet")).ListObjects( _
         ex_PEB_Export.fn_Config("export.Movement.table"))
     Set seen = VBA.CreateObject("Scripting.Dictionary")
@@ -1148,6 +1150,24 @@ Private Sub private_LoadExpectations(ByVal allSteps As Object)
             Err.Raise 5, , "Word expectation is missing: " & key
         End If
     Next key
+End Sub
+
+Private Sub private_ValidateExpectationLayout()
+    Dim upper As Object
+    Dim lower As Object
+    Dim minimumGap As Long
+
+    Set upper = private_Table("expectedMovement")
+    Set lower = private_Table("expectedRows")
+    minimumGap = ex_PEB_Export.fn_Count("test.expected.minimumGapRows")
+    If minimumGap < 2 Then
+        Err.Raise 5, , "Expected-row caption requires at least two reserved rows."
+    End If
+    If upper.Parent.Name = lower.Parent.Name Then
+        If lower.Range.Row - upper.Range.Row - upper.Range.Rows.Count < minimumGap Then
+            Err.Raise 5, , "Expected tables overlap or leave no caption space: " & upper.Name & "/" & lower.Name
+        End If
+    End If
 End Sub
 
 Private Sub private_RequireHeaders( _

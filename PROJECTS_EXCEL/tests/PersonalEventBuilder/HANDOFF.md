@@ -7,18 +7,19 @@ The implementation is in source files. The working PEB workbook has not been upd
 ## Architecture
 
 - wsConfig.txt and wsConfig.test.txt are complete PROD and TEST profiles. The environment button loads the other profile and schedules page reinitialization. TEST routes Movement export to Dependencies/test_РУХ.xlsx, sheet Відсутні, native table ТВ. Source paths and an explicit production-path rejection guard isolate test writes.
-- TestScenarios.xlsx contains 25 scenarios and 27 steps: the original 16 Movement scenarios/18 steps plus nine independent Word previews. StepId is a stable globally unique string; StepOrder controls sequencing. Inputs remain in Тест_Кроки, Movement outcomes and 14 full expected rows are in Expected_РУХ, and eight literal preview texts plus one lookup error are in Expected_WORD. Original history/Absence data and journal values are preserved; historical numeric StepId values are migrated.
+- Active TestScenarios.EventRoutes.xlsx contains 54 scenarios and 55 stable steps, with independent Movement snapshots and literal Word expectations. The original books remain preserved. Historical synthetic order numbers and linked ticket components are reconciled with the order dictionary; S14 retains exact duplicate identity and S16 retains its backdated arrival under the current order. Journals and Word baselines were not rewritten.
+- PersonalEventBuilderEventRoutes.xml owns all 35 business EventIds, eight Movement status IDs/names and independent Movement/Word routes. TEST and PROD share events.path; no per-event descriptions or duplicate ID lists remain in wsConfig. ex_PEB_EventRoutes validates references and caches XML until fn_Module_Dispose. Generic field-mapping/enrichment profiles remain configurable; row search, date/duplicate checks and mutation algorithms remain in VBA.
 - obj_PEB_TestScenarios owns a private Excel instance and the validated test workbook. It seeds scenario history, prepares inputs, captures native before/after records and commits diagnostics. Initial history is reset once per scenario; subsequent steps retain preceding changes.
-- obj_PEB_TestRunner freezes selected scenarios into a queue and executes ExportMovement or PreviewWord per advance. Movement assertions compare independent full snapshots, decisions, codes, counts and mutation integrity. Word assertions compare exact text/diagnostic with newline normalization only and require unchanged Movement state. Linked expectation and archive schemas are validated before source mutation. The visible PEB form is preserved.
+- obj_PEB_TestRunner freezes selected scenarios into a queue and executes ExportMovement, PreviewWord or combined ExportEvent per advance. Movement assertions compare independent snapshots, decisions, codes, counts and mutation integrity. Word assertions compare literal text/diagnostic/omission and require unchanged Movement during Word preparation. Preview display does not control assertions. The visible form is preserved.
 - obj_PEB_PgTests and obj_PEB_PgTestsController use the standard page lifecycle and bound controls in ui/PersonalEventBuilder/TestsPage.xaml. ex_PEB_Testing only schedules workbook-qualified Application.OnTime callbacks and holds a borrowed controller reference. Worksheet-to-XAML mappings and the page class are selected through wsConfig; there is no separate test UI folder or manual checkbox renderer.
 - The borrowed-workbook Movement exporter does not save independently. The scenario session saves operation changes and diagnostics together after each step. Reload/close cancels callbacks and disposes the private session. Environment switching and manual export/loading are blocked during a run.
 
 ## Run workflow after workbook update
 
 1. Import/reload changed VBA, MainPage.xaml and wsConfig through the normal project workflow. Repository rules require explicit authorization before updating the working workbook or compiling/running VBA.
-2. Switch to TEST. Save and close TestScenarios.xlsx, test_РУХ.xlsx and test_ЕЖОС.xlsx in the interactive Excel session.
+2. Switch to TEST. Save and close TestScenarios.EventRoutes.xlsx, test_РУХ.xlsx and test_ЕЖОС.xlsx in the interactive Excel session.
 3. Open the test panel in PEB, select scenarios, and start the run. Cancel prevents further export operations; queued steps are recorded as SKIP.
-4. Inspect live results in PEB. After completion/cancellation, open TestScenarios.xlsx and filter the persistent diagnostics by RunId, ScenarioId and StepId.
+4. Inspect live results in PEB. After completion/cancellation, open TestScenarios.EventRoutes.xlsx and filter diagnostics by RunId, ScenarioId and StepId.
 
 ## Persistent diagnostics
 

@@ -177,7 +177,7 @@ Public Function TryAdvance( _
     report("Operation") = "preview"
     If testStep("Action") = "ExportMovement" Or testStep("Action") = "ExportEvent" Then
         report("Operation") = ex_PEB_Export.fn_Config("export.Movement.profiles." & _
-            ex_PEB_Export.fn_Config("export.Movement." & testStep("ModeId") & ".profile") & ".operation")
+            ex_PEB_EventRoutes.fn_Value(testStep("ModeId"), "movement.profile") & ".operation")
         report("StateCheck") = testStep("StateCheck")
     End If
     report("Timestamp") = VBA.Now
@@ -343,10 +343,12 @@ Private Function private_RunStep( _
         If Not binding.SetValue("Form", VBA.Mid$(key, 6), updates(key)) Then Err.Raise 5, , "Cannot set test form field: " & key
     Next key
     If Not binding.SetValue("Form", "ModeId", modeId) Then Err.Raise 5, , "Cannot set test mode."
-    direction = ex_PEB_Export.fn_Config("modes." & modeId & ".direction")
+    direction = ex_PEB_EventRoutes.fn_Value(modeId, "direction")
     If Not binding.SetValue("Form", "ModeDirection", direction) Then Err.Raise 5, , "Cannot set test direction."
     If Not binding.SetValue("Form", "EventType", ex_PEB_Export.fn_Config("text." & direction & "Type")) Then Err.Raise 5, , "Cannot set test event type."
-    If Not binding.SetValue("Form", "ModeForm", ex_PEB_Export.fn_Config("modes." & modeId & ".form")) Then Err.Raise 5, , "Cannot set test form layout."
+    If Not binding.SetValue("Form", "ModeForm", ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+        Err.Raise 5, , "Cannot set test form layout."
+    End If
     If testStep("Action") = "PreviewWord" Then
         ex_PEB_Testing.fn_ReportPhase "Inputs"
         If Not m_session.TryCommit(diagnostic, False) Then GoTo Cleanup

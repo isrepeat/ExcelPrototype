@@ -1,9 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<wordResultTemplates
-  xmlns="urn:excelprototype:profiles"
-  version="1"
-  generationMode="anchored"
->
+<wordResultTemplates xmlns="urn:excelprototype:profiles"
+                     version="1"
+                     generationMode="anchored">
   <documentFilepath>
     <![CDATA[modes\PrsnlEvntBuilder\{WordTemplateFileName|regexreplace:"\.[^.]+$",""}_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
   </documentFilepath>
@@ -221,9 +219,10 @@
 
 
 
-  <template name="FromBusinessTrip" hash="0x01"
-    groupBy="EffectiveReturnDateShort; Destination"
-    groupOrder="date; none">
+  <template name="FromBusinessTrip"
+            hash="0x01"
+            groupBy="EffectiveReturnDateShort; Destination"
+            groupOrder="date; none">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -249,9 +248,10 @@
     </text>
   </template>
 
-  <template name="FromHospital" hash="0x02"
-    groupBy="EffectiveReturnDateShort; HospitalShort"
-    groupOrder="date; none">
+  <template name="FromHospital"
+            hash="0x02"
+            groupBy="EffectiveReturnDateShort; HospitalShort"
+            groupOrder="date; none">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -276,9 +276,10 @@
     </text>
   </template>
 
-  <template name="FromVacationForCuring" hash="0x03"
-    groupBy="EffectiveReturnDateShort"
-    groupOrder="date">
+  <template name="FromVacationForCuring"
+            hash="0x03"
+            groupBy="EffectiveReturnDateShort"
+            groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -293,9 +294,10 @@
     </text>
   </template>
 
-  <template name="FromAnnualMainVacation" hash="0x04"
-    groupBy="EffectiveReturnDateShort"
-    groupOrder="date">
+  <template name="FromAnnualMainVacation"
+            hash="0x04"
+            groupBy="EffectiveReturnDateShort"
+            groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -310,9 +312,10 @@
     </text>
   </template>
 
-  <template name="FromVacationForFamily" hash="0x05"
-    groupBy="EffectiveReturnDateShort"
-    groupOrder="date">
+  <template name="FromVacationForFamily"
+            hash="0x05"
+            groupBy="EffectiveReturnDateShort"
+            groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -327,7 +330,8 @@
     </text>
   </template>
 
-  <template name="FromOutpatientExaminationOrVlk" hash="0x06">
+  <template name="FromOutpatientExaminationOrVlk"
+            hash="0x06">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}.#^
@@ -340,7 +344,8 @@
     </text>
   </template>
 
-  <template name="FromExternalVlk" hash="0x07">
+  <template name="FromExternalVlk"
+            hash="0x07">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}.#^
@@ -353,9 +358,10 @@
     </text>
   </template>
 
-  <template name="FromMedicalCompanyForTreatment" hash="0x08"
-    groupBy="EffectiveReturnDateShort"
-    groupOrder="date">
+  <template name="FromMedicalCompanyForTreatment"
+            hash="0x08"
+            groupBy="EffectiveReturnDateShort"
+            groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -374,9 +380,10 @@
     </text>
   </template>
 
-  <template name="ToHospital" hash="0x09"
-    groupBy="HospitalShort"
-    groupOrder="none">
+  <template name="ToHospital"
+            hash="0x09"
+            groupBy="HospitalShort"
+            groupOrder="none">
     <groupHeader by="HospitalShort">
       <![CDATA[#^
 #_      У {[HospitalAccusative]|lowerFirstLetter}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -396,7 +403,8 @@
     </text>
   </template>
 
-  <template name="ToAnnualMainVacation" hash="0x0A">
+  <template name="ToAnnualMainVacation"
+            hash="0x0A">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
@@ -411,7 +419,8 @@
     </text>
   </template>
 
-  <template name="ToVacationForFamily" hash="0x0B">
+  <template name="ToVacationForFamily"
+            hash="0x0B">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
@@ -425,7 +434,8 @@
     </text>
   </template>
 
-  <template name="ToMaternityLeave" hash="0x0C">
+  <template name="ToMaternityLeave"
+            hash="0x0C">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
@@ -439,7 +449,8 @@
     </text>
   </template>
 
-  <template name="ToVacationForCuring" hash="0x0D">
+  <template name="ToVacationForCuring"
+            hash="0x0D">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
@@ -454,7 +465,8 @@
     </text>
   </template>
 
-  <template name="ToOutpatientExaminationOrVlk" hash="0x0E">
+  <template name="ToOutpatientExaminationOrVlk"
+            hash="0x0E">
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}{#if [HospitalAccusative]}, у {[HospitalAccusative]|lowerFirstLetter}{#endif}.#^
@@ -466,9 +478,10 @@
     </text>
   </template>
 
-  <template name="ToMedicalCompanyForTreatment" hash="0x0F"
-    groupBy="EffectiveReturnDateShort"
-    groupOrder="date">
+  <template name="ToMedicalCompanyForTreatment"
+            hash="0x0F"
+            groupBy="EffectiveReturnDateShort"
+            groupOrder="date">
     <groupHeader by="EffectiveReturnDateShort">
       <![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
@@ -488,7 +501,8 @@
     </text>
   </template>
 
-  <template name="MoveFromHospitalToVacationForCuring" hash="0x10">
+  <template name="MoveFromHospitalToVacationForCuring"
+            hash="0x10">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -505,7 +519,8 @@
     </text>
   </template>
 
-  <template name="MoveFromVacationForCuringToVacationForCuring" hash="0x11">
+  <template name="MoveFromVacationForCuringToVacationForCuring"
+            hash="0x11">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -522,7 +537,8 @@
     </text>
   </template>
 
-  <template name="MoveFromVacationForCuringToHospital" hash="0x12">
+  <template name="MoveFromVacationForCuringToHospital" 
+            hash="0x12">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -539,7 +555,8 @@
     </text>
   </template>
 
-  <template name="MoveFromAnnualVacationToHospital" hash="0x13">
+  <template name="MoveFromAnnualVacationToHospital"
+            hash="0x13">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -556,7 +573,8 @@
     </text>
   </template>
 
-  <template name="MoveFromVacationForCuringToVlk" hash="0x14">
+  <template name="MoveFromVacationForCuringToVlk"
+            hash="0x14">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -573,7 +591,8 @@
     </text>
   </template>
 
-  <template name="MoveFromAnnualVacationToVlk" hash="0x15">
+  <template name="MoveFromAnnualVacationToVlk"
+            hash="0x15">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -590,7 +609,8 @@
     </text>
   </template>
 
-  <template name="MoveFromFamilyVacationToVlk" hash="0x16">
+  <template name="MoveFromFamilyVacationToVlk"
+            hash="0x16">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -607,7 +627,8 @@
     </text>
   </template>
 
-  <template name="MoveFromVlkToVacationForCuring" hash="0x17">
+  <template name="MoveFromVlkToVacationForCuring"
+            hash="0x17">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -623,7 +644,8 @@
     </text>
   </template>
 
-  <template name="MoveFromVlkToHospital" hash="0x18">
+  <template name="MoveFromVlkToHospital"
+            hash="0x18">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -640,7 +662,8 @@
     </text>
   </template>
 
-  <template name="MoveFromMedicalCompanyForTreatmentToHospital" hash="0x19">
+  <template name="MoveFromMedicalCompanyForTreatmentToHospital"
+            hash="0x19">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -656,7 +679,8 @@
     </text>
   </template>
 
-<template name="MoveFromMedicalCompanyForTreatmentToVacationForCuring" hash="0x1A">
+  <template name="MoveFromMedicalCompanyForTreatmentToVacationForCuring"
+            hash="0x1A">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -673,7 +697,8 @@
     </text>
   </template>
 
-  <template name="MoveFromMedicalCompanyVacationForCuringToHospital" hash="0x1B">
+  <template name="MoveFromMedicalCompanyVacationForCuringToHospital"
+            hash="0x1B">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -690,7 +715,8 @@
     </text>
   </template>
 
-  <template name="MoveFromMedicalCompanyVacationForCuringToVacationForCuring" hash="0x1C">
+  <template name="MoveFromMedicalCompanyVacationForCuringToVacationForCuring"
+            hash="0x1C">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -708,7 +734,8 @@
     </text>
   </template>
 
-  <template name="MoveFromAnnualVacationToFamilyVacation" hash="0x1D">
+  <template name="MoveFromAnnualVacationToFamilyVacation"
+            hash="0x1D">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -725,7 +752,8 @@
     </text>
   </template>
 
-  <template name="MoveFromFamilyVacationToAnnualVacation" hash="0x1E">
+  <template name="MoveFromFamilyVacationToAnnualVacation"
+            hash="0x1E">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -742,7 +770,8 @@
     </text>
   </template>
 
-  <template name="MoveFromHospitalToExternalVlk" hash="0x1F">
+  <template name="MoveFromHospitalToExternalVlk"
+            hash="0x1F">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -758,7 +787,8 @@
     </text>
   </template>
 
-  <template name="MoveFromFamilyVacationToHospital" hash="0x20">
+  <template name="MoveFromFamilyVacationToHospital"
+            hash="0x20">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -775,7 +805,8 @@
     </text>
   </template>
 
-  <template name="MoveFromExternalVlkToVacationForCuring" hash="0x21">
+  <template name="MoveFromExternalVlkToVacationForCuring"
+            hash="0x21">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -791,7 +822,8 @@
     </text>
   </template>
 
-  <template name="MoveFromExternalVlkToHospital" hash="0x22">
+  <template name="MoveFromExternalVlkToHospital"
+            hash="0x22">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
@@ -807,5 +839,4 @@
       ]]>
     </text>
   </template>
-
 </wordResultTemplates>

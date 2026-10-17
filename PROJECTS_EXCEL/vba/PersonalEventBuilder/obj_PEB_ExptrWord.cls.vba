@@ -76,7 +76,7 @@ Public Function TryExport( _
         TryExport = True
         Exit Function
     End If
-    bookmark = ex_PEB_Export.fn_Config("export.Word.anchors." & ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordAnchorId")) & ".bookmark")
+    bookmark = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordBookmark"))
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
     If enabled = "false" Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ExportWordUnavailable")

@@ -68,6 +68,11 @@
                 fontName="Times New Roman"
                 fontSize="12"
                 fontBold="true"/>
+  <controlStyle name="expectedRowsCaption"
+                basedOn="body"
+                textColor="#FF9B5E"
+                fontBold="true"
+                horizontal="left"/>
   <controlStyle name="centered"
                 horizontal="center"/>
   <controlStyle name="date"

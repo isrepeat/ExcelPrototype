@@ -8,9 +8,10 @@ import { eventCellValue } from "./event_cell_values.mjs";
 import { applyFixtureStyle, fixtureStyle } from "./fixture_styles.mjs";
 
 process.on("uncaughtException", error => { console.error(error.stack); process.exit(1); });
+if (!process.argv.some(argument => ["--inspect", "--registry-only", "--food-fixtures-only", "--movement-enums-only"].includes(argument))) throw new Error("Legacy full-input migration retired. Use update_registry_fixtures.mjs; active scenario inputs must be preserved.");
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(directory, "../../..");
-const fixture = process.env.PEB_INPUTS_SOURCE ?? path.join(root, "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.xlsx");
+const fixture = process.env.PEB_INPUTS_SOURCE ?? path.join(root, "PROJECTS_EXCEL/tests/PersonalEventBuilder/TestScenarios.EventRoutes.xlsx");
 const python = process.env.PEB_PYTHON;
 if (!python) throw new Error("Set PEB_PYTHON to the bundled Python executable.");
 const bridge = path.join(directory, "xlsx_expectations_bridge.py");
@@ -24,8 +25,7 @@ if (process.argv.includes("--inspect")) {
   process.exit(0);
 }
 
-const settings = Object.fromEntries((await fs.readFile(path.join(root, "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt"), "utf8"))
-  .split(/\r?\n/).filter(line => line.trim()).map(line => { const fields = line.split("\t"); return [fields[1].split("::").at(-1), fields[2]]; }));
+const settings = JSON.parse(execFileSync(python, ["-X", "utf8", path.join(directory, "event_routes.py"), path.join(root, "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt")], { encoding: "utf8", maxBuffer: 16000000 }));
 if (process.argv.includes("--movement-enums-only")) {
   const name = settings["test.scenarios.expectedRows.sheet"];
   const table = source[name].tables.find(item => item.name === settings["test.scenarios.expectedRows.table"]);
