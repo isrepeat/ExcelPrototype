@@ -88,13 +88,17 @@ Private Function private_Export( _
     Dim existing As Boolean
     Dim identifier As String
     Dim originalStamp As String
+    Dim resultCode As String
+    Dim replacementText As String
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
+    values("WordExportAction") = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Word exporter is not initialized."
     End If
     If ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordPolicy")) = "Omit" Then
+        values("WordExportAction") = "SKIP"
         private_Export = True
         Exit Function
     End If
@@ -167,14 +171,36 @@ Private Function private_Export( _
             identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
             document.Content.Text = "{\export:" & identifier & "_Begin}" & VBA.vbCr & "{\export:" & identifier & "_End}" & VBA.vbCr
         End If
-        ex_PEB_WordState.fn_Apply document, values
+        ex_PEB_WordState.fn_Apply document, values, resultCode
     ElseIf m_documentMode = "template" Then
         Set wordAnchors = New obj_PEB_WordAnchors
         If Not wordAnchors.Initialize(document, diagnostic) Then GoTo Cleanup
-        If Not wordAnchors.TryInsert(document, values, diagnostic) Then GoTo Cleanup
+        If Not wordAnchors.TryGetInsertedRange(document, values, target, diagnostic) Then GoTo Cleanup
+        replacementText = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
+        replacementText = VBA.Replace$(replacementText, VBA.vbLf, VBA.vbCr)
+        If VBA.StrComp(target.Text, replacementText, VBA.vbBinaryCompare) = 0 Then
+            resultCode = "SKIP"
+        Else
+            If VBA.Len(VBA.Trim$(VBA.Replace$(target.Text, VBA.vbCr, " "))) = 0 Then
+                resultCode = "INSERT"
+            Else
+                resultCode = "UPDATE"
+            End If
+            If Not wordAnchors.TryInsert(document, values, diagnostic) Then GoTo Cleanup
+            If Not wordAnchors.TryVerify(document, values, diagnostic) Then GoTo Cleanup
+        End If
     Else
         Set target = document.Content
         target.Text = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
+        resultCode = "INSERT"
+    End If
+    If Not existing Then
+        resultCode = "INSERT"
+    End If
+    If resultCode = "SKIP" And existing Then
+        values("WordExportAction") = resultCode
+        private_Export = True
+        GoTo Cleanup
     End If
     If existing Then
         document.Save
@@ -196,6 +222,7 @@ Private Function private_Export( _
         fileSystem.MoveFile temporary, output
     End If
     published = True
+    values("WordExportAction") = resultCode
     private_Export = True
 Cleanup:
     On Error Resume Next

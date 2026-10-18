@@ -1128,6 +1128,9 @@ Private Function private_Export(ByVal action As String) As Boolean
             status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
         Else
             status = VBA.Replace$(status, "{path}", VBA.CStr(values("WordOutput")))
+            If success Then
+                status = VBA.Replace$(status, "{action}", VBA.CStr(values("WordExportAction")))
+            End If
         End If
     Else
         Set pebExptrMovement = New obj_PEB_ExptrMovement

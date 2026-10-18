@@ -164,6 +164,16 @@ def main():
             assert text.count("{\\export:ToBusinessTrip_" + suffix + "}") == 1
     assert state.index("edited manually") < state.index("anchors.TryInsert")
     assert state.index("ex_PEB_WordGroups.fn_Render") < state.index("anchors.TryInsert")
+    assert 'Optional ByRef resultCode As String = ""' in state
+    assert 'resultCode = "SKIP"' in state and 'resultCode = "INSERT"' in state
+    assert 'Word event already exists with different data.' in state
+    skip_branch = exporter.split('If resultCode = "SKIP" And existing Then', 1)[1].split('End If', 1)[0]
+    assert 'values("WordExportAction") = resultCode' in skip_branch and 'GoTo Cleanup' in skip_branch
+    assert exporter.index('If resultCode = "SKIP" And existing Then') < exporter.index('document.Save')
+    assert 'resultCode = "UPDATE"' in exporter
+    assert 'VBA.StrComp(target.Text, replacementText, VBA.vbBinaryCompare) = 0' in exporter
+    controller = (folder / "obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
+    assert '"{action}", VBA.CStr(values("WordExportAction"))' in controller
     assert state.index("CustomXMLParts.Add(state.XML)") < state.index("part.Delete")
     assert "ReplaceFileW" in state
     assert exporter.index("fileSystem.CopyFile output") < exporter.index("wordApp.Documents.Open(temporary")
