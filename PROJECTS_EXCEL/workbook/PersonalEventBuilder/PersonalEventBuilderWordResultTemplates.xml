@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <wordResultTemplates xmlns="urn:excelprototype:profiles"
-                     version="1"
+                     version="2"
                      generationMode="anchored">
   <documentFilepath>
     <![CDATA[modes\PrsnlEvntBuilder\{WordTemplateFileName|regexreplace:"\.[^.]+$",""}_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
@@ -216,27 +216,49 @@
     </sharedTemplate>
   </sharedTemplates>
 
+  <template name="ToBusinessTrip"
+            identityBy="PersonId; DateFromShort; EventId"
+            orderBy="AcceptedOrderNumber; OrderDateShort">
+    <derived name="GroupBasis">
+      <text>{#include block.IncomingBasis}</text>
+    </derived>
+    <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort">
+      <aggregate name="CertificateNumbers"
+                 field="VacationTicketNo"
+                 operation="numberRanges"
+                 pattern="^(.*[/])?([0-9]+)(.*)$"
+                 separator=", "
+                 rangeSeparator="–"/>
+      <single>
+        <text><![CDATA[#^
+#_      Відрядити {[RankGenitive]} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}#^
+#_      {#space}у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}.#^
+        {#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.
+    ]]></text>
+      </single>
+      <multiple>
+        <header common="DateFromShort; Destination">
+          <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
+        </header>
+        <item>
+          <text>{#include block.PersonLineLower}.</text>
+        </item>
+        <footer common="GroupBasis; VacationTicketDateShort">
+          <text><![CDATA[{[GroupBasis]}; посвідчення про відрядження № {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]></text>
+        </footer>
+      </multiple>
+    </group>
+  </template>
 
-
-
-  <template name="FromBusinessTrip"
-            hash="0x01"
-            groupBy="EffectiveReturnDateShort; Destination"
-            groupOrder="date; none">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="FromBusinessTrip"
+            hash="0x01">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <groupHeader by="Destination">
-      <![CDATA[#^
+      #^
 #_      З {[Destination]|nbspAfterSettlementAbbr}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
@@ -244,90 +266,58 @@
 #_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalBusinessTripCertificate}#^
 #_      .{#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
-  <template name="FromHospital"
-            hash="0x02"
-            groupBy="EffectiveReturnDateShort; HospitalShort"
-            groupOrder="date; none">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="FromHospital"
+            hash="0x02">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <groupHeader by="HospitalShort">
-      <![CDATA[#^
+      #^
 #_      З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
-  <template name="FromVacationForCuring"
-            hash="0x03"
-            groupBy="EffectiveReturnDateShort"
-            groupOrder="date">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="FromVacationForCuring"
+            hash="0x03">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.ReturnFromVacation}#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
-  <template name="FromAnnualMainVacation"
-            hash="0x04"
-            groupBy="EffectiveReturnDateShort"
-            groupOrder="date">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="FromAnnualMainVacation"
+            hash="0x04">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.ReturnFromVacation}#^
 #_      {#newline}{#newline}#^
-        ]]>
-    </text>
+        ]]></text>
   </template>
 
-  <template name="FromVacationForFamily"
-            hash="0x05"
-            groupBy="EffectiveReturnDateShort"
-            groupOrder="date">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="FromVacationForFamily"
+            hash="0x05">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.ReturnFromVacation}#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
   <template name="FromExternalVlk"
@@ -344,40 +334,27 @@
     </text>
   </template>
 
-  <template name="FromMedicalCompanyForTreatment"
-            hash="0x08"
-            groupBy="EffectiveReturnDateShort"
-            groupOrder="date">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="FromMedicalCompanyForTreatment"
+            hash="0x08">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
-  <template name="ToHospital"
-            hash="0x09"
-            groupBy="HospitalShort"
-            groupOrder="none">
-    <groupHeader by="HospitalShort">
-      <![CDATA[#^
+<template name="ToHospital"
+            hash="0x09">
+    <text><![CDATA[#^
 #_      У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#include block.OptionalFoodCertificate}#^
@@ -385,8 +362,7 @@
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
   <template name="ToAnnualMainVacation"
@@ -451,18 +427,12 @@
     </text>
   </template>
 
-  <template name="ToMedicalCompanyForTreatment"
-            hash="0x0F"
-            groupBy="EffectiveReturnDateShort"
-            groupOrder="date">
-    <groupHeader by="EffectiveReturnDateShort">
-      <![CDATA[#^
+<template name="ToMedicalCompanyForTreatment"
+            hash="0x0F">
+    <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
-      ]]>
-    </groupHeader>
-    <text>
-      <![CDATA[#^
+      #^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#include block.OptionalFoodCertificate}#^
@@ -470,8 +440,7 @@
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
-      ]]>
-    </text>
+      ]]></text>
   </template>
 
   <template name="MoveFromHospitalToVacationForCuring"

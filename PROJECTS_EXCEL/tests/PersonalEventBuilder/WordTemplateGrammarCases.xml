@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<scenarios>
+  <grammar>
+    <case id="plain"
+          valid="true"
+          expected="literal">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Plain">
+        <text>literal</text>
+      </template>
+      ]]>
+    </case>
+    <case id="derived-plain"
+          valid="true"
+          expected="computed">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Derived">
+        <derived name="Caption">
+          <text>computed</text>
+        </derived>
+        <text>{[Caption]}</text>
+      </template>
+      ]]>
+    </case>
+    <case id="derived-chain"
+          valid="true"
+          expected="COMPUTED">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Chain">
+        <derived name="First">
+          <text>computed</text>
+        </derived>
+        <derived name="Second">
+          <text>{[First]|upper}</text>
+        </derived>
+        <text>{[Second]}</text>
+      </template>
+      ]]>
+    </case>
+    <case id="mixed-bodies"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Mixed">
+        <text>literal</text>
+        <group by="Key"/>
+      </template>
+      ]]>
+    </case>
+    <case id="no-body"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Empty"/>
+      ]]>
+    </case>
+    <case id="duplicate-text"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Duplicate">
+        <text>a</text>
+        <text>b</text>
+      </template>
+      ]]>
+    </case>
+    <case id="late-derived"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Late">
+        <text>literal</text>
+        <derived name="Caption">
+          <text>computed</text>
+        </derived>
+      </template>
+      ]]>
+    </case>
+    <case id="unknown-child"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Unknown">
+        <unknown/>
+        <text>literal</text>
+      </template>
+      ]]>
+    </case>
+    <case id="legacy-header"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Legacy">
+        <groupHeader by="Key">header</groupHeader>
+        <text>literal</text>
+      </template>
+      ]]>
+    </case>
+    <case id="unknown-attribute"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Attribute"
+                typo="x">
+        <text>literal</text>
+      </template>
+      ]]>
+    </case>
+    <case id="nested-xml-in-text"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Nested">
+        <text>
+          <unexpected/>
+        </text>
+      </template>
+      ]]>
+    </case>
+    <case id="state-on-plain"
+          valid="false">
+      <![CDATA[
+      <template xmlns="urn:excelprototype:profiles"
+                name="Keys"
+                identityBy="Key">
+        <text>literal</text>
+      </template>
+      ]]>
+    </case>
+  </grammar>
+</scenarios>

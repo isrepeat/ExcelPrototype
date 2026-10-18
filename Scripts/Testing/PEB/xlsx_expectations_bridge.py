@@ -532,7 +532,7 @@ def preserve_existing_cells(original, destination, edited, name):
     data = baseline.find("m:sheetData", NS)
     new_data = edited.find("m:sheetData", NS)
     old_rows = {int(row.get("r")): row for row in data}
-    if name in ("Тест_Сценарії", "Тест_ЄЖОС"):
+    if name in ("Сценарії", "ЄЖОС_Історія"):
         last_row = max(old_rows)
         for row in new_data:
             if int(row.get("r")) > last_row:
@@ -817,7 +817,7 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
     table_id = max(int(xml(original, name).get("id")) for name in original
                    if name.startswith("xl/tables/") and name.endswith(".xml")) + 1
     modified = {"xl/styles.xml", "xl/workbook.xml", "xl/_rels/workbook.xml.rels", "[Content_Types].xml"}
-    insertion_index = list(sheets).index(next(item for item in sheets if item.get("name") == "Тест_Кроки")) + 1
+    insertion_index = list(sheets).index(next(item for item in sheets if item.get("name") == "TestBasic_Steps")) + 1
     for name in names:
         source_part = generated_sheets[name]
         destination = original_sheets.get(name)
@@ -856,7 +856,7 @@ def assemble(original_path, generated_path, output_path, names, allow_layout_mig
         for rule in node.findall(".//m:cfRule", NS):
             if rule.get("dxfId") is not None:
                 rule.set("dxfId", str(int(rule.get("dxfId")) + offsets["dxfs"]))
-        if name in original_sheets and name in ("Тест_Сценарії", "Тест_ЄЖОС", "Тест_Результати", "Тест_Записи", "Тест_ВхідніДані"):
+        if name in original_sheets and name in ("Сценарії", "ЄЖОС_Історія", "Тест_Результати", "Тест_Записи", "Тест_ВхідніДані"):
             node = preserve_existing_cells(original, destination, node, name)
         new_relationships = xml(generated, rel_path(source_part))
         original_tables = {}

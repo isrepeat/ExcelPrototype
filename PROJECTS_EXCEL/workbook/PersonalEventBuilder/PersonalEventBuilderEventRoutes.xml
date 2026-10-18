@@ -316,5 +316,13 @@
       <movement template="MoveFromOutpatientVlkToVacationForCuring"/>
       <word template="ToVacationForCuring"/>
     </event>
+    <event label="Вибуття у відрядження"
+           caption="У відрядження"
+           id="ToBusinessTrip"
+           direction="Departure"
+           form="Leave"
+           visible="true">
+      <word template="ToBusinessTrip"/>
+    </event>
   </events>
 </eventRoutes>

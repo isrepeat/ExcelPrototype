@@ -70,7 +70,8 @@ End Function
 
 Public Function fn_ReadCatalog( _
     ByRef catalog As Collection, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal suite As String = "Basic" _
 ) As Boolean
     Dim executor As obj_AdoQueryExecutor
     Dim source As obj_TableSource
@@ -90,15 +91,24 @@ Public Function fn_ReadCatalog( _
     Dim stepIds As Object
     Dim stepId As String
     Dim action As String
+    Dim allCases As Object
+    Dim stepKind As String
 
     started = VBA.Timer
     On Error GoTo Failed
     Set catalog = New Collection
     Set cases = VBA.CreateObject("Scripting.Dictionary")
+    Set allCases = VBA.CreateObject("Scripting.Dictionary")
     Set stepIds = VBA.CreateObject("Scripting.Dictionary")
+    stepKind = "steps"
+    If suite = "Grouping" Then
+        stepKind = "groupingSteps"
+    ElseIf suite <> "Basic" Then
+        Err.Raise 5, , "Unknown test suite: " & suite
+    End If
     Set executor = New obj_AdoQueryExecutor
     If Not executor.Initialize() Then Err.Raise 5, , "Cannot initialize catalog reader."
-    For Each kind In VBA.Array("cases", "steps")
+    For Each kind In VBA.Array("cases", stepKind)
         Set source = New obj_TableSource
         If Not source.Initialize() Then Err.Raise 5, , "Cannot initialize catalog source."
         source.WorkbookPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("test.scenarios.path"))
@@ -112,6 +122,7 @@ Public Function fn_ReadCatalog( _
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.ruleStatus")
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.catalogOperation")
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.catalogEvent")
+            query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.suite")
         Else
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.step")
             query.AddColumn ex_PEB_Export.fn_Config("test.scenarios.headers.stepId")
@@ -122,6 +133,16 @@ Public Function fn_ReadCatalog( _
             id = ex_PEB_Export.fn_Text(data.ValueAt(row, 1))
             If VBA.Len(id) > 0 Then
                 If kind = "cases" Then
+                    If allCases.Exists(id) Then
+                        Err.Raise 5, , "Duplicate scenario identity: " & id
+                    End If
+                    allCases.Add id, ex_PEB_Export.fn_Text(data.ValueAt(row, 6))
+                    If allCases(id) <> "Basic" And allCases(id) <> "Grouping" Then
+                        Err.Raise 5, , "Unknown scenario suite: " & id
+                    End If
+                    If allCases(id) <> suite Then
+                        GoTo NextCatalogRow
+                    End If
                     If cases.Exists(id) Then Err.Raise 5, , "Duplicate scenario identity: " & id
                     Set item = VBA.CreateObject("Scripting.Dictionary")
                     item("Id") = id
@@ -137,7 +158,10 @@ Public Function fn_ReadCatalog( _
                     cases.Add id, item
                     catalog.Add item
                 Else
-                    If Not cases.Exists(id) Then Err.Raise 5, , "Step references an unknown scenario: " & id
+                    If Not allCases.Exists(id) Then Err.Raise 5, , "Step references an unknown scenario: " & id
+                    If Not cases.Exists(id) Then
+                        Err.Raise 5, , "Step belongs to a different test suite: " & id
+                    End If
                     number = ex_PEB_Export.fn_Text(data.ValueAt(row, 2))
                     If Not VBA.IsNumeric(number) Then Err.Raise 5, , "Invalid scenario step: " & id
                     If VBA.CDbl(number) < 1 Or VBA.CDbl(number) <> VBA.Fix(VBA.CDbl(number)) Then Err.Raise 5, , "Invalid scenario step: " & id
@@ -147,11 +171,18 @@ Public Function fn_ReadCatalog( _
                     stepId = ex_PEB_Export.fn_Text(data.ValueAt(row, 3))
                     If VBA.Len(stepId) = 0 Or stepIds.Exists(stepId) Then Err.Raise 5, , "Missing or duplicate StepId: " & stepId
                     action = ex_PEB_Export.fn_Text(data.ValueAt(row, 4))
-                    If Not fn_RegistryContains("Action", action) Then Err.Raise 5, , "Unknown test action: " & stepId
+                    If suite = "Grouping" Then
+                        If action <> "GroupAdd" And action <> "GroupEdit" Then
+                            Err.Raise 5, , "Unknown grouping action: " & stepId
+                        End If
+                    ElseIf Not fn_RegistryContains("Action", action) Then
+                        Err.Raise 5, , "Unknown test action: " & stepId
+                    End If
                     stepIds.Add stepId, True
                     numbers.Add number, stepId
                 End If
             End If
+NextCatalogRow:
         Next row
         data.Dispose
         Set data = Nothing

@@ -94,12 +94,12 @@ Public Function Initialize( _
     m_word.Visible = False
     m_word.DisplayAlerts = 0
     m_word.AutomationSecurity = 3
-    m_word.ScreenUpdating = False
     m_previousOptions = VBA.Array( _
         m_word.Options.CheckSpellingAsYouType, _
         m_word.Options.CheckGrammarAsYouType, _
         m_word.Options.Pagination _
     )
+    m_word.ScreenUpdating = True
     m_word.Options.CheckSpellingAsYouType = False
     m_word.Options.CheckGrammarAsYouType = False
     m_word.Options.Pagination = False
@@ -147,6 +147,7 @@ Public Sub Dispose()
             m_word.Options.CheckGrammarAsYouType = m_previousOptions(1)
             m_word.Options.Pagination = m_previousOptions(2)
         End If
+        m_word.ScreenUpdating = True
         m_word.Quit 0
     End If
     If Not m_wordAnchors Is Nothing Then m_wordAnchors.Dispose
@@ -209,6 +210,44 @@ Public Function TryExercise( _
     Exit Function
 EH:
     diagnostic = "Word test insertion: " & VBA.Err.Description
+End Function
+
+Public Function TryCollectSnapshot( _
+    ByVal path As String, _
+    ByVal values As Object, _
+    ByVal caption As String, _
+    ByVal personNames As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim anchors As obj_PEB_WordAnchors
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Or m_finished Then
+        Err.Raise 5, , "Word test session is not ready."
+    End If
+    If Not m_work Is Nothing Then
+        Err.Raise 5, , "Previous Word snapshot has not been collected."
+    End If
+    Set m_work = m_word.Documents.Open(path, False, True, False)
+    Set anchors = New obj_PEB_WordAnchors
+    If Not anchors.Initialize(m_work, diagnostic) Then
+        GoTo Cleanup
+    End If
+    If Not anchors.TryGetInsertedRange(m_work, values, m_insertedRange, diagnostic) Then
+        GoTo Cleanup
+    End If
+    Set m_personNames = personNames
+    Set m_metrics = VBA.CreateObject("Scripting.Dictionary")
+    m_eventDescription = caption
+    TryCollectSnapshot = True
+Cleanup:
+    If Not anchors Is Nothing Then
+        anchors.Dispose
+    End If
+    Exit Function
+EH:
+    diagnostic = "Word test snapshot: " & VBA.Err.Description
+    Resume Cleanup
 End Function
 
 Public Function TryAppend( _
@@ -299,6 +338,8 @@ Public Function TryFinish( _
     End If
     m_result.Content.ParagraphFormat.KeepWithNext = False
     m_result.Content.ParagraphFormat.KeepTogether = False
+    m_word.ScreenUpdating = True
+    m_result.Repaginate
     m_result.SaveAs2 m_temporary, 16
     m_result.Close 0
     Set m_result = Nothing

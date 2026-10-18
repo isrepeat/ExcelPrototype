@@ -87,14 +87,17 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     If node.getAttributeNode("version") Is Nothing Then
         Err.Raise 5, , "Word DSL XML version is required."
     End If
-    If node.getAttribute("version") <> "1" Then
+    If node.getAttribute("version") <> "2" Then
         Err.Raise 5, , "Unsupported Word DSL XML version."
     End If
     knownKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.xmlKeys") & "|"
+    For Each textNode In document.selectNodes("//p:derived | //p:aggregate")
+        knownKeys = knownKeys & VBA.CStr(textNode.getAttribute("name")) & "|"
+    Next textNode
     Set expression = VBA.CreateObject("VBScript.RegExp")
     expression.Global = True
     expression.Pattern = "\[([A-Z][A-Za-z0-9_]*)\]"
-    For Each textNode In document.selectNodes("//p:text | //p:groupHeader")
+    For Each textNode In document.selectNodes("//p:text")
         For Each reference In expression.Execute(textNode.Text)
             name = VBA.CStr(reference.SubMatches(0))
             If VBA.InStr(1, knownKeys, "|" & name & "|", VBA.vbBinaryCompare) = 0 Then
@@ -122,10 +125,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         If VBA.Len(name) = 0 Or m_templates.Exists(name) Then
             Err.Raise 5, , "Empty or duplicate template name: " & name
         End If
-        Set nodes = node.selectNodes("p:text")
-        If nodes.Length <> 1 Then
-            Err.Raise 5, , "Template requires one text element: " & name
-        End If
+        ex_PEB_WordGroups.fn_Validate node
         m_templates.Add name, node
     Next node
     If m_templates.Count = 0 Then
@@ -154,21 +154,31 @@ Public Sub Dispose()
     m_documentFilepath = VBA.vbNullString
 End Sub
 
-Public Function TryGetText( _
+Public Function GroupTemplate(ByVal name As String) As Object
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Word templates are not initialized."
+    End If
+    If Not m_templates.Exists(name) Then
+        Err.Raise 5, , "Unknown Word template: " & name
+    End If
+    If m_templates(name).selectNodes("p:group").Length > 1 Then
+        Err.Raise 5, , "Expected at most one root Word group."
+    End If
+    If m_templates(name).selectNodes("p:group").Length = 1 Then
+        Set GroupTemplate = m_templates(name)
+    End If
+End Function
+
+Public Function TryRender( _
     ByVal name As String, _
-    ByRef templateText As String, _
+    ByVal values As Object, _
+    ByRef rendered As String, _
     ByRef diagnostic As String _
 ) As Boolean
-    Dim node As Object
-    Dim header As Object
-    Dim groupNames As Variant
-    Dim groupName As Variant
-    Dim headers As Object
-    Dim by As String
-    Dim result As String
+    Dim events As Collection
 
     On Error GoTo EH
-    templateText = VBA.vbNullString
+    rendered = VBA.vbNullString
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Word templates are not initialized."
@@ -176,39 +186,10 @@ Public Function TryGetText( _
     If Not m_templates.Exists(name) Then
         Err.Raise 5, , "Word DSL template not found: " & name
     End If
-    Set node = m_templates(name)
-
-    ' Для одного события выводим заголовки групп перед текстом пункта.
-    Set headers = VBA.CreateObject("Scripting.Dictionary")
-    headers.CompareMode = VBA.vbBinaryCompare
-    For Each header In node.selectNodes("p:groupHeader")
-        by = VBA.Trim$(VBA.CStr(header.getAttribute("by")))
-        If VBA.Len(by) = 0 Or headers.Exists(by) Then
-            Err.Raise 5, , "Empty or duplicate groupHeader: " & name
-        End If
-        headers.Add by, VBA.CStr(header.Text)
-    Next header
-    If Not node.getAttributeNode("groupBy") Is Nothing Then
-        by = VBA.Trim$(VBA.CStr(node.getAttribute("groupBy")))
-        If VBA.Len(by) = 0 Then
-            Err.Raise 5, , "groupHeader requires groupBy: " & name
-        End If
-        groupNames = VBA.Split(by, ";")
-        For Each groupName In groupNames
-            by = VBA.Trim$(VBA.CStr(groupName))
-            If Not headers.Exists(by) Then
-                Err.Raise 5, , "Missing groupHeader for " & name & ": " & by
-            End If
-            result = result & headers(by)
-            headers.Remove by
-        Next groupName
-    End If
-    If headers.Count > 0 Then
-        Err.Raise 5, , "groupHeader is absent from groupBy: " & name
-    End If
-    result = result & node.selectSingleNode("p:text").Text
-    templateText = result
-    TryGetText = True
+    Set events = New Collection
+    events.Add values
+    rendered = ex_PEB_WordGroups.fn_Render(m_templates(name), events, m_sharedTemplates)
+    TryRender = True
     Exit Function
 EH:
     diagnostic = VBA.Err.Description

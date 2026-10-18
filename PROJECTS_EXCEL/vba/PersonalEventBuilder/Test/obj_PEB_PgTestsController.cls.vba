@@ -18,6 +18,7 @@ Private m_catalog As Collection
 Private m_catalogRecords As Collection
 Private m_catalogTable As obj_UiRawTable
 Private m_selected As Object
+Private m_savedSelection As Object
 Private m_previews As Object
 Private m_runSelection As Object
 Private m_runner As obj_PEB_TestRunner
@@ -37,7 +38,9 @@ Private m_error As Long
 Private m_status As String
 Private m_environmentSwitchPending As Boolean
 Private m_createWordReport As Boolean
-Private m_catalogLoaded As Boolean
+Private m_grouping As Boolean
+Private m_groupIndex As Long
+Private m_groupRunId As String
 
 ' //
 ' // Lifecycle
@@ -70,6 +73,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Set m_pageBase = pageBase
     Set m_sheet = ThisWorkbook.Worksheets(ex_PEB_Export.fn_Config("test.ui.mainSheet"))
     Set m_selected = VBA.CreateObject("Scripting.Dictionary")
+    Set m_savedSelection = VBA.CreateObject("Scripting.Dictionary")
     Set m_previews = VBA.CreateObject("Scripting.Dictionary")
     Set m_reports = New Collection
     Set m_catalogRecords = New Collection
@@ -97,6 +101,7 @@ Public Sub Dispose()
     Set m_catalogRecords = Nothing
     Set m_catalogTable = Nothing
     Set m_selected = Nothing
+    Set m_savedSelection = Nothing
     Set m_previews = Nothing
     Set m_runSelection = Nothing
     Set m_reports = Nothing
@@ -107,28 +112,46 @@ Public Function TryLoadCatalog(ByRef diagnostic As String) As Boolean
     Dim record As Object
     Dim retained As Object
     Dim selectedByDefault As String
+    Dim catalog As Collection
+    Dim selected As Boolean
+    Dim previewByDefault As Boolean
 
     On Error GoTo EH
     private_Guard
     If m_running Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestsBusy")
     End If
-    If Not ex_PEB_Testing.fn_ReadCatalog(m_catalog, diagnostic) Then
-        Exit Function
+    If m_grouping Then
+        If Not ex_PEB_GroupingTests.fn_ReadCatalog(catalog, diagnostic) Then
+            Exit Function
+        End If
+    Else
+        If Not ex_PEB_Testing.fn_ReadCatalog(catalog, diagnostic) Then
+            Exit Function
+        End If
     End If
-    If m_catalog.Count > ex_PEB_Export.fn_Count("test.ui.maxScenarios") Then
+    If catalog.Count > ex_PEB_Export.fn_Count("test.ui.maxScenarios") Then
         Err.Raise 5, , "Scenario catalog exceeds the UI limit."
     End If
+    For Each record In m_catalogRecords
+        m_savedSelection(record("ScenarioId")) = m_selected.Exists(record("ScenarioId"))
+    Next record
+    Set m_catalog = catalog
     Set retained = VBA.CreateObject("Scripting.Dictionary")
     selectedByDefault = "|" & ex_PEB_Export.fn_Config("test.ui.selectedByDefault") & "|"
+    previewByDefault = (ex_PEB_Export.fn_Count("test.ui.previewByDefault", 1) = 1)
     Set m_catalogRecords = New Collection
     For Each scenario In m_catalog
-        If m_selected.Exists(scenario("Id")) Or (Not m_catalogLoaded And _
-                VBA.InStr(1, selectedByDefault, "|" & scenario("Id") & "|", VBA.vbBinaryCompare) > 0) Then
+        selected = (selectedByDefault = "|*|" Or _
+            VBA.InStr(1, selectedByDefault, "|" & scenario("Id") & "|", VBA.vbBinaryCompare) > 0)
+        If m_savedSelection.Exists(scenario("Id")) Then
+            selected = VBA.CBool(m_savedSelection(scenario("Id")))
+        End If
+        If selected Then
             retained.Add scenario("Id"), True
         End If
         If Not m_previews.Exists(scenario("Id")) Then
-            m_previews.Add scenario("Id"), False
+            m_previews.Add scenario("Id"), (previewByDefault And selected)
         End If
         Set record = VBA.CreateObject("Scripting.Dictionary")
         record("ScenarioId") = scenario("Id")
@@ -142,7 +165,6 @@ Public Function TryLoadCatalog(ByRef diagnostic As String) As Boolean
     Set m_selected = retained
     private_RefreshSelection True
     private_DrawResults
-    m_catalogLoaded = True
     TryLoadCatalog = True
     Exit Function
 EH:
@@ -222,9 +244,15 @@ Public Sub RunSelected()
     m_total = 0
     For Each scenario In m_catalog
         If m_runSelection.Exists(scenario("Id")) Then
-            m_total = m_total + scenario("Steps").Count
+            If m_grouping Then
+                m_total = m_total + 1
+            Else
+                m_total = m_total + scenario("Steps").Count
+            End If
         End If
     Next scenario
+    m_groupIndex = 0
+    m_groupRunId = VBA.Format$(VBA.Now, "yyyymmdd_hhnnss") & "_" & VBA.CStr(VBA.CLng(VBA.Timer * 1000))
     m_pass = 0
     m_fail = 0
     m_skip = 0
@@ -284,6 +312,10 @@ Public Function Advance() As Boolean
         Exit Function
     End If
     private_Guard
+    If m_grouping Then
+        Advance = private_AdvanceGrouping()
+        Exit Function
+    End If
     If m_runner Is Nothing Then
         Set m_runner = New obj_PEB_TestRunner
         If Not m_runner.Initialize(diagnostic) Then
@@ -364,6 +396,13 @@ Public Function NavigatePreview(ByVal item As Object) As Boolean
     If index > m_reports.Count Then
         Exit Function
     End If
+    If report.Exists("GroupingReport") Then
+        If VBA.Len(report("GroupingReport")) > 0 Then
+            ThisWorkbook.FollowHyperlink Address:=VBA.CStr(report("GroupingReport"))
+            NavigatePreview = True
+            Exit Function
+        End If
+    End If
     If Not report("PreviewEnabled") Then
         Exit Function
     End If
@@ -380,6 +419,14 @@ End Function
 Public Function TestRunHandler() As Boolean
     Me.RunSelected
     TestRunHandler = True
+End Function
+
+Public Function TestsBasicHandler() As Boolean
+    TestsBasicHandler = private_SelectSuite(False)
+End Function
+
+Public Function TestsGroupingHandler() As Boolean
+    TestsGroupingHandler = private_SelectSuite(True)
 End Function
 
 Public Function CancelTestsHandler() As Boolean
@@ -442,6 +489,103 @@ End Function
 ' //
 ' // Private
 ' //
+
+Private Function private_SelectSuite(ByVal grouping As Boolean) As Boolean
+    Dim diagnostic As String
+    Dim updates As Object
+    Dim previous As Boolean
+
+    On Error GoTo EH
+    private_Guard
+    If m_running Or m_environmentSwitchPending Then
+        private_SelectSuite = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If m_grouping = grouping Then
+        private_SelectSuite = True
+        Exit Function
+    End If
+    previous = m_grouping
+    m_grouping = grouping
+    If Not Me.TryLoadCatalog(diagnostic) Then
+        m_grouping = previous
+        Err.Raise 5, , diagnostic
+    End If
+    Set m_reports = New Collection
+    private_DrawResults
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Settings.TestsBasicStyle") = "primaryButton"
+    updates("Settings.TestsGroupingStyle") = "secondaryButton"
+    updates("Text.TestsWordReport") = ex_PEB_Export.fn_Config("text.TestsWordReport")
+    updates("Form.ActionStatus") = ex_PEB_Export.fn_Config("text.TestsBasic")
+    If grouping Then
+        updates("Settings.TestsBasicStyle") = "secondaryButton"
+        updates("Settings.TestsGroupingStyle") = "primaryButton"
+        updates("Text.TestsWordReport") = ex_PEB_Export.fn_Config("text.TestsGroupingDocuments")
+        updates("Form.ActionStatus") = ex_PEB_Export.fn_Config("text.TestsGrouping")
+    End If
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    private_SelectSuite = True
+    Exit Function
+EH:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Private Function private_AdvanceGrouping() As Boolean
+    Dim scenario As Object
+    Dim report As Object
+    Dim field As Variant
+    Dim diagnostic As String
+    Dim reportPath As String
+    Dim preview As String
+    Dim success As Boolean
+
+    If m_stop Then
+        private_Finish VBA.vbNullString
+        Exit Function
+    End If
+    Do While m_groupIndex < m_catalog.Count
+        m_groupIndex = m_groupIndex + 1
+        Set scenario = m_catalog(m_groupIndex)
+        If m_runSelection.Exists(scenario("Id")) Then
+            Set report = VBA.CreateObject("Scripting.Dictionary")
+            For Each field In VBA.Split(ex_PEB_Export.fn_Config("test.panel.fields"), "|")
+                report.Add field, VBA.vbNullString
+            Next field
+            report("ScenarioId") = scenario("Id")
+            report("StepId") = scenario("Id")
+            report("EventName") = scenario("EventLabel")
+            report("PreviewEnabled") = VBA.CBool(m_runSelection(scenario("Id")))
+            report("Expected") = "PASS"
+            success = ex_PEB_GroupingTests.fn_TryRunCase(scenario("Id"), m_groupRunId, preview, diagnostic, m_createWordReport, reportPath)
+            report("Result") = "PASS"
+            If Not success Then
+                report("Result") = "ERROR"
+            End If
+            report("Actual") = report("Result")
+            report("Details") = diagnostic
+            report("GroupingReport") = reportPath
+            report("PreviewText") = preview
+            report("PreviewDiagnostic") = diagnostic
+            If VBA.Len(reportPath) > 0 Then
+                report("Details") = reportPath
+                report("PreviewLink") = ex_PEB_Export.fn_Config("text.TestPreviewLink")
+            End If
+            Me.PublishResult report
+            m_completed = m_completed + 1
+            private_Progress ex_PEB_Export.fn_Config("text.TestsRunning")
+            If m_completed = m_total Then
+                private_Finish VBA.vbNullString
+            Else
+                private_AdvanceGrouping = True
+            End If
+            Exit Function
+        End If
+    Loop
+    private_Finish VBA.vbNullString
+End Function
 
 Private Sub private_SelectAll(ByVal selected As Boolean)
     Dim scenario As Object

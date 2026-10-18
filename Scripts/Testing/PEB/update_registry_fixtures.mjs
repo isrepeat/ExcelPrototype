@@ -86,10 +86,10 @@ const baseline = path.join(temporary, "iteration-original.xlsx");
 const generated = path.join(temporary, "generated.xlsx");
 await fs.copyFile(fixture, baseline);
 await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
-execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Історія", expected.sheetName, registry.sheetName, `--layout-range=${expected.sheetName}!${captionRange}`], { stdio: "inherit" });
+execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "РУХ_Історія", expected.sheetName, registry.sheetName, `--layout-range=${expected.sheetName}!${captionRange}`], { stdio: "inherit" });
 execFileSync(python, ["-X", "utf8", bridge, "finalize-registry", fixture, config], { stdio: "inherit" });
 const final = await SpreadsheetFile.importXlsx(await FileBlob.load(fixture));
-for (const [sheetName, range] of [["Тест_Історія", "A6:R11"], [expected.sheetName, `A${expected.row - 2}:M${expected.row + 3}`], [registry.sheetName, "A1:J5"]]) {
+for (const [sheetName, range] of [["РУХ_Історія", "A6:R11"], [expected.sheetName, `A${expected.row - 2}:M${expected.row + 3}`], [registry.sheetName, "A1:J5"]]) {
   const preview = await final.render({ sheetName, range, scale: 1 });
   await fs.writeFile(path.join(temporary, `${sheetName}.png`), new Uint8Array(await preview.arrayBuffer()));
 }

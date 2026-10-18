@@ -20,7 +20,7 @@ await fs.mkdir(output, { recursive: true });
 const source = JSON.parse(execFileSync(python, ["-X", "utf8", bridge, "dump", fixture], { encoding: "utf8", maxBuffer: 16000000 }));
 const workbook = await SpreadsheetFile.importXlsx(await FileBlob.load(fixture));
 if (process.argv.includes("--inspect")) {
-  const preview = await workbook.render({ sheetName: "Тест_Кроки", range: "A1:N4", scale: 1 });
+  const preview = await workbook.render({ sheetName: "TestBasic_Steps", range: "A1:N4", scale: 1 });
   await fs.writeFile(path.join(output, "before.png"), new Uint8Array(await preview.arrayBuffer()));
   process.exit(0);
 }
@@ -70,9 +70,9 @@ if (process.argv.includes("--registry-only")) {
   registry.showGridLines = fixtureStyle("workbook").showGridLines === "true";
   const modes = settings["test.registry.ModeId.values"].split("|");
   const reverse = new Map(modes.map(mode => [settings[`test.registry.ModeId.${mode}.runtimeMode`], mode]));
-  const originalSteps = source["Тест_Кроки"].rows;
+  const originalSteps = source["TestBasic_Steps"].rows;
   const modeIndex = originalSteps[0].indexOf("ModeId");
-  const stepSheet = workbook.worksheets.getItem("Тест_Кроки");
+  const stepSheet = workbook.worksheets.getItem("TestBasic_Steps");
   for (let index = 1; index < originalSteps.length; index++) {
     const mode = originalSteps[index][modeIndex];
     if (mode && reverse.has(mode)) stepSheet.getCell(index, modeIndex).values = [[reverse.get(mode)]];
@@ -113,7 +113,7 @@ function tableRows(sheetName, tableName) {
     .map(row => Object.fromEntries(headers.map((header, index) => [header, row[index]])));
 }
 const headers = settings["test.scenarios.stepHeaders"].split("|");
-const steps = tableRows("Тест_Кроки", "tbTestSteps").map(row => ({ ...row,
+const steps = tableRows("TestBasic_Steps", "tbTestSteps").map(row => ({ ...row,
   PersonId: row.PersonId ?? row["ІПН"], PersonName: row.PersonName ?? row["ПІБ"], Notes: row.Notes ?? row["Примітки"] }));
 const stepById = new Map(steps.map(step => [step.StepId, step]));
 const runtimeMode = step => {
@@ -186,7 +186,7 @@ print(json.dumps(sorted(found)))
     return (Date.UTC(year, month - 1, day) - Date.UTC(1899, 11, 30)) / 86400000;
   };
   const anchor = serialDate(baseDate);
-  const cases = tableRows("Тест_Сценарії", "tbTestScenarios");
+  const cases = tableRows("Сценарії", "tbTestScenarios");
   if (cases.some(row => row["Дата тесту"] !== anchor)) throw new Error("Fixture anchor differs; shift chronological offsets explicitly before rebasing orders.");
   const tickets = new Map();
   for (const step of steps) {
@@ -210,7 +210,7 @@ print(json.dumps(sorted(found)))
     if (word.Outcome !== "Success") continue;
     for (const [old, value] of tickets) word.ExpectedText = word.ExpectedText.replaceAll(`відпускний квиток №\u00a0${old}`, `відпускний квиток №\u00a0${value}`);
   }
-  for (const [name, tableName, records] of [["Тест_Кроки", "tbTestSteps", steps], ["Expected_РУХ", "tbExpectedMovementRows", expected], ["Expected_WORD", "tbExpectedWord", [...outcomes.values()]]]) {
+  for (const [name, tableName, records] of [["TestBasic_Steps", "tbTestSteps", steps], ["Expected_РУХ", "tbExpectedMovementRows", expected], ["Expected_WORD", "tbExpectedWord", [...outcomes.values()]]]) {
     const table = source[name].tables.find(item => item.name === tableName);
     const top = Number(table.ref.split(":")[0].match(/\d+/)[0]);
     const columnCount = table.ref.split(":")[1].replace(/\d/g, "").split("").reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0);
@@ -221,7 +221,7 @@ print(json.dumps(sorted(found)))
   const generated = path.join(output, "orders-generated.xlsx");
   await fs.copyFile(fixture, baseline);
   await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
-  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "TestBasic_Steps", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
   console.log(`Fixture orders verified against source: ${candidates[0]} / ${baseDate}; event chronology unchanged.`);
   process.exit(0);
 }
@@ -251,7 +251,7 @@ if (process.argv.includes("--document-fixtures-only")) {
       if (oldTicket && step.TicketNumber) word.ExpectedText = word.ExpectedText.replaceAll(`відпускний квиток №\u00a0${oldTicket}`, `відпускний квиток №\u00a0${step.TicketNumber}`);
     }
   }
-  const history = tableRows("Тест_Історія", "tbTestHistory");
+  const history = tableRows("РУХ_Історія", "tbTestHistory");
   const naturalKey = (scenario, row) => JSON.stringify([scenario, ...["ІПН", "Подія", "Вибуття", "Вибуття.Наказ"].map(header => row[header])]);
   const historical = new Map();
   for (const [index, row] of history.entries()) {
@@ -278,7 +278,7 @@ if (process.argv.includes("--document-fixtures-only")) {
     if (arrival) row["Прибуття.Підстава"] = arrival.basis;
     else if (previous?.["Прибуття"]) row["Прибуття.Підстава"] = previous["Прибуття.Підстава"];
   }
-  for (const [name, tableName, records] of [["Тест_Кроки", "tbTestSteps", steps], ["Тест_Історія", "tbTestHistory", history],
+  for (const [name, tableName, records] of [["TestBasic_Steps", "tbTestSteps", steps], ["РУХ_Історія", "tbTestHistory", history],
     ["Expected_РУХ", "tbExpectedMovementRows", expected], ["Expected_WORD", "tbExpectedWord", [...outcomes.values()]]]) {
     const table = source[name].tables.find(item => item.name === tableName);
     const top = Number(table.ref.split(":")[0].match(/\d+/)[0]);
@@ -290,7 +290,7 @@ if (process.argv.includes("--document-fixtures-only")) {
   const generated = path.join(output, "documents-generated.xlsx");
   await fs.copyFile(fixture, baseline);
   await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
-  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
+  execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "TestBasic_Steps", "РУХ_Історія", "Expected_РУХ", "Expected_WORD"], { stdio: "inherit" });
   console.log("Updated incoming documents, qualified tickets and literal Movement/Word expectations.");
   process.exit(0);
 }
@@ -308,7 +308,7 @@ for (const step of steps) {
     step.HospitalShortName = null;
   }
 }
-for (const sheetName of ["Тест_Історія", "Expected_РУХ"]) {
+for (const sheetName of ["РУХ_Історія", "Expected_РУХ"]) {
   const rows = source[sheetName].rows;
   const headerIndex = rows.findIndex(row => row.includes("Куди") && row.includes("Подія"));
   const eventColumn = rows[headerIndex].indexOf("Подія");
@@ -339,7 +339,7 @@ const columnName = index => {
   for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) result = String.fromCharCode(65 + (value - 1) % 26) + result;
   return result;
 };
-const sheet = workbook.worksheets.getItem("Тест_Кроки");
+const sheet = workbook.worksheets.getItem("TestBasic_Steps");
 sheet.tables.items.find(table => table.name === "tbTestSteps").delete();
 sheet.getUsedRange().clear({ applyTo: "all" });
 const values = [headers, ...steps.map(step => headers.map(header => step[header] ?? null))];
@@ -357,11 +357,11 @@ for (let index = 0; index < headers.length; index++) {
   if (["Hospital", "PersonName", "ReportName", "Document", "Notes"].includes(headers[index])) applyFixtureStyle(cells, "inputText");
   if (["Hospital", "Notes"].includes(headers[index])) applyFixtureStyle(cells, "inputLongText");
 }
-for (const name of ["Тест_Історія", "Expected_РУХ", "Expected_WORD"]) {
+for (const name of ["РУХ_Історія", "Expected_РУХ", "Expected_WORD"]) {
   const rows = source[name].rows;
   workbook.worksheets.getItem(name).getRange(`A1:${columnName(rows[0].length - 1)}${rows.length}`).values = rows;
 }
-for (const name of ["Тест_Історія", "Expected_РУХ"]) {
+for (const name of ["РУХ_Історія", "Expected_РУХ"]) {
   const rows = source[name].rows;
   const top = rows.findIndex(row => row.includes("Куди") && row.includes("Подія"));
   const column = columnName(rows[top].indexOf("Куди"));
@@ -378,7 +378,7 @@ applyFixtureStyle(wordSheet.getRange("A1:D10"), "wordBody");
 applyFixtureStyle(wordSheet.getRange("A1:D1"), "header");
 applyFixtureStyle(wordSheet.getRange("A2:D3"), "wordLongRows");
 workbook.recalculate();
-for (const [name, range, filename] of [["Тест_Кроки", "F1:N4", "inputs.png"], ["Тест_Кроки", "O1:Z4", "documents.png"], ["Expected_WORD", "A1:C3", "word.png"]]) {
+for (const [name, range, filename] of [["TestBasic_Steps", "F1:N4", "inputs.png"], ["TestBasic_Steps", "O1:Z4", "documents.png"], ["Expected_WORD", "A1:C3", "word.png"]]) {
   const preview = await workbook.render({ sheetName: name, range, scale: 1 });
   await fs.writeFile(path.join(output, filename), new Uint8Array(await preview.arrayBuffer()));
 }
@@ -386,7 +386,7 @@ const baseline = path.join(output, "original.xlsx");
 const generated = path.join(output, "generated.xlsx");
 await fs.copyFile(fixture, baseline);
 await (await SpreadsheetFile.exportXlsx(workbook)).save(generated);
-execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "Тест_Кроки", "Тест_Історія", "Expected_РУХ", "Expected_WORD",
+execFileSync(python, ["-X", "utf8", bridge, "assemble", baseline, generated, fixture, "TestBasic_Steps", "РУХ_Історія", "Expected_РУХ", "Expected_WORD",
   ...(process.argv.includes("--allow-layout-migration") ? ["--allow-layout-migration"] : [])], { stdio: "inherit" });
 console.log(`Updated ${steps.length} steps with ${headers.length} universal columns and hospital ${hospital[0]}.`);
 execFileSync(process.execPath, [fileURLToPath(import.meta.url), "--registry-only"], { stdio: "inherit" });

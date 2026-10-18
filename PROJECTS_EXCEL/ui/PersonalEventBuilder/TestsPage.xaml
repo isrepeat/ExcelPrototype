@@ -42,8 +42,22 @@
                     columnSpan="10"
                     style="testStatus"
                     text="{Binding Path=Form.ActionStatus}"/>
+    <controls:button name="TestsBasic"
+                     row="4"
+                     column="1"
+                     columnSpan="2"
+                     style="{Binding Path=Settings.TestsBasicStyle}"
+                     caption="{Binding Path=Text.TestsBasic}"
+                     command="{Binding Path=Commands.TestsBasic}"/>
+    <controls:button name="TestsGrouping"
+                     row="4"
+                     column="3"
+                     columnSpan="2"
+                     style="{Binding Path=Settings.TestsGroupingStyle}"
+                     caption="{Binding Path=Text.TestsGrouping}"
+                     command="{Binding Path=Commands.TestsGrouping}"/>
     <controls:checkbox name="TestSelectAll"
-                       row="4"
+                       row="5"
                        column="1"
                        style="testCheckbox"
                        value="{Binding Path=TestSelection.AllC}"
@@ -54,7 +68,7 @@
                        indeterminateGlyph="{Binding Path=Text.CheckboxPartial}"
                        onChange="{Binding Path=Commands.SelectionChanged}"/>
     <controls:checkbox name="TestPreviewAll"
-                       row="4"
+                       row="5"
                        column="2"
                        style="testCheckbox"
                        value="{Binding Path=TestSelection.AllP}"
@@ -64,7 +78,7 @@
                        indeterminate="{Binding Path=TestSelection.PartialP}"
                        indeterminateGlyph="{Binding Path=Text.CheckboxPartial}"
                        onChange="{Binding Path=Commands.SelectionChanged}"/>
-    <stackPanel row="5"
+    <stackPanel row="6"
                 column="1"
                 orientation="vertical">
       <controls:table name="TestCatalog"

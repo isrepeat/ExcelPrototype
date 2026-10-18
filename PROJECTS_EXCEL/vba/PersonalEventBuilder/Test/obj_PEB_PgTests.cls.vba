@@ -112,7 +112,7 @@ End Sub
 Private Function private_TryRegisterBindings() As Boolean
     Dim key As Variant
 
-    For Each key In VBA.Array("TestsRun", "TestsStop", "TestsResults", "TestsWordReport", "EnvironmentSwitch", "CheckboxChecked", "CheckboxUnchecked", "CheckboxPartial")
+    For Each key In VBA.Array("TestsRun", "TestsStop", "TestsResults", "TestsWordReport", "TestsBasic", "TestsGrouping", "EnvironmentSwitch", "CheckboxChecked", "CheckboxUnchecked", "CheckboxPartial")
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(key), ex_PEB_Export.fn_Config("text." & key)) Then
             Exit Function
         End If
@@ -124,6 +124,12 @@ Private Function private_TryRegisterBindings() As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("Settings", "TestsRunning", False) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Settings", "TestsBasicStyle", "primaryButton") Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Settings", "TestsGroupingStyle", "secondaryButton") Then
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("TestSelection", "WordReport", True) Then
@@ -151,7 +157,7 @@ Private Function private_TryRegisterCommands() As Boolean
     Dim name As Variant
     Dim command As obj_UiCommand
 
-    For Each name In VBA.Array("SelectionChanged", "TestRun", "CancelTests", "TestPreview", "EnvironmentSwitch")
+    For Each name In VBA.Array("SelectionChanged", "TestRun", "CancelTests", "TestPreview", "TestsBasic", "TestsGrouping", "EnvironmentSwitch")
         Set command = New obj_UiCommand
         If Not command.Initialize(m_controller, VBA.CStr(name) & "Handler") Then
             Exit Function
