@@ -1534,9 +1534,11 @@ Private Function private_ApplyModeRecord( _
     Dim sourceAlias As String
     Dim lookupFields As String
     Dim defaultStyle As String
+    Dim dynamicStyles As String
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     Set fields = m_modeFields
+    If Not private_ReadModeConfig("forms.dynamicStylesEnabled", dynamicStyles, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("forms.lookupFields", lookupFields, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("forms.sourceStyles.default", defaultStyle, diagnostic) Then Exit Function
     If m_reporterActive Then
@@ -1553,6 +1555,7 @@ Private Function private_ApplyModeRecord( _
                 Exit Function
             End If
             updates("Form." & column("formField")) = value
+            If dynamicStyles = "false" Then GoTo NextAppliedField
             sourceAlias = VBA.CStr(column("sourceAlias"))
             If VBA.Len(VBA.Trim$(VBA.CStr(value))) = 0 Or VBA.Len(sourceAlias) = 0 Then sourceAlias = "default"
             If Not private_ReadModeConfig("forms.sourceStyles." & sourceAlias, sourceStyle, diagnostic) Then Exit Function
@@ -1565,6 +1568,7 @@ Private Function private_ApplyModeRecord( _
             End If
             updates("Form." & column("formField") & "Style") = sourceStyle
         End If
+NextAppliedField:
     Next column
     private_ApplyModeRecord = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
 End Function

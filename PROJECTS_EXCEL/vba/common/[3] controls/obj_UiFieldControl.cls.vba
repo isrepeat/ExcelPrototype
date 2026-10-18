@@ -362,6 +362,7 @@ End Function
 Private Sub private_RegisterStatePart(Optional ByVal applyStyles As Boolean = True)
     Dim tags As String
 
+    If private_ReadAttribute(m_uiControlBase.ControlNode, "partStylesEnabled") = "false" Then Exit Sub
     If m_targetRange Is Nothing Then Exit Sub
     tags = m_appliedStyleName
     If m_readOnly Then tags = tags & " readOnly"

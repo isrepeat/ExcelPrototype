@@ -10,106 +10,125 @@
            value="{Binding Path=Destination}"
            label="{Binding Path=Text.ModeDestinationLabel}"
            fieldStyle="{Binding Path=Form.DestinationStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="PersonRank"
            type="text"
            value="{Binding Path=PersonRank}"
            label="{Binding Path=Text.ModePersonRankLabel}"
            fieldStyle="{Binding Path=Form.PersonRankStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="PersonName"
            type="text"
            value="{Binding Path=PersonName}"
            label="{Binding Path=Text.ModePersonNameLabel}"
            fieldStyle="{Binding Path=Form.PersonNameStyle}"
-           onChange="{Binding Path=Commands.PersonNameChanged}"/>
+           onChange="{Binding Path=Commands.PersonNameChanged}"
+           partStylesEnabled="false"/>
     <field name="PersonId"
            type="text"
            value="{Binding Path=PersonId}"
            label="{Binding Path=Text.ModePersonIdLabel}"
            fieldStyle="{Binding Path=Form.PersonIdStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="PositionCode"
            type="text"
            value="{Binding Path=PositionCode}"
            label="{Binding Path=Text.ModePositionCodeLabel}"
            fieldStyle="{Binding Path=Form.PositionCodeStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="PersonPosition"
            type="text"
            value="{Binding Path=PersonPosition}"
            label="{Binding Path=Text.ModePersonPositionLabel}"
            fieldStyle="{Binding Path=Form.PersonPositionStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="ReportRank"
            type="text"
            value="{Binding Path=ReportRank}"
            label="{Binding Path=Text.ModeReportRankLabel}"
-           fieldStyle="{Binding Path=Form.ReportRankStyle}"/>
+           fieldStyle="{Binding Path=Form.ReportRankStyle}"
+           partStylesEnabled="false"/>
     <field name="ReportName"
            type="text"
            value="{Binding Path=ReportName}"
            label="{Binding Path=Text.ModeReportNameLabel}"
            fieldStyle="{Binding Path=Form.ReportNameStyle}"
-           onChange="{Binding Path=Commands.ReportNameChanged}"/>
+           onChange="{Binding Path=Commands.ReportNameChanged}"
+           partStylesEnabled="false"/>
     <field name="ReportPositionCode"
            type="text"
            value="{Binding Path=ReportPositionCode}"
            label="{Binding Path=Text.ModeReportPositionCodeLabel}"
-           fieldStyle="{Binding Path=Form.ReportPositionCodeStyle}"/>
+           fieldStyle="{Binding Path=Form.ReportPositionCodeStyle}"
+           partStylesEnabled="false"/>
     <field name="IncomingNumber"
            type="text"
            value="{Binding Path=IncomingNumber}"
            label="{Binding Path=Text.ModeIncomingNumberLabel}"
-           fieldStyle="{Binding Path=Form.IncomingNumberStyle}"/>
+           fieldStyle="{Binding Path=Form.IncomingNumberStyle}"
+           partStylesEnabled="false"/>
     <field name="IncomingDate"
            type="text"
            value="{Binding Path=IncomingDate}"
            label="{Binding Path=Text.ModeIncomingDateLabel}"
-           fieldStyle="{Binding Path=Form.IncomingDateStyle}"/>
+           fieldStyle="{Binding Path=Form.IncomingDateStyle}"
+           partStylesEnabled="false"/>
     <field name="EventDate"
            type="text"
            value="{Binding Path=EventDate}"
            label="{Binding Path=Text.ModeEventDateLabel}"
-           fieldStyle="{Binding Path=Form.EventDateStyle}"/>
+           fieldStyle="{Binding Path=Form.EventDateStyle}"
+           partStylesEnabled="false"/>
     <field name="TicketNumber"
            type="text"
            value="{Binding Path=TicketNumber}"
            label="{Binding Path=Text.ModeTicketNumberLabel}"
            fieldStyle="{Binding Path=Form.TicketNumberStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="TicketDate"
            type="text"
            value="{Binding Path=TicketDate}"
            label="{Binding Path=Text.ModeTicketDateLabel}"
            fieldStyle="{Binding Path=Form.TicketDateStyle}"
-           readOnly="{Binding Path=Form.AutoFillPersonnel}"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="Hospital"
            type="text"
            value="{Binding Path=Hospital}"
            label="{Binding Path=Text.ModeHospitalLabel}"
            fieldStyle="{Binding Path=Form.HospitalStyle}"
-           onChange="{Binding Path=Commands.HospitalChanged}"/>
+           onChange="{Binding Path=Commands.HospitalChanged}"
+           partStylesEnabled="false"/>
     <field name="HospitalShortName"
            type="text"
            value="{Binding Path=HospitalShortName}"
            label="{Binding Path=Text.ModeHospitalShortNameLabel}"
-           fieldStyle="{Binding Path=Form.HospitalShortNameStyle}"/>
+           fieldStyle="{Binding Path=Form.HospitalShortNameStyle}"
+           partStylesEnabled="false"/>
     <field name="Document"
            type="text"
            value="{Binding Path=Document}"
            label="{Binding Path=Text.ModeDocumentLabel}"
-           fieldStyle="{Binding Path=Form.DocumentStyle}"/>
+           fieldStyle="{Binding Path=Form.DocumentStyle}"
+           partStylesEnabled="false"/>
     <field name="DocumentDate"
            type="text"
            value="{Binding Path=DocumentDate}"
            label="{Binding Path=Text.ModeDocumentDateLabel}"
-           fieldStyle="{Binding Path=Form.DocumentDateStyle}"/>
+           fieldStyle="{Binding Path=Form.DocumentDateStyle}"
+           partStylesEnabled="false"/>
     <field name="DocumentNumber"
            type="text"
            value="{Binding Path=DocumentNumber}"
            label="{Binding Path=Text.ModeDocumentNumberLabel}"
-           fieldStyle="{Binding Path=Form.DocumentNumberStyle}"/>
+           fieldStyle="{Binding Path=Form.DocumentNumberStyle}"
+           partStylesEnabled="false"/>
   </fieldCatalog>
 
   <formLayouts name="EventLayouts"
@@ -379,6 +398,8 @@
                          selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
                          selectedItem="{Binding Path=Data.SelectedPersonnel}"
                          onSelect="{Binding Path=Commands.SelectPersonnel}"
+                         partStylesEnabled="true"
+                         detailedPartStylesEnabled="true"
                          selectedStyle="candidateSelected"
                          showHeaders="true"/>
 
@@ -898,6 +919,7 @@
               }"/>
         <rule target="controlPart"
               selector="type=candidates;part=row;tags=even"
+              enabled="true"
               styles="{
                 backColor:#383838;
               }"/>
@@ -916,9 +938,11 @@
                 backColor:#383838;
               }"/>
       </layer>
-      <layer name="candidate-sources">
+      <layer name="candidate-sources"
+             enabled="true">
         <rule target="controlPart"
               selector="type=candidates;part=cell;tags=textTooLong"
+              enabled="true"
               style="candidateTextWarning"/>
         <rule target="controlPart"
               selector="type=candidates;part=rows;sourceAlias=CurrentOrder"
@@ -953,7 +977,8 @@
               }"/>
       </layer>
 
-      <layer name="readonly-fields">
+      <layer name="readonly-fields"
+             enabled="true">
         <rule target="controlPart"
               selector="type=input;part=editor;tags=readOnly currentOrderField"
               styles="{fontColor:#6896B2;}"/>

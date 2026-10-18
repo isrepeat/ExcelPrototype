@@ -18,6 +18,7 @@ Private m_isDisposed As Boolean
 Private m_pageBase As obj_PageBase
 Private m_controller As obj_PEB_PgMainController
 Private m_fieldDefaultStyles As Object
+Private m_dynamicStylesEnabled As Boolean
 
 ' //
 ' // Lifecycle
@@ -71,6 +72,7 @@ Private Sub obj_IUiBindingListener_OnValueChanged( _
 
     If m_isDisposed Or m_pageBase Is Nothing Then Exit Sub
     If sourceName <> "Form" Then Exit Sub
+    If Not m_dynamicStylesEnabled Then Exit Sub
     If m_fieldDefaultStyles Is Nothing Then Exit Sub
     If Not m_fieldDefaultStyles.Exists(bindingPath) Then Exit Sub
     If Not m_pageBase.BindingContext.TryGetValue(sourceName, bindingPath, value, valueObject, isObject) Then Exit Sub
@@ -147,6 +149,9 @@ Private Function private_TryRegisterBindings() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    configuredText = ex_PEB_Export.fn_Config("forms.dynamicStylesEnabled")
+    If configuredText <> "true" And configuredText <> "false" Then Err.Raise 5, , "Invalid forms.dynamicStylesEnabled."
+    m_dynamicStylesEnabled = (configuredText = "true")
     If Not uiBindingContext.SetValue("Settings", "CandidateTextWarningLimit", ex_PEB_Export.fn_Config("candidates.textWarningLimit")) Then Exit Function
     If Not uiBindingContext.SetValue("Settings", "CandidateTextWarningColumn", ex_PEB_Export.fn_Config("candidates.textWarningColumn")) Then Exit Function
     Set m_fieldDefaultStyles = VBA.CreateObject("Scripting.Dictionary")
