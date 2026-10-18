@@ -169,6 +169,16 @@ Public Function GroupTemplate(ByVal name As String) As Object
     End If
 End Function
 
+Public Function Definition(ByVal name As String) As Object
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Word templates are not initialized."
+    End If
+    If Not m_templates.Exists(name) Then
+        Err.Raise 5, , "Unknown Word template: " & name
+    End If
+    Set Definition = m_templates(name)
+End Function
+
 Public Function TryRender( _
     ByVal name As String, _
     ByVal values As Object, _

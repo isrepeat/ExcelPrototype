@@ -1124,6 +1124,11 @@ Private Function private_Export(ByVal action As String) As Boolean
             Err.Raise 5, , "Cannot initialize Word exporter."
         End If
         success = pebExptrWord.TryExport(values, diagnostic)
+        If success And values("WordExportAction") = "DUPLICATE" Then
+            private_SetActionStatus diagnostic, True
+            private_Export = True
+            GoTo Cleanup
+        End If
         If values("WordPolicy") = "Omit" Then
             status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
         Else

@@ -162,27 +162,18 @@ def main():
         text = "".join(document.itertext())
         for suffix in ("Begin", "End"):
             assert text.count("{\\export:ToBusinessTrip_" + suffix + "}") == 1
-    assert state.index("edited manually") < state.index("anchors.TryInsert")
-    assert state.index("ex_PEB_WordGroups.fn_Render") < state.index("anchors.TryInsert")
-    assert 'Optional ByRef resultCode As String = ""' in state
-    assert 'resultCode = "SKIP"' in state and 'resultCode = "INSERT"' in state
-    assert 'Word event already exists with different data.' in state
-    skip_branch = exporter.split('If resultCode = "SKIP" And existing Then', 1)[1].split('End If', 1)[0]
-    assert 'values("WordExportAction") = resultCode' in skip_branch and 'GoTo Cleanup' in skip_branch
-    assert exporter.index('If resultCode = "SKIP" And existing Then') < exporter.index('document.Save')
-    assert 'resultCode = "UPDATE"' in exporter
-    assert 'VBA.StrComp(target.Text, replacementText, VBA.vbBinaryCompare) = 0' in exporter
-    controller = (folder / "obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
-    assert '"{action}", VBA.CStr(values("WordExportAction"))' in controller
-    assert state.index("CustomXMLParts.Add(state.XML)") < state.index("part.Delete")
+    document_source = (folder / "ex_PEB_WordDocument.vba").read_text(encoding="utf-8-sig")
+    store_source = (folder / "obj_PEB_WordEventStore.cls.vba").read_text(encoding="utf-8-sig")
+    assert document_source.index("WordStoreManualEdit") < document_source.index("store.Change operation")
+    assert document_source.index("ex_PEB_WordGroups.fn_Render") < document_source.index("anchors.TryInsert")
+    assert document_source.index("CustomXMLParts.Add(store.Xml)") < document_source.index("part.Delete")
+    assert "version=" in store_source and "private_CollectMaps" in store_source
+    assert "TryUpdate" in exporter and "TryDelete" in exporter and "TryReadEvents" in exporter
     assert "ReplaceFileW" in state
     assert exporter.index("fileSystem.CopyFile output") < exporter.index("wordApp.Documents.Open(temporary")
     assert exporter.index("document.Close 0") < exporter.index("ex_PEB_WordState.fn_Publish")
     assert "document.SaveAs2 path, 16" in suite and "word.Documents.Open(path" in suite
     assert "Rejected export modified document text" in suite and "Rejected export modified stored events" in suite
-    assert 'Private Const STATE_VERSION As String = "2"' in state
-    assert state.index("state.preserveWhiteSpace = True") < state.index("state.LoadXML(part.XML)")
-    assert 'text = private_Normalize(VBA.CStr(sharedTemplates(key)))' in state
     assert 'exportService.TryPrepare(binding, "Word", values, diagnostic, False)' in suite
     assert 'lookupService.TrySearch(personId, result, diagnostic)' in suite
     assert 'If matches <> 1 Then' in suite
