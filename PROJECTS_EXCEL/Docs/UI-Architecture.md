@@ -1,5 +1,46 @@
 # Архитектура UI в PROJECTS_EXCEL
 
+**Навигация:** [Главная](../../README.md) → [PROJECTS_EXCEL](../README.md) → [Документация](README.md) → Архитектура UI в PROJECTS_EXCEL
+
+## Содержание
+
+- [1. Общая модель](#1-общая-модель)
+- [2. Два разных контекста](#2-два-разных-контекста)
+- [3. Контракт элемента](#3-контракт-элемента)
+- [4. Фабрики тегов и контролов](#4-фабрики-тегов-и-контролов)
+- [5. Полный запуск страницы: стек вызовов](#5-полный-запуск-страницы-стек-вызовов)
+- [6. Расположение в контейнерах](#6-расположение-в-контейнерах)
+- [7. Контрол Form и поля](#7-контрол-form-и-поля)
+- [8. От кнопки в XML до Shape](#8-от-кнопки-в-xml-до-shape)
+- [9. Правила Binding](#9-правила-binding)
+- [10. Обновление данных](#10-обновление-данных)
+- [11. Маршрутизация событий Shapes](#11-маршрутизация-событий-shapes)
+- [12. Перерисовка и пересчёт расположения](#12-перерисовка-и-пересчёт-расположения)
+- [13. Валидация формы](#13-валидация-формы)
+- [14. Стили](#14-стили)
+- [15. Жизненный цикл и владение ресурсами](#15-жизненный-цикл-и-владение-ресурсами)
+- [16. Добавление новых реализаций](#16-добавление-новых-реализаций)
+- [17. Границы текущей реализации](#17-границы-текущей-реализации)
+- [18. Проверка](#18-проверка)
+- [19. Разделение тегов и контролов в исходниках](#19-разделение-тегов-и-контролов-в-исходниках)
+- [20. Вызовы составных элементов через интерфейсы](#20-вызовы-составных-элементов-через-интерфейсы)
+- [21. Контракт проверки разметки](#21-контракт-проверки-разметки)
+- [22. Вложенные схемы Page](#22-вложенные-схемы-page)
+- [23. Теги контролов в XML namespace](#23-теги-контролов-в-xml-namespace)
+- [24. Одиночная таблица и список таблиц](#24-одиночная-таблица-и-список-таблиц)
+- [25. Контекст данных и источник элементов](#25-контекст-данных-и-источник-элементов)
+- [26. Grid со строками и столбцами](#26-grid-со-строками-и-столбцами)
+- [27. Явное значение поля](#27-явное-значение-поля)
+- [28. Раскладка демонстрационной страницы](#28-раскладка-демонстрационной-страницы)
+- [29. Скомпилированный stylePipeline](#29-скомпилированный-stylepipeline)
+- [30. Фиксированная рабочая область и ширина полей](#30-фиксированная-рабочая-область-и-ширина-полей)
+- [31. Режимы событий PEB](#31-режимы-событий-peb)
+- [32. Каталоги полей и раскладки форм](#32-каталоги-полей-и-раскладки-форм)
+- [Размер Shape и выравнивание внутри ячеек](#размер-shape-и-выравнивание-внутри-ячеек)
+- [33. Зависимости кадрового поиска и автозаполнение](#33-зависимости-кадрового-поиска-и-автозаполнение)
+- [34. Шаблоны ячеек таблицы](#34-шаблоны-ячеек-таблицы)
+
+
 Документ описывает текущую реализацию: превращение XML-разметки в объекты VBA, расположение контролов на листе, привязки данных, обработку событий и освобождение ресурсов. Цепочки вызовов соответствуют исходному коду. Ограничения текущей реализации обозначены отдельно.
 
 ## 1. Общая модель
@@ -148,9 +189,9 @@ obj_IUiElement и obj_IUiControl имеют одинаковые сигнату�
 
 ## 5. Полный запуск страницы: стек вызовов
 
-By default, runtime resolves each worksheet to `<sheet name>.xaml` in the selected UI folder. `ThisWorkbook::ui.pageMappings` overrides this convention with an explicit map, for example `MainPage=MainPage.xaml|Tests=TestsPage.xaml`. Paths are relative to the selected UI folder and may include subfolders. When the key exists, unmapped worksheets are skipped; empty entries, duplicate or missing worksheets, missing XAML files and paths outside the UI folder are configuration errors. Relative style imports are resolved against the mapped XAML file's directory.
+По умолчанию runtime ищет `<sheet name>.xaml` в выбранном каталоге UI. `ThisWorkbook::ui.pageMappings` задаёт явную карту, например `MainPage=MainPage.xaml|Tests=TestsPage.xaml`. Пути относительны каталогу UI и могут включать подпапки. При наличии ключа несопоставленные листы пропускаются; пустые записи, повторные/отсутствующие листы, отсутствующие XAML и выход за каталог — ошибки конфигурации. Относительные импорты стилей считаются от каталога выбранного XAML.
 
-PersonalEventBuilder keeps PROD and TEST markup in `ui/PersonalEventBuilder`. PROD config maps `MainPage=MainPage.xaml` and selects `ui.pageClass=obj_PEB_PgMain`; TEST maps `MainPage=TestsPage.xaml` and selects `ui.pageClass=obj_PEB_PgTests`. Both pages implement `obj_IPage`, initialize `obj_PageBase`, register bindings and controller commands, load data before rendering and use the shared renderer. `obj_PEB_PgTestsController` provides catalog records, execution and preview selection, progress and reports. All test controls, including table checkboxes, belong to the XAML tree; there is no post-render overlay or separately owned test UI.
+PersonalEventBuilder хранит разметку PROD/TEST в `ui/PersonalEventBuilder`. PROD сопоставляет `MainPage=MainPage.xaml` и выбирает `ui.pageClass=obj_PEB_PgMain`; TEST — `MainPage=TestsPage.xaml` и `ui.pageClass=obj_PEB_PgTests`. Обе страницы реализуют `obj_IPage`, инициализируют `obj_PageBase`, регистрируют привязки и команды контроллера, загружают данные до общего рендера. `obj_PEB_PgTestsController` предоставляет каталог, выбор запуска/превью, прогресс и отчёты. Все контролы, включая чекбоксы таблицы, принадлежат XAML-дереву; отдельного тестового UI или накладок после рендера нет.
 
 ~~~text
 ex_UiRenderer
@@ -467,7 +508,7 @@ RenderContext.ValidateForm
 
 ## 14. Стили
 
-The page owns obj_UiStyleCatalog. BeginPage loads shared catalogs explicitly declared in the page root's `styleSources` attribute, then registers local definitions. For example, `styleSources="CommonControlStyles.xaml"` imports a sibling file; no catalog filename is implied by runtime code. ApplyPagePipeline applies page styling rules, and individual controls use the same style catalog.
+Страница владеет obj_UiStyleCatalog. BeginPage загружает общие каталоги, явно перечисленные в `styleSources` корня страницы, затем локальные определения. Например, `styleSources="CommonControlStyles.xaml"` импортирует соседний файл; runtime не предполагает имя каталога. ApplyPagePipeline применяет правила страницы; контролы используют тот же каталог.
 
 styles не занимает место в layout. Разрешение style через Resources означает получение значения из BindingContext; именованный стиль затем обслуживается каталогом страницы.
 
@@ -655,7 +696,7 @@ Page разрешает ровно один grid и не более одного
 
 `controls:tableList` (`obj_UiTableListControl`) принимает тот же контракт источника, включая `obj_UiRawTableList`. Атрибут `gapRows` определяет число пустых строк между таблицами и поддерживается только списком. Пустой список занимает одну ячейку и ничего не выводит.
 
-Raw/Smart presentation, index-based XAML policies, generated Excel names and conversion of rendered tables are described in [TablePresentation-API.md](TablePresentation-API.md).
+Представления Raw/Smart, индексные политики XAML, автоматические имена Excel и преобразование готовых таблиц описаны в [руководстве представлений](TablePresentation-API.md).
 
 ```xml
 <controls:table name="EventTable"
@@ -743,60 +784,60 @@ Arrange использует суммы размеров предшествую�
 
 ## 29. Скомпилированный stylePipeline
 
-`obj_UiStylePipeline` compiles rules once during BeginPage and stores runtime regions. Full RenderTree clears these regions and applies default sheet rules over the measured page scope before rendering elements with their named styles and direct attributes. CompleteRender applies the remaining default rules in XML order and replays selected-row overlays last. Stages, layers and rules honor enabled. Explicit Styles.ApplyStage calls preserve XML order across all targets. Tables register section, header, rows and individual row regions tagged tableRow odd/even; grid and stackPanel register layout bounds. Stripes use controlPart selectors with part=row;tags=even. Select elements by element and depth by elementDepth. StylePipeline-API.md describes syntax and compatibility boundaries with PrototypeNew.
+`obj_UiStylePipeline` один раз компилирует правила при BeginPage и хранит runtime-области. Полный RenderTree очищает их и применяет default-правила листа по измеренной странице до контролов с их именованными стилями и атрибутами. CompleteRender применяет остальные default-правила по XML-порядку и последними восстанавливает накладки выделения. Стадии, слои и правила учитывают enabled. Явный Styles.ApplyStage сохраняет XML-порядок всех целей. Таблицы регистрируют section, header, rows и отдельные строки с tableRow odd/even; grid и stackPanel — границы раскладки. Полосы задаются controlPart с part=row;tags=even. Элемент выбирается через element, глубина — elementDepth. Синтаксис и границы совместимости с PrototypeNew описаны в StylePipeline-API.md.
 
-## 30. Fixed workspace and field spans
+## 30. Фиксированная рабочая область и ширина полей
 
-PEB reserves worksheet columns B:Q as a fixed workspace of 16 columns, each with width 16. R separates it from the action panel at S:T. Column widths and absolute control positions are declared in MainPage.xaml; changing form fields does not change worksheet column widths or sidebar positions.
+PEB резервирует B:Q как фиксированную рабочую область из 16 колонок шириной 16. R отделяет её от панели действий S:T. Ширины и абсолютные позиции заданы в MainPage.xaml; изменение полей формы не меняет колонки листа и расположение боковой панели.
 
-A form's `columnSpan` reserves its total width. Its measured fields must fit within that width; overflow stops layout with a diagnostic. Each field's `columnSpan` specifies its width in worksheet columns (default 1 with a top label). Both the top label and editor span that width. With a left label, an explicit span includes the one-column label and requires at least two columns; the existing implicit left-label layout remains two columns.
+`columnSpan` формы резервирует её полную ширину. Измеренные поля должны помещаться; переполнение останавливает раскладку с диагностикой. `columnSpan` поля задаёт ширину в колонках листа: по умолчанию 1 при верхней подписи. Подпись и редактор занимают весь span. При левой подписи явная ширина включает одну колонку подписи и требует минимум две; прежняя неявная раскладка остаётся двухколоночной.
 
-For example, a horizontal form with `columnSpan="16"` can contain sixteen one-column fields or other mixed spans whose total does not exceed 16. Shorter forms leave the remaining reserved space unused. Forms wider than the workspace require an explicit change to the page layout.
+Горизонтальная форма `columnSpan="16"` может содержать шестнадцать одноколоночных полей или разные ширины с суммой до 16. Короткая форма оставляет резерв пустым. Для более широкой формы нужно явно изменить раскладку страницы.
 
-`controls:candidates` reads spans from its `alignToForm` definition and projects source columns into matching physical positions. Fields missing from the source have empty values. Source aliases and selection records are retained. `obj_IUiColumnLayout` provides the generic table renderer with each starting column's positive span and zero for covered columns. The renderer merges each header/body cell across its span and registers styles over the complete field width. Smart Excel tables cannot use merged column spans. Candidate-specific matching remains in `obj_UiCandidatesControl`; the standard table only renders the supplied column layout.
+`controls:candidates` читает ширины из `alignToForm` и проецирует колонки источника в соответствующие позиции. Отсутствующие поля пусты; алиасы и записи выбора сохраняются. `obj_IUiColumnLayout` передаёт общему renderer положительный span начальной колонки и нули перекрытых. Ячейки заголовка/тела объединяются по span, стили регистрируются на всю ширину. Smart-таблицы не допускают объединённых span. Сопоставление кандидатов остаётся в `obj_UiCandidatesControl`; стандартная таблица только выводит готовую раскладку.
 
-The aligned table width is the sum of field spans, not the form's reserved capacity: the leave form and its candidate columns occupy 14 columns, while treatment occupies 16. Optional `columnsBefore="Header A|Header B"` and `columnsAfter="Header C"` explicitly place additional source columns outside the aligned portion. Each additional column occupies one worksheet column; names must match source display headers and cannot duplicate aligned or other extra columns. Source colors and record selection are retained.
+Ширина выровненной таблицы равна сумме span, а не резерву формы: отпуск и его кандидаты занимают 14 колонок, лечение — 16. Необязательные `columnsBefore="Header A|Header B"` и `columnsAfter="Header C"` добавляют колонки вне выровненной части. Каждая занимает одну колонку листа; имя должно совпадать с отображаемым заголовком и не дублировать основные/дополнительные колонки. Цвета источника и выбор записей сохраняются.
 
-Candidate headers are initially blank and remain blank for columns with no values across the current result. obj_UiCandidatesSource implements obj_IUiHeaderPresentation to supply visible header text independently of structural headers. Empty strings, spaces, Empty and Null do not reveal a header; zero, False and error values do. The standard table uses this optional presentation contract only for header text, preserving column aliases, source styles, spans and selection. Sources without this contract retain their ordinary headers.
+Заголовки кандидатов изначально пусты и остаются пустыми для колонок без значений во всём результате. obj_UiCandidatesSource реализует obj_IUiHeaderPresentation, отделяющий видимую подпись от структурного заголовка. Пустые строки, пробелы, Empty и Null не раскрывают заголовок; ноль, False и ошибки — раскрывают. Необязательный контракт меняет только текст, сохраняя алиасы, стили, span и выбор. Источники без контракта используют обычные заголовки.
 
-`workspaceFirstColumn` and `workspaceLastColumn` declare inclusive bounds relative to the containing layout origin. Both are required when extra columns are configured. PEB uses 1 and 16 (B:Q). Before measuring or arranging, the control verifies that the complete table fits. Missing headers, duplicate columns or insufficient space produce a layout diagnostic before cells are written. The form remains anchored; columnsBefore extends the table to the left and columnsAfter to the right. The current leave layout permits two extra columns on the right, treatment permits none, and neither permits extra columns on the left. Explicitly reserve space or move the form in markup to allow more columns; the control does not widen the workspace or move the action panel automatically.
+`workspaceFirstColumn` и `workspaceLastColumn` задают включительные границы относительно начала контейнера; при дополнительных колонках оба обязательны. В PEB это 1 и 16 (B:Q). До измерения и размещения проверяется вхождение всей таблицы. Отсутствие заголовка, повторы или нехватка места дают ошибку до записи ячеек. Форма остаётся закреплённой; columnsBefore расширяет влево, columnsAfter — вправо. Отпуск допускает две дополнительные колонки справа, лечение — ни одной; слева места нет в обоих вариантах. Дополнительное пространство или сдвиг формы задаются в разметке; автоматически область и панель не перемещаются.
 
-The optional page attribute `zoom="80%"` (also accepting `zoom="80"`) sets an integer zoom from 10 to 400. After each successful full render, it takes precedence over style zoom settings and applies to workbook windows displaying the target worksheet. When omitted, the page does not override zoom.
+Необязательный атрибут страницы `zoom="80%"` или `zoom="80"` задаёт целый масштаб 10–400. После успешной полной отрисовки он имеет приоритет над стилями и применяется к окнам книги с целевым листом. Без атрибута страница масштаб не переопределяет.
 
-## 31. PEB event modes
+## 31. Режимы событий PEB
 
-Order inputs occupy the top two rows of the page. Below them, mode buttons form two columns: arrival on the left and departure on the right. Each column reserves five positions; four are currently populated and the fifth remains free. Modes distinguish treatment, annual leave, medical leave and family leave. The active button uses activeModeButton. wsConfig defines the default mode, captions, direction, form kind, field mappings and candidate source aliases. Event direction remains in page state rather than a visible Type field.
+Поля приказа занимают две верхние строки. Ниже кнопки режимов образуют две колонки: прибытие слева, выбытие справа. Каждая резервирует пять позиций, четыре заполнены. Режимы различают лечение, ежегодный, лечебный и семейный отпуск. Активная кнопка использует activeModeButton. wsConfig задаёт режим по умолчанию, подписи, направление, вид формы, сопоставления полей и алиасы кандидатов. Направление хранится в состоянии страницы, а не в видимом Type.
 
-The controller stores Form.ModeId, Form.ModeDirection and Form.ModeForm independently of the visible fields. All modes use the same PersonalEventBuilder/MainPage.xaml. Its EventFields catalog defines each field once, and EventLayouts contains Leave (14 fieldRef entries) and Treatment (16 entries). The single PersonnelForm binds layout to Form.ModeForm. Switching modes clears the configured personnel lookup key and the union of dependencies in the old and new form, clears candidates and selection, and rebuilds the active page. Unrelated fields and the accepted order are preserved. Ordinary page refresh reuses the existing binding context and does not clear fields. The workspace, button panel, action panel positions and zoom are declared once. This version uses a full rebuild rather than partial rendering.
+Контроллер хранит Form.ModeId, Form.ModeDirection и Form.ModeForm независимо от видимых полей. Режимы используют общий PersonalEventBuilder/MainPage.xaml. EventFields определяет каждое поле один раз; EventLayouts содержит Leave (14 fieldRef) и Treatment (16). PersonnelForm привязывает layout к Form.ModeForm. Смена режима очищает ключ кадрового поиска и объединение зависимостей старой/новой формы, кандидатов и выбор, затем перестраивает страницу. Посторонние поля и принятый приказ сохраняются. Обычное обновление использует прежний binding-контекст, не очищая поля. Рабочая область, панели и масштаб заданы один раз. Используется полная перестройка, не частичный рендер.
 
-Candidate columns are projected from the configured form fields, with manual-only fields left blank and source colors retained. Selecting a candidate applies only configured source mappings; manually entered report, incoming-document and hospital fields remain intact. Event.Type comes from the mode direction. Event.Date uses Absence.DepartureDate only for departure; arrival dates require manual input until an arrival source is configured. The latest absence record is still selected using the existing lookup rules; modes do not yet filter candidates by absence category. Export logic is not implemented.
+Колонки кандидатов проецируются из настроенных полей формы: ручные поля остаются пустыми, цвета сохраняются. Выбор применяет только настроенные сопоставления; вручную введённые рапорт, входящий документ и больница не стираются. Event.Type берётся из направления. Event.Date использует Absence.DepartureDate только при выбытии; прибытие вводится вручную до настройки источника. Последняя запись отсутствия выбирается прежними правилами; режимы пока не фильтруют категории отсутствия. Описываемый здесь этап UI не включает реализацию экспорта.
 
-## 32. Field catalogs and form layouts
+## 32. Каталоги полей и раскладки форм
 
-Mode buttons use one horizontal ModesPanel containing vertical ArrivalModes and DepartureModes stacks. Each vertical stack declares columnSpan=4 and horizontalAlignment=stretch, so children without their own columnSpan inherit the stack width from a cloned definition. Explicit child widths are preserved and rejected if they exceed the stack width. Stretch requires vertical orientation and an explicit columnSpan. A rowSpan=5 reserves at least five rows without inserting placeholder buttons. Existing stacks without stretch keep their previous sizing. Button positions follow stack order; individual row/column attributes are unnecessary.
+Кнопки используют горизонтальный ModesPanel с вертикальными ArrivalModes и DepartureModes. У каждого columnSpan=4 и horizontalAlignment=stretch; дети без собственного span получают ширину из клонированного определения. Явная ширина сохраняется и отклоняется при превышении родителя. Stretch требует вертикальной ориентации и явного columnSpan. rowSpan=5 резервирует пять строк без кнопок-заполнителей. Старые stack без stretch сохраняют размеры. Позиции следуют порядку элементов; отдельные row/column не нужны.
 
-At page scope, fieldCatalog requires a unique name and contains ordinary field definitions. formLayouts requires a unique name and a catalog reference; it contains named formLayout elements with ordered fieldRef entries. Each fieldRef requires the catalog field's name and optionally overrides columnSpan. Other editor attributes belong to the catalog. Catalog definitions and references use the profiles namespace and do not create visual controls.
+На уровне страницы fieldCatalog имеет уникальное имя и обычные определения полей. formLayouts требует уникальное имя и ссылку на каталог, содержит именованные formLayout с упорядоченными fieldRef. Каждый fieldRef задаёт имя поля и необязательное переопределение columnSpan; прочие свойства редактора принадлежат каталогу. Определения и ссылки используют profiles namespace и не создают визуальные контролы.
 
-A controls:form selects the group using layoutSource and the variant using layout (a literal or binding). Both attributes must be provided together, and a selected-layout form cannot contain inline fields or controls. Ordinary inline forms remain supported. Before tree creation, markup schemas validate every catalog and layout, and ex_UiFormLayouts checks duplicate names and all cross-references, including inactive layouts. During form configuration, the resolver clones the chosen fields in reference order and applies span overrides without modifying the source document. GetDefinition returns this materialized form, so candidate alignment uses exactly the same active fields. Missing catalogs, layouts or fields stop rendering with a diagnostic; no default variant is selected silently.
+controls:form выбирает группу через layoutSource, вариант — через layout (литерал или Binding). Оба атрибута нужны вместе; форма с выбранной раскладкой не содержит inline-полей и контролов. Обычные inline-формы сохраняются. До построения дерева схемы проверяют каталоги/раскладки, ex_UiFormLayouts — имена и ссылки, включая неактивные варианты. Настройка клонирует выбранные поля по порядку ссылок и применяет span, не меняя исходный XML. GetDefinition возвращает эту форму, поэтому выравнивание кандидатов использует те же поля. Отсутствие каталога, варианта или поля останавливает рендер; молчаливого выбора по умолчанию нет.
 
-## Shape size and alignment within a cell area
+## Размер Shape и выравнивание внутри ячеек
 
-`controls:button` and the `controls:select` header support the static attributes `shapeWidth`, `shapeHeight`, `shapeHorizontalAlignment` and `shapeVerticalAlignment`. Sizes are positive fractions no greater than one: `1`, `1/5`, `1/2`. Numerators and denominators are integers; zero, negative values and fractions greater than one are rejected. Alignment accepts `left|center|right` horizontally and `top|center|bottom` vertically. These attributes position the shape rather than its text.
+`controls:button` и заголовок `controls:select` поддерживают статические `shapeWidth`, `shapeHeight`, `shapeHorizontalAlignment`, `shapeVerticalAlignment`. Размер — положительная дробь до единицы: `1`, `1/5`, `1/2`. Числитель и знаменатель целые; ноль, отрицательные и значения больше единицы запрещены. Выравнивание — `left|center|right` и `top|center|bottom`. Атрибуты размещают Shape, а не текст.
 
-For example, `shapeWidth="1/5" shapeHeight="1/2" shapeHorizontalAlignment="left" shapeVerticalAlignment="top"` places a 20 by 20 button at the top left of an area 100 wide and 40 high. Centering both axes produces offsets of 40 from the left and 10 from the top. Merged cells and ranges use the entire area allocated to the control.
+`shapeWidth="1/5" shapeHeight="1/2" shapeHorizontalAlignment="left" shapeVerticalAlignment="top"` помещает кнопку 20×20 в верхний левый угол области 100×40. Центрирование по обеим осям даёт смещения 40 и 10. Для объединённых ячеек и диапазонов берётся вся выделенная контролу область.
 
-Ordinary buttons without these attributes fill the entire area. An editable select defaults to an arrow occupying the rightmost tenth of the area at full height; a noneditable select fills the area. Geometry is calculated when the shape is created and again after page styles establish the final column widths and row heights. Excel handles window zoom. Manual cell resizing requires another page layout pass.
+Без атрибутов обычная кнопка занимает всю область. Редактируемый select по умолчанию показывает стрелку в правой десятой части на полную высоту; нередактируемый заполняет область. Геометрия считается при создании Shape и после итоговых ширин/высот от стилей страницы. Масштаб окна учитывает Excel. После ручного изменения ячеек нужен новый проход раскладки.
 
-## 33. Personnel lookup dependencies and auto-fill
+## 33. Зависимости кадрового поиска и автозаполнение
 
-Each form configures lookup.key and a pipe-separated lookup.dependents list in wsConfig. Changes to the key clear these dependent fields and the previous selection before lookup; deleting the key clears candidates when Excel commits the cell edit. Mode changes clear both groups, including the key. Report, hospital, document and incoming-document fields are not part of the current personnel dependencies. The key editor uses lookupKeyField background, as do the order inputs that trigger resolution.
+Форма задаёт lookup.key и список lookup.dependents через `|` в wsConfig. Изменение ключа перед поиском очищает зависимые поля и выбор; удаление ключа очищает кандидатов после фиксации ячейки Excel. Смена режима очищает обе группы, включая ключ. Рапорт, больница и документы не входят в кадровые зависимости. Редактор ключа, как и поля разрешения приказа, использует фон lookupKeyField.
 
-Form.AutoFillPersonnel defaults to personnel.autoFill.default and persists across mode changes. Dependent catalog fields bind readOnly to this Boolean. Auto-fill enabled applies selected candidate values and rejects manual edits through the cell binding. Disabled retains values, permits manual editing and skips candidate application. Re-enabling applies the current selected record when present. The checkbox exposes an optional onChange command after its value changes; the PEB handler rebuilds the page to refresh editor permissions without rerunning lookup. Generic input and form readOnly attributes accept Boolean bindings as well as literals.
+Form.AutoFillPersonnel получает personnel.autoFill.default и сохраняется между режимами. Зависимые поля каталога привязывают readOnly к этому Boolean. Включённое автозаполнение применяет кандидата и запрещает ручной ввод через binding; выключенное сохраняет значения, допускает редактирование и пропускает применение кандидата. Повторное включение применяет выбранную запись. Чекбокс может вызвать onChange после изменения; PEB перестраивает страницу для прав редакторов без повторного поиска. Универсальные input/form readOnly принимают Boolean-привязки и литералы.
 
-## 34. Table cell templates
+## 34. Шаблоны ячеек таблицы
 
-A controls:table can declare one controls:table.cellTemplates wrapper containing controls:cellTemplate entries. Each entry requires columnAlias, accepts mode="replace" (default) or mode="overlay", and contains exactly one ordinary control. A template targets an existing source alias or header; it never adds a column. Duplicate, missing or ambiguous column targets stop rendering with a diagnostic.
+controls:table допускает одну обёртку controls:table.cellTemplates с controls:cellTemplate. Каждому нужен columnAlias; mode — replace по умолчанию либо overlay; внутри ровно один обычный контрол. Цель — существующий алиас/заголовок, новая колонка не создаётся. Повторная, отсутствующая или неоднозначная цель останавливает рендер.
 
-The table creates a local context for each actual data row: Item is the record supplied by obj_IUiRowRecords or the selection source, otherwise a dictionary built from source headers and aliases; Cell.Value is the original cell value. Use caption="{Binding Path=Cell.Value}" or caption="{Binding Path=Item.ScenarioName}" without changing the page DataContext. Shared Text and Commands bindings retain their page scope. obj_UiRawTable.Initialize and InitializeEmpty accept an optional aliases array after title, so display captions can change independently of stable field names. SetRecords attaches the original records, including fields not projected into visible columns. Initial template controls are button, label and checkbox; editor or container templates are rejected explicitly.
+Для каждой строки создаётся локальный контекст: Item — запись obj_IUiRowRecords либо источника выбора, иначе словарь заголовков/алиасов; Cell.Value — исходное значение ячейки. Используйте caption="{Binding Path=Cell.Value}" или caption="{Binding Path=Item.ScenarioName}", не меняя DataContext страницы. Text и Commands сохраняют область страницы. obj_UiRawTable.Initialize/InitializeEmpty принимают aliases после title, отделяя подписи от стабильных полей. SetRecords прикрепляет оригинальные записи, включая скрытые поля. Начальные шаблоны допускают button, label, checkbox; редакторы и контейнеры отклоняются.
 
-Button templates receive the row record through obj_UiCommand.ExecuteWithPayload. They follow the resolved cell area with moveAndSize placement unless the template explicitly specifies another placement. Replace hides the underlying cell text for shape controls using a display format while retaining its stored value; overlay keeps the cell text and requires a shape control. The template controls, event routes, local contexts and prior number formats are released on re-render and disposal. Empty sources create no template controls. PEB results use the PreviewLink alias and resolve document navigation from the row's ScenarioId and StepId, without column coordinates or parsing shape names.
+Кнопка шаблона получает запись через obj_UiCommand.ExecuteWithPayload и следует области ячейки с placement=moveAndSize, если не задан другой. Replace скрывает текст ячейки Shape-контрола форматом отображения, сохраняя значение; overlay оставляет текст и требует Shape. Контролы, маршруты, локальные контексты и прежние форматы освобождаются при повторном рендере/Dispose. Для пустого источника контролы не создаются. Результаты PEB используют PreviewLink и определяют документ по ScenarioId/StepId записи, без координат колонок и разбора имён Shape.

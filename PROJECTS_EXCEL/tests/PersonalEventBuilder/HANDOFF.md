@@ -1,51 +1,63 @@
-# PEB test runner handoff
+# Состояние тестового раннера PEB
 
-## Current state
+**Навигация:** [Главная](../../../README.md) → [PROJECTS_EXCEL](../../README.md) → [Документация](../../Docs/README.md) → [Тестовые сценарии](README.md) → Состояние раннера
 
-The implementation is in source files. The working PEB workbook has not been updated with these changes, and VBA compilation/macros have not been executed. Static validation is not runtime verification. See README.md in this directory for detailed configuration, fixture schemas and manual workflows.
+## Содержание
 
-## Architecture
+- [Текущее состояние](#текущее-состояние)
+- [Архитектура](#архитектура)
+- [Запуск после обновления книги](#запуск-после-обновления-книги)
+- [Сохраняемая диагностика](#сохраняемая-диагностика)
+- [Оставшиеся задачи и ограничения](#оставшиеся-задачи-и-ограничения)
+- [Проверки при разработке](#проверки-при-разработке)
 
-- wsConfig.txt and wsConfig.test.txt are complete PROD and TEST profiles. The environment button loads the other profile and schedules page reinitialization. TEST routes Movement export to Dependencies/test_РУХ.xlsx, sheet Відсутні, native table ТВ. Source paths and an explicit production-path rejection guard isolate test writes.
-- Active TestScenarios.EventRoutes.xlsx contains 54 scenarios and 55 stable steps, with independent Movement snapshots and literal Word expectations. The original books remain preserved. Historical synthetic order numbers and linked ticket components are reconciled with the order dictionary; S14 retains exact duplicate identity and S16 retains its backdated arrival under the current order. Journals and Word baselines were not rewritten.
-- PersonalEventBuilderEventRoutes.xml owns 35 EventIds and optional independent exporters. Both exporter routes choose only a text template; the Movement operation comes from its native EventId plan. Movement XML contains resultTemplates/sharedTemplates/template/column/text. Each column renders independently into MovementColumnTexts; transitions declare both arrival and departure basis texts. Native writing selects text by header and rejects missing or unwritable text columns before mutation. ex_PEB_MovementPlan owns 35 native business plans and five column-mapping profiles; eight status names are configured under export.Movement.status. Shared providers and optional input schemas are under export.shared. Ref.Form aliases and XML table instructions were removed. Text rendering and transactional table mutation remain separate; route disposal clears both caches.
-- obj_PEB_TestScenarios owns a private Excel instance and the validated test workbook. It seeds scenario history, prepares inputs, captures native before/after records and commits diagnostics. Initial history is reset once per scenario; subsequent steps retain preceding changes.
-- obj_PEB_TestRunner freezes selected scenarios into a queue and executes ExportMovement, PreviewWord or combined ExportEvent per advance. Movement assertions compare independent snapshots, decisions, codes, counts and mutation integrity. Word assertions compare literal text/diagnostic/omission and require unchanged Movement during Word preparation. Preview display does not control assertions. The visible form is preserved.
-- obj_PEB_PgTests and obj_PEB_PgTestsController use the standard page lifecycle and bound controls in ui/PersonalEventBuilder/TestsPage.xaml. ex_PEB_Testing only schedules workbook-qualified Application.OnTime callbacks and holds a borrowed controller reference. Worksheet-to-XAML mappings and the page class are selected through wsConfig; there is no separate test UI folder or manual checkbox renderer.
-- The borrowed-workbook Movement exporter does not save independently. The scenario session saves operation changes and diagnostics together after each step. Reload/close cancels callbacks and disposes the private session. Environment switching and manual export/loading are blocked during a run.
 
-## Run workflow after workbook update
+## Текущее состояние
 
-1. Import/reload changed VBA, MainPage.xaml and wsConfig through the normal project workflow. Repository rules require explicit authorization before updating the working workbook or compiling/running VBA.
-2. Switch to TEST. Save and close TestScenarios.EventRoutes.xlsx, test_РУХ.xlsx and test_ЕЖОС.xlsx in the interactive Excel session.
-3. Open the test panel in PEB, select scenarios, and start the run. Cancel prevents further export operations; queued steps are recorded as SKIP.
-4. Inspect live results in PEB. After completion/cancellation, open TestScenarios.EventRoutes.xlsx and filter diagnostics by RunId, ScenarioId and StepId.
+Реализация находится в исходниках. Рабочая книга PEB этими изменениями не обновлялась, компиляция и макросы VBA не запускались. Статическая проверка не является runtime-проверкой. Подробные настройки, схемы и ручной запуск описаны в [руководстве тестов](README.md). Числа и ограничения исторических заметок ниже нужно сверять с актуальным каталогом.
 
-## Persistent diagnostics
+## Архитектура
 
-TestScenarios.xlsx contains three permanent native filterable report tables. Formatting is stored in the workbook; the runner only validates their schemas and writes values:
+- wsConfig.txt и wsConfig.test.txt — полные профили PROD/TEST. Кнопка окружения загружает другой профиль и планирует переинициализацию страницы. TEST направляет Movement в Dependencies/test_РУХ.xlsx, лист Відсутні, таблицу ТВ. Пути и явный запрет production-пути изолируют запись.
+- Активная TestScenarios.EventRoutes.xlsx содержит базовые сценарии со стабильными шагами и независимыми снимками Movement/буквальными ожиданиями Word; позднее добавлена отдельная группа сценариев группировки. Оригинальные книги сохранены. Исторические номера приказов и части билетов согласованы со справочником; S14 сохраняет точную идентичность дубля, S16 — прибытие задним числом под текущим приказом. Журналы и Word-ожидания не переписываются.
+- PersonalEventBuilderEventRoutes.xml задаёт 35 EventId и независимые необязательные маршруты экспортёров. Маршрут выбирает только текстовый шаблон; операцию Movement даёт нативный план EventId. XML Movement содержит resultTemplates/sharedTemplates/template/column/text; колонки независимо формируют MovementColumnTexts, переходы имеют основания прибытия и выбытия. Перед записью запрещаются отсутствующие/недоступные колонки. ex_PEB_MovementPlan содержит 35 планов и пять профилей; восемь статусов — в export.Movement.status, общие поставщики и входы — в export.shared. Ref.Form и XML-команды таблиц удалены. Текст и транзакционные изменения разделены; Dispose маршрутов очищает оба кеша.
+- obj_PEB_TestScenarios владеет частным Excel и проверенной книгой сценариев, восстанавливает историю, готовит входы, снимает строки до/после и сохраняет диагностику. История сбрасывается один раз на сценарий; следующие шаги сохраняют предыдущие изменения.
+- obj_PEB_TestRunner фиксирует очередь выбора и выполняет ExportMovement, PreviewWord либо ExportEvent за один advance. Movement проверяет снимки, решения, коды, количества и целостность изменений. Word сравнивает буквальный текст/ошибку/пропуск и неизменность Movement во время подготовки. Показ превью не отключает проверки; видимая форма сохраняется.
+- obj_PEB_PgTests и obj_PEB_PgTestsController используют стандартный lifecycle и XAML-контролы ui/PersonalEventBuilder/TestsPage.xaml. ex_PEB_Testing только планирует квалифицированные книгой Application.OnTime и хранит заимствованную ссылку на контроллер. Связь листа с XAML и класс страницы задаёт wsConfig; отдельной папки UI и ручного renderer чекбоксов нет.
+- Movement с заимствованной книгой сам не сохраняет её. Сессия сценария фиксирует операции и диагностику. Reload/закрытие отменяют callback и освобождают сессию; смена окружения, ручной экспорт и загрузка во время теста запрещены.
 
-- Тест_Результати/tbTestResults: stable StepId, StepOrder, Action, expected/actual outcome, codes/counts, StateCheck, MovementResult/WordResult, full expected/actual preview texts/diagnostics, PASS/FAIL/SKIP/ERROR, details, timing and progress. Legacy runs are marked Legacy/NotRun for the new component checks.
-- Тест_Записи/tbTestRecords: full native ТВ values before and after operations, including Created/Closed/Modified/Deleted/Unchanged markers.
-- Тест_ВхідніДані/tbTestInputs: original fixture fields and prepared export values with value types.
+## Запуск после обновления книги
 
-The archive is append-only and schema-checked. A save failure ends the run with ERROR; unsaved changes are discarded. A hard interruption may leave the last persisted RunState as Running; compare CompletedSteps with TotalSteps to identify incomplete runs.
+1. Штатно импортируйте изменённые VBA, XAML и wsConfig. Обновление рабочей книги, компиляция и выполнение VBA требуют явного разрешения.
+2. Переключитесь в TEST. Сохраните и закройте TestScenarios.EventRoutes.xlsx, test_РУХ.xlsx и test_ЕЖОС.xlsx в пользовательском Excel.
+3. Откройте панель PEB, выберите сценарии и запустите. Отмена запрещает новые экспорты; очередь оставшихся шагов получает SKIP.
+4. Смотрите текущие результаты в PEB. После завершения/отмены откройте TestScenarios.EventRoutes.xlsx и фильтруйте по RunId, ScenarioId, StepId.
 
-## Remaining work and known limits
+## Сохраняемая диагностика
 
-- Runtime verification is outstanding: compile only with authorization; verify TEST switching, panel layout, selection, execution, cancellation, journal persistence, cleanup on reload/close, and absence of writes to production books.
-- Scheduling is cooperative, not parallel. Excel regains control between callbacks. One export/open/save operation remains synchronous and cannot be interrupted midway; measure its runtime before claiming a fully responsive UI.
-- Ordinary departures now reject an existing open event (S09); an explicit Transition event is required to close the source and open the target. Runtime verification remains outstanding.
-- S15 is a Defined ExportEvent assertion for MoveFromAnnualVacationToHospital. S17-S20 add combined routing assertions for outpatient VLK, medical leave and missing/ambiguous source records.
-- TestScenarios.EventRoutes.xlsx is the active fixture: 54 scenarios and 55 steps, with 32 rendered XML templates and two deliberate outpatient-VLK omissions. Configured Movement plans support the business-event registry; fixture coverage remains partial. S16 is a backdated arrival followed by a current-day departure under one order. Actual DOCX layout, formatting and insertion remain separate integration work.
-- All scenario inputs, including order dates, rank, position and document details, are stored in tbTestSteps. The loader does not supply configured default data. Word cases require matching test directory records. Existing copied dependencies are not all anonymized synthetic data.
-- The user-cleared native ТВ has no formulas inside its helper columns. Existing formulas are preserved/reapplied where present; absent formulas are not invented.
-- Verify SaveAs behavior during a pending timer; there is no AfterSave callback rebinding implementation.
-- The older Scenarios.xlsx and synthetic-fixture generator are separate from the active native test_РУХ scenario workflow. Do not regenerate or merge them over the current user workbook. validate_fixtures.py targets the older generated set and may report its missing dependencies.
+В книге сценариев заранее подготовлены три постоянные фильтруемые нативные таблицы. Оформление хранится в книге; раннер проверяет схему и записывает значения:
 
-## Development validation
+- Тест_Результати/tbTestResults: стабильные StepId/StepOrder, Action, ожидаемый/фактический исход, коды/счётчики, StateCheck, MovementResult/WordResult, полные тексты и диагностика превью, PASS/FAIL/SKIP/ERROR, детали, время и прогресс. Старые запуски помечены Legacy/NotRun для новых проверок.
+- Тест_Записи/tbTestRecords: все нативные значения ТВ до/после с Created/Closed/Modified/Deleted/Unchanged.
+- Тест_ВхідніДані/tbTestInputs: исходные поля и подготовленные значения с типами.
 
-- Scripts/Testing/PEB/validate_scenario_loader.py validates current profiles, native fixture schemas, scenario contracts and source/UI integration without Excel.
-- Scripts/PowerShell/Test-PEBWordTemplates.ps1 validates Word template structure without running VBA.
-- Scripts/PowerShell/Update-WorkbookModules.ps1 with -Profile PersonalEventBuilder -VbaFolderPath PROJECTS_EXCEL/vba -PlanOnly discovers the modules without importing them.
-- Preserve English VBA comments/documentation and configurable UI captions. All text edits use apply_patch; validate final bytes and trailing whitespace before committing.
+Архив дополняется и проверяется по схеме. Ошибка сохранения заканчивает запуск с ERROR; несохранённое отбрасывается. Жёсткое прерывание может оставить RunState=Running; сравните CompletedSteps с TotalSteps.
+
+## Оставшиеся задачи и ограничения
+
+- Нужна runtime-проверка: компиляция только с разрешения; переключение TEST, раскладка, выбор, запуск/отмена, журнал, очистка при reload/закрытии и отсутствие production-записи.
+- Планирование кооперативное, не параллельное. Excel получает управление между callback. Одно открытие, сохранение или экспорт синхронно и не прерывается посередине; отзывчивость нужно измерять.
+- Обычное выбытие запрещает существующее открытое событие (S09); для закрытия источника и открытия цели нужен Transition. Runtime ещё проверяется отдельно.
+- S15 — Defined/ExportEvent для MoveFromAnnualVacationToHospital. S17–S20 проверяют амбулаторную ВЛК, лечебный отпуск, отсутствие и неоднозначность источника.
+- Базовый набор исторически содержит 54 сценария и 55 шагов, 32 текстовых XML-шаблона и два пропуска амбулаторной ВЛК; текущий общий каталог также включает группировку. Полного покрытия Movement нет. S16 объединяет прибытие задним числом и текущее выбытие под одним приказом. Оформление и вставка DOCX проверяются отдельно интеграционно.
+- Входы базовых сценариев, включая приказ, звание, должность и документы, хранятся в tbTestSteps, без неявных настроенных значений по умолчанию. Word требует соответствующих справочников. Не все скопированные зависимости обезличены.
+- В очищенной пользователем ТВ нет формул вспомогательных колонок. Существующие формулы сохраняются/восстанавливаются; отсутствующие не выдумываются.
+- Нужно проверить SaveAs при ожидающем таймере: перепривязки callback через AfterSave нет.
+- Старые Scenarios.xlsx и генератор синтетических книг независимы от текущей test_РУХ. Нельзя перегенерировать их поверх пользовательской книги. validate_fixtures.py относится к старому набору и может сообщить о недостающих зависимостях.
+
+## Проверки при разработке
+
+- Scripts/Testing/PEB/validate_scenario_loader.py проверяет профили, схемы, контракты сценариев и связь UI без Excel.
+- Scripts/PowerShell/Test-PEBWordTemplates.ps1 проверяет структуру Word XML без VBA.
+- Scripts/PowerShell/Update-WorkbookModules.ps1 с -Profile PersonalEventBuilder -VbaFolderPath PROJECTS_EXCEL/vba -PlanOnly находит модули без импорта.
+- UI-подписи остаются настраиваемыми; язык комментариев VBA определяется правилами проекта. Текст редактируется через apply_patch, перед коммитом проверяются последние байты и пробелы.

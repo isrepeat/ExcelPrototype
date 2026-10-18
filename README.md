@@ -1,5 +1,23 @@
 # ExcelPrototype
 
+**Навигация:** Главная
+
+## Содержание
+
+- [Документация](#документация)
+- [Настройка Codespace (алиасы + логи)](#настройка-codespace-алиасы--логи)
+- [Git-алиасы для репозитория](#git-алиасы-для-репозитория)
+- [PostProcess DSL](#postprocess-dsl)
+- [Mode Pipeline (PreProcess -> Mode -> ResultLayout -> PostProcess)](#mode-pipeline-preprocess---mode---resultlayout---postprocess)
+- [ResultTemplatesParser](#resulttemplatesparser)
+- [StylePipeline (page-based, universal apply)](#stylepipeline-page-based-universal-apply)
+- [Result Page Zoom (profiles)](#result-page-zoom-profiles)
+- [Output Layout (gaps between result tables)](#output-layout-gaps-between-result-tables)
+
+## Документация
+
+[Документация PROJECTS_EXCEL](PROJECTS_EXCEL/README.md) — общий каталог руководств по UI, данным, экспорту Word/Movement, DSL и тестам. В статьях есть содержание и ссылки на родительский раздел.
+
 ## Настройка Codespace (алиасы + логи)
 
 Если работаешь через расширение и оно работает нормально, этот шаг можно пропустить.
