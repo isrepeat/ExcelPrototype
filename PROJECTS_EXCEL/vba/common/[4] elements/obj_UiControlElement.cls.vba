@@ -36,6 +36,9 @@ Private m_textDirty As Boolean
 Private m_candidateValuesDirty As Boolean
 Private m_candidateLayoutDirty As Boolean
 Private m_bindingDependencies As Collection
+Private m_collapsed As Boolean
+Private m_visibilityMeasured As Boolean
+Private m_visibilityDirty As Boolean
 
 ' //
 ' // Lifecycle
@@ -71,6 +74,30 @@ Private Function obj_IUiElement_Measure( _
     ByRef columns As Long, _
     ByRef diagnostic As String _
 ) As Boolean
+    Dim collapsed As Boolean
+
+    If Not private_TryVisibility(collapsed, diagnostic) Then Exit Function
+    If collapsed And m_visibilityMeasured And Not m_collapsed Then
+        ' Dispose active routes and shape actions before the occupied area is reused.
+        m_control.Dispose
+        Set m_control = ex_UiControlFactory.fn_Create(m_definition)
+        If m_control Is Nothing Then
+            diagnostic = "Cannot recreate collapsed control."
+            Exit Function
+        End If
+        If Not m_control.Configure(m_definition, m_context, m_source, diagnostic) Then Exit Function
+    End If
+    m_collapsed = collapsed
+    m_visibilityMeasured = True
+    If m_collapsed Then
+        rows = 0
+        columns = 0
+        m_rows = 0
+        m_columns = 0
+        Set m_area = Nothing
+        obj_IUiElement_Measure = True
+        Exit Function
+    End If
     If VBA.Len(m_intrinsicRows) = 0 Then
         m_definition.removeAttribute "rowSpan"
     Else
@@ -95,6 +122,11 @@ Private Function obj_IUiElement_Arrange( _
     Dim localColumn As Long
     Dim candidates As obj_UiCandidatesControl
 
+    If m_collapsed Then
+        Set m_area = Nothing
+        obj_IUiElement_Arrange = True
+        Exit Function
+    End If
     obj_IUiElement_Arrange = m_control.Arrange(row, column, diagnostic)
     Set m_area = Nothing
     If obj_IUiElement_Arrange And m_rows > 0 And m_columns > 0 Then
@@ -110,8 +142,14 @@ Private Function obj_IUiElement_Arrange( _
 End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    If m_collapsed Then
+        m_visibilityDirty = False
+        obj_IUiElement_Render = True
+        Exit Function
+    End If
     obj_IUiElement_Render = m_control.Render(diagnostic)
     If obj_IUiElement_Render Then
+        m_visibilityDirty = False
         m_candidateValuesDirty = False
         m_candidateLayoutDirty = False
     End If
@@ -264,6 +302,10 @@ Public Function RefreshVisual(ByRef diagnostic As String) As Boolean
     Dim fieldControl As obj_UiFieldControl
     Dim labelControl As obj_UiLabelControl
 
+    If m_collapsed Then
+        RefreshVisual = True
+        Exit Function
+    End If
     If m_readOnlyDirty And Not m_visualDirty And TypeOf m_control Is obj_UiFieldControl Then
         Set fieldControl = m_control
         RefreshVisual = fieldControl.RefreshReadOnly()
@@ -299,6 +341,12 @@ Public Function TryRefreshValues( _
 
     refreshed = False
     TryRefreshValues = True
+    If m_visibilityDirty Then
+        ' A visibility transition must survive value-only refresh optimizations.
+        pending(ex_UiElementFactory.fn_Attribute(m_definition, "name")) = True
+        Exit Function
+    End If
+    If m_collapsed Then Exit Function
     If TypeOf m_control Is obj_UiTableControl Then
         dependency = ex_UiElementFactory.fn_Attribute(m_definition, "name")
         If Not pending.Exists(dependency) Then
@@ -371,6 +419,35 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_TryVisibility( _
+    ByRef collapsed As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim expression As String
+    Dim value As String
+
+    expression = ex_UiElementFactory.fn_Attribute(m_definition, "visibility")
+    collapsed = False
+    If VBA.Len(expression) = 0 Then
+        private_TryVisibility = True
+        Exit Function
+    End If
+    If Not ex_UiBindingRuntime.fn_TryResolveText(expression, m_bindingContext, value) Then
+        diagnostic = "Cannot resolve control visibility."
+        Exit Function
+    End If
+    Select Case value
+        Case "Visible"
+            collapsed = False
+        Case "Collapsed"
+            collapsed = True
+        Case Else
+            diagnostic = "Invalid control visibility: " & value
+            Exit Function
+    End Select
+    private_TryVisibility = True
+End Function
+
 Private Sub obj_IUiBindingListener_OnValueChanged( _
     ByVal sourceName As String, _
     ByVal bindingPath As String _
@@ -393,6 +470,12 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
         If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
             If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                     VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
+                If attributeName = "visibility" Then
+                    m_visibilityDirty = True
+                    m_candidateLayoutDirty = True
+                    m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
+                    GoTo NextAttribute
+                End If
                 If TypeOf m_control Is obj_UiCandidatesControl Then
                     If attributeName = "itemsSource" Then
                         m_candidateValuesDirty = True

@@ -97,6 +97,7 @@ Public Function TryPrepare( _
     Dim stageStartedAt As Double
     Dim additionalInputs As Object
     Dim groupTemplate As Object
+    Dim history As Boolean
 
     startedAt = VBA.Timer
     On Error GoTo EH
@@ -114,6 +115,8 @@ Public Function TryPrepare( _
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Export service is not initialized."
     End If
+    history = (exporter = "History")
+    If history Then exporter = "Word"
     If exporter <> "Word" And exporter <> "Movement" Then
         Err.Raise 5, , "Unknown exporter: " & exporter
     End If
@@ -136,13 +139,14 @@ Public Function TryPrepare( _
         values.Add VBA.CStr(key), scalar
     Next key
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
-    If exporter = "Word" And values("WordPolicy") = "Omit" Then
+    If exporter = "Word" And values("WordPolicy") = "Omit" And Not history Then
         values("WordOutcome") = "Omitted"
         values("WordText") = VBA.vbNullString
         TryPrepare = True
         GoTo CleanupPrepare
     End If
     requiredKey = "export." & exporter & "." & mode & ".required"
+    If history Then requiredKey = "history.required"
     If exporter = "Word" And Not prepareOutput Then
         requiredKey = "export.Word." & mode & ".previewRequired"
     End If
@@ -186,15 +190,21 @@ Public Function TryPrepare( _
     End If
     If exporter = "Word" Then
         ' XML задаёт текст пунктов, конфигурация задаёт источники и соответствия полей.
-        For index = 1 To ex_PEB_Export.fn_Count("export.Word." & mode & ".lookups.count")
-            private_Enrich values, "export.Word." & mode & ".lookups." & VBA.CStr(index)
-        Next index
+        If values("WordPolicy") <> "Omit" Then
+            For index = 1 To ex_PEB_Export.fn_Count("export.Word." & mode & ".lookups.count")
+                private_Enrich values, "export.Word." & mode & ".lookups." & VBA.CStr(index)
+            Next index
+        End If
         ex_Core.fn_Diagnostic_WritePerf "Preview.Lookups", stageStartedAt
         stageStartedAt = VBA.Timer
         private_AddConstants values
         private_AddAliases values
 
         private_CompleteWordContext values, additionalInputs
+        If history And values("WordPolicy") = "Omit" Then
+            TryPrepare = True
+            GoTo CleanupPrepare
+        End If
         If m_pebWordTemplates Is Nothing Then
             Set m_pebWordTemplates = New obj_PEB_WordTemplates
             If Not m_pebWordTemplates.Initialize(diagnostic) Then
@@ -261,6 +271,144 @@ Failed:
 CleanupPrepare:
     ex_PEB_Export.fn_EndConfigSnapshot
     ex_Core.fn_Diagnostic_WritePerf "Preview.Prepare | Success=" & VBA.CStr(TryPrepare), startedAt
+End Function
+
+' Rebuild aliases from stored text without rereading personnel or institution sources.
+Public Function TryPrepareHistory( _
+    ByVal values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim key As Variant
+    Dim item As Object
+    Dim reports As Collection
+    Dim reportPattern As Object
+    Dim report As Object
+    Dim body As String
+    Dim text As String
+    Dim template As String
+    Dim replacements As Object
+    Dim index As Long
+    Dim token As String
+    Dim fileSystem As Object
+    Dim filename As String
+    Dim path As String
+    Dim savedEnding As String
+    Dim ending As Date
+    Dim starting As Date
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError026")
+    values("ModeId") = values("EventId")
+    template = ex_PEB_EventRoutes.fn_Apply(values, "Word")
+    If values("WordPolicy") = "Omit" Then
+        TryPrepareHistory = True
+        Exit Function
+    End If
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.dateFields"), "|")
+        If VBA.Len(VBA.CStr(values(key))) > 0 Then values(key) = ex_PEB_History.fn_Date(values(key))
+    Next key
+    values("PersonAccusative") = values("FIOAccusative")
+    values.Remove "FIOAccusative"
+    private_AddAliases values
+    values("ManualOrderNo") = values("AcceptedOrderNumber")
+    For Each key In VBA.Array("RequiresFoodSupportEnroll", "RequiresFoodSupportRemove")
+        Select Case VBA.LCase$(VBA.Trim$(VBA.CStr(values(key))))
+            Case "true"
+                values(key) = True
+            Case "false"
+                values(key) = False
+            Case Else
+                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(key))
+        End Select
+    Next key
+    values("RequiresFoodSupportChange") = values("RequiresFoodSupportEnroll") Or values("RequiresFoodSupportRemove")
+    values("EnrollToFoodSupportDateShort") = VBA.vbNullString
+    values("RemoveFromFoodSupportDateShort") = VBA.vbNullString
+    If values("RequiresFoodSupportChange") Then
+        text = VBA.Format$(ex_PEB_History.fn_Date(values("FoodSupportDate")), "dd.mm.yyyy")
+        values("EnrollToFoodSupportDateShort") = text
+        values("RemoveFromFoodSupportDateShort") = text
+    End If
+    Set values("MetaTables") = New Collection
+    For Each item In values("MetaDocumentTables")
+        If VBA.Len(item("DocDateShort")) > 0 Then item("DocDateShort") = VBA.Format$(ex_PEB_History.fn_Date(item("DocDateShort")), "dd.mm.yyyy")
+    Next item
+    For Each key In VBA.Array("VlkDateShort", "PrevVacationTicketDateShort")
+        If VBA.Len(values(key)) > 0 Then values(key) = VBA.Format$(ex_PEB_History.fn_Date(values(key)), "dd.mm.yyyy")
+    Next key
+    values("VacationDurationPhrase") = VBA.vbNullString
+    values("AdditionalDurationPhrases") = VBA.vbNullString
+    savedEnding = values("DateToShort")
+    values("DateToShort") = VBA.vbNullString
+    values("VacationDatesSameMonth") = False
+    values("VacationDatesSameYear") = False
+    private_PrepareVacationDuration values
+    If VBA.Len(savedEnding) > 0 Then
+        ending = ex_PEB_History.fn_Date(savedEnding)
+        starting = ex_PEB_History.fn_Date(values("EventDate"))
+        If ending < starting Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError028")
+        If VBA.Len(values("DateToShort")) > 0 Then
+            If savedEnding <> values("DateToShort") Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError029")
+        Else
+            values("DateToShort") = VBA.Format$(ending, "dd.mm.yyyy")
+            values("VacationDatesSameMonth") = (VBA.Year(starting) = VBA.Year(ending) And VBA.Month(starting) = VBA.Month(ending))
+            values("VacationDatesSameYear") = (VBA.Year(starting) = VBA.Year(ending))
+        End If
+    End If
+    values("TemplateName") = template
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    values("WordTemplateFileName") = fileSystem.GetFileName(path)
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.requiredKeys"), "|")
+        If Not values.Exists(key) Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
+    Next key
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & template & ".requiredKeys"), "|")
+        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
+    Next key
+    If m_pebWordTemplates Is Nothing Then
+        Set m_pebWordTemplates = New obj_PEB_WordTemplates
+        If Not m_pebWordTemplates.Initialize(diagnostic) Then Exit Function
+        Set m_pebDslRenderer = New obj_PEB_DslRenderer
+        If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
+    End If
+    ' Keep each report structured; the basis block renders the complete ordered list.
+    Set reports = values("HistoryReports")
+    Set reportPattern = VBA.CreateObject("VBScript.RegExp")
+    reportPattern.Pattern = ex_PEB_Export.fn_Config("history.selfReportPattern")
+    For Each report In reports
+        report("RankGenitive") = values("RankGenitive")
+        report("FIOInitialsGenitive") = values("FIOInitialsGenitive")
+        report("ReportPerson") = report("ReportName")
+        If reportPattern.Test(VBA.CStr(report("ReportPerson"))) Then
+            report("ReportPerson") = VBA.vbNullString
+        End If
+        report("IncomingNo") = report("IncomingNumber")
+        If VBA.Len(report("IncomingNo")) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError032")
+        report("IncomingDateShort") = VBA.Format$(ex_PEB_History.fn_Date(report("IncomingDate")), "dd.mm.yyyy")
+        report("ReporterGenitive") = VBA.Trim$(report("ReportPositionGenitive") & " " & report("ReportRankGenitive") & " " & report("ReportPersonInitialsGenitive"))
+        If VBA.Len(report("ReportPerson")) > 0 And VBA.Len(report("ReporterGenitive")) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError033")
+    Next report
+    If Not m_pebWordTemplates.TryRender(template, values, body, diagnostic) Then Exit Function
+    values("WordText") = body
+    Set replacements = VBA.CreateObject("Scripting.Dictionary")
+    For index = 1 To ex_PEB_Export.fn_Count("export.Word.documentFields.count")
+        token = ex_PEB_Export.fn_Config("export.Word.documentFields." & index & ".token")
+        If Not m_pebDslRenderer.TryRender(ex_PEB_Export.fn_Config("export.Word.documentFields." & index & ".value"), values, text, diagnostic) Then Exit Function
+        If VBA.Len(text) = 0 Or text Like "*[<>:""/\|?*]*" Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError034"), "{value}", VBA.CStr(token))
+        replacements.Add token, text
+    Next index
+    Set values("WordDocumentReplacements") = replacements
+    filename = fileSystem.GetFileName(path)
+    For Each key In replacements.Keys
+        filename = VBA.Replace$(filename, VBA.CStr(key), VBA.CStr(replacements(key)))
+    Next key
+    If VBA.InStr(filename, "{") > 0 Or VBA.InStr(filename, "}") > 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError035")
+    values("WordTemplatePath") = path
+    values("WordOutput") = fileSystem.BuildPath(fileSystem.GetParentFolderName(path), filename)
+    TryPrepareHistory = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
 End Function
 
 ' //
@@ -409,6 +557,7 @@ Private Sub private_CompleteWordContext( _
     Dim required As String
 
     scalarKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.scalarInputs") & "|"
+    Set values("HistoryReports") = New Collection
     booleanKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.booleanInputs") & "|"
     collectionKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.collectionInputs") & "|"
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.optionalText"), "|")

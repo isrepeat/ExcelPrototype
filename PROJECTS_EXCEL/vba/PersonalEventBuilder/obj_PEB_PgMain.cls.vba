@@ -190,6 +190,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Settings", "CandidateSelectionMode", configuredText) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "AbsenceType", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "WordPreviewText", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderQuery", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderYear", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderChoice", vbNullString) Then Exit Function
@@ -228,7 +229,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
             "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
             "TestScenarioItems", "LoadTest", "NextTest", _
-            "PreviewWord", "ExportWord", "ExportMovement")
+            "PreviewWord", "SaveHistory", "ShowHistory", "HistoryEditMode", "ExportWord", "ExportMovement")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function
@@ -302,8 +303,11 @@ Private Function private_TryRegisterCommands() As Boolean
     Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "RefreshPersonnelHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "SelectHistoryHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "SelectHistory", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
-            "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
+            "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
             "LoadTest", "NextTest", "ResetForm", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")

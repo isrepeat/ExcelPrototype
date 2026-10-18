@@ -592,6 +592,17 @@ NextStructure:
         Set m_tablePlans = New Collection
         If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
         If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
+        ' Newly visible controls have no previous area and still require rendering.
+        For Each key In m_elements.Keys
+            Set registered = m_elements(key)
+            If TypeOf registered Is obj_UiControlElement Then
+                Set controlElement = registered
+                Set area = controlElement.RenderArea
+                If Not area Is Nothing Then
+                    If Not oldAreas.Exists(key) Then pending(key) = True
+                End If
+            End If
+        Next key
         ' Изменение размеров может сдвинуть соседей в stackPanel или grid.
         For Each key In oldAreas.Keys
             If m_elements.Exists(key) Then
