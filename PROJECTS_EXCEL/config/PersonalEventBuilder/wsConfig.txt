@@ -1039,6 +1039,7 @@ value	PersonalEventBuilder::lookup.ReturnTickets.styleFields	Absence.Destination
 value	PersonalEventBuilder::legend.orderDate.field	Event.IncomingDate
 value	PersonalEventBuilder::legend.orderDate.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::forms.sourceStyles.default	formField
+value	PersonalEventBuilder::forms.dynamicStylesEnabled	true
 value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital
 value	PersonalEventBuilder::forms.lookupDefaultStyle	lookupKeyField
 value	PersonalEventBuilder::forms.sourceStyles.Personnel	personnelFormField

@@ -37,6 +37,8 @@ Private m_renderedSchema As String
 Private m_renderedValues As Variant
 Private m_renderedSelection As obj_IUiSelectionSource
 Private m_cellTemplates As obj_UiTableCellTemplates
+Private m_partStylesEnabled As Boolean
+Private m_detailedPartStylesEnabled As Boolean
 
 ' //
 ' // Lifecycle
@@ -137,12 +139,14 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     rowIndex = target.Row - m_bodyRange.Row + 1
     Set item = m_selectionSource.GetItemAt(rowIndex)
     If item Is Nothing Then Exit Function
-    If m_selectedRow > 0 Then
-        m_renderContext.Styles.RestoreControlArea m_bodyRange.Rows(m_selectedRow), _
-            m_uiControlBase.ControlNode, m_renderContext.BindingContext
+    If m_selectedRow <> rowIndex Then
+        If m_selectedRow > 0 And m_partStylesEnabled And VBA.Len(m_selectedStyle) > 0 Then
+            m_renderContext.Styles.RestoreControlArea m_bodyRange.Rows(m_selectedRow), _
+                m_uiControlBase.ControlNode, m_renderContext.BindingContext
+        End If
+        m_selectedRow = rowIndex
+        private_StyleSelectedRow rowIndex
     End If
-    m_selectedRow = rowIndex
-    private_StyleSelectedRow rowIndex
     If VBA.Len(m_selectedSource) > 0 Then
         If Not m_renderContext.BindingContext.TrySetPathObject(m_selectedSource, m_selectedPath, item) Then Exit Function
     End If
@@ -408,6 +412,8 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     Dim modeRaw As String
 
     If Not m_uiControlBase.Configure(controlNode) Then Exit Function
+    m_partStylesEnabled = (private_ReadAttribute(controlNode, "partStylesEnabled") <> "false")
+    m_detailedPartStylesEnabled = (private_ReadAttribute(controlNode, "detailedPartStylesEnabled") <> "false")
     modeRaw = private_ReadAttribute(controlNode, "selectionMode")
     m_selectionMode = "Focus"
     If VBA.Len(modeRaw) > 0 Then
@@ -534,6 +540,12 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim headerPresentation As obj_IUiHeaderPresentation
     Dim templateDiagnostic As String
     Dim displayBuffer As Variant
+    Dim sourceRanges As Object
+    Dim sourceKey As Variant
+    Dim sourceArea As Range
+    Dim evenRows As Range
+    Dim oddRows As Range
+    Dim taggedArea As Range
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -607,51 +619,85 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     End If
     If Not m_tablePlan Is Nothing Then ex_UiTables.fn_Apply m_tablePlan
     uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
-    targetRow = 1
-    If VBA.Len(rawTable.Title) > 0 Then
-        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "section"
-        targetRow = targetRow + 1
-    End If
-    If m_showHeaders And IsArray(rawTable.Headers) Then
-        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "header"
-        For columnIndex = 1 To rawTable.ColumnCount
-            columnSpan = private_ColumnSpanAt(columnIndex)
-            If columnSpan > 0 Then
-                Set fieldRange = m_targetRange.Cells(targetRow, columnIndex).Resize(1, columnSpan)
-                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, "header", rawTable.HeaderAt(columnIndex)
+    If m_partStylesEnabled Then
+        targetRow = 1
+        If VBA.Len(rawTable.Title) > 0 Then
+            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "section"
+            targetRow = targetRow + 1
+        End If
+        If m_showHeaders And IsArray(rawTable.Headers) Then
+            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange.Rows(targetRow), "header"
+            If m_detailedPartStylesEnabled Then
+                For columnIndex = 1 To rawTable.ColumnCount
+                    columnSpan = private_ColumnSpanAt(columnIndex)
+                    If columnSpan > 0 Then
+                        Set fieldRange = m_targetRange.Cells(targetRow, columnIndex).Resize(1, columnSpan)
+                        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, "header", rawTable.HeaderAt(columnIndex)
+                    End If
+                Next columnIndex
             End If
-        Next columnIndex
-    End If
-    If Not m_bodyRange Is Nothing Then
-        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange, "rows"
-        For rowIndex = 1 To rawTable.RowCount
-            rowTags = "tableRow odd"
-            If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
-            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Rows(rowIndex), "row", tags:=rowTags
-        Next rowIndex
-        For columnIndex = 1 To rawTable.ColumnCount
-            columnSpan = private_ColumnSpanAt(columnIndex)
-            If columnSpan > 0 Then
-                Set fieldRange = m_bodyRange.Columns(columnIndex).Resize(rawTable.RowCount, columnSpan)
-                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, "rows", rawTable.HeaderAt(columnIndex)
-                If Not m_source Is Nothing Then
-                    If TypeOf m_source Is obj_IUiColumnMetadata Then
-                        Set columnMetadata = m_source
-                        sourceAlias = columnMetadata.SourceAliasAt(columnIndex)
-                        If VBA.Len(sourceAlias) > 0 Then
-                            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, _
-                                "rows", sourceAlias:=sourceAlias
-                            For rowIndex = 1 To rawTable.RowCount
-                                rowTags = "tableRow odd"
-                                If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
-                                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan), _
-                                    "rows", sourceAlias:=sourceAlias, tags:=rowTags
-                            Next rowIndex
+        End If
+        If Not m_bodyRange Is Nothing Then
+            uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange, "rows"
+            For rowIndex = 1 To rawTable.RowCount
+                rowTags = "tableRow odd"
+                If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
+                uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Rows(rowIndex), "row", tags:=rowTags
+                If m_detailedPartStylesEnabled Then
+                    If rowIndex Mod 2 = 0 Then
+                        If evenRows Is Nothing Then
+                            Set evenRows = m_bodyRange.Rows(rowIndex)
+                        Else
+                            Set evenRows = Application.Union(evenRows, m_bodyRange.Rows(rowIndex))
+                        End If
+                    Else
+                        If oddRows Is Nothing Then
+                            Set oddRows = m_bodyRange.Rows(rowIndex)
+                        Else
+                            Set oddRows = Application.Union(oddRows, m_bodyRange.Rows(rowIndex))
                         End If
                     End If
                 End If
+            Next rowIndex
+            If m_detailedPartStylesEnabled Then
+                Set sourceRanges = VBA.CreateObject("Scripting.Dictionary")
+                sourceRanges.CompareMode = VBA.vbTextCompare
+                If Not m_source Is Nothing Then
+                    If TypeOf m_source Is obj_IUiColumnMetadata Then Set columnMetadata = m_source
+                End If
+                For columnIndex = 1 To rawTable.ColumnCount
+                    columnSpan = private_ColumnSpanAt(columnIndex)
+                    If columnSpan > 0 Then
+                        Set fieldRange = m_bodyRange.Columns(columnIndex).Resize(rawTable.RowCount, columnSpan)
+                        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, "rows", rawTable.HeaderAt(columnIndex)
+                        If Not columnMetadata Is Nothing Then
+                            sourceAlias = columnMetadata.SourceAliasAt(columnIndex)
+                            If VBA.Len(sourceAlias) > 0 Then
+                                If sourceRanges.Exists(sourceAlias) Then
+                                    Set sourceRanges(sourceAlias) = Application.Union(sourceRanges(sourceAlias), fieldRange)
+                                Else
+                                    sourceRanges.Add sourceAlias, fieldRange
+                                End If
+                            End If
+                        End If
+                    End If
+                Next columnIndex
+                For Each sourceKey In sourceRanges.Keys
+                    Set sourceArea = sourceRanges(sourceKey)
+                    uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, sourceArea, "rows", sourceAlias:=VBA.CStr(sourceKey)
+                    If Not evenRows Is Nothing Then
+                        Set taggedArea = Application.Intersect(sourceArea, evenRows)
+                        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, taggedArea, "rows", _
+                            sourceAlias:=VBA.CStr(sourceKey), tags:="tableRow even"
+                    End If
+                    If Not oddRows Is Nothing Then
+                        Set taggedArea = Application.Intersect(sourceArea, oddRows)
+                        uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, taggedArea, "rows", _
+                            sourceAlias:=VBA.CStr(sourceKey), tags:="tableRow odd"
+                    End If
+                Next sourceKey
             End If
-        Next columnIndex
+        End If
     End If
     If Not m_selectionSource Is Nothing And Not m_bodyRange Is Nothing And VBA.Len(m_selectedSource) > 0 Then
         If uiRenderContext.BindingContext.TryGetValue(m_selectedSource, m_selectedPath, _
@@ -770,6 +816,8 @@ Private Sub private_UpdateTextWarning( _
     Dim value As Variant
     Dim area As Range
 
+    If Not m_partStylesEnabled Then Exit Sub
+    If Not m_detailedPartStylesEnabled Then Exit Sub
     If m_bodyRange Is Nothing Then Exit Sub
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
         private_ReadAttribute(m_uiControlBase.ControlNode, "textWarningLimit"), _
