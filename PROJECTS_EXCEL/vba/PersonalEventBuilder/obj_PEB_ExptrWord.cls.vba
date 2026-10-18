@@ -58,6 +58,148 @@ Public Function TryExport( _
     TryExport = private_Export(values, diagnostic, False, "INSERT", VBA.vbNullString)
 End Function
 
+Public Function TryGenerateHistory( _
+    ByVal events As Collection, _
+    ByRef output As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim service As obj_PEB_ExportService
+    Dim templates As obj_PEB_WordTemplates
+    Dim anchors As obj_PEB_WordAnchors
+    Dim sections As Object
+    Dim sectionTemplates As Object
+    Dim rendered As Object
+    Dim fileSystem As Object
+    Dim wordApp As Object
+    Dim document As Object
+    Dim item As Object
+    Dim first As Object
+    Dim context As Object
+    Dim definition As Object
+    Dim group As Collection
+    Dim target As Object
+    Dim eventId As Variant
+    Dim text As String
+    Dim body As String
+    Dim temporary As String
+    Dim originalStamp As String
+    Dim stamp As String
+    Dim published As Boolean
+    Dim existing As Boolean
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError036")
+    If ex_PEB_Export.fn_Config("export.Word.enabled") <> "true" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.ExportWordUnavailable")
+    If m_documentMode <> "template" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError037")
+    Set service = New obj_PEB_ExportService
+    If Not service.Initialize() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError038")
+    Set templates = New obj_PEB_WordTemplates
+    If Not templates.Initialize(diagnostic) Then GoTo CleanupHistory
+    Set sections = VBA.CreateObject("Scripting.Dictionary")
+    Set sectionTemplates = VBA.CreateObject("Scripting.Dictionary")
+    Set rendered = VBA.CreateObject("Scripting.Dictionary")
+    For Each item In events
+        If Not service.TryPrepareHistory(item, diagnostic) Then
+            diagnostic = "History " & VBA.CStr(item("RowId")) & ": " & diagnostic
+            GoTo CleanupHistory
+        End If
+        If item("WordPolicy") <> "Omit" Then
+            If first Is Nothing Then
+                Set first = item
+                output = item("WordOutput")
+            ElseIf item("WordOutput") <> output Or item("Signatory") <> first("Signatory") Then
+                Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError039")
+            End If
+            eventId = item("EventId")
+            If Not sections.Exists(eventId) Then
+                Set group = New Collection
+                sections.Add eventId, group
+                sectionTemplates.Add eventId, item("TemplateName")
+            End If
+            sections(eventId).Add item
+        End If
+    Next item
+    If first Is Nothing Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryNoWordEvents")
+    ' Prepare every section before opening Word; ordinary events accumulate as well.
+    For Each eventId In sections.Keys
+        Set definition = templates.Definition(sectionTemplates(eventId))
+        If definition.selectNodes("p:group").Length > 0 Then
+            body = ex_PEB_WordGroups.fn_Render(definition, sections(eventId), templates.SharedTemplates)
+        Else
+            body = VBA.vbNullString
+            For Each item In sections(eventId)
+                If Not templates.TryRender(sectionTemplates(eventId), item, text, diagnostic) Then GoTo CleanupHistory
+                If VBA.Len(body) > 0 Then body = body & VBA.vbCrLf & VBA.vbCrLf
+                body = body & text
+            Next item
+        End If
+        rendered.Add eventId, body
+    Next eventId
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FileExists(m_templatePath) Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError040"), "{value}", VBA.CStr(m_templatePath))
+    If VBA.StrComp(output, m_templatePath, VBA.vbTextCompare) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError041")
+    existing = fileSystem.FileExists(output)
+    If existing Then originalStamp = VBA.CStr(fileSystem.GetFile(output).DateLastModified) & ":" & VBA.CStr(fileSystem.GetFile(output).Size)
+    temporary = fileSystem.BuildPath(fileSystem.GetParentFolderName(output), fileSystem.GetTempName & ".docx")
+    Set wordApp = ex_PEB_WordState.fn_AcquireWord()
+    wordApp.Visible = False
+    wordApp.DisplayAlerts = 0
+    wordApp.AutomationSecurity = 3
+    Set document = wordApp.Documents.Add(m_templatePath, False, 0, False)
+    private_ReplaceDocumentFields document, first
+    ' Empty existing managed anchors too, so deleted events cannot survive rebuilding.
+    For Each eventId In ex_PEB_EventRoutes.fn_Ids()
+        If ex_PEB_EventRoutes.fn_HasRoute(VBA.CStr(eventId), "Word") Then
+            Set context = VBA.CreateObject("Scripting.Dictionary")
+            context.Add "EventId", eventId
+            context.Add "WordText", VBA.vbNullString
+            Set anchors = New obj_PEB_WordAnchors
+            If Not anchors.Initialize(document, diagnostic) Then GoTo CleanupHistory
+            Set target = Nothing
+            If anchors.TryGetInsertedRange(document, context, target, diagnostic) Then
+                If rendered.Exists(eventId) Then context("WordText") = rendered(eventId)
+                If Not anchors.TryInsert(document, context, diagnostic) Then GoTo CleanupHistory
+                If Not anchors.TryVerify(document, context, diagnostic) Then GoTo CleanupHistory
+                anchors.HideMarkers document, context
+            ElseIf rendered.Exists(eventId) Then
+                GoTo CleanupHistory
+            Else
+                diagnostic = VBA.vbNullString
+            End If
+            anchors.Dispose
+            Set anchors = Nothing
+        End If
+    Next eventId
+    document.SaveAs2 temporary, 16
+    document.Close 0
+    Set document = Nothing
+    If existing Then
+        If Not fileSystem.FileExists(output) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError042")
+        stamp = VBA.CStr(fileSystem.GetFile(output).DateLastModified) & ":" & VBA.CStr(fileSystem.GetFile(output).Size)
+        If stamp <> originalStamp Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError043")
+        ex_PEB_WordState.fn_Publish temporary, output
+    Else
+        If fileSystem.FileExists(output) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError044")
+        fileSystem.MoveFile temporary, output
+    End If
+    published = True
+    TryGenerateHistory = True
+CleanupHistory:
+    On Error Resume Next
+    If Not document Is Nothing Then document.Close 0
+    If Not anchors Is Nothing Then anchors.Dispose
+    If Not templates Is Nothing Then templates.Dispose
+    If Not service Is Nothing Then service.Dispose
+    If Not published And VBA.Len(temporary) > 0 Then
+        If fileSystem.FileExists(temporary) Then fileSystem.DeleteFile temporary
+    End If
+    On Error GoTo 0
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    Resume CleanupHistory
+End Function
+
 Public Function TryUpdate( _
     ByVal values As Object, _
     ByVal eventUid As String, _

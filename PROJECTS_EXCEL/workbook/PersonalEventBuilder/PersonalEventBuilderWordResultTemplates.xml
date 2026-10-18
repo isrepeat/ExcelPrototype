@@ -35,6 +35,10 @@
 #_        Підстава: рапорт #^
 #_        {#if __IsRaportFromSelf}{[RankGenitive]} {[FIOInitialsGenitive]|nbspBeforeInitials}{#else}{[ReporterGenitive]|nbspBeforeInitials}{#endif}#^
 #_        {#space}(вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
+#_        {#for item in HistoryReports}; рапорт #^
+#_          {#if item.[ReportPerson]}{item.[ReporterGenitive]}{#else}{[RankGenitive]} {[FIOInitialsGenitive]|nbspBeforeInitials}{#endif}#^
+#_          {#space}(вх. № {item.[IncomingNo]} від {item.[IncomingDateShort]})#^
+#_        {#endfor}#^
         ]]>
         </text>
     </sharedTemplate>
@@ -90,7 +94,7 @@
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
 #_          {#newline}#^
-#_          Тимчасове виконання обов'язків {[PositionGenitive]|lowerFirstLetter} покласти на #^
+#_          Тимчасове виконання обов'язків {#if item.[DutyPositionGenitive]}{item.[DutyPositionGenitive]|lowerFirstLetter}{#else}{[PositionGenitive]|lowerFirstLetter}{#endif} покласти на #^
 #_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOAccusative]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
         ]]>
@@ -220,7 +224,7 @@
             identityBy="PersonId; DateFromShort; EventId"
             orderBy="AcceptedOrderNumber; OrderDateShort">
     <derived name="GroupBasis">
-      <text>{#include block.IncomingBasis}</text>
+      <text>{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}</text>
     </derived>
     <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort">
       <aggregate name="CertificateNumbers"
@@ -234,6 +238,7 @@
 #_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
 #_      {#include block.PersonLineLower}.#^
+#_      {#include block.DepartureAdministration}#^
         {#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.
     ]]></text>
       </single>
@@ -242,7 +247,7 @@
           <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
         </header>
         <item>
-          <text>{#include block.PersonLineLower}.</text>
+          <text>{#include block.PersonLineLower}.{#include block.DepartureAdministration}</text>
         </item>
         <footer common="GroupBasis; VacationTicketDateShort">
           <text><![CDATA[{[GroupBasis]}; посвідчення про відрядження №№ {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]></text>

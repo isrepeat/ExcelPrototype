@@ -39,6 +39,13 @@ Private m_environmentSwitchPending As Boolean
 Private m_testBusy As Boolean
 Private m_testScenario As String
 Private m_testStepOrder As Long
+Private m_historyRows As Object
+Private m_historyResult As obj_LookupResult
+Private m_editHistoryRow As Object
+Private m_editHistoryStamp As String
+Private m_editHistoryAutoFill As Variant
+Private m_historyOrderNumber As String
+Private m_historyOrderDate As String
 
 ' //
 ' // Lifecycle
@@ -58,6 +65,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim messageText As String
     Dim diagnostic As String
     Dim defaultMode As String
+    Dim emptyHistory As New Collection
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -119,6 +127,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
         Exit Function
     End If
+    If Not private_PublishHistory(emptyHistory, VBA.vbNullString, diagnostic) Then
+        private_SetActionStatus diagnostic, True
+        Exit Function
+    End If
     Initialize = True
     m_isInitialized = Initialize
     If Not Me.SearchOrdersHandler() Then
@@ -160,6 +172,10 @@ Public Sub Dispose()
     Set m_hospitalFields = Nothing
     m_hospitalActive = False
     m_reporterActive = False
+    Set m_historyRows = Nothing
+    Set m_historyResult = Nothing
+    Set m_editHistoryRow = Nothing
+    m_editHistoryStamp = VBA.vbNullString
     Set m_pageBase = Nothing
 End Sub
 
@@ -246,6 +262,11 @@ Public Function ResetFormHandler() As Boolean
     Set m_lookupResult = result
     m_reporterActive = False
     m_hospitalActive = False
+    If Not private_EndHistoryEdit() Then Exit Function
+    If Not private_PublishHistory(records, VBA.vbNullString, diagnostic) Then GoTo Failed
+    m_historyOrderNumber = VBA.vbNullString
+    m_historyOrderDate = VBA.vbNullString
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     ResetFormHandler = m_pageBase.FlushUpdates()
     Exit Function
 EH:
@@ -660,9 +681,122 @@ Public Function PreviewWordHandler() As Boolean
     PreviewWordHandler = private_Export("PreviewWord")
 End Function
 
+Public Function SaveHistoryHandler() As Boolean
+    SaveHistoryHandler = private_Export("History")
+End Function
+
+Public Function ShowHistoryHandler() As Boolean
+    Dim diagnostic As String
+    Dim record As obj_LookupRecord
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then Exit Function
+    If Not private_RefreshHistory(VBA.vbNullString, diagnostic) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Visible") Then Exit Function
+    If Not m_editHistoryRow Is Nothing Then
+        For Each record In m_historyResult.Records
+            If record.Key = m_editHistoryRow("RowId") Then
+                If Not m_pageBase.BindingContext.SetObject("Data", "SelectedHistory", record) Then Exit Function
+                Exit For
+            End If
+        Next record
+    End If
+    ShowHistoryHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistorySelectHint"), False)
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    private_SetActionStatus diagnostic, True
+End Function
+
+Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
+    Dim record As obj_LookupRecord
+    Dim row As Object
+    Dim updates As Object
+    Dim wordContext As Object
+    Dim field As Variant
+    Dim diagnostic As String
+    Dim mode As String
+    Dim scalar As Variant
+    Dim previousScreenUpdating As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH
+    If selected Is Nothing Then Exit Function
+    If Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    Set record = selected
+    If m_historyRows Is Nothing Then Exit Function
+    If Not m_historyRows.Exists(record.Key) Then Exit Function
+    If Not private_TryReadFormValue("AcceptedOrderNumber", scalar) Then Exit Function
+    If VBA.CStr(scalar) <> m_historyOrderNumber Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
+    If Not private_TryReadFormValue("AcceptedOrderDate", scalar) Then Exit Function
+    If VBA.IsNumeric(scalar) And VBA.VarType(scalar) <> VBA.vbString Then scalar = VBA.CDate(scalar)
+    If VBA.Format$(ex_PEB_History.fn_Date(scalar), "dd.mm.yyyy") <> m_historyOrderDate Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
+    End If
+    Set row = m_historyRows(record.Key)
+    If Not private_EndHistoryEdit() Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", scalar) Then Exit Function
+    m_editHistoryAutoFill = scalar
+    Application.ScreenUpdating = False
+    Set m_lookupResult = Nothing
+    m_modeId = VBA.vbNullString
+    mode = row("EventId")
+    If Not private_LoadMode(mode, diagnostic) Then GoTo Failed
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
+        If row.Exists(field) Then updates("Form." & VBA.CStr(field)) = row(field)
+    Next field
+    updates("Form.AutoFillPersonnel") = False
+    updates("Form.WordPreviewText") = VBA.vbNullString
+    updates("Text.SaveHistory") = ex_PEB_Export.fn_Config("text.UpdateHistory")
+    updates("Text.HistoryEditMode") = VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryEditing"), "{id}", record.Key)
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    Set wordContext = VBA.CreateObject("Scripting.Dictionary")
+    For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.scalarInputs"), "|")
+        If row.Exists(field) Then wordContext(field) = row(field)
+    Next field
+    For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.booleanInputs"), "|")
+        Select Case VBA.LCase$(VBA.Trim$(VBA.CStr(row(field))))
+            Case "true"
+                wordContext(field) = True
+            Case "false"
+                wordContext(field) = False
+            Case Else
+                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(field))
+        End Select
+    Next field
+    If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetObject("Data", "SelectedHistory", record) Then GoTo Failed
+    m_acceptedOrderNumber = row("AcceptedOrderNumber")
+    m_acceptedOrderDate = ex_PEB_History.fn_Date(row("AcceptedOrderDate"))
+    Set m_editHistoryRow = row
+    m_editHistoryStamp = ex_PEB_History.fn_Stamp(row)
+    SelectHistoryHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistoryEditHint"), False)
+    GoTo CleanupHistorySelection
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    private_EndHistoryEdit
+    private_SetActionStatus diagnostic, True
+CleanupHistorySelection:
+    Application.ScreenUpdating = previousScreenUpdating
+End Function
+
 Public Function ExportWordHandler() As Boolean
     Dim enabled As String
     Dim diagnostic As String
+    Dim events As Collection
+    Dim exporter As obj_PEB_ExptrWord
+    Dim scalar As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+    Dim orderNumber As String
+    Dim orderDate As Variant
+    Dim output As String
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -674,14 +808,33 @@ Public Function ExportWordHandler() As Boolean
         Exit Function
     End If
     If enabled <> "true" Then
-        Err.Raise 5, , "Word enabled must be true or false."
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError045")
     End If
-    ExportWordHandler = private_Export("Word")
+    If ex_PEB_Testing.fn_IsRunning() Then
+        ExportWordHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.TryGetValue("Form", "AcceptedOrderNumber", scalar, objectValue, isObject) Or isObject Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError046")
+    End If
+    orderNumber = VBA.CStr(scalar)
+    If Not m_pageBase.BindingContext.TryGetValue("Form", "AcceptedOrderDate", scalar, objectValue, isObject) Or isObject Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError047")
+    End If
+    orderDate = scalar
+    If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
+    If Not ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic) Then GoTo FailedHistoryWord
+    Set exporter = New obj_PEB_ExptrWord
+    If Not exporter.Initialize() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError048")
+    If Not exporter.TryGenerateHistory(events, output, diagnostic) Then GoTo FailedHistoryWord
+    ExportWordHandler = private_SetActionStatus(VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryWordSuccess"), "{path}", output), False)
+    exporter.Dispose
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
+FailedHistoryWord:
+    If Not exporter Is Nothing Then exporter.Dispose
     private_SetActionStatus diagnostic, True
-    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 
 Public Function ExportMovementHandler() As Boolean
@@ -1057,6 +1210,98 @@ Private Function private_SecondaryFields( _
     private_SecondaryFields = True
 End Function
 
+Private Function private_EndHistoryEdit() As Boolean
+    Dim updates As Object
+    Dim diagnostic As String
+
+    Set m_editHistoryRow = Nothing
+    m_editHistoryStamp = VBA.vbNullString
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Text.SaveHistory") = ex_PEB_Export.fn_Config("text.SaveHistory")
+    updates("Text.HistoryEditMode") = ex_PEB_Export.fn_Config("text.HistoryEditMode")
+    If Not VBA.IsEmpty(m_editHistoryAutoFill) Then updates("Form.AutoFillPersonnel") = m_editHistoryAutoFill
+    m_editHistoryAutoFill = Empty
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
+    private_EndHistoryEdit = m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString)
+End Function
+
+Private Function private_RefreshHistory( _
+    ByVal selectedId As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim events As Collection
+    Dim emptyRows As New Collection
+    Dim orderNumber As Variant
+    Dim orderDate As Variant
+    Dim failure As String
+
+    If Not private_TryReadFormValue("AcceptedOrderNumber", orderNumber) Then Exit Function
+    If Not private_TryReadFormValue("AcceptedOrderDate", orderDate) Then Exit Function
+    If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
+    If Not ex_PEB_History.fn_ReadOrder(VBA.CStr(orderNumber), orderDate, events, diagnostic, False) Then
+        failure = diagnostic
+        private_PublishHistory emptyRows, VBA.vbNullString, diagnostic
+        diagnostic = failure
+        Exit Function
+    End If
+    If Not private_PublishHistory(events, selectedId, diagnostic) Then Exit Function
+    m_historyOrderNumber = VBA.CStr(orderNumber)
+    m_historyOrderDate = VBA.Format$(ex_PEB_History.fn_Date(orderDate), "dd.mm.yyyy")
+    private_RefreshHistory = True
+End Function
+
+Private Function private_PublishHistory( _
+    ByVal events As Collection, _
+    ByVal selectedId As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim records As New Collection
+    Dim columns As New Collection
+    Dim rows As Object
+    Dim row As Object
+    Dim fields As Object
+    Dim column As Object
+    Dim key As Variant
+    Dim index As Long
+    Dim prefix As String
+    Dim record As obj_LookupRecord
+    Dim selected As obj_LookupRecord
+    Dim result As obj_LookupResult
+
+    Set rows = VBA.CreateObject("Scripting.Dictionary")
+    For Each row In events
+        Set fields = VBA.CreateObject("Scripting.Dictionary")
+        For Each key In row.Keys
+            If Not VBA.IsObject(row(key)) Then fields(key) = row(key)
+        Next key
+        Set record = New obj_LookupRecord
+        If Not record.Initialize(VBA.CStr(row("RowId")), fields) Then Exit Function
+        records.Add record
+        rows.Add record.Key, row
+        If record.Key = selectedId Then Set selected = record
+    Next row
+    For index = 1 To ex_PEB_Export.fn_Count("history.list.columns.count")
+        prefix = "history.list.columns." & VBA.CStr(index)
+        Set column = VBA.CreateObject("Scripting.Dictionary")
+        column("name") = ex_PEB_Export.fn_Config(prefix & ".field")
+        column("caption") = ex_PEB_Export.fn_Config(prefix & ".caption")
+        columns.Add column
+    Next index
+    Set result = New obj_LookupResult
+    If Not result.Initialize(records, columns, False, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "HistoryEvents", result) Then Exit Function
+    Set m_historyResult = result
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
+    Set m_historyRows = rows
+    If VBA.Len(selectedId) > 0 Then
+        If selected Is Nothing Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
+        If Not m_pageBase.BindingContext.SetObject("Data", "SelectedHistory", selected) Then Exit Function
+        Set m_editHistoryRow = rows(selectedId)
+        m_editHistoryStamp = ex_PEB_History.fn_Stamp(m_editHistoryRow)
+    End If
+    private_PublishHistory = True
+End Function
+
 Private Function private_Export(ByVal action As String) As Boolean
     Dim pebExportService As obj_PEB_ExportService
     Dim pebExptrWord As obj_PEB_ExptrWord
@@ -1067,7 +1312,10 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim success As Boolean
     Dim status As String
     Dim failureTemplate As String
-    Dim messageTitle As String
+    Dim wordContext As Object
+    Dim scalar As Variant
+    Dim isObject As Boolean
+    Dim contextField As Variant
 
     If ex_PEB_Testing.fn_IsRunning() Then
         private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
@@ -1078,7 +1326,6 @@ Private Function private_Export(ByVal action As String) As Boolean
     End If
     On Error GoTo EH
     failureTemplate = ex_PEB_Export.fn_Config("text.ExportFailed")
-    messageTitle = ex_PEB_Export.fn_Config("text.ExportTitle")
     status = ex_PEB_Export.fn_Config("text.Export" & action & "Success")
     exporter = action
     If action = "PreviewWord" Then
@@ -1097,6 +1344,17 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     End If
     Set pebExportService = m_exportService
+    If Not m_editHistoryRow Is Nothing Then
+        If m_modeId <> VBA.CStr(m_editHistoryRow("EventId")) Then
+            If m_pageBase.BindingContext.TryGetValue("Data", "WordContext", scalar, wordContext, isObject) Then
+                If isObject And Not wordContext Is Nothing Then
+                    For Each contextField In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.booleanInputs"), "|")
+                        If wordContext.Exists(contextField) Then wordContext.Remove contextField
+                    Next contextField
+                End If
+            End If
+        End If
+    End If
     If Not pebExportService.TryPrepare( _
         m_pageBase.BindingContext, _
         exporter, _
@@ -1104,6 +1362,16 @@ Private Function private_Export(ByVal action As String) As Boolean
         diagnostic, _
         action <> "PreviewWord" _
     ) Then GoTo Failed
+    If exporter = "History" And Not m_editHistoryRow Is Nothing Then
+        values("RowId") = m_editHistoryRow("RowId")
+        values("ExpectedHistoryStamp") = m_editHistoryStamp
+        If VBA.Len(values("DurationDays")) = 0 And VBA.Len(m_editHistoryRow("DateToShort")) > 0 Then
+            If ex_PEB_History.fn_Date(m_editHistoryRow("DateToShort")) < ex_PEB_History.fn_Date(values("EventDate")) Then
+                Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError028")
+            End If
+            values("DateToShort") = m_editHistoryRow("DateToShort")
+        End If
+    End If
     If exporter = "Word" Then
         If values("WordPolicy") = "Omit" Then
             status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
@@ -1117,6 +1385,15 @@ Private Function private_Export(ByVal action As String) As Boolean
         )
         If Not success Then
             diagnostic = "Cannot publish the Word preview binding."
+        End If
+    ElseIf exporter = "History" Then
+        success = ex_PEB_History.fn_Save(values, diagnostic)
+        If success Then status = VBA.Replace$(status, "{action}", VBA.CStr(values("HistoryAction")))
+        If success And Not m_editHistoryRow Is Nothing Then
+            If Not private_RefreshHistory(VBA.CStr(values("RowId")), diagnostic) Then
+                status = status & " " & diagnostic
+                private_EndHistoryEdit
+            End If
         End If
     ElseIf exporter = "Word" Then
         Set pebExptrWord = New obj_PEB_ExptrWord
@@ -1165,7 +1442,6 @@ Failed:
         diagnostic = VBA.Replace$(failureTemplate, "{details}", diagnostic)
     End If
     private_SetActionStatus diagnostic, True
-    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, messageTitle
     GoTo Cleanup
 End Function
 

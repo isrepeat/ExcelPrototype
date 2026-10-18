@@ -117,6 +117,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddAttribute "style", "string", False, "", True, 0
+    schema.AddAttribute "visibility", "enum", False, "Visible|Collapsed", True, 0
 
     Select Case m_type
         Case "label", "button", "checkbox"

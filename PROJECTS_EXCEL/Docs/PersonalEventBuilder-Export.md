@@ -1,5 +1,25 @@
 # Подготовка и экспорт PersonalEventBuilder
 
+## EventsHistory export pipeline
+
+The main page now separates `SaveHistory` (form to Excel) from `ExportWord` (saved Excel events to Word). The legacy per-event Word exporter remains for existing callers; the main page no longer uses its Custom XML event store. Movement export remains independent.
+
+`history.path`, `history.sheet`, `history.table` and `history.fields` configure the history workbook and field-to-header mappings. Column positions are irrelevant. PROD uses `EventsHistory.xlsx`; TEST requires a separate `EventsHistory.test.xlsx` and never substitutes the production file. Missing mapped columns are appended on the first successful save. Existing demonstration records are examples, not migrated production events: new required snapshot columns, especially `Signatory`, must be populated before generating those records.
+
+All exported row cells use the Excel text format. Dates serialize as `dd.mm.yyyy`, Boolean flags as `true` or `false`, and identifiers retain their literal text. History generation parses these values explicitly. It uses saved personnel, institution and report-author snapshots without rereading those external directories. Document naming and the Word template still follow the current configuration; the signatory comes from the saved event.
+
+Saving new events matches `history.identityFields` (order number/date, personnel ID, event ID and event date). Identical rows return `SKIP`; changed rows update immediately and retain their `RowId`, `RowOrder` and existing child rows. Export results and failures appear in the page status without modal dialogs. A history workbook with unsaved edits, read-only access, protection or the 1904 date system is rejected.
+
+`ShowHistory` displays the accepted order's Event rows in a separate compact table below personnel candidates. The markup binds its `visibility` to `Form.HistoryVisibility`, initialized to `Collapsed`; only a successful explicit ShowHistory action changes it to `Visible`. Its projection is configured by `history.list.columns.*`. Confirm a row with Ctrl+Enter to highlight it, load its stored fields and optional scalar context into the form, and switch the save caption to Update. Personnel autofill is disabled during loading. Editing keeps the selected `RowId` even when the event date or accepted order changes. Updates reject a conflicting event identity or a stored row changed since selection. Saving refreshes the list and retains selection. New event (the reset action) clears the edit identity, optional context, highlight and displayed history rows, then collapses the table without deleting stored events. The edit mode is displayed separately from the action status; child rows remain untouched.
+
+Shared control markup supports `visibility="Visible|Collapsed"`, including bindings. A collapsed control measures zero rows/columns and skips arrangement and rendering. Hiding an active control disposes its old routes before its area is reused. Visibility binding changes require layout refresh, allowing following stack-panel children to move into the released space. Deploy both `obj_UiControlFactory` and `obj_UiControlElement` with this markup.
+
+`Event` rows have no parent. `Report` and `Document` rows refer directly to an event. `TVO` rows may refer to an event or another TVO row; the parent identifies whose duties are assigned. `RowOrder` is a positive integer ordering siblings; TVO chains render parent-first. Duplicate IDs, unknown types, missing parents and cycles stop generation. Additional reports use `ReportName`, author snapshot columns, `IncomingNumber` and `IncomingDate`; documents use `Document`, `DocumentNumber` and `DocumentDate`; TVO uses personnel snapshots including `RankDative` and `FIODative`. Additional rows are currently entered in the table. Nonempty collection inputs supplied programmatically through the form context are rejected rather than silently discarded.
+
+Word generation selects the accepted order, prepares all sections in memory, accumulates ordinary events and applies the existing `ToBusinessTrip` grouping. Its common basis includes additional reports and documents. TVO remains attached to each person inside a grouped section. Each managed anchor present in the template is replaced, including empty sections; a populated event requires its configured anchor. The document is rebuilt from the template, saved to a temporary DOCX and published only after closing Word and checking that an existing output has not changed. Manual edits in the previous output are not carried forward.
+
+Source edits do not deploy VBA or refresh workbook configuration. Deploy the new `ex_PEB_History` module, the modified classes, UI, both configurations and Word templates together before runtime verification. The existing runtime tests have not been migrated to this pipeline.
+
 **Навигация:** [Главная](../../README.md) → [PROJECTS_EXCEL](../README.md) → [Документация](README.md) → Подготовка и экспорт PersonalEventBuilder
 
 ## Содержание
