@@ -55,14 +55,65 @@ Public Function TryExport( _
     ByVal values As Object, _
     ByRef diagnostic As String _
 ) As Boolean
-    TryExport = private_Export(values, diagnostic, False)
+    TryExport = private_Export(values, diagnostic, False, "INSERT", VBA.vbNullString)
+End Function
+
+Public Function TryUpdate( _
+    ByVal values As Object, _
+    ByVal eventUid As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    TryUpdate = private_Export(values, diagnostic, False, "UPDATE", eventUid)
+End Function
+
+Public Function TryDelete( _
+    ByVal values As Object, _
+    ByVal eventUid As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    TryDelete = private_Export(values, diagnostic, False, "DELETE", eventUid)
 End Function
 
 Public Function TryExportExistingTest( _
     ByVal values As Object, _
     ByRef diagnostic As String _
 ) As Boolean
-    TryExportExistingTest = private_Export(values, diagnostic, True)
+    TryExportExistingTest = private_Export(values, diagnostic, True, "INSERT", VBA.vbNullString)
+End Function
+
+Public Function TryReadEvents( _
+    ByVal values As Object, _
+    ByRef events As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim wordApp As Object
+    Dim document As Object
+    Dim output As String
+
+    On Error GoTo EH
+    Set events = Nothing
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Word exporter is not initialized."
+    End If
+    output = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordOutput"))
+    Set wordApp = ex_PEB_WordState.fn_AcquireWord()
+    wordApp.Visible = False
+    wordApp.DisplayAlerts = 0
+    wordApp.AutomationSecurity = 3
+    Set document = wordApp.Documents.Open(output, False, True, False)
+    Set events = ex_PEB_WordDocument.fn_Events(document, values)
+    TryReadEvents = True
+Cleanup:
+    On Error Resume Next
+    If Not document Is Nothing Then
+        document.Close 0
+    End If
+    Set wordApp = Nothing
+    On Error GoTo 0
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    Resume Cleanup
 End Function
 
 ' //
@@ -71,25 +122,23 @@ End Function
 Private Function private_Export( _
     ByVal values As Object, _
     ByRef diagnostic As String, _
-    ByVal existingTest As Boolean _
+    ByVal existingTest As Boolean, _
+    ByVal operation As String, _
+    ByVal eventUid As String _
 ) As Boolean
     Dim wordApp As Object
     Dim document As Object
-    Dim target As Object
     Dim fileSystem As Object
     Dim output As String
-    Dim rendered As String
     Dim temporary As String
     Dim published As Boolean
     Dim cleanupError As String
     Dim enabled As String
-    Dim wordAnchors As obj_PEB_WordAnchors
     Dim grouped As Boolean
     Dim existing As Boolean
     Dim identifier As String
     Dim originalStamp As String
     Dim resultCode As String
-    Dim replacementText As String
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
@@ -97,10 +146,15 @@ Private Function private_Export( _
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Word exporter is not initialized."
     End If
-    If ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordPolicy")) = "Omit" Then
-        values("WordExportAction") = "SKIP"
-        private_Export = True
-        Exit Function
+    If operation <> "DELETE" Then
+        If ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordPolicy")) = "Omit" Then
+            If operation <> "INSERT" Then
+                Err.Raise 5, , "Word update requires an exported event route."
+            End If
+            values("WordExportAction") = "SKIP"
+            private_Export = True
+            Exit Function
+        End If
     End If
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
     If existingTest Then
@@ -116,11 +170,13 @@ Private Function private_Export( _
         Err.Raise 5, , "Word enabled must be true or false."
     End If
     output = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordOutput"))
-    rendered = VBA.CStr(ex_PEB_Export.fn_Required(values, "WordText"))
-    grouped = VBA.CBool(ex_PEB_Export.fn_Required(values, "WordGrouped"))
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     existing = fileSystem.FileExists(output)
+    If operation <> "INSERT" And Not existing Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.WordStoreNotFound")
+    End If
     If existingTest Then
+        grouped = VBA.CBool(ex_PEB_Export.fn_Required(values, "WordGrouped"))
         If Not existing Or Not grouped Then
             Err.Raise 5, , "Test export requires an existing grouped DOCX."
         End If
@@ -138,9 +194,6 @@ Private Function private_Export( _
     If VBA.LCase$(fileSystem.GetExtensionName(output)) <> "docx" Then
         Err.Raise 5, , "Word output must have a .docx extension."
     End If
-    If existing And Not grouped And m_documentMode <> "template" Then
-        Err.Raise 5, , "Word output already exists: " & output
-    End If
     If Not fileSystem.FolderExists(fileSystem.GetParentFolderName(output)) Then
         Err.Raise 5, , "Word output folder not found: " & output
     End If
@@ -150,10 +203,10 @@ Private Function private_Export( _
         fileSystem.CopyFile output, temporary, False
     End If
 
-    ' Отдельный экземпляр Word владеет создаваемым документом.
-    Set wordApp = VBA.CreateObject("Word.Application")
+    ' Reuse the workbook-owned Word process while keeping documents short-lived.
+    Set wordApp = ex_PEB_WordState.fn_AcquireWord()
     wordApp.Visible = False
-    wordApp.ScreenUpdating = True
+    wordApp.ScreenUpdating = False
     wordApp.DisplayAlerts = 0
     wordApp.AutomationSecurity = 3
     If existing Then
@@ -166,42 +219,11 @@ Private Function private_Export( _
     If Not existing And m_documentMode = "template" Then
         private_ReplaceDocumentFields document, values
     End If
-    If grouped Then
-        If Not existing And m_documentMode = "blank" Then
-            identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
-            document.Content.Text = "{\export:" & identifier & "_Begin}" & VBA.vbCr & "{\export:" & identifier & "_End}" & VBA.vbCr
-        End If
-        ex_PEB_WordState.fn_Apply document, values, resultCode
-    ElseIf m_documentMode = "template" Then
-        Set wordAnchors = New obj_PEB_WordAnchors
-        If Not wordAnchors.Initialize(document, diagnostic) Then GoTo Cleanup
-        If Not wordAnchors.TryGetInsertedRange(document, values, target, diagnostic) Then GoTo Cleanup
-        replacementText = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
-        replacementText = VBA.Replace$(replacementText, VBA.vbLf, VBA.vbCr)
-        If VBA.StrComp(target.Text, replacementText, VBA.vbBinaryCompare) = 0 Then
-            resultCode = "SKIP"
-        Else
-            If VBA.Len(VBA.Trim$(VBA.Replace$(target.Text, VBA.vbCr, " "))) = 0 Then
-                resultCode = "INSERT"
-            Else
-                resultCode = "UPDATE"
-            End If
-            If Not wordAnchors.TryInsert(document, values, diagnostic) Then GoTo Cleanup
-            If Not wordAnchors.TryVerify(document, values, diagnostic) Then GoTo Cleanup
-        End If
-    Else
-        Set target = document.Content
-        target.Text = VBA.Replace$(rendered, VBA.vbCrLf, VBA.vbCr)
-        resultCode = "INSERT"
+    If Not existing And m_documentMode = "blank" Then
+        identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+        document.Content.Text = "{\export:" & identifier & "_Begin}" & VBA.vbCr & "{\export:" & identifier & "_End}" & VBA.vbCr
     End If
-    If Not existing Then
-        resultCode = "INSERT"
-    End If
-    If resultCode = "SKIP" And existing Then
-        values("WordExportAction") = resultCode
-        private_Export = True
-        GoTo Cleanup
-    End If
+    ex_PEB_WordDocument.fn_Change document, values, operation, eventUid, resultCode
     If existing Then
         document.Save
     Else
@@ -209,7 +231,6 @@ Private Function private_Export( _
     End If
     document.Close 0
     Set document = Nothing
-    wordApp.Quit 0
     Set wordApp = Nothing
 
     ' Publish validated grouped orders by replacing their previous version.
@@ -223,16 +244,14 @@ Private Function private_Export( _
     End If
     published = True
     values("WordExportAction") = resultCode
+    values("WordEventUid") = eventUid
     private_Export = True
 Cleanup:
     On Error Resume Next
-    If Not wordAnchors Is Nothing Then wordAnchors.Dispose
     If Not document Is Nothing Then
         document.Close 0
     End If
-    If Not wordApp Is Nothing Then
-        wordApp.Quit 0
-    End If
+    Set wordApp = Nothing
     If VBA.Err.Number <> 0 Then
         cleanupError = VBA.Err.Description
     End If
@@ -251,6 +270,12 @@ Cleanup:
     End If
     Exit Function
 EH:
+    If operation = "INSERT" And VBA.Err.Description = ex_PEB_Export.fn_Config("text.WordStoreDuplicate") Then
+        values("WordExportAction") = "DUPLICATE"
+        diagnostic = VBA.Err.Description
+        private_Export = True
+        Resume Cleanup
+    End If
     diagnostic = "Word export: " & VBA.Err.Description
     Resume Cleanup
 End Function

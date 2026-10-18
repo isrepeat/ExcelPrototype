@@ -127,10 +127,17 @@ value	PersonalEventBuilder::text.TestPhase.Verify	Результат перев�
 value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
 value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
 value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
+value	PersonalEventBuilder::text.WordStoreNotFound	Не знайдено подію з указаним UID. Оновлення та видалення потребують існуючої події.
 value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
 value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
+value	PersonalEventBuilder::text.WordStoreDuplicate	Подію вже додано до документа. Повторне додавання пропущено; документ не змінено.
+value	PersonalEventBuilder::text.WordStoreMigration	Документ містить старі метадані або текст без реєстру подій. Потрібна явна міграція.
+value	PersonalEventBuilder::text.WordStoreManualEdit	Текст між якорями змінено вручну. Автоматичну зміну скасовано.
+value	PersonalEventBuilder::text.WordStoreMapConflict	Дані людини або посади відрізняються від збережених у документі. Використайте явне оновлення події.
+value	PersonalEventBuilder::text.WordStorePlanChanged	Змінено шаблон або правила формування документа. Потрібна міграція метаданих.
 value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
 value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
+value	PersonalEventBuilder::text.WordStoreOrderMismatch	Документ належить іншій парі номера та дати наказу.
 value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
 value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
 value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
@@ -306,9 +313,11 @@ value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
 value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата обрано. Автопідстановку вимкнено; дані можна редагувати вручну.
 value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
 value	PersonalEventBuilder::text.TestsUnexpectedMutation	Відхилена операція змінила дані ТВ.
+value	PersonalEventBuilder::text.WordStorePersonRequired	Для події потрібен ІПН або ПІБ разом із кодом посади.
 value	PersonalEventBuilder::text.EnvironmentSwitchPending	Перемикання середовища: {environment}. Дані форми буде очищено.
 value	PersonalEventBuilder::text.ExportPreviewWordSuccess	Текст поточної події показано в області прев’ю.
 value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
+value	PersonalEventBuilder::text.WordStorePersonAmbiguous	ПІБ і код посади відповідають кільком записам людини. Уточніть ідентифікатор.
 value	PersonalEventBuilder::text.ExportMovementUnavailable	Експорт РУХ ще не налаштовано. Очікуються параметри книги, аркуша й таблиці.
 value	PersonalEventBuilder::text.ModeStatusChangeDateLabel	Дата зміни статусу
 value	PersonalEventBuilder::text.ModeHospitalShortNameLabel	Лікарня.СкороченаНазва
@@ -469,6 +478,10 @@ value	PersonalEventBuilder::export.Word.meta.lookups.5.keyHeader	ІПН
 value	PersonalEventBuilder::export.Word.meta.lookups.5.valueHeader	Давальний
 value	PersonalEventBuilder::export.Word.meta.lookups.count	5
 value	PersonalEventBuilder::export.Word.output	./Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
+value	PersonalEventBuilder::export.Word.store.basisFields	IncomingNo|IncomingDateShort|ReportPerson|ReporterGenitive
+value	PersonalEventBuilder::export.Word.store.personFields	PersonId|PersonName|IPN|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|RankGenitive|RankDative
+value	PersonalEventBuilder::export.Word.store.identityFields	PersonKey; EventId; DateFromShort
+value	PersonalEventBuilder::export.Word.store.positionFields	PositionCode|PositionGenitive
   ref	PersonalEventBuilder::export.Word.context.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.1.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.context.lookups.1.when.pattern	\S
