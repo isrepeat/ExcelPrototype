@@ -211,6 +211,49 @@ Public Function PersonNameChangedHandler() As Boolean
     PersonNameChangedHandler = Me.SearchPersonnelHandler()
 End Function
 
+Public Function ResetFormHandler() As Boolean
+    Dim updates As Object
+    Dim wordContext As Object
+    Dim fields As String
+    Dim fieldName As Variant
+    Dim diagnostic As String
+    Dim records As New Collection
+    Dim result As obj_LookupResult
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_ReadModeConfig("forms.styledFields", fields, diagnostic) Then GoTo Failed
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each fieldName In VBA.Split(fields, "|")
+        updates("Form." & VBA.CStr(fieldName)) = VBA.vbNullString
+    Next fieldName
+    updates("Form.WordPreviewText") = VBA.vbNullString
+    updates("Form.ActionStatus") = VBA.vbNullString
+    updates("Text.PersonnelStatus") = VBA.vbNullString
+    Set result = New obj_LookupResult
+    If Not result.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    Set wordContext = VBA.CreateObject("Scripting.Dictionary")
+    If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then
+        Err.Raise 5, , "Cannot clear Word context."
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Err.Raise 5, , "Cannot clear candidate selection."
+    End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then
+        Err.Raise 5, , "Cannot clear candidates."
+    End If
+    Set m_lookupResult = result
+    m_reporterActive = False
+    m_hospitalActive = False
+    ResetFormHandler = m_pageBase.FlushUpdates()
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
+End Function
+
 Public Function SearchPersonnelHandler() As Boolean
     Dim text As Variant
     Dim formKind As Variant
@@ -543,6 +586,7 @@ Public Function TryRefreshSourceLegend(ByRef diagnostic As String) As Boolean
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     If Not m_pageBase.BindingContext.SetValue("Text", "SourceLegendTitle", title) Then Exit Function
     For Each sourceAlias In VBA.Split(sourceAliases, "|")
+        If Not private_ReadModeConfig("legend." & sourceAlias & ".entryTemplate", entryTemplate, diagnostic) Then Exit Function
         If Not private_ReadModeConfig("lookup." & sourceAlias & ".source.path", sourcePath, diagnostic) Then Exit Function
         If VBA.Mid$(sourcePath, 2, 1) <> ":" And VBA.Left$(sourcePath, 2) <> "\\" Then
             sourcePath = fileSystem.BuildPath(ThisWorkbook.Path, sourcePath)
@@ -1213,6 +1257,7 @@ Private Function private_LoadMode( _
     Dim column As Object
     Dim records As Collection
     Dim projectedResult As obj_LookupResult
+    Dim enrichedRecords As Collection
     Dim hasMore As Boolean
     Dim modes As Variant
     Dim currentForm As Variant
@@ -1235,6 +1280,12 @@ Private Function private_LoadMode( _
             If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
             m_modeId = modeId
+            If Not m_lookupResult Is Nothing Then
+                Set projectedResult = m_lookupResult
+                If Not private_TryEnrichResult(projectedResult, diagnostic) Then Exit Function
+                If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
+                Set m_lookupResult = projectedResult
+            End If
             private_LoadMode = True
             Exit Function
         End If
@@ -1317,8 +1368,21 @@ Private Function private_LoadMode( _
     End If
     m_modeDirection = direction
     m_eventType = eventType
+    If records.Count > 0 Then
+        If Not m_candidateEnricher.TryEnrich( _
+            m_lookupService, _
+            records, _
+            m_acceptedOrderNumber, _
+            m_acceptedOrderDate, _
+            modeId, _
+            enrichedRecords, _
+            diagnostic _
+        ) Then Exit Function
+        Set records = enrichedRecords
+    End If
     If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
     Set projectedResult = New obj_LookupResult
+    If Not private_SetCandidateSources(columns, modeId, diagnostic) Then Exit Function
     If Not projectedResult.Initialize(records, columns, hasMore, diagnostic) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
     Set m_lookupResult = projectedResult
@@ -1335,6 +1399,16 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     Dim caption As String
     Dim status As String
     Dim startedAt As Double
+    Dim selectedValue As Variant
+    Dim selectedObject As Object
+    Dim isObject As Boolean
+    Dim selectedRecord As obj_LookupRecord
+    Dim record As obj_LookupRecord
+    Dim autoFill As Variant
+    Dim returnModes As String
+    Dim oldReturnMode As Boolean
+    Dim newReturnMode As Boolean
+    Dim updates As Object
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If modeId = m_modeId Then
@@ -1342,7 +1416,34 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
         Exit Function
     End If
     startedAt = VBA.Timer
+    If Not private_ReadModeConfig("lookup.ReturnTickets.modes", returnModes, diagnostic) Then GoTo Failed
+    returnModes = "|" & returnModes & "|"
+    oldReturnMode = VBA.InStr(1, returnModes, "|" & m_modeId & "|", VBA.vbTextCompare) > 0
+    newReturnMode = VBA.InStr(1, returnModes, "|" & modeId & "|", VBA.vbTextCompare) > 0
+    If oldReturnMode <> newReturnMode Then
+        If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+        If VBA.CBool(autoFill) Then
+            Set updates = VBA.CreateObject("Scripting.Dictionary")
+            updates("Form.TicketNumber") = VBA.vbNullString
+            updates("Form.TicketDate") = VBA.vbNullString
+            If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+        End If
+    End If
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    If m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selectedObject, isObject) Then
+        If isObject Then
+            If TypeOf selectedObject Is obj_LookupRecord Then
+                Set selectedRecord = selectedObject
+                For Each record In m_lookupResult.Records
+                    If record.Key = selectedRecord.Key Then
+                        If Not m_pageBase.BindingContext.SetObject("Data", "SelectedPersonnel", record) Then Exit Function
+                        If Not Me.SelectPersonnelHandler(record) Then Exit Function
+                        Exit For
+                    End If
+                Next record
+            End If
+        End If
+    End If
     ex_Core.fn_Diagnostic_WritePerf "Mode.Prepare", startedAt
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
@@ -1429,9 +1530,15 @@ Private Function private_ApplyModeRecord( _
     Dim value As Variant
     Dim updates As Object
     Dim fields As Collection
+    Dim sourceStyle As String
+    Dim sourceAlias As String
+    Dim lookupFields As String
+    Dim defaultStyle As String
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     Set fields = m_modeFields
+    If Not private_ReadModeConfig("forms.lookupFields", lookupFields, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("forms.sourceStyles.default", defaultStyle, diagnostic) Then Exit Function
     If m_reporterActive Then
         Set fields = m_reporterFields
     End If
@@ -1446,6 +1553,17 @@ Private Function private_ApplyModeRecord( _
                 Exit Function
             End If
             updates("Form." & column("formField")) = value
+            sourceAlias = VBA.CStr(column("sourceAlias"))
+            If VBA.Len(VBA.Trim$(VBA.CStr(value))) = 0 Or VBA.Len(sourceAlias) = 0 Then sourceAlias = "default"
+            If Not private_ReadModeConfig("forms.sourceStyles." & sourceAlias, sourceStyle, diagnostic) Then Exit Function
+            If VBA.InStr(1, "|" & lookupFields & "|", "|" & column("formField") & "|", VBA.vbBinaryCompare) > 0 Then
+                If sourceStyle = defaultStyle Then
+                    If Not private_ReadModeConfig("forms.lookupDefaultStyle", sourceStyle, diagnostic) Then Exit Function
+                Else
+                    sourceStyle = sourceStyle & "Lookup"
+                End If
+            End If
+            updates("Form." & column("formField") & "Style") = sourceStyle
         End If
     Next column
     private_ApplyModeRecord = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
@@ -1459,13 +1577,44 @@ Private Function private_TryEnrichResult( _
     Dim enrichedResult As obj_LookupResult
 
     If Not m_candidateEnricher.TryEnrich(m_lookupService, result.Records, _
-            m_acceptedOrderNumber, m_acceptedOrderDate, records, diagnostic) Then Exit Function
+            m_acceptedOrderNumber, m_acceptedOrderDate, m_modeId, records, diagnostic) Then Exit Function
     Set enrichedResult = New obj_LookupResult
     If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
+    If Not private_SetCandidateSources(m_modeFields, m_modeId, diagnostic) Then Exit Function
     If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then Exit Function
     Set result = enrichedResult
     If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
     private_TryEnrichResult = True
+End Function
+
+Private Function private_SetCandidateSources( _
+    ByVal columns As Collection, _
+    ByVal modeId As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim modes As String
+    Dim fields As String
+    Dim sourceAlias As String
+    Dim orderDateField As String
+    Dim orderDateAlias As String
+    Dim column As Object
+
+    If Not private_ReadModeConfig("lookup.ReturnTickets.modes", modes, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("lookup.ReturnTickets.styleFields", fields, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("legend.orderDate.field", orderDateField, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("legend.orderDate.sourceAlias", orderDateAlias, diagnostic) Then Exit Function
+    If VBA.InStr(1, "|" & modes & "|", "|" & modeId & "|", VBA.vbTextCompare) > 0 Then
+        If Not private_ReadModeConfig("lookup.ReturnTickets.sourceAlias", sourceAlias, diagnostic) Then Exit Function
+    Else
+        If Not private_ReadModeConfig("lookup.ReturnTickets.departureSourceAlias", sourceAlias, diagnostic) Then Exit Function
+    End If
+    For Each column In columns
+        If VBA.InStr(1, "|" & fields & "|", "|" & column("name") & "|", VBA.vbTextCompare) > 0 Then
+            column("sourceAlias") = sourceAlias
+        End If
+        If column("name") = orderDateField Then column("sourceAlias") = orderDateAlias
+    Next column
+    private_SetCandidateSources = True
 End Function
 
 Private Function private_SetActionStatus( _

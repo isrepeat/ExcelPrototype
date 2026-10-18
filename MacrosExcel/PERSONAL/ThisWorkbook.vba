@@ -38,6 +38,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     private_TryUnbindKey "^%r"
     private_TryUnbindKey "^+%r"
     private_TryUnbindKey "^%d"
+    private_TryUnbindKey "^%u"
     ex_Core.fn_Diagnostic_WriteLog "PERSONAL_WORKBOOK_BEFORE_CLOSE_COMPLETED | ElapsedMs=" & _
         private_FormatElapsedMilliseconds(startedAt)
 End Sub
@@ -80,6 +81,11 @@ Public Sub BindKeys()
         failedCount = failedCount + 1
     End If
     If private_TryBindKey("^+%r", "ex_Core.fn_ReloadActiveWorkbookVbaDeferred") Then
+        boundCount = boundCount + 1
+    Else
+        failedCount = failedCount + 1
+    End If
+    If private_TryBindKey("^%u", "ex_Core.fn_UpdateActiveWorkbookConfig") Then
         boundCount = boundCount + 1
     Else
         failedCount = failedCount + 1

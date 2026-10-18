@@ -134,7 +134,7 @@ Private Function private_Export( _
     If VBA.LCase$(fileSystem.GetExtensionName(output)) <> "docx" Then
         Err.Raise 5, , "Word output must have a .docx extension."
     End If
-    If existing And Not grouped Then
+    If existing And Not grouped And m_documentMode <> "template" Then
         Err.Raise 5, , "Word output already exists: " & output
     End If
     If Not fileSystem.FolderExists(fileSystem.GetParentFolderName(output)) Then
@@ -158,6 +158,9 @@ Private Function private_Export( _
         Set document = wordApp.Documents.Add(m_templatePath, False, 0, False)
     Else
         Set document = wordApp.Documents.Add
+    End If
+    If Not existing And m_documentMode = "template" Then
+        private_ReplaceDocumentFields document, values
     End If
     If grouped Then
         If Not existing And m_documentMode = "blank" Then
@@ -224,3 +227,48 @@ EH:
     diagnostic = "Word export: " & VBA.Err.Description
     Resume Cleanup
 End Function
+
+Private Sub private_ReplaceDocumentFields( _
+    ByVal document As Object, _
+    ByVal values As Object _
+)
+    Dim replacements As Object
+    Dim story As Object
+    Dim current As Object
+    Dim target As Object
+    Dim token As Variant
+    Dim position As Long
+
+    If Not values.Exists("WordDocumentReplacements") Then
+        Err.Raise 5, , "Missing Word document replacements."
+    End If
+    Set replacements = values("WordDocumentReplacements")
+    For Each story In document.StoryRanges
+        Set current = story
+        Do While Not current Is Nothing
+            For Each token In replacements.Keys
+                position = current.Start
+                Do
+                    Set target = current.Duplicate
+                    target.SetRange position, current.End
+                    With target.Find
+                        .ClearFormatting
+                        .Text = VBA.CStr(token)
+                        .Forward = True
+                        .Wrap = 0
+                        .Format = False
+                        .MatchCase = True
+                        .MatchWholeWord = False
+                        .MatchWildcards = False
+                        .MatchSoundsLike = False
+                        .MatchAllWordForms = False
+                        If Not .Execute Then Exit Do
+                    End With
+                    target.Text = VBA.CStr(replacements(token))
+                    position = target.End
+                Loop
+            Next token
+            Set current = current.NextStoryRange
+        Loop
+    Next story
+End Sub

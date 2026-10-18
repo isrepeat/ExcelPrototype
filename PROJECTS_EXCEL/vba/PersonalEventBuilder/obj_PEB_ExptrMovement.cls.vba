@@ -63,12 +63,13 @@ Public Function TryExport( _
     Optional ByRef resultCode As String = "", _
     Optional ByVal targetWorkbook As Object = Nothing _
 ) As Boolean
-    Dim excelApp As Object
     Dim book As Object
     Dim table As Object
     Dim targetRow As Object
     Dim openBook As Workbook
-    Dim fileSystem As Object
+    Dim sheet As Worksheet
+    Dim candidateTable As ListObject
+    Dim environment As String
     Dim writes As Object
     Dim identities As Object
     Dim joins As Object
@@ -83,8 +84,7 @@ Public Function TryExport( _
     Dim selected As Long
     Dim changed As Boolean
     Dim saved As Boolean
-    Dim cleanupError As String
-    Dim ownsBook As Boolean
+    Dim saveBook As Boolean
     Dim closingWrites As Object
     Dim closingRow As Object
     Dim appendedRow As Object
@@ -116,31 +116,35 @@ Public Function TryExport( _
         Set joins = private_Mappings(prefix & ".guard.join", values)
         openHeader = ex_PEB_MovementPlan.fn_Value(prefix & ".guard.openHeader")
     End If
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    If Not fileSystem.FileExists(m_path) Then
-        Err.Raise 5, , "Movement workbook not found: " & m_path
-    End If
-    For Each openBook In Application.Workbooks
-        If VBA.StrComp(openBook.FullName, m_path, VBA.vbTextCompare) = 0 Then
-            Err.Raise 5, , "Close the Movement workbook before exporting: " & m_path
-        End If
-    Next openBook
-
-    ' Отдельный экземпляр Excel закрывает книгу без сохранения при ошибке.
+    ' Resolve an already open target without creating another Excel instance.
+    environment = ex_PEB_Export.fn_Config("environment.name")
     If targetWorkbook Is Nothing Then
-        ownsBook = True
-        Set excelApp = VBA.CreateObject("Excel.Application")
-        excelApp.Visible = False
-        excelApp.DisplayAlerts = False
-        excelApp.EnableEvents = False
-        excelApp.AutomationSecurity = 3
-        Set book = excelApp.Workbooks.Open(m_path, 0, False)
+        For Each openBook In Application.Workbooks
+            If environment <> "TEST" Or VBA.StrComp(openBook.FullName, m_path, VBA.vbTextCompare) = 0 Then
+                For Each sheet In openBook.Worksheets
+                    For Each candidateTable In sheet.ListObjects
+                        If VBA.StrComp(candidateTable.Name, m_table, VBA.vbTextCompare) = 0 Then
+                            If Not table Is Nothing Then
+                                Err.Raise 5, , ex_PEB_Export.fn_Config("text.MovementOpenAmbiguous")
+                            End If
+                            Set table = candidateTable
+                            Set book = openBook
+                        End If
+                    Next candidateTable
+                Next sheet
+            End If
+        Next openBook
+        If table Is Nothing Then
+            Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.MovementOpenRequired"), "{table}", m_table)
+        End If
+        saveBook = True
     Else
         If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then Err.Raise 5, , "Borrowed export workbooks require TEST."
         If VBA.StrComp(targetWorkbook.FullName, m_path, VBA.vbTextCompare) <> 0 Then
             Err.Raise 5, , "Borrowed workbook differs from the configured Movement target."
         End If
         Set book = targetWorkbook
+        Set table = book.Worksheets(m_sheet).ListObjects(m_table)
     End If
     If book.ReadOnly Then
         Err.Raise 5, , "Movement workbook is locked or read-only: " & m_path
@@ -148,7 +152,6 @@ Public Function TryExport( _
     If book.Date1904 Then
         Err.Raise 5, , "Movement workbook must use the 1900 date system."
     End If
-    Set table = book.Worksheets(m_sheet).ListObjects(m_table)
     If table.Parent.ProtectContents Then
         Err.Raise 5, , "Movement worksheet is protected."
     End If
@@ -244,7 +247,7 @@ Public Function TryExport( _
         End If
         targetRow.Range.Cells(1, columns(key)).Value2 = writes(key)
     Next key
-    If ownsBook Then book.Save
+    If saveBook Then book.Save
     saved = True
     resultCode = "DepartureCreated"
     If operation = "close" Then resultCode = "ArrivalClosed"
@@ -253,28 +256,14 @@ Public Function TryExport( _
     End If
     TryExport = True
 Cleanup:
-    On Error Resume Next
-    If ownsBook And Not book Is Nothing Then
-        book.Close False
-    End If
-    If ownsBook And Not excelApp Is Nothing Then
-        excelApp.Quit
-    End If
-    If VBA.Err.Number <> 0 Then
-        cleanupError = VBA.Err.Description
-    End If
-    On Error GoTo 0
-    If VBA.Len(cleanupError) > 0 Then
-        diagnostic = diagnostic & " Cleanup: " & cleanupError
-    End If
     If changed And Not saved Then
         diagnostic = diagnostic & " " & ex_PEB_Export.fn_Config("text.ExportNotSaved")
     End If
     Exit Function
 EH:
     diagnostic = "Movement export: " & VBA.Err.Description
-    ' Restore borrowed TEST workbooks as well as discarding unsaved owned workbooks.
-    If changed And Not saved And Not ownsBook Then
+    ' Restore the open workbook when an export fails before saving.
+    If changed And Not saved Then
         On Error Resume Next
         If Not appendedRow Is Nothing Then
             appendedRow.Delete

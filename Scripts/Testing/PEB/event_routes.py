@@ -6,6 +6,7 @@ import re
 
 from movement_templates import load_movement
 from movement_plans import load_native_plans
+from config_dependencies import load_config
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKBOOK = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
@@ -13,18 +14,8 @@ NS = {"p": "urn:excelprototype:profiles"}
 
 
 def parse_config(path):
-    result = {}
-    for number, line in enumerate(Path(path).read_text(encoding="utf-8-sig").splitlines(), 1):
-        if not line:
-            continue
-        parts = line.split("\t")
-        if len(parts) != 3:
-            raise ValueError(f"Invalid config row: {path}:{number}")
-        key = parts[1].split("::", 1)[-1]
-        if key in result:
-            raise ValueError(f"Duplicate config key: {key}")
-        result[key] = parts[2]
-    return result
+    return {key.split("::", 1)[-1]: value for key, value in load_config(path).items()
+            if key.startswith(("PersonalEventBuilder::", "ThisWorkbook::"))}
 
 
 def validate_word_template(template):

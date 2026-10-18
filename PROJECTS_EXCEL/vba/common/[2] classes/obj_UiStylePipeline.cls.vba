@@ -166,7 +166,22 @@ Public Function ResolveRegions( _
         Case "control", "controlpart", "layoutcontainer", "layoutbound", "inlinepart"
             For Each regionKey In m_regions.Keys
                 Set region = m_regions(regionKey)
+                If selector.Exists("part") Then
+                    If VBA.StrComp(region("part"), selector("part"), VBA.vbTextCompare) <> 0 Then GoTo NextRegisteredRegion
+                End If
+                If Not pageScope Is Nothing Then
+                    Set selectedArea = region("area")
+                    If Not selectedArea Is Nothing Then
+                        If Application.Intersect(selectedArea, pageScope) Is Nothing Then GoTo NextRegisteredRegion
+                    Else
+                        Set selected = region("shape")
+                        If Not selected Is Nothing Then
+                            If Application.Intersect(selected.TopLeftCell, pageScope) Is Nothing Then GoTo NextRegisteredRegion
+                        End If
+                    End If
+                End If
                 If private_Matches(region, selector, target) Then result.Add region
+NextRegisteredRegion:
             Next regionKey
         Case Else
             Set scope = pageScope

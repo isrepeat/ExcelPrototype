@@ -35,6 +35,7 @@ Private m_visualDirty As Boolean
 Private m_textDirty As Boolean
 Private m_candidateValuesDirty As Boolean
 Private m_candidateLayoutDirty As Boolean
+Private m_bindingDependencies As Collection
 
 ' //
 ' // Lifecycle
@@ -191,6 +192,7 @@ Public Function Configure( _
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_BINDINGS_PARSE_STARTED | Name=" & controlName
 #End If
+    Set m_bindingDependencies = New Collection
     For Each attributeNode In m_definition.Attributes
         If attributeNode.nodeName <> "dataContext" And VBA.StrComp(VBA.Left$(VBA.Trim$(VBA.CStr(attributeNode.Text)), 9), _
                 "{Binding ", VBA.vbTextCompare) = 0 Then
@@ -200,6 +202,9 @@ Public Function Configure( _
                 Exit Function
             End If
             attributeNode.Text = "{Binding Source=" & bindingSource & "; Path=" & bindingPath & "}"
+            If attributeNode.nodeName <> "selectedItem" Then
+                m_bindingDependencies.Add VBA.Array(VBA.CStr(attributeNode.nodeName), bindingSource, bindingPath)
+            End If
         End If
     Next attributeNode
 #If ENABLE_LOGGING_VERBOSE Then
@@ -250,6 +255,7 @@ Public Sub Dispose()
     Set m_bindingContext = Nothing
     Set m_context = Nothing
     Set m_definition = Nothing
+    Set m_bindingDependencies = Nothing
     Set m_area = Nothing
 End Sub
 
@@ -373,55 +379,55 @@ Private Sub obj_IUiBindingListener_OnValueChanged( _
 End Sub
 
 Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
-    Dim nodeAttribute As Object
+    Dim dependency As Variant
+    Dim attributeName As String
     Dim source As String
     Dim path As String
 
     If m_isDisposed Or m_control Is Nothing Then Exit Sub
-    For Each nodeAttribute In m_definition.Attributes
-        If nodeAttribute.nodeName <> "selectedItem" Then
-            If ex_UiBindingRuntime.fn_TryParseBinding(VBA.CStr(nodeAttribute.Text), _
-                    VBA.vbNullString, source, path) Then
-                If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
-                    If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
-                            VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
-                        If TypeOf m_control Is obj_UiCandidatesControl Then
-                            If nodeAttribute.nodeName = "itemsSource" Then
-                                m_candidateValuesDirty = True
-                            Else
-                                m_candidateLayoutDirty = True
-                            End If
-                        End If
-                        If TypeOf m_control Is obj_UiFieldControl Then
-                            ' Cell bindings already propagate values without refreshing control presentation.
-                            If nodeAttribute.nodeName = "value" Then GoTo NextAttribute
-                            If nodeAttribute.nodeName = "readOnly" Then
-                                m_readOnlyDirty = True
-                            Else
-                                m_visualDirty = True
-                            End If
-                        ElseIf TypeOf m_control Is obj_UiLabelControl Then
-                            If nodeAttribute.nodeName = "text" Or nodeAttribute.nodeName = "caption" Then
-                                m_textDirty = True
-                            Else
-                                m_visualDirty = True
-                            End If
-                        Else
-                            m_visualDirty = True
-                        End If
-                        If TypeOf m_control Is obj_IUiBindingTarget And _
-                                nodeAttribute.nodeName <> "itemsSource" And _
-                                nodeAttribute.nodeName <> "rowSpan" And _
-                                nodeAttribute.nodeName <> "columnSpan" Then
-                            m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), False
-                        ElseIf nodeAttribute.nodeName <> "value" Then
-                            m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
-                        End If
+    If m_bindingDependencies Is Nothing Then Exit Sub
+    For Each dependency In m_bindingDependencies
+        attributeName = dependency(0)
+        source = dependency(1)
+        path = dependency(2)
+        If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
+            If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
+                    VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
+                If TypeOf m_control Is obj_UiCandidatesControl Then
+                    If attributeName = "itemsSource" Then
+                        m_candidateValuesDirty = True
+                    Else
+                        m_candidateLayoutDirty = True
                     End If
+                End If
+                If TypeOf m_control Is obj_UiFieldControl Then
+                    ' Cell bindings already propagate values without refreshing control presentation.
+                    If attributeName = "value" Then GoTo NextAttribute
+                    If attributeName = "readOnly" Then
+                        m_readOnlyDirty = True
+                    Else
+                        m_visualDirty = True
+                    End If
+                ElseIf TypeOf m_control Is obj_UiLabelControl Then
+                    If attributeName = "text" Or attributeName = "caption" Then
+                        m_textDirty = True
+                    Else
+                        m_visualDirty = True
+                    End If
+                Else
+                    m_visualDirty = True
+                End If
+                If TypeOf m_control Is obj_IUiBindingTarget And _
+                        attributeName <> "itemsSource" And _
+                        attributeName <> "rowSpan" And _
+                        attributeName <> "columnSpan" Then
+                    m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), False
+                ElseIf attributeName <> "value" Then
+                    m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
                 End If
             End If
         End If
 NextAttribute:
-    Next nodeAttribute
+    Next dependency
     Exit Sub
 End Sub

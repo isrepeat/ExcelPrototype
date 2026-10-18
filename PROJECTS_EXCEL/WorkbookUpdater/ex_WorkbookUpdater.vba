@@ -77,7 +77,7 @@ Public Function fn_RequestReload( _
         m_operationFolder = private_CreateOperationFolder(target)
     Else
         If Not m_initialInstall Then
-            If Not VBA.CBool(Application.Run(private_Macro("ex_ConfigRefresh.fn_TryUpdate"), configDiagnostic)) Then
+            If Not ex_ConfigRefresh.fn_TryUpdateWorkbook(target, configDiagnostic) Then
                 VBA.Err.Raise VBA.vbObjectError + 2326, , _
                     "Configuration refresh failed. Module update was cancelled. " & configDiagnostic
             End If
@@ -245,7 +245,7 @@ Public Sub fn_RunPending()
 
 InitializeRuntime:
     If m_initialInstall Then
-        If Not VBA.CBool(Application.Run(private_Macro("ex_ConfigRefresh.fn_TryUpdate"), configDiagnostic)) Then
+        If Not ex_ConfigRefresh.fn_TryUpdateWorkbook(m_target, configDiagnostic) Then
             VBA.Err.Raise VBA.vbObjectError + 2326, , _
                 "Initial configuration refresh failed. Runtime initialization was cancelled. " & configDiagnostic
         End If

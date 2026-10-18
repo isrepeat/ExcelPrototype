@@ -456,6 +456,15 @@
   </grid>
 
   <styles>
+    <controlStyle name="selectShapeBase"
+                  backColor="#FFFFFF"
+                  textColor="#111827"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#64748B"
+                  borderWeight="thin"
+                  horizontal="left"
+                  vertical="center"/>
     <controlStyle name="searchLabel"
                   indent="0"
                   paddingLeft="10"
