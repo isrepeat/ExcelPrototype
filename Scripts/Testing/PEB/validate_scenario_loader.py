@@ -8,7 +8,8 @@ from xml.etree import ElementTree as ET
 from pathlib import Path
 
 import openpyxl
-from event_routes import derived_settings
+from event_routes import derived_settings, NS
+from word_grouping_fixtures import load_grouping_cases
 from openpyxl.utils.cell import range_boundaries
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -37,6 +38,7 @@ def load_tables(book):
             left, top, right, bottom = range_boundaries(table.ref)
             headers = [sheet.cell(top, column).value for column in range(left, right + 1)]
             assert headers == [column.name for column in table.tableColumns], f"Header schema differs: {table.name}"
+            assert len({column.id for column in table.tableColumns}) == len(table.tableColumns), f"Duplicate column ID: {table.name}"
             assert len(set(headers)) == len(headers), f"Duplicate header: {table.name}"
             rows = []
             for index in range(top + 1, bottom + 1):
@@ -47,6 +49,10 @@ def load_tables(book):
                 if any(value is not None for value in row.values()):
                     rows.append(row)
             result[table.name] = {"sheet": sheet.title, "headers": headers, "rows": rows}
+    cases = result.get("tbTestScenarios")
+    if cases is not None:
+        assert all(row["Suite"] in ("Basic", "Grouping") for row in cases["rows"])
+        cases["rows"] = [row for row in cases["rows"] if row["Suite"] == "Basic"]
     return result
 
 
@@ -180,7 +186,7 @@ def source_checks(settings):
     assert 'private_ValidateWord(binding, testStep, report, values)' in runner
     assert 'test.runner.captureMovementPreview' not in runner, "Movement preview must not be disabled by a performance setting"
     assert 'report("PreviewText") = VBA.Replace$(VBA.CStr(previewValues("WordText"))' in runner
-    assert 'If report("PreviewEnabled") And testStep("Action") <> "ExportEvent" Then' in runner
+    assert 'If (report("PreviewEnabled") Or Not m_testWordSession Is Nothing) And testStep("Action") <> "ExportEvent" Then' in runner
     assert 'testStep("WordExpectation")' in runner and 'values("WordOutcome")' in runner
     assert 'item("PreviewEnabled") = VBA.CBool(selected(scenario("Id")))' in runner
     ui = (folder / "Test/obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
@@ -212,7 +218,7 @@ def source_checks(settings):
         assert settings[f"export.Movement.{mode}.destinationField"] in ("HospitalShortName", "Destination")
         assert settings[f"events.{mode}.movement.profile"] == settings[f"export.Movement.{mode}.profile"]
     for filename in ("obj_PEB_TestScenarios.cls.vba", "obj_PEB_TestRunner.cls.vba", "ex_PEB_Testing.vba", "obj_PEB_PgTests.cls.vba", "obj_PEB_PgTestsController.cls.vba"):
-        text = (folder / filename).read_text(encoding="utf-8-sig")
+        text = (folder / "Test" / filename).read_text(encoding="utf-8-sig")
         procedures = re.findall(r"(?im)^(?:Public|Private|Friend) (?:Function|Sub) (\w+)", text)
         assert len(procedures) == len(set(procedures)), f"Duplicate procedure: {filename}"
         assert len(procedures) == len(re.findall(r"(?im)^End (?:Function|Sub)$", text)), f"Unbalanced procedures: {filename}"
@@ -229,6 +235,8 @@ def word_context_checks(settings):
     ns = {"p": "urn:excelprototype:profiles"}
     text = "\n".join(root.itertext())
     roots = set(re.findall(r"(?<!\.)\[([A-Z][A-Za-z0-9_]*)\]", text))
+    computed = {node.get("name") for node in root.findall(".//p:derived", ns) + root.findall(".//p:aggregate", ns)}
+    roots -= computed
     row_keys = set(re.findall(r"item\.\[([A-Z][A-Za-z0-9_]*)\]", text))
     provided = set(settings["export.fields"].split("|"))
     for group, name in [("lookups", "output"), ("aliases", "name"), ("constants", "name"), ("context.lookups", "output")]:
@@ -446,10 +454,10 @@ def registry_checks(book, tables, settings):
 def preservation_check(path):
     before = openpyxl.load_workbook(path, data_only=False)
     after = openpyxl.load_workbook(FIXTURE, data_only=False)
-    for name in ("Тест_Історія",):
+    for name in ("РУХ_Історія",):
         assert list(before[name].values) == list(after[name].values), f"History changed: {name}"
-    for name in ("Тест_Сценарії", "Тест_ЄЖОС"):
-        omitted = {"Цільова таблиця"} if name == "Тест_Сценарії" else set()
+    for name in ("Сценарії", "ЄЖОС_Історія"):
+        omitted = {"Цільова таблиця"} if name == "Сценарії" else set()
         old_headers = [cell.value for cell in before[name][1]]
         included = [index for index, header in enumerate(old_headers) if header not in omitted]
         for old_row, new_row in zip(before[name].values, after[name].values):
@@ -472,14 +480,21 @@ def preservation_check(path):
 
 def template_coverage_checks(tables, settings):
     xml = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml"
-    templates = [node.get("name") for node in ET.parse(xml).getroot() if node.tag.endswith("}template")]
+    nodes = [node for node in ET.parse(xml).getroot() if node.tag.endswith("}template")]
+    templates = [node.get("name") for node in nodes]
+    grouped = {node.get("name") for node in nodes if node.find("p:group", NS) is not None}
+    if grouped:
+        fixture = load_grouping_cases(settings)
+        assert fixture.findall("scenario")
+        covered = {node.text for node in fixture.findall("scenario/add/field[@name='TemplateName']")}
+        assert grouped <= covered, "Missing persistent Word grouping suite"
     assert settings["test.registry.ModeId.values"] == settings["events.ids"], "Business event registry is stale"
     steps = unique(tables["tbTestSteps"]["rows"], "StepId")
     successful = [steps[row["StepId"]] for row in tables["tbExpectedWord"]["rows"] if row["Outcome"] == "Success"]
     rendered = {settings[f"events.{step['ModeId']}.word.template"] for step in successful}
     expected_templates = {settings[f"events.{event}.word.template"] for event in settings["events.ids"].split("|") if settings[f"events.{event}.word.policy"] == "Render"}
-    assert rendered == expected_templates, "Missing positive routed Word template coverage"
-    assert rendered == set(templates), "Missing positive coverage of Word XML templates"
+    assert rendered | grouped == expected_templates, "Missing positive routed Word template coverage"
+    assert rendered | grouped == set(templates), "Missing positive coverage of Word XML templates"
     for case in tables["tbTestScenarios"]["rows"]:
         actions = sorted((row for row in steps.values() if row["ScenarioId"] == case["ScenarioId"]), key=lambda row: row["StepOrder"])
         assert 1 <= len(actions) <= 2, f"Too many events in one order: {case['ScenarioId']}"

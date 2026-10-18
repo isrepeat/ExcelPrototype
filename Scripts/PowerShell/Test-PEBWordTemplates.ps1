@@ -34,7 +34,7 @@ finally { $xmlReader.Dispose() }
 $namespaceManager = [Xml.XmlNamespaceManager]::new($document.NameTable)
 $namespaceManager.AddNamespace('p', 'urn:excelprototype:profiles')
 $root = $document.SelectSingleNode('/p:wordResultTemplates', $namespaceManager)
-if ($null -eq $root -or $root.GetAttribute('version') -ne '1') { throw 'Unsupported XML root or version.' }
+if ($null -eq $root -or $root.GetAttribute('version') -ne '2') { throw 'Unsupported XML root or version.' }
 $shared = [Collections.Generic.Dictionary[string,string]]::new([StringComparer]::Ordinal)
 $templates = [Collections.Generic.Dictionary[string,Xml.XmlElement]]::new([StringComparer]::Ordinal)
 foreach ($node in $root.SelectNodes('p:sharedTemplates/p:sharedTemplate', $namespaceManager)) {
@@ -45,8 +45,8 @@ foreach ($node in $root.SelectNodes('p:sharedTemplates/p:sharedTemplate', $names
 }
 foreach ($node in $root.SelectNodes('p:template', $namespaceManager)) {
     $name = $node.GetAttribute('name')
-    $texts = $node.SelectNodes('p:text', $namespaceManager)
-    if ($name.Length -eq 0 -or $templates.ContainsKey($name) -or $texts.Count -ne 1) { throw "Invalid template: $name" }
+    $bodies = $node.SelectNodes('p:text | p:group', $namespaceManager)
+    if ($name.Length -eq 0 -or $templates.ContainsKey($name) -or $bodies.Count -ne 1) { throw "Invalid template: $name" }
     $templates.Add($name, $node)
 }
 
@@ -67,90 +67,41 @@ function Add-Declared([Collections.Generic.HashSet[string]]$Fields, [string]$Nam
 }
 
 foreach ($month in 1..12) { Read-Config "export.dsl.months.$month" | Out-Null }
-$baseFields = (Read-Config 'export.fields').Split('|')
-$modeKeys = @($config.Keys | Where-Object { $_ -match '^PersonalEventBuilder::export\.Word\.([^.]+)\.templateName$' } | Sort-Object)
-if ($modeKeys.Count -ne 8) { throw "Expected eight mapped modes, found $($modeKeys.Count)." }
-foreach ($modeKey in $modeKeys) {
-    $mode = [regex]::Match($modeKey, 'export\.Word\.([^.]+)\.templateName$').Groups[1].Value
-    $templateName = $config[$modeKey]
-    if (-not $templates.ContainsKey($templateName)) { throw "Missing XML template for $($mode): $templateName" }
-    $fields = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($field in $baseFields) { Add-Declared $fields $field }
-    Add-Declared $fields 'EventName'
-    foreach ($required in (Read-Config "export.Word.$mode.previewRequired").Split('|')) {
-        if (-not $fields.Contains($required)) { throw "Unknown required field: $required" }
-    }
-    foreach ($lookupRoot in @('export.shared.lookups', "export.Word.$mode.lookups")) {
-        $count = [int](Read-Config "$lookupRoot.count")
-        for ($index = 1; $index -le $count; $index++) {
-            $prefix = "$lookupRoot.$index"
-            foreach ($key in @('input','when.field')) {
-                $field = Read-Config "$prefix.$key"
-                if (-not $fields.Contains($field)) { throw "Unknown lookup input: $prefix.$key=$field" }
-            }
-            [regex]::new((Read-Config "$prefix.when.pattern")) | Out-Null
-            foreach ($key in @('path','sheet','range','keyHeader','valueHeader')) { Read-Config "$prefix.$key" | Out-Null }
-            Add-Declared $fields (Read-Config "$prefix.output")
-        }
-    }
-    for ($index = 1; $index -le [int](Read-Config 'export.shared.constants.count'); $index++) {
-        $prefix = "export.shared.constants.$index"
-        $kind = Read-Config "$prefix.kind"
-        if ($kind -notin @('text','emptyText','boolean','emptyCollection')) { throw "Unknown constant kind: $kind" }
-        if ($kind -in @('text','boolean')) { Read-Config "$prefix.value" | Out-Null }
-        Add-Declared $fields (Read-Config "$prefix.name")
-    }
-    for ($index = 1; $index -le [int](Read-Config 'export.shared.aliases.count'); $index++) {
-        $prefix = "export.shared.aliases.$index"
-        if ((Read-Config "$prefix.kind") -notin @('value','shortDate','joinLowerFirst')) { throw "Unknown alias kind: $prefix" }
-        foreach ($field in (Read-Config "$prefix.source").Split('|')) {
-            if (-not $fields.Contains($field)) { throw "Unknown alias source: $field" }
-        }
-        Add-Declared $fields (Read-Config "$prefix.name")
-    }
+foreach ($templateName in $templates.Keys) {
+    $fields = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($field in (Read-Config 'export.Word.context.xmlKeys').Split('|')) { Add-Declared $fields $field }
     $node = $templates[$templateName]
-    $text = ''
-    $headers = @{}
-    foreach ($header in $node.SelectNodes('p:groupHeader', $namespaceManager)) {
-        $by = $header.GetAttribute('by')
-        if ($by.Length -eq 0 -or $headers.ContainsKey($by)) { throw "Invalid groupHeader: $templateName" }
-        $headers[$by] = $header.InnerText
+    foreach ($computed in $node.SelectNodes('.//p:derived | .//p:aggregate', $namespaceManager)) {
+        [void]$fields.Add($computed.GetAttribute('name'))
     }
-    if ($node.HasAttribute('groupBy')) {
-        foreach ($by in $node.GetAttribute('groupBy').Split(';')) {
-            $by = $by.Trim()
-            if (-not $headers.ContainsKey($by)) { throw "Missing groupHeader for $($templateName): $by" }
-            $text += $headers[$by]
-            $headers.Remove($by)
+    foreach ($textNode in $node.SelectNodes('.//p:text', $namespaceManager)) {
+        $text = $textNode.InnerText
+        $text = Expand-Includes $text
+        $stack = [Collections.Generic.List[string]]::new()
+        foreach ($match in [regex]::Matches($text, '\{#(if|else|endif|for|endfor)\b([^}]*)\}')) {
+            $kind = $match.Groups[1].Value
+            if ($kind -in @('if','for')) { $stack.Add($kind) }
+            elseif ($kind -eq 'else') {
+                if ($stack.Count -eq 0 -or $stack[$stack.Count - 1] -ne 'if') { throw "Misplaced #else: $templateName" }
+            }
+            else {
+                $expected = if ($kind -eq 'endif') { 'if' } else { 'for' }
+                if ($stack.Count -eq 0 -or $stack[$stack.Count - 1] -ne $expected) { throw "Unbalanced DSL blocks: $templateName" }
+                $stack.RemoveAt($stack.Count - 1)
+            }
+        }
+        if ($stack.Count -ne 0) { throw "Unclosed DSL blocks: $templateName" }
+        $references = @([regex]::Matches($text, '\{\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value })
+        foreach ($condition in [regex]::Matches($text, '\{#if\s+([^}]+)\}')) {
+            $references += @([regex]::Matches($condition.Groups[1].Value, '(?<![\w.])\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value })
+        }
+        foreach ($field in $references) {
+            if (-not $fields.Contains($field)) { throw "Undeclared DSL field in $($templateName): $field" }
+        }
+        foreach ($match in [regex]::Matches($text, '#let\s+(__\w+)\s*=\s*(\$[\w.]+)\(')) {
+            if ($match.Groups[2].Value -notin @('$ex_Helpers.m_RegexIsMatch','$ex_Helpers.fn_IsDateOnOrAfter')) { throw "Unsupported #let function: $($match.Groups[2].Value)" }
         }
     }
-    if ($headers.Count -ne 0) { throw "Unmatched groupHeader: $templateName" }
-    $text += $node.SelectSingleNode('p:text', $namespaceManager).InnerText
-    $text = Expand-Includes $text
-    $stack = [Collections.Generic.List[string]]::new()
-    foreach ($match in [regex]::Matches($text, '\{#(if|else|endif|for|endfor)\b([^}]*)\}')) {
-        $kind = $match.Groups[1].Value
-        if ($kind -in @('if','for')) { $stack.Add($kind) }
-        elseif ($kind -eq 'else') {
-            if ($stack.Count -eq 0 -or $stack[$stack.Count - 1] -ne 'if') { throw "Misplaced #else: $templateName" }
-        }
-        else {
-            $expected = if ($kind -eq 'endif') { 'if' } else { 'for' }
-            if ($stack.Count -eq 0 -or $stack[$stack.Count - 1] -ne $expected) { throw "Unbalanced DSL blocks: $templateName" }
-            $stack.RemoveAt($stack.Count - 1)
-        }
-    }
-    if ($stack.Count -ne 0) { throw "Unclosed DSL blocks: $templateName" }
-    $references = @([regex]::Matches($text, '\{\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value })
-    foreach ($condition in [regex]::Matches($text, '\{#if\s+([^}]+)\}')) {
-        $references += @([regex]::Matches($condition.Groups[1].Value, '(?<![\w.])\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value })
-    }
-    foreach ($field in $references) {
-        if (-not $fields.Contains($field)) { throw "Undeclared DSL field in $($templateName): $field" }
-    }
-    foreach ($match in [regex]::Matches($text, '#let\s+(__\w+)\s*=\s*(\$[\w.]+)\(')) {
-        if ($match.Groups[2].Value -notin @('$ex_Helpers.m_RegexIsMatch','$ex_Helpers.fn_IsDateOnOrAfter')) { throw "Unsupported #let function: $($match.Groups[2].Value)" }
-    }
-    Write-Output "XML preview contract OK: $mode -> $templateName"
+    Write-Output "XML DSL contract OK: $templateName"
 }
-Write-Output "Validated $($templates.Count) XML templates, $($shared.Count) shared blocks and eight preview contracts. Office/VBA were not executed."
+Write-Output "Validated $($templates.Count) XML templates, $($shared.Count) shared blocks and all template DSL blocks. Office/VBA were not executed."

@@ -96,6 +96,7 @@ Public Function TryPrepare( _
     Dim startedAt As Double
     Dim stageStartedAt As Double
     Dim additionalInputs As Object
+    Dim groupTemplate As Object
 
     startedAt = VBA.Timer
     On Error GoTo EH
@@ -213,15 +214,14 @@ Public Function TryPrepare( _
             End If
         End If
         values("TemplateName") = templateName
+        Set groupTemplate = m_pebWordTemplates.GroupTemplate(templateName)
+        values("WordGrouped") = Not groupTemplate Is Nothing
         For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & templateName & ".requiredKeys"), "|")
             If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then
                 Err.Raise 5, , "Required Word context value is empty: " & key
             End If
         Next key
-        If Not m_pebWordTemplates.TryGetText(templateName, template, diagnostic) Then
-            GoTo Failed
-        End If
-        If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then
+        If Not m_pebWordTemplates.TryRender(templateName, values, rendered, diagnostic) Then
             GoTo Failed
         End If
         ex_Core.fn_Diagnostic_WritePerf "Preview.TemplatesAndDsl", stageStartedAt
@@ -236,7 +236,11 @@ Public Function TryPrepare( _
                 If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then GoTo Failed
                 values("XmlDocumentFilepath") = rendered
             End If
-            template = ex_PEB_Export.fn_Config("export.Word.output")
+            If groupTemplate Is Nothing Then
+                template = ex_PEB_Export.fn_Config("export.Word.output")
+            Else
+                template = ex_PEB_Export.fn_Config("export.Word.grouping.output")
+            End If
             If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then
                 GoTo Failed
             End If

@@ -12,9 +12,11 @@ value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgMain
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
 value	PersonalEventBuilder::test.ui.maxScenarios	200
+value	PersonalEventBuilder::test.ui.previewByDefault	0
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
 value	PersonalEventBuilder::test.ui.catalogFields	Selected|PreviewEnabled|ScenarioId|Operation|EventLabel|StepCount|RuleStatus
 value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Прев’ю|Сценарій|Операція|Подія / сценарій|Кроків|Правило
+value	PersonalEventBuilder::test.ui.selectedByDefault	S01|S02
 value	PersonalEventBuilder::test.audit.inputs.sheet	Тест_ВхідніДані
 value	PersonalEventBuilder::test.audit.inputs.table	tbTestInputs
 value	PersonalEventBuilder::test.audit.maxRows	100000
@@ -58,20 +60,21 @@ value	PersonalEventBuilder::test.progress.AfterSnapshot	6
 value	PersonalEventBuilder::test.progress.OpenScenarios	0
 value	PersonalEventBuilder::test.scenarios.path	../../tests/PersonalEventBuilder/TestScenarios.EventRoutes.xlsx
 value	PersonalEventBuilder::test.scenarios.root	../../tests/PersonalEventBuilder
-value	PersonalEventBuilder::test.scenarios.cases.sheet	Тест_Сценарії
+value	PersonalEventBuilder::test.scenarios.cases.sheet	Сценарії
 value	PersonalEventBuilder::test.scenarios.cases.table	tbTestScenarios
 value	PersonalEventBuilder::test.scenarios.cases.readRange	auto
-value	PersonalEventBuilder::test.scenarios.steps.sheet	Тест_Кроки
+value	PersonalEventBuilder::test.scenarios.steps.sheet	TestBasic_Steps
 value	PersonalEventBuilder::test.scenarios.steps.table	tbTestSteps
 value	PersonalEventBuilder::test.scenarios.steps.readRange	auto
 value	PersonalEventBuilder::test.scenarios.fields	Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName|PersonRank=PersonRank|PersonName=PersonName|PersonId=PersonId|PositionCode=PositionCode|ReportRank=ReportRank|ReportName=ReportName|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|Document=Document|DocumentDate=DocumentDate|DocumentNumber=DocumentNumber|EventDate=EventDate|TicketNumber=TicketNumber|TicketDate=TicketDate|AcceptedOrderNumber=AcceptedOrderNumber|AcceptedOrderDate=AcceptedOrderDate
-value	PersonalEventBuilder::test.scenarios.absence.sheet	Тест_ЄЖОС
+value	PersonalEventBuilder::test.scenarios.absence.sheet	ЄЖОС_Історія
 value	PersonalEventBuilder::test.scenarios.absence.table	tbTestAbsence
 value	PersonalEventBuilder::test.scenarios.headers.id	ScenarioId
 value	PersonalEventBuilder::test.scenarios.headers.code	ExpectedCode
 value	PersonalEventBuilder::test.scenarios.headers.mode	ModeId
 value	PersonalEventBuilder::test.scenarios.headers.name	Назва
 value	PersonalEventBuilder::test.scenarios.headers.step	StepOrder
+value	PersonalEventBuilder::test.scenarios.headers.suite	Suite
 value	PersonalEventBuilder::test.scenarios.headers.action	Action
 value	PersonalEventBuilder::test.scenarios.headers.stepId	StepId
 value	PersonalEventBuilder::test.scenarios.headers.arrival	Прибуття
@@ -87,7 +90,7 @@ value	PersonalEventBuilder::test.scenarios.headers.wordOutcome	Outcome
 value	PersonalEventBuilder::test.scenarios.headers.catalogEvent	Подія / сценарій
 value	PersonalEventBuilder::test.scenarios.headers.stepPersonId	PersonId
 value	PersonalEventBuilder::test.scenarios.headers.catalogOperation	Операція
-value	PersonalEventBuilder::test.scenarios.history.sheet	Тест_Історія
+value	PersonalEventBuilder::test.scenarios.history.sheet	РУХ_Історія
 value	PersonalEventBuilder::test.scenarios.history.table	tbTestHistory
 value	PersonalEventBuilder::test.scenarios.dateFields	EventDate|AcceptedOrderDate|IncomingDate|DocumentDate|TicketDate
 value	PersonalEventBuilder::test.scenarios.stepHeaders	ScenarioId|StepId|StepOrder|Action|ModeId|AcceptedOrderNumber|AcceptedOrderDate|Destination|Hospital|HospitalShortName|PersonRank|PersonName|PersonId|PositionCode|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|Document|DocumentDate|DocumentNumber|EventDate|TicketNumber|TicketDate|Notes
@@ -95,10 +98,18 @@ value	PersonalEventBuilder::test.scenarios.expectedRows.sheet	Expected_РУХ
 value	PersonalEventBuilder::test.scenarios.expectedRows.table	tbExpectedMovementRows
 value	PersonalEventBuilder::test.scenarios.expectedWord.sheet	Expected_WORD
 value	PersonalEventBuilder::test.scenarios.expectedWord.table	tbExpectedWord
+value	PersonalEventBuilder::test.scenarios.groupingSteps.sheet	TestGrouping_Steps
+value	PersonalEventBuilder::test.scenarios.groupingSteps.table	tbGroupingSteps
+value	PersonalEventBuilder::test.scenarios.groupingSteps.fields	ScenarioId|StepId|StepOrder|Action|ExpectedError|EventId|TemplateName|PersonId|AcceptedOrderNumber|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort|RankGenitive|FIOAccusative|IPN|PositionGenitive|IncomingNo|IncomingDateShort|ReportPerson|FIOInitialsGenitive|ReporterGenitive
+value	PersonalEventBuilder::test.scenarios.groupingSteps.readRange	auto
 value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
 value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
 value	PersonalEventBuilder::test.scenarios.expectedMovement.sheet	Expected_РУХ
 value	PersonalEventBuilder::test.scenarios.expectedMovement.table	tbExpectedMovement
+value	PersonalEventBuilder::test.scenarios.groupingExpected.sheet	Expected_WORD_Grouping
+value	PersonalEventBuilder::test.scenarios.groupingExpected.table	tbGroupingExpected
+value	PersonalEventBuilder::test.scenarios.groupingExpected.fields	ScenarioId|ExpectedEvents|Text|Count
+value	PersonalEventBuilder::test.scenarios.groupingExpected.readRange	auto
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
 value	PersonalEventBuilder::text.NextTest	Наступний крок
 value	PersonalEventBuilder::text.TestOnly	Завантаження сценаріїв доступне лише в TEST.
@@ -131,6 +142,7 @@ value	PersonalEventBuilder::text.RankHeader	Звання
 value	PersonalEventBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	PersonalEventBuilder::text.TestFailed	Сценарій не завантажено: {error}
 value	PersonalEventBuilder::text.TestLoaded	Сценарій {scenario}, крок {step} ({code}). Дія: {expected}. Дію запускайте окремо.
+value	PersonalEventBuilder::text.TestsBasic	Базові тести
 value	PersonalEventBuilder::text.UnitHeader	Підрозділ
 value	PersonalEventBuilder::text.ArrivalType	Прибуття
 value	PersonalEventBuilder::text.ExportTitle	Експорт події
@@ -158,6 +170,7 @@ value	PersonalEventBuilder::text.StyleSelector	Некоректний селек
 value	PersonalEventBuilder::text.TestCloseBook	Збережіть і закрийте тестову книгу перед завантаженням: {path}
 value	PersonalEventBuilder::text.TestLoadFirst	Спочатку завантажте обраний сценарій. Зміна ScenarioId потребує нового завантаження.
 value	PersonalEventBuilder::text.TestsFinished	Завершено. {summary}
+value	PersonalEventBuilder::text.TestsGrouping	Тести групування
 value	PersonalEventBuilder::text.TestsMismatch	Рішення, код або кількість відкритих подій не відповідають очікуванню.
 value	PersonalEventBuilder::text.TestsProgress	Тести: {percent}% ({completed}/{total}). {state}
 value	PersonalEventBuilder::text.TestsRunError	Помилка запуску. {summary}
@@ -257,6 +270,8 @@ value	PersonalEventBuilder::text.StyleOverlayBinding	Не вдалося виз�
 value	PersonalEventBuilder::text.StyleOverlayMissing	Стиль виділення не оголошено: {value}
 value	PersonalEventBuilder::text.StyleTargetSelector	Для селекторів row, col або address використовуйте ціль діапазону.
 value	PersonalEventBuilder::text.TestCustomOperation	Custom
+value	PersonalEventBuilder::text.TestsGroupingFailed	Помилка перевірки групування WORD: {error}
+value	PersonalEventBuilder::text.TestsGroupingPassed	Групування WORD: успішно перевірено {count} сценаріїв.
 value	PersonalEventBuilder::text.TestsPreviousFailed	Попередній крок сценарію не пройдено; наступний крок не виконується.
 value	PersonalEventBuilder::text.TestsReopenRequired	Склад сценаріїв змінився. Повторно відкрийте панель тестування.
 value	PersonalEventBuilder::text.TestsSelectRequired	Позначте хоча б один сценарій.
@@ -277,6 +292,7 @@ value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків �
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
 value	PersonalEventBuilder::text.ModeDepartureDateLabel	Вибуття.Дата
 value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
+value	PersonalEventBuilder::text.TestsGroupingDocuments	Формувати Word-звіт групування
 value	PersonalEventBuilder::text.ModeDocumentNumberLabel	Документ.№
 value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
 value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
@@ -484,6 +500,7 @@ value	PersonalEventBuilder::export.Word.context.lookups.count	4
 value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName
 value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
 value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalGenitive
+value	PersonalEventBuilder::export.Word.context.templates.ToBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
 value	PersonalEventBuilder::export.Word.context.templates.FromExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.FromBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.ToMaternityLeave.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
@@ -543,6 +560,8 @@ value	PersonalEventBuilder::export.Word.duration.additionalUnit.one	доби
 value	PersonalEventBuilder::export.Word.duration.additionalUnit.many	діб
 value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
 value	PersonalEventBuilder::export.Word.duration.additionalPhrase	, без урахування {days} {unit}
+value	PersonalEventBuilder::export.Word.grouping.output	./Order_{AcceptedOrderNumber|regexreplace:"[/:*?<>|]","_"}_{AcceptedOrderDate|dateformat:"yyyymmdd"}.docx
+value	PersonalEventBuilder::export.Word.grouping.stateFields	EventId|TemplateName|PersonId|AcceptedOrderNumber|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort|RankGenitive|FIOAccusative|IPN|PositionGenitive|IncomingNo|IncomingDateShort|ReportPerson|FIOInitialsGenitive|ReporterGenitive
 value	PersonalEventBuilder::export.Word.templates.path	./PersonalEventBuilderWordResultTemplates.xml
 value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.path	../Dependencies/Установи.xlsx
 value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.field	ModeForm
@@ -558,6 +577,7 @@ value	PersonalEventBuilder::export.Word.ToHospital.required	PersonId|PersonName|
 value	PersonalEventBuilder::export.Word.ToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
 value	PersonalEventBuilder::export.Word.textAnchors.ToHospital	ToHospital
 value	PersonalEventBuilder::export.Word.textAnchors.FromHospital	FromHospital
+value	PersonalEventBuilder::export.Word.textAnchors.ToBusinessTrip	ToBusinessTrip
 value	PersonalEventBuilder::export.Word.textAnchors.FromExternalVlk	FromExternalVlk
 value	PersonalEventBuilder::export.Word.textAnchors.FromBusinessTrip	FromBusinessTrip
 value	PersonalEventBuilder::export.Word.textAnchors.ToMaternityLeave	ToMaternityLeave
@@ -602,6 +622,9 @@ value	PersonalEventBuilder::export.Word.FromHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
 value	PersonalEventBuilder::export.Word.documentMode	blank
+value	PersonalEventBuilder::export.Word.ToBusinessTrip.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.ToBusinessTrip.previewRequired	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
 value	PersonalEventBuilder::export.Word.FromExternalVlk.lookups.count	0
 value	PersonalEventBuilder::export.Word.FromExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate

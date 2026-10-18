@@ -373,6 +373,9 @@ Public Function TryCatalog( _
         id = ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "id"))
         If VBA.Len(id) = 0 Or ids.Exists(id) Then Err.Raise 5, , "Missing or duplicate scenario identity: " & id
         ids.Add id, True
+        If ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "suite")) <> "Basic" Then
+            GoTo NextBasicCase
+        End If
         Set item = VBA.CreateObject("Scripting.Dictionary")
         item("Id") = id
         item("Name") = ex_PEB_Export.fn_Text(private_Value(cases, rowIndex, "name"))
@@ -431,6 +434,7 @@ Public Function TryCatalog( _
         Next index
         Set item("Steps") = ordered
         catalog.Add item
+NextBasicCase:
     Next rowIndex
     For stepRow = 1 To steps.ListRows.Count
         If Not ids.Exists(ex_PEB_Export.fn_Text(private_Value(steps, stepRow, "id"))) Then

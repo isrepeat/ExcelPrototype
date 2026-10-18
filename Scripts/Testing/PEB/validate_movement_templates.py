@@ -42,7 +42,8 @@ def main():
                 raise AssertionError("Missing Movement setting accepted: " + key)
         registry = load_registry(settings)
         movement = registry["movement"]
-        assert len(movement["templates"]) == len(movement["events"]) == len(registry["events"]) == 35
+        assert len(movement["templates"]) == len(movement["events"]) == 35
+        assert len(registry["events"]) == 36
         assert len(movement["profiles"]) == 5 and len(movement["values"]) == 167
         root = movement["root"]
         assert root.tag == f"{{{NS['p']}}}resultTemplates"

@@ -53,7 +53,7 @@ Each lookup under `export.shared.lookups.<index>` or `export.Word.<ModeId>.looku
 | ToVacationForCuring | ToVacationForCuring |
 | ToVacationForFamily | ToVacationForFamily |
 
-For one event, `groupHeader` blocks render in `groupBy` order before the point body. This is not whole-order grouping or sorting. The other 26 XML templates remain in the file without mode buttons.
+Word template XML uses version `2`. Former `groupHeader`, `groupBy` and `groupOrder` declarations have been folded into ordinary template text without changing their single-event DSL. Persistent grouping is declared explicitly through `group`.
 
 ## Supported DSL
 
@@ -75,7 +75,23 @@ The current form explicitly supplies empty MetaTables, MetaDocumentTables and Me
 
 Whole-order aggregation, anchored insertion into an existing order, food support calculations, TVO chains, status changes, HTML table rendering and export deletion/undo require separate input fields and business rules.
 
-The XML reader retains `documentFilepath`; the disabled DOCX exporter still uses `export.Word.output`. Its `documentMode` explicitly selects `blank` or `template`; template mode also requires `documentTemplate` and `bookmark`. DOCX export writes a temporary file and publishes it without overwriting an existing output.
+The XML reader retains `documentFilepath`; ordinary DOCX exports use `export.Word.output` and refuse an existing output. `documentMode` selects `blank` or `template`; template mode requires `documentTemplate` and the configured paired text anchors.
+
+## Persistent Word grouping
+
+Each `template` contains zero or more `derived` declarations followed by exactly one body: `text` for ordinary output or `group` for persistent grouping. The first-level tags are therefore `derived`, `text` and `group`; mixing `text` with `group`, declaring derived values after the body, or using unknown tags/attributes is rejected. Derived values are evaluated in declaration order for each event and can reference earlier derived values. They are available to both body forms. Grouped templates also require `identityBy` and `orderBy`; ordinary templates cannot declare these state keys.
+
+`ToBusinessTrip` is a Word-only departure route. Its root `group` contains the actual single-person wording inside `single/text`; no outer text or intermediate `WordText` placeholder is needed. Preview and persistent DOCX rebuilding call the same renderer. Preview evaluates one event through `single`; after a matching second event is added, rebuilding selects `multiple`.
+
+`by` is a composite equality key; groups and people retain their first-seen order. `multiple` renders one header, each item and one footer. Nested groups are supported inside `multiple`. Shared header/footer blocks declare `common` scalar fields, which must agree across every member. `GroupBasis` is derived from the entire incoming-basis block, so reports by different authors do not merge merely because their incoming numbers match.
+
+`numberRanges` uses three explicit regex captures: prefix, integer and suffix. It sorts each series numerically, compresses consecutive integers using full endpoint numbers, preserves gaps, suffixes and zero-padding widths, and rejects duplicate or malformed document numbers. Distinct document dates are separate grouping keys. The first implementation accepts integers within VBA Long range and does not normalize destination synonyms; destinations must match exactly.
+
+`ex_PEB_WordState` stores configured scalar snapshots, the order key, template/shared-template definitions and the last generated section text in a Custom XML part with namespace `urn:excelprototype:word-events:v1` and payload version `2`. `export.Word.grouping.stateFields` declares raw inputs; rendered per-person `WordText` is not stored. The namespace stays stable so older stores are detected: version `1` requires migration and is not silently reinterpreted. The store is part of the DOCX and does not require a sidecar file. Identical retries are idempotent; a conflicting event with the same identity, a different order, manual section edits, duplicate stores, incompatible versions or changed template definitions stop export. Existing nonempty sections without stored data require migration. This version adds events; replacing or deleting an existing event is deliberately rejected rather than inferred.
+
+Grouped exports use `export.Word.grouping.output`, which identifies an order rather than a person. On repeat export the output is copied to a temporary file, opened, checked and rebuilt from stored events. Only after saving and closing Word is the original replaced through `ReplaceFileW`; a changed output stamp aborts publication. Blank mode creates the managed anchor pair. Template mode requires a `ToBusinessTrip` Begin/End pair in the selected DOCX; it never invents a location in an existing template. Ordinary exports retain their previous output behavior. Interactive preview still shows the new person's single point; the persisted grouped result is assembled during DOCX export.
+
+`Scripts/Testing/PEB/validate_word_grouping.py` checks configuration, persistence boundaries, 12 grammar cases and workbook scenario definitions without Office. Both UI suites use `TestScenarios.EventRoutes.xlsx`: the shared catalog selects Basic or Grouping through its Suite column. The 16 grouping scenarios use 34 steps in `tbGroupingSteps` and 25 expectations in `tbGroupingExpected`; their mappings are configured under `test.scenarios`. After explicit deployment and authorization, run `ex_PEB_GroupingTests.fn_Run` for the real Word scenarios for business scenarios only. Technical structure cases run separately through `Scripts/Testing/PEB/validate_word_grammar.py`, also called by `validate_word_grouping.py`; this validates the Python structural contract and does not execute VBA rendering or resolution. The business suite uses temporary DOCX files, saves/closes/reopens after every add, compares the first stored point with single-event preview, verifies preserved outside content and persisted event counts, and checks single-to-group conversion, ranges, split keys, retries and rejected mutations. It also checks the payload version and absence of persisted `WordText` fields. It does not edit the scenario workbook or current order files.
 
 The disabled Movement exporter retains configurable append/close profiles, field/identity/join mappings, chronology validation and duplicate checks. It uses a separate Excel instance and refuses an open, locked, protected or 1904-date-system destination. Its path/sheet/table values are placeholders until the user provides a destination.
 
@@ -85,6 +101,6 @@ Run `Scripts/Testing/PEB/validate_movement_templates.py` for TEST/PROD text DSL,
 
 Run `Scripts/Testing/PEB/validate_word_routes.py` for TEST/PROD optional exporter routes, standalone Word-only and Movement-only registries, shared-template routing, and rejection of missing references, duplicate tags, empty events and retired sections. Word omission is an internal result of an absent word route.
 
-Run `Scripts/PowerShell/Test-PEBWordTemplates.ps1`. It checks tab-separated configuration, namespace/version, duplicate template names, include references/cycles, group-header order, DSL block nesting, allowed #let functions and alias/lookup coverage for all eight configured modes without opening Office.
+Run `Scripts/PowerShell/Test-PEBWordTemplates.ps1`. It checks tab-separated configuration, namespace/version, duplicate template names, exclusive template bodies, include references/cycles, DSL block nesting, allowed #let functions and declared context fields across all template text blocks without opening Office. Use the Python validators above for full grouping grammar and context-provider contracts.
 
 Static checks do not establish VBA runtime correctness. Sources have not been imported into the working workbook; VBA compilation, Word automation, ADO lookups and Movement writes have not been executed.

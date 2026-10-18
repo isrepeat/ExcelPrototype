@@ -45,7 +45,7 @@ Public Function Initialize( _
     If m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
     Set m_anchors = VBA.CreateObject("Scripting.Dictionary")
-    m_sourceText = document.Content.Text
+    m_sourceText = private_DocumentText(document)
     Set expression = VBA.CreateObject("VBScript.RegExp")
     expression.Global = True
     expression.Pattern = "\{\s*\\\s*export\s*:[^{}]*\}"
@@ -123,7 +123,7 @@ Public Function TryInsert( _
     m_expectedText = VBA.vbNullString
     positions = m_anchors(identifier)
     ' FormattedText can normalize a copied document; verify against its own baseline.
-    currentText = document.Content.Text
+    currentText = private_DocumentText(document)
     beginOffset = VBA.InStr(1, currentText, positions(0), VBA.vbBinaryCompare)
     endOffset = VBA.InStr(1, currentText, positions(1), VBA.vbBinaryCompare)
     If beginOffset = 0 Or endOffset = 0 Then Err.Raise 5, , "Word export marker is missing: " & identifier
@@ -143,6 +143,7 @@ Public Function TryInsert( _
         rendered & VBA.Mid$(currentText, endOffset)
     target.Text = rendered
     target.Font = font
+    target.Font.Hidden = False
     target.ParagraphFormat = paragraphFormat
     Set m_insertDocument = document
     TryInsert = True
@@ -170,7 +171,7 @@ Public Function TryVerify( _
     rendered = VBA.Replace$(rendered, VBA.vbLf, VBA.vbCr)
     If Not document Is m_insertDocument Then Err.Raise 5, , "Word verification document differs from the inserted document."
     expected = m_expectedText
-    If VBA.StrComp(document.Content.Text, expected, VBA.vbBinaryCompare) <> 0 Then
+    If VBA.StrComp(private_DocumentText(document), expected, VBA.vbBinaryCompare) <> 0 Then
         Err.Raise 5, , "Inserted Word text or content outside the anchor differs: " & identifier
     End If
     TryVerify = True
@@ -204,9 +205,39 @@ EH:
     diagnostic = "Word inserted range: " & VBA.Err.Description
 End Function
 
+Public Sub HideMarkers( _
+    ByVal document As Object, _
+    ByVal values As Object _
+)
+    Dim identifier As String
+    Dim positions As Variant
+    Dim marker As Object
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Word anchor index is not initialized."
+    End If
+    identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+    If Not m_anchors.Exists(identifier) Then
+        Err.Raise 5, , "Word group anchor is missing."
+    End If
+    positions = m_anchors(identifier)
+    Set marker = private_FindMarker(document, VBA.CStr(positions(0)))
+    marker.Font.Hidden = True
+    Set marker = private_FindMarker(document, VBA.CStr(positions(1)))
+    marker.Font.Hidden = True
+End Sub
+
 ' //
 ' // Private
 ' //
+Private Function private_DocumentText(ByVal document As Object) As String
+    Dim target As Object
+
+    Set target = document.Content.Duplicate
+    target.TextRetrievalMode.IncludeHiddenText = True
+    private_DocumentText = target.Text
+End Function
+
 Private Function private_FindMarker( _
     ByVal document As Object, _
     ByVal marker As String _
