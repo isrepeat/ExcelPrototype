@@ -1,6 +1,7 @@
 """Resolve shared configuration for offline checks using the runtime import rules."""
 
 from pathlib import Path
+import re
 from openpyxl import load_workbook
 
 
@@ -16,6 +17,7 @@ def rows(path):
         parts = line.split("\t")
         if len(parts) != 3:
             raise ValueError(f"Invalid configuration row: {path}: {line}")
+        parts[0] = parts[0].strip()
         result.append(parts)
     return result
 
@@ -24,19 +26,28 @@ def expand(local, base, loader):
     entries = {}
     imported = set()
     for kind, key, value in local:
+        kind = kind.strip()
         if kind.casefold() == "importcfg":
+            prefix = "Import::workbooks."
+            variable = key[len(prefix):]
+            if not key.casefold().startswith(prefix.casefold()) or not re.fullmatch(r"__[A-Za-z0-9_]+", variable):
+                raise ValueError(f"Invalid workbook import variable: {key}")
             path = (base / value).resolve()
             for shared_kind, shared_key, shared_value in loader(path):
                 if shared_kind.casefold() == "importcfg":
                     raise ValueError("Nested imports are not allowed")
-                if shared_key.casefold() in imported:
-                    raise ValueError(f"Duplicate shared key: {shared_key}")
                 if not shared_kind or not shared_key or shared_value in (None, ""):
                     raise ValueError("Empty shared configuration cell")
+                shared_key = variable + "." + shared_key
+                if shared_kind.casefold() == "ref" and not str(shared_value).startswith("__"):
+                    shared_value = variable + "." + str(shared_value)
+                if shared_key.casefold() in imported:
+                    raise ValueError(f"Duplicate shared key: {shared_key}")
                 imported.add(shared_key.casefold())
                 entries[shared_key.casefold()] = shared_kind, str(shared_value), path.parent, shared_key
     local_keys = set()
     for kind, key, value in local:
+        kind = kind.strip()
         if key.casefold() in local_keys:
             raise ValueError(f"Duplicate local key: {key}")
         local_keys.add(key.casefold())

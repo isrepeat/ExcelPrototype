@@ -32,7 +32,7 @@ Public Function fn_TryExpand( _
     For Each row In records
         If VBA.StrComp(row(0), "importCfg", VBA.vbTextCompare) = 0 Then
             path = private_Path(baseFolder, VBA.CStr(row(2)))
-            private_LoadShared path, entries, imported
+            private_LoadShared path, private_ImportVariable(VBA.CStr(row(1))), entries, imported
         End If
     Next row
     For Each row In records
@@ -65,6 +65,7 @@ End Function
 
 Private Sub private_LoadShared( _
     ByVal path As String, _
+    ByVal variableName As String, _
     ByVal entries As Object, _
     ByVal imported As Object _
 )
@@ -115,6 +116,10 @@ Private Sub private_LoadShared( _
         If VBA.StrComp(kind, "importCfg", VBA.vbTextCompare) = 0 Then
             Err.Raise 5, , "Nested shared configuration imports are not allowed: " & path
         End If
+        key = variableName & "." & key
+        If VBA.StrComp(kind, "ref", VBA.vbTextCompare) = 0 And VBA.Left$(value, 2) <> "__" Then
+            value = variableName & "." & value
+        End If
         If imported.Exists(key) Then
             Err.Raise 5, , "Duplicate shared configuration key: " & key & " / " & path
         End If
@@ -144,13 +149,14 @@ EH:
     errorText = VBA.Err.Description
     Resume Cleanup
 #Else
-    private_LoadSharedWorkbook path, entries, imported
+    private_LoadSharedWorkbook path, variableName, entries, imported
 #End If
 End Sub
 
 #If Not CONFIG_QUERY_AVAILABLE Then
 Private Sub private_LoadSharedWorkbook( _
     ByVal path As String, _
+    ByVal variableName As String, _
     ByVal entries As Object, _
     ByVal imported As Object _
 )
@@ -202,6 +208,10 @@ Private Sub private_LoadSharedWorkbook( _
         If VBA.StrComp(kind, "importCfg", VBA.vbTextCompare) = 0 Then
             Err.Raise 5, , "Nested shared configuration imports are not allowed: " & path
         End If
+        key = variableName & "." & key
+        If VBA.StrComp(kind, "ref", VBA.vbTextCompare) = 0 And VBA.Left$(value, 2) <> "__" Then
+            value = variableName & "." & value
+        End If
         If imported.Exists(key) Then Err.Raise 5, , "Duplicate shared configuration key: " & key & " / " & path
         imported.Add key, True
         entries.Add key, VBA.Array(kind, key, value, fileSystem.GetParentFolderName(path))
@@ -219,6 +229,24 @@ EH:
     Resume Cleanup
 End Sub
 #End If
+
+Private Function private_ImportVariable(ByVal key As String) As String
+    Dim prefix As String
+    Dim variableName As String
+    Dim expression As Object
+
+    prefix = "Import::workbooks."
+    If VBA.StrComp(VBA.Left$(key, VBA.Len(prefix)), prefix, VBA.vbTextCompare) <> 0 Then
+        Err.Raise 5, , "Workbook import key must use Import::workbooks.<variable>: " & key
+    End If
+    variableName = VBA.Mid$(key, VBA.Len(prefix) + 1)
+    Set expression = VBA.CreateObject("VBScript.RegExp")
+    expression.Pattern = "^__[A-Za-z0-9_]+$"
+    If Not expression.Test(variableName) Then
+        Err.Raise 5, , "Invalid workbook import variable: " & key
+    End If
+    private_ImportVariable = variableName
+End Function
 
 Private Function private_Resolve( _
     ByVal key As String, _

@@ -99,6 +99,7 @@ Public Function fn_TryUpdateWorkbook( _
         If VBA.Len(VBA.Trim$(VBA.CStr(line))) > 0 Then
             fields = VBA.Split(VBA.CStr(line), VBA.vbTab)
             If UBound(fields) <> 2 Then VBA.Err.Raise 5, , "Invalid configuration row: " & VBA.CStr(line)
+            fields(0) = VBA.Trim$(fields(0))
             If VBA.Len(VBA.Trim$(fields(0))) = 0 Or VBA.Len(VBA.Trim$(fields(1))) = 0 Then
                 VBA.Err.Raise 5, , "Empty configuration kind or key."
             End If

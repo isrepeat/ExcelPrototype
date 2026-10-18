@@ -15,7 +15,8 @@ Private Declare Function private_ReplaceFile Lib "kernel32" Alias "ReplaceFileW"
 ' --------------------------------------
 Public Sub fn_Apply( _
     ByVal document As Object, _
-    ByVal values As Object _
+    ByVal values As Object, _
+    Optional ByRef resultCode As String = "" _
 )
     Dim templates As obj_PEB_WordTemplates
     Dim template As Object
@@ -203,6 +204,11 @@ Public Sub fn_Apply( _
     End If
     templates.Dispose
     anchors.Dispose
+    If duplicate Then
+        resultCode = "SKIP"
+    Else
+        resultCode = "INSERT"
+    End If
 End Sub
 
 Public Sub fn_Publish( _

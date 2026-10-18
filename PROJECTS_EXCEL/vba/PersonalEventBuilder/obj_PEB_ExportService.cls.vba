@@ -270,6 +270,7 @@ Private Sub private_PrepareOrderDocument(ByVal values As Object)
     Dim source As obj_TableSource
     Dim query As obj_TableQuery
     Dim service As obj_TableQueryService
+    Dim orderQueryFormat As obj_QueryValueFormat
     Dim table As obj_DataTable
     Dim replacements As Object
     Dim fileSystem As Object
@@ -293,6 +294,10 @@ Private Sub private_PrepareOrderDocument(ByVal values As Object)
     Set source = New obj_TableSource
     Set query = New obj_TableQuery
     Set service = New obj_TableQueryService
+    Set orderQueryFormat = New obj_QueryValueFormat
+    If Not orderQueryFormat.InitializeFromConfig("PersonalEventBuilder::orders.queryFormat") Then
+        Err.Raise 5, , "Cannot initialize order query value format."
+    End If
     If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then
         Err.Raise 5, , "Cannot initialize order document lookup."
     End If
@@ -303,8 +308,24 @@ Private Sub private_PrepareOrderDocument(ByVal values As Object)
     numberHeader = ex_PEB_Export.fn_Config("orders.numberHeader")
     signatoryHeader = ex_PEB_Export.fn_Config("orders.signatoryHeader")
     query.AddColumn signatoryHeader
-    query.AddCondition numberHeader, QueryEquals, values("AcceptedOrderNumber"), QueryNumber, True
-    query.AddCondition dateHeader, QueryEquals, values("AcceptedOrderDate"), QueryDate, True
+    query.AddCondition _
+        numberHeader, _
+        QueryEquals, _
+        values("AcceptedOrderNumber"), _
+        QueryNumber, _
+        True, _
+        False, _
+        orderQueryFormat, _
+        orderQueryFormat
+    query.AddCondition _
+        dateHeader, _
+        QueryEquals, _
+        values("AcceptedOrderDate"), _
+        QueryDate, _
+        True, _
+        False, _
+        orderQueryFormat, _
+        orderQueryFormat
     service.Backend = QueryAuto
     If Not service.TryExecute(source, query, table, diagnostic) Then
         Err.Raise 5, , diagnostic
@@ -354,6 +375,7 @@ Private Sub private_PrepareOrderDocument(ByVal values As Object)
 Cleanup:
     If Not table Is Nothing Then table.Dispose
     If Not service Is Nothing Then service.Dispose
+    If Not orderQueryFormat Is Nothing Then orderQueryFormat.Dispose
     If Not query Is Nothing Then query.Dispose
     If Not source Is Nothing Then source.Dispose
     If errorNumber <> 0 Then
