@@ -392,6 +392,7 @@ NextValueColumn:
     Set m_selectionSource = selection
     Set m_renderedSelection = selection
     m_renderedValues = buffer
+    private_UpdateTextWarning table, True
     refreshed = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.RefreshValues", startedAt
     Exit Function
@@ -679,6 +680,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             Err.Raise 5, , templateDiagnostic
         End If
     End If
+    private_UpdateTextWarning rawTable
     private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.Render", startedAt
 End Function
@@ -754,6 +756,51 @@ Private Sub private_StyleSelectedRow(ByVal rowIndex As Long)
     Set node = m_uiControlBase.ControlNode.cloneNode(False)
     node.setAttribute "style", m_selectedStyle
     m_renderContext.Styles.ApplyOverlay m_bodyRange.Rows(rowIndex), node, m_renderContext.BindingContext
+End Sub
+
+Private Sub private_UpdateTextWarning( _
+    ByVal table As obj_UiRawTable, _
+    Optional ByVal restoreBackground As Boolean = False _
+)
+    Dim limitText As String
+    Dim columnName As String
+    Dim columnIndex As Long
+    Dim rowIndex As Long
+    Dim tags As String
+    Dim value As Variant
+    Dim area As Range
+
+    If m_bodyRange Is Nothing Then Exit Sub
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+        private_ReadAttribute(m_uiControlBase.ControlNode, "textWarningLimit"), _
+        m_renderContext.BindingContext, limitText) Then Exit Sub
+    If VBA.Len(limitText) = 0 Then Exit Sub
+    If limitText Like "*[!0-9]*" Then Err.Raise 5, , "Invalid textWarningLimit."
+    If VBA.Len(limitText) > 5 Then Err.Raise 5, , "Invalid textWarningLimit."
+    If VBA.CLng(limitText) < 1 Then Err.Raise 5, , "Invalid textWarningLimit."
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+        private_ReadAttribute(m_uiControlBase.ControlNode, "textWarningColumn"), _
+        m_renderContext.BindingContext, columnName) Then Exit Sub
+    For columnIndex = 1 To table.ColumnCount
+        If VBA.CStr(table.HeaderAt(columnIndex)) = columnName Then
+            For rowIndex = 1 To table.RowCount
+                value = table.ValueAt(rowIndex, columnIndex)
+                tags = VBA.vbNullString
+                If Not VBA.IsError(value) And Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then
+                    If VBA.Len(VBA.CStr(value)) > VBA.CLng(limitText) Then tags = "textTooLong"
+                End If
+                Set area = m_bodyRange.Cells(rowIndex, columnIndex).Resize(1, private_ColumnSpanAt(columnIndex))
+                m_renderContext.Styles.RegisterPart m_uiControlBase.ControlNode, area, "cell", columnName, tags:=tags
+            Next rowIndex
+            If restoreBackground Then
+                m_renderContext.Styles.RestoreControlArea _
+                    m_bodyRange.Columns(columnIndex).Resize(table.RowCount, private_ColumnSpanAt(columnIndex)), _
+                    m_uiControlBase.ControlNode, m_renderContext.BindingContext
+                If m_selectedRow > 0 Then private_StyleSelectedRow m_selectedRow
+            End If
+            Exit For
+        End If
+    Next columnIndex
 End Sub
 
 Private Function private_ReadAttribute(ByVal node As Object, ByVal name As String) As String

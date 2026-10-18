@@ -19,6 +19,7 @@ Implements obj_IUiBindingTarget
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_appliedStyleName As String
 Private Const SELECT_SHAPE_PREFIX As String = "sel_"
 Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
@@ -121,13 +122,21 @@ End Function
 Private Function obj_IUiBindingTarget_RefreshBindings( _
     ByVal context As obj_UiRenderContext _
 ) As Boolean
+    Dim nextStyle As String
+
     If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
     If m_targetRange Is Nothing Or m_cellBinding Is Nothing Then Exit Function
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly
     m_cellBinding.SetTwoWay Not m_readOnly
     If Not m_checkboxShape Is Nothing Then m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
-    context.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, context.BindingContext
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+        ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), context.BindingContext, nextStyle) Then Exit Function
+    If Not context.Styles.TryApplyFontOnly(m_targetRange, m_appliedStyleName, nextStyle) Then
+        context.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, context.BindingContext
+    End If
+    m_appliedStyleName = nextStyle
+    private_RegisterStatePart
     obj_IUiBindingTarget_RefreshBindings = True
 End Function
 
@@ -230,6 +239,10 @@ Public Function RefreshReadOnly() As Boolean
         m_appliedReadOnly = readOnly
     End If
     m_readOnly = readOnly
+    If Not m_renderContext.Styles.TryApplyFontOnly(m_targetRange, m_appliedStyleName, m_appliedStyleName) Then
+        m_renderContext.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, m_renderContext.BindingContext
+    End If
+    private_RegisterStatePart
     RefreshReadOnly = True
 End Function
 
@@ -346,6 +359,16 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_RegisterStatePart(Optional ByVal applyStyles As Boolean = True)
+    Dim tags As String
+
+    If m_targetRange Is Nothing Then Exit Sub
+    tags = m_appliedStyleName
+    If m_readOnly Then tags = tags & " readOnly"
+    m_renderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_targetRange, "editor", tags:=tags
+    If applyStyles Then m_renderContext.Styles.ApplyPartStyles m_targetRange
+End Sub
+
 Private Function private_Configure(ByVal controlNode As Object) As Boolean
     Dim controlType As String
     Dim inputType As String
@@ -458,11 +481,15 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If Not m_isSelect Or m_editable Then
         uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
             m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+        If Not ex_UiBindingRuntime.fn_TryResolveText( _
+            ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), _
+            uiRenderContext.BindingContext, m_appliedStyleName) Then Exit Function
     End If
     m_targetRange.Value2 = value
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly
     If Not m_isSelect And Not m_isCheckbox Then m_targetRange.WrapText = True
+    private_RegisterStatePart False
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_COMPLETED | Name=" & m_uiControlBase.ControlName
 #End If
@@ -658,18 +685,11 @@ Private Function private_RenderSelectShapes( _
 End Function
 
 Private Sub private_ApplyDefaultShapeStyle(ByVal targetShape As Shape)
-    On Error Resume Next
-    targetShape.Fill.Solid
-    targetShape.Fill.ForeColor.RGB = VBA.RGB(255, 255, 255)
-    targetShape.Line.Visible = msoTrue
-    targetShape.Line.ForeColor.RGB = VBA.RGB(100, 116, 139)
-    targetShape.Line.Weight = 0.75
-    targetShape.TextFrame2.TextRange.Font.Name = "Calibri"
-    targetShape.TextFrame2.TextRange.Font.Size = 11
-    targetShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = VBA.RGB(17, 24, 39)
-    targetShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
-    targetShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignLeft
-    On Error GoTo 0
+    Dim node As Object
+
+    Set node = m_uiControlBase.ControlNode.cloneNode(False)
+    node.setAttribute "baseStyle", "selectShapeBase"
+    m_renderContext.Styles.ApplyControlPartStyle targetShape, node, m_renderContext.BindingContext, "baseStyle"
 End Sub
 
 Private Function private_TryParseBinding( _

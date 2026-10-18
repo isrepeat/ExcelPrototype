@@ -22,6 +22,7 @@ Public Function fn_HandleSelection( _
     Dim diagnostic As String
     Dim previousScreenUpdating As Boolean
     Dim busyEntered As Boolean
+    Dim diagnosticBatchEntered As Boolean
 
     If target Is Nothing Then Exit Function
     If Not ex_UiRuntime.fn_TryGetContext(target.Parent, context) Then Exit Function
@@ -29,6 +30,8 @@ Public Function fn_HandleSelection( _
     On Error GoTo EH
     previousScreenUpdating = Application.ScreenUpdating
     If kind = "confirmSelection" Then
+        ex_Core.fn_Diagnostic_BeginBatch
+        diagnosticBatchEntered = True
         busyEntered = ex_UiBusy.fn_Begin()
         Application.ScreenUpdating = False
     End If
@@ -46,6 +49,7 @@ CleanExit:
     Application.EnableEvents = previousEvents
     If kind = "confirmSelection" Then Application.ScreenUpdating = previousScreenUpdating
     If busyEntered Then ex_UiBusy.fn_End
+    If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch
     Exit Function
 EH:
     ex_WindowsUi.fn_ShowMessage "Cannot select table row: " & VBA.Err.Description, vbExclamation, "UI"
@@ -58,12 +62,18 @@ Public Function fn_HandleCellChange(ByVal target As Range) As Boolean
     Dim diagnostic As String
     Dim previousScreenUpdating As Boolean
     Dim busyEntered As Boolean
+    Dim diagnosticBatchEntered As Boolean
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
 
     If target Is Nothing Then Exit Function
     If Not ex_UiRuntime.fn_TryGetContext(target.Parent, context) Then Exit Function
     previousEvents = Application.EnableEvents
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
+    ex_Core.fn_Diagnostic_BeginBatch
+    diagnosticBatchEntered = True
     busyEntered = ex_UiBusy.fn_Begin()
     Application.ScreenUpdating = False
     Application.EnableEvents = False
@@ -79,9 +89,14 @@ CleanExit:
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreenUpdating
     If busyEntered Then ex_UiBusy.fn_End
+    If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch
     Exit Function
 EH:
-    ex_WindowsUi.fn_ShowMessage "Cannot dispatch cell change: " & VBA.Err.Description, VBA.vbExclamation, "UI"
+    errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
+    errorDescription = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError "UI.CellChange", errorNumber, errorSource, errorDescription
+    ex_WindowsUi.fn_ShowMessage "Cannot dispatch cell change: " & errorDescription, VBA.vbExclamation, "UI"
     Resume CleanExit
 End Function
 ' --------------------------------------

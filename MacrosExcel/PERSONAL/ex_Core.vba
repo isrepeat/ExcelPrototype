@@ -94,6 +94,42 @@ Public Sub fn_ReloadActiveWorkbookVba()
     private_VbaReload_RequestSafeReload
 End Sub
 
+Public Sub fn_UpdateActiveWorkbookConfig()
+    Dim targetWorkbook As Workbook
+    Dim updaterWorkbook As Workbook
+    Dim vbaFolderPath As String
+    Dim updaterPath As String
+    Dim fileSystem As Object
+    Dim errorText As String
+
+    On Error GoTo EH
+    Set targetWorkbook = Application.ActiveWorkbook
+    If targetWorkbook Is Nothing Then Err.Raise 5, , "No active workbook."
+    If targetWorkbook Is ThisWorkbook Then Err.Raise 5, , "Activate the target workbook first."
+    If Not private_VbaReload_TryResolveConfiguredFolder( _
+        targetWorkbook, _
+        "ThisWorkbook::vbaPath", _
+        vbaFolderPath _
+    ) Then Exit Sub
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    updaterPath = fileSystem.GetParentFolderName(vbaFolderPath) & "\WorkbookUpdater\WorkbookUpdater.xlam"
+    If Not fileSystem.FileExists(updaterPath) Then Err.Raise 5, , "Build WorkbookUpdater.xlam first: " & updaterPath
+    On Error Resume Next
+    Set updaterWorkbook = Application.Workbooks("WorkbookUpdater.xlam")
+    On Error GoTo EH
+    If updaterWorkbook Is Nothing Then
+        Set updaterWorkbook = Application.Workbooks.Open(updaterPath)
+    End If
+    If VBA.StrComp(updaterWorkbook.FullName, updaterPath, VBA.vbTextCompare) <> 0 Then
+        Err.Raise 5, , "A different WorkbookUpdater.xlam is already loaded."
+    End If
+    Application.Run "'WorkbookUpdater.xlam'!ex_ConfigRefresh.fn_UpdateWorkbook", targetWorkbook
+    Exit Sub
+EH:
+    errorText = VBA.Err.Description
+    ex_WindowsUi.fn_ShowMessage errorText, VBA.vbExclamation
+End Sub
+
 ' Compatibility alias for the previous keyboard shortcut.
 Public Sub fn_ReloadActiveWorkbookVbaDeferred()
     private_VbaReload_RequestSafeReload

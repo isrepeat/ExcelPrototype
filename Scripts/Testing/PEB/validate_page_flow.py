@@ -3,6 +3,7 @@
 from pathlib import Path
 from xml.etree import ElementTree as ET
 import re
+from config_dependencies import load_config
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -11,14 +12,7 @@ VBA = ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder"
 
 
 def read_config(path):
-    result = {}
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
-        if not line:
-            continue
-        kind, key, value = line.split("\t")
-        assert key not in result, key
-        result[key] = value
-    return result
+    return load_config(path)
 
 
 def resolve_mappings(value, sheets, folder):

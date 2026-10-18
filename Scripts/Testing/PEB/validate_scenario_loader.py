@@ -10,6 +10,7 @@ from pathlib import Path
 import openpyxl
 from event_routes import derived_settings, NS
 from word_grouping_fixtures import load_grouping_cases
+from config_dependencies import load_config
 from openpyxl.utils.cell import range_boundaries
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -18,16 +19,8 @@ STRICT_ARCHIVE_ERRORS = True
 
 
 def config(filename):
-    settings = {}
-    seen = set()
-    for number, line in enumerate(filename.read_text(encoding="utf-8-sig").splitlines(), 1):
-        if not line.strip():
-            continue
-        parts = line.split("\t")
-        assert len(parts) == 3, f"Invalid config row {filename}:{number}"
-        assert parts[1] not in seen, f"Duplicate config key: {parts[1]}"
-        seen.add(parts[1])
-        settings[parts[1].split("::", 1)[-1]] = parts[2]
+    settings = {key.split("::", 1)[-1]: value for key, value in load_config(filename).items()
+                if key.startswith(("PersonalEventBuilder::", "ThisWorkbook::"))}
     return derived_settings(settings)
 
 

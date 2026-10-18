@@ -231,6 +231,11 @@ Public Function TryPrepare( _
         values("WordText") = rendered
         values("WordOutcome") = "Success"
         If prepareOutput Then
+            If ex_PEB_Export.fn_Config("export.Word.documentMode") = "template" Then
+                private_PrepareOrderDocument values
+                TryPrepare = True
+                GoTo CleanupPrepare
+            End If
             template = m_pebWordTemplates.DocumentFilepath
             If VBA.Len(template) > 0 Then
                 If Not m_pebDslRenderer.TryRender(template, values, rendered, diagnostic) Then GoTo Failed
@@ -261,6 +266,107 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_PrepareOrderDocument(ByVal values As Object)
+    Dim source As obj_TableSource
+    Dim query As obj_TableQuery
+    Dim service As obj_TableQueryService
+    Dim table As obj_DataTable
+    Dim replacements As Object
+    Dim fileSystem As Object
+    Dim diagnostic As String
+    Dim dateHeader As String
+    Dim numberHeader As String
+    Dim signatoryHeader As String
+    Dim signatory As String
+    Dim candidate As String
+    Dim row As Long
+    Dim index As Long
+    Dim prefix As String
+    Dim token As Variant
+    Dim rendered As String
+    Dim filename As String
+    Dim templatePath As String
+    Dim errorNumber As Long
+    Dim errorText As String
+
+    On Error GoTo EH
+    Set source = New obj_TableSource
+    Set query = New obj_TableQuery
+    Set service = New obj_TableQueryService
+    If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then
+        Err.Raise 5, , "Cannot initialize order document lookup."
+    End If
+    source.WorkbookPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("orders.source.path"))
+    source.SheetName = ex_PEB_Export.fn_Config("orders.source.sheet")
+    source.RangeAddress = ex_PEB_Export.fn_Config("orders.source.range")
+    dateHeader = ex_PEB_Export.fn_Config("orders.dateHeader")
+    numberHeader = ex_PEB_Export.fn_Config("orders.numberHeader")
+    signatoryHeader = ex_PEB_Export.fn_Config("orders.signatoryHeader")
+    query.AddColumn signatoryHeader
+    query.AddCondition numberHeader, QueryEquals, values("AcceptedOrderNumber"), QueryNumber, True
+    query.AddCondition dateHeader, QueryEquals, values("AcceptedOrderDate"), QueryDate, True
+    service.Backend = QueryAuto
+    If Not service.TryExecute(source, query, table, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    For row = 1 To table.RowCount
+        candidate = ex_PEB_Export.fn_Text(table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, signatoryHeader)))
+        If VBA.Len(candidate) = 0 Then
+            Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderSignatoryRequired")
+        End If
+        If VBA.Len(signatory) > 0 And signatory <> candidate Then
+            Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderSignatoryAmbiguous")
+        End If
+        signatory = candidate
+    Next row
+    If VBA.Len(signatory) = 0 Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderSignatoryRequired")
+    End If
+    values("Signatory") = signatory
+    Set replacements = VBA.CreateObject("Scripting.Dictionary")
+    For index = 1 To ex_PEB_Export.fn_Count("export.Word.documentFields.count")
+        prefix = "export.Word.documentFields." & VBA.CStr(index)
+        token = ex_PEB_Export.fn_Config(prefix & ".token")
+        If Not m_pebDslRenderer.TryRender(ex_PEB_Export.fn_Config(prefix & ".value"), values, rendered, diagnostic) Then
+            Err.Raise 5, , diagnostic
+        End If
+        replacements.Add VBA.CStr(token), rendered
+    Next index
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    templatePath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    filename = fileSystem.GetFileName(templatePath)
+    For Each token In replacements.Keys
+        candidate = VBA.CStr(replacements(token))
+        If VBA.Len(candidate) = 0 Or candidate Like "*[<>:""/\|?*]*" Or _
+                VBA.InStr(candidate, VBA.vbCr) > 0 Or VBA.InStr(candidate, VBA.vbLf) > 0 Then
+            Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderDocumentNameInvalid")
+        End If
+        filename = VBA.Replace$(filename, VBA.CStr(token), candidate)
+    Next token
+    If VBA.InStr(filename, "{") > 0 Or VBA.InStr(filename, "}") > 0 Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderDocumentNameInvalid")
+    End If
+    values("WordOutput") = fileSystem.BuildPath(fileSystem.GetParentFolderName(templatePath), filename)
+    If VBA.StrComp(values("WordOutput"), templatePath, VBA.vbTextCompare) = 0 Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderDocumentNameInvalid")
+    End If
+    Set values("WordDocumentReplacements") = replacements
+Cleanup:
+    If Not table Is Nothing Then table.Dispose
+    If Not service Is Nothing Then service.Dispose
+    If Not query Is Nothing Then query.Dispose
+    If Not source Is Nothing Then source.Dispose
+    If errorNumber <> 0 Then
+        On Error GoTo 0
+        Err.Raise errorNumber, , errorText
+    End If
+    Exit Sub
+EH:
+    errorNumber = VBA.Err.Number
+    errorText = VBA.Err.Description
+    Resume Cleanup
+End Sub
+
 Private Sub private_CompleteWordContext( _
     ByVal values As Object, _
     ByVal inputs As Object _
@@ -460,6 +566,11 @@ Private Sub private_PrepareTicket(ByVal values As Object)
     If ex_PEB_Export.fn_Text(values("ModeForm")) <> ex_PEB_Export.fn_Config("export.ticket.form") Then Exit Sub
     ticket = ex_PEB_Export.fn_Text(values("TicketNumber"))
     If VBA.Len(ticket) = 0 Then Exit Sub
+    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnTickets.modes") & "|", _
+            "|" & VBA.CStr(values("ModeId")) & "|", VBA.vbTextCompare) > 0 Then
+        values("TicketDocument") = ticket
+        Exit Sub
+    End If
     Set pattern = VBA.CreateObject("VBScript.RegExp")
     pattern.Pattern = ex_PEB_Export.fn_Config("export.ticket.qualifiedPattern")
     If pattern.Test(ticket) Then

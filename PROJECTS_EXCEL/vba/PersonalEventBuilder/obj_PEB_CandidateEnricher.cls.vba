@@ -14,6 +14,7 @@ Private m_isDisposed As Boolean
 
 Private m_absenceProfile As obj_LookupProfile
 Private m_latestRecords As Collection
+Private m_returnTickets As obj_PEB_ReturnTickets
 
 ' //
 ' // Lifecycle
@@ -49,12 +50,19 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     If Not m_absenceProfile Is Nothing Then m_absenceProfile.Dispose
+    If Not m_returnTickets Is Nothing Then
+        m_returnTickets.Dispose
+    End If
+    Set m_returnTickets = Nothing
     Set m_absenceProfile = Nothing
     Set m_latestRecords = Nothing
 End Sub
 
 Public Sub InvalidateCache()
     Set m_latestRecords = Nothing
+    If Not m_returnTickets Is Nothing Then
+        m_returnTickets.InvalidateCache
+    End If
 End Sub
 
 Public Function TryEnrich( _
@@ -62,6 +70,7 @@ Public Function TryEnrich( _
     ByVal candidates As Collection, _
     ByVal orderNumber As String, _
     ByVal orderDate As Variant, _
+    ByVal modeId As String, _
     ByRef output As Collection, _
     ByRef diagnostic As String _
 ) As Boolean
@@ -71,9 +80,11 @@ Public Function TryEnrich( _
     Dim sequence As Variant
     Dim parsedOrderDate As Date
     Dim hasOrderDate As Boolean
+    Dim returnMode As Boolean
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Candidate enricher is not initialized."
+    returnMode = VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnTickets.modes") & "|", "|" & modeId & "|", VBA.vbTextCompare) > 0
     orderNumber = VBA.Trim$(orderNumber)
     If VBA.Len(orderNumber) > 0 Then
         If orderNumber Like "*[!0-9]*" Then Err.Raise 5, , "Order number must contain digits only."
@@ -93,7 +104,7 @@ Public Function TryEnrich( _
         Set output = New Collection
     End If
 
-    ' Missing extensions remain blank; tickets use the shared order fields.
+    ' Always clear derived tickets before choosing the source for this mode.
     For Each record In output
         Set fields = VBA.CreateObject("Scripting.Dictionary")
         fields("Absence.Type") = VBA.vbNullString
@@ -104,8 +115,21 @@ Public Function TryEnrich( _
         Set supplement = New obj_LookupRecord
         If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize empty extension fields."
         If Not record.TryMerge(supplement, False) Then Err.Raise 5, , "Cannot fill empty extension fields."
+        Set fields = VBA.CreateObject("Scripting.Dictionary")
+        fields("Absence.TicketNumber") = VBA.vbNullString
+        fields("Absence.TicketDate") = VBA.vbNullString
+        fields("Absence.PlannedArrivalDate") = VBA.vbNullString
+        fields("Event.IncomingDate") = VBA.vbNullString
+        If hasOrderDate Then fields("Event.IncomingDate") = VBA.Format$(parsedOrderDate, "dd.mm.yyyy")
+        Set supplement = New obj_LookupRecord
+        If Not supplement.Initialize(record.Key, fields) Then
+            Err.Raise 5, , "Cannot initialize empty ticket fields."
+        End If
+        If Not record.TryMerge(supplement, True) Then
+            Err.Raise 5, , "Cannot clear previous ticket fields."
+        End If
         sequence = VBA.vbNullString
-        If record.TryGetValue("Absence.TicketSequence", sequence) Then
+        If Not returnMode And record.TryGetValue("Absence.TicketSequence", sequence) Then
             If private_IsPositiveInteger(private_Text(sequence)) And hasOrderDate And VBA.Len(orderNumber) > 0 Then
                 Set fields = VBA.CreateObject("Scripting.Dictionary")
                 fields("Absence.TicketNumber") = VBA.CStr(VBA.Year(parsedOrderDate)) & "/" & orderNumber & "/" & private_Text(sequence)
@@ -116,6 +140,18 @@ Public Function TryEnrich( _
             End If
         End If
     Next record
+    If returnMode Then
+        If m_returnTickets Is Nothing Then
+            Set m_returnTickets = New obj_PEB_ReturnTickets
+            If Not m_returnTickets.Initialize() Then
+                Err.Raise 5, , "Cannot initialize return ticket provider."
+            End If
+        End If
+        If Not m_returnTickets.TryEnrich(output, diagnostic) Then
+            Set output = Nothing
+            Exit Function
+        End If
+    End If
     TryEnrich = True
     Exit Function
 EH:

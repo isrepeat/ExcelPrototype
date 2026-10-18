@@ -10,12 +10,14 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Implements obj_IPage
+Implements obj_IUiBindingListener
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_pageBase As obj_PageBase
 Private m_controller As obj_PEB_PgMainController
+Private m_fieldDefaultStyles As Object
 
 ' //
 ' // Lifecycle
@@ -58,6 +60,31 @@ Private Sub obj_IPage_Dispose()
     Me.Dispose
 End Sub
 
+Private Sub obj_IUiBindingListener_OnValueChanged( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String _
+)
+    Dim defaultStyle As String
+    Dim value As Variant
+    Dim valueObject As Object
+    Dim isObject As Boolean
+
+    If m_isDisposed Or m_pageBase Is Nothing Then Exit Sub
+    If sourceName <> "Form" Then Exit Sub
+    If m_fieldDefaultStyles Is Nothing Then Exit Sub
+    If Not m_fieldDefaultStyles.Exists(bindingPath) Then Exit Sub
+    If Not m_pageBase.BindingContext.TryGetValue(sourceName, bindingPath, value, valueObject, isObject) Then Exit Sub
+    If isObject Then Exit Sub
+    If VBA.IsNull(value) Or VBA.IsEmpty(value) Then
+        value = VBA.vbNullString
+    End If
+    If VBA.Len(VBA.Trim$(VBA.CStr(value))) > 0 Then Exit Sub
+    defaultStyle = m_fieldDefaultStyles(bindingPath)
+    If Not m_pageBase.BindingContext.SetValue("Form", bindingPath & "Style", defaultStyle) Then
+        Err.Raise 5, , "Cannot reset form source style: " & bindingPath
+    End If
+End Sub
+
 ' //
 ' // API
 ' //
@@ -75,6 +102,7 @@ Public Function Initialize(ByVal profileId As String) As Boolean
     If Not private_TryRegisterBindings() Then
         Exit Function
     End If
+    m_pageBase.BindingContext.Subscribe Me
     Set m_controller = New obj_PEB_PgMainController
     If Not m_controller.Initialize(m_pageBase) Then
         Exit Function
@@ -92,6 +120,8 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_pageBase Is Nothing Then m_pageBase.BindingContext.Unsubscribe Me
+    Set m_fieldDefaultStyles = Nothing
     If Not m_controller Is Nothing Then m_controller.Dispose
     Set m_controller = Nothing
     If Not m_pageBase Is Nothing Then m_pageBase.Dispose
@@ -108,10 +138,29 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim confirmSelectionKey As String
     Dim orderOptions As Collection
     Dim wordContext As Object
+    Dim fieldName As Variant
+    Dim defaultStyle As String
+    Dim ordinaryStyle As String
+    Dim lookupStyle As String
+    Dim lookupFields As String
 
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    If Not uiBindingContext.SetValue("Settings", "CandidateTextWarningLimit", ex_PEB_Export.fn_Config("candidates.textWarningLimit")) Then Exit Function
+    If Not uiBindingContext.SetValue("Settings", "CandidateTextWarningColumn", ex_PEB_Export.fn_Config("candidates.textWarningColumn")) Then Exit Function
+    Set m_fieldDefaultStyles = VBA.CreateObject("Scripting.Dictionary")
+    ordinaryStyle = ex_PEB_Export.fn_Config("forms.sourceStyles.default")
+    lookupStyle = ex_PEB_Export.fn_Config("forms.lookupDefaultStyle")
+    lookupFields = "|" & ex_PEB_Export.fn_Config("forms.lookupFields") & "|"
+    For Each fieldName In VBA.Split(ex_PEB_Export.fn_Config("forms.styledFields"), "|")
+        defaultStyle = ordinaryStyle
+        If VBA.InStr(1, lookupFields, "|" & VBA.CStr(fieldName) & "|", VBA.vbBinaryCompare) > 0 Then
+            defaultStyle = lookupStyle
+        End If
+        m_fieldDefaultStyles.Add VBA.CStr(fieldName), defaultStyle
+        If Not uiBindingContext.SetValue("Form", VBA.CStr(fieldName) & "Style", defaultStyle) Then Exit Function
+    Next fieldName
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
     wordContext.CompareMode = VBA.vbBinaryCompare
     If Not uiBindingContext.SetObject("Data", "WordContext", wordContext) Then Exit Function
@@ -171,7 +220,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "OrderQueryLabel", "OrderYearLabel", "LastStatus", _
             "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
-            "SourceLegendSample", "SourceLegendSeparator", _
+            "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
             "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
             "TestScenarioItems", "LoadTest", "NextTest", _
             "PreviewWord", "ExportWord", "ExportMovement")
@@ -250,7 +299,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not uiBindingContext.SetObject("Commands", "RefreshPersonnel", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
-            "LoadTest", "NextTest", _
+            "LoadTest", "NextTest", "ResetForm", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand

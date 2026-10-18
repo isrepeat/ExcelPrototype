@@ -144,6 +144,7 @@ Public Sub RestoreControlArea( _
     For Each rule In m_pipeline.Rules
         If rule("enabled") And VBA.StrComp(rule("stage"), "default", VBA.vbTextCompare) = 0 Then
             If rule("target") <> "sheet" Then
+                If private_IsPriorityPartRule(rule) Then GoTo NextRestoreRule
                 Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, area)
                 For Each region In regions
                     Set regionArea = region("area")
@@ -156,8 +157,47 @@ Public Sub RestoreControlArea( _
                 Next region
             End If
         End If
+NextRestoreRule:
     Next rule
+    private_ApplyCellPartRules area
 End Sub
+
+Public Function TryApplyFontOnly( _
+    ByVal area As Range, _
+    ByVal previousStyle As String, _
+    ByVal nextStyle As String _
+) As Boolean
+    Dim previousProperties As Object
+    Dim nextProperties As Object
+    Dim colors As Object
+    Dim key As Variant
+
+    If area Is Nothing Or m_stylesByName Is Nothing Then Exit Function
+    If Not m_stylesByName.Exists(previousStyle) Or Not m_stylesByName.Exists(nextStyle) Then Exit Function
+    Set previousProperties = m_stylesByName(previousStyle)
+    Set nextProperties = m_stylesByName(nextStyle)
+    For Each key In previousProperties.Keys
+        If key <> "textcolor" And key <> "fontcolor" Then
+            If Not nextProperties.Exists(key) Then Exit Function
+            If previousProperties(key) <> nextProperties(key) Then Exit Function
+        End If
+    Next key
+    For Each key In nextProperties.Keys
+        If key <> "textcolor" And key <> "fontcolor" Then
+            If Not previousProperties.Exists(key) Then Exit Function
+        End If
+    Next key
+    Set colors = VBA.CreateObject("Scripting.Dictionary")
+    If nextProperties.Exists("textcolor") Then
+        colors.Add "textcolor", nextProperties("textcolor")
+    ElseIf nextProperties.Exists("fontcolor") Then
+        colors.Add "fontcolor", nextProperties("fontcolor")
+    Else
+        Exit Function
+    End If
+    private_ApplyProperties area, Nothing, colors
+    TryApplyFontOnly = True
+End Function
 
 Public Sub ApplyControlPartStyle( _
     ByVal targetShape As Object, _
@@ -289,6 +329,7 @@ Public Sub ApplyOverlay( _
     End If
     Set m_overlays(private_ReadAttribute(node, "name")) = overlay
     private_ApplyProperties area, Nothing, m_stylesByName(styleName)
+    private_ApplyCellPartRules area
 End Sub
 
 Public Sub RegisterPart( _
@@ -348,12 +389,14 @@ Private Sub private_ApplyStage( _
             ex_Core.fn_Diagnostic_WriteLog "STYLE_RULE_STARTED | Index=" & VBA.CStr(ruleIndex) & " | Target=" & rule("target")
             Set properties = rule("properties")
             Set selector = rule("selector")
+            If stageName = "default" And private_IsPriorityPartRule(rule) Then GoTo NextStageRule
             operation = "ResolveRegions"
             Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, pageScope)
             operation = "ApplyRegions"
             private_ApplyRegions regions, properties
             If rule("target") = "sheet" And m_partialScope Is Nothing Then private_ApplyWorksheetProperties m_targetWorksheet, properties
         End If
+NextStageRule:
     Next rule
     If Not sheetOnly And Not m_overlays Is Nothing Then
         For Each regionKey In m_overlays.Keys
@@ -364,6 +407,7 @@ Private Sub private_ApplyStage( _
             If Not area Is Nothing Then private_ApplyProperties area, Nothing, properties
         Next regionKey
     End If
+    If Not sheetOnly Then private_ApplyCellPartRules m_partialScope
     ex_Core.fn_Diagnostic_WritePerf "Style.ApplyStage | Name=" & stageName, startedAt
     Exit Sub
 EH_STAGE:
@@ -372,6 +416,41 @@ EH_STAGE:
     errorDescription = VBA.Err.Description
     ex_Core.fn_Diagnostic_WriteLog "STYLE_STAGE_ERROR | Name=" & stageName & " | Rule=" & VBA.CStr(ruleIndex) & " | Operation=" & operation & " | Error=" & VBA.CStr(errorNumber) & " | Source=" & errorSource & " | Description=" & errorDescription
     Err.Raise errorNumber, errorSource, errorDescription
+End Sub
+
+Public Sub ApplyPartStyles(ByVal scope As Range)
+    private_ApplyCellPartRules scope
+End Sub
+
+Private Function private_IsPriorityPartRule(ByVal rule As Object) As Boolean
+    Dim selector As Object
+
+    If rule("target") <> "controlpart" Then Exit Function
+    Set selector = rule("selector")
+    If Not selector.Exists("part") Then Exit Function
+    private_IsPriorityPartRule = (selector("part") = "cell" Or selector("part") = "editor")
+End Function
+
+Private Sub private_ApplyCellPartRules(ByVal scope As Range)
+    Dim rule As Object
+    Dim selector As Object
+    Dim regions As Collection
+    Dim pageScope As Range
+
+    If m_pipeline Is Nothing Then Exit Sub
+    Set pageScope = scope
+    If pageScope Is Nothing Then Set pageScope = private_GetSheetScope(m_targetWorksheet)
+    For Each rule In m_pipeline.Rules
+        If rule("enabled") And rule("stage") = "default" And rule("target") = "controlpart" Then
+            Set selector = rule("selector")
+            If selector.Exists("part") Then
+                If selector("part") = "cell" Or selector("part") = "editor" Then
+                    Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, pageScope)
+                    private_ApplyRegions regions, rule("properties")
+                End If
+            End If
+        End If
+    Next rule
 End Sub
 
 Private Sub private_ApplyRegions( _

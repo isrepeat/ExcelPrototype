@@ -23,6 +23,7 @@ Private m_diagnosticSessionStarted As Boolean
 Private m_diagnosticConfigurationLoaded As Boolean
 Private m_diagnosticMode As String
 Private m_diagnosticBuffer As Collection
+Private m_diagnosticBatchDepth As Long
 Private m_statusBarMessage As String
 Private m_statusBarOwned As Boolean
 Private m_statusBarPrevious As Variant
@@ -32,6 +33,7 @@ Private m_statusBarPrevious As Variant
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     fn_StatusBar_Clear
+    m_diagnosticBatchDepth = 0
     If fn_Diagnostic_Flush() Then
         m_diagnosticSessionStarted = False
         m_diagnosticConfigurationLoaded = False
@@ -108,6 +110,20 @@ Public Sub fn_Diagnostic_WriteLog(ByVal messageText As String)
     private_Diagnostic_WriteLine VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss") & _
         " | " & messageText
 #End If
+End Sub
+
+Public Sub fn_Diagnostic_BeginBatch()
+    private_Diagnostic_EnsureConfiguration
+    m_diagnosticBatchDepth = m_diagnosticBatchDepth + 1
+End Sub
+
+Public Sub fn_Diagnostic_EndBatch()
+    If m_diagnosticBatchDepth <= 0 Then Exit Sub
+    m_diagnosticBatchDepth = m_diagnosticBatchDepth - 1
+    If m_diagnosticBatchDepth <> 0 Then Exit Sub
+    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_IMMEDIATE, VBA.vbTextCompare) = 0 Then
+        If Not fn_Diagnostic_Flush() Then Debug.Print "Diagnostic batch flush failed."
+    End If
 End Sub
 
 Public Function fn_Diagnostic_SetMode(ByVal modeName As String) As Boolean
@@ -389,7 +405,7 @@ Private Sub private_Diagnostic_EnsureConfiguration()
 End Sub
 
 Private Sub private_Diagnostic_WriteLine(ByVal lineText As String)
-    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) = 0 Then
+    If m_diagnosticBatchDepth > 0 Or VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) = 0 Then
         If m_diagnosticBuffer Is Nothing Then Set m_diagnosticBuffer = New Collection
         m_diagnosticBuffer.Add lineText
     Else

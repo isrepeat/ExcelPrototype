@@ -176,6 +176,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 schema.AddChild "tableList.tablePolicy", wrapper, 0, 1, "urn:excelprototype:controls"
             End If
             If m_type = "candidates" Then
+                schema.AddAttribute "textWarningLimit", "positive", False, "", True, 0
+                schema.AddAttribute "textWarningColumn", "string", False, "", True, 0
                 schema.AddAttribute "alignToForm", "string", True, "", False, 0
                 schema.AddAttribute "columnsBefore", "string", False, "", False, 0
                 schema.AddAttribute "columnsAfter", "string", False, "", False, 0

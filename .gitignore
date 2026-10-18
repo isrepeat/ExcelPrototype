@@ -15,9 +15,10 @@ PROJECTS_EXCEL/WorkbookUpdater/WorkbookUpdater.xlam
 PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
 
 PROJECTS_EXCEL/**/*.xlsx
+!PROJECTS_EXCEL/workbook/cfgDependencies.xlsx
 PROJECTS_EXCEL/**/*.xlsm
 PROJECTS_EXCEL/**/*.docx
-!PROJECTS_EXCEL/workbook/PersonalEventBuilder/Template_10.docx
+!PROJECTS_EXCEL/workbook/PersonalEventBuilder/{yyyy}-{mm}-{dd} №{OrderNum} ({Signatory}) (Александр).docx
 !PROJECTS_EXCEL/workbook/PeriodsGeneration/РУХ генерація періодів.xlsm
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Dependencies/*.xlsx
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Scenarios.xlsx
