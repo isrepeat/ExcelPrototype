@@ -17,6 +17,8 @@ value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expecte
 value	PersonalEventBuilder::test.ui.catalogFields	Selected|PreviewEnabled|ScenarioId|Operation|EventLabel|StepCount|RuleStatus
 value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Прев’ю|Сценарій|Операція|Подія / сценарій|Кроків|Правило
 value	PersonalEventBuilder::test.ui.selectedByDefault	S01|S02
+value	PersonalEventBuilder::test.word.style.headingColor	#000000
+value	PersonalEventBuilder::test.word.style.headingDetailColor	#767171
 value	PersonalEventBuilder::test.audit.inputs.sheet	Тест_ВхідніДані
 value	PersonalEventBuilder::test.audit.inputs.table	tbTestInputs
 value	PersonalEventBuilder::test.audit.maxRows	100000
@@ -100,7 +102,7 @@ value	PersonalEventBuilder::test.scenarios.expectedWord.sheet	Expected_WORD
 value	PersonalEventBuilder::test.scenarios.expectedWord.table	tbExpectedWord
 value	PersonalEventBuilder::test.scenarios.groupingSteps.sheet	TestGrouping_Steps
 value	PersonalEventBuilder::test.scenarios.groupingSteps.table	tbGroupingSteps
-value	PersonalEventBuilder::test.scenarios.groupingSteps.fields	ScenarioId|StepId|StepOrder|Action|ExpectedError|EventId|TemplateName|PersonId|AcceptedOrderNumber|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort|RankGenitive|FIOAccusative|IPN|PositionGenitive|IncomingNo|IncomingDateShort|ReportPerson|FIOInitialsGenitive|ReporterGenitive
+value	PersonalEventBuilder::test.scenarios.groupingSteps.fields	ScenarioId|StepId|StepOrder|Action|ExpectedError|ModeId|PersonId|ReporterId|AcceptedOrderNumber|AcceptedOrderDate|EventDate|Destination|TicketNumber|TicketDate|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::test.scenarios.groupingSteps.readRange	auto
 value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
 value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
@@ -246,6 +248,7 @@ value	PersonalEventBuilder::text.StylePartSelector	Для стилю части�
 value	PersonalEventBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
 value	PersonalEventBuilder::text.TestPreviewNotRun	Прев’ю не сформовано: крок не виконувався.
 value	PersonalEventBuilder::text.TestScenarioItems	S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,W01,W02,W03,W04,W05,W06,W07,W08,W09
+value	PersonalEventBuilder::text.TestsGroupingStep	[Крок {step}]
 value	PersonalEventBuilder::text.TicketNumberLabel	Квиток №
 value	PersonalEventBuilder::text.DepartureDateLabel	Дата вибуття
 value	PersonalEventBuilder::text.ModeEventDateLabel	Дата події
@@ -279,6 +282,7 @@ value	PersonalEventBuilder::text.ModeArrivalDateLabel	Прибуття.Дата
 value	PersonalEventBuilder::text.ModeDestinationLabel	Місце
 value	PersonalEventBuilder::text.PersonnelActionError	Помилка роботи з кандидатами: {details}
 value	PersonalEventBuilder::text.TestPreviewOperation	PreviewWord
+value	PersonalEventBuilder::text.TestsGroupingHeading	{scenario} {step}
 value	PersonalEventBuilder::text.ExportMovementSuccess	Подію збережено в РУХ.
 value	PersonalEventBuilder::text.ExportWordUnavailable	Експорт WORD тимчасово вимкнено. Доступний перегляд тексту на аркуші.
 value	PersonalEventBuilder::text.ModeDocumentDateLabel	Документ.Дата

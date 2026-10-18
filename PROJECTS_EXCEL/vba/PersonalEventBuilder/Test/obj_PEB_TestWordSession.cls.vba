@@ -30,6 +30,9 @@ Private m_basisColor As Long
 Private m_basisPrefix As String
 Private m_headingBefore As Double
 Private m_headingAfter As Double
+Private m_headingColor As Long
+Private m_headingDetailColor As Long
+Private m_eventDetail As String
 Private m_metrics As Object
 Private m_finished As Boolean
 Private m_started As Double
@@ -80,6 +83,8 @@ Public Function Initialize( _
     m_basisPrefix = ex_PEB_Export.fn_Config("text.TestsWordBasisPrefix")
     m_headingBefore = VBA.CDbl(ex_PEB_Export.fn_Config("test.word.style.headingBefore"))
     m_headingAfter = VBA.CDbl(ex_PEB_Export.fn_Config("test.word.style.headingAfter"))
+    m_headingColor = private_Color(ex_PEB_Export.fn_Config("test.word.style.headingColor"))
+    m_headingDetailColor = private_Color(ex_PEB_Export.fn_Config("test.word.style.headingDetailColor"))
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fileSystem.FileExists(path) Then Err.Raise 5, , "Word test template not found: " & path
     If Not fileSystem.FolderExists(fileSystem.GetParentFolderName(m_output)) Then
@@ -201,6 +206,7 @@ Public Function TryExercise( _
             If VBA.Len(personName) > 0 Then m_personNames(personName) = True
         End If
     Next field
+    m_eventDetail = VBA.vbNullString
     m_eventDescription = VBA.Replace$( _
         ex_PEB_Export.fn_Config("text.TestsWordEvent." & VBA.CStr(values("ModeDirection"))), _
         "{event}", _
@@ -217,7 +223,8 @@ Public Function TryCollectSnapshot( _
     ByVal values As Object, _
     ByVal caption As String, _
     ByVal personNames As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal captionDetail As String = "" _
 ) As Boolean
     Dim anchors As obj_PEB_WordAnchors
 
@@ -239,6 +246,7 @@ Public Function TryCollectSnapshot( _
     Set m_personNames = personNames
     Set m_metrics = VBA.CreateObject("Scripting.Dictionary")
     m_eventDescription = caption
+    m_eventDetail = captionDetail
     TryCollectSnapshot = True
 Cleanup:
     If Not anchors Is Nothing Then
@@ -260,6 +268,10 @@ Public Function TryAppend( _
     Dim timingText As String
     Dim timingValue As String
     Dim captionRange As Object
+    Dim detailRange As Object
+    Dim detailOffset As Long
+    Dim stepDescription As String
+    Dim descriptionRange As Object
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Or m_finished Then Err.Raise 5, , "Word test session is not ready."
@@ -269,21 +281,27 @@ Public Function TryAppend( _
         If VBA.Len(m_lastFailure) = 0 Then m_lastFailure = VBA.CStr(report("Details"))
     End If
     If Not m_insertedRange Is Nothing Then
+        stepDescription = ex_PEB_Export.fn_Config("text.TestStepDescription." & VBA.CStr(report("StepId")))
+        If VBA.Len(VBA.Trim$(stepDescription)) = 0 Then
+            Err.Raise 5, , "Missing configuration: text.TestStepDescription." & VBA.CStr(report("StepId"))
+        End If
         If m_pointCount > 0 Then
             Set target = m_result.Range(m_result.Content.End - 1, m_result.Content.End - 1)
             target.Text = VBA.vbCr
         End If
         Set target = m_result.Range(m_result.Content.End - 1, m_result.Content.End - 1)
-        target.Text = m_eventDescription & VBA.vbCr
-        Set captionRange = m_result.Range(target.Start, target.End - 1)
+        target.Text = m_eventDescription & VBA.ChrW$(11) & stepDescription & VBA.vbCr
+        Set captionRange = m_result.Range(target.Start, target.Start + VBA.Len(m_eventDescription))
+        Set descriptionRange = m_result.Range(captionRange.End + 1, captionRange.End + 1 + VBA.Len(stepDescription))
         target.Font = m_insertedRange.Characters(1).Font.Duplicate
         target.Font.Bold = True
+        target.Font.Color = m_headingColor
         target.ParagraphFormat = m_insertedRange.Paragraphs(1).Format.Duplicate
         target.ParagraphFormat.FirstLineIndent = 0
         target.ParagraphFormat.Alignment = 1
         target.ParagraphFormat.SpaceBefore = m_headingBefore
         target.ParagraphFormat.SpaceAfter = m_headingAfter
-        target.ParagraphFormat.KeepWithNext = False
+        target.ParagraphFormat.KeepWithNext = True
         target.ParagraphFormat.KeepTogether = False
         Set target = m_result.Range(m_result.Content.End - 1, m_result.Content.End - 1)
         target.FormattedText = m_insertedRange.FormattedText
@@ -292,6 +310,18 @@ Public Function TryAppend( _
         target.ParagraphFormat = m_insertedRange.Paragraphs(1).Format.Duplicate
         private_FormatPoint target
         captionRange.Font.Bold = True
+        captionRange.Font.Color = m_headingColor
+        descriptionRange.Font.Bold = True
+        descriptionRange.Font.Color = m_headingDetailColor
+        If VBA.Len(m_eventDetail) > 0 Then
+            detailOffset = VBA.InStr(1, m_eventDescription, m_eventDetail, VBA.vbBinaryCompare)
+            If detailOffset = 0 Then
+                Err.Raise 5, , "Word report heading detail is missing from its caption."
+            End If
+            Set detailRange = m_result.Range(captionRange.Start + detailOffset - 1, captionRange.Start + detailOffset - 1 + VBA.Len(m_eventDetail))
+            detailRange.Font.Color = m_headingDetailColor
+        End If
+        m_eventDetail = VBA.vbNullString
         m_pointCount = m_pointCount + 1
         Set m_insertedRange = Nothing
     End If
@@ -365,8 +395,10 @@ Private Sub private_FormatPoint(ByVal pointRange As Object)
     Dim isBasis As Boolean
     Dim nextStart As Long
 
+    pointRange.Font.Bold = False
+    pointRange.Font.Color = m_headingColor
     For Each paragraph In pointRange.Paragraphs
-        If VBA.Left$(VBA.Trim$(paragraph.Range.Text), VBA.Len(m_basisPrefix)) = m_basisPrefix Then isBasis = True
+        isBasis = (VBA.Left$(VBA.Trim$(paragraph.Range.Text), VBA.Len(m_basisPrefix)) = m_basisPrefix)
         paragraph.Format.KeepWithNext = False
         paragraph.Format.KeepTogether = False
         If isBasis Then

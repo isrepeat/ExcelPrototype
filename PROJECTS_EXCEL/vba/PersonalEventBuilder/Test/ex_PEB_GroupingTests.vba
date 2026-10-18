@@ -65,13 +65,12 @@ Private Function private_Run( _
     Dim fixture As Collection
     Dim scenario As Object
     Dim step As Object
-    Dim field As Variant
     Dim expected As Object
     Dim word As Object
     Dim document As Object
     Dim values As Object
+    Dim preparedValues As Object
     Dim anchors As obj_PEB_WordAnchors
-    Dim templates As obj_PEB_WordTemplates
     Dim target As Object
     Dim state As Object
     Dim parts As Object
@@ -92,20 +91,34 @@ Private Function private_Run( _
     Dim personNames As Object
     Dim stepIndex As Long
     Dim caption As String
+    Dim captionDetail As String
     Dim templatePath As String
     Dim expectedFont As String
     Dim expectedSize As Single
+    Dim lookupProfile As obj_LookupProfile
+    Dim lookupService As obj_LookupService
+    Dim exportService As obj_PEB_ExportService
+    Dim progressUnits As Long
 
     On Error GoTo EH
     If ex_PEB_Export.fn_Config("environment.name") <> "TEST" Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.TestOnly")
     End If
+    ex_PEB_Testing.fn_ReportPhase "GroupingPrepare"
     If Not private_ReadScenarios(fixture, diagnostic) Then
         Err.Raise 5, , diagnostic
     End If
-    Set templates = New obj_PEB_WordTemplates
-    If Not templates.Initialize(diagnostic) Then
+    Set lookupProfile = New obj_LookupProfile
+    If Not lookupProfile.Initialize("PersonalEventBuilder::lookup.Personnel", diagnostic) Then
         Err.Raise 5, , diagnostic
+    End If
+    Set lookupService = New obj_LookupService
+    If Not lookupService.Initialize(lookupProfile) Then
+        Err.Raise 5, , "Cannot initialize grouping personnel lookup."
+    End If
+    Set exportService = New obj_PEB_ExportService
+    If Not exportService.Initialize() Then
+        Err.Raise 5, , "Cannot initialize grouping export preparation."
     End If
     Set files = VBA.CreateObject("Scripting.FileSystemObject")
     Set word = VBA.CreateObject("Word.Application")
@@ -123,6 +136,8 @@ Private Function private_Run( _
         If VBA.Len(selectedId) > 0 And selectedId <> caseId Then
             GoTo NextScenario
         End If
+        progressUnits = scenario("Steps").Count + 2
+        ex_PEB_Testing.fn_ReportPhase "GroupingPrepare", 0, progressUnits
         Set document = word.Documents.Add(templatePath, False, 0, False)
         private_CheckTemplate document
         path = files.BuildPath(files.GetSpecialFolder(2), "PEB_Grouping_" & files.GetTempName & ".docx")
@@ -144,8 +159,10 @@ Private Function private_Run( _
         Set target = private_FindMarker(document, "{\export:" & identifier & "_Begin}")
         expectedFont = target.Characters(1).Font.Name
         expectedSize = target.Characters(1).Font.Size
+        ex_PEB_Testing.fn_ReportPhase "GroupingDone", 0, progressUnits
         For Each step In scenario("Steps")
             stepIndex = stepIndex + 1
+            ex_PEB_Testing.fn_ReportPhase "GroupingPrepare", stepIndex, progressUnits
             If step("Action") = "GroupEdit" Then
                 Set anchors = New obj_PEB_WordAnchors
                 If Not anchors.Initialize(document, diagnostic) Then
@@ -157,30 +174,28 @@ Private Function private_Run( _
                 target.Text = target.Text & "MANUAL"
                 anchors.Dispose
             Else
-                Set values = VBA.CreateObject("Scripting.Dictionary")
-                For Each field In step("Values").Keys
-                    values.Add field, step("Values")(field)
-                Next field
-                values("IPN") = values("PersonId")
-                If Not templates.TryRender("ToBusinessTrip", values, rendered, diagnostic) Then
-                    If VBA.Len(step("Error")) = 0 Then
-                        Err.Raise 5, , diagnostic
-                    End If
-                End If
-                values("WordText") = rendered
-                values("WordPolicy") = "Render"
-                values("WordGrouped") = True
-                values("WordOutput") = path
                 before = private_DocumentText(document)
                 Set parts = document.CustomXMLParts.SelectByNamespace("urn:excelprototype:word-events:v1")
                 beforeState = VBA.vbNullString
                 If parts.Count = 1 Then
                     beforeState = parts(1).XML
                 End If
+                success = private_Prepare(step("Input"), lookupService, exportService, preparedValues, failure)
+                ex_PEB_Testing.fn_ReportPhase "GroupingInputs", stepIndex, progressUnits
+                If success Then
+                    Set values = preparedValues
+                    rendered = VBA.CStr(values("WordText"))
+                    values("WordOutput") = path
+                End If
                 document.Close 0
                 Set document = Nothing
-                success = private_Apply(values, failure)
+                ex_PEB_Testing.fn_ReportPhase "GroupingExport", stepIndex, progressUnits
+                If success Then
+                    success = private_Apply(values, failure)
+                End If
+                ex_PEB_Testing.fn_ReportPhase "GroupingReopen", stepIndex, progressUnits
                 Set document = word.Documents.Open(path, False, False, False)
+                ex_PEB_Testing.fn_ReportPhase "GroupingVerify", stepIndex, progressUnits
                 If VBA.Len(step("Error")) > 0 Then
                     If success Or VBA.InStr(1, failure, step("Error"), VBA.vbBinaryCompare) = 0 Then
                         Err.Raise 5, , "Expected grouping failure: " & step("Error") & " / " & failure
@@ -219,14 +234,17 @@ Private Function private_Run( _
             document.Close 0
             Set document = Nothing
             If Not reportSession Is Nothing Then
-                caption = ex_PEB_Export.fn_Config("text.TestPreviewHeading")
+                ex_PEB_Testing.fn_ReportPhase "GroupingReport", stepIndex, progressUnits
+                captionDetail = ex_PEB_Export.fn_Config("text.TestsGroupingStep")
+                captionDetail = VBA.Replace$(captionDetail, "{step}", VBA.CStr(stepIndex))
+                caption = ex_PEB_Export.fn_Config("text.TestsGroupingHeading")
                 caption = VBA.Replace$(caption, "{scenario}", caseId)
-                caption = VBA.Replace$(caption, "{step}", VBA.CStr(stepIndex))
-                caption = VBA.Replace$(caption, "{event}", VBA.CStr(scenario("Name")))
-                If Not reportSession.TryCollectSnapshot(path, values, caption, personNames, diagnostic) Then
+                caption = VBA.Replace$(caption, "{step}", captionDetail)
+                If Not reportSession.TryCollectSnapshot(path, values, caption, personNames, diagnostic, captionDetail) Then
                     Err.Raise 5, , diagnostic
                 End If
                 Set report = VBA.CreateObject("Scripting.Dictionary")
+                report("StepId") = step("Id")
                 report("WordResult") = "PASS"
                 report("Details") = VBA.vbNullString
                 If Not reportSession.TryAppend(report, diagnostic) Then
@@ -234,7 +252,9 @@ Private Function private_Run( _
                 End If
             End If
             Set document = word.Documents.Open(path, False, False, False)
+            ex_PEB_Testing.fn_ReportPhase "GroupingDone", stepIndex, progressUnits
         Next step
+        ex_PEB_Testing.fn_ReportPhase "GroupingVerify", stepIndex + 1, progressUnits
         Set parts = document.CustomXMLParts.SelectByNamespace("urn:excelprototype:word-events:v1")
         If parts.Count <> 1 Then
             Err.Raise 5, , "Expected exactly one embedded event store."
@@ -284,6 +304,7 @@ Private Function private_Run( _
         document.Close 0
         Set document = Nothing
         If Not reportSession Is Nothing Then
+            ex_PEB_Testing.fn_ReportPhase "GroupingReport", stepIndex + 1, progressUnits
             If Not reportSession.TryFinish("Completed", diagnostic) Then
                 Err.Raise 5, , diagnostic
             End If
@@ -294,6 +315,7 @@ Private Function private_Run( _
         files.DeleteFile path
         path = VBA.vbNullString
         count = count + 1
+        ex_PEB_Testing.fn_ReportPhase "GroupingDone", stepIndex + 1, progressUnits
 NextScenario:
     Next scenario
     If count = 0 Then
@@ -321,11 +343,135 @@ Cleanup:
             End If
         End If
     End If
-    If Not templates Is Nothing Then
-        templates.Dispose
+    If Not exportService Is Nothing Then
+        exportService.Dispose
+    End If
+    If Not lookupService Is Nothing Then
+        lookupService.Dispose
+    End If
+    If Not lookupProfile Is Nothing Then
+        lookupProfile.Dispose
     End If
     On Error GoTo 0
 End Function
+
+Private Function private_Prepare( _
+    ByVal inputs As Object, _
+    ByVal lookupService As obj_LookupService, _
+    ByVal exportService As obj_PEB_ExportService, _
+    ByRef values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim binding As obj_UiBindingContext
+    Dim key As Variant
+    Dim mode As String
+    Dim direction As String
+    Dim form As String
+    Dim reporterId As String
+
+    On Error GoTo EH
+    Set values = Nothing
+    diagnostic = VBA.vbNullString
+    Set binding = New obj_UiBindingContext
+    If Not binding.Initialize() Then
+        Err.Raise 5, , "Cannot initialize grouping form bindings."
+    End If
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
+        If Not binding.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
+            Err.Raise 5, , "Cannot register grouping form field: " & key
+        End If
+        If inputs.Exists(key) Then
+            If Not binding.SetValue("Form", VBA.CStr(key), inputs(key)) Then
+                Err.Raise 5, , "Cannot set grouping form field: " & key
+            End If
+        End If
+    Next key
+    mode = VBA.CStr(inputs("ModeId"))
+    form = ex_PEB_EventRoutes.fn_Value(mode, "form")
+    direction = ex_PEB_EventRoutes.fn_Value(mode, "direction")
+    If Not binding.SetValue("Form", "ModeForm", form) Or _
+       Not binding.SetValue("Form", "ModeDirection", direction) Or _
+       Not binding.SetValue("Form", "EventType", ex_PEB_Export.fn_Config("text." & direction & "Type")) Then
+        Err.Raise 5, , "Cannot set grouping event route."
+    End If
+    private_ApplyPerson binding, lookupService, VBA.CStr(inputs("PersonId")), "forms." & form & ".fields", "name"
+    reporterId = VBA.CStr(inputs("ReporterId"))
+    If VBA.Len(reporterId) > 0 Then
+        private_ApplyPerson binding, lookupService, reporterId, "reporter.fields", "formField"
+    End If
+    If Not exportService.TryPrepare(binding, "Word", values, diagnostic, False) Then
+        GoTo Cleanup
+    End If
+    If values("WordOutcome") <> "Success" Or Not values("WordGrouped") Then
+        Err.Raise 5, , "Grouping step must prepare a grouped Word event."
+    End If
+    private_Prepare = True
+    GoTo Cleanup
+EH:
+    diagnostic = VBA.Err.Description
+Cleanup:
+    If Not binding Is Nothing Then
+        binding.Dispose
+    End If
+End Function
+
+Private Sub private_ApplyPerson( _
+    ByVal binding As obj_UiBindingContext, _
+    ByVal lookupService As obj_LookupService, _
+    ByVal personId As String, _
+    ByVal prefix As String, _
+    ByVal targetKey As String _
+)
+    Dim result As obj_LookupResult
+    Dim candidate As obj_LookupRecord
+    Dim selected As obj_LookupRecord
+    Dim diagnostic As String
+    Dim index As Long
+    Dim matches As Long
+    Dim fieldPrefix As String
+    Dim recordField As Variant
+    Dim sourceAlias As String
+    Dim value As Variant
+    Dim target As String
+
+    If VBA.Len(personId) = 0 Then
+        Err.Raise 5, , "Grouping personnel ID is empty."
+    End If
+    If Not lookupService.TrySearch(personId, result, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    If result.HasMore Then
+        Err.Raise 5, , "Grouping personnel search is incomplete: " & personId
+    End If
+    For Each candidate In result.Records
+        If VBA.StrComp(candidate.Key, personId, VBA.vbTextCompare) = 0 Then
+            matches = matches + 1
+            Set selected = candidate
+        End If
+    Next candidate
+    If matches <> 1 Then
+        Err.Raise 5, , "Expected exactly one personnel record: " & personId & "; found " & VBA.CStr(matches)
+    End If
+    ' Use the same personnel and reporter projections as the interactive form.
+    For index = 1 To ex_PEB_Export.fn_Count(prefix & ".count")
+        fieldPrefix = prefix & "." & VBA.CStr(index)
+        If ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::" & fieldPrefix & ".sourceAlias", sourceAlias) Then
+            If VBA.CStr(sourceAlias) = "Personnel" Then
+                recordField = ex_PEB_Export.fn_Config(fieldPrefix & ".record")
+                If Not selected.TryGetValue(VBA.CStr(recordField), value) Then
+                    Err.Raise 5, , "Personnel field is missing: " & VBA.CStr(recordField)
+                End If
+                If VBA.Len(ex_PEB_Export.fn_Text(value)) = 0 Then
+                    Err.Raise 5, , "Personnel field is empty: " & personId & " / " & VBA.CStr(recordField)
+                End If
+                target = ex_PEB_Export.fn_Config(fieldPrefix & "." & targetKey)
+                If Not binding.SetValue("Form", target, value) Then
+                    Err.Raise 5, , "Cannot apply personnel field: " & target
+                End If
+            End If
+        End If
+    Next index
+End Sub
 
 Private Function private_ReadScenarios( _
     ByRef scenarios As Collection, _
@@ -335,12 +481,10 @@ Private Function private_ReadScenarios( _
     Dim steps As Object
     Dim scenario As Object
     Dim item As Object
-    Dim values As Object
     Dim expected As Collection
     Dim ordered As Collection
     Dim rows As Collection
     Dim record As Object
-    Dim field As Variant
     Dim stepId As Variant
     Dim id As String
     Dim events As Long
@@ -368,15 +512,10 @@ Private Function private_ReadScenarios( _
         item("Id") = record("StepId")
         item("Action") = record("Action")
         item("Error") = record("ExpectedError")
-        Set values = VBA.CreateObject("Scripting.Dictionary")
-        If item("Action") = "GroupAdd" Then
-            For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.grouping.stateFields"), "|")
-                values.Add field, record(field)
-            Next field
-        ElseIf item("Action") <> "GroupEdit" Then
+        If item("Action") <> "GroupAdd" And item("Action") <> "GroupEdit" Then
             Err.Raise 5, , "Unknown grouping action: " & item("Action")
         End If
-        Set item("Values") = values
+        Set item("Input") = record
         steps.Add item("Id"), item
     Next record
     For Each scenario In scenarios

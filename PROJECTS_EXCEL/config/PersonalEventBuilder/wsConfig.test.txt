@@ -20,8 +20,10 @@ value	PersonalEventBuilder::test.ui.selectedByDefault	S01|S02
 value	PersonalEventBuilder::test.word.style.basisColor	#767171
 value	PersonalEventBuilder::test.word.style.personColor	#548235
 value	PersonalEventBuilder::test.word.style.headingAfter	10
+value	PersonalEventBuilder::test.word.style.headingColor	#000000
 value	PersonalEventBuilder::test.word.style.personFields	FIO|FIOAccusative|FIOGenitive|FIODative
 value	PersonalEventBuilder::test.word.style.headingBefore	14
+value	PersonalEventBuilder::test.word.style.headingDetailColor	#767171
 value	PersonalEventBuilder::test.word.output	../../tests/PersonalEventBuilder/Results/WordResults_{runId}.docx
 value	PersonalEventBuilder::test.word.template	./Template_10.docx
 value	PersonalEventBuilder::test.audit.inputs.sheet	Тест_ВхідніДані
@@ -65,10 +67,17 @@ value	PersonalEventBuilder::test.progress.WordStart	0
 value	PersonalEventBuilder::test.progress.WordReport	0
 value	PersonalEventBuilder::test.progress.stageCount	8
 value	PersonalEventBuilder::test.progress.OpenAbsence	0
+value	PersonalEventBuilder::test.progress.GroupingDone	8
 value	PersonalEventBuilder::test.progress.OpenMovement	0
 value	PersonalEventBuilder::test.progress.WordTemplate	0
 value	PersonalEventBuilder::test.progress.AfterSnapshot	6
 value	PersonalEventBuilder::test.progress.OpenScenarios	0
+value	PersonalEventBuilder::test.progress.GroupingExport	3
+value	PersonalEventBuilder::test.progress.GroupingInputs	2
+value	PersonalEventBuilder::test.progress.GroupingReopen	5
+value	PersonalEventBuilder::test.progress.GroupingReport	7
+value	PersonalEventBuilder::test.progress.GroupingVerify	6
+value	PersonalEventBuilder::test.progress.GroupingPrepare	0
 value	PersonalEventBuilder::test.registry.kinds	ModeId|Action|RuleStatus|ExpectedDecision|StateCheck|Outcome|ExpectedCode|Operation|Result
 value	PersonalEventBuilder::test.registry.sheet	Registry
 value	PersonalEventBuilder::test.registry.table	tbTestRegistry
@@ -136,7 +145,7 @@ value	PersonalEventBuilder::test.scenarios.expectedWord.sheet	Expected_WORD
 value	PersonalEventBuilder::test.scenarios.expectedWord.table	tbExpectedWord
 value	PersonalEventBuilder::test.scenarios.groupingSteps.sheet	TestGrouping_Steps
 value	PersonalEventBuilder::test.scenarios.groupingSteps.table	tbGroupingSteps
-value	PersonalEventBuilder::test.scenarios.groupingSteps.fields	ScenarioId|StepId|StepOrder|Action|ExpectedError|EventId|TemplateName|PersonId|AcceptedOrderNumber|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort|RankGenitive|FIOAccusative|IPN|PositionGenitive|IncomingNo|IncomingDateShort|ReportPerson|FIOInitialsGenitive|ReporterGenitive
+value	PersonalEventBuilder::test.scenarios.groupingSteps.fields	ScenarioId|StepId|StepOrder|Action|ExpectedError|ModeId|PersonId|ReporterId|AcceptedOrderNumber|AcceptedOrderDate|EventDate|Destination|TicketNumber|TicketDate|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::test.scenarios.groupingSteps.readRange	auto
 value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
 value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
@@ -165,10 +174,17 @@ value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий зні�
 value	PersonalEventBuilder::text.TestPhase.WordStart	Запуск Word для зведеного документа.
 value	PersonalEventBuilder::text.TestPhase.WordReport	Підготовка зведеного Word-документа.
 value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
+value	PersonalEventBuilder::text.TestPhase.GroupingDone	Обробку поточного кроку завершено.
 value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
 value	PersonalEventBuilder::text.TestPhase.WordTemplate	Відкриття шаблону Word та індексація якорів.
 value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
 value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
+value	PersonalEventBuilder::text.TestPhase.GroupingExport	Виконання дії групування у Word.
+value	PersonalEventBuilder::text.TestPhase.GroupingInputs	Вхідні дані кроку підготовлено.
+value	PersonalEventBuilder::text.TestPhase.GroupingReopen	Повторне відкриття збереженого документа Word.
+value	PersonalEventBuilder::text.TestPhase.GroupingReport	Збереження знімка або зведеного Word-звіту.
+value	PersonalEventBuilder::text.TestPhase.GroupingVerify	Перевірка тексту та збережених даних групування.
+value	PersonalEventBuilder::text.TestPhase.GroupingPrepare	Підготовка документа та вхідних даних кроку.
 value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
 value	PersonalEventBuilder::text.TestsBusy	Тести виконуються. Зупиніть запуск перед зміною середовища, ручним завантаженням або експортом.
 value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у TestScenarios.xlsx. Скасування між кроками.
@@ -295,6 +311,7 @@ value	PersonalEventBuilder::text.StylePartSelector	Для стилю части�
 value	PersonalEventBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
 value	PersonalEventBuilder::text.TestPreviewNotRun	Прев’ю не сформовано: крок не виконувався.
 value	PersonalEventBuilder::text.TestScenarioItems	S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,W01,W02,W03,W04,W05,W06,W07,W08,W09
+value	PersonalEventBuilder::text.TestsGroupingStep	[Крок {step}]
 value	PersonalEventBuilder::text.TestsWordNoTiming	—
 value	PersonalEventBuilder::text.TicketNumberLabel	Квиток №
 value	PersonalEventBuilder::text.DepartureDateLabel	Дата вибуття
@@ -320,6 +337,95 @@ value	PersonalEventBuilder::text.StyleOverlayBinding	Не вдалося виз�
 value	PersonalEventBuilder::text.StyleOverlayMissing	Стиль виділення не оголошено: {value}
 value	PersonalEventBuilder::text.StyleTargetSelector	Для селекторів row, col або address використовуйте ціль діапазону.
 value	PersonalEventBuilder::text.TestCustomOperation	Custom
+value	PersonalEventBuilder::text.TestStepDescription.S01-M01	Вибуття військовослужбовця на стаціонарне лікування за відсутності відкритих вибуттів.
+value	PersonalEventBuilder::text.TestStepDescription.S02-M01	Вибуття військовослужбовця у щорічну відпустку.
+value	PersonalEventBuilder::text.TestStepDescription.S03-M01	Вибуття військовослужбовця у відпустку для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.S04-M01	Вибуття військовослужбовця у відпустку за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.S05-M01	Прибуття військовослужбовця зі стаціонарного лікування; закриття відкритого вибуття.
+value	PersonalEventBuilder::text.TestStepDescription.S06-M01	Прибуття військовослужбовця зі щорічної відпустки.
+value	PersonalEventBuilder::text.TestStepDescription.S07-M01	Прибуття військовослужбовця з відпустки для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.S08-M01	Прибуття військовослужбовця з відпустки за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.S09-M01	Спроба повторного вибуття у щорічну відпустку за наявності такого самого відкритого вибуття.
+value	PersonalEventBuilder::text.TestStepDescription.S10-M01	Нове вибуття на стаціонарне лікування після закриття попереднього вибуття.
+value	PersonalEventBuilder::text.TestStepDescription.S11-M01	Спроба оформити прибуття за наявності двох відкритих вибуттів.
+value	PersonalEventBuilder::text.TestStepDescription.S12-M01	Спроба оформити прибуття зі щорічної відпустки без попереднього вибуття.
+value	PersonalEventBuilder::text.TestStepDescription.S13-M01	Спроба оформити прибуття з відпустки для лікування раніше дати вибуття.
+value	PersonalEventBuilder::text.TestStepDescription.S14-M01	Повторне надсилання тієї самої події вибуття за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.S15-M01	Перехід зі щорічної відпустки на стаціонарне лікування; перевірка РУХ і Word.
+value	PersonalEventBuilder::text.TestStepDescription.S16-M02	Прибуття зі щорічної відпустки заднім числом у межах поточного наказу.
+value	PersonalEventBuilder::text.TestStepDescription.S16-M03	Вибуття на стаціонарне лікування після прибуття, оформленого тим самим наказом.
+value	PersonalEventBuilder::text.TestStepDescription.S17-E01	Перехід з амбулаторної ВЛК у відпустку для лікування за наявності одного відкритого запису.
+value	PersonalEventBuilder::text.TestStepDescription.S18-E01	Оформлення амбулаторної ВЛК у РУХ без створення пункту Word.
+value	PersonalEventBuilder::text.TestStepDescription.S19-E01	Перехід з амбулаторної ВЛК у відпустку для лікування без відкритого запису.
+value	PersonalEventBuilder::text.TestStepDescription.S20-E01	Перехід з амбулаторної ВЛК у відпустку для лікування за наявності двох відкритих записів.
+value	PersonalEventBuilder::text.TestStepDescription.W01-P01	Перевірка тексту Word: вибуття на стаціонарне лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W02-P01	Перевірка тексту Word: прибуття зі стаціонарного лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W03-P01	Перевірка тексту Word: вибуття у щорічну відпустку.
+value	PersonalEventBuilder::text.TestStepDescription.W04-P01	Перевірка тексту Word: прибуття зі щорічної відпустки.
+value	PersonalEventBuilder::text.TestStepDescription.W05-P01	Перевірка тексту Word: вибуття у відпустку для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W06-P01	Перевірка тексту Word: прибуття з відпустки для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W07-P01	Перевірка тексту Word: вибуття у відпустку за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.W08-P01	Перевірка тексту Word: прибуття з відпустки за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.W09-P01	Перевірка тексту Word: вибуття на лікування до лікарні, якої немає у довіднику.
+value	PersonalEventBuilder::text.TestStepDescription.W10-P01	Перевірка тексту Word: прибуття з відрядження.
+value	PersonalEventBuilder::text.TestStepDescription.W11-P01	Перевірка тексту Word: завершення амбулаторного обстеження або ВЛК.
+value	PersonalEventBuilder::text.TestStepDescription.W12-P01	Перевірка тексту Word: прибуття із зовнішньої ВЛК.
+value	PersonalEventBuilder::text.TestStepDescription.W13-P01	Перевірка тексту Word: прибуття з лікування в медичній роті.
+value	PersonalEventBuilder::text.TestStepDescription.W14-P01	Перевірка тексту Word: вибуття у відпустку у зв’язку з вагітністю та пологами.
+value	PersonalEventBuilder::text.TestStepDescription.W15-P01	Перевірка тексту Word: направлення на амбулаторне обстеження або ВЛК.
+value	PersonalEventBuilder::text.TestStepDescription.W16-P01	Перевірка тексту Word: вибуття на лікування до медичної роти.
+value	PersonalEventBuilder::text.TestStepDescription.W17-P01	Перевірка тексту Word: перехід зі стаціонарного лікування у відпустку для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W18-P01	Перевірка тексту Word: продовження відпустки для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W19-P01	Перевірка тексту Word: госпіталізація під час відпустки для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W20-P01	Перевірка тексту Word: направлення на ВЛК під час відпустки для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W21-P01	Перевірка тексту Word: направлення на ВЛК під час щорічної відпустки.
+value	PersonalEventBuilder::text.TestStepDescription.W22-P01	Перевірка тексту Word: направлення на ВЛК під час відпустки за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.W23-P01	Перевірка тексту Word: перехід з ВЛК у відпустку для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W24-P01	Перевірка тексту Word: перехід з ВЛК на стаціонарне лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W25-P01	Перевірка тексту Word: перехід з лікування в медичній роті на стаціонарне лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W26-P01	Перевірка тексту Word: перехід з лікування в медичній роті у відпустку для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W27-P01	Перевірка тексту Word: госпіталізація під час відпустки для лікування після медичної роти.
+value	PersonalEventBuilder::text.TestStepDescription.W28-P01	Перевірка тексту Word: продовження відпустки для лікування після медичної роти.
+value	PersonalEventBuilder::text.TestStepDescription.W29-P01	Перевірка тексту Word: перехід зі щорічної відпустки у відпустку за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.W30-P01	Перевірка тексту Word: перехід з відпустки за сімейними обставинами у щорічну відпустку.
+value	PersonalEventBuilder::text.TestStepDescription.W31-P01	Перевірка тексту Word: направлення зі стаціонарного лікування на зовнішню ВЛК.
+value	PersonalEventBuilder::text.TestStepDescription.W32-P01	Перевірка тексту Word: госпіталізація під час відпустки за сімейними обставинами.
+value	PersonalEventBuilder::text.TestStepDescription.W33-P01	Перевірка тексту Word: перехід із зовнішньої ВЛК у відпустку для лікування.
+value	PersonalEventBuilder::text.TestStepDescription.W34-P01	Перевірка тексту Word: перехід із зовнішньої ВЛК на стаціонарне лікування.
+value	PersonalEventBuilder::text.TestStepDescription.G03-gaps-01	Створення пункту відрядження з першим посвідченням.
+value	PersonalEventBuilder::text.TestStepDescription.G03-gaps-02	Додавання другого військовослужбовця з пропуском у номерах посвідчень; окреме перелічення номерів.
+value	PersonalEventBuilder::text.TestStepDescription.G03-gaps-03	Додавання третього військовослужбовця; об’єднання послідовних номерів зі збереженням пропуску.
+value	PersonalEventBuilder::text.TestStepDescription.G01-single-01	Відправлення першого військовослужбовця у відрядження; створення одиночного пункту.
+value	PersonalEventBuilder::text.TestStepDescription.G10-manual-edit-01	Створення пункту відрядження перед ручним редагуванням.
+value	PersonalEventBuilder::text.TestStepDescription.G10-manual-edit-02	Ручне редагування збереженого пункту Word.
+value	PersonalEventBuilder::text.TestStepDescription.G10-manual-edit-03	Спроба додати другого військовослужбовця до зміненого вручну пункту; очікуваний захист ручних змін.
+value	PersonalEventBuilder::text.TestStepDescription.G15-other-order-01	Створення пункту відрядження в поточному наказі.
+value	PersonalEventBuilder::text.TestStepDescription.G15-other-order-02	Спроба додати подію іншого наказу; очікувана відмова без зміни документа.
+value	PersonalEventBuilder::text.TestStepDescription.G06-other-report-01	Створення пункту відрядження за першим рапортом.
+value	PersonalEventBuilder::text.TestStepDescription.G06-other-report-02	Відправлення другого військовослужбовця за іншим рапортом; розділення пунктів за підставою.
+value	PersonalEventBuilder::text.TestStepDescription.G14-self-reports-01	Створення пункту відрядження за особистим рапортом першого військовослужбовця.
+value	PersonalEventBuilder::text.TestStepDescription.G14-self-reports-02	Додавання другого військовослужбовця з власним рапортом; розділення пунктів за особистою підставою.
+value	PersonalEventBuilder::text.TestStepDescription.G08-idempotent-retry-01	Перше додавання події відрядження.
+value	PersonalEventBuilder::text.TestStepDescription.G08-idempotent-retry-02	Повторне додавання тієї самої події; перевірка відсутності дублювання.
+value	PersonalEventBuilder::text.TestStepDescription.G13-unsorted-numbers-01	Створення пункту відрядження з посвідченням № 2026/298/101.
+value	PersonalEventBuilder::text.TestStepDescription.G13-unsorted-numbers-02	Додавання посвідчення № 2026/298/103; збереження пропуску в номерах.
+value	PersonalEventBuilder::text.TestStepDescription.G13-unsorted-numbers-03	Додавання посвідчення № 2026/298/102 після № 103; сортування та утворення суцільного діапазону.
+value	PersonalEventBuilder::text.TestStepDescription.G04-other-destination-01	Створення пункту відрядження до першого місця призначення.
+value	PersonalEventBuilder::text.TestStepDescription.G04-other-destination-02	Відправлення другого військовослужбовця до іншого місця; створення окремого пункту.
+value	PersonalEventBuilder::text.TestStepDescription.G09-conflicting-event-01	Збереження початкових даних події відрядження.
+value	PersonalEventBuilder::text.TestStepDescription.G09-conflicting-event-02	Спроба повторно додати ту саму подію зі зміненими даними; очікувана відмова без зміни документа.
+value	PersonalEventBuilder::text.TestStepDescription.G12-other-number-series-01	Створення пункту відрядження з посвідченням першої серії.
+value	PersonalEventBuilder::text.TestStepDescription.G12-other-number-series-02	Додавання посвідчення іншої серії; номери різних серій не об’єднуються в діапазон.
+value	PersonalEventBuilder::text.TestStepDescription.G05-other-departure-date-01	Створення пункту відрядження з першою датою вибуття.
+value	PersonalEventBuilder::text.TestStepDescription.G05-other-departure-date-02	Відправлення другого військовослужбовця іншою датою; створення окремого пункту.
+value	PersonalEventBuilder::text.TestStepDescription.G11-duplicate-certificate-01	Створення пункту відрядження з першим номером посвідчення.
+value	PersonalEventBuilder::text.TestStepDescription.G11-duplicate-certificate-02	Спроба додати іншого військовослужбовця з тим самим номером посвідчення; очікувана відмова.
+value	PersonalEventBuilder::text.TestStepDescription.G16-malformed-certificate-01	Створення пункту відрядження з коректним номером посвідчення.
+value	PersonalEventBuilder::text.TestStepDescription.G16-malformed-certificate-02	Спроба додати посвідчення з некоректним номером; очікувана відмова без зміни документа.
+value	PersonalEventBuilder::text.TestStepDescription.G02-second-person-rebuilds-01	Відправлення першого військовослужбовця у відрядження.
+value	PersonalEventBuilder::text.TestStepDescription.G02-second-person-rebuilds-02	Відправлення другого військовослужбовця до того самого місця тією самою датою; перебудова пункту в груповий.
+value	PersonalEventBuilder::text.TestStepDescription.G07-other-certificate-date-01	Створення пункту відрядження з першою датою посвідчення.
+value	PersonalEventBuilder::text.TestStepDescription.G07-other-certificate-date-02	Додавання військовослужбовця з іншою датою посвідчення; створення окремого пункту.
 value	PersonalEventBuilder::text.TestsGroupingFailed	Помилка перевірки групування WORD: {error}
 value	PersonalEventBuilder::text.TestsGroupingPassed	Групування WORD: успішно перевірено {count} сценаріїв.
 value	PersonalEventBuilder::text.TestsPreviousFailed	Попередній крок сценарію не пройдено; наступний крок не виконується.
@@ -329,6 +435,7 @@ value	PersonalEventBuilder::text.ModeArrivalDateLabel	Прибуття.Дата
 value	PersonalEventBuilder::text.ModeDestinationLabel	Місце
 value	PersonalEventBuilder::text.PersonnelActionError	Помилка роботи з кандидатами: {details}
 value	PersonalEventBuilder::text.TestPreviewOperation	PreviewWord
+value	PersonalEventBuilder::text.TestsGroupingHeading	{scenario} {step}
 value	PersonalEventBuilder::text.TestsWordBasisPrefix	Підстава:
 value	PersonalEventBuilder::text.ExportMovementSuccess	Подію збережено в РУХ.
 value	PersonalEventBuilder::text.ExportWordUnavailable	Експорт WORD тимчасово вимкнено. Доступний перегляд тексту на аркуші.

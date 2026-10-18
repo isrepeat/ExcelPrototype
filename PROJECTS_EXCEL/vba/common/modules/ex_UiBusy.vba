@@ -36,6 +36,7 @@ Public Function fn_Begin(Optional ByVal statusText As String = VBA.vbNullString)
         End If
     End If
     m_depth = m_depth + 1
+    fn_Refresh
     fn_Begin = True
     Err.Clear
     On Error GoTo 0
@@ -45,8 +46,20 @@ Public Sub fn_End()
     If m_depth <= 0 Then Exit Sub
 
     m_depth = m_depth - 1
-    If m_depth <> 0 Then Exit Sub
+    If m_depth <> 0 Then
+        fn_Refresh
+        Exit Sub
+    End If
     private_Restore
+End Sub
+
+Public Sub fn_Refresh()
+    If m_depth <= 0 Then Exit Sub
+    ' Message pumping and external automation can replace the displayed cursor.
+    On Error Resume Next
+    Application.Cursor = xlWait
+    Err.Clear
+    On Error GoTo 0
 End Sub
 
 Public Sub fn_Reset()

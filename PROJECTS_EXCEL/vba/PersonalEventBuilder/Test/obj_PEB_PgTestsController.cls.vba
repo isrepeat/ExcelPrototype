@@ -285,13 +285,28 @@ Public Sub FailRun(ByVal diagnostic As String)
     private_Finish diagnostic
 End Sub
 
-Public Sub ReportPhase(ByVal key As String)
+Public Sub ReportPhase( _
+    ByVal key As String, _
+    Optional ByVal completedUnits As Long = 0, _
+    Optional ByVal totalUnits As Long = 0 _
+)
     Dim percent As Double
 
     If Not m_running Then
         Exit Sub
     End If
     percent = 100# * ex_PEB_Export.fn_Count("test.progress." & key, 8) / ex_PEB_Export.fn_Count("test.progress.stageCount", 8)
+    If m_grouping Then
+        If totalUnits > 0 Then
+            If completedUnits < 0 Or completedUnits >= totalUnits Then
+                Err.Raise 5, , "Invalid grouping progress units."
+            End If
+            percent = (100# * completedUnits + percent) / totalUnits
+        Else
+            ' Shared Word initialization reports captions inside the current grouping unit.
+            percent = m_phasePercent
+        End If
+    End If
     If percent > m_phasePercent Then
         m_phasePercent = percent
     End If
@@ -575,6 +590,7 @@ Private Function private_AdvanceGrouping() As Boolean
             End If
             Me.PublishResult report
             m_completed = m_completed + 1
+            m_phasePercent = 0
             private_Progress ex_PEB_Export.fn_Config("text.TestsRunning")
             If m_completed = m_total Then
                 private_Finish VBA.vbNullString

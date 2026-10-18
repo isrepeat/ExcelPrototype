@@ -50,15 +50,26 @@ def main():
         template = root.find("p:template[@name='ToBusinessTrip']", NS)
         fields = set(settings["export.Word.grouping.stateFields"].split("|"))
         validate_plan(template, fields)
+        certificate_pattern = template.find("p:group/p:aggregate", NS).get("pattern")
+        assert not re.fullmatch(certificate_pattern, "2026/298/INVALID")
+        assert re.fullmatch(certificate_pattern, "2026/298/101")
         assert "PersonId" not in settings["export.Word.grouping.output"]
         assert "AcceptedOrderNumber" in settings["export.Word.grouping.output"]
         assert settings["export.Word.textAnchors.ToBusinessTrip"] == "ToBusinessTrip"
         fixture = load_grouping_cases(settings)
         defaults = {node.get("name"): node.text or "" for node in fixture.find("defaults")}
-        assert fields == set(defaults)
+        assert set(defaults) == set(settings["test.scenarios.groupingSteps.fields"].split("|")[5:])
         assert "WordText" not in fields
         assert template.find("p:text", NS) is None
         assert "{[GroupBasis]}" in template.find("p:group/p:single/p:text", NS).text
+        single = template.find("p:group/p:single/p:text", NS).text
+        assert single.index("Відрядити у") < single.index("{#newline}{#newline}") < single.index("{#include block.PersonLineLower}")
+        assert single.count("{[Destination]|nbspAfterSettlementAbbr}") == 1
+        assert single.count("{[DateFromShort]|") == 1
+        footer = template.find("p:group/p:multiple/p:footer/p:text", NS).text
+        assert "№№\u00a0{[CertificateNumbers]}" in footer
+        certificate = root.find("p:sharedTemplates/p:sharedTemplate[@id='block.OptionalBusinessTripCertificate']/p:text", NS)
+        assert certificate is not None and "№\u00a0{[VacationTicketNo]}" in certificate.text
         assert validate_cases() == 12
         ids = set()
         failure_cases = set()
@@ -71,11 +82,12 @@ def main():
             for step in scenario.findall("add"):
                 values = defaults | {node.get("name"): node.text or "" for node in step}
                 assert set(values) == set(defaults)
-                assert values["EventId"] == values["TemplateName"] == "ToBusinessTrip"
+                assert values["ModeId"] == "ToBusinessTrip"
+                assert re.fullmatch(r"ipn_\d{4}", values["PersonId"])
                 if step.get("error"):
                     failure_cases.add(step.get("error"))
                 else:
-                    assert re.fullmatch(template.find("p:group/p:aggregate", NS).get("pattern"), values["VacationTicketNo"])
+                    assert re.fullmatch(template.find("p:group/p:aggregate", NS).get("pattern"), values["TicketNumber"])
             for assertion in scenario.findall("expect"):
                 assert assertion.text and int(assertion.get("count")) >= 0
         assert len(ids) == 16
@@ -83,6 +95,11 @@ def main():
         assert "test.word.grouping.output" not in settings
         if settings["environment.name"] == "TEST":
             assert "{runId}" in settings["test.word.output"]
+            progress = [settings["test.progress.Grouping" + phase] for phase in ("Prepare", "Inputs", "Export", "Reopen", "Verify", "Report", "Done")]
+            assert list(map(int, progress)) == sorted(map(int, progress))
+            assert int(progress[0]) == 0 and progress[-1] == settings["test.progress.stageCount"]
+            for phase in ("Prepare", "Inputs", "Export", "Reopen", "Verify", "Report", "Done"):
+                assert settings["text.TestPhase.Grouping" + phase]
         for key in ("TestsBasic", "TestsGrouping", "TestsGroupingDocuments"):
             assert settings["text." + key]
         assert failure_cases == {"different data", "edited manually", "Duplicate grouped document number", "different order", "declared range pattern"}
@@ -95,6 +112,8 @@ def main():
         assert len("btn_" + name) <= 31
     folder = ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder"
     state = (folder / "ex_PEB_WordState.vba").read_text(encoding="utf-8-sig")
+    groups_source = (folder / "ex_PEB_WordGroups.vba").read_text(encoding="utf-8-sig")
+    assert "private_Attribute = VBA.CStr(value.nodeValue)" in groups_source
     exporter = (folder / "obj_PEB_ExptrWord.cls.vba").read_text(encoding="utf-8-sig")
     suite = (folder / "Test/ex_PEB_GroupingTests.vba").read_text(encoding="utf-8-sig")
     controller = (folder / "Test/obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
@@ -118,12 +137,24 @@ def main():
     assert "private_CheckTemplate document" in suite
     assert "test.word.grouping.templateAnchor" not in suite
     assert "exporter.TryExportExistingTest(values, diagnostic)" in suite
-    assert "document.Close 0\n                Set document = Nothing\n                success = private_Apply(values, failure)" in suite
+    export_call = suite.index("success = private_Apply(values, failure)")
+    assert suite.rfind("document.Close 0", 0, export_call) < suite.rfind("Set document = Nothing", 0, export_call)
+    assert 'fn_ReportPhase "GroupingExport", stepIndex, progressUnits' in suite
     assert "reportSession.TryCollectSnapshot" in suite
     assert "Grouping changed the template font" in suite
     assert "PEB_Grouping_" in exporter and 'environment.name") <> "TEST"' in exporter
     report_source = (folder / "Test/obj_PEB_TestWordSession.cls.vba").read_text(encoding="utf-8-sig")
     assert "Public Function TryCollectSnapshot(" in report_source
+    assert 'fn_Config("text.TestsGroupingHeading")' in suite
+    assert 'fn_Config("text.TestsGroupingStep")' in suite
+    assert 'caption = VBA.Replace$(caption, "{event}"' not in suite
+    assert "detailRange.Font.Color = m_headingDetailColor" in report_source
+    assert 'report("StepId") = step("Id")' in suite
+    assert 'fn_Config("text.TestStepDescription." & VBA.CStr(report("StepId")))' in report_source
+    assert "m_eventDescription & VBA.ChrW$(11) & stepDescription" in report_source
+    assert "descriptionRange.Font.Color = m_headingDetailColor" in report_source
+    assert "pointRange.Font.Bold = False" in report_source
+    assert 'isBasis = (VBA.Left$(' in report_source
     assert "m_insertedRange.FormattedText" in report_source
     from zipfile import ZipFile
     with ZipFile(WORKBOOK / settings["test.word.template"]) as package:
@@ -142,7 +173,11 @@ def main():
     assert 'Private Const STATE_VERSION As String = "2"' in state
     assert state.index("state.preserveWhiteSpace = True") < state.index("state.LoadXML(part.XML)")
     assert 'text = private_Normalize(VBA.CStr(sharedTemplates(key)))' in state
-    assert 'templates.TryRender("ToBusinessTrip", values, rendered, diagnostic)' in suite
+    assert 'exportService.TryPrepare(binding, "Word", values, diagnostic, False)' in suite
+    assert 'lookupService.TrySearch(personId, result, diagnostic)' in suite
+    assert 'If matches <> 1 Then' in suite
+    assert 'values("IPN") = values("PersonId")' not in suite
+    assert 'step("Values")' not in suite
     assert "Single-event preview differs from persisted Word rendering" in suite
     assert "precedingText = private_OutsideText(body," in suite
     assert "followingText = private_OutsideText(body," in suite
