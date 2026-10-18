@@ -226,13 +226,14 @@
       <aggregate name="CertificateNumbers"
                  field="VacationTicketNo"
                  operation="numberRanges"
-                 pattern="^(.*[/])?([0-9]+)(.*)$"
+                 pattern="^([0-9]{4}/[^/]+/)([0-9]+)(.*)$"
                  separator=", "
                  rangeSeparator="–"/>
       <single>
         <text><![CDATA[#^
-#_      Відрядити {[RankGenitive]} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}#^
-#_      {#space}у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}.#^
+#_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      {#newline}{#newline}#^
+#_      {#include block.PersonLineLower}.#^
         {#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.
     ]]></text>
       </single>
@@ -244,7 +245,7 @@
           <text>{#include block.PersonLineLower}.</text>
         </item>
         <footer common="GroupBasis; VacationTicketDateShort">
-          <text><![CDATA[{[GroupBasis]}; посвідчення про відрядження № {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]></text>
+          <text><![CDATA[{[GroupBasis]}; посвідчення про відрядження №№ {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]></text>
         </footer>
       </multiple>
     </group>

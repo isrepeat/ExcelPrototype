@@ -486,7 +486,7 @@ def template_coverage_checks(tables, settings):
     if grouped:
         fixture = load_grouping_cases(settings)
         assert fixture.findall("scenario")
-        covered = {node.text for node in fixture.findall("scenario/add/field[@name='TemplateName']")}
+        covered = {settings[f"events.{node.text}.word.template"] for node in fixture.findall("scenario/add/field[@name='ModeId']")}
         assert grouped <= covered, "Missing persistent Word grouping suite"
     assert settings["test.registry.ModeId.values"] == settings["events.ids"], "Business event registry is stale"
     steps = unique(tables["tbTestSteps"]["rows"], "StepId")

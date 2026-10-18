@@ -482,7 +482,8 @@ Private Function private_Attribute( _
     If value Is Nothing Then
         Err.Raise 5, , "Missing Word grouping attribute: " & name
     End If
-    private_Attribute = VBA.CStr(value.Text)
+    ' MSXML .Text trims attribute whitespace, including significant separator spaces.
+    private_Attribute = VBA.CStr(value.nodeValue)
     If VBA.Len(private_Attribute) = 0 Then
         Err.Raise 5, , "Empty Word grouping attribute: " & name
     End If

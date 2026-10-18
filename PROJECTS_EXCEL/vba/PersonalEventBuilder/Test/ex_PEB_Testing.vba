@@ -290,6 +290,7 @@ Public Sub fn_PumpUi()
     DoEvents
 CleanExit:
     Application.ScreenUpdating = previousScreen
+    ex_UiBusy.fn_Refresh
     If errorNumber <> 0 Then Err.Raise errorNumber, , errorDescription
     Exit Sub
 Failed:
@@ -298,7 +299,11 @@ Failed:
     Resume CleanExit
 End Sub
 
-Public Sub fn_ReportPhase(ByVal key As String)
+Public Sub fn_ReportPhase( _
+    ByVal key As String, _
+    Optional ByVal completedUnits As Long = 0, _
+    Optional ByVal totalUnits As Long = 0 _
+)
     Dim elapsed As Double
     Dim nowAt As Double
 
@@ -308,11 +313,13 @@ Public Sub fn_ReportPhase(ByVal key As String)
     If Not m_testController.IsRunning Then
         Exit Sub
     End If
-    m_testController.ReportPhase key
+    m_testController.ReportPhase key, completedUnits, totalUnits
     nowAt = VBA.Timer
     elapsed = nowAt - m_lastPhaseFlush
     If elapsed < 0 Then elapsed = elapsed + 86400#
-    If elapsed * 1000# < ex_PEB_Export.fn_Count("test.runner.uiRefreshMilliseconds") Then Exit Sub
+    If totalUnits = 0 Then
+        If elapsed * 1000# < ex_PEB_Export.fn_Count("test.runner.uiRefreshMilliseconds") Then Exit Sub
+    End If
     m_lastPhaseFlush = nowAt
     private_FlushMain
     fn_PumpUi
@@ -346,6 +353,7 @@ Public Sub fn_Tick()
     Dim elapsed As Double
     Dim budget As Long
     Dim configEntered As Boolean
+    Dim busyEntered As Boolean
 
     If m_advancing Then Exit Sub
     If Not m_tickPending Then Exit Sub
@@ -361,6 +369,8 @@ Public Sub fn_Tick()
         Exit Sub
     End If
     entered = True
+    ' Scheduled callbacks run after the initiating click has released its busy scope.
+    busyEntered = ex_UiBusy.fn_Begin()
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     m_advancing = True
@@ -385,6 +395,7 @@ CleanExit:
     m_advancing = False
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreen
+    If busyEntered Then ex_UiBusy.fn_End
     If entered Then
         ex_RuntimeLifecycle.fn_Leave runtimeContext
         entered = False
