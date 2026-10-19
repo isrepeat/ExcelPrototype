@@ -1489,6 +1489,7 @@ value	PersonalEventBuilder::orders.queryFormat.groupSeparator	none
 value	PersonalEventBuilder::orders.queryFormat.decimalSeparator	.
   ref	PersonalEventBuilder::orders.numberHeader	__cfgDependencies.source.Orders.numberHeader
 value	PersonalEventBuilder::hotkeys.preview	^3
+value	PersonalEventBuilder::hotkeys.saveHistory	^e
 value	PersonalEventBuilder::history.path	./EventsHistory.test.xlsx
 value	PersonalEventBuilder::history.list.columns.1.field	EventLabel
 value	PersonalEventBuilder::history.list.columns.1.caption	Подія
