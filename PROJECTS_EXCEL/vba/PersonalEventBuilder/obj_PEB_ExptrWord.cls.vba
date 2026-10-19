@@ -77,7 +77,6 @@ Public Function TryGenerateHistory( _
     Dim context As Object
     Dim definition As Object
     Dim group As Collection
-    Dim target As Object
     Dim eventId As Variant
     Dim text As String
     Dim body As String
@@ -147,25 +146,17 @@ Public Function TryGenerateHistory( _
     wordApp.AutomationSecurity = 3
     Set document = wordApp.Documents.Add(m_templatePath, False, 0, False)
     private_ReplaceDocumentFields document, first
-    ' Empty existing managed anchors too, so deleted events cannot survive rebuilding.
-    For Each eventId In ex_PEB_EventRoutes.fn_Ids()
-        If ex_PEB_EventRoutes.fn_HasRoute(VBA.CStr(eventId), "Word") Then
+    ' Each document starts from the empty template; populate only rendered sections.
+    For Each eventId In rendered.Keys
+        If VBA.Len(rendered(eventId)) > 0 Then
             Set context = VBA.CreateObject("Scripting.Dictionary")
             context.Add "EventId", eventId
-            context.Add "WordText", VBA.vbNullString
+            context.Add "WordText", rendered(eventId)
             Set anchors = New obj_PEB_WordAnchors
             If Not anchors.Initialize(document, diagnostic) Then GoTo CleanupHistory
-            Set target = Nothing
-            If anchors.TryGetInsertedRange(document, context, target, diagnostic) Then
-                If rendered.Exists(eventId) Then context("WordText") = rendered(eventId)
-                If Not anchors.TryInsert(document, context, diagnostic) Then GoTo CleanupHistory
-                If Not anchors.TryVerify(document, context, diagnostic) Then GoTo CleanupHistory
-                anchors.HideMarkers document, context
-            ElseIf rendered.Exists(eventId) Then
-                GoTo CleanupHistory
-            Else
-                diagnostic = VBA.vbNullString
-            End If
+            If Not anchors.TryInsert(document, context, diagnostic) Then GoTo CleanupHistory
+            If Not anchors.TryVerify(document, context, diagnostic) Then GoTo CleanupHistory
+            anchors.HideMarkers document, context
             anchors.Dispose
             Set anchors = Nothing
         End If
