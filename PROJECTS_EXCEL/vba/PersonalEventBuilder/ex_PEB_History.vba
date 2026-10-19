@@ -27,10 +27,9 @@ Public Function fn_Save( _
     Dim target As ListRow
     Dim backup As Variant
     Dim data() As Variant
-    Dim owned As Boolean
     Dim added As Boolean
     Dim changed As Boolean
-    Dim saved As Boolean
+    Dim committed As Boolean
     Dim index As Long
     Dim matchIndex As Long
     Dim identifier As String
@@ -50,13 +49,14 @@ Public Function fn_Save( _
     Dim previousSheet As Object
     Dim needsValidation As Boolean
     Dim historyIndex As Object
+    Dim recoveryToken As String
 
     On Error GoTo EH
     Set previousBook = Application.ActiveWorkbook
     Set previousSheet = Application.ActiveSheet
     ex_PEB_Export.fn_BeginConfigSnapshot
     snapshotStarted = True
-    private_Open book, table, owned
+    private_Open book, table
     originalColumns = table.ListColumns.Count
     For Each collectionName In VBA.Array("MetaDocumentTables", "MetaTvoTables", "HistoryReports")
         If values.Exists(collectionName) Then
@@ -189,6 +189,7 @@ Public Function fn_Save( _
         data(1, table.ListColumns(VBA.CStr(stateField)).Index) = current(stateField)
         values(stateField) = current(stateField)
     Next stateField
+    recoveryToken = ex_PEB_HistoryRecovery.fn_Prepare(table, backup, data, transaction)
     If matchIndex = 0 Then
         Set target = table.ListRows.Add
         added = True
@@ -196,15 +197,15 @@ Public Function fn_Save( _
     written = True
     target.Range.NumberFormat = "@"
     target.Range.Value2 = data
-    book.Save
-    saved = True
+    ex_PEB_HistoryRecovery.fn_Mark book, recoveryToken, "COMMIT"
+    committed = True
     values("HistoryAction") = "INSERT"
     If Not added Then values("HistoryAction") = "UPDATE"
     fn_Save = True
 Cleanup:
     On Error Resume Next
     VBA.Err.Clear
-    If Not saved And Not target Is Nothing Then
+    If Not committed And Not target Is Nothing Then
         If added Then
             target.Delete
         ElseIf written Then
@@ -218,14 +219,14 @@ Cleanup:
         diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$( _
             ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", VBA.Err.Description)
     End If
-    If Not saved Then
+    If Not committed Then
         If Not ex_PEB_HistoryRevisions.fn_Rollback(transaction, rollbackDiagnostic) Then
             diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$( _
                 ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", rollbackDiagnostic)
         End If
     End If
     VBA.Err.Clear
-    If Not saved And originalColumns > 0 Then
+    If Not committed And originalColumns > 0 Then
         For index = table.ListColumns.Count To originalColumns + 1 Step -1
             table.ListColumns(index).Delete
         Next index
@@ -234,7 +235,6 @@ Cleanup:
         diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$( _
             ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", VBA.Err.Description)
     End If
-    If owned And Not book Is Nothing Then book.Close False
     If Not previousBook Is Nothing Then
         previousBook.Activate
         previousSheet.Activate
@@ -255,7 +255,8 @@ Public Function fn_ReadOrder( _
     ByRef events As Collection, _
     ByRef diagnostic As String, _
     Optional ByVal includeChildren As Boolean = True, _
-    Optional ByVal people As Object = Nothing _
+    Optional ByVal people As Object = Nothing, _
+    Optional ByVal readSync As Boolean = True _
 ) As Boolean
     Dim book As Workbook
     Dim table As ListObject
@@ -269,7 +270,6 @@ Public Function fn_ReadOrder( _
     Dim root As Object
     Dim item As Object
     Dim chain As Object
-    Dim owned As Boolean
     Dim index As Long
     Dim parentId As String
     Dim typeName As String
@@ -286,9 +286,9 @@ Public Function fn_ReadOrder( _
         End If
         dateText = private_Text(fn_Date(orderDate))
     End If
-    private_Open book, table, owned
+    private_Open book, table
     Set columns = private_Columns(table, False)
-    Set rows = private_Read(table, columns)
+    Set rows = private_Read(table, columns, Nothing, readSync)
     Set ids = VBA.CreateObject("Scripting.Dictionary")
     Set identities = VBA.CreateObject("Scripting.Dictionary")
     Set selected = New Collection
@@ -362,7 +362,6 @@ Public Function fn_ReadOrder( _
     fn_ReadOrder = True
 Cleanup:
     On Error Resume Next
-    If owned And Not book Is Nothing Then book.Close False
     If snapshotStarted Then
         ex_PEB_Export.fn_EndConfigSnapshot
     End If
@@ -436,8 +435,7 @@ End Function
 ' --------------------------------------
 Private Sub private_Open( _
     ByRef book As Workbook, _
-    ByRef table As ListObject, _
-    ByRef owned As Boolean _
+    ByRef table As ListObject _
 )
     Dim candidate As Workbook
     Dim path As String
@@ -448,11 +446,9 @@ Private Sub private_Open( _
     Next candidate
     If book Is Nothing Then
         If VBA.Len(VBA.Dir$(path)) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError014"), "{value}", VBA.CStr(path))
-        Set book = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=False)
-        owned = True
+        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryOpenRequired"), "{value}", path)
     End If
     If book.ReadOnly Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError015"), "{value}", VBA.CStr(path))
-    If Not book.Saved Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistorySaveFirst")
     If book.Date1904 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError016")
     Set table = book.Worksheets(ex_PEB_Export.fn_Config("history.sheet")).ListObjects(ex_PEB_Export.fn_Config("history.table"))
     If table.Parent.ProtectContents Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError017")
@@ -488,7 +484,8 @@ End Function
 Private Function private_Read( _
     ByVal table As ListObject, _
     ByVal columns As Object, _
-    Optional ByVal historyIndex As Object = Nothing _
+    Optional ByVal historyIndex As Object = Nothing, _
+    Optional ByVal readSync As Boolean = True _
 ) As Collection
     Dim result As New Collection
     Dim row As Object
@@ -502,7 +499,13 @@ Private Function private_Read( _
     Dim byPerson As Object
     Dim byId As Object
     Dim bucket As Collection
+    Dim stateFields As Variant
+    Dim fieldKeys As Variant
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
+    stateFields = VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+    fieldKeys = columns.Keys
     If Not historyIndex Is Nothing Then
         Set byPerson = VBA.CreateObject("Scripting.Dictionary")
         byPerson.CompareMode = VBA.vbTextCompare
@@ -512,7 +515,7 @@ Private Function private_Read( _
     End If
     Set stateColumns = VBA.CreateObject("Scripting.Dictionary")
     For Each column In table.ListColumns
-        For Each key In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+        For Each key In stateFields
             If column.Name = key Then
                 stateColumns.Add key, column.Index
             End If
@@ -523,12 +526,12 @@ Private Function private_Read( _
         For index = 1 To UBound(data, 1)
             Set row = VBA.CreateObject("Scripting.Dictionary")
             hasData = False
-            For Each field In columns.Keys
+            For Each field In fieldKeys
                 row.Add field, private_Text(data(index, columns(field)))
                 If VBA.Len(row(field)) > 0 Then hasData = True
             Next field
             row.Add "__tableIndex", index
-            ex_PEB_HistoryRevisions.fn_ReadState table, index, row, stateColumns, data
+            ex_PEB_HistoryRevisions.fn_ReadState table, index, row, stateColumns, data, stateFields
             If hasData Then
                 If VBA.Len(row("RowId")) = 0 Or VBA.Len(row("RowType")) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError020")
                 result.Add row
@@ -548,7 +551,12 @@ Private Function private_Read( _
             End If
         Next index
     End If
-    ex_PEB_HistoryRevisions.fn_ReadSync table, result
+    ex_Core.fn_Diagnostic_WritePerf "History.Read.RowsAndState", startedAt
+    If readSync Then
+        startedAt = VBA.Timer
+        ex_PEB_HistoryRevisions.fn_ReadSync table, result
+        ex_Core.fn_Diagnostic_WritePerf "History.Read.Sync", startedAt
+    End If
     Set private_Read = result
 End Function
 

@@ -15,27 +15,15 @@ value	PersonalEventBuilder::text.LoadTest	Завантажити сценарі�
 value	PersonalEventBuilder::text.NextTest	Наступний крок
 value	PersonalEventBuilder::text.TestOnly	Завантаження сценаріїв доступне лише в TEST.
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
-value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
-value	PersonalEventBuilder::text.TestPhase.Export	Виконання тестової дії завершено.
-value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експорту підготовлено.
-value	PersonalEventBuilder::text.TestPhase.Verify	Результат перевірено та порівняно з очікуванням.
-value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
-value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
-value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
-value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
-value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
-value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
-value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
-value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
-value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
 value	PersonalEventBuilder::text.DummyMode	Недоступно
 value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
+value	PersonalEventBuilder::text.ResetForm	Нова подія
 value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
 value	PersonalEventBuilder::text.TestsBusy	Тести виконуються. Зупиніть запуск перед зміною середовища, ручним завантаженням або експортом.
 value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у TestScenarios.xlsx. Скасування між кроками.
 value	PersonalEventBuilder::text.TestsStop	Зупинити
-value	PersonalEventBuilder::text.ResetForm	Нова подія
+value	PersonalEventBuilder::text.CloseTable	×
 value	PersonalEventBuilder::text.ExportWord	Сформувати WORD
 value	PersonalEventBuilder::text.LastStatus	Статус останньої дії
 value	PersonalEventBuilder::text.OrderEmpty	Наказів не знайдено. Перевірте номер, дату та рік.
@@ -46,25 +34,25 @@ value	PersonalEventBuilder::text.TestFailed	Сценарій не заванта
 value	PersonalEventBuilder::text.TestLoaded	Сценарій {scenario}, крок {step} ({code}). Дія: {expected}. Дію запускайте окремо.
 value	PersonalEventBuilder::text.TestsBasic	Базові тести
 value	PersonalEventBuilder::text.UnitHeader	Підрозділ
-value	PersonalEventBuilder::text.CloseTable	×
 value	PersonalEventBuilder::text.ArrivalType	Прибуття
+value	PersonalEventBuilder::text.CancelEvent	Скасувати подію
 value	PersonalEventBuilder::text.ExportTitle	Експорт події
 value	PersonalEventBuilder::text.PreviewWord	Показати прев’ю
-value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
-value	PersonalEventBuilder::text.TaxIdHeader	ІПН
 value	PersonalEventBuilder::text.SaveHistory	Додати / оновити подію
 value	PersonalEventBuilder::text.ShowHistory	Редагування подій поточного наказу
-value	PersonalEventBuilder::text.CancelEvent	Скасувати подію
+value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
+value	PersonalEventBuilder::text.TaxIdHeader	ІПН
 value	PersonalEventBuilder::text.ExportFailed	Експорт не виконано: {details}
 value	PersonalEventBuilder::text.ModeSelected	Режим: {mode}.
+value	PersonalEventBuilder::text.RestoreEvent	Відновити подію
 value	PersonalEventBuilder::text.StyleEnabled	Значення enabled має бути true або false.
 value	PersonalEventBuilder::text.TestsAborted	Запуск перервано через помилку підготовки або перевірки тестів.
 value	PersonalEventBuilder::text.TestsResults	Результати запусків
 value	PersonalEventBuilder::text.TestsRunning	Тести виконуються. Зупинка можлива між кроками.
 value	PersonalEventBuilder::text.TestsStopped	Зупинено. {summary}
 value	PersonalEventBuilder::text.TestsSummary	PASS: {pass} | FAIL: {fail} | SKIP: {skip} | ERROR: {error}
-value	PersonalEventBuilder::text.RestoreEvent	Відновити подію
 value	PersonalEventBuilder::text.DepartureType	Вибуття
+value	PersonalEventBuilder::text.EventVersions	Історія змін події
 value	PersonalEventBuilder::text.ExtendedModes	Розширені режими
 value	PersonalEventBuilder::text.OrderAccepted	Прийнято: №{number} від {date}.
 value	PersonalEventBuilder::text.OrderFoundOne	Знайдено один наказ.
@@ -83,13 +71,14 @@ value	PersonalEventBuilder::text.TestsProgress	Тести: {percent}% ({complete
 value	PersonalEventBuilder::text.TestsRunError	Помилка запуску. {summary}
 value	PersonalEventBuilder::text.TestsStopping	Скасування: нові операції не запускаються, очікувані кроки позначаються SKIP.
 value	PersonalEventBuilder::text.UpdateHistory	Оновити
-value	PersonalEventBuilder::text.EventVersions	Історія змін події
 value	PersonalEventBuilder::text.ActionsSection	ДІЇ
+value	PersonalEventBuilder::text.ConflictSchema	Недоступна або некоректна таблиця {table}. Перевірте аркуш, заголовки та можливість запису.
 value	PersonalEventBuilder::text.EventDateLabel	Дата події
 value	PersonalEventBuilder::text.EventNoteLabel	Примітка
 value	PersonalEventBuilder::text.ExportMovement	Експорт РУХ
 value	PersonalEventBuilder::text.ExportNotSaved	Зміни не збережено.
 value	PersonalEventBuilder::text.FullNameHeader	ПІБ
+value	PersonalEventBuilder::text.HistoryEditing	Редагування: {id}
 value	PersonalEventBuilder::text.OrderDateLabel	Дата наказу
 value	PersonalEventBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте tbOrders.
 value	PersonalEventBuilder::text.OrderFoundMany	Знайдено наказів: {count}. Оберіть наказ зі списку.
@@ -103,26 +92,13 @@ value	PersonalEventBuilder::text.StyleRowHeight	Некоректне значе�
 value	PersonalEventBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
 value	PersonalEventBuilder::text.TestsCancelled	Запуск зупинено користувачем.
 value	PersonalEventBuilder::text.TestsPageTitle	Тестування РУХ та WORD — TEST
-value	PersonalEventBuilder::text.HistoryEditing	Редагування: {id}
-value	PersonalEventBuilder::text.ConflictSchema	Недоступна або некоректна таблиця {table}. Перевірте аркуш, заголовки та можливість запису.
-value	PersonalEventBuilder::text.ConflictColumn.Field	Подія / поле
-value	PersonalEventBuilder::text.ConflictColumn.MovementValue	Залишити в РУХ
-value	PersonalEventBuilder::text.ConflictColumn.GeneratedValue	Замінити з EventsHistory
 value	PersonalEventBuilder::text.AutoFillEnabled	Автопідстановку ввімкнено. Пов’язані поля захищені від ручного редагування.
 value	PersonalEventBuilder::text.CheckboxChecked	☑
 value	PersonalEventBuilder::text.CheckboxPartial	▣
-value	PersonalEventBuilder::text.OrderQueryLabel	№ наказу / дата наказу
-value	PersonalEventBuilder::text.OrderUnaccepted	Наказ не прийнято.
-value	PersonalEventBuilder::text.PersonNameLabel	ПІБ
-value	PersonalEventBuilder::text.PersonRankLabel	Звання
-value	PersonalEventBuilder::text.PersonUnitLabel	Підрозділ
-value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
-value	PersonalEventBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
-value	PersonalEventBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
-value	PersonalEventBuilder::text.TestPreviewLink	Переглянути
-value	PersonalEventBuilder::text.TestStepMissing	Має бути рівно один запис сценарію/кроку {step}. Крок відсутній або дублюється.
-value	PersonalEventBuilder::text.TestsWordReport	Сформувати зведений Word-документ
-value	PersonalEventBuilder::text.TicketDateLabel	Квиток Дата
+value	PersonalEventBuilder::text.ConflictPending	Є конфлікти ручних змін. У таблиці нижче оберіть значення через Ctrl+Enter та повторіть експорт РУХ.
+value	PersonalEventBuilder::text.ConflictUiError	Не вдалося показати конфлікти РУХ.
+value	PersonalEventBuilder::text.HistoryEditHint	Подію завантажено. Змініть дані та натисніть «Оновити». «Нова подія» завершує редагування.
+value	PersonalEventBuilder::text.HistoryEditMode	Нова подія
 value	PersonalEventBuilder::text.HistoryError001	Ambiguous history event identity.
 value	PersonalEventBuilder::text.HistoryError002	History update requires an Event row.
 value	PersonalEventBuilder::text.HistoryError003	History RowId not found: {value}
@@ -171,13 +147,24 @@ value	PersonalEventBuilder::text.HistoryError045	Word enabled must be true or fa
 value	PersonalEventBuilder::text.HistoryError046	Missing accepted order number.
 value	PersonalEventBuilder::text.HistoryError047	Missing accepted order date.
 value	PersonalEventBuilder::text.HistoryError048	Cannot initialize Word exporter.
-value	PersonalEventBuilder::text.HistoryEditMode	Нова подія
-value	PersonalEventBuilder::text.HistoryEditHint	Подію завантажено. Змініть дані та натисніть «Оновити». «Нова подія» завершує редагування.
-value	PersonalEventBuilder::text.ConflictPending	Є конфлікти ручних змін. У таблиці нижче оберіть значення через Ctrl+Enter та повторіть експорт РУХ.
-value	PersonalEventBuilder::text.ConflictUiError	Не вдалося показати конфлікти РУХ.
+value	PersonalEventBuilder::text.OrderQueryLabel	№ наказу / дата наказу
+value	PersonalEventBuilder::text.OrderUnaccepted	Наказ не прийнято.
+value	PersonalEventBuilder::text.PersonNameLabel	ПІБ
+value	PersonalEventBuilder::text.PersonRankLabel	Звання
+value	PersonalEventBuilder::text.PersonUnitLabel	Підрозділ
+value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
+value	PersonalEventBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
+value	PersonalEventBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
+value	PersonalEventBuilder::text.TestPreviewLink	Переглянути
+value	PersonalEventBuilder::text.TestStepMissing	Має бути рівно один запис сценарію/кроку {step}. Крок відсутній або дублюється.
+value	PersonalEventBuilder::text.TestsWordReport	Сформувати зведений Word-документ
+value	PersonalEventBuilder::text.TicketDateLabel	Квиток Дата
 value	PersonalEventBuilder::text.AbsenceTypeLabel	Тип вибуття
 value	PersonalEventBuilder::text.AutoFillDisabled	Автопідстановку вимкнено. Пов’язані поля можна редагувати вручну.
+value	PersonalEventBuilder::text.ConflictProgress	Вирішено {resolved} з {total}. Оберіть усі значення та повторіть експорт РУХ.
 value	PersonalEventBuilder::text.DestinationLabel	Куди
+value	PersonalEventBuilder::text.HistoryListStale	Список подій застарів. Натисніть «Події поточного наказу» та виберіть запис повторно.
+value	PersonalEventBuilder::text.HistoryStaleEdit	Запис EventsHistory змінився після завантаження. Оновіть список і виберіть подію повторно.
 value	PersonalEventBuilder::text.OrderChoiceLabel	Знайдений наказ
 value	PersonalEventBuilder::text.OrderDataInvalid	Некоректна дата або номер у рядку tbOrders: {row}.
 value	PersonalEventBuilder::text.OrderInvalidDate	Вказано неіснуючу дату наказу.
@@ -190,21 +177,23 @@ value	PersonalEventBuilder::text.RefreshPersonnel	Розірвати з’єдн
 value	PersonalEventBuilder::text.StatusChangeType	Зміна статусу
 value	PersonalEventBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
 value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
+value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
+value	PersonalEventBuilder::text.TestPhase.Export	Виконання тестової дії завершено.
+value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експорту підготовлено.
+value	PersonalEventBuilder::text.TestPhase.Verify	Результат перевірено та порівняно з очікуванням.
 value	PersonalEventBuilder::text.TestPreviewError	Не вдалося сформувати прев’ю документа:
 value	PersonalEventBuilder::text.TestsPendingRule	Очікуване правило ще не визначено.
-value	PersonalEventBuilder::text.HistorySaveFirst	Збережіть зміни в EventsHistory перед виконанням операції.
-value	PersonalEventBuilder::text.HistoryStaleEdit	Запис EventsHistory змінився після завантаження. Оновіть список і виберіть подію повторно.
-value	PersonalEventBuilder::text.HistoryListStale	Список подій застарів. Натисніть «Події поточного наказу» та виберіть запис повторно.
-value	PersonalEventBuilder::text.ConflictProgress	Вирішено {resolved} з {total}. Оберіть усі значення та повторіть експорт РУХ.
-value	PersonalEventBuilder::text.WordStoreNotFound	Не знайдено подію з указаним UID. Оновлення та видалення потребують існуючої події.
 value	PersonalEventBuilder::text.CheckboxUnchecked	☐
 value	PersonalEventBuilder::text.EnvironmentSwitch	[[color=#F4A46B]]PROD[[/color]][[color=#909090]] / TEST[[/color]]
 value	PersonalEventBuilder::text.ExportWordOmitted	SKIP: для цієї події пункт Word не формується.
 value	PersonalEventBuilder::text.ExportWordSuccess	WORD {action}: {path}
 value	PersonalEventBuilder::text.ExtendedModeItems	Dummy 1,Dummy 2,Dummy 3
+value	PersonalEventBuilder::text.HistoryEmptyOrder	У EventsHistory немає подій вибраного наказу.
+value	PersonalEventBuilder::text.HistorySelectHint	Виберіть подію у списку під формою та натисніть Ctrl+Enter.
 value	PersonalEventBuilder::text.ModeDocumentLabel	Документ
 value	PersonalEventBuilder::text.ModeHospitalLabel	Лікарня
 value	PersonalEventBuilder::text.ModePersonIdLabel	ІПН
+value	PersonalEventBuilder::text.MovementPlanError	План РУХ: {code}. {detail}
 value	PersonalEventBuilder::text.OrderChoiceFormat	{number} / {date}
 value	PersonalEventBuilder::text.OrderInvalidInput	Допустимі формати: номер, ДД.ММ, ДД.ММ.РРРР або номер / ДД.ММ.РРРР. Номер — лише цифри; день і місяць — по дві цифри.
 value	PersonalEventBuilder::text.OrderYearConflict	Рік у даті не збігається з полем «Рік наказу».
@@ -215,31 +204,36 @@ value	PersonalEventBuilder::text.SourceLegendTitle	ДЖЕРЕЛА ДАНИХ
 value	PersonalEventBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
 value	PersonalEventBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
 value	PersonalEventBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
+value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
+value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
+value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
 value	PersonalEventBuilder::text.TestPreviewNotRun	Прев’ю не сформовано: крок не виконувався.
 value	PersonalEventBuilder::text.TestsGroupingStep	[Крок {step}]
 value	PersonalEventBuilder::text.TicketNumberLabel	Квиток №
-value	PersonalEventBuilder::text.HistoryEmptyOrder	У EventsHistory немає подій вибраного наказу.
-value	PersonalEventBuilder::text.HistorySelectHint	Виберіть подію у списку під формою та натисніть Ctrl+Enter.
-value	PersonalEventBuilder::text.MovementPlanError	План РУХ: {code}. {detail}
-value	PersonalEventBuilder::text.WordStoreDuplicate	Подію вже додано до документа. Повторне додавання пропущено; документ не змінено.
-value	PersonalEventBuilder::text.WordStoreMigration	Документ містить старі метадані або текст без реєстру подій. Потрібна явна міграція.
+value	PersonalEventBuilder::text.WordStoreNotFound	Не знайдено подію з указаним UID. Оновлення та видалення потребують існуючої події.
 value	PersonalEventBuilder::text.DepartureDateLabel	Дата вибуття
+value	PersonalEventBuilder::text.HistoryStatusSaved	Статус події змінено. Збережіть EventsHistory вручну (Ctrl+S). Застосуйте зміни кнопкою «Експорт РУХ» та повторно сформуйте WORD.
+value	PersonalEventBuilder::text.HistorySyncPending	Зміни не підтверджено
+value	PersonalEventBuilder::text.HistorySyncUnknown	Немає запису в журналі
+value	PersonalEventBuilder::text.HistoryWordSuccess	WORD сформовано з EventsHistory: {path}.
 value	PersonalEventBuilder::text.ModeEventDateLabel	Дата події
 value	PersonalEventBuilder::text.ModeEventTypeLabel	Тип
+value	PersonalEventBuilder::text.ReturnTicketsError	Не вдалося підставити квиток зі знімка РУХ: {details}
 value	PersonalEventBuilder::text.SourceLegendSample	Текст
 value	PersonalEventBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
 value	PersonalEventBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
 value	PersonalEventBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
 value	PersonalEventBuilder::text.TestChooseScenario	Оберіть ScenarioId у списку тестових сценаріїв.
+value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
+value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
 value	PersonalEventBuilder::text.TestPreviewHeading	{scenario} · Крок {step} · {event}
 value	PersonalEventBuilder::text.TestsArchiveFailed	Не вдалося зберегти тестові книги та журнал у TestScenarios.xlsx; незбережені зміни буде відкинуто. {error}
 value	PersonalEventBuilder::text.TestsFieldMismatch	{step} / {record} / {field}: очікувалось «{expected}», отримано «{actual}».
-value	PersonalEventBuilder::text.ReturnTicketsError	Не вдалося підставити квиток зі знімка РУХ: {details}
-value	PersonalEventBuilder::text.HistoryWordSuccess	WORD сформовано з EventsHistory: {path}.
-value	PersonalEventBuilder::text.HistoryStatusSaved	Статус події збережено. Застосуйте зміни кнопкою «Експорт РУХ» та повторно сформуйте WORD.
-value	PersonalEventBuilder::text.HistorySyncUnknown	Немає запису в журналі
-value	PersonalEventBuilder::text.HistorySyncPending	Зміни не підтверджено
-value	PersonalEventBuilder::text.WordStoreManualEdit	Текст між якорями змінено вручну. Автоматичну зміну скасовано.
+value	PersonalEventBuilder::text.WordStoreDuplicate	Подію вже додано до документа. Повторне додавання пропущено; документ не змінено.
+value	PersonalEventBuilder::text.WordStoreMigration	Документ містить старі метадані або текст без реєстру подій. Потрібна явна міграція.
+value	PersonalEventBuilder::text.HistoryNoWordEvents	Події вибраного наказу не мають маршрутів WORD.
+value	PersonalEventBuilder::text.HistoryOpenRequired	Відкрийте книгу EventsHistory перед виконанням операції: {value}
+value	PersonalEventBuilder::text.HistoryReasonPrompt	Вкажіть причину скасування або відновлення події:
 value	PersonalEventBuilder::text.ModePersonNameLabel	ПІБ
 value	PersonalEventBuilder::text.ModePersonRankLabel	Звання
 value	PersonalEventBuilder::text.ModeReportNameLabel	Рапорт.ПІБ
@@ -257,83 +251,90 @@ value	PersonalEventBuilder::text.TestsGroupingPassed	Групування WORD: 
 value	PersonalEventBuilder::text.TestsPreviousFailed	Попередній крок сценарію не пройдено; наступний крок не виконується.
 value	PersonalEventBuilder::text.TestsReopenRequired	Склад сценаріїв змінився. Повторно відкрийте панель тестування.
 value	PersonalEventBuilder::text.TestsSelectRequired	Позначте хоча б один сценарій.
-value	PersonalEventBuilder::text.HistoryNoWordEvents	Події вибраного наказу не мають маршрутів WORD.
-value	PersonalEventBuilder::text.HistoryReasonPrompt	Вкажіть причину скасування або відновлення події:
 value	PersonalEventBuilder::text.WordInsertionFailed	Вставлення у WORD: {stage}; секція {anchor}; помилка {number}: {details}
-value	PersonalEventBuilder::text.WordStoreMapConflict	Дані людини або посади відрізняються від збережених у документі. Використайте явне оновлення події.
-value	PersonalEventBuilder::text.WordStorePlanChanged	Змінено шаблон або правила формування документа. Потрібна міграція метаданих.
-value	PersonalEventBuilder::text.MovementOpenRequired	Для експорту РУХ відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» і повторіть експорт.
+value	PersonalEventBuilder::text.WordStoreManualEdit	Текст між якорями змінено вручну. Автоматичну зміну скасовано.
+value	PersonalEventBuilder::text.ConflictColumn.Field	Подія / поле
+value	PersonalEventBuilder::text.ConflictStateInvalid	Пошкоджено типізований знімок експортованого поля. Перевірте ExportFieldState.
+value	PersonalEventBuilder::text.ExportHistorySuccess	Подію записано в EventsHistory: {action}. Збережіть книгу вручну (Ctrl+S).
+value	PersonalEventBuilder::text.HistoryCancelPending	Скасування не підтверджено
+value	PersonalEventBuilder::text.HistoryCancelledWord	У наказі немає активних подій для WORD. Раніше сформований файл не змінено.
+value	PersonalEventBuilder::text.HistoryJournalFailed	Файл створено, але запис журналу експорту не виконано: {details}
+value	PersonalEventBuilder::text.HistoryRollbackError	Не вдалося повністю відновити історію після помилки: {details}
+value	PersonalEventBuilder::text.HistorySyncConfirmed	Версію підтверджено
 value	PersonalEventBuilder::text.ModeArrivalDateLabel	Прибуття.Дата
 value	PersonalEventBuilder::text.ModeDestinationLabel	Місце
+value	PersonalEventBuilder::text.MovementBatchSuccess	РУХ: застосовано подій — {applied}, вже застосовано — {skipped}. Дані змінено у відкритій таблиці.
+value	PersonalEventBuilder::text.MovementOpenRequired	Для експорту РУХ відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» і повторіть експорт.
 value	PersonalEventBuilder::text.PersonnelActionError	Помилка роботи з кандидатами: {details}
 value	PersonalEventBuilder::text.TestPreviewOperation	PreviewWord
 value	PersonalEventBuilder::text.TestsGroupingHeading	{scenario} {step}
-value	PersonalEventBuilder::text.ExportHistorySuccess	Подію збережено в EventsHistory: {action}.
-value	PersonalEventBuilder::text.MovementBatchSuccess	РУХ: застосовано подій — {applied}, вже застосовано — {skipped}. Дані змінено у відкритій таблиці.
-value	PersonalEventBuilder::text.HistoryCancelledWord	У наказі немає активних подій для WORD. Раніше сформований файл не змінено.
-value	PersonalEventBuilder::text.HistoryJournalFailed	Файл створено, але запис журналу експорту не виконано: {details}
-value	PersonalEventBuilder::text.HistoryCancelPending	Скасування не підтверджено
-value	PersonalEventBuilder::text.HistorySyncConfirmed	Версію підтверджено
-value	PersonalEventBuilder::text.HistoryRollbackError	Не вдалося повністю відновити історію після помилки: {details}
-value	PersonalEventBuilder::text.ConflictStateInvalid	Пошкоджено типізований знімок експортованого поля. Перевірте ExportFieldState.
-value	PersonalEventBuilder::text.MovementOpenAmbiguous	У відкритих книгах знайдено декілька таблиць РУХ. Залиште відкритою лише потрібну книгу та повторіть експорт.
+value	PersonalEventBuilder::text.WordStoreMapConflict	Дані людини або посади відрізняються від збережених у документі. Використайте явне оновлення події.
+value	PersonalEventBuilder::text.WordStorePlanChanged	Змінено шаблон або правила формування документа. Потрібна міграція метаданих.
+value	PersonalEventBuilder::text.ConflictPolicyInvalid	Некоректна політика ручних змін РУХ: очікується Overwrite або Resolve.
 value	PersonalEventBuilder::text.ExportMovementSuccess	Подію збережено в РУХ.
 value	PersonalEventBuilder::text.ExportWordUnavailable	Експорт WORD тимчасово вимкнено. Доступний перегляд тексту на аркуші.
+value	PersonalEventBuilder::text.HistoryBaselineReason	Стан перед першою зафіксованою зміною або переглядом історії; попередні зміни невідомі.
+value	PersonalEventBuilder::text.HistoryReasonRequired	Вкажіть причину зміни статусу події.
+value	PersonalEventBuilder::text.HistoryRecoveryFailed	Не вдалося записати журнал відновлення EventsHistory: {details}. Подію не підтверджено.
+value	PersonalEventBuilder::text.HistorySelectRequired	Спочатку виберіть подію зі списку поточного наказу.
 value	PersonalEventBuilder::text.ModeDocumentDateLabel	Документ.Дата
 value	PersonalEventBuilder::text.ModeIncomingDateLabel	Вх.Дата
 value	PersonalEventBuilder::text.ModePositionCodeLabel	Код посади
 value	PersonalEventBuilder::text.ModeTicketNumberLabel	Квиток.№
+value	PersonalEventBuilder::text.MovementBatchRestored	Дані та числові формати відновлено у відкритій таблиці. Книга залишається відкритою для перевірки.
+value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
+value	PersonalEventBuilder::text.MovementOpenAmbiguous	У відкритих книгах знайдено декілька таблиць РУХ. Залиште відкритою лише потрібну книгу та повторіть експорт.
+value	PersonalEventBuilder::text.SourceLegendOrderDate	Поточна дата наказу
 value	PersonalEventBuilder::text.SourceLegendPersonnel	ШПО
 value	PersonalEventBuilder::text.SourceLegendSeparator	—
 value	PersonalEventBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
+value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
 value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків ТВ або записані поля не відповідають операції.
-value	PersonalEventBuilder::text.SourceLegendOrderDate	Поточна дата наказу
-value	PersonalEventBuilder::text.MovementBatchRestored	Дані та числові формати відновлено у відкритій таблиці. Книга залишається відкритою для перевірки.
-value	PersonalEventBuilder::text.HistoryReasonRequired	Вкажіть причину зміни статусу події.
-value	PersonalEventBuilder::text.HistoryBaselineReason	Стан перед першою зафіксованою зміною або переглядом історії; попередні зміни невідомі.
-value	PersonalEventBuilder::text.HistorySelectRequired	Спочатку виберіть подію зі списку поточного наказу.
-value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
-value	PersonalEventBuilder::text.ConflictPolicyInvalid	Некоректна політика ручних змін РУХ: очікується Overwrite або Resolve.
-value	PersonalEventBuilder::text.WordStoreOrderMismatch	Документ належить іншій парі номера та дати наказу.
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
-value	PersonalEventBuilder::text.ModeDepartureDateLabel	Вибуття.Дата
-value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
-value	PersonalEventBuilder::text.TestsGroupingDocuments	Формувати Word-звіт групування
-value	PersonalEventBuilder::text.OrderSignatoryRequired	Для прийнятої пари номера та дати наказу не знайдено підписанта в довіднику «Накази».
-value	PersonalEventBuilder::text.HistoryChildrenInTable	Додаткові рапорти, документи та ТВО поки редагуються в EventsHistory. Збереження колекцій із форми ще не підтримується.
-value	PersonalEventBuilder::text.MovementBatchConflicts	РУХ не змінено. Конфліктних або заблокованих подій: {count}
 value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
+value	PersonalEventBuilder::text.HistoryChildrenInTable	Додаткові рапорти, документи та ТВО поки редагуються в EventsHistory. Збереження колекцій із форми ще не підтримується.
+value	PersonalEventBuilder::text.ModeDepartureDateLabel	Вибуття.Дата
+value	PersonalEventBuilder::text.MovementBatchConflicts	РУХ не змінено. Конфліктних або заблокованих подій: {count}
+value	PersonalEventBuilder::text.OrderSignatoryRequired	Для прийнятої пари номера та дати наказу не знайдено підписанта в довіднику «Накази».
+value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
+value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
+value	PersonalEventBuilder::text.TestsGroupingDocuments	Формувати Word-звіт групування
+value	PersonalEventBuilder::text.WordStoreOrderMismatch	Документ належить іншій парі номера та дати наказу.
+value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже є інша подія з такими людиною, типом і датою. Оновлення скасовано.
 value	PersonalEventBuilder::text.ModeDocumentNumberLabel	Документ.№
 value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
 value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
+value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
 value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата обрано. Автопідстановку вимкнено; дані можна редагувати вручну.
 value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
+value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
+value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
 value	PersonalEventBuilder::text.TestsUnexpectedMutation	Відхилена операція змінила дані ТВ.
 value	PersonalEventBuilder::text.WordStorePersonRequired	Для події потрібен ІПН або ПІБ разом із кодом посади.
-value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
-value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже є інша подія з такими людиною, типом і датою. Оновлення скасовано.
 value	PersonalEventBuilder::text.EnvironmentSwitchPending	Перемикання середовища: {environment}. Дані форми буде очищено.
 value	PersonalEventBuilder::text.ExportPreviewWordSuccess	Текст поточної події показано в області прев’ю.
 value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
-value	PersonalEventBuilder::text.WordStorePersonAmbiguous	ПІБ і код посади відповідають кільком записам людини. Уточніть ідентифікатор.
 value	PersonalEventBuilder::text.OrderDocumentNameInvalid	Неможливо сформувати ім’я документа: перевірте плейсхолдери шаблону та дані наказу.
 value	PersonalEventBuilder::text.SimpleDepartureWhileOpen	Нове вибуття неможливе: попереднє «{actual}» ще не закрито прибуттям.
+value	PersonalEventBuilder::text.WordStorePersonAmbiguous	ПІБ і код посади відповідають кільком записам людини. Уточніть ідентифікатор.
 value	PersonalEventBuilder::text.ExportMovementUnavailable	Експорт РУХ ще не налаштовано. Очікуються параметри книги, аркуша й таблиці.
-value	PersonalEventBuilder::text.ModeStatusChangeDateLabel	Дата зміни статусу
 value	PersonalEventBuilder::text.HistoryRefreshAfterExport	Експорт виконано, але список подій не оновлено: {details}
+value	PersonalEventBuilder::text.ModeStatusChangeDateLabel	Дата зміни статусу
 value	PersonalEventBuilder::text.SimpleArrivalTypeMismatch	Тип прибуття не відповідає вибуттю: обрано повернення з «{expected}», відкрито «{actual}».
 value	PersonalEventBuilder::text.WordMarkersRemovalInvalid	Не вдалося безпечно видалити службові якорі WORD: некоректний індекс або змінено інший текст документа.
 value	PersonalEventBuilder::text.ModeHospitalShortNameLabel	Лікарня.СкороченаНазва
-value	PersonalEventBuilder::text.ReturnTicketsSourceChanged	Джерело збережено під час читання знімка. Повторіть пошук.
-value	PersonalEventBuilder::text.ReturnTicketsSourceMissing	Не знайдено джерело знімка: {path}
 value	PersonalEventBuilder::text.MovementBatchRollbackError	Не вдалося повністю відновити дані в пам'яті: {error}. Перевірте цільову таблицю перед повторним експортом.
 value	PersonalEventBuilder::text.MovementBatchSettingsError	Не вдалося відновити налаштування Excel: {error}
 value	PersonalEventBuilder::text.MovementBatchTargetMissing	Відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» на аркуші «{sheet}».
+value	PersonalEventBuilder::text.ReturnTicketsSourceChanged	Джерело збережено під час читання знімка. Повторіть пошук.
+value	PersonalEventBuilder::text.ReturnTicketsSourceMissing	Не знайдено джерело знімка: {path}
 value	PersonalEventBuilder::text.ModeReportPositionCodeLabel	Рапорт.КодПосади
 value	PersonalEventBuilder::text.MovementBatchAlreadyApplied	РУХ: усі події вже застосовано ({skipped}). Змін не внесено.
 value	PersonalEventBuilder::text.MovementOpenAbsenceMismatch	Для ІПН {person} не знайдено відкритої відсутності «{expected}» на {date}. Відкриті відсутності та дати вибуття: {actual}.
+value	PersonalEventBuilder::text.ConflictColumn.MovementValue	Залишити в РУХ
 value	PersonalEventBuilder::text.MovementBatchTargetAmbiguous	У відкритих книгах знайдено декілька таблиць «{table}» на аркуші «{sheet}». Залиште відкритою лише цільову книгу РУХ і повторіть експорт.
 value	PersonalEventBuilder::text.MovementSaveValidationFailed	Подію не збережено. Конфлікт у події {id}: {details}
+value	PersonalEventBuilder::text.ConflictColumn.GeneratedValue	Замінити з EventsHistory
 value	PersonalEventBuilder::text.SimpleArrivalWithoutDeparture	Прибуття неможливе: немає відкритого вибуття.
 value	PersonalEventBuilder::text.MovementHistoryReportsUnsupported	План РУХ: додаткові рапорти ще не підтримуються. Подію не включено до плану.
 value	PersonalEventBuilder::forms.Leave.fields.1.name	Destination
@@ -1259,6 +1260,7 @@ value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|R
 value	PersonalEventBuilder::history.exports.sheet	ExportJournal
 value	PersonalEventBuilder::history.exports.table	tbExportJournal
 value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
+value	PersonalEventBuilder::history.recovery.suffix	.recovery.xml.log
 value	PersonalEventBuilder::history.required	PersonId|PersonName|PersonRank|PositionCode|EventDate|AcceptedOrderNumber|AcceptedOrderDate
 value	PersonalEventBuilder::history.versions.sheet	EventRevisions
 value	PersonalEventBuilder::history.versions.table	tbEventRevisions

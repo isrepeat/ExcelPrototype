@@ -18,7 +18,8 @@ Public Sub fn_ReadState( _
     ByVal rowIndex As Long, _
     ByVal row As Object, _
     Optional ByVal stateColumns As Object = Nothing, _
-    Optional ByVal data As Variant _
+    Optional ByVal data As Variant, _
+    Optional ByVal stateFields As Variant _
 )
     Dim key As Variant
     Dim column As ListColumn
@@ -27,7 +28,10 @@ Public Sub fn_ReadState( _
     row("Revision") = "0"
     row("Status") = "Active"
     row("LastChangeId") = VBA.vbNullString
-    For Each key In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+    If IsMissing(stateFields) Then
+        stateFields = VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+    End If
+    For Each key In stateFields
         value = Empty
         If Not stateColumns Is Nothing Then
             If stateColumns.Exists(key) Then
@@ -209,7 +213,7 @@ Public Function fn_Show( _
         End If
     Next candidate
     If book Is Nothing Then
-        Set book = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=False)
+        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryOpenRequired"), "{value}", path)
     End If
     Set table = book.Worksheets(ex_PEB_Export.fn_Config("history.versions.sheet")).ListObjects( _
         ex_PEB_Export.fn_Config("history.versions.table"))
@@ -301,8 +305,7 @@ Public Function fn_RecordExport( _
     Dim action As Object
     Dim data() As Variant
     Dim count As Long
-    Dim owned As Boolean
-    Dim saved As Boolean
+    Dim committed As Boolean
     Dim path As String
     Dim previousBook As Workbook
     Dim previousSheet As Object
@@ -310,8 +313,11 @@ Public Function fn_RecordExport( _
     Dim conflictTable As ListObject
     Dim fieldCount As Long
     Dim conflictCount As Long
+    Dim pending As New Collection
+    Dim startedAt As Double
 
     On Error GoTo EH
+    startedAt = VBA.Timer
     Set previousBook = Application.ActiveWorkbook
     Set previousSheet = Application.ActiveSheet
     path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("history.path"))
@@ -321,14 +327,10 @@ Public Function fn_RecordExport( _
         End If
     Next candidate
     If book Is Nothing Then
-        Set book = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=False)
-        owned = True
+        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryOpenRequired"), "{value}", path)
     End If
     If book.ReadOnly Then
         Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError015"), "{value}", path)
-    End If
-    If Not book.Saved Then
-        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistorySaveFirst")
     End If
     Set table = private_Table(book, "history.exports", Nothing)
     count = table.ListRows.Count
@@ -358,32 +360,28 @@ Public Function fn_RecordExport( _
             End If
         End If
         data(1, 8) = action("HistoryStamp")
-        Set row = table.ListRows.Add
-        row.Range.NumberFormat = "@"
-        row.Range.Value2 = data
+        pending.Add data
     Next action
-    book.Save
-    saved = True
+    private_WriteRows table, pending
+    ex_Core.fn_Diagnostic_WritePerf "Movement.Journal.PrepareAndWrite." & exporter, startedAt
+    committed = True
     fn_RecordExport = True
 Cleanup:
     On Error Resume Next
-    If Not saved And Not fieldTable Is Nothing Then
+    If Not committed And Not fieldTable Is Nothing Then
         Do While fieldTable.ListRows.Count > fieldCount
             fieldTable.ListRows(fieldTable.ListRows.Count).Delete
         Loop
     End If
-    If Not saved And Not conflictTable Is Nothing Then
+    If Not committed And Not conflictTable Is Nothing Then
         Do While conflictTable.ListRows.Count > conflictCount
             conflictTable.ListRows(conflictTable.ListRows.Count).Delete
         Loop
     End If
-    If Not saved And Not table Is Nothing Then
+    If Not committed And Not table Is Nothing Then
         Do While table.ListRows.Count > count
             table.ListRows(table.ListRows.Count).Delete
         Loop
-    End If
-    If owned And Not book Is Nothing Then
-        book.Close False
     End If
     If Not previousBook Is Nothing Then
         previousBook.Activate
@@ -565,6 +563,63 @@ Private Function private_Append( _
     Next snapshot
     private_Append = identifier
 End Function
+' --------------------------------------
+
+Private Sub private_WriteRows( _
+    ByVal table As ListObject, _
+    ByVal rows As Collection _
+)
+    Dim data() As Variant
+    Dim item As Variant
+    Dim area As Range
+    Dim first As Long
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim extension As Range
+    Dim other As ListObject
+    Dim canResize As Boolean
+
+    If rows.Count = 0 Then
+        Exit Sub
+    End If
+    first = table.ListRows.Count + 1
+    ReDim data(1 To rows.Count, 1 To table.ListColumns.Count)
+    For rowIndex = 1 To rows.Count
+        item = rows(rowIndex)
+        For columnIndex = 1 To table.ListColumns.Count
+            data(rowIndex, columnIndex) = item(1, columnIndex)
+        Next columnIndex
+    Next rowIndex
+    ' Resize once when the extension is empty; retain Excel insertion semantics otherwise.
+    canResize = Not table.ShowTotals
+    If table.Range.Row + table.Range.Rows.Count + rows.Count - 1 > table.Parent.Rows.Count Then
+        canResize = False
+    End If
+    If canResize Then
+        Set extension = table.Range.Rows(table.Range.Rows.Count).Offset(1).Resize(rows.Count)
+        canResize = (Application.CountA(extension) = 0 And Not VBA.IsNull(extension.MergeCells))
+        If canResize Then
+            canResize = Not extension.MergeCells
+        End If
+        For Each other In table.Parent.ListObjects
+            If Not other Is table Then
+                If Not Application.Intersect(extension, other.Range) Is Nothing Then
+                    canResize = False
+                End If
+            End If
+        Next other
+    End If
+    If canResize Then
+        table.Resize table.Range.Resize(table.Range.Rows.Count + rows.Count)
+    Else
+        For rowIndex = 1 To rows.Count
+            table.ListRows.Add
+        Next rowIndex
+    End If
+    Set area = table.DataBodyRange.Rows(first).Resize(rows.Count)
+    area.NumberFormat = "@"
+    area.Value2 = data
+End Sub
 ' --------------------------------------
 ' } // namespace Private
 ' --------------------------------------

@@ -32,7 +32,6 @@ Public Sub fn_Begin( _
     Dim table As ListObject
     Dim data As Variant
     Dim index As Long
-    Dim owned As Boolean
     Dim failure As String
     Dim policy As String
 
@@ -47,7 +46,10 @@ Public Sub fn_Begin( _
     Set m_choices = choices
     Set m_items = New Collection
     Set m_states = VBA.CreateObject("Scripting.Dictionary")
-    Set book = private_Book(owned)
+    If m_overwrite Then
+        Exit Sub
+    End If
+    Set book = private_Book()
     Set table = fn_Table(book, "history.fieldState")
     If Not table.DataBodyRange Is Nothing Then
         data = table.DataBodyRange.Value2
@@ -59,15 +61,9 @@ Public Sub fn_Begin( _
         Next index
     End If
     Set table = fn_Table(book, "history.conflicts")
-    If owned Then
-        book.Close False
-    End If
     Exit Sub
 EH:
     failure = VBA.Err.Description
-    If owned And Not book Is Nothing Then
-        book.Close False
-    End If
     fn_Module_Dispose
     Err.Raise 5, , failure
 End Sub
@@ -255,8 +251,15 @@ Public Sub fn_Record( _
     Dim key As String
     Dim previous As Variant
     Dim unchanged As Boolean
+    Dim pending As New Collection
+    Dim decisions As New Collection
+    Dim startedAt As Double
 
+    startedAt = VBA.Timer
     Set table = fn_Table(book, "history.fieldState")
+    If m_overwrite Then
+        private_LoadStates table
+    End If
     For Each action In actions
         If action("EventStatus") <> "Cancelled" Then
             For Each side In VBA.Array("Opening", "Closing")
@@ -290,20 +293,19 @@ Public Sub fn_Record( _
                             End If
                         End If
                         If Not unchanged Then
-                            Set row = table.ListRows.Add
-                            row.Range.NumberFormat = "@"
-                            row.Range.Value2 = data
+                            pending.Add data
                         End If
                     Next field
                 End If
             Next side
         End If
     Next action
+    private_WriteRows table, pending
     Set table = fn_Table(book, "history.conflicts")
     If Not m_items Is Nothing Then
         For Each item In m_items
             If VBA.Len(item("Choice")) > 0 Then
-                decision(1, 1) = item("EventRowId") & "/" & item("Revision") & "/" & VBA.CStr(table.ListRows.Count + 1)
+                decision(1, 1) = item("EventRowId") & "/" & item("Revision") & "/" & VBA.CStr(table.ListRows.Count + decisions.Count + 1)
                 decision(1, 2) = item("EventRowId")
                 decision(1, 3) = item("Revision")
                 decision(1, 4) = "Movement"
@@ -315,12 +317,12 @@ Public Sub fn_Record( _
                 decision(1, 10) = item("Choice")
                 decision(1, 11) = VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
                 decision(1, 12) = Application.UserName & " / " & VBA.Environ$("USERNAME")
-                Set row = table.ListRows.Add
-                row.Range.NumberFormat = "@"
-                row.Range.Value2 = decision
+                decisions.Add decision
             End If
         Next item
     End If
+    private_WriteRows table, decisions
+    ex_Core.fn_Diagnostic_WritePerf "Movement.Journal.FieldStatesAndDecisions", startedAt
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -364,7 +366,7 @@ Private Function private_Same( _
     private_Same = True
 End Function
 
-Private Function private_Book(ByRef owned As Boolean) As Workbook
+Private Function private_Book() As Workbook
     Dim candidate As Workbook
     Dim path As String
 
@@ -375,9 +377,81 @@ Private Function private_Book(ByRef owned As Boolean) As Workbook
             Exit Function
         End If
     Next candidate
-    Set private_Book = Application.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=False)
-    owned = True
+    Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryOpenRequired"), "{value}", path)
 End Function
+' --------------------------------------
+
+Private Sub private_WriteRows( _
+    ByVal table As ListObject, _
+    ByVal rows As Collection _
+)
+    Dim data() As Variant
+    Dim item As Variant
+    Dim area As Range
+    Dim first As Long
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim extension As Range
+    Dim other As ListObject
+    Dim canResize As Boolean
+
+    If rows.Count = 0 Then
+        Exit Sub
+    End If
+    first = table.ListRows.Count + 1
+    ReDim data(1 To rows.Count, 1 To table.ListColumns.Count)
+    For rowIndex = 1 To rows.Count
+        item = rows(rowIndex)
+        For columnIndex = 1 To table.ListColumns.Count
+            data(rowIndex, columnIndex) = item(1, columnIndex)
+        Next columnIndex
+    Next rowIndex
+    ' Resize once when the extension is empty; retain Excel insertion semantics otherwise.
+    canResize = Not table.ShowTotals
+    If table.Range.Row + table.Range.Rows.Count + rows.Count - 1 > table.Parent.Rows.Count Then
+        canResize = False
+    End If
+    If canResize Then
+        Set extension = table.Range.Rows(table.Range.Rows.Count).Offset(1).Resize(rows.Count)
+        canResize = (Application.CountA(extension) = 0 And Not VBA.IsNull(extension.MergeCells))
+        If canResize Then
+            canResize = Not extension.MergeCells
+        End If
+        For Each other In table.Parent.ListObjects
+            If Not other Is table Then
+                If Not Application.Intersect(extension, other.Range) Is Nothing Then
+                    canResize = False
+                End If
+            End If
+        Next other
+    End If
+    If canResize Then
+        table.Resize table.Range.Resize(table.Range.Rows.Count + rows.Count)
+    Else
+        For rowIndex = 1 To rows.Count
+            table.ListRows.Add
+        Next rowIndex
+    End If
+    Set area = table.DataBodyRange.Rows(first).Resize(rows.Count)
+    area.NumberFormat = "@"
+    area.Value2 = data
+End Sub
+
+Private Sub private_LoadStates(ByVal table As ListObject)
+    Dim data As Variant
+    Dim index As Long
+
+    If table.DataBodyRange Is Nothing Then
+        Exit Sub
+    End If
+    data = table.DataBodyRange.Value2
+    For index = 1 To UBound(data, 1)
+        If data(index, 2) = "Movement" And data(index, 3) = m_target Then
+            m_states(private_Key(data(index, 1), data(index, 4), data(index, 5))) = _
+                VBA.Array(data(index, 6), data(index, 7), data(index, 8))
+        End If
+    Next index
+End Sub
 ' --------------------------------------
 ' } // namespace Private
 ' --------------------------------------

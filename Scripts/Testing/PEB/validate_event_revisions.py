@@ -24,6 +24,25 @@ def main():
         r"For Each orderCommand In VBA.Array\((.*?)\)\s*\n", page, re.S
     ).group(1)))
     check_module_contract(revisions, "ex_PEB_HistoryRevisions")
+    conflicts = (folder / "ex_PEB_MovementConflicts.vba").read_text(encoding="utf-8-sig")
+    check_declarations(conflicts)
+    begin = procedure(conflicts, "fn_Begin")
+    assert begin.index("If m_overwrite Then") < begin.index("Set book = private_Book()")
+    record = procedure(revisions, "fn_RecordExport")
+    assert record.index("private_WriteRows table, pending") < record.index("committed = True")
+    for source in (history, revisions, conflicts):
+        assert "book.Save" not in source
+        assert "book.Saved" not in source
+        assert "book.Close" not in source
+        assert "Workbooks.Open" not in source
+        assert "text.HistoryOpenRequired" in source
+    for source in (revisions, conflicts):
+        write_rows = procedure(source, "private_WriteRows")
+        assert "Application.CountA(extension)" in write_rows
+        assert "Application.Intersect(extension, other.Range)" in write_rows
+        assert "area.Value2 = data" in write_rows
+    assert "True, Nothing, False" in procedure(preview, "fn_BuildOrder")
+    assert "If readSync Then" in procedure(history, "private_Read")
     check_declarations(history)
     check_declarations(controller)
     for source in (revisions, history, batch):
@@ -34,8 +53,8 @@ def main():
     save = procedure(history, "fn_Save")
     assert save.index("ExpectedHistoryStamp") < save.index("ex_PEB_HistoryRevisions.fn_Prepare")
     assert save.index("ex_PEB_HistoryRevisions.fn_Prepare") < save.index("target.Range.Value2 = data")
-    assert save.index("target.Range.Value2 = data") < save.index("book.Save")
-    assert save.index("book.Save") < save.index("saved = True")
+    assert save.index("target.Range.Value2 = data") < save.index("committed = True")
+    assert "If Not committed Then" in save
     assert "ex_PEB_HistoryRevisions.fn_Rollback(transaction, rollbackDiagnostic)" in save
     assert "HistoryRollbackError" in save
     assert "ElseIf written Then" in save
