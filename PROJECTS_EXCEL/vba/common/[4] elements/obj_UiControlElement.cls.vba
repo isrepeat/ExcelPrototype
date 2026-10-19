@@ -78,11 +78,6 @@ Private Function obj_IUiElement_Measure( _
     Dim collapsed As Boolean
 
     If Not private_TryVisibility(collapsed, diagnostic) Then Exit Function
-    If VBA.Len(ex_UiElementFactory.fn_Attribute(m_definition, "visibility")) > 0 Then
-        ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_MEASURE | TraceVersion=2 | Name=" & _
-            ex_UiElementFactory.fn_Attribute(m_definition, "name") & " | Collapsed=" & VBA.CStr(collapsed) & _
-            " | PreviousCollapsed=" & VBA.CStr(m_collapsed) & " | Measured=" & VBA.CStr(m_visibilityMeasured)
-    End If
     If collapsed And m_visibilityMeasured And Not m_collapsed Then
         ' Dispose active routes and shape actions before the occupied area is reused.
         m_control.Dispose
@@ -119,7 +114,6 @@ Private Function obj_IUiElement_Measure( _
     obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
     m_rows = rows
     m_columns = columns
-    Me.TraceVisibility "Measure.End"
 End Function
 
 Private Function obj_IUiElement_Arrange( _
@@ -346,34 +340,6 @@ Public Function DependsOnLayout(ByVal name As String) As Boolean
     DependsOnLayout = (VBA.StrComp(ex_UiElementFactory.fn_Attribute(m_definition, "alignToForm"), name, VBA.vbTextCompare) = 0)
 End Function
 
-Public Sub TraceVisibility(ByVal stage As String)
-    Dim collapsed As Boolean
-    Dim diagnostic As String
-    Dim areaAddress As String
-    Dim occupied As Double
-
-    On Error GoTo Failed
-    If m_definition Is Nothing Then Exit Sub
-    If VBA.Len(ex_UiElementFactory.fn_Attribute(m_definition, "visibility")) = 0 Then Exit Sub
-    If Not private_TryVisibility(collapsed, diagnostic) Then
-        ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_TRACE_ERROR | Stage=" & stage & " | Details=" & diagnostic
-        Exit Sub
-    End If
-    areaAddress = "<none>"
-    If Not m_area Is Nothing Then
-        areaAddress = m_area.Address(False, False)
-        occupied = Application.WorksheetFunction.CountA(m_area)
-    End If
-    ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_STATE | TraceVersion=2 | Stage=" & stage & _
-        " | Name=" & ex_UiElementFactory.fn_Attribute(m_definition, "name") & _
-        " | BindingCollapsed=" & VBA.CStr(collapsed) & " | MeasuredCollapsed=" & VBA.CStr(m_collapsed) & _
-        " | Rows=" & VBA.CStr(m_rows) & " | Columns=" & VBA.CStr(m_columns) & _
-        " | Area=" & areaAddress & " | Occupied=" & VBA.CStr(occupied)
-    Exit Sub
-Failed:
-    ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_TRACE_ERROR | Stage=" & stage & " | Details=" & VBA.Err.Description
-End Sub
-
 Public Function TryRefreshValues( _
     ByVal pending As Object, _
     ByRef refreshed As Boolean, _
@@ -585,7 +551,6 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
             If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                     VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
                 If attributeName = "visibility" Then
-                    Me.TraceVisibility "Binding.Changed"
                     m_candidateLayoutDirty = True
                     m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
                     GoTo NextAttribute

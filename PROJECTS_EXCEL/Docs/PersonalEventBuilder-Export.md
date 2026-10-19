@@ -116,7 +116,9 @@ The reader preserves `documentFilepath`. In `blank` mode, regular export uses `e
 
 On first export, the exporter creates a document from the template and replaces configured placeholders in all Word stories, including headers and footers. `{month}` uses the configured Ukrainian month name. The template remains unchanged. An exact existing output filename is reused without repeating header replacements; grouped sections retain embedded state and validation. Other anchored sections use their existing insertion and verification rules. Both creation and updates are published through a temporary file, with a source timestamp check before replacing an existing output. TEST retains its separate `blank` profile and test template settings.
 
-## Постоянная группировка Word
+## Legacy Word grouping via CustomXML
+
+This section describes the legacy per-event Word export retained for existing callers and tests. The main page uses EventsHistory as its event store and rebuilds Word through `TryGenerateHistory`; it does not use the CustomXML state described below. The template DSL and grouping rules remain shared by both paths.
 
 У `template` сначала идут ноль или несколько `derived`, затем одно тело: `text` либо `group`. Смешивание тел, derived после тела и неизвестные теги/атрибуты отклоняются. Derived вычисляются по порядку для каждого события и могут использовать предыдущие значения; доступны обоим видам тела. Групповой шаблон требует `identityBy` и `orderBy`; обычный не может их объявлять.
 
