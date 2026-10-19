@@ -124,6 +124,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
         Exit Function
     End If
+    If Not private_PublishExtendedModes(diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Event modes"
+        Exit Function
+    End If
     If Not private_LoadMode(defaultMode, diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
         Exit Function
@@ -580,8 +584,123 @@ EH:
     diagnostic = "Source legend: " & VBA.Err.Description
 End Function
 
+Public Function FromOutpatientHandler() As Boolean
+    FromOutpatientHandler = private_SwitchMode("FromOutpatientExaminationOrVlk")
+End Function
+
+Public Function FromMedicalCompanyHandler() As Boolean
+    FromMedicalCompanyHandler = private_SwitchMode("FromMedicalCompanyForTreatment")
+End Function
+
+Public Function FromBusinessTripHandler() As Boolean
+    FromBusinessTripHandler = private_SwitchMode("FromBusinessTrip")
+End Function
+
+Public Function ToOutpatientHandler() As Boolean
+    ToOutpatientHandler = private_SwitchMode("ToOutpatientExaminationOrVlk")
+End Function
+
+Public Function ToMedicalCompanyHandler() As Boolean
+    ToMedicalCompanyHandler = private_SwitchMode("ToMedicalCompanyForTreatment")
+End Function
+
+Public Function ToBusinessTripHandler() As Boolean
+    ToBusinessTripHandler = private_SwitchMode("ToBusinessTrip")
+End Function
+
+Public Function OutpatientToMedicalLeaveHandler() As Boolean
+    OutpatientToMedicalLeaveHandler = private_SwitchMode("MoveFromOutpatientVlkToVacationForCuring")
+End Function
+
+Public Function MedCompanyToMedicalLeaveHandler() As Boolean
+    MedCompanyToMedicalLeaveHandler = private_SwitchMode("MoveFromMedicalCompanyForTreatmentToVacationForCuring")
+End Function
+
+Public Function ToBusinessTripAwolHandler() As Boolean
+    ToBusinessTripAwolHandler = private_SwitchMode("MoveFromAwolToBusinessTrip")
+End Function
+
+Public Function AnnualToMedicalLeaveHandler() As Boolean
+    AnnualToMedicalLeaveHandler = private_SwitchMode("MoveFromAnnualVacationToVacationForCuring")
+End Function
+
+Public Function FamilyToMedicalLeaveHandler() As Boolean
+    FamilyToMedicalLeaveHandler = private_SwitchMode("MoveFromFamilyVacationToVacationForCuring")
+End Function
+
+Public Function MedicalLeaveToHospitalHandler() As Boolean
+    MedicalLeaveToHospitalHandler = private_SwitchMode("MoveFromVacationForCuringToHospital")
+End Function
+
+Public Function MedicalLeaveToAnnualHandler() As Boolean
+    MedicalLeaveToAnnualHandler = private_SwitchMode("MoveFromVacationForCuringToAnnualVacation")
+End Function
+
+Public Function ExtendedModeChangedHandler() As Boolean
+    Dim selected As Variant
+    Dim eventId As Variant
+    Dim diagnostic As String
+
+    On Error GoTo EH_EXTENDED
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("ExtendedMode", selected) Then Exit Function
+    If VBA.Len(VBA.CStr(selected)) = 0 Then
+        ExtendedModeChangedHandler = True
+        Exit Function
+    End If
+    For Each eventId In ex_PEB_EventRoutes.fn_Ids()
+        If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "visible") = "false" Then
+            If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption") = VBA.CStr(selected) Then
+                ExtendedModeChangedHandler = private_SwitchMode(VBA.CStr(eventId))
+                Exit Function
+            End If
+        End If
+    Next eventId
+    Err.Raise 5, , "Unknown extended event caption: " & VBA.CStr(selected)
+EH_EXTENDED:
+    diagnostic = VBA.Err.Description
+    ExtendedModeChangedHandler = private_SetActionStatus(diagnostic, True)
+End Function
+
+Public Function HospitalToLeaveHandler() As Boolean
+    HospitalToLeaveHandler = private_SwitchMode("MoveFromHospitalToVacationForCuring")
+End Function
+
+Public Function MedicalLeaveExtendHandler() As Boolean
+    MedicalLeaveExtendHandler = private_SwitchMode("MoveFromVacationForCuringToVacationForCuring")
+End Function
+
 Public Function FromHospitalHandler() As Boolean
     FromHospitalHandler = private_SwitchMode("FromHospital")
+End Function
+
+Public Function ReinitializePageHandler() As Boolean
+    Dim diagnostic As String
+    Dim status As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        ReinitializePageHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If m_environmentSwitchPending Then
+        ReinitializePageHandler = True
+        Exit Function
+    End If
+    On Error GoTo EH_REINITIALIZE
+    status = ex_PEB_Export.fn_Config("text.ReinitializePagePending")
+    If Not ex_ConfigRefresh.fn_TryUpdate(diagnostic) Then GoTo FailedReinitialize
+    ' Recreate the page after the current command has returned.
+    If Not ex_AppCommands.fn_RequestReinitialize() Then
+        Err.Raise 5, , "Cannot schedule PEB page reinitialization."
+    End If
+    m_environmentSwitchPending = True
+    ReinitializePageHandler = private_SetActionStatus(status, False)
+    Exit Function
+EH_REINITIALIZE:
+    diagnostic = VBA.Err.Description
+FailedReinitialize:
+    ReinitializePageHandler = private_SetActionStatus(diagnostic, True)
 End Function
 
 Public Function EnvironmentSwitchHandler() As Boolean
@@ -1808,6 +1927,31 @@ EH:
     diagnostic = VBA.Err.Description
 End Function
 
+Private Function private_PublishExtendedModes(ByRef diagnostic As String) As Boolean
+    Dim items As Collection
+    Dim captions As Object
+    Dim eventId As Variant
+    Dim caption As String
+
+    On Error GoTo EH_EXTENDED
+    Set items = New Collection
+    Set captions = VBA.CreateObject("Scripting.Dictionary")
+    captions.CompareMode = VBA.vbTextCompare
+    For Each eventId In ex_PEB_EventRoutes.fn_Ids()
+        If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "visible") = "false" Then
+            caption = ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption")
+            If captions.Exists(caption) Then Err.Raise 5, , "Duplicate extended event caption: " & caption
+            captions.Add caption, True
+            items.Add caption
+        End If
+    Next eventId
+    If Not m_pageBase.BindingContext.SetObject("Data", "ExtendedModes", items) Then Exit Function
+    private_PublishExtendedModes = True
+    Exit Function
+EH_EXTENDED:
+    diagnostic = VBA.Err.Description
+End Function
+
 Private Function private_LoadMode( _
     ByVal modeId As String, _
     ByRef diagnostic As String _
@@ -1841,6 +1985,14 @@ Private Function private_LoadMode( _
     On Error GoTo EH
     secondaryCandidates = m_reporterActive Or m_hospitalActive
     modes = ex_PEB_EventRoutes.fn_VisibleIds()
+    caption = VBA.vbNullString
+    text = "secondaryButton"
+    If ex_PEB_EventRoutes.fn_Value(modeId, "visible") = "false" Then
+        caption = ex_PEB_EventRoutes.fn_Value(modeId, "caption")
+        text = "activeModeButton"
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "ExtendedMode", caption) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "ExtendedModeStyle", text) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function

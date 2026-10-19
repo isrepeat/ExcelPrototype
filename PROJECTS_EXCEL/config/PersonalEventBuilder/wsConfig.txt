@@ -174,6 +174,7 @@ value	PersonalEventBuilder::text.OrderSourceError	Не вдалося підго
 value	PersonalEventBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
 value	PersonalEventBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
 value	PersonalEventBuilder::text.RefreshPersonnel	Розірвати з’єднання
+value	PersonalEventBuilder::text.ReinitializePage	Перезавантажити сторінку
 value	PersonalEventBuilder::text.StatusChangeType	Зміна статусу
 value	PersonalEventBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
 value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
@@ -187,7 +188,6 @@ value	PersonalEventBuilder::text.CheckboxUnchecked	☐
 value	PersonalEventBuilder::text.EnvironmentSwitch	[[color=#F4A46B]]PROD[[/color]][[color=#909090]] / TEST[[/color]]
 value	PersonalEventBuilder::text.ExportWordOmitted	SKIP: для цієї події пункт Word не формується.
 value	PersonalEventBuilder::text.ExportWordSuccess	WORD {action}: {path}
-value	PersonalEventBuilder::text.ExtendedModeItems	Dummy 1,Dummy 2,Dummy 3
 value	PersonalEventBuilder::text.HistoryEmptyOrder	У EventsHistory немає подій вибраного наказу.
 value	PersonalEventBuilder::text.HistorySelectHint	Виберіть подію у списку під формою та натисніть Ctrl+Enter.
 value	PersonalEventBuilder::text.ModeDocumentLabel	Документ
@@ -306,6 +306,7 @@ value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
 value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
 value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
 value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата обрано. Автопідстановку вимкнено; дані можна редагувати вручну.
+value	PersonalEventBuilder::text.ReinitializePagePending	Перезавантаження конфігурації та XML. Дані форми буде очищено.
 value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
 value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
 value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
@@ -573,6 +574,9 @@ value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCur
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToFamilyVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToAnnualVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToAnnualVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyForTreatmentToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromMedicalCompanyVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
@@ -651,6 +655,9 @@ value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToFami
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToVacationForCuring	MoveFromExternalVlkToVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToAnnualVacation	MoveFromFamilyVacationToAnnualVacation
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromOutpatientVlkToVacationForCuring	MoveFromOutpatientVlkToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToVacationForCuring	MoveFromAnnualVacationToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToVacationForCuring	MoveFromFamilyVacationToVacationForCuring
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToAnnualVacation	MoveFromVacationForCuringToAnnualVacation
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToHospital	MoveFromMedicalCompanyForTreatmentToHospital
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToVacationForCuring	MoveFromVacationForCuringToVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToHospital	MoveFromMedicalCompanyVacationForCuringToHospital
@@ -843,6 +850,15 @@ value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.p
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToAnnualVacation.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
@@ -1016,6 +1032,7 @@ value	PersonalEventBuilder::export.Movement.links.OpeningId	PEB.OpeningId
 value	PersonalEventBuilder::export.Movement.links.ClosingId	PEB.ClosingId
 value	PersonalEventBuilder::export.Movement.links.OpeningHash	PEB.OpeningHash
 value	PersonalEventBuilder::export.Movement.links.ClosingHash	PEB.ClosingHash
+value	PersonalEventBuilder::export.Movement.status.Awol	СЗЧ
 value	PersonalEventBuilder::export.Movement.status.ExternalVlk	ВЛК за межами
 value	PersonalEventBuilder::export.Movement.status.BusinessTrip	Відрядження
 value	PersonalEventBuilder::export.Movement.status.MedicalLeave	Відпустка для лікування

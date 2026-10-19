@@ -3,16 +3,16 @@
              version="1"
              bindingField="ModeId">
   <events>
-    <event label="Прибуття з відрядження"
-           caption="Прибуття з відрядження"
+    <event label="З відрядження"
+           caption="З відрядження"
            id="FromBusinessTrip"
            direction="Arrival"
            form="Leave"
-           visible="false">
+           visible="true">
       <movement template="FromBusinessTrip"/>
       <word template="FromBusinessTrip"/>
     </event>
-    <event label="Стаціонарне лікування"
+    <event label="З лікування"
            caption="З лікування"
            id="FromHospital"
            direction="Arrival"
@@ -21,7 +21,7 @@
       <movement template="FromHospital"/>
       <word template="FromHospital"/>
     </event>
-    <event label="Відпустка для лікування"
+    <event label="З відпустки для лікування"
            caption="З відпустки для лікування"
            id="FromVacationForCuring"
            direction="Arrival"
@@ -30,7 +30,7 @@
       <movement template="FromVacationForCuring"/>
       <word template="FromVacationForCuring"/>
     </event>
-    <event label="Щорічна відпустка"
+    <event label="З щорічної відпустки"
            caption="З щорічної відпустки"
            id="FromAnnualMainVacation"
            direction="Arrival"
@@ -39,7 +39,7 @@
       <movement template="FromAnnualMainVacation"/>
       <word template="FromAnnualMainVacation"/>
     </event>
-    <event label="Відпустка за сімейними обставинами"
+    <event label="З відпустки за сімейними обставинами"
            caption="З відпустки за сімейними обставинами"
            id="FromVacationForFamily"
            direction="Arrival"
@@ -48,16 +48,16 @@
       <movement template="FromVacationForFamily"/>
       <word template="FromVacationForFamily"/>
     </event>
-    <event label="Прибуття з амбулаторного огляду / ВЛК"
-           caption="Прибуття з амбулаторного огляду / ВЛК"
+    <event label="З амбулаторного ВЛК"
+           caption="З амбулаторного ВЛК"
            id="FromOutpatientExaminationOrVlk"
            direction="Arrival"
            form="Treatment"
-           visible="false">
+           visible="true">
       <movement template="FromOutpatientExaminationOrVlk"/>
     </event>
-    <event label="Прибуття зі стаціонарної ВЛК"
-           caption="Прибуття зі стаціонарної ВЛК"
+    <event label="Зі стаціонарної ВЛК"
+           caption="Зі стаціонарної ВЛК"
            id="FromExternalVlk"
            direction="Arrival"
            form="Treatment"
@@ -65,16 +65,32 @@
       <movement template="FromExternalVlk"/>
       <word template="FromExternalVlk"/>
     </event>
-    <event label="Прибуття з лікування в медичній роті"
-           caption="Прибуття з лікування в медичній роті"
+    <event label="З медичної роти"
+           caption="З медичної роти"
            id="FromMedicalCompanyForTreatment"
            direction="Arrival"
            form="Treatment"
-           visible="false">
+           visible="true">
       <movement template="FromMedicalCompanyForTreatment"/>
       <word template="FromMedicalCompanyForTreatment"/>
     </event>
-    <event label="Стаціонарне лікування"
+    <event label="СЗЧ → відрядження"
+           caption="У відрядження СЗЧ"
+           id="MoveFromAwolToBusinessTrip"
+           direction="StatusChange"
+           form="Leave"
+           visible="true">
+      <movement template="MoveFromAwolToBusinessTrip"/>
+    </event>
+    <event label="Вибуття у відрядження"
+           caption="У відрядження"
+           id="ToBusinessTrip"
+           direction="Departure"
+           form="Leave"
+           visible="true">
+      <word template="ToBusinessTrip"/>
+    </event>
+    <event label="На лікування"
            caption="На лікування"
            id="ToHospital"
            direction="Departure"
@@ -83,7 +99,7 @@
       <movement template="ToHospital"/>
       <word template="ToHospital"/>
     </event>
-    <event label="Щорічна відпустка"
+    <event label="У щорічну відпустку"
            caption="У щорічну відпустку"
            id="ToAnnualMainVacation"
            direction="Departure"
@@ -92,7 +108,7 @@
       <movement template="ToAnnualMainVacation"/>
       <word template="ToAnnualMainVacation"/>
     </event>
-    <event label="Відпустка за сімейними обставинами"
+    <event label="У відпустку за сімейними обставинами"
            caption="У відпустку за сімейними обставинами"
            id="ToVacationForFamily"
            direction="Departure"
@@ -101,8 +117,8 @@
       <movement template="ToVacationForFamily"/>
       <word template="ToVacationForFamily"/>
     </event>
-    <event label="Вибуття у відпустку у зв’язку з вагітністю та пологами"
-           caption="Вибуття у відпустку у зв’язку з вагітністю та пологами"
+    <event label="У відпустку у зв’язку з вагітністю та пологами"
+           caption="У відпустку у зв’язку з вагітністю та пологами"
            id="ToMaternityLeave"
            direction="Departure"
            form="Leave"
@@ -110,7 +126,7 @@
       <movement template="ToMaternityLeave"/>
       <word template="ToMaternityLeave"/>
     </event>
-    <event label="Відпустка для лікування"
+    <event label="У відпустку для лікування"
            caption="У відпустку для лікування"
            id="ToVacationForCuring"
            direction="Departure"
@@ -119,29 +135,29 @@
       <movement template="ToVacationForCuring"/>
       <word template="ToVacationForCuring"/>
     </event>
-    <event label="Вибуття на амбулаторний огляд / ВЛК"
-           caption="Вибуття на амбулаторний огляд / ВЛК"
+    <event label="На амбулаторне ВЛК"
+           caption="На амбулаторне ВЛК"
            id="ToOutpatientExaminationOrVlk"
            direction="Departure"
            form="Treatment"
-           visible="false">
+           visible="true">
       <movement template="ToOutpatientExaminationOrVlk"/>
     </event>
-    <event label="Вибуття на лікування в медичну роту"
-           caption="Вибуття на лікування в медичну роту"
+    <event label="В медичну роту"
+           caption="В медичну роту"
            id="ToMedicalCompanyForTreatment"
            direction="Departure"
            form="Treatment"
-           visible="false">
+           visible="true">
       <movement template="ToMedicalCompanyForTreatment"/>
       <word template="ToMedicalCompanyForTreatment"/>
     </event>
-    <event label="лікування в лікарні → відпустка для лікування"
-           caption="лікування в лікарні → відпустка для лікування"
+    <event label="лікування → відпустка для лікування"
+           caption="лікування → відпустка для лікування"
            id="MoveFromHospitalToVacationForCuring"
            direction="StatusChange"
            form="Leave"
-           visible="false">
+           visible="true">
       <movement template="MoveFromHospitalToVacationForCuring"/>
       <word template="MoveFromHospitalToVacationForCuring"/>
     </event>
@@ -150,21 +166,21 @@
            id="MoveFromVacationForCuringToVacationForCuring"
            direction="StatusChange"
            form="Leave"
-           visible="false">
+           visible="true">
       <movement template="MoveFromVacationForCuringToVacationForCuring"/>
       <word template="MoveFromVacationForCuringToVacationForCuring"/>
     </event>
-    <event label="відпустка для лікування → лікування в лікарні"
-           caption="відпустка для лікування → лікування в лікарні"
+    <event label="відпустка для лікування → лікування"
+           caption="відпустка для лікування → лікування"
            id="MoveFromVacationForCuringToHospital"
            direction="StatusChange"
            form="Treatment"
-           visible="false">
+           visible="true">
       <movement template="MoveFromVacationForCuringToHospital"/>
       <word template="MoveFromVacationForCuringToHospital"/>
     </event>
-    <event label="щорічна відпустка → лікування в лікарні"
-           caption="щорічна відпустка → лікування в лікарні"
+    <event label="щорічна відпустка → лікування"
+           caption="щорічна відпустка → лікування"
            id="MoveFromAnnualVacationToHospital"
            direction="StatusChange"
            form="Treatment"
@@ -217,8 +233,8 @@
       <movement template="MoveFromVlkToHospital"/>
       <word template="MoveFromVlkToHospital"/>
     </event>
-    <event label="лікування в медичній роті → лікування в лікарні"
-           caption="лікування в медичній роті → лікування в лікарні"
+    <event label="медична рота → лікування"
+           caption="медична рота → лікування"
            id="MoveFromMedicalCompanyForTreatmentToHospital"
            direction="StatusChange"
            form="Treatment"
@@ -226,12 +242,12 @@
       <movement template="MoveFromMedicalCompanyForTreatmentToHospital"/>
       <word template="MoveFromMedicalCompanyForTreatmentToHospital"/>
     </event>
-    <event label="лікування в медичній роті → відпустка для лікування"
-           caption="лікування в медичній роті → відпустка для лікування"
+    <event label="медична рота → відпустка для лікування"
+           caption="медична рота → відпустка для лікування"
            id="MoveFromMedicalCompanyForTreatmentToVacationForCuring"
            direction="StatusChange"
            form="Leave"
-           visible="false">
+           visible="true">
       <movement template="MoveFromMedicalCompanyForTreatmentToVacationForCuring"/>
       <word template="MoveFromMedicalCompanyForTreatmentToVacationForCuring"/>
     </event>
@@ -271,8 +287,8 @@
       <movement template="MoveFromFamilyVacationToAnnualVacation"/>
       <word template="MoveFromFamilyVacationToAnnualVacation"/>
     </event>
-    <event label="лікування в лікарні → стаціонарна ВЛК"
-           caption="лікування в лікарні → стаціонарна ВЛК"
+    <event label="лікування → стаціонарна ВЛК"
+           caption="лікування → стаціонарна ВЛК"
            id="MoveFromHospitalToExternalVlk"
            direction="StatusChange"
            form="Treatment"
@@ -280,8 +296,8 @@
       <movement template="MoveFromHospitalToExternalVlk"/>
       <word template="MoveFromHospitalToExternalVlk"/>
     </event>
-    <event label="відпустка за сімейними обставинами → лікування в лікарні"
-           caption="відпустка за сімейними обставинами → лікування в лікарні"
+    <event label="відпустка за сімейними обставинами → лікування"
+           caption="відпустка за сімейними обставинами → лікування"
            id="MoveFromFamilyVacationToHospital"
            direction="StatusChange"
            form="Treatment"
@@ -298,8 +314,8 @@
       <movement template="MoveFromExternalVlkToVacationForCuring"/>
       <word template="MoveFromExternalVlkToVacationForCuring"/>
     </event>
-    <event label="стаціонарна ВЛК → лікування в лікарні"
-           caption="стаціонарна ВЛК → лікування в лікарні"
+    <event label="стаціонарна ВЛК → лікування"
+           caption="стаціонарна ВЛК → лікування"
            id="MoveFromExternalVlkToHospital"
            direction="StatusChange"
            form="Treatment"
@@ -312,17 +328,36 @@
            id="MoveFromOutpatientVlkToVacationForCuring"
            direction="Departure"
            form="Leave"
-           visible="false">
+           visible="true">
       <movement template="MoveFromOutpatientVlkToVacationForCuring"/>
       <word template="ToVacationForCuring"/>
     </event>
-    <event label="Вибуття у відрядження"
-           caption="У відрядження"
-           id="ToBusinessTrip"
-           direction="Departure"
+    <event label="щорічна відпустка → відпустка для лікування"
+           caption="щорічна відпустка → відпустка для лікування"
+           id="MoveFromAnnualVacationToVacationForCuring"
+           direction="StatusChange"
            form="Leave"
            visible="true">
-      <word template="ToBusinessTrip"/>
+      <movement template="MoveFromAnnualVacationToVacationForCuring"/>
+      <word template="MoveFromAnnualVacationToVacationForCuring"/>
+    </event>
+    <event label="відпустка за сімейними обставинами → відпустка для лікування"
+           caption="відпустка за сімейними обставинами → відпустка для лікування"
+           id="MoveFromFamilyVacationToVacationForCuring"
+           direction="StatusChange"
+           form="Leave"
+           visible="true">
+      <movement template="MoveFromFamilyVacationToVacationForCuring"/>
+      <word template="MoveFromFamilyVacationToVacationForCuring"/>
+    </event>
+    <event label="відпустка для лікування → щорічна відпустка"
+           caption="відпустка для лікування → щорічна відпустка"
+           id="MoveFromVacationForCuringToAnnualVacation"
+           direction="StatusChange"
+           form="Leave"
+           visible="true">
+      <movement template="MoveFromVacationForCuringToAnnualVacation"/>
+      <word template="MoveFromVacationForCuringToAnnualVacation"/>
     </event>
   </events>
 </eventRoutes>

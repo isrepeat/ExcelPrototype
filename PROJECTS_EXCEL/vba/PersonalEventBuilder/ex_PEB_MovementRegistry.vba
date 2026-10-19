@@ -159,7 +159,7 @@ Private Sub private_EnsureLoaded()
     Set m_statuses = VBA.CreateObject("Scripting.Dictionary")
     Set knownNames = VBA.CreateObject("Scripting.Dictionary")
     m_formFields = "|" & ex_PEB_Export.fn_Config("export.fields") & "|"
-    For Each identifier In VBA.Array("HospitalTreatment", "AnnualVacation", "MedicalLeave", "FamilyVacation", "MaternityLeave", "BusinessTrip", "OutpatientVlk", "ExternalVlk")
+    For Each identifier In VBA.Array("HospitalTreatment", "AnnualVacation", "MedicalLeave", "FamilyVacation", "MaternityLeave", "BusinessTrip", "OutpatientVlk", "ExternalVlk", "Awol")
         statusName = ex_PEB_Export.fn_Config("export.Movement.status." & identifier)
         If knownNames.Exists(statusName) Then
             Err.Raise 5, , "Duplicate Movement status name: " & statusName
@@ -539,6 +539,46 @@ Private Sub private_BuildEvents()
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "", _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+    private_AddEvent _
+        "MoveFromAwolToBusinessTrip", _
+        "Transition", _
+        "Transition", _
+        "Awol", _
+        "BusinessTrip", _
+        "Destination", _
+        "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+    private_AddEvent _
+        "MoveFromAnnualVacationToVacationForCuring", _
+        "Transition", _
+        "Transition", _
+        "AnnualVacation", _
+        "MedicalLeave", _
+        "Destination", _
+        "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+    private_AddEvent _
+        "MoveFromFamilyVacationToVacationForCuring", _
+        "Transition", _
+        "Transition", _
+        "FamilyVacation", _
+        "MedicalLeave", _
+        "Destination", _
+        "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+    private_AddEvent _
+        "MoveFromVacationForCuringToAnnualVacation", _
+        "Transition", _
+        "Transition", _
+        "MedicalLeave", _
+        "AnnualVacation", _
+        "Destination", _
+        "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
     private_AddEvent _
         "MoveFromHospitalToVacationForCuring", _
         "Transition", _

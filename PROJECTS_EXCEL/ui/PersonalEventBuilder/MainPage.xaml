@@ -206,7 +206,7 @@
                 column="1"
                 orientation="horizontal">
       <stackPanel name="ArrivalModes"
-                  rowSpan="5"
+                  rowSpan="7"
                   columnSpan="2"
                   orientation="vertical"
                   horizontalAlignment="stretch">
@@ -226,9 +226,21 @@
                          style="{Binding Path=Settings.FromVacationForFamilyStyle}"
                          caption="{Binding Path=Text.FromVacationForFamily}"
                          command="{Binding Path=Commands.FromVacationForFamily}"/>
+        <controls:button name="FromOutpatient"
+                         style="{Binding Path=Settings.FromOutpatientExaminationOrVlkStyle}"
+                         caption="{Binding Path=Text.FromOutpatientExaminationOrVlk}"
+                         command="{Binding Path=Commands.FromOutpatient}"/>
+        <controls:button name="FromMedicalCompany"
+                         style="{Binding Path=Settings.FromMedicalCompanyForTreatmentStyle}"
+                         caption="{Binding Path=Text.FromMedicalCompanyForTreatment}"
+                         command="{Binding Path=Commands.FromMedicalCompany}"/>
+        <controls:button name="FromBusinessTrip"
+                         style="{Binding Path=Settings.FromBusinessTripStyle}"
+                         caption="{Binding Path=Text.FromBusinessTrip}"
+                         command="{Binding Path=Commands.FromBusinessTrip}"/>
       </stackPanel>
       <stackPanel name="DepartureModes"
-                  rowSpan="5"
+                  rowSpan="7"
                   columnSpan="2"
                   orientation="vertical"
                   horizontalAlignment="stretch">
@@ -248,53 +260,75 @@
                          style="{Binding Path=Settings.ToVacationForFamilyStyle}"
                          caption="{Binding Path=Text.ToVacationForFamily}"
                          command="{Binding Path=Commands.ToVacationForFamily}"/>
+        <controls:button name="ToOutpatient"
+                         style="{Binding Path=Settings.ToOutpatientExaminationOrVlkStyle}"
+                         caption="{Binding Path=Text.ToOutpatientExaminationOrVlk}"
+                         command="{Binding Path=Commands.ToOutpatient}"/>
+        <controls:button name="ToMedicalCompany"
+                         style="{Binding Path=Settings.ToMedicalCompanyForTreatmentStyle}"
+                         caption="{Binding Path=Text.ToMedicalCompanyForTreatment}"
+                         command="{Binding Path=Commands.ToMedicalCompany}"/>
+        <controls:button name="ToBusinessTrip"
+                         style="{Binding Path=Settings.ToBusinessTripStyle}"
+                         caption="{Binding Path=Text.ToBusinessTrip}"
+                         command="{Binding Path=Commands.ToBusinessTrip}"/>
       </stackPanel>
-      <stackPanel name="DummyModes1"
-                  rowSpan="5"
+      <stackPanel name="StatusModes"
+                  rowSpan="7"
                   columnSpan="2"
                   orientation="vertical"
                   horizontalAlignment="stretch">
-        <controls:button name="DummyMode11"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode11}"/>
-        <controls:button name="DummyMode12"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode12}"/>
-        <controls:button name="DummyMode13"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode13}"/>
-        <controls:button name="DummyMode14"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode14}"/>
+        <controls:button name="HospitalToLeave"
+                         style="{Binding Path=Settings.MoveFromHospitalToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.MoveFromHospitalToVacationForCuring}"
+                         command="{Binding Path=Commands.HospitalToLeave}"/>
+        <controls:button name="AnnualToMedicalLeave"
+                         style="{Binding Path=Settings.MoveFromAnnualVacationToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.MoveFromAnnualVacationToVacationForCuring}"
+                         command="{Binding Path=Commands.AnnualToMedicalLeave}"/>
+        <controls:button name="MedicalLeaveExtend"
+                         style="{Binding Path=Settings.MoveFromVacationForCuringToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.MoveFromVacationForCuringToVacationForCuring}"
+                         command="{Binding Path=Commands.MedicalLeaveExtend}"/>
+        <controls:button name="FamilyToMedicalLeave"
+                         style="{Binding Path=Settings.MoveFromFamilyVacationToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.MoveFromFamilyVacationToVacationForCuring}"
+                         command="{Binding Path=Commands.FamilyToMedicalLeave}"/>
+        <controls:button name="OutpatientToMedicalLeave"
+                         style="{Binding Path=Settings.MoveFromOutpatientVlkToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.MoveFromOutpatientVlkToVacationForCuring}"
+                         command="{Binding Path=Commands.OutpatientToMedicalLeave}"/>
+        <controls:button name="MedCompanyToMedicalLeave"
+                         style="{Binding Path=Settings.MoveFromMedicalCompanyForTreatmentToVacationForCuringStyle}"
+                         caption="{Binding Path=Text.MoveFromMedicalCompanyForTreatmentToVacationForCuring}"
+                         command="{Binding Path=Commands.MedCompanyToMedicalLeave}"/>
+        <controls:button name="ToBusinessTripAwol"
+                         style="{Binding Path=Settings.MoveFromAwolToBusinessTripStyle}"
+                         caption="{Binding Path=Text.MoveFromAwolToBusinessTrip}"
+                         command="{Binding Path=Commands.ToBusinessTripAwol}"/>
       </stackPanel>
       <stackPanel name="DummyModes2"
-                  rowSpan="5"
+                  rowSpan="7"
                   columnSpan="2"
                   orientation="vertical"
                   horizontalAlignment="stretch">
-        <controls:button name="DummyMode21"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode21}"/>
-        <controls:button name="DummyMode22"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode22}"/>
-        <controls:button name="DummyMode23"
-                         style="disabledButton"
-                         caption="{Binding Path=Text.DummyMode}"
-                         command="{Binding Path=Commands.DummyMode23}"/>
+        <controls:button name="MedicalLeaveToHospital"
+                         style="{Binding Path=Settings.MoveFromVacationForCuringToHospitalStyle}"
+                         caption="{Binding Path=Text.MoveFromVacationForCuringToHospital}"
+                         command="{Binding Path=Commands.MedicalLeaveToHospital}"/>
+        <controls:button name="MedicalLeaveToAnnual"
+                         style="{Binding Path=Settings.MoveFromVacationForCuringToAnnualVacationStyle}"
+                         caption="{Binding Path=Text.MoveFromVacationForCuringToAnnualVacation}"
+                         command="{Binding Path=Commands.MedicalLeaveToAnnual}"/>
         <controls:select name="ExtendedModes"
-                         style="secondaryButton"
+                         itemsSource="{Binding Path=Data.ExtendedModes}"
+                         style="{Binding Path=Settings.ExtendedModeStyle}"
                          value="{Binding Path=Form.ExtendedMode}"
-                         items="{Binding Path=Text.ExtendedModeItems}"
+                         placeholder="{Binding Path=Text.ExtendedModes}"
                          panelStyle="formSelectPanel"
                          itemStyle="formSelectItem"
-                         itemHeight="25"/>
+                         itemHeight="25"
+                         onChange="{Binding Path=Commands.ExtendedModeChanged}"/>
       </stackPanel>
     </stackPanel>
     <controls:label name="OrderQueryLabel"
@@ -351,6 +385,13 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ResetForm}"
                      command="{Binding Path=Commands.ResetForm}"/>
+    <controls:button name="ReinitializePage"
+                     row="9"
+                     column="5"
+                     columnSpan="4"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ReinitializePage}"
+                     command="{Binding Path=Commands.ReinitializePage}"/>
     <controls:button name="EnvironmentSwitch"
                      row="1"
                      column="20"
