@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 from xml.etree import ElementTree as ET
+from zipfile import ZipFile
 
 from event_routes import ROOT, WORKBOOK, NS, load_registry, parse_config
 
@@ -11,11 +12,32 @@ def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(folder / filename)
         registry = load_registry(settings)
-        assert len(registry["events"]) == 36
-        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 34
+        assert len(registry["events"]) == 40
+        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 37
         assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is None
         movement_only = {name for name, event in registry["events"].items() if event.find("p:word", NS) is None}
-        assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk"}
+        assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "MoveFromAwolToBusinessTrip"}
+        for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
+                         "MoveFromVacationForCuringToAnnualVacation"):
+            event = registry["events"][event_id]
+            assert event.get("direction") == "StatusChange" and event.get("visible") == "true"
+            assert event.find("p:word", NS).get("template") == event_id
+            assert event.find("p:movement", NS).get("template") == event_id
+            assert settings["export.Word.textAnchors." + event_id] == event_id
+        templates = [path for path in WORKBOOK.glob("*.docx") if not path.name.startswith("~$")]
+        assert len(templates) == 1
+        with ZipFile(templates[0]) as package:
+            document = ET.fromstring(package.read("word/document.xml"))
+            text = "".join(document.itertext())
+            for event_id, event in registry["events"].items():
+                if event.find("p:word", NS) is not None:
+                    anchor = settings["export.Word.textAnchors." + event_id]
+                    for boundary in ("Begin", "End"):
+                        assert text.count("{\\export:" + anchor + "_" + boundary + "}") == 1, event_id
+            for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
+                             "MoveFromVacationForCuringToAnnualVacation"):
+                for boundary in ("Begin", "End"):
+                    assert text.count("{\\export:" + event_id + "_" + boundary + "}") == 1
         root = ET.parse(WORKBOOK / settings["events.path"]).getroot()
         assert [node.tag for node in root] == [f"{{{NS['p']}}}events"]
         for event in root.find("p:events", NS):
@@ -72,7 +94,7 @@ def main():
         rejected += 1
     else:
         raise AssertionError("Retired omittedTemplates section accepted")
-    print(f"PASS: TEST/PROD, 34 Word routes and 2 Movement-only events; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
+    print(f"PASS: TEST/PROD, 37 Word routes and 3 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":

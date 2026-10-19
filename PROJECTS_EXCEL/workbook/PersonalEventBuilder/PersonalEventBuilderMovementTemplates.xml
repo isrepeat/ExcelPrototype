@@ -618,4 +618,91 @@
       </text>
     </column>
   </template>
+  <template name="MoveFromAnnualVacationToVacationForCuring">
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromFamilyVacationToVacationForCuring">
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromAwolToBusinessTrip">
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalBusinessTripCertificate}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromVacationForCuringToAnnualVacation">
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
 </resultTemplates>

@@ -230,7 +230,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
-            "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
+            "DummyMode", "ExtendedModes", "EnvironmentSwitch", "ReinitializePage", _
             "LoadTest", "NextTest", _
             "PreviewWord", "SaveHistory", "ShowHistory", "HistoryEditMode", "CloseTable", "ExportWord", "ExportMovement", _
             "EventVersions", "CancelEvent", "RestoreEvent")
@@ -259,7 +259,7 @@ Private Function private_TryRegisterBindings() As Boolean
         If Not uiBindingContext.SetValue("Settings", "TestButtonStyle", "disabledButton") Then Exit Function
     End If
     If Not uiBindingContext.SetValue("Form", "TestScenario", VBA.vbNullString) Then Exit Function
-    If Not uiBindingContext.SetValue("Form", "ExtendedMode", ex_PEB_Export.fn_Config("text.ExtendedModes")) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ExtendedMode", VBA.vbNullString) Then Exit Function
     If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text.OrderUnaccepted", configuredText) Then
         ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text.OrderUnaccepted", vbExclamation, "Configuration"
         Exit Function
@@ -320,7 +320,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not uiBindingContext.SetObject("Commands", "SelectConflict", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
-            "LoadTest", "NextTest", "ResetForm", "CloseCandidates", "CloseHistory", _
+            "LoadTest", "NextTest", "ResetForm", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
@@ -341,6 +341,15 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not lookupCommand.Initialize(m_controller, "FromVacationForFamilyHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "FromVacationForFamily", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "FromOutpatientHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromOutpatient", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "FromMedicalCompanyHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromMedicalCompany", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "FromBusinessTripHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FromBusinessTrip", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "ToHospitalHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "ToHospital", lookupCommand) Then Exit Function
     Set lookupCommand = New obj_UiCommand
@@ -352,5 +361,41 @@ Private Function private_TryRegisterCommands() As Boolean
     Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "ToVacationForFamilyHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "ToVacationForFamily", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "ToOutpatientHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToOutpatient", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "ToMedicalCompanyHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToMedicalCompany", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "ToBusinessTripHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToBusinessTrip", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "HospitalToLeaveHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "HospitalToLeave", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "MedicalLeaveExtendHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "MedicalLeaveExtend", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "OutpatientToMedicalLeaveHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "OutpatientToMedicalLeave", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "MedCompanyToMedicalLeaveHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "MedCompanyToMedicalLeave", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "ToBusinessTripAwolHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "ToBusinessTripAwol", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "AnnualToMedicalLeaveHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "AnnualToMedicalLeave", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "FamilyToMedicalLeaveHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "FamilyToMedicalLeave", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "MedicalLeaveToHospitalHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "MedicalLeaveToHospital", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "MedicalLeaveToAnnualHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "MedicalLeaveToAnnual", lookupCommand) Then Exit Function
     private_TryRegisterCommands = True
 End Function

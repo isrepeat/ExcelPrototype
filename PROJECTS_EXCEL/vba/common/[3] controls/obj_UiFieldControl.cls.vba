@@ -629,6 +629,8 @@ Private Function private_RenderSelectShapes( _
     Dim headerShapeName As String
     Dim panelShapeName As String
     Dim arrowText As String
+    Dim placeholder As String
+    Dim headerText As String
     Dim startedAt As Double
 
     startedAt = VBA.Timer
@@ -650,8 +652,12 @@ Private Function private_RenderSelectShapes( _
     End If
     private_ApplyDefaultShapeStyle headerShape
     arrowText = VBA.ChrW(&H25BC)
-    headerShape.TextFrame2.TextRange.Text = selectedValue
-    If items.Count > 0 Then headerShape.TextFrame2.TextRange.Text = selectedValue & " " & arrowText
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+            private_ReadAttribute(m_uiControlBase.ControlNode, "placeholder"), uiRenderContext.BindingContext, placeholder) Then Exit Function
+    headerText = selectedValue
+    If VBA.Len(headerText) = 0 Then headerText = placeholder
+    headerShape.TextFrame2.TextRange.Text = headerText
+    If items.Count > 0 Then headerShape.TextFrame2.TextRange.Text = headerText & " " & arrowText
     headerShape.TextFrame2.MarginLeft = 5
     headerShape.TextFrame2.MarginRight = 5
     headerShape.TextFrame2.MarginTop = 0
@@ -673,7 +679,7 @@ Private Function private_RenderSelectShapes( _
     Set uiSelectAction = New obj_UiSelectShapeAction
     If Not uiSelectAction.Initialize( _
             controlId, m_targetRange.Cells(1, 1), headerShapeName, panelShapeName, _
-            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable, Me) Then Exit Function
+            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable, Me, placeholder) Then Exit Function
     Set m_selectAction = uiSelectAction
     Dim routeName As Variant
 

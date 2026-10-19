@@ -24,6 +24,7 @@ Private m_itemShapeNames As Collection
 Private m_shapeNames As Collection
 Private m_items As Collection
 Private m_selectedValue As String
+Private m_placeholder As String
 Private m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 Private m_editable As Boolean
@@ -83,7 +84,8 @@ Public Function Initialize( _
     ByVal selectedValue As String, _
     ByVal uiCellBinding As obj_UiCellBinding, _
     Optional ByVal editable As Boolean = False, _
-    Optional ByVal uiFieldControl As obj_UiFieldControl = Nothing _
+    Optional ByVal uiFieldControl As obj_UiFieldControl = Nothing, _
+    Optional ByVal placeholder As String = "" _
 ) As Boolean
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -108,6 +110,7 @@ Public Function Initialize( _
     Set m_shapeNames = shapeNames
     Set m_items = items
     m_selectedValue = selectedValue
+    m_placeholder = placeholder
     Set m_uiCellBinding = uiCellBinding
     m_isExpanded = False
     m_editable = editable
@@ -135,6 +138,7 @@ Public Sub Dispose()
     m_headerShapeName = VBA.vbNullString
     m_panelShapeName = VBA.vbNullString
     m_selectedValue = VBA.vbNullString
+    m_placeholder = VBA.vbNullString
     m_controlId = 0
     m_isExpanded = False
 End Sub
@@ -268,14 +272,17 @@ End Function
 Private Sub private_UpdateHeader()
     Dim headerShape As Shape
     Dim arrowText As String
+    Dim headerText As String
 
     If m_worksheet Is Nothing Then Exit Sub
     On Error Resume Next
     Set headerShape = m_worksheet.Shapes(m_headerShapeName)
     If headerShape Is Nothing Then Exit Sub
+    headerText = m_selectedValue
+    If VBA.Len(headerText) = 0 Then headerText = m_placeholder
     ' Keep the editable field arrow visible even when the list is empty.
     If m_items.Count = 0 And Not m_editable Then
-        headerShape.TextFrame2.TextRange.Text = m_selectedValue
+        headerShape.TextFrame2.TextRange.Text = headerText
         Exit Sub
     End If
     If m_isExpanded Then
@@ -286,7 +293,7 @@ Private Sub private_UpdateHeader()
     If m_editable Then
         headerShape.TextFrame2.TextRange.Text = arrowText
     Else
-        headerShape.TextFrame2.TextRange.Text = m_selectedValue & " " & arrowText
+        headerShape.TextFrame2.TextRange.Text = headerText & " " & arrowText
     End If
     On Error GoTo 0
 End Sub

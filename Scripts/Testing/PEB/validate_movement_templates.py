@@ -42,8 +42,20 @@ def main():
                 raise AssertionError("Missing Movement setting accepted: " + key)
         registry = load_registry(settings)
         movement = registry["movement"]
-        assert len(movement["templates"]) == len(movement["events"]) == 35
-        assert len(registry["events"]) == 36
+        assert len(movement["templates"]) == len(movement["events"]) == 39
+        assert len(registry["events"]) == 40
+        for event_id, source, target in (
+            ("MoveFromAwolToBusinessTrip", "Awol", "BusinessTrip"),
+            ("MoveFromAnnualVacationToVacationForCuring", "AnnualVacation", "MedicalLeave"),
+            ("MoveFromFamilyVacationToVacationForCuring", "FamilyVacation", "MedicalLeave"),
+            ("MoveFromVacationForCuringToAnnualVacation", "MedicalLeave", "AnnualVacation"),
+        ):
+            plan = movement["events"][event_id]
+            assert plan["operation"] == plan["profile"] == "Transition"
+            assert plan["sourceStatus"] == source and plan["targetStatus"] == target
+            assert plan["destinationField"] == "Destination"
+            assert "Destination" in plan["required"].split("|")
+        assert movement["statuses"]["Awol"] == "СЗЧ"
         assert len(movement["profiles"]) == 5 and len(movement["values"]) == 167
         root = movement["root"]
         assert root.tag == f"{{{NS['p']}}}resultTemplates"
@@ -55,7 +67,7 @@ def main():
             if operation == "Transition":
                 expected.add("Прибуття.Підстава")
             assert set(movement["columns"][name]) == expected
-        assert sum(len(columns) for columns in movement["columns"].values()) == 55
+        assert sum(len(columns) for columns in movement["columns"].values()) == 63
         for name, columns in movement["columns"].items():
             for text in columns.values():
                 assert "block.OptionalVacationTicket" not in text, name
@@ -139,7 +151,7 @@ def main():
     assert "DOMDocument" not in native and "selectNodes" not in native
     assert 'MovementBasis' in native and 'SourceDestination' in native
 
-    print(f"PASS: TEST/PROD, 35 templates and 55 column texts; distinct transition texts accepted; {rejected} invalid definitions rejected. Native plans unchanged; Office/VBA not executed.")
+    print(f"PASS: TEST/PROD, 39 templates and 63 column texts; AWOL/business-trip and medical-leave transitions; distinct transition texts accepted; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":
