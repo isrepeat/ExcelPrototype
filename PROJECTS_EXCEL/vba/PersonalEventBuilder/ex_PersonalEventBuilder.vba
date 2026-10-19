@@ -42,6 +42,15 @@ Public Sub fn_RegisterHotkeys()
     If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_PreviewWord") Then
         VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
     End If
+    If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::hotkeys.saveHistory", keySequence) Then
+        VBA.Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::hotkeys.saveHistory"
+    End If
+    If VBA.Len(VBA.Trim$(keySequence)) = 0 Then
+        VBA.Err.Raise 5, , "Empty configuration key: PersonalEventBuilder::hotkeys.saveHistory"
+    End If
+    If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_SaveHistory") Then
+        VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
+    End If
 End Sub
 
 Public Sub fn_PreviewWord()
@@ -85,6 +94,49 @@ EH_PREVIEW:
     If busyEntered Then ex_UiBusy.fn_End
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     VBA.Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_PreviewWord", errorDescription
+End Sub
+
+Public Sub fn_SaveHistory()
+    Dim runtimeContext As Object
+    Dim uiRenderContext As obj_UiRenderContext
+    Dim uiCommand As obj_UiCommand
+    Dim diagnostic As String
+    Dim previousScreenUpdating As Boolean
+    Dim busyEntered As Boolean
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH_SAVE
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, uiRenderContext) Then GoTo CleanSave
+    If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
+            "{Binding Path=Commands.SaveHistory}", uiRenderContext.BindingContext, uiCommand) Then
+        GoTo CleanSave
+    End If
+    busyEntered = ex_UiBusy.fn_Begin()
+    Application.ScreenUpdating = False
+    uiCommand.Execute
+    Set uiRenderContext = Nothing
+    If ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, uiRenderContext) Then
+        If Not uiRenderContext.FlushLayout(diagnostic) Then
+            VBA.Err.Raise 5, , diagnostic
+        End If
+    End If
+CleanSave:
+    Application.ScreenUpdating = previousScreenUpdating
+    If busyEntered Then ex_UiBusy.fn_End
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_SAVE:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    Application.ScreenUpdating = previousScreenUpdating
+    If busyEntered Then ex_UiBusy.fn_End
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    VBA.Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_SaveHistory", errorDescription
 End Sub
 
 Public Function fn_Initialize() As Boolean

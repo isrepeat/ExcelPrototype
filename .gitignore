@@ -1,19 +1,21 @@
 # Local artifacts
-Scripts/Testing/PEB/node_modules/
-Scripts/Testing/PEB/__pycache__/
-PROJECTS_EXCEL/tests/PersonalEventBuilder/**/*.inspect.ndjson
-PROJECTS_EXCEL/tests/PersonalEventBuilder/cases-preview.png
-\!SCREENSHOTS/
+.vs
+.codex
+.reload-*/
+.backup/
+.modules-backup-*/
+
+*.log
+
 Codex/logs/
 Codex/sessions/
-.codex
-.vs
-PROJECTS_EXCEL/WorkbookUpdater/WorkbookUpdater.xlam
-.reload-*/
-.modules-backup-*/
-.backup/
-PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
+Scripts/Testing/PEB/node_modules/
+Scripts/Testing/PEB/__pycache__/
 
+PROJECTS_EXCEL/tests/PersonalEventBuilder/cases-preview.png
+PROJECTS_EXCEL/tests/PersonalEventBuilder/**/*.inspect.ndjson
+PROJECTS_EXCEL/WorkbookUpdater/WorkbookUpdater.xlam
+PROJECTS_EXCEL/WorkbookUpdater/~$*.xlam
 PROJECTS_EXCEL/**/*.xlsx
 !PROJECTS_EXCEL/workbook/cfgDependencies.xlsx
 PROJECTS_EXCEL/**/*.xlsm
