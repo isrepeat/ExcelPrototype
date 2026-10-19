@@ -42,6 +42,7 @@ def validate_plan(template, fields):
 
 
 def main():
+    test_settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder/wsConfig.test.txt")
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         registry = load_registry(settings)
@@ -56,9 +57,9 @@ def main():
         assert "PersonId" not in settings["export.Word.grouping.output"]
         assert "AcceptedOrderNumber" in settings["export.Word.grouping.output"]
         assert settings["export.Word.textAnchors.ToBusinessTrip"] == "ToBusinessTrip"
-        fixture = load_grouping_cases(settings)
+        fixture = load_grouping_cases(test_settings)
         defaults = {node.get("name"): node.text or "" for node in fixture.find("defaults")}
-        assert set(defaults) == set(settings["test.scenarios.groupingSteps.fields"].split("|")[5:])
+        assert set(defaults) == set(test_settings["test.scenarios.groupingSteps.fields"].split("|")[5:])
         assert "WordText" not in fields
         assert template.find("p:text", NS) is None
         assert "{[GroupBasis]}" in template.find("p:group/p:single/p:text", NS).text
@@ -164,7 +165,8 @@ def main():
             assert text.count("{\\export:ToBusinessTrip_" + suffix + "}") == 1
     document_source = (folder / "ex_PEB_WordDocument.vba").read_text(encoding="utf-8-sig")
     store_source = (folder / "obj_PEB_WordEventStore.cls.vba").read_text(encoding="utf-8-sig")
-    assert document_source.index("WordStoreManualEdit") < document_source.index("store.Change operation")
+    # Existing stored events are checked before the update branch mutates them.
+    assert document_source.index("WordStoreManualEdit") < document_source.rindex("store.Change operation")
     assert document_source.index("ex_PEB_WordGroups.fn_Render") < document_source.index("anchors.TryInsert")
     assert document_source.index("CustomXMLParts.Add(store.Xml)") < document_source.index("part.Delete")
     assert "version=" in store_source and "private_CollectMaps" in store_source

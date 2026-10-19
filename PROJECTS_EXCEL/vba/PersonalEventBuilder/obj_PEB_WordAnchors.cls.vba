@@ -256,6 +256,40 @@ Public Sub HideMarkers( _
     marker.Font.Hidden = True
 End Sub
 
+Public Function TryRemoveMarkers( _
+    ByVal document As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim identifier As Variant
+    Dim positions As Variant
+    Dim marker As Object
+    Dim expected As String
+
+    On Error GoTo EH_REMOVE
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.WordMarkersRemovalInvalid")
+    End If
+    expected = private_DocumentText(document)
+    For Each identifier In m_anchors.Keys
+        positions = m_anchors(identifier)
+        expected = VBA.Replace$(expected, VBA.CStr(positions(0)), VBA.vbNullString, 1, -1, VBA.vbBinaryCompare)
+        expected = VBA.Replace$(expected, VBA.CStr(positions(1)), VBA.vbNullString, 1, -1, VBA.vbBinaryCompare)
+        ' Delete only marker text, preserving section paragraphs and inserted content.
+        Set marker = private_FindMarker(document, VBA.CStr(positions(1)))
+        marker.Delete
+        Set marker = private_FindMarker(document, VBA.CStr(positions(0)))
+        marker.Delete
+    Next identifier
+    If VBA.StrComp(private_DocumentText(document), expected, VBA.vbBinaryCompare) <> 0 Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.WordMarkersRemovalInvalid")
+    End If
+    TryRemoveMarkers = True
+    Exit Function
+EH_REMOVE:
+    diagnostic = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError "Word.Export.RemoveMarkers", VBA.Err.Number, VBA.Err.Source, diagnostic
+End Function
+
 ' //
 ' // Private
 ' //

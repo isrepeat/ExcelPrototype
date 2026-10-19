@@ -815,12 +815,16 @@ Public Function ExportWordHandler() As Boolean
     Dim orderNumber As String
     Dim orderDate As Variant
     Dim output As String
+    Dim totalStartedAt As Double
+    Dim startedAt As Double
+    Dim succeeded As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
     On Error GoTo EH
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
+    totalStartedAt = VBA.Timer
     If enabled = "false" Then
         ExportWordHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.ExportWordUnavailable"), True)
         Exit Function
@@ -843,7 +847,11 @@ Public Function ExportWordHandler() As Boolean
     If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then
         orderDate = VBA.CDate(orderDate)
     End If
-    If Not ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic) Then GoTo FailedHistoryWord
+    startedAt = VBA.Timer
+    succeeded = ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic)
+    ex_Core.fn_Diagnostic_WritePerf "Word.Export.ReadEvents", startedAt
+    If Not succeeded Then GoTo FailedHistoryWord
+    startedAt = VBA.Timer
     Set activeEvents = New Collection
     Set journal = New Collection
     For Each historyItem In events
@@ -862,29 +870,40 @@ Public Function ExportWordHandler() As Boolean
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryCancelledWord")
     End If
     Set events = activeEvents
+    ex_Core.fn_Diagnostic_WritePerf "Word.Export.PrepareJournal", startedAt
     Set exporter = New obj_PEB_ExptrWord
     If Not exporter.Initialize() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError048")
     If Not exporter.TryGenerateHistory(events, output, diagnostic) Then GoTo FailedHistoryWord
-    If Not ex_PEB_HistoryRevisions.fn_RecordExport(journal, output, "Word", journalDiagnostic) Then
+    startedAt = VBA.Timer
+    succeeded = ex_PEB_HistoryRevisions.fn_RecordExport(journal, output, "Word", journalDiagnostic)
+    ex_Core.fn_Diagnostic_WritePerf "Word.Export.RecordJournal", startedAt
+    If Not succeeded Then
         ExportWordHandler = private_SetActionStatus(VBA.Replace$( _
             ex_PEB_Export.fn_Config("text.HistoryJournalFailed"), "{details}", journalDiagnostic), True)
-        exporter.Dispose
-        Exit Function
+        GoTo CleanupHistoryWord
     End If
-    If Not private_RefreshExportHistory(journalDiagnostic) Then
+    startedAt = VBA.Timer
+    succeeded = private_RefreshExportHistory(journalDiagnostic)
+    ex_Core.fn_Diagnostic_WritePerf "Word.Export.RefreshHistory", startedAt
+    If Not succeeded Then
         ExportWordHandler = private_SetActionStatus(VBA.Replace$( _
             ex_PEB_Export.fn_Config("text.HistoryRefreshAfterExport"), "{details}", journalDiagnostic), True)
-        exporter.Dispose
-        Exit Function
+        GoTo CleanupHistoryWord
     End If
     ExportWordHandler = private_SetActionStatus(VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryWordSuccess"), "{path}", output), False)
-    exporter.Dispose
-    Exit Function
+    GoTo CleanupHistoryWord
 EH:
     diagnostic = VBA.Err.Description
 FailedHistoryWord:
-    If Not exporter Is Nothing Then exporter.Dispose
     private_SetActionStatus diagnostic, True
+CleanupHistoryWord:
+    If Not exporter Is Nothing Then exporter.Dispose
+    If totalStartedAt > 0 Then
+        ex_Core.fn_Diagnostic_WritePerf "Word.Export.TotalIncludingJournalAndRefresh", totalStartedAt
+    End If
+    If Not ex_Core.fn_Diagnostic_Flush(True) Then
+        Debug.Print "Word command diagnostic flush failed."
+    End If
 End Function
 
 Public Function ExportMovementHandler() As Boolean

@@ -15,6 +15,7 @@ Private m_isDisposed As Boolean
 Private m_movementRenderer As obj_PEB_DslRenderer
 Private m_pebDslRenderer As obj_PEB_DslRenderer
 Private m_pebWordTemplates As obj_PEB_WordTemplates
+Private m_ownsWordTemplates As Boolean
 Private m_lookupTables As Object
 
 ' //
@@ -54,7 +55,9 @@ Public Sub Dispose()
         m_pebDslRenderer.Dispose
     End If
     If Not m_pebWordTemplates Is Nothing Then
-        m_pebWordTemplates.Dispose
+        If m_ownsWordTemplates Then
+            m_pebWordTemplates.Dispose
+        End If
     End If
     If Not m_movementRenderer Is Nothing Then
         m_movementRenderer.Dispose
@@ -106,7 +109,11 @@ Public Function TryPrepare( _
     ' Keep templates for an isolated test run; interactive operations still reload XML.
     If Not ex_PEB_Testing.fn_IsRunning() Then
         If Not m_pebDslRenderer Is Nothing Then m_pebDslRenderer.Dispose
-        If Not m_pebWordTemplates Is Nothing Then m_pebWordTemplates.Dispose
+        If Not m_pebWordTemplates Is Nothing Then
+            If m_ownsWordTemplates Then
+                m_pebWordTemplates.Dispose
+            End If
+        End If
         Set m_pebDslRenderer = Nothing
         Set m_pebWordTemplates = Nothing
     End If
@@ -207,6 +214,7 @@ Public Function TryPrepare( _
         End If
         If m_pebWordTemplates Is Nothing Then
             Set m_pebWordTemplates = New obj_PEB_WordTemplates
+            m_ownsWordTemplates = True
             If Not m_pebWordTemplates.Initialize(diagnostic) Then
                 GoTo Failed
             End If
@@ -361,14 +369,15 @@ End Function
 ' Rebuild Word context independently of the Movement preview.
 Public Function TryPrepareHistory( _
     ByVal values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal documentContext As Object = Nothing, _
+    Optional ByVal wordTemplates As obj_PEB_WordTemplates = Nothing _
 ) As Boolean
     Dim key As Variant
     Dim item As Object
     Dim reports As Collection
     Dim reportPattern As Object
     Dim report As Object
-    Dim body As String
     Dim text As String
     Dim template As String
     Dim replacements As Object
@@ -441,9 +450,13 @@ Public Function TryPrepareHistory( _
         End If
     End If
     values("TemplateName") = template
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
-    values("WordTemplateFileName") = fileSystem.GetFileName(path)
+    If documentContext Is Nothing Then
+        Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+        path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+        values("WordTemplateFileName") = fileSystem.GetFileName(path)
+    Else
+        values("WordTemplateFileName") = documentContext("WordTemplateFileName")
+    End If
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.requiredKeys"), "|")
         If Not values.Exists(key) Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
     Next key
@@ -451,8 +464,14 @@ Public Function TryPrepareHistory( _
         If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
     Next key
     If m_pebWordTemplates Is Nothing Then
-        Set m_pebWordTemplates = New obj_PEB_WordTemplates
-        If Not m_pebWordTemplates.Initialize(diagnostic) Then Exit Function
+        If wordTemplates Is Nothing Then
+            Set m_pebWordTemplates = New obj_PEB_WordTemplates
+            m_ownsWordTemplates = True
+            If Not m_pebWordTemplates.Initialize(diagnostic) Then Exit Function
+        Else
+            Set m_pebWordTemplates = wordTemplates
+            m_ownsWordTemplates = False
+        End If
         Set m_pebDslRenderer = New obj_PEB_DslRenderer
         If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
     End If
@@ -473,8 +492,19 @@ Public Function TryPrepareHistory( _
         report("ReporterGenitive") = VBA.Trim$(report("ReportPositionGenitive") & " " & report("ReportRankGenitive") & " " & report("ReportPersonInitialsGenitive"))
         If VBA.Len(report("ReportPerson")) > 0 And VBA.Len(report("ReporterGenitive")) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError033")
     Next report
-    If Not m_pebWordTemplates.TryRender(template, values, body, diagnostic) Then Exit Function
-    values("WordText") = body
+    ' Render section bodies once in the batch exporter, after collecting their members.
+    If Not documentContext Is Nothing Then
+        For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.documentContext.fields"), "|")
+            If ex_PEB_MovementLinks.fn_ValueToken(values(key)) <> ex_PEB_MovementLinks.fn_ValueToken(documentContext(key)) Then
+                Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError039")
+            End If
+        Next key
+        Set values("WordDocumentReplacements") = documentContext("WordDocumentReplacements")
+        values("WordTemplatePath") = documentContext("WordTemplatePath")
+        values("WordOutput") = documentContext("WordOutput")
+        TryPrepareHistory = True
+        Exit Function
+    End If
     Set replacements = VBA.CreateObject("Scripting.Dictionary")
     For index = 1 To ex_PEB_Export.fn_Count("export.Word.documentFields.count")
         token = ex_PEB_Export.fn_Config("export.Word.documentFields." & index & ".token")

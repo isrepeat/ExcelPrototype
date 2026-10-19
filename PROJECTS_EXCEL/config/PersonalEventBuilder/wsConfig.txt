@@ -11,115 +11,10 @@ value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgMain
-value	PersonalEventBuilder::test.ui.mainSheet	MainPage
-value	PersonalEventBuilder::test.ui.maxScenarios	200
-value	PersonalEventBuilder::test.ui.previewByDefault	0
-value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds
-value	PersonalEventBuilder::test.ui.catalogFields	Selected|PreviewEnabled|ScenarioId|Operation|EventLabel|StepCount|RuleStatus
-value	PersonalEventBuilder::test.ui.catalogCaptions	Вибір|Прев’ю|Сценарій|Операція|Подія / сценарій|Кроків|Правило
-value	PersonalEventBuilder::test.ui.selectedByDefault	S01|S02
-value	PersonalEventBuilder::test.word.style.headingColor	#000000
-value	PersonalEventBuilder::test.word.style.headingDetailColor	#767171
-value	PersonalEventBuilder::test.audit.inputs.sheet	Тест_ВхідніДані
-value	PersonalEventBuilder::test.audit.inputs.table	tbTestInputs
-value	PersonalEventBuilder::test.audit.maxRows	100000
-value	PersonalEventBuilder::test.audit.records.sheet	Тест_Записи
-value	PersonalEventBuilder::test.audit.records.table	tbTestRecords
-value	PersonalEventBuilder::test.audit.results.sheet	Тест_Результати
-value	PersonalEventBuilder::test.audit.results.table	tbTestResults
-value	PersonalEventBuilder::test.audit.inputFields	RunId|ScenarioId|StepId|ModeId|EventName|PersonId|Result|Timestamp|InputStage|Field|Value|ValueType
-value	PersonalEventBuilder::test.audit.recordFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|Result|Timestamp|Phase|StateAvailable|RecordIndex|ChangeKind
-value	PersonalEventBuilder::test.audit.resultFields	RunId|ScenarioId|ScenarioName|StepId|ModeId|EventName|Operation|PersonId|RuleStatus|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|Timestamp|TotalSteps|CompletedSteps|RunState|StepOrder|Action|StateCheck|MovementResult|WordResult|ExpectedPreviewText|PreviewText|ExpectedPreviewError|PreviewDiagnostic
-value	PersonalEventBuilder::test.panel.row	72
-value	PersonalEventBuilder::test.panel.fields	ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|PreviewLink
-value	PersonalEventBuilder::test.panel.captions	Сценарій|Крок|Очікувалось|Отримано|Очікуваний код|Фактичний код|Відкр. очік.|Відкр. факт.|Результат|Деталі|Прев’ю
-value	PersonalEventBuilder::test.panel.candidateOffset	20
-value	PersonalEventBuilder::test.runner.codeAliases	NoOpenDeparture=DepartureCreated|PreviousDepartureClosed=DepartureCreated|MatchingOpenDeparture=ArrivalClosed
-value	PersonalEventBuilder::test.runner.tickSeconds	0
-value	PersonalEventBuilder::test.runner.batchMilliseconds	100
-value	PersonalEventBuilder::test.runner.uiRefreshMilliseconds	100
-value	PersonalEventBuilder::test.absence.table	ВІДСУТНІ
-value	PersonalEventBuilder::test.absence.fields	65=65|66=66|67=67|68=68|69=69|70=70|71 (А)=71 (А)|71 (Б)=71 (Б)|72=72|73=73|74=74|75 (А)=75 (А)|75 (Б)=75 (Б)|76=76|Стовпець1=Стовпець1
-value	PersonalEventBuilder::test.absence.nameHeader	66
-value	PersonalEventBuilder::test.absence.eventFlagHeader	HasEvent
-value	PersonalEventBuilder::test.expected.rowKeys	ІПН|Подія|Вибуття|Вибуття.Наказ
-value	PersonalEventBuilder::test.expected.rowsCaption	Очікувані рядки РУХ після кроку
-value	PersonalEventBuilder::test.expected.wordHeaders	StepId|Outcome|ExpectedText|ExpectedError
-value	PersonalEventBuilder::test.expected.minimumGapRows	2
-value	PersonalEventBuilder::test.expected.movementHeaders	StepId|ExpectedDecision|ExpectedCode|StateCheck|ExpectedOpenCount
-value	PersonalEventBuilder::test.progress.Commit	4
-value	PersonalEventBuilder::test.progress.Export	5
-value	PersonalEventBuilder::test.progress.Inputs	3
-value	PersonalEventBuilder::test.progress.Verify	7
-value	PersonalEventBuilder::test.progress.Archive	8
-value	PersonalEventBuilder::test.progress.Catalog	0
-value	PersonalEventBuilder::test.progress.Prepare	1
-value	PersonalEventBuilder::test.progress.Registry	0
-value	PersonalEventBuilder::test.progress.Snapshot	2
-value	PersonalEventBuilder::test.progress.stageCount	8
-value	PersonalEventBuilder::test.progress.OpenAbsence	0
-value	PersonalEventBuilder::test.progress.OpenMovement	0
-value	PersonalEventBuilder::test.progress.AfterSnapshot	6
-value	PersonalEventBuilder::test.progress.OpenScenarios	0
-value	PersonalEventBuilder::test.scenarios.path	../../tests/PersonalEventBuilder/TestScenarios.EventRoutes.xlsx
-value	PersonalEventBuilder::test.scenarios.root	../../tests/PersonalEventBuilder
-value	PersonalEventBuilder::test.scenarios.cases.sheet	Сценарії
-value	PersonalEventBuilder::test.scenarios.cases.table	tbTestScenarios
-value	PersonalEventBuilder::test.scenarios.cases.readRange	auto
-value	PersonalEventBuilder::test.scenarios.steps.sheet	TestBasic_Steps
-value	PersonalEventBuilder::test.scenarios.steps.table	tbTestSteps
-value	PersonalEventBuilder::test.scenarios.steps.readRange	auto
-value	PersonalEventBuilder::test.scenarios.fields	Destination=Destination|Hospital=Hospital|HospitalShortName=HospitalShortName|PersonRank=PersonRank|PersonName=PersonName|PersonId=PersonId|PositionCode=PositionCode|ReportRank=ReportRank|ReportName=ReportName|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|Document=Document|DocumentDate=DocumentDate|DocumentNumber=DocumentNumber|EventDate=EventDate|TicketNumber=TicketNumber|TicketDate=TicketDate|AcceptedOrderNumber=AcceptedOrderNumber|AcceptedOrderDate=AcceptedOrderDate
-value	PersonalEventBuilder::test.scenarios.absence.sheet	ЄЖОС_Історія
-value	PersonalEventBuilder::test.scenarios.absence.table	tbTestAbsence
-value	PersonalEventBuilder::test.scenarios.headers.id	ScenarioId
-value	PersonalEventBuilder::test.scenarios.headers.code	ExpectedCode
-value	PersonalEventBuilder::test.scenarios.headers.mode	ModeId
-value	PersonalEventBuilder::test.scenarios.headers.name	Назва
-value	PersonalEventBuilder::test.scenarios.headers.step	StepOrder
-value	PersonalEventBuilder::test.scenarios.headers.suite	Suite
-value	PersonalEventBuilder::test.scenarios.headers.action	Action
-value	PersonalEventBuilder::test.scenarios.headers.stepId	StepId
-value	PersonalEventBuilder::test.scenarios.headers.arrival	Прибуття
-value	PersonalEventBuilder::test.scenarios.headers.expected	ExpectedDecision
-value	PersonalEventBuilder::test.scenarios.headers.personId	ІПН
-value	PersonalEventBuilder::test.scenarios.headers.recordId	RecordId
-value	PersonalEventBuilder::test.scenarios.headers.wordText	ExpectedText
-value	PersonalEventBuilder::test.scenarios.headers.openCount	ExpectedOpenCount
-value	PersonalEventBuilder::test.scenarios.headers.wordError	ExpectedError
-value	PersonalEventBuilder::test.scenarios.headers.ruleStatus	RuleStatus
-value	PersonalEventBuilder::test.scenarios.headers.stateCheck	StateCheck
-value	PersonalEventBuilder::test.scenarios.headers.wordOutcome	Outcome
-value	PersonalEventBuilder::test.scenarios.headers.catalogEvent	Подія / сценарій
-value	PersonalEventBuilder::test.scenarios.headers.stepPersonId	PersonId
-value	PersonalEventBuilder::test.scenarios.headers.catalogOperation	Операція
-value	PersonalEventBuilder::test.scenarios.history.sheet	РУХ_Історія
-value	PersonalEventBuilder::test.scenarios.history.table	tbTestHistory
-value	PersonalEventBuilder::test.scenarios.dateFields	EventDate|AcceptedOrderDate|IncomingDate|DocumentDate|TicketDate
-value	PersonalEventBuilder::test.scenarios.stepHeaders	ScenarioId|StepId|StepOrder|Action|ModeId|AcceptedOrderNumber|AcceptedOrderDate|Destination|Hospital|HospitalShortName|PersonRank|PersonName|PersonId|PositionCode|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|Document|DocumentDate|DocumentNumber|EventDate|TicketNumber|TicketDate|Notes
-value	PersonalEventBuilder::test.scenarios.expectedRows.sheet	Expected_РУХ
-value	PersonalEventBuilder::test.scenarios.expectedRows.table	tbExpectedMovementRows
-value	PersonalEventBuilder::test.scenarios.expectedWord.sheet	Expected_WORD
-value	PersonalEventBuilder::test.scenarios.expectedWord.table	tbExpectedWord
-value	PersonalEventBuilder::test.scenarios.groupingSteps.sheet	TestGrouping_Steps
-value	PersonalEventBuilder::test.scenarios.groupingSteps.table	tbGroupingSteps
-value	PersonalEventBuilder::test.scenarios.groupingSteps.fields	ScenarioId|StepId|StepOrder|Action|ExpectedError|ModeId|PersonId|ReporterId|AcceptedOrderNumber|AcceptedOrderDate|EventDate|Destination|TicketNumber|TicketDate|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::test.scenarios.groupingSteps.readRange	auto
-value	PersonalEventBuilder::test.scenarios.formulaColumns	Валідація|Статус потенціально незакритих записів
-value	PersonalEventBuilder::test.scenarios.productionPath	../Dependencies/РУХ.xlsx
-value	PersonalEventBuilder::test.scenarios.expectedMovement.sheet	Expected_РУХ
-value	PersonalEventBuilder::test.scenarios.expectedMovement.table	tbExpectedMovement
-value	PersonalEventBuilder::test.scenarios.groupingExpected.sheet	Expected_WORD_Grouping
-value	PersonalEventBuilder::test.scenarios.groupingExpected.table	tbGroupingExpected
-value	PersonalEventBuilder::test.scenarios.groupingExpected.fields	ScenarioId|ExpectedEvents|Text|Count
-value	PersonalEventBuilder::test.scenarios.groupingExpected.readRange	auto
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
 value	PersonalEventBuilder::text.NextTest	Наступний крок
 value	PersonalEventBuilder::text.TestOnly	Завантаження сценаріїв доступне лише в TEST.
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
-value	PersonalEventBuilder::text.DummyMode	Недоступно
-value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
-value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
 value	PersonalEventBuilder::text.TestPhase.Export	Виконання тестової дії завершено.
 value	PersonalEventBuilder::text.TestPhase.Inputs	Вхідні дані експорту підготовлено.
@@ -127,23 +22,20 @@ value	PersonalEventBuilder::text.TestPhase.Verify	Результат перев�
 value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.
 value	PersonalEventBuilder::text.TestPhase.Catalog	Завантаження сценаріїв та очікувань.
 value	PersonalEventBuilder::text.TestPhase.Prepare	Початковий стан сценарію відновлено.
-value	PersonalEventBuilder::text.WordStoreNotFound	Не знайдено подію з указаним UID. Оновлення та видалення потребують існуючої події.
 value	PersonalEventBuilder::text.TestPhase.Registry	Перевірка реєстру тестових значень.
 value	PersonalEventBuilder::text.TestPhase.Snapshot	Початковий знімок записів отримано.
-value	PersonalEventBuilder::text.WordStoreDuplicate	Подію вже додано до документа. Повторне додавання пропущено; документ не змінено.
-value	PersonalEventBuilder::text.WordStoreMigration	Документ містить старі метадані або текст без реєстру подій. Потрібна явна міграція.
-value	PersonalEventBuilder::text.WordStoreManualEdit	Текст між якорями змінено вручну. Автоматичну зміну скасовано.
-value	PersonalEventBuilder::text.WordStoreMapConflict	Дані людини або посади відрізняються від збережених у документі. Використайте явне оновлення події.
-value	PersonalEventBuilder::text.WordStorePlanChanged	Змінено шаблон або правила формування документа. Потрібна міграція метаданих.
 value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
 value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
-value	PersonalEventBuilder::text.WordStoreOrderMismatch	Документ належить іншій парі номера та дати наказу.
 value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
 value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
+value	PersonalEventBuilder::text.DummyMode	Недоступно
+value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
+value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
 value	PersonalEventBuilder::text.TestsBusy	Тести виконуються. Зупиніть запуск перед зміною середовища, ручним завантаженням або експортом.
 value	PersonalEventBuilder::text.TestsHelp	Оберіть сценарії. Прогрес — у статус-барі, архів результатів і записів — у TestScenarios.xlsx. Скасування між кроками.
 value	PersonalEventBuilder::text.TestsStop	Зупинити
+value	PersonalEventBuilder::text.ResetForm	Нова подія
 value	PersonalEventBuilder::text.ExportWord	Сформувати WORD
 value	PersonalEventBuilder::text.LastStatus	Статус останньої дії
 value	PersonalEventBuilder::text.OrderEmpty	Наказів не знайдено. Перевірте номер, дату та рік.
@@ -154,11 +46,15 @@ value	PersonalEventBuilder::text.TestFailed	Сценарій не заванта
 value	PersonalEventBuilder::text.TestLoaded	Сценарій {scenario}, крок {step} ({code}). Дія: {expected}. Дію запускайте окремо.
 value	PersonalEventBuilder::text.TestsBasic	Базові тести
 value	PersonalEventBuilder::text.UnitHeader	Підрозділ
+value	PersonalEventBuilder::text.CloseTable	×
 value	PersonalEventBuilder::text.ArrivalType	Прибуття
 value	PersonalEventBuilder::text.ExportTitle	Експорт події
 value	PersonalEventBuilder::text.PreviewWord	Показати прев’ю
 value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	PersonalEventBuilder::text.TaxIdHeader	ІПН
+value	PersonalEventBuilder::text.SaveHistory	Додати / оновити подію
+value	PersonalEventBuilder::text.ShowHistory	Редагування подій поточного наказу
+value	PersonalEventBuilder::text.CancelEvent	Скасувати подію
 value	PersonalEventBuilder::text.ExportFailed	Експорт не виконано: {details}
 value	PersonalEventBuilder::text.ModeSelected	Режим: {mode}.
 value	PersonalEventBuilder::text.StyleEnabled	Значення enabled має бути true або false.
@@ -167,6 +63,7 @@ value	PersonalEventBuilder::text.TestsResults	Результати запуск�
 value	PersonalEventBuilder::text.TestsRunning	Тести виконуються. Зупинка можлива між кроками.
 value	PersonalEventBuilder::text.TestsStopped	Зупинено. {summary}
 value	PersonalEventBuilder::text.TestsSummary	PASS: {pass} | FAIL: {fail} | SKIP: {skip} | ERROR: {error}
+value	PersonalEventBuilder::text.RestoreEvent	Відновити подію
 value	PersonalEventBuilder::text.DepartureType	Вибуття
 value	PersonalEventBuilder::text.ExtendedModes	Розширені режими
 value	PersonalEventBuilder::text.OrderAccepted	Прийнято: №{number} від {date}.
@@ -185,13 +82,13 @@ value	PersonalEventBuilder::text.TestsMismatch	Рішення, код або к�
 value	PersonalEventBuilder::text.TestsProgress	Тести: {percent}% ({completed}/{total}). {state}
 value	PersonalEventBuilder::text.TestsRunError	Помилка запуску. {summary}
 value	PersonalEventBuilder::text.TestsStopping	Скасування: нові операції не запускаються, очікувані кроки позначаються SKIP.
+value	PersonalEventBuilder::text.UpdateHistory	Оновити
+value	PersonalEventBuilder::text.EventVersions	Історія змін події
 value	PersonalEventBuilder::text.ActionsSection	ДІЇ
 value	PersonalEventBuilder::text.EventDateLabel	Дата події
 value	PersonalEventBuilder::text.EventNoteLabel	Примітка
 value	PersonalEventBuilder::text.ExportMovement	Експорт РУХ
 value	PersonalEventBuilder::text.ExportNotSaved	Зміни не збережено.
-value	PersonalEventBuilder::text.MovementOpenRequired	Для експорту РУХ відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» і повторіть експорт.
-value	PersonalEventBuilder::text.MovementOpenAmbiguous	У відкритих книгах знайдено декілька таблиць РУХ. Залиште відкритою лише потрібну книгу та повторіть експорт.
 value	PersonalEventBuilder::text.FullNameHeader	ПІБ
 value	PersonalEventBuilder::text.OrderDateLabel	Дата наказу
 value	PersonalEventBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте tbOrders.
@@ -206,6 +103,11 @@ value	PersonalEventBuilder::text.StyleRowHeight	Некоректне значе�
 value	PersonalEventBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
 value	PersonalEventBuilder::text.TestsCancelled	Запуск зупинено користувачем.
 value	PersonalEventBuilder::text.TestsPageTitle	Тестування РУХ та WORD — TEST
+value	PersonalEventBuilder::text.HistoryEditing	Редагування: {id}
+value	PersonalEventBuilder::text.ConflictSchema	Недоступна або некоректна таблиця {table}. Перевірте аркуш, заголовки та можливість запису.
+value	PersonalEventBuilder::text.ConflictColumn.Field	Подія / поле
+value	PersonalEventBuilder::text.ConflictColumn.MovementValue	Залишити в РУХ
+value	PersonalEventBuilder::text.ConflictColumn.GeneratedValue	Замінити з EventsHistory
 value	PersonalEventBuilder::text.AutoFillEnabled	Автопідстановку ввімкнено. Пов’язані поля захищені від ручного редагування.
 value	PersonalEventBuilder::text.CheckboxChecked	☑
 value	PersonalEventBuilder::text.CheckboxPartial	▣
@@ -221,6 +123,58 @@ value	PersonalEventBuilder::text.TestPreviewLink	Переглянути
 value	PersonalEventBuilder::text.TestStepMissing	Має бути рівно один запис сценарію/кроку {step}. Крок відсутній або дублюється.
 value	PersonalEventBuilder::text.TestsWordReport	Сформувати зведений Word-документ
 value	PersonalEventBuilder::text.TicketDateLabel	Квиток Дата
+value	PersonalEventBuilder::text.HistoryError001	Ambiguous history event identity.
+value	PersonalEventBuilder::text.HistoryError002	History update requires an Event row.
+value	PersonalEventBuilder::text.HistoryError003	History RowId not found: {value}
+value	PersonalEventBuilder::text.HistoryError004	Duplicate generated history RowId; retry.
+value	PersonalEventBuilder::text.HistoryError005	Empty or duplicate history RowId.
+value	PersonalEventBuilder::text.HistoryError006	Unknown history RowType: {value}
+value	PersonalEventBuilder::text.HistoryError007	Event cannot have a parent.
+value	PersonalEventBuilder::text.HistoryError008	Duplicate event identity in the selected order.
+value	PersonalEventBuilder::text.HistoryError009	Cycle in history parents.
+value	PersonalEventBuilder::text.HistoryError010	History parent not found: {value}
+value	PersonalEventBuilder::text.HistoryError011	Only TVO rows can form a chain.
+value	PersonalEventBuilder::text.HistoryError012	History date must use dd.mm.yyyy: {value}
+value	PersonalEventBuilder::text.HistoryError013	Invalid history date: {value}
+value	PersonalEventBuilder::text.HistoryError014	History workbook not found: {value}
+value	PersonalEventBuilder::text.HistoryError015	History workbook is read-only: {value}
+value	PersonalEventBuilder::text.HistoryError016	History workbook must use the 1900 date system.
+value	PersonalEventBuilder::text.HistoryError017	History worksheet is protected.
+value	PersonalEventBuilder::text.HistoryError018	Invalid history field mapping: {value}
+value	PersonalEventBuilder::text.HistoryError019	Missing history column: {value}
+value	PersonalEventBuilder::text.HistoryError020	Nonempty history row requires RowId and RowType.
+value	PersonalEventBuilder::text.HistoryError021	Invalid history cell value.
+value	PersonalEventBuilder::text.HistoryError022	Empty history identity field: {value}
+value	PersonalEventBuilder::text.HistoryError023	RowOrder must be a positive integer.
+value	PersonalEventBuilder::text.HistoryError024	RowOrder is out of range.
+value	PersonalEventBuilder::text.HistoryError025	Missing TVO snapshot: {value}
+value	PersonalEventBuilder::text.HistoryError026	Export service is not initialized.
+value	PersonalEventBuilder::text.HistoryError027	History Boolean must be true or false: {value}
+value	PersonalEventBuilder::text.HistoryError028	History end date precedes the event date.
+value	PersonalEventBuilder::text.HistoryError029	History duration and end date disagree.
+value	PersonalEventBuilder::text.HistoryError030	Empty stored Word field: {value}
+value	PersonalEventBuilder::text.HistoryError031	Cannot initialize history renderer.
+value	PersonalEventBuilder::text.HistoryError032	Stored report number is empty.
+value	PersonalEventBuilder::text.HistoryError033	Stored report author snapshot is empty.
+value	PersonalEventBuilder::text.HistoryError034	Invalid stored document field: {value}
+value	PersonalEventBuilder::text.HistoryError035	Unresolved history document filename.
+value	PersonalEventBuilder::text.HistoryError036	Word exporter is not initialized.
+value	PersonalEventBuilder::text.HistoryError037	History generation requires a Word template.
+value	PersonalEventBuilder::text.HistoryError038	Cannot initialize history export service.
+value	PersonalEventBuilder::text.HistoryError039	Inconsistent stored order metadata.
+value	PersonalEventBuilder::text.HistoryError040	Word template not found: {value}
+value	PersonalEventBuilder::text.HistoryError041	Word output cannot replace its template.
+value	PersonalEventBuilder::text.HistoryError042	Word output disappeared during generation.
+value	PersonalEventBuilder::text.HistoryError043	Word output changed during generation.
+value	PersonalEventBuilder::text.HistoryError044	Word output appeared during generation.
+value	PersonalEventBuilder::text.HistoryError045	Word enabled must be true or false.
+value	PersonalEventBuilder::text.HistoryError046	Missing accepted order number.
+value	PersonalEventBuilder::text.HistoryError047	Missing accepted order date.
+value	PersonalEventBuilder::text.HistoryError048	Cannot initialize Word exporter.
+value	PersonalEventBuilder::text.HistoryEditMode	Нова подія
+value	PersonalEventBuilder::text.HistoryEditHint	Подію завантажено. Змініть дані та натисніть «Оновити». «Нова подія» завершує редагування.
+value	PersonalEventBuilder::text.ConflictPending	Є конфлікти ручних змін. У таблиці нижче оберіть значення через Ctrl+Enter та повторіть експорт РУХ.
+value	PersonalEventBuilder::text.ConflictUiError	Не вдалося показати конфлікти РУХ.
 value	PersonalEventBuilder::text.AbsenceTypeLabel	Тип вибуття
 value	PersonalEventBuilder::text.AutoFillDisabled	Автопідстановку вимкнено. Пов’язані поля можна редагувати вручну.
 value	PersonalEventBuilder::text.DestinationLabel	Куди
@@ -238,6 +192,11 @@ value	PersonalEventBuilder::text.StyleDeclaration	Некоректне огол�
 value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
 value	PersonalEventBuilder::text.TestPreviewError	Не вдалося сформувати прев’ю документа:
 value	PersonalEventBuilder::text.TestsPendingRule	Очікуване правило ще не визначено.
+value	PersonalEventBuilder::text.HistorySaveFirst	Збережіть зміни в EventsHistory перед виконанням операції.
+value	PersonalEventBuilder::text.HistoryStaleEdit	Запис EventsHistory змінився після завантаження. Оновіть список і виберіть подію повторно.
+value	PersonalEventBuilder::text.HistoryListStale	Список подій застарів. Натисніть «Події поточного наказу» та виберіть запис повторно.
+value	PersonalEventBuilder::text.ConflictProgress	Вирішено {resolved} з {total}. Оберіть усі значення та повторіть експорт РУХ.
+value	PersonalEventBuilder::text.WordStoreNotFound	Не знайдено подію з указаним UID. Оновлення та видалення потребують існуючої події.
 value	PersonalEventBuilder::text.CheckboxUnchecked	☐
 value	PersonalEventBuilder::text.EnvironmentSwitch	[[color=#F4A46B]]PROD[[/color]][[color=#909090]] / TEST[[/color]]
 value	PersonalEventBuilder::text.ExportWordOmitted	SKIP: для цієї події пункт Word не формується.
@@ -257,9 +216,13 @@ value	PersonalEventBuilder::text.StyleCellSelector	Для стилю комір�
 value	PersonalEventBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
 value	PersonalEventBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
 value	PersonalEventBuilder::text.TestPreviewNotRun	Прев’ю не сформовано: крок не виконувався.
-value	PersonalEventBuilder::text.TestScenarioItems	S01,S02,S03,S04,S05,S06,S07,S08,S09,S10,S11,S12,S13,S14,S15,S16,W01,W02,W03,W04,W05,W06,W07,W08,W09
 value	PersonalEventBuilder::text.TestsGroupingStep	[Крок {step}]
 value	PersonalEventBuilder::text.TicketNumberLabel	Квиток №
+value	PersonalEventBuilder::text.HistoryEmptyOrder	У EventsHistory немає подій вибраного наказу.
+value	PersonalEventBuilder::text.HistorySelectHint	Виберіть подію у списку під формою та натисніть Ctrl+Enter.
+value	PersonalEventBuilder::text.MovementPlanError	План РУХ: {code}. {detail}
+value	PersonalEventBuilder::text.WordStoreDuplicate	Подію вже додано до документа. Повторне додавання пропущено; документ не змінено.
+value	PersonalEventBuilder::text.WordStoreMigration	Документ містить старі метадані або текст без реєстру подій. Потрібна явна міграція.
 value	PersonalEventBuilder::text.DepartureDateLabel	Дата вибуття
 value	PersonalEventBuilder::text.ModeEventDateLabel	Дата події
 value	PersonalEventBuilder::text.ModeEventTypeLabel	Тип
@@ -271,6 +234,12 @@ value	PersonalEventBuilder::text.TestChooseScenario	Оберіть ScenarioId у
 value	PersonalEventBuilder::text.TestPreviewHeading	{scenario} · Крок {step} · {event}
 value	PersonalEventBuilder::text.TestsArchiveFailed	Не вдалося зберегти тестові книги та журнал у TestScenarios.xlsx; незбережені зміни буде відкинуто. {error}
 value	PersonalEventBuilder::text.TestsFieldMismatch	{step} / {record} / {field}: очікувалось «{expected}», отримано «{actual}».
+value	PersonalEventBuilder::text.ReturnTicketsError	Не вдалося підставити квиток зі знімка РУХ: {details}
+value	PersonalEventBuilder::text.HistoryWordSuccess	WORD сформовано з EventsHistory: {path}.
+value	PersonalEventBuilder::text.HistoryStatusSaved	Статус події збережено. Застосуйте зміни кнопкою «Експорт РУХ» та повторно сформуйте WORD.
+value	PersonalEventBuilder::text.HistorySyncUnknown	Немає запису в журналі
+value	PersonalEventBuilder::text.HistorySyncPending	Зміни не підтверджено
+value	PersonalEventBuilder::text.WordStoreManualEdit	Текст між якорями змінено вручну. Автоматичну зміну скасовано.
 value	PersonalEventBuilder::text.ModePersonNameLabel	ПІБ
 value	PersonalEventBuilder::text.ModePersonRankLabel	Звання
 value	PersonalEventBuilder::text.ModeReportNameLabel	Рапорт.ПІБ
@@ -288,11 +257,26 @@ value	PersonalEventBuilder::text.TestsGroupingPassed	Групування WORD: 
 value	PersonalEventBuilder::text.TestsPreviousFailed	Попередній крок сценарію не пройдено; наступний крок не виконується.
 value	PersonalEventBuilder::text.TestsReopenRequired	Склад сценаріїв змінився. Повторно відкрийте панель тестування.
 value	PersonalEventBuilder::text.TestsSelectRequired	Позначте хоча б один сценарій.
+value	PersonalEventBuilder::text.HistoryNoWordEvents	Події вибраного наказу не мають маршрутів WORD.
+value	PersonalEventBuilder::text.HistoryReasonPrompt	Вкажіть причину скасування або відновлення події:
+value	PersonalEventBuilder::text.WordInsertionFailed	Вставлення у WORD: {stage}; секція {anchor}; помилка {number}: {details}
+value	PersonalEventBuilder::text.WordStoreMapConflict	Дані людини або посади відрізняються від збережених у документі. Використайте явне оновлення події.
+value	PersonalEventBuilder::text.WordStorePlanChanged	Змінено шаблон або правила формування документа. Потрібна міграція метаданих.
+value	PersonalEventBuilder::text.MovementOpenRequired	Для експорту РУХ відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» і повторіть експорт.
 value	PersonalEventBuilder::text.ModeArrivalDateLabel	Прибуття.Дата
 value	PersonalEventBuilder::text.ModeDestinationLabel	Місце
 value	PersonalEventBuilder::text.PersonnelActionError	Помилка роботи з кандидатами: {details}
 value	PersonalEventBuilder::text.TestPreviewOperation	PreviewWord
 value	PersonalEventBuilder::text.TestsGroupingHeading	{scenario} {step}
+value	PersonalEventBuilder::text.ExportHistorySuccess	Подію збережено в EventsHistory: {action}.
+value	PersonalEventBuilder::text.MovementBatchSuccess	РУХ: застосовано подій — {applied}, вже застосовано — {skipped}. Дані змінено у відкритій таблиці.
+value	PersonalEventBuilder::text.HistoryCancelledWord	У наказі немає активних подій для WORD. Раніше сформований файл не змінено.
+value	PersonalEventBuilder::text.HistoryJournalFailed	Файл створено, але запис журналу експорту не виконано: {details}
+value	PersonalEventBuilder::text.HistoryCancelPending	Скасування не підтверджено
+value	PersonalEventBuilder::text.HistorySyncConfirmed	Версію підтверджено
+value	PersonalEventBuilder::text.HistoryRollbackError	Не вдалося повністю відновити історію після помилки: {details}
+value	PersonalEventBuilder::text.ConflictStateInvalid	Пошкоджено типізований знімок експортованого поля. Перевірте ExportFieldState.
+value	PersonalEventBuilder::text.MovementOpenAmbiguous	У відкритих книгах знайдено декілька таблиць РУХ. Залиште відкритою лише потрібну книгу та повторіть експорт.
 value	PersonalEventBuilder::text.ExportMovementSuccess	Подію збережено в РУХ.
 value	PersonalEventBuilder::text.ExportWordUnavailable	Експорт WORD тимчасово вимкнено. Доступний перегляд тексту на аркуші.
 value	PersonalEventBuilder::text.ModeDocumentDateLabel	Документ.Дата
@@ -303,10 +287,22 @@ value	PersonalEventBuilder::text.SourceLegendPersonnel	ШПО
 value	PersonalEventBuilder::text.SourceLegendSeparator	—
 value	PersonalEventBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
 value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків ТВ або записані поля не відповідають операції.
+value	PersonalEventBuilder::text.SourceLegendOrderDate	Поточна дата наказу
+value	PersonalEventBuilder::text.MovementBatchRestored	Дані та числові формати відновлено у відкритій таблиці. Книга залишається відкритою для перевірки.
+value	PersonalEventBuilder::text.HistoryReasonRequired	Вкажіть причину зміни статусу події.
+value	PersonalEventBuilder::text.HistoryBaselineReason	Стан перед першою зафіксованою зміною або переглядом історії; попередні зміни невідомі.
+value	PersonalEventBuilder::text.HistorySelectRequired	Спочатку виберіть подію зі списку поточного наказу.
+value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
+value	PersonalEventBuilder::text.ConflictPolicyInvalid	Некоректна політика ручних змін РУХ: очікується Overwrite або Resolve.
+value	PersonalEventBuilder::text.WordStoreOrderMismatch	Документ належить іншій парі номера та дати наказу.
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
 value	PersonalEventBuilder::text.ModeDepartureDateLabel	Вибуття.Дата
 value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
 value	PersonalEventBuilder::text.TestsGroupingDocuments	Формувати Word-звіт групування
+value	PersonalEventBuilder::text.OrderSignatoryRequired	Для прийнятої пари номера та дати наказу не знайдено підписанта в довіднику «Накази».
+value	PersonalEventBuilder::text.HistoryChildrenInTable	Додаткові рапорти, документи та ТВО поки редагуються в EventsHistory. Збереження колекцій із форми ще не підтримується.
+value	PersonalEventBuilder::text.MovementBatchConflicts	РУХ не змінено. Конфліктних або заблокованих подій: {count}
+value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
 value	PersonalEventBuilder::text.ModeDocumentNumberLabel	Документ.№
 value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
 value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
@@ -314,14 +310,32 @@ value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата об
 value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
 value	PersonalEventBuilder::text.TestsUnexpectedMutation	Відхилена операція змінила дані ТВ.
 value	PersonalEventBuilder::text.WordStorePersonRequired	Для події потрібен ІПН або ПІБ разом із кодом посади.
+value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
+value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже є інша подія з такими людиною, типом і датою. Оновлення скасовано.
 value	PersonalEventBuilder::text.EnvironmentSwitchPending	Перемикання середовища: {environment}. Дані форми буде очищено.
 value	PersonalEventBuilder::text.ExportPreviewWordSuccess	Текст поточної події показано в області прев’ю.
 value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
 value	PersonalEventBuilder::text.WordStorePersonAmbiguous	ПІБ і код посади відповідають кільком записам людини. Уточніть ідентифікатор.
+value	PersonalEventBuilder::text.OrderDocumentNameInvalid	Неможливо сформувати ім’я документа: перевірте плейсхолдери шаблону та дані наказу.
+value	PersonalEventBuilder::text.SimpleDepartureWhileOpen	Нове вибуття неможливе: попереднє «{actual}» ще не закрито прибуттям.
 value	PersonalEventBuilder::text.ExportMovementUnavailable	Експорт РУХ ще не налаштовано. Очікуються параметри книги, аркуша й таблиці.
 value	PersonalEventBuilder::text.ModeStatusChangeDateLabel	Дата зміни статусу
+value	PersonalEventBuilder::text.HistoryRefreshAfterExport	Експорт виконано, але список подій не оновлено: {details}
+value	PersonalEventBuilder::text.SimpleArrivalTypeMismatch	Тип прибуття не відповідає вибуттю: обрано повернення з «{expected}», відкрито «{actual}».
+value	PersonalEventBuilder::text.WordMarkersRemovalInvalid	Не вдалося безпечно видалити службові якорі WORD: некоректний індекс або змінено інший текст документа.
 value	PersonalEventBuilder::text.ModeHospitalShortNameLabel	Лікарня.СкороченаНазва
+value	PersonalEventBuilder::text.ReturnTicketsSourceChanged	Джерело збережено під час читання знімка. Повторіть пошук.
+value	PersonalEventBuilder::text.ReturnTicketsSourceMissing	Не знайдено джерело знімка: {path}
+value	PersonalEventBuilder::text.MovementBatchRollbackError	Не вдалося повністю відновити дані в пам'яті: {error}. Перевірте цільову таблицю перед повторним експортом.
+value	PersonalEventBuilder::text.MovementBatchSettingsError	Не вдалося відновити налаштування Excel: {error}
+value	PersonalEventBuilder::text.MovementBatchTargetMissing	Відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» на аркуші «{sheet}».
 value	PersonalEventBuilder::text.ModeReportPositionCodeLabel	Рапорт.КодПосади
+value	PersonalEventBuilder::text.MovementBatchAlreadyApplied	РУХ: усі події вже застосовано ({skipped}). Змін не внесено.
+value	PersonalEventBuilder::text.MovementOpenAbsenceMismatch	Для ІПН {person} не знайдено відкритої відсутності «{expected}» на {date}. Відкриті відсутності та дати вибуття: {actual}.
+value	PersonalEventBuilder::text.MovementBatchTargetAmbiguous	У відкритих книгах знайдено декілька таблиць «{table}» на аркуші «{sheet}». Залиште відкритою лише цільову книгу РУХ і повторіть експорт.
+value	PersonalEventBuilder::text.MovementSaveValidationFailed	Подію не збережено. Конфлікт у події {id}: {details}
+value	PersonalEventBuilder::text.SimpleArrivalWithoutDeparture	Прибуття неможливе: немає відкритого вибуття.
+value	PersonalEventBuilder::text.MovementHistoryReportsUnsupported	План РУХ: додаткові рапорти ще не підтримуються. Подію не включено до плану.
 value	PersonalEventBuilder::forms.Leave.fields.1.name	Destination
 value	PersonalEventBuilder::forms.Leave.fields.1.record	Absence.Destination
 value	PersonalEventBuilder::forms.Leave.fields.1.captionKey	PersonalEventBuilder::text.ModeDestinationLabel
@@ -416,6 +430,16 @@ value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBu
 value	PersonalEventBuilder::forms.Treatment.fields.count	16
 value	PersonalEventBuilder::forms.Treatment.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::forms.sourceStyles.default	formField
+value	PersonalEventBuilder::forms.sourceStyles.Absence	absenceFormField
+value	PersonalEventBuilder::forms.sourceStyles.Hospital	formField
+value	PersonalEventBuilder::forms.sourceStyles.Personnel	personnelFormField
+value	PersonalEventBuilder::forms.sourceStyles.CurrentOrder	currentOrderField
+value	PersonalEventBuilder::forms.sourceStyles.ReturnTickets	movementTicketField
+value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital
+value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::forms.lookupDefaultStyle	lookupKeyField
+value	PersonalEventBuilder::forms.dynamicStylesEnabled	true
 value	PersonalEventBuilder::modes.default	FromAnnualMainVacation
 value	PersonalEventBuilder::events.path	PersonalEventBuilderEventRoutes.xml
 value	PersonalEventBuilder::export.dsl.months.1	січня
@@ -431,45 +455,45 @@ value	PersonalEventBuilder::export.dsl.months.10	жовтня
 value	PersonalEventBuilder::export.dsl.months.11	листопада
 value	PersonalEventBuilder::export.dsl.months.12	грудня
 value	PersonalEventBuilder::export.dsl.maxDepth	32
-  ref	PersonalEventBuilder::export.Word.meta.lookups.1.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.1.when.field	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.meta.lookups.1.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.1.input	PersonRank
   ref	PersonalEventBuilder::export.Word.meta.lookups.1.range	__cfgDependencies.source.PersonnelRanks.range
   ref	PersonalEventBuilder::export.Word.meta.lookups.1.sheet	__cfgDependencies.source.PersonnelRanks.sheet
 value	PersonalEventBuilder::export.Word.meta.lookups.1.output	RankGenitive
 value	PersonalEventBuilder::export.Word.meta.lookups.1.keyHeader	Звання
 value	PersonalEventBuilder::export.Word.meta.lookups.1.valueHeader	Родовий
-  ref	PersonalEventBuilder::export.Word.meta.lookups.2.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.2.when.field	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.2.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.meta.lookups.2.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.2.input	PersonId
   ref	PersonalEventBuilder::export.Word.meta.lookups.2.range	__cfgDependencies.source.PersonnelAlf.range
   ref	PersonalEventBuilder::export.Word.meta.lookups.2.sheet	__cfgDependencies.source.PersonnelAlf.sheet
 value	PersonalEventBuilder::export.Word.meta.lookups.2.output	FIOAccusative
 value	PersonalEventBuilder::export.Word.meta.lookups.2.keyHeader	ІПН
 value	PersonalEventBuilder::export.Word.meta.lookups.2.valueHeader	Знахідний
-  ref	PersonalEventBuilder::export.Word.meta.lookups.3.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.3.when.field	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.3.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.meta.lookups.3.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.3.input	PositionCode
   ref	PersonalEventBuilder::export.Word.meta.lookups.3.range	__cfgDependencies.source.PersonnelPositions.range
   ref	PersonalEventBuilder::export.Word.meta.lookups.3.sheet	__cfgDependencies.source.PersonnelPositions.sheet
 value	PersonalEventBuilder::export.Word.meta.lookups.3.output	PositionGenitive
 value	PersonalEventBuilder::export.Word.meta.lookups.3.keyHeader	Код
 value	PersonalEventBuilder::export.Word.meta.lookups.3.valueHeader	Родовий
-  ref	PersonalEventBuilder::export.Word.meta.lookups.4.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.4.when.field	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.4.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.meta.lookups.4.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.4.input	PersonRank
   ref	PersonalEventBuilder::export.Word.meta.lookups.4.range	__cfgDependencies.source.PersonnelRanks.range
   ref	PersonalEventBuilder::export.Word.meta.lookups.4.sheet	__cfgDependencies.source.PersonnelRanks.sheet
 value	PersonalEventBuilder::export.Word.meta.lookups.4.output	RankDative
 value	PersonalEventBuilder::export.Word.meta.lookups.4.keyHeader	Звання
 value	PersonalEventBuilder::export.Word.meta.lookups.4.valueHeader	Давальний
-  ref	PersonalEventBuilder::export.Word.meta.lookups.5.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.5.when.field	PersonId
 value	PersonalEventBuilder::export.Word.meta.lookups.5.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.meta.lookups.5.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.Word.meta.lookups.5.input	PersonId
   ref	PersonalEventBuilder::export.Word.meta.lookups.5.range	__cfgDependencies.source.PersonnelAlf.range
   ref	PersonalEventBuilder::export.Word.meta.lookups.5.sheet	__cfgDependencies.source.PersonnelAlf.sheet
@@ -477,41 +501,41 @@ value	PersonalEventBuilder::export.Word.meta.lookups.5.output	FIODative
 value	PersonalEventBuilder::export.Word.meta.lookups.5.keyHeader	ІПН
 value	PersonalEventBuilder::export.Word.meta.lookups.5.valueHeader	Давальний
 value	PersonalEventBuilder::export.Word.meta.lookups.count	5
-value	PersonalEventBuilder::export.Word.output	./Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
 value	PersonalEventBuilder::export.Word.store.basisFields	IncomingNo|IncomingDateShort|ReportPerson|ReporterGenitive
 value	PersonalEventBuilder::export.Word.store.personFields	PersonId|PersonName|IPN|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|RankGenitive|RankDative
 value	PersonalEventBuilder::export.Word.store.identityFields	PersonKey; EventId; DateFromShort
 value	PersonalEventBuilder::export.Word.store.positionFields	PositionCode|PositionGenitive
-  ref	PersonalEventBuilder::export.Word.context.lookups.1.path	__cfgDependencies.fileInstitutions
+value	PersonalEventBuilder::export.Word.output	./Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
 value	PersonalEventBuilder::export.Word.context.lookups.1.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.context.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.context.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.context.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.context.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
 value	PersonalEventBuilder::export.Word.context.lookups.1.output	HospitalGenitive
 value	PersonalEventBuilder::export.Word.context.lookups.1.keyHeader	Позначення
 value	PersonalEventBuilder::export.Word.context.lookups.1.valueHeader	Родовий
-  ref	PersonalEventBuilder::export.Word.context.lookups.2.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.2.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.context.lookups.2.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.context.lookups.2.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.2.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.context.lookups.2.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.context.lookups.2.sheet	__cfgDependencies.source.Institutions.sheet
 value	PersonalEventBuilder::export.Word.context.lookups.2.output	HospitalAccusative
 value	PersonalEventBuilder::export.Word.context.lookups.2.keyHeader	Позначення
 value	PersonalEventBuilder::export.Word.context.lookups.2.valueHeader	Знахідний
-  ref	PersonalEventBuilder::export.Word.context.lookups.3.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.3.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.context.lookups.3.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.context.lookups.3.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.3.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.context.lookups.3.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.context.lookups.3.sheet	__cfgDependencies.source.Institutions.sheet
 value	PersonalEventBuilder::export.Word.context.lookups.3.output	HospitalDative
 value	PersonalEventBuilder::export.Word.context.lookups.3.keyHeader	Позначення
 value	PersonalEventBuilder::export.Word.context.lookups.3.valueHeader	Давальний
-  ref	PersonalEventBuilder::export.Word.context.lookups.4.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.4.when.field	ToHospitalShort
 value	PersonalEventBuilder::export.Word.context.lookups.4.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.context.lookups.4.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.context.lookups.4.input	ToHospitalShort
   ref	PersonalEventBuilder::export.Word.context.lookups.4.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.context.lookups.4.sheet	__cfgDependencies.source.Institutions.sheet
@@ -559,9 +583,9 @@ value	PersonalEventBuilder::export.Word.context.dateInputs	VlkDateShort|PrevVaca
 value	PersonalEventBuilder::export.Word.context.optionalText	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
 value	PersonalEventBuilder::export.Word.context.requiredKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIOAccusative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|MetaDocumentTables|MetaTvoTables|MetaTables|WordTemplateFileName|ManualOrderNo
 value	PersonalEventBuilder::export.Word.context.scalarInputs	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort|ToHospitalShort|DurationDays|TemplateName
+value	PersonalEventBuilder::export.Word.context.booleanInputs	RequiresFoodSupportRemove|RequiresFoodSupportEnroll
 value	PersonalEventBuilder::export.Word.context.MetaTvoTables.fields	PersonRank|PersonId|PositionCode|DutyPositionGenitive
 value	PersonalEventBuilder::export.Word.context.MetaTvoTables.required	PersonRank|PersonId|PositionCode
-value	PersonalEventBuilder::export.Word.context.booleanInputs	RequiresFoodSupportRemove|RequiresFoodSupportEnroll
 value	PersonalEventBuilder::export.Word.context.enrollDirection	Arrival
 value	PersonalEventBuilder::export.Word.context.removeDirection	Departure
 value	PersonalEventBuilder::export.Word.context.collectionInputs	MetaDocumentTables|MetaTvoTables|MetaTables
@@ -578,16 +602,16 @@ value	PersonalEventBuilder::export.Word.duration.donation.one	, наданої �
 value	PersonalEventBuilder::export.Word.duration.donation.many	, наданих за донацію крові
 value	PersonalEventBuilder::export.Word.duration.reasonKeys	дорога=road|донація=donation|донація крові=donation
 value	PersonalEventBuilder::export.Word.duration.fullPattern	^\s*(\d+)((?:\s*\+\s*\d+(?:\s*\([^)]*\))?)*)\s*$
+value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
 value	PersonalEventBuilder::export.Word.duration.additionalUnit.one	доби
 value	PersonalEventBuilder::export.Word.duration.additionalUnit.many	діб
-value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
 value	PersonalEventBuilder::export.Word.duration.additionalPhrase	, без урахування {days} {unit}
 value	PersonalEventBuilder::export.Word.grouping.output	./Order_{AcceptedOrderNumber|regexreplace:"[/:*?<>|]","_"}_{AcceptedOrderDate|dateformat:"yyyymmdd"}.docx
 value	PersonalEventBuilder::export.Word.grouping.stateFields	EventId|TemplateName|PersonId|AcceptedOrderNumber|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort|RankGenitive|FIOAccusative|IPN|PositionGenitive|IncomingNo|IncomingDateShort|ReportPerson|FIOInitialsGenitive|ReporterGenitive
 value	PersonalEventBuilder::export.Word.templates.path	./PersonalEventBuilderWordResultTemplates.xml
-  ref	PersonalEventBuilder::export.Word.ToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.ToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.ToHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.ToHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.ToHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -631,9 +655,10 @@ value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToV
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToHospital	MoveFromMedicalCompanyVacationForCuringToHospital
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToVacationForCuring	MoveFromMedicalCompanyForTreatmentToVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	MoveFromMedicalCompanyVacationForCuringToVacationForCuring
-  ref	PersonalEventBuilder::export.Word.FromHospital.lookups.1.path	__cfgDependencies.fileInstitutions
+value	PersonalEventBuilder::export.Word.documentMode	template
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.FromHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.FromHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.FromHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -643,21 +668,9 @@ value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.valueHeader	Ро�
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-value	PersonalEventBuilder::export.Word.documentMode	template
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.lookups.count	0
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.previewRequired	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
-value	PersonalEventBuilder::export.Word.FromExternalVlk.lookups.count	0
-value	PersonalEventBuilder::export.Word.FromExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.FromBusinessTrip.lookups.count	0
-value	PersonalEventBuilder::export.Word.FromBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromBusinessTrip.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.ToMaternityLeave.lookups.count	0
-value	PersonalEventBuilder::export.Word.ToMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToMaternityLeave.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.Word.documentTemplate	./{yyyy}-{mm}-{dd} №{OrderNum} ({Signatory}) (Александр).docx
-value	PersonalEventBuilder::export.Word.documentFields.count	6
 value	PersonalEventBuilder::export.Word.documentFields.1.token	{yyyy}
 value	PersonalEventBuilder::export.Word.documentFields.1.value	{AcceptedOrderDate|dateformat:"yyyy"}
 value	PersonalEventBuilder::export.Word.documentFields.2.token	{mm}
@@ -670,9 +683,18 @@ value	PersonalEventBuilder::export.Word.documentFields.5.token	{OrderNum}
 value	PersonalEventBuilder::export.Word.documentFields.5.value	{AcceptedOrderNumber}
 value	PersonalEventBuilder::export.Word.documentFields.6.token	{Signatory}
 value	PersonalEventBuilder::export.Word.documentFields.6.value	{Signatory}
-value	PersonalEventBuilder::text.OrderSignatoryRequired	Для прийнятої пари номера та дати наказу не знайдено підписанта в довіднику «Накази».
-value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
-value	PersonalEventBuilder::text.OrderDocumentNameInvalid	Неможливо сформувати ім’я документа: перевірте плейсхолдери шаблону та дані наказу.
+value	PersonalEventBuilder::export.Word.documentFields.count	6
+value	PersonalEventBuilder::export.Word.FromExternalVlk.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromExternalVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.documentContext.fields	AcceptedOrderNumber|AcceptedOrderDate|Signatory
+value	PersonalEventBuilder::export.Word.documentTemplate	./{yyyy}-{mm}-{dd} №{OrderNum} ({Signatory}) (Александр).docx
+value	PersonalEventBuilder::export.Word.FromBusinessTrip.lookups.count	0
+value	PersonalEventBuilder::export.Word.FromBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.FromBusinessTrip.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Word.ToMaternityLeave.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToMaternityLeave.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.Word.ToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.ToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
@@ -688,9 +710,9 @@ value	PersonalEventBuilder::export.Word.FromVacationForCuring.previewRequired	Pe
 value	PersonalEventBuilder::export.Word.FromVacationForFamily.lookups.count	0
 value	PersonalEventBuilder::export.Word.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-  ref	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -703,9 +725,9 @@ value	PersonalEventBuilder::export.Word.MoveFromVlkToHospital.previewRequired	Pe
 value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.lookups.count	0
 value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-  ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -715,9 +737,9 @@ value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.1.va
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.lookups.count	1
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-  ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -730,9 +752,9 @@ value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToVlk.previewRequi
 value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.lookups.count	0
 value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.ToMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-  ref	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -742,9 +764,9 @@ value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.1.
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-  ref	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -757,9 +779,9 @@ value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.previewReq
 value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.lookups.count	0
 value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-  ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -772,9 +794,9 @@ value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.previewRe
 value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-  ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -784,9 +806,9 @@ value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
-  ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -799,9 +821,9 @@ value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.preview
 value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromHospitalToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-  ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.input	HospitalShortName
   ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.range	__cfgDependencies.source.Institutions.range
   ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToHospital.lookups.1.sheet	__cfgDependencies.source.Institutions.sheet
@@ -835,7 +857,6 @@ value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyForTreatmentToVaca
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
-value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::export.shared.inputs.scalars	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort
 value	PersonalEventBuilder::export.shared.inputs.collections	MetaDocumentTables
 value	PersonalEventBuilder::export.shared.inputs.dateScalars	VlkDateShort|PrevVacationTicketDateShort
@@ -896,63 +917,63 @@ value	PersonalEventBuilder::export.shared.aliases.18.kind	joinLowerFirst
 value	PersonalEventBuilder::export.shared.aliases.18.name	ReporterGenitive
 value	PersonalEventBuilder::export.shared.aliases.18.source	ReportPositionGenitive|ReportRankGenitive|ReportPersonInitialsGenitive
 value	PersonalEventBuilder::export.shared.aliases.count	18
-  ref	PersonalEventBuilder::export.shared.lookups.1.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.1.when.field	ModeForm
 value	PersonalEventBuilder::export.shared.lookups.1.when.pattern	\S
+  ref	PersonalEventBuilder::export.shared.lookups.1.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.1.input	PersonRank
   ref	PersonalEventBuilder::export.shared.lookups.1.range	__cfgDependencies.source.PersonnelRanks.range
   ref	PersonalEventBuilder::export.shared.lookups.1.sheet	__cfgDependencies.source.PersonnelRanks.sheet
 value	PersonalEventBuilder::export.shared.lookups.1.output	RankGenitive
 value	PersonalEventBuilder::export.shared.lookups.1.keyHeader	Звання
 value	PersonalEventBuilder::export.shared.lookups.1.valueHeader	Родовий
-  ref	PersonalEventBuilder::export.shared.lookups.2.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.2.when.field	ModeForm
 value	PersonalEventBuilder::export.shared.lookups.2.when.pattern	\S
+  ref	PersonalEventBuilder::export.shared.lookups.2.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.2.input	PersonId
   ref	PersonalEventBuilder::export.shared.lookups.2.range	__cfgDependencies.source.PersonnelAlf.range
   ref	PersonalEventBuilder::export.shared.lookups.2.sheet	__cfgDependencies.source.PersonnelAlf.sheet
 value	PersonalEventBuilder::export.shared.lookups.2.output	PersonAccusative
 value	PersonalEventBuilder::export.shared.lookups.2.keyHeader	ІПН
 value	PersonalEventBuilder::export.shared.lookups.2.valueHeader	Знахідний
-  ref	PersonalEventBuilder::export.shared.lookups.3.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.3.when.field	ModeForm
 value	PersonalEventBuilder::export.shared.lookups.3.when.pattern	\S
+  ref	PersonalEventBuilder::export.shared.lookups.3.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.3.input	PositionCode
   ref	PersonalEventBuilder::export.shared.lookups.3.range	__cfgDependencies.source.PersonnelPositions.range
   ref	PersonalEventBuilder::export.shared.lookups.3.sheet	__cfgDependencies.source.PersonnelPositions.sheet
 value	PersonalEventBuilder::export.shared.lookups.3.output	PositionGenitive
 value	PersonalEventBuilder::export.shared.lookups.3.keyHeader	Код
 value	PersonalEventBuilder::export.shared.lookups.3.valueHeader	Родовий
-  ref	PersonalEventBuilder::export.shared.lookups.4.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.4.when.field	ModeForm
 value	PersonalEventBuilder::export.shared.lookups.4.when.pattern	\S
+  ref	PersonalEventBuilder::export.shared.lookups.4.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.4.input	PersonId
   ref	PersonalEventBuilder::export.shared.lookups.4.range	__cfgDependencies.source.PersonnelAlf.range
   ref	PersonalEventBuilder::export.shared.lookups.4.sheet	__cfgDependencies.source.PersonnelAlf.sheet
 value	PersonalEventBuilder::export.shared.lookups.4.output	FIOInitialsGenitive
 value	PersonalEventBuilder::export.shared.lookups.4.keyHeader	ІПН
 value	PersonalEventBuilder::export.shared.lookups.4.valueHeader	ПІП (Родовий)
-  ref	PersonalEventBuilder::export.shared.lookups.5.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.5.when.field	ReportName
 value	PersonalEventBuilder::export.shared.lookups.5.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
+  ref	PersonalEventBuilder::export.shared.lookups.5.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.5.input	ReportRank
   ref	PersonalEventBuilder::export.shared.lookups.5.range	__cfgDependencies.source.PersonnelRanks.range
   ref	PersonalEventBuilder::export.shared.lookups.5.sheet	__cfgDependencies.source.PersonnelRanks.sheet
 value	PersonalEventBuilder::export.shared.lookups.5.output	ReportRankGenitive
 value	PersonalEventBuilder::export.shared.lookups.5.keyHeader	Звання
 value	PersonalEventBuilder::export.shared.lookups.5.valueHeader	Родовий
-  ref	PersonalEventBuilder::export.shared.lookups.6.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.6.when.field	ReportName
 value	PersonalEventBuilder::export.shared.lookups.6.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
+  ref	PersonalEventBuilder::export.shared.lookups.6.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.6.input	ReportName
   ref	PersonalEventBuilder::export.shared.lookups.6.range	__cfgDependencies.source.PersonnelAlf.range
   ref	PersonalEventBuilder::export.shared.lookups.6.sheet	__cfgDependencies.source.PersonnelAlf.sheet
 value	PersonalEventBuilder::export.shared.lookups.6.output	ReportPersonInitialsGenitive
 value	PersonalEventBuilder::export.shared.lookups.6.keyHeader	ПІБ
 value	PersonalEventBuilder::export.shared.lookups.6.valueHeader	ПІП (Родовий)
-  ref	PersonalEventBuilder::export.shared.lookups.7.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.7.when.field	ReportName
 value	PersonalEventBuilder::export.shared.lookups.7.when.pattern	^(?!\s*(?:сам)?\s*$)[\s\S]+$
+  ref	PersonalEventBuilder::export.shared.lookups.7.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::export.shared.lookups.7.input	ReportPositionCode
   ref	PersonalEventBuilder::export.shared.lookups.7.range	__cfgDependencies.source.PersonnelPositions.range
   ref	PersonalEventBuilder::export.shared.lookups.7.sheet	__cfgDependencies.source.PersonnelPositions.sheet
@@ -986,9 +1007,14 @@ value	PersonalEventBuilder::export.shared.constants.count	10
 value	PersonalEventBuilder::export.ticket.form	Leave
 value	PersonalEventBuilder::export.ticket.numberTemplate	{orderYear}/{orderNum}/{ticketNum}
 value	PersonalEventBuilder::export.ticket.qualifiedPattern	^\d{4}/[^/]+/[^/]+$
+value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
   ref	PersonalEventBuilder::export.Movement.path	__cfgDependencies.fileMovementExport
   ref	PersonalEventBuilder::export.Movement.sheet	__cfgDependencies.source.MovementExport.sheet
   ref	PersonalEventBuilder::export.Movement.table	__cfgDependencies.source.MovementExport.table
+value	PersonalEventBuilder::export.Movement.links.OpeningId	PEB.OpeningId
+value	PersonalEventBuilder::export.Movement.links.ClosingId	PEB.ClosingId
+value	PersonalEventBuilder::export.Movement.links.OpeningHash	PEB.OpeningHash
+value	PersonalEventBuilder::export.Movement.links.ClosingHash	PEB.ClosingHash
 value	PersonalEventBuilder::export.Movement.status.ExternalVlk	ВЛК за межами
 value	PersonalEventBuilder::export.Movement.status.BusinessTrip	Відрядження
 value	PersonalEventBuilder::export.Movement.status.MedicalLeave	Відпустка для лікування
@@ -1012,14 +1038,18 @@ value	PersonalEventBuilder::export.Movement.headers.TicketDocument	Супров�
 value	PersonalEventBuilder::export.Movement.headers.ArrivalFoodSupport	Прибуття.Продовольче
 value	PersonalEventBuilder::export.Movement.headers.DepartureFoodSupport	Вибуття.Продовольче
 value	PersonalEventBuilder::export.Movement.templates.path	./PersonalEventBuilderMovementTemplates.xml
+value	PersonalEventBuilder::export.Movement.dateFormat	dd.mm.yyyy
 value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
 value	PersonalEventBuilder::export.Movement.destinations.MedicalCompany	Медична рота А7383
+value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
 value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|TicketDate|DocumentDate
+value	PersonalEventBuilder::legend.Absence.entryTemplate	{source} ({modified})
 value	PersonalEventBuilder::legend.sources	Personnel|Absence|ReturnTickets
 value	PersonalEventBuilder::legend.Personnel.entryTemplate	{source} ({modified})
-value	PersonalEventBuilder::legend.Absence.entryTemplate	{source} ({modified})
-value	PersonalEventBuilder::legend.ReturnTickets.entryTemplate	{source} — знімок ({modified})
+value	PersonalEventBuilder::legend.orderDate.field	Event.IncomingDate
+value	PersonalEventBuilder::legend.orderDate.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::legend.dateFormat	dd.mm.yyyy
+value	PersonalEventBuilder::legend.ReturnTickets.entryTemplate	{source} — знімок ({modified})
 value	PersonalEventBuilder::lookup.Absence.key	Personnel.FullName
 value	PersonalEventBuilder::lookup.Absence.apply.count	0
 value	PersonalEventBuilder::lookup.Absence.search.1.name	Personnel.FullName
@@ -1047,39 +1077,6 @@ value	PersonalEventBuilder::lookup.Absence.display.count	0
 value	PersonalEventBuilder::lookup.Absence.minChars	1
 value	PersonalEventBuilder::lookup.Absence.maxResults	1000
 value	PersonalEventBuilder::lookup.Absence.loadingText	Завантаження даних вибуття...
-value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromBusinessTrip
-value	PersonalEventBuilder::lookup.ReturnTickets.styleFields	Absence.Destination|Absence.TicketNumber|Absence.TicketDate|Absence.PlannedArrivalDate
-value	PersonalEventBuilder::legend.orderDate.field	Event.IncomingDate
-value	PersonalEventBuilder::legend.orderDate.sourceAlias	CurrentOrder
-value	PersonalEventBuilder::forms.sourceStyles.default	formField
-value	PersonalEventBuilder::forms.dynamicStylesEnabled	true
-value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital
-value	PersonalEventBuilder::forms.lookupDefaultStyle	lookupKeyField
-value	PersonalEventBuilder::forms.sourceStyles.Personnel	personnelFormField
-value	PersonalEventBuilder::forms.sourceStyles.Hospital	formField
-value	PersonalEventBuilder::forms.sourceStyles.Absence	absenceFormField
-value	PersonalEventBuilder::forms.sourceStyles.ReturnTickets	movementTicketField
-value	PersonalEventBuilder::forms.sourceStyles.CurrentOrder	currentOrderField
-value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
-value	PersonalEventBuilder::text.SourceLegendOrderDate	Поточна дата наказу
-value	PersonalEventBuilder::text.ResetForm	Нова подія
-value	PersonalEventBuilder::candidates.textWarningLimit	255
-  ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
-value	PersonalEventBuilder::lookup.ReturnTickets.sourceAlias	ReturnTickets
-value	PersonalEventBuilder::lookup.ReturnTickets.departureSourceAlias	Absence
-  ref	PersonalEventBuilder::lookup.ReturnTickets.source.path	__cfgDependencies.fileMovementHistory
-  ref	PersonalEventBuilder::lookup.ReturnTickets.source.sheet	__cfgDependencies.source.MovementHistory.sheet
-  ref	PersonalEventBuilder::lookup.ReturnTickets.source.range	__cfgDependencies.source.MovementHistory.range
-  ref	PersonalEventBuilder::lookup.ReturnTickets.ipnHeader	__cfgDependencies.tbTickets::column.ipn
-  ref	PersonalEventBuilder::lookup.ReturnTickets.nameHeader	__cfgDependencies.tbTickets::column.fio
-  ref	PersonalEventBuilder::lookup.ReturnTickets.ticketHeader	__cfgDependencies.tbTickets::column.document
-  ref	PersonalEventBuilder::lookup.ReturnTickets.destinationHeader	__cfgDependencies.tbTickets::column.destination
-  ref	PersonalEventBuilder::lookup.ReturnTickets.arrivalHeader	__cfgDependencies.tbTickets::column.arrival_plan
-  ref	PersonalEventBuilder::lookup.ReturnTickets.orderHeader	__cfgDependencies.tbTickets::column.out_order
-value	PersonalEventBuilder::lookup.ReturnTickets.temporaryIpn	ТП-ІПН
-value	PersonalEventBuilder::text.ReturnTicketsError	Не вдалося підставити квиток зі знімка РУХ: {details}
-value	PersonalEventBuilder::text.ReturnTicketsSourceChanged	Джерело збережено під час читання знімка. Повторіть пошук.
-value	PersonalEventBuilder::text.ReturnTicketsSourceMissing	Не знайдено джерело знімка: {path}
 value	PersonalEventBuilder::lookup.Hospital.key	Hospital.ShortName
 value	PersonalEventBuilder::lookup.Hospital.apply.count	0
 value	PersonalEventBuilder::lookup.Hospital.search.1.name	Hospital.Name
@@ -1203,6 +1200,20 @@ value	PersonalEventBuilder::lookup.Personnel.display.count	10
 value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
+value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromBusinessTrip
+  ref	PersonalEventBuilder::lookup.ReturnTickets.source.path	__cfgDependencies.fileMovementHistory
+  ref	PersonalEventBuilder::lookup.ReturnTickets.source.sheet	__cfgDependencies.source.MovementHistory.sheet
+  ref	PersonalEventBuilder::lookup.ReturnTickets.source.range	__cfgDependencies.source.MovementHistory.range
+  ref	PersonalEventBuilder::lookup.ReturnTickets.ipnHeader	__cfgDependencies.tbTickets::column.ipn
+  ref	PersonalEventBuilder::lookup.ReturnTickets.nameHeader	__cfgDependencies.tbTickets::column.fio
+value	PersonalEventBuilder::lookup.ReturnTickets.styleFields	Absence.Destination|Absence.TicketNumber|Absence.TicketDate|Absence.PlannedArrivalDate
+value	PersonalEventBuilder::lookup.ReturnTickets.sourceAlias	ReturnTickets
+  ref	PersonalEventBuilder::lookup.ReturnTickets.orderHeader	__cfgDependencies.tbTickets::column.out_order
+  ref	PersonalEventBuilder::lookup.ReturnTickets.ticketHeader	__cfgDependencies.tbTickets::column.document
+value	PersonalEventBuilder::lookup.ReturnTickets.temporaryIpn	ТП-ІПН
+  ref	PersonalEventBuilder::lookup.ReturnTickets.arrivalHeader	__cfgDependencies.tbTickets::column.arrival_plan
+  ref	PersonalEventBuilder::lookup.ReturnTickets.destinationHeader	__cfgDependencies.tbTickets::column.destination
+value	PersonalEventBuilder::lookup.ReturnTickets.departureSourceAlias	Absence
   ref	PersonalEventBuilder::orders.source.path	__cfgDependencies.fileOrders
   ref	PersonalEventBuilder::orders.source.range	__cfgDependencies.source.Orders.range
   ref	PersonalEventBuilder::orders.source.sheet	__cfgDependencies.source.Orders.sheet
@@ -1216,6 +1227,51 @@ value	PersonalEventBuilder::orders.queryFormat.decimalSeparator	.
   ref	PersonalEventBuilder::orders.numberHeader	__cfgDependencies.source.Orders.numberHeader
   ref	PersonalEventBuilder::orders.signatoryHeader	__cfgDependencies.source.Orders.signatoryHeader
 value	PersonalEventBuilder::hotkeys.preview	^3
+value	PersonalEventBuilder::history.path	./EventsHistory.xlsx
+value	PersonalEventBuilder::history.list.columns.1.field	EventLabel
+value	PersonalEventBuilder::history.list.columns.1.caption	Подія
+value	PersonalEventBuilder::history.list.columns.2.field	PersonName
+value	PersonalEventBuilder::history.list.columns.2.caption	ПІБ
+value	PersonalEventBuilder::history.list.columns.3.field	EventDate
+value	PersonalEventBuilder::history.list.columns.3.caption	Дата події
+value	PersonalEventBuilder::history.list.columns.4.field	Destination
+value	PersonalEventBuilder::history.list.columns.4.caption	Куди
+value	PersonalEventBuilder::history.list.columns.5.field	IncomingNumber
+value	PersonalEventBuilder::history.list.columns.5.caption	Вх. №
+value	PersonalEventBuilder::history.list.columns.6.field	IncomingDate
+value	PersonalEventBuilder::history.list.columns.6.caption	Вх. дата
+value	PersonalEventBuilder::history.list.columns.7.field	TicketNumber
+value	PersonalEventBuilder::history.list.columns.7.caption	Квиток / посвідчення
+value	PersonalEventBuilder::history.list.columns.8.field	RowId
+value	PersonalEventBuilder::history.list.columns.8.caption	ID запису
+value	PersonalEventBuilder::history.list.columns.9.field	Status
+value	PersonalEventBuilder::history.list.columns.9.caption	Статус
+value	PersonalEventBuilder::history.list.columns.10.field	Revision
+value	PersonalEventBuilder::history.list.columns.10.caption	Версія
+value	PersonalEventBuilder::history.list.columns.11.field	MovementSync
+value	PersonalEventBuilder::history.list.columns.11.caption	Стан РУХ
+value	PersonalEventBuilder::history.list.columns.12.field	WordSync
+value	PersonalEventBuilder::history.list.columns.12.caption	Стан WORD
+value	PersonalEventBuilder::history.list.columns.count	12
+value	PersonalEventBuilder::history.sheet	EventsHistory
+value	PersonalEventBuilder::history.table	tbEventsHistory
+value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo
+value	PersonalEventBuilder::history.exports.sheet	ExportJournal
+value	PersonalEventBuilder::history.exports.table	tbExportJournal
+value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
+value	PersonalEventBuilder::history.required	PersonId|PersonName|PersonRank|PositionCode|EventDate|AcceptedOrderNumber|AcceptedOrderDate
+value	PersonalEventBuilder::history.versions.sheet	EventRevisions
+value	PersonalEventBuilder::history.versions.table	tbEventRevisions
+value	PersonalEventBuilder::history.versions.fields	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status
+value	PersonalEventBuilder::history.versions.stateFields	Revision|Status|LastChangeId
+value	PersonalEventBuilder::history.conflicts.sheet	ExportConflicts
+value	PersonalEventBuilder::history.conflicts.table	tbExportConflicts
+value	PersonalEventBuilder::history.conflicts.fields	ConflictId|EventRowId|Revision|Exporter|Target|Side|Field|GeneratedValue|MovementValue|Choice|ResolvedAt|ResolvedBy
+value	PersonalEventBuilder::history.fieldState.sheet	ExportFieldState
+value	PersonalEventBuilder::history.fieldState.table	tbExportFieldState
+value	PersonalEventBuilder::history.fieldState.fields	EventRowId|Exporter|Target|Side|Field|Revision|GeneratedValue|AppliedValue
+value	PersonalEventBuilder::history.identityFields	AcceptedOrderNumber|AcceptedOrderDate|PersonId|EventId|EventDate
+value	PersonalEventBuilder::history.selfReportPattern	^\s*$|^\s*[Сс][Аа][Мм]\s*$
 value	PersonalEventBuilder::hospital.fields.1.record	Hospital.Name
 value	PersonalEventBuilder::hospital.fields.1.formField	Hospital
 value	PersonalEventBuilder::hospital.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
@@ -1242,172 +1298,15 @@ value	PersonalEventBuilder::reporter.fields.count	3
 value	PersonalEventBuilder::reporter.lookup.key	ReportName
 value	PersonalEventBuilder::personnel.autoFill.default	true
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
+value	PersonalEventBuilder::candidates.textWarningLimit	255
+  ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
+  ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
+value	PersonalEventBuilder::validation.Movement.source.table	ТВ
+  ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
+value	PersonalEventBuilder::validation.Movement.source.range	B6:AZ20000
+value	PersonalEventBuilder::validation.Movement.enabled	true
 value	PersonalEventBuilder::environment.name	PROD
 value	PersonalEventBuilder::environment.config.PROD	../../config/PersonalEventBuilder/wsConfig.txt
 value	PersonalEventBuilder::environment.config.TEST	../../config/PersonalEventBuilder/wsConfig.test.txt
 value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
-value	PersonalEventBuilder::history.path	./EventsHistory.xlsx
-value	PersonalEventBuilder::history.sheet	EventsHistory
-value	PersonalEventBuilder::history.table	tbEventsHistory
-value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo
-value	PersonalEventBuilder::history.identityFields	AcceptedOrderNumber|AcceptedOrderDate|PersonId|EventId|EventDate
-value	PersonalEventBuilder::history.required	PersonId|PersonName|PersonRank|PositionCode|EventDate|AcceptedOrderNumber|AcceptedOrderDate
-value	PersonalEventBuilder::text.SaveHistory	Додати / оновити подію
-value	PersonalEventBuilder::text.ExportHistorySuccess	Подію збережено в EventsHistory: {action}.
-value	PersonalEventBuilder::text.HistoryEmptyOrder	У EventsHistory немає подій вибраного наказу.
-value	PersonalEventBuilder::text.HistoryNoWordEvents	Події вибраного наказу не мають маршрутів WORD.
-value	PersonalEventBuilder::text.HistorySaveFirst	Збережіть зміни в EventsHistory перед виконанням операції.
-value	PersonalEventBuilder::text.HistoryWordSuccess	WORD сформовано з EventsHistory: {path}.
-value	PersonalEventBuilder::history.selfReportPattern	^\s*$|^\s*[Сс][Аа][Мм]\s*$
-value	PersonalEventBuilder::text.HistoryChildrenInTable	Додаткові рапорти, документи та ТВО поки редагуються в EventsHistory. Збереження колекцій із форми ще не підтримується.
-value	PersonalEventBuilder::text.HistoryError001	Ambiguous history event identity.
-value	PersonalEventBuilder::text.HistoryError002	History update requires an Event row.
-value	PersonalEventBuilder::text.HistoryError003	History RowId not found: {value}
-value	PersonalEventBuilder::text.HistoryError004	Duplicate generated history RowId; retry.
-value	PersonalEventBuilder::text.HistoryError005	Empty or duplicate history RowId.
-value	PersonalEventBuilder::text.HistoryError006	Unknown history RowType: {value}
-value	PersonalEventBuilder::text.HistoryError007	Event cannot have a parent.
-value	PersonalEventBuilder::text.HistoryError008	Duplicate event identity in the selected order.
-value	PersonalEventBuilder::text.HistoryError009	Cycle in history parents.
-value	PersonalEventBuilder::text.HistoryError010	History parent not found: {value}
-value	PersonalEventBuilder::text.HistoryError011	Only TVO rows can form a chain.
-value	PersonalEventBuilder::text.HistoryError012	History date must use dd.mm.yyyy: {value}
-value	PersonalEventBuilder::text.HistoryError013	Invalid history date: {value}
-value	PersonalEventBuilder::text.HistoryError014	History workbook not found: {value}
-value	PersonalEventBuilder::text.HistoryError015	History workbook is read-only: {value}
-value	PersonalEventBuilder::text.HistoryError016	History workbook must use the 1900 date system.
-value	PersonalEventBuilder::text.HistoryError017	History worksheet is protected.
-value	PersonalEventBuilder::text.HistoryError018	Invalid history field mapping: {value}
-value	PersonalEventBuilder::text.HistoryError019	Missing history column: {value}
-value	PersonalEventBuilder::text.HistoryError020	Nonempty history row requires RowId and RowType.
-value	PersonalEventBuilder::text.HistoryError021	Invalid history cell value.
-value	PersonalEventBuilder::text.HistoryError022	Empty history identity field: {value}
-value	PersonalEventBuilder::text.HistoryError023	RowOrder must be a positive integer.
-value	PersonalEventBuilder::text.HistoryError024	RowOrder is out of range.
-value	PersonalEventBuilder::text.HistoryError025	Missing TVO snapshot: {value}
-value	PersonalEventBuilder::text.HistoryError026	Export service is not initialized.
-value	PersonalEventBuilder::text.HistoryError027	History Boolean must be true or false: {value}
-value	PersonalEventBuilder::text.HistoryError028	History end date precedes the event date.
-value	PersonalEventBuilder::text.HistoryError029	History duration and end date disagree.
-value	PersonalEventBuilder::text.HistoryError030	Empty stored Word field: {value}
-value	PersonalEventBuilder::text.HistoryError031	Cannot initialize history renderer.
-value	PersonalEventBuilder::text.HistoryError032	Stored report number is empty.
-value	PersonalEventBuilder::text.HistoryError033	Stored report author snapshot is empty.
-value	PersonalEventBuilder::text.HistoryError034	Invalid stored document field: {value}
-value	PersonalEventBuilder::text.HistoryError035	Unresolved history document filename.
-value	PersonalEventBuilder::text.HistoryError036	Word exporter is not initialized.
-value	PersonalEventBuilder::text.HistoryError037	History generation requires a Word template.
-value	PersonalEventBuilder::text.HistoryError038	Cannot initialize history export service.
-value	PersonalEventBuilder::text.HistoryError039	Inconsistent stored order metadata.
-value	PersonalEventBuilder::text.HistoryError040	Word template not found: {value}
-value	PersonalEventBuilder::text.HistoryError041	Word output cannot replace its template.
-value	PersonalEventBuilder::text.HistoryError042	Word output disappeared during generation.
-value	PersonalEventBuilder::text.HistoryError043	Word output changed during generation.
-value	PersonalEventBuilder::text.HistoryError044	Word output appeared during generation.
-value	PersonalEventBuilder::text.HistoryError045	Word enabled must be true or false.
-value	PersonalEventBuilder::text.HistoryError046	Missing accepted order number.
-value	PersonalEventBuilder::text.HistoryError047	Missing accepted order date.
-value	PersonalEventBuilder::text.HistoryError048	Cannot initialize Word exporter.
-value	PersonalEventBuilder::text.ShowHistory	Редагування подій поточного наказу
-value	PersonalEventBuilder::text.CloseTable	×
-value	PersonalEventBuilder::text.UpdateHistory	Оновити
-value	PersonalEventBuilder::text.HistoryEditMode	Нова подія
-value	PersonalEventBuilder::text.HistoryEditing	Редагування: {id}
-value	PersonalEventBuilder::text.HistorySelectHint	Виберіть подію у списку під формою та натисніть Ctrl+Enter.
-value	PersonalEventBuilder::text.HistoryEditHint	Подію завантажено. Змініть дані та натисніть «Оновити». «Нова подія» завершує редагування.
-value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже є інша подія з такими людиною, типом і датою. Оновлення скасовано.
-value	PersonalEventBuilder::text.HistoryStaleEdit	Запис EventsHistory змінився після завантаження. Оновіть список і виберіть подію повторно.
-value	PersonalEventBuilder::text.HistoryListStale	Список подій застарів. Натисніть «Події поточного наказу» та виберіть запис повторно.
-value	PersonalEventBuilder::history.list.columns.count	12
-value	PersonalEventBuilder::history.list.columns.1.field	EventLabel
-value	PersonalEventBuilder::history.list.columns.1.caption	Подія
-value	PersonalEventBuilder::history.list.columns.2.field	PersonName
-value	PersonalEventBuilder::history.list.columns.2.caption	ПІБ
-value	PersonalEventBuilder::history.list.columns.3.field	EventDate
-value	PersonalEventBuilder::history.list.columns.3.caption	Дата події
-value	PersonalEventBuilder::history.list.columns.4.field	Destination
-value	PersonalEventBuilder::history.list.columns.4.caption	Куди
-value	PersonalEventBuilder::history.list.columns.5.field	IncomingNumber
-value	PersonalEventBuilder::history.list.columns.5.caption	Вх. №
-value	PersonalEventBuilder::history.list.columns.6.field	IncomingDate
-value	PersonalEventBuilder::history.list.columns.6.caption	Вх. дата
-value	PersonalEventBuilder::history.list.columns.7.field	TicketNumber
-value	PersonalEventBuilder::history.list.columns.7.caption	Квиток / посвідчення
-value	PersonalEventBuilder::history.list.columns.8.field	RowId
-value	PersonalEventBuilder::history.list.columns.8.caption	ID запису
-value	PersonalEventBuilder::text.MovementHistoryReportsUnsupported	План РУХ: додаткові рапорти ще не підтримуються. Подію не включено до плану.
-value	PersonalEventBuilder::text.MovementPlanError	План РУХ: {code}. {detail}
-value	PersonalEventBuilder::export.Movement.links.OpeningId	PEB.OpeningId
-value	PersonalEventBuilder::export.Movement.links.OpeningHash	PEB.OpeningHash
-value	PersonalEventBuilder::export.Movement.links.ClosingId	PEB.ClosingId
-value	PersonalEventBuilder::export.Movement.links.ClosingHash	PEB.ClosingHash
-value	PersonalEventBuilder::export.Movement.dateFormat	dd.mm.yyyy
-value	PersonalEventBuilder::text.MovementBatchSuccess	РУХ: застосовано подій — {applied}, вже застосовано — {skipped}. Дані змінено у відкритій таблиці.
-value	PersonalEventBuilder::text.MovementBatchAlreadyApplied	РУХ: усі події вже застосовано ({skipped}). Змін не внесено.
-value	PersonalEventBuilder::text.MovementBatchConflicts	РУХ не змінено. Конфліктних або заблокованих подій: {count}
-value	PersonalEventBuilder::text.MovementBatchRollbackError	Не вдалося повністю відновити дані в пам'яті: {error}. Перевірте цільову таблицю перед повторним експортом.
-value	PersonalEventBuilder::text.MovementBatchSettingsError	Не вдалося відновити налаштування Excel: {error}
-value	PersonalEventBuilder::text.MovementBatchRestored	Дані та числові формати відновлено у відкритій таблиці. Книга залишається відкритою для перевірки.
-value	PersonalEventBuilder::text.MovementBatchTargetMissing	Відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» на аркуші «{sheet}».
-value	PersonalEventBuilder::text.MovementBatchTargetAmbiguous	У відкритих книгах знайдено декілька таблиць «{table}» на аркуші «{sheet}». Залиште відкритою лише цільову книгу РУХ і повторіть експорт.
-value	PersonalEventBuilder::history.versions.stateFields	Revision|Status|LastChangeId
-value	PersonalEventBuilder::history.versions.sheet	EventRevisions
-value	PersonalEventBuilder::history.versions.table	tbEventRevisions
-value	PersonalEventBuilder::history.versions.fields	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status
-value	PersonalEventBuilder::history.exports.sheet	ExportJournal
-value	PersonalEventBuilder::history.exports.table	tbExportJournal
-value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
-value	PersonalEventBuilder::text.HistoryReasonRequired	Вкажіть причину зміни статусу події.
-value	PersonalEventBuilder::text.HistoryBaselineReason	Стан перед першою зафіксованою зміною або переглядом історії; попередні зміни невідомі.
-value	PersonalEventBuilder::text.EventVersions	Історія змін події
-value	PersonalEventBuilder::text.CancelEvent	Скасувати подію
-value	PersonalEventBuilder::text.RestoreEvent	Відновити подію
-value	PersonalEventBuilder::text.HistorySelectRequired	Спочатку виберіть подію зі списку поточного наказу.
-value	PersonalEventBuilder::text.HistoryReasonPrompt	Вкажіть причину скасування або відновлення події:
-value	PersonalEventBuilder::text.HistoryStatusSaved	Статус події збережено. Застосуйте зміни кнопкою «Експорт РУХ» та повторно сформуйте WORD.
-value	PersonalEventBuilder::text.HistoryCancelledWord	У наказі немає активних подій для WORD. Раніше сформований файл не змінено.
-value	PersonalEventBuilder::text.HistoryJournalFailed	Файл створено, але запис журналу експорту не виконано: {details}
-value	PersonalEventBuilder::history.list.columns.9.field	Status
-value	PersonalEventBuilder::history.list.columns.9.caption	Статус
-value	PersonalEventBuilder::history.list.columns.10.field	Revision
-value	PersonalEventBuilder::history.list.columns.10.caption	Версія
-value	PersonalEventBuilder::history.list.columns.11.field	MovementSync
-value	PersonalEventBuilder::history.list.columns.11.caption	Стан РУХ
-value	PersonalEventBuilder::history.list.columns.12.field	WordSync
-value	PersonalEventBuilder::history.list.columns.12.caption	Стан WORD
-value	PersonalEventBuilder::text.HistorySyncUnknown	Немає запису в журналі
-value	PersonalEventBuilder::text.HistorySyncPending	Зміни не підтверджено
-value	PersonalEventBuilder::text.HistoryCancelPending	Скасування не підтверджено
-value	PersonalEventBuilder::text.HistorySyncConfirmed	Версію підтверджено
-value	PersonalEventBuilder::text.HistoryRollbackError	Не вдалося повністю відновити історію після помилки: {details}
-value	PersonalEventBuilder::text.HistoryRefreshAfterExport	Експорт виконано, але список подій не оновлено: {details}
-value	PersonalEventBuilder::validation.Movement.enabled	true
-value	PersonalEventBuilder::text.SimpleDepartureWhileOpen	Нове вибуття неможливе: попереднє «{actual}» ще не закрито прибуттям.
-value	PersonalEventBuilder::text.SimpleArrivalWithoutDeparture	Прибуття неможливе: немає відкритого вибуття.
-value	PersonalEventBuilder::text.SimpleArrivalTypeMismatch	Тип прибуття не відповідає вибуттю: обрано повернення з «{expected}», відкрито «{actual}».
-value	PersonalEventBuilder::validation.Movement.source.table	ТВ
-ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
-ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
-value	PersonalEventBuilder::validation.Movement.source.range	B6:AZ20000
-value	PersonalEventBuilder::text.MovementSaveValidationFailed	Подію не збережено. Конфлікт у події {id}: {details}
-value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
-value	PersonalEventBuilder::text.MovementOpenAbsenceMismatch	Для ІПН {person} не знайдено відкритої відсутності «{expected}» на {date}. Відкриті відсутності та дати вибуття: {actual}.
-value	PersonalEventBuilder::history.fieldState.sheet	ExportFieldState
-value	PersonalEventBuilder::history.fieldState.table	tbExportFieldState
-value	PersonalEventBuilder::history.fieldState.fields	EventRowId|Exporter|Target|Side|Field|Revision|GeneratedValue|AppliedValue
-value	PersonalEventBuilder::history.conflicts.sheet	ExportConflicts
-value	PersonalEventBuilder::history.conflicts.table	tbExportConflicts
-value	PersonalEventBuilder::history.conflicts.fields	ConflictId|EventRowId|Revision|Exporter|Target|Side|Field|GeneratedValue|MovementValue|Choice|ResolvedAt|ResolvedBy
-value	PersonalEventBuilder::text.ConflictSchema	Недоступна або некоректна таблиця {table}. Перевірте аркуш, заголовки та можливість запису.
-value	PersonalEventBuilder::text.ConflictPending	Є конфлікти ручних змін. У таблиці нижче оберіть значення через Ctrl+Enter та повторіть експорт РУХ.
-value	PersonalEventBuilder::text.ConflictProgress	Вирішено {resolved} з {total}. Оберіть усі значення та повторіть експорт РУХ.
-value	PersonalEventBuilder::text.ConflictUiError	Не вдалося показати конфлікти РУХ.
-value	PersonalEventBuilder::text.ConflictColumn.Field	Подія / поле
-value	PersonalEventBuilder::text.ConflictColumn.MovementValue	Залишити в РУХ
-value	PersonalEventBuilder::text.ConflictColumn.GeneratedValue	Замінити з EventsHistory
-value	PersonalEventBuilder::text.ConflictStateInvalid	Пошкоджено типізований знімок експортованого поля. Перевірте ExportFieldState.
-value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
-value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
-value	PersonalEventBuilder::text.ConflictPolicyInvalid	Некоректна політика ручних змін РУХ: очікується Overwrite або Resolve.
-value	PersonalEventBuilder::text.WordInsertionFailed	Вставлення у WORD: {stage}; секція {anchor}; помилка {number}: {details}
