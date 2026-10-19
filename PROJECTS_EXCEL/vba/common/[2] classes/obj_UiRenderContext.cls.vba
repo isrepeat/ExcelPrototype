@@ -399,7 +399,7 @@ Public Sub RegisterShapeLayout( _
     entry.Add private_ShapeAlignment(node, "shapeHorizontalAlignment", defaultHorizontal, "left|center|right")
     entry.Add private_ShapeAlignment(node, "shapeVerticalAlignment", "top", "top|center|bottom")
     entry.Add wrapCaption
-    entry.Add private_ShapeAlignment(node, "shapePlacement", "freeFloating", "freeFloating|move|moveAndSize")
+    entry.Add private_ShapeAlignment(node, "shapePlacement", "moveAndSize", "freeFloating|move|moveAndSize")
     Set m_shapeLayouts(shape.Name) = entry
     private_ArrangeShape entry
 End Sub
