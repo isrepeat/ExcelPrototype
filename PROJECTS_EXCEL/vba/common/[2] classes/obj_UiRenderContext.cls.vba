@@ -440,6 +440,8 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
 
+    ex_Core.fn_Diagnostic_WriteLog "UI_LAYOUT_FLUSH | TraceVersion=2 | NeedsMeasure=" & VBA.CStr(m_needsMeasure) & _
+        " | Rendering=" & VBA.CStr(m_rendering) & " | HasRendered=" & VBA.CStr(m_hasRendered)
     If Not m_needsMeasure Then
         FlushLayout = Me.FlushUpdates(diagnostic)
         Exit Function
@@ -688,6 +690,9 @@ End Function
 
 Public Function RenderTree(ByRef diagnostic As String) As Boolean
     Dim pageElement As obj_UiPageElement
+    Dim key As Variant
+    Dim element As obj_IUiElement
+    Dim controlElement As obj_UiControlElement
     Dim rows As Long
     Dim columns As Long
     Dim stageStartedAt As Double
@@ -731,6 +736,13 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
         stageStartedAt = VBA.Timer
         m_styles.CompleteRender
         private_ArrangeShapes
+        For Each key In m_elements.Keys
+            Set element = m_elements(key)
+            If TypeOf element Is obj_UiControlElement Then
+                Set controlElement = element
+                controlElement.TraceVisibility "Page.CompleteRender"
+            End If
+        Next key
         If TypeOf m_root Is obj_UiPageElement Then
             Set pageElement = m_root
             pageElement.ApplyZoom

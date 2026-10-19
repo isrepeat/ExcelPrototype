@@ -38,7 +38,6 @@ Private m_candidateLayoutDirty As Boolean
 Private m_bindingDependencies As Collection
 Private m_collapsed As Boolean
 Private m_visibilityMeasured As Boolean
-Private m_visibilityDirty As Boolean
 
 ' //
 ' // Lifecycle
@@ -77,9 +76,15 @@ Private Function obj_IUiElement_Measure( _
     Dim collapsed As Boolean
 
     If Not private_TryVisibility(collapsed, diagnostic) Then Exit Function
+    If VBA.Len(ex_UiElementFactory.fn_Attribute(m_definition, "visibility")) > 0 Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_MEASURE | TraceVersion=2 | Name=" & _
+            ex_UiElementFactory.fn_Attribute(m_definition, "name") & " | Collapsed=" & VBA.CStr(collapsed) & _
+            " | PreviousCollapsed=" & VBA.CStr(m_collapsed) & " | Measured=" & VBA.CStr(m_visibilityMeasured)
+    End If
     If collapsed And m_visibilityMeasured And Not m_collapsed Then
         ' Dispose active routes and shape actions before the occupied area is reused.
         m_control.Dispose
+        private_RestoreLocalPosition
         Set m_control = ex_UiControlFactory.fn_Create(m_definition)
         If m_control Is Nothing Then
             diagnostic = "Cannot recreate collapsed control."
@@ -111,6 +116,7 @@ Private Function obj_IUiElement_Measure( _
     obj_IUiElement_Measure = m_control.Measure(rows, columns, diagnostic)
     m_rows = rows
     m_columns = columns
+    Me.TraceVisibility "Measure.End"
 End Function
 
 Private Function obj_IUiElement_Arrange( _
@@ -143,13 +149,11 @@ End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
     If m_collapsed Then
-        m_visibilityDirty = False
         obj_IUiElement_Render = True
         Exit Function
     End If
     obj_IUiElement_Render = m_control.Render(diagnostic)
     If obj_IUiElement_Render Then
-        m_visibilityDirty = False
         m_candidateValuesDirty = False
         m_candidateLayoutDirty = False
     End If
@@ -330,6 +334,34 @@ Public Function DependsOnLayout(ByVal name As String) As Boolean
     DependsOnLayout = (VBA.StrComp(ex_UiElementFactory.fn_Attribute(m_definition, "alignToForm"), name, VBA.vbTextCompare) = 0)
 End Function
 
+Public Sub TraceVisibility(ByVal stage As String)
+    Dim collapsed As Boolean
+    Dim diagnostic As String
+    Dim areaAddress As String
+    Dim occupied As Double
+
+    On Error GoTo Failed
+    If m_definition Is Nothing Then Exit Sub
+    If VBA.Len(ex_UiElementFactory.fn_Attribute(m_definition, "visibility")) = 0 Then Exit Sub
+    If Not private_TryVisibility(collapsed, diagnostic) Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_TRACE_ERROR | Stage=" & stage & " | Details=" & diagnostic
+        Exit Sub
+    End If
+    areaAddress = "<none>"
+    If Not m_area Is Nothing Then
+        areaAddress = m_area.Address(False, False)
+        occupied = Application.WorksheetFunction.CountA(m_area)
+    End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_STATE | TraceVersion=2 | Stage=" & stage & _
+        " | Name=" & ex_UiElementFactory.fn_Attribute(m_definition, "name") & _
+        " | BindingCollapsed=" & VBA.CStr(collapsed) & " | MeasuredCollapsed=" & VBA.CStr(m_collapsed) & _
+        " | Rows=" & VBA.CStr(m_rows) & " | Columns=" & VBA.CStr(m_columns) & _
+        " | Area=" & areaAddress & " | Occupied=" & VBA.CStr(occupied)
+    Exit Sub
+Failed:
+    ex_Core.fn_Diagnostic_WriteLog "UI_VISIBILITY_TRACE_ERROR | Stage=" & stage & " | Details=" & VBA.Err.Description
+End Sub
+
 Public Function TryRefreshValues( _
     ByVal pending As Object, _
     ByRef refreshed As Boolean, _
@@ -341,11 +373,6 @@ Public Function TryRefreshValues( _
 
     refreshed = False
     TryRefreshValues = True
-    If m_visibilityDirty Then
-        ' A visibility transition must survive value-only refresh optimizations.
-        pending(ex_UiElementFactory.fn_Attribute(m_definition, "name")) = True
-        Exit Function
-    End If
     If m_collapsed Then Exit Function
     If TypeOf m_control Is obj_UiTableControl Then
         dependency = ex_UiElementFactory.fn_Attribute(m_definition, "name")
@@ -376,6 +403,7 @@ Public Function RebuildStructure(ByRef diagnostic As String) As Boolean
         Exit Function
     End If
     If Not m_control Is Nothing Then m_control.Dispose
+    private_RestoreLocalPosition
     Set m_control = ex_UiControlFactory.fn_Create(m_definition)
     If m_control Is Nothing Then
         diagnostic = "Cannot recreate control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
@@ -419,6 +447,12 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_RestoreLocalPosition()
+    ' Arrange writes sheet coordinates into the node; ConfigurePosition expects local offsets.
+    m_definition.setAttribute "row", VBA.CStr(m_localRow)
+    m_definition.setAttribute "column", VBA.CStr(m_localColumn)
+End Sub
+
 Private Function private_TryVisibility( _
     ByRef collapsed As Boolean, _
     ByRef diagnostic As String _
@@ -471,7 +505,7 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
             If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                     VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
                 If attributeName = "visibility" Then
-                    m_visibilityDirty = True
+                    Me.TraceVisibility "Binding.Changed"
                     m_candidateLayoutDirty = True
                     m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
                     GoTo NextAttribute
