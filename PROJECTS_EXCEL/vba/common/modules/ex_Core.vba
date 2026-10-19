@@ -146,7 +146,7 @@ Public Function fn_Diagnostic_GetMode() As String
     fn_Diagnostic_GetMode = m_diagnosticMode
 End Function
 
-Public Function fn_Diagnostic_Flush() As Boolean
+Public Function fn_Diagnostic_Flush(Optional ByVal forceBufferedLines As Boolean = False) As Boolean
 #If ENABLE_LOGGING Then
     Const FOR_APPENDING As Long = 8
     Const TRISTATE_TRUE As Long = -1
@@ -156,7 +156,7 @@ Public Function fn_Diagnostic_Flush() As Boolean
     Dim lineText As String
 
     private_Diagnostic_EnsureConfiguration
-    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) <> 0 Then
+    If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_BUFFERED, VBA.vbTextCompare) <> 0 And Not forceBufferedLines Then
         fn_Diagnostic_Flush = True
         Exit Function
     End If
@@ -370,6 +370,9 @@ End Function
 ' } // namespace Configuration
 ' --------------------------------------
 
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
 Private Sub private_StatusBarError( _
     ByVal operation As String, _
     ByVal errorNumber As Long, _
@@ -537,3 +540,6 @@ Private Function private_Diagnostic_LocaleName(ByVal systemLocale As Boolean) As
         private_Diagnostic_LocaleName = VBA.Left$(buffer, count - 1)
     End If
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

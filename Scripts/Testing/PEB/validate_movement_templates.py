@@ -56,8 +56,10 @@ def main():
                 expected.add("Прибуття.Підстава")
             assert set(movement["columns"][name]) == expected
         assert sum(len(columns) for columns in movement["columns"].values()) == 55
-        for name in ("ToVacationForCuring", "FromAnnualMainVacation"):
-            assert any("block.OptionalVacationTicket" in text for text in movement["columns"][name].values())
+        for name, columns in movement["columns"].items():
+            for text in columns.values():
+                assert "block.OptionalVacationTicket" not in text, name
+                assert "block.OptionalPreviousVacationTicket" not in text, name
 
     rejected = 0
     def reject(change, routed=False):
@@ -115,8 +117,8 @@ def main():
     assert 'values("MovementBasis")' not in basis
     exporter = (folder / "obj_PEB_ExptrMovement.cls.vba").read_text(encoding="utf-8-sig")
     assert "fn_WriteValue(values, field, header)" in exporter
-    assert 'ex_PEB_MovementPlan.fn_Value(prefix & ".operation")' in exporter
-    for filename in ("ex_PEB_MovementTemplates.vba", "ex_PEB_MovementPlan.vba", "ex_PEB_EventRoutes.vba",
+    assert 'ex_PEB_MovementRegistry.fn_Value(prefix & ".operation")' in exporter
+    for filename in ("ex_PEB_MovementTemplates.vba", "ex_PEB_MovementRegistry.vba", "ex_PEB_EventRoutes.vba",
                      "obj_PEB_ExportService.cls.vba", "obj_PEB_ExptrMovement.cls.vba", "Test/obj_PEB_TestRunner.cls.vba"):
         text = (folder / filename).read_text(encoding="utf-8-sig")
         module = re.search(r'Attribute VB_Name = "([^"]+)"', text).group(1)
@@ -133,7 +135,7 @@ def main():
             assert assigned <= declared, (filename, name, assigned - declared)
 
     assert "Ref.Form." not in service
-    native = (folder / "ex_PEB_MovementPlan.vba").read_text(encoding="utf-8-sig")
+    native = (folder / "ex_PEB_MovementRegistry.vba").read_text(encoding="utf-8-sig")
     assert "DOMDocument" not in native and "selectNodes" not in native
     assert 'MovementBasis' in native and 'SourceDestination' in native
 

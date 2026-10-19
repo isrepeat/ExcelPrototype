@@ -1,4 +1,4 @@
-Attribute VB_Name = "ex_PEB_MovementPlan"
+Attribute VB_Name = "ex_PEB_MovementRegistry"
 Option Explicit
 
 Private m_values As Object
@@ -40,6 +40,34 @@ Public Function fn_Event(ByVal eventId As String) As Object
         Err.Raise 5, , "Unknown native Movement event: " & eventId
     End If
     Set fn_Event = m_events(eventId)
+End Function
+
+Public Function fn_TryEvent( _
+    ByVal eventId As String, _
+    ByRef eventPlan As Object _
+) As Boolean
+    private_EnsureLoaded
+    Set eventPlan = Nothing
+    If m_events.Exists(eventId) Then
+        Set eventPlan = m_events(eventId)
+        fn_TryEvent = True
+    End If
+End Function
+
+Public Function fn_EventsByOperation(ByVal operation As String) As Collection
+    Dim result As New Collection
+    Dim eventId As Variant
+
+    private_EnsureLoaded
+    If operation <> "Departure" And operation <> "Arrival" And operation <> "Transition" Then
+        Err.Raise 5, , "Unknown event operation: " & operation
+    End If
+    For Each eventId In m_events.Keys
+        If m_events(eventId)("operation") = operation Then
+            result.Add eventId
+        End If
+    Next eventId
+    Set fn_EventsByOperation = result
 End Function
 
 Public Function fn_Statuses() As Object

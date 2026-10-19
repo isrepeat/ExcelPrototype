@@ -1,0 +1,383 @@
+Attribute VB_Name = "ex_PEB_MovementWriter"
+Option Explicit
+
+' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
+' namespace API {
+' --------------------------------------
+Public Function fn_Apply( _
+    ByVal plan As Object, _
+    ByVal target As ListObject, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim entries As Collection
+    Dim links As Object
+    Dim action As Object
+    Dim entry As Object
+    Dim update As Object
+    Dim cell As Range
+    Dim key As Variant
+    Dim fields As Object
+    Dim actual As Object
+    Dim previousEvents As Boolean
+    Dim previousScreen As Boolean
+    Dim previousAutoFill As Boolean
+    Dim previousCalculation As XlCalculation
+    Dim settingsCaptured As Boolean
+    Dim changed As Boolean
+    Dim failure As String
+    Dim rollbackError As String
+    Dim dateFormat As String
+    Dim settingsTemplate As String
+    Dim rollbackTemplate As String
+    Dim restoredText As String
+    Dim stage As String
+    Dim startedAt As Double
+    Dim totalStartedAt As Double
+    Dim originalAddress As String
+    Dim extension As Range
+    Dim extensionSnapshot As Object
+    Dim addedRows As Long
+
+    On Error GoTo EH
+    totalStartedAt = VBA.Timer
+    diagnostic = VBA.vbNullString
+    Set entries = New Collection
+    private_Stage "Write.Validate", stage, startedAt
+    If plan Is Nothing Then
+        ex_PEB_MovementLinks.fn_Fail "MissingPlan", ""
+    End If
+    If Not plan("IsReady") Then
+        ex_PEB_MovementLinks.fn_Fail "InvalidMovementPlan", target.Name
+    End If
+    If plan("TargetStamp") <> ex_PEB_MovementLinks.fn_StructureStamp(target) Or _
+            plan("PlanStamp") <> ex_PEB_MovementLinks.fn_PlanStamp(plan) Then
+        ex_PEB_MovementLinks.fn_Fail "PlanChangedSincePreview", target.Name
+    End If
+    dateFormat = ex_PEB_Export.fn_Config("export.Movement.dateFormat")
+    settingsTemplate = ex_PEB_Export.fn_Config("text.MovementBatchSettingsError")
+    rollbackTemplate = ex_PEB_Export.fn_Config("text.MovementBatchRollbackError")
+    restoredText = ex_PEB_Export.fn_Config("text.MovementBatchRestored")
+    Set links = ex_PEB_MovementLinks.fn_Headers()
+    For Each key In links.Keys
+        Set cell = target.ListColumns(links(key)).Range.Cells(1, 1)
+    Next key
+
+    ' The caller builds this plan immediately before applying it, without yielding.
+    private_Stage "Write.Capture", stage, startedAt
+    originalAddress = target.Range.Address
+    For Each action In plan("Actions")
+        If action("Status") = "Planned" And Not action("IsUpdate") Then
+            If action("Operation") <> "close" Then
+                addedRows = addedRows + 1
+            End If
+        End If
+    Next action
+    If addedRows > 0 Then
+        Set extension = private_Extension(target, addedRows)
+        Set extensionSnapshot = ex_PEB_MovementLinks.fn_ReadRange(extension)
+    End If
+    Set actual = VBA.CreateObject("Scripting.Dictionary")
+    For Each action In plan("Actions")
+        If action("Status") = "Planned" And action("IsUpdate") Then
+            For Each update In action("UpdateCells")
+                private_Capture target, update("RowIndex"), update("Header"), update("After"), _
+                    entries, actual, True, update("Before")
+            Next update
+        ElseIf action("Status") = "Planned" Then
+            If action("Operation") <> "append" Then
+                Set fields = action("ClosingWrites")
+                For Each key In fields.Keys
+                    private_Capture target, action("ClosingIndex"), VBA.CStr(key), fields(key), entries, actual
+                Next key
+                private_Capture target, action("ClosingIndex"), links("ClosingId"), action("RowId"), entries, actual
+                private_Capture target, action("ClosingIndex"), links("ClosingHash"), action("ClosingHash"), entries, actual
+            End If
+            If action("Operation") <> "close" Then
+                Set fields = action("Writes")
+                For Each key In fields.Keys
+                    private_Capture target, action("TargetIndex"), VBA.CStr(key), fields(key), entries, actual
+                Next key
+                private_Capture target, action("TargetIndex"), links("OpeningId"), action("RowId"), entries, actual
+                private_Capture target, action("TargetIndex"), links("OpeningHash"), action("OpeningHash"), entries, actual
+            End If
+        ElseIf action("Status") <> "AlreadyApplied" Then
+            ex_PEB_MovementLinks.fn_Fail "InvalidMovementPlan", action("RowId")
+        End If
+    Next action
+    If entries.Count = 0 Then
+        If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
+            GoTo Cleanup
+        End If
+        fn_Apply = True
+        GoTo Cleanup
+    End If
+
+    previousEvents = Application.EnableEvents
+    previousScreen = Application.ScreenUpdating
+    previousAutoFill = Application.AutoCorrect.AutoFillFormulasInLists
+    previousCalculation = Application.Calculation
+    settingsCaptured = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    Application.AutoCorrect.AutoFillFormulasInLists = False
+
+    private_Stage "Write.Write", stage, startedAt
+    changed = True
+    If addedRows > 0 Then
+        target.Resize target.Range.Resize(target.Range.Rows.Count + addedRows)
+    End If
+    For Each entry In entries
+        Set cell = target.Parent.Range(entry("Address"))
+        If VBA.VarType(entry("Expected")) = VBA.vbString Then
+            cell.NumberFormat = "@"
+        ElseIf VBA.VarType(entry("Expected")) = VBA.vbDate Then
+            cell.NumberFormat = dateFormat
+        End If
+        cell.Value2 = entry("Expected")
+    Next entry
+    private_Stage "Write.Verify", stage, startedAt
+    For Each entry In entries
+        private_Verify target, entry, False
+    Next entry
+    private_Stage "Write.Journal", stage, startedAt
+    If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    fn_Apply = True
+Cleanup:
+    private_Stage "Write.RestoreSettings", stage, startedAt
+    If settingsCaptured Then
+        On Error Resume Next
+        VBA.Err.Clear
+        Application.AutoCorrect.AutoFillFormulasInLists = previousAutoFill
+        If VBA.Err.Number <> 0 Then
+            failure = failure & " AutoFill: " & VBA.Err.Description
+        End If
+        VBA.Err.Clear
+        Application.Calculation = previousCalculation
+        If VBA.Err.Number <> 0 Then
+            failure = failure & " Calculation: " & VBA.Err.Description
+        End If
+        VBA.Err.Clear
+        Application.EnableEvents = previousEvents
+        If VBA.Err.Number <> 0 Then
+            failure = failure & " EnableEvents: " & VBA.Err.Description
+        End If
+        VBA.Err.Clear
+        Application.ScreenUpdating = previousScreen
+        If VBA.Err.Number <> 0 Then
+            failure = failure & " ScreenUpdating: " & VBA.Err.Description
+        End If
+        On Error GoTo 0
+    End If
+    If VBA.Len(failure) > 0 Then
+        diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$(settingsTemplate, "{error}", failure)
+    End If
+    private_Stage VBA.vbNullString, stage, startedAt
+    ex_Core.fn_Diagnostic_WritePerf "Movement.Write.TotalIncludingCalculation", totalStartedAt
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError "Movement." & stage, VBA.Err.Number, VBA.Err.Source, diagnostic
+    If changed Then
+        private_Stage "Write.Rollback", stage, startedAt
+        If private_Restore(target, entries, originalAddress, extensionSnapshot, rollbackError) Then
+            diagnostic = diagnostic & VBA.vbCrLf & restoredText
+        Else
+            diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$(rollbackTemplate, "{error}", rollbackError)
+        End If
+    End If
+    Resume Cleanup
+End Function
+' --------------------------------------
+' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
+Private Function private_Extension( _
+    ByVal target As ListObject, _
+    ByVal addedRows As Long _
+) As Range
+    Dim area As Range
+    Dim other As ListObject
+    Dim merged As Variant
+
+    If target.ShowTotals Then
+        ex_PEB_MovementLinks.fn_Fail "AppendWithTotalsUnsupported", target.Name
+    End If
+    If target.Range.Row + target.Range.Rows.Count + addedRows - 1 > target.Parent.Rows.Count Then
+        ex_PEB_MovementLinks.fn_Fail "InsufficientWorksheetRows", target.Name
+    End If
+    Set area = target.Range.Rows(target.Range.Rows.Count).Offset(1).Resize(addedRows)
+    merged = area.MergeCells
+    If VBA.IsNull(merged) Then
+        ex_PEB_MovementLinks.fn_Fail "MergedExpansionCell", area.Address
+    End If
+    If VBA.CBool(merged) Or Application.WorksheetFunction.CountA(area) <> 0 Then
+        ex_PEB_MovementLinks.fn_Fail "OccupiedExpansionCell", area.Address
+    End If
+    For Each other In target.Parent.ListObjects
+        If Not other Is target Then
+            If Not Application.Intersect(area, other.Range) Is Nothing Then
+                ex_PEB_MovementLinks.fn_Fail "ExpansionIntersectsTable", other.Name
+            End If
+        End If
+    Next other
+    Set private_Extension = area
+End Function
+
+Private Sub private_Capture( _
+    ByVal target As ListObject, _
+    ByVal rowIndex As Long, _
+    ByVal header As String, _
+    ByVal expected As Variant, _
+    ByVal entries As Collection, _
+    ByVal seen As Object, _
+    Optional ByVal replacing As Boolean = False, _
+    Optional ByVal original As Variant _
+)
+    Dim cell As Range
+    Dim entry As Object
+
+    Set cell = target.HeaderRowRange.Cells(1, target.ListColumns(header).Index).Offset(rowIndex)
+    If seen.Exists(cell.Address) Then
+        Set entry = seen(cell.Address)
+        If replacing Then
+            If ex_PEB_MovementLinks.fn_ValueToken(entry("Expected")) <> ex_PEB_MovementLinks.fn_ValueToken(original) Then
+                ex_PEB_MovementLinks.fn_Fail "ConflictingPlannedWrite", cell.Address
+            End If
+        ElseIf VBA.Len(ex_PEB_Export.fn_Text(entry("Expected"))) > 0 Then
+            ex_PEB_MovementLinks.fn_Fail "ConflictingPlannedWrite", cell.Address
+        End If
+        entry("Expected") = expected
+        Exit Sub
+    End If
+    If cell.HasFormula Then
+        ex_PEB_MovementLinks.fn_Fail "FormulaOverwrite", header
+    End If
+    If replacing Then
+        If ex_PEB_MovementLinks.fn_ValueToken(cell.Value2) <> ex_PEB_MovementLinks.fn_ValueToken(original) Then
+            ex_PEB_MovementLinks.fn_Fail "TargetChangedBeforeWrite", header
+        End If
+    ElseIf VBA.Len(ex_PEB_Export.fn_Text(cell.Value2)) > 0 Then
+        ex_PEB_MovementLinks.fn_Fail "PopulatedCellOverwrite", header
+    End If
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.Add "Address", cell.Address
+    entry.Add "Value", cell.Value2
+    entry.Add "Format", cell.NumberFormat
+    entry.Add "Expected", expected
+    entries.Add entry
+    seen.Add cell.Address, entry
+End Sub
+
+Private Sub private_Verify( _
+    ByVal target As ListObject, _
+    ByVal entry As Object, _
+    ByVal restored As Boolean _
+)
+    Dim cell As Range
+    Dim expected As Variant
+
+    Set cell = target.Parent.Range(entry("Address"))
+    If cell.HasFormula Then
+        ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address
+    End If
+    If restored Then
+        expected = entry("Value")
+        If cell.NumberFormat <> entry("Format") Then
+            ex_PEB_MovementLinks.fn_Fail "RollbackVerificationFailed", cell.Address
+        End If
+    Else
+        expected = entry("Expected")
+    End If
+    If ex_PEB_MovementLinks.fn_ValueToken(expected) <> ex_PEB_MovementLinks.fn_ValueToken(cell.Value2) Then
+        ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address
+    End If
+End Sub
+
+Private Function private_Restore( _
+    ByVal target As ListObject, _
+    ByVal entries As Collection, _
+    ByVal originalAddress As String, _
+    ByVal extensionSnapshot As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim entry As Object
+    Dim cell As Range
+    Dim area As Range
+    Dim formats As Variant
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+
+    ' Attempt every cell even when one restoration fails.
+    On Error Resume Next
+    target.Resize target.Parent.Range(originalAddress)
+    If VBA.Err.Number <> 0 Then
+        diagnostic = diagnostic & " " & VBA.Err.Description
+    End If
+    For Each entry In entries
+        VBA.Err.Clear
+        Set cell = target.Parent.Range(entry("Address"))
+        cell.NumberFormat = "@"
+        cell.Value2 = entry("Value")
+        cell.NumberFormat = entry("Format")
+        If VBA.Err.Number <> 0 Then
+            diagnostic = diagnostic & " " & entry("Address") & ": " & VBA.Err.Description
+        End If
+    Next entry
+    For Each entry In entries
+        VBA.Err.Clear
+        private_Verify target, entry, True
+        If VBA.Err.Number <> 0 Then
+            diagnostic = diagnostic & " " & entry("Address") & ": " & VBA.Err.Description
+        End If
+    Next entry
+    If Not extensionSnapshot Is Nothing Then
+        VBA.Err.Clear
+        Set area = target.Parent.Range(extensionSnapshot("Address"))
+        area.ClearContents
+        formats = extensionSnapshot("Formats")
+        If VBA.Err.Number <> 0 Then
+            diagnostic = diagnostic & " " & VBA.Err.Description
+        End If
+        For rowIndex = 1 To area.Rows.Count
+            For columnIndex = 1 To area.Columns.Count
+                VBA.Err.Clear
+                area.Cells(rowIndex, columnIndex).NumberFormat = formats(rowIndex, columnIndex)
+                If VBA.Err.Number <> 0 Then
+                    diagnostic = diagnostic & " " & VBA.Err.Description
+                End If
+            Next columnIndex
+        Next rowIndex
+    End If
+    On Error GoTo 0
+    private_Restore = (VBA.Len(diagnostic) = 0)
+End Function
+
+Private Sub private_Stage( _
+    ByVal nextStage As String, _
+    ByRef stage As String, _
+    ByRef startedAt As Double _
+)
+    If VBA.Len(stage) > 0 Then
+        ex_Core.fn_Diagnostic_WritePerf "Movement." & stage, startedAt
+    End If
+    stage = nextStage
+    startedAt = VBA.Timer
+End Sub
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

@@ -274,6 +274,91 @@ CleanupPrepare:
 End Function
 
 ' Rebuild aliases from stored text without rereading personnel or institution sources.
+Public Function TryPrepareHistoryMovement( _
+    ByVal stored As Object, _
+    ByRef values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim key As Variant
+    Dim name As String
+    Dim mode As String
+    Dim index As Long
+    Dim documents As Collection
+    Dim document As Object
+    Dim copy As Object
+
+    On Error GoTo EH
+    diagnostic = VBA.vbNullString
+    Set values = Nothing
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError026")
+    End If
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    values.CompareMode = VBA.vbTextCompare
+    For Each key In stored.Keys
+        If Not VBA.IsObject(stored(key)) Then
+            values.Add VBA.CStr(key), stored(key)
+        End If
+    Next key
+    If stored("HistoryReports").Count > 0 Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.MovementHistoryReportsUnsupported")
+    End If
+    values("ModeId") = ex_PEB_Export.fn_Required(stored, "EventId")
+    values("PersonAccusative") = ex_PEB_Export.fn_Required(stored, "FIOAccusative")
+    For index = 1 To ex_PEB_Export.fn_Count("export.shared.aliases.count")
+        name = ex_PEB_Export.fn_Config("export.shared.aliases." & index & ".name")
+        If values.Exists(name) Then
+            values.Remove name
+        End If
+    Next index
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.dateFields") & "|FoodSupportDate", "|")
+        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) > 0 Then
+            values(key) = ex_PEB_History.fn_Date(values(key))
+        End If
+    Next key
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.shared.inputs.dateScalars"), "|")
+        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) > 0 Then
+            values(key) = VBA.Format$(ex_PEB_History.fn_Date(values(key)), "dd.mm.yyyy")
+        End If
+    Next key
+    For Each key In VBA.Array("RequiresFoodSupportEnroll", "RequiresFoodSupportRemove")
+        Select Case VBA.LCase$(VBA.Trim$(VBA.CStr(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))))
+            Case "true"
+                values(key) = True
+            Case "false"
+                values(key) = False
+            Case Else
+                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(key))
+        End Select
+    Next key
+    Set documents = New Collection
+    For Each document In stored("MetaDocumentTables")
+        Set copy = VBA.CreateObject("Scripting.Dictionary")
+        For Each key In document.Keys
+            copy.Add VBA.CStr(key), document(key)
+        Next key
+        If VBA.Len(copy("DocDateShort")) > 0 Then
+            copy("DocDateShort") = VBA.Format$(ex_PEB_History.fn_Date(copy("DocDateShort")), "dd.mm.yyyy")
+        End If
+        documents.Add copy
+    Next document
+    Set values("MetaDocumentTables") = documents
+    mode = ex_PEB_EventRoutes.fn_Apply(values, "Movement")
+    For Each key In VBA.Split(ex_PEB_EventRoutes.fn_Value(mode, "movement.required"), "|")
+        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then
+            Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
+        End If
+    Next key
+    private_PrepareTicket values
+    private_PrepareMovementTexts values, Nothing, True
+    TryPrepareHistoryMovement = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    Set values = Nothing
+End Function
+
+' Rebuild Word context independently of the Movement preview.
 Public Function TryPrepareHistory( _
     ByVal values As Object, _
     ByRef diagnostic As String _
@@ -758,7 +843,8 @@ End Sub
 
 Private Sub private_PrepareMovementTexts( _
     ByVal values As Object, _
-    ByVal inputs As Object _
+    ByVal inputs As Object, _
+    Optional ByVal storedSnapshot As Boolean = False _
 )
     Dim rendered As String
     Dim diagnostic As String
@@ -767,9 +853,11 @@ Private Sub private_PrepareMovementTexts( _
     Dim results As Object
     Dim column As Variant
 
-    private_AddConstants values
+    private_AddConstants values, storedSnapshot
     private_AddAliases values
-    private_CompleteEventInputs values, inputs
+    If Not storedSnapshot Then
+        private_CompleteEventInputs values, inputs
+    End If
     If m_movementRenderer Is Nothing Then
         Set m_movementRenderer = New obj_PEB_DslRenderer
         If Not m_movementRenderer.Initialize(ex_PEB_MovementTemplates.fn_SharedTemplates()) Then
@@ -790,7 +878,7 @@ Private Sub private_PrepareMovementTexts( _
         results.Add VBA.CStr(column), rendered
     Next column
     Set values("MovementColumnTexts") = results
-    ex_PEB_MovementPlan.fn_ValidateTexts values
+    ex_PEB_MovementRegistry.fn_ValidateTexts values
 End Sub
 
 Private Sub private_CompleteEventInputs( _
@@ -1091,7 +1179,10 @@ Private Function private_LookupTable( _
     ex_Core.fn_Diagnostic_WritePerf "Preview.LookupCacheLoad | Sheet=" & source.SheetName, startedAt
 End Function
 
-Private Sub private_AddConstants(ByVal values As Object)
+Private Sub private_AddConstants( _
+    ByVal values As Object, _
+    Optional ByVal preserveExisting As Boolean = False _
+)
     Dim index As Long
     Dim prefix As String
     Dim name As String
@@ -1104,26 +1195,29 @@ Private Sub private_AddConstants(ByVal values As Object)
         name = ex_PEB_Export.fn_Config(prefix & ".name")
         kind = ex_PEB_Export.fn_Config(prefix & ".kind")
         If values.Exists(name) Then
-            Err.Raise 5, , "Constant would overwrite an export value: " & name
+            If Not preserveExisting Then
+                Err.Raise 5, , "Constant would overwrite an export value: " & name
+            End If
+        Else
+            Select Case kind
+                Case "text"
+                    value = ex_PEB_Export.fn_Config(prefix & ".value")
+                    values.Add name, value
+                Case "emptyText"
+                    values.Add name, VBA.vbNullString
+                Case "boolean"
+                    value = ex_PEB_Export.fn_Config(prefix & ".value")
+                    If value <> "true" And value <> "false" Then
+                        Err.Raise 5, , "Invalid Boolean constant: " & name
+                    End If
+                    values.Add name, (value = "true")
+                Case "emptyCollection"
+                    Set items = New Collection
+                    values.Add name, items
+                Case Else
+                    Err.Raise 5, , "Unknown export constant kind: " & kind
+            End Select
         End If
-        Select Case kind
-            Case "text"
-                value = ex_PEB_Export.fn_Config(prefix & ".value")
-                values.Add name, value
-            Case "emptyText"
-                values.Add name, VBA.vbNullString
-            Case "boolean"
-                value = ex_PEB_Export.fn_Config(prefix & ".value")
-                If value <> "true" And value <> "false" Then
-                    Err.Raise 5, , "Invalid Boolean constant: " & name
-                End If
-                values.Add name, (value = "true")
-            Case "emptyCollection"
-                Set items = New Collection
-                values.Add name, items
-            Case Else
-                Err.Raise 5, , "Unknown export constant kind: " & kind
-        End Select
     Next index
 End Sub
 

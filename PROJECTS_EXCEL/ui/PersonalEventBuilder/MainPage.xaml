@@ -482,6 +482,27 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ShowHistory}"
                      command="{Binding Path=Commands.ShowHistory}"/>
+    <controls:button name="EventVersions"
+                     row="20"
+                     column="18"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.EventVersions}"
+                     command="{Binding Path=Commands.EventVersions}"/>
+    <controls:button name="CancelEvent"
+                     row="21"
+                     column="18"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.CancelEvent}"
+                     command="{Binding Path=Commands.CancelEvent}"/>
+    <controls:button name="RestoreEvent"
+                     row="22"
+                     column="18"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.RestoreEvent}"
+                     command="{Binding Path=Commands.RestoreEvent}"/>
     <controls:label name="HistoryEditMode"
                     row="12"
                     column="18"
