@@ -1460,7 +1460,7 @@ value	PersonalEventBuilder::text.HistoryEditHint	Подію завантажен
 value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже є інша подія з такими людиною, типом і датою. Оновлення скасовано.
 value	PersonalEventBuilder::text.HistoryStaleEdit	Запис EventsHistory змінився після завантаження. Оновіть список і виберіть подію повторно.
 value	PersonalEventBuilder::text.HistoryListStale	Список подій застарів. Натисніть «Події поточного наказу» та виберіть запис повторно.
-value	PersonalEventBuilder::history.list.columns.count	8
+value	PersonalEventBuilder::history.list.columns.count	12
 value	PersonalEventBuilder::history.list.columns.1.field	EventLabel
 value	PersonalEventBuilder::history.list.columns.1.caption	Подія
 value	PersonalEventBuilder::history.list.columns.2.field	PersonName
@@ -1477,3 +1477,60 @@ value	PersonalEventBuilder::history.list.columns.7.field	TicketNumber
 value	PersonalEventBuilder::history.list.columns.7.caption	Квиток / посвідчення
 value	PersonalEventBuilder::history.list.columns.8.field	RowId
 value	PersonalEventBuilder::history.list.columns.8.caption	ID запису
+value	PersonalEventBuilder::text.MovementHistoryReportsUnsupported	План РУХ: додаткові рапорти ще не підтримуються. Подію не включено до плану.
+value	PersonalEventBuilder::text.MovementPlanError	План РУХ: {code}. {detail}
+value	PersonalEventBuilder::export.Movement.links.OpeningId	PEB.OpeningId
+value	PersonalEventBuilder::export.Movement.links.OpeningHash	PEB.OpeningHash
+value	PersonalEventBuilder::export.Movement.links.ClosingId	PEB.ClosingId
+value	PersonalEventBuilder::export.Movement.links.ClosingHash	PEB.ClosingHash
+value	PersonalEventBuilder::export.Movement.dateFormat	dd.mm.yyyy
+value	PersonalEventBuilder::text.MovementBatchSuccess	РУХ: застосовано подій — {applied}, вже застосовано — {skipped}. Дані змінено у відкритій таблиці.
+value	PersonalEventBuilder::text.MovementBatchAlreadyApplied	РУХ: усі події вже застосовано ({skipped}). Змін не внесено.
+value	PersonalEventBuilder::text.MovementBatchConflicts	РУХ не змінено. Конфліктних або заблокованих подій: {count}
+value	PersonalEventBuilder::text.MovementBatchRollbackError	Не вдалося повністю відновити дані в пам'яті: {error}. Перевірте цільову таблицю перед повторним експортом.
+value	PersonalEventBuilder::text.MovementBatchSettingsError	Не вдалося відновити налаштування Excel: {error}
+value	PersonalEventBuilder::text.MovementBatchRestored	Дані та числові формати відновлено у відкритій таблиці. Книга залишається відкритою для перевірки.
+value	PersonalEventBuilder::text.MovementBatchTargetMissing	Відкрийте в цьому екземплярі Excel книгу з таблицею «{table}» на аркуші «{sheet}».
+value	PersonalEventBuilder::text.MovementBatchTargetAmbiguous	У відкритих книгах знайдено декілька таблиць «{table}» на аркуші «{sheet}». Залиште відкритою лише цільову книгу РУХ і повторіть експорт.
+value	PersonalEventBuilder::history.versions.stateFields	Revision|Status|LastChangeId
+value	PersonalEventBuilder::history.versions.sheet	EventRevisions
+value	PersonalEventBuilder::history.versions.table	tbEventRevisions
+value	PersonalEventBuilder::history.versions.fields	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status
+value	PersonalEventBuilder::history.exports.sheet	ExportJournal
+value	PersonalEventBuilder::history.exports.table	tbExportJournal
+value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
+value	PersonalEventBuilder::text.HistoryReasonRequired	Вкажіть причину зміни статусу події.
+value	PersonalEventBuilder::text.HistoryBaselineReason	Стан перед першою зафіксованою зміною або переглядом історії; попередні зміни невідомі.
+value	PersonalEventBuilder::text.EventVersions	Історія змін події
+value	PersonalEventBuilder::text.CancelEvent	Скасувати подію
+value	PersonalEventBuilder::text.RestoreEvent	Відновити подію
+value	PersonalEventBuilder::text.HistorySelectRequired	Спочатку виберіть подію зі списку поточного наказу.
+value	PersonalEventBuilder::text.HistoryReasonPrompt	Вкажіть причину скасування або відновлення події:
+value	PersonalEventBuilder::text.HistoryStatusSaved	Статус події збережено. Застосуйте зміни кнопкою «Експорт РУХ» та повторно сформуйте WORD.
+value	PersonalEventBuilder::text.HistoryCancelledWord	У наказі немає активних подій для WORD. Раніше сформований файл не змінено.
+value	PersonalEventBuilder::text.HistoryJournalFailed	Файл створено, але запис журналу експорту не виконано: {details}
+value	PersonalEventBuilder::history.list.columns.9.field	Status
+value	PersonalEventBuilder::history.list.columns.9.caption	Статус
+value	PersonalEventBuilder::history.list.columns.10.field	Revision
+value	PersonalEventBuilder::history.list.columns.10.caption	Версія
+value	PersonalEventBuilder::history.list.columns.11.field	MovementSync
+value	PersonalEventBuilder::history.list.columns.11.caption	Стан РУХ
+value	PersonalEventBuilder::history.list.columns.12.field	WordSync
+value	PersonalEventBuilder::history.list.columns.12.caption	Стан WORD
+value	PersonalEventBuilder::text.HistorySyncUnknown	Немає запису в журналі
+value	PersonalEventBuilder::text.HistorySyncPending	Зміни не підтверджено
+value	PersonalEventBuilder::text.HistoryCancelPending	Скасування не підтверджено
+value	PersonalEventBuilder::text.HistorySyncConfirmed	Версію підтверджено
+value	PersonalEventBuilder::text.HistoryRollbackError	Не вдалося повністю відновити історію після помилки: {details}
+value	PersonalEventBuilder::text.HistoryRefreshAfterExport	Експорт виконано, але список подій не оновлено: {details}
+value	PersonalEventBuilder::validation.Movement.enabled	true
+value	PersonalEventBuilder::text.SimpleDepartureWhileOpen	Нове вибуття неможливе: попереднє «{actual}» ще не закрито прибуттям.
+value	PersonalEventBuilder::text.SimpleArrivalWithoutDeparture	Прибуття неможливе: немає відкритого вибуття.
+value	PersonalEventBuilder::text.SimpleArrivalTypeMismatch	Тип прибуття не відповідає вибуттю: обрано повернення з «{expected}», відкрито «{actual}».
+value	PersonalEventBuilder::validation.Movement.source.table	ТВ
+ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
+ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
+value	PersonalEventBuilder::validation.Movement.source.range	B6:AZ20000
+value	PersonalEventBuilder::text.MovementSaveValidationFailed	Подію не збережено. Конфлікт у події {id}: {details}
+value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
+value	PersonalEventBuilder::text.MovementOpenAbsenceMismatch	Для ІПН {person} не знайдено відкритої відсутності «{expected}» на {date}. Відкриті відсутності та дати вибуття: {actual}.

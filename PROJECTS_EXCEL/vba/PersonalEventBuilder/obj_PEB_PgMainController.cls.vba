@@ -277,61 +277,7 @@ Failed:
 End Function
 
 Public Function SearchPersonnelHandler() As Boolean
-    Dim text As Variant
-    Dim formKind As Variant
-    Dim keyField As String
-    Dim diagnostic As String
-    Dim result As obj_LookupResult
-    Dim status As String
-    Dim startedAt As Double
-
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If m_reporterActive Or m_hospitalActive Then
-        If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
-            Exit Function
-        End If
-    End If
-    m_reporterActive = False
-    m_hospitalActive = False
-    If Not private_TryReadFormValue("ModeForm", formKind) Then Exit Function
-    If Not private_ReadModeConfig("forms." & VBA.CStr(formKind) & ".lookup.key", keyField, diagnostic) Then GoTo Failure
-    If Not private_TryReadFormValue(keyField, text) Then Exit Function
-    If Not m_lookupService.TrySearch(VBA.CStr(text), result, diagnostic) Then
-        If Not m_lookupService.TrySearch(vbNullString, result, status) Then GoTo Failure
-        If Not private_TryEnrichResult(result, status) Then GoTo Failure
-        Set m_lookupResult = result
-        m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
-        m_pageBase.BindingContext.SetValue "Text", "PersonnelStatus", m_messages("PersonnelError")
-        GoTo Failure
-    End If
-    If Not private_TryEnrichResult(result, diagnostic) Then
-        If m_lookupService.TrySearch(vbNullString, result, status) Then
-            If Not private_TryEnrichResult(result, status) Then GoTo Failure
-            Set m_lookupResult = result
-            m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
-        End If
-        GoTo Failure
-    End If
-    Set m_lookupResult = result
-    ex_Core.fn_Diagnostic_WriteLog "LOOKUP_STAGE_STARTED | Name=PublishCandidates"
-    startedAt = VBA.Timer
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
-    ex_Core.fn_Diagnostic_WritePerf "Lookup.PublishCandidates | Rows=" & VBA.CStr(result.RowCount), startedAt
-    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < m_lookupProfile.MinChars Then
-        status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))
-    ElseIf result.RowCount = 0 Then
-        status = m_messages("PersonnelEmpty")
-    Else
-        status = VBA.Replace$(m_messages("PersonnelCount"), "{count}", VBA.CStr(result.RowCount))
-        If result.HasMore Then status = VBA.Replace$(m_messages("PersonnelMore"), "{count}", VBA.CStr(result.RowCount))
-    End If
-    SearchPersonnelHandler = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", status)
-    If SearchPersonnelHandler Then SearchPersonnelHandler = private_SetActionStatus(status, False)
-    Exit Function
-Failure:
-    private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
-    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
+    SearchPersonnelHandler = private_SearchPersonnel(True)
 End Function
 
 Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
@@ -477,7 +423,7 @@ Private Function private_ApplyResolvedOrder() As Boolean
     m_acceptedOrderNumber = VBA.CStr(number)
     m_acceptedOrderDate = orderDate
     If m_reporterActive Or m_hospitalActive Then
-        If Not private_SearchSecondary(False, m_hospitalActive) Then
+        If Not private_SearchSecondary(False, m_hospitalActive, False) Then
             private_ApplyResolvedOrder = private_SetActionStatus(m_messages("OrderAppliedRefreshError"), True)
             Exit Function
         End If
@@ -494,7 +440,7 @@ Private Function private_ApplyResolvedOrder() As Boolean
             End If
         End If
     End If
-    If Not Me.SearchPersonnelHandler() Then
+    If Not private_SearchPersonnel(False) Then
         private_ApplyResolvedOrder = private_SetActionStatus(m_messages("OrderAppliedRefreshError"), True)
         Exit Function
     End If
@@ -687,6 +633,43 @@ Public Function SaveHistoryHandler() As Boolean
     SaveHistoryHandler = private_Export("History")
 End Function
 
+Public Function EventVersionsHandler() As Boolean
+    Dim diagnostic As String
+    Dim identifier As String
+
+    On Error GoTo EH_VERSIONS
+    If m_editHistoryRow Is Nothing Then
+        EventVersionsHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistorySelectRequired"), True)
+        Exit Function
+    End If
+    identifier = m_editHistoryRow("RowId")
+    If Not ex_PEB_History.fn_SetStatus(m_editHistoryRow, m_editHistoryRow("Status"), "", m_editHistoryStamp, diagnostic) Then
+        GoTo FailedVersions
+    End If
+    If Not private_RefreshHistory(identifier, diagnostic) Then
+        GoTo FailedVersions
+    End If
+    If Not ex_PEB_HistoryRevisions.fn_Show(identifier, diagnostic) Then
+        GoTo FailedVersions
+    End If
+    EventVersionsHandler = True
+    Exit Function
+FailedVersions:
+    EventVersionsHandler = private_SetActionStatus(diagnostic, True)
+    Exit Function
+EH_VERSIONS:
+    diagnostic = VBA.Err.Description
+    Resume FailedVersions
+End Function
+
+Public Function CancelEventHandler() As Boolean
+    CancelEventHandler = private_SetEventStatus("Cancelled")
+End Function
+
+Public Function RestoreEventHandler() As Boolean
+    RestoreEventHandler = private_SetEventStatus("Active")
+End Function
+
 Public Function ShowHistoryHandler() As Boolean
     Dim diagnostic As String
     Dim record As obj_LookupRecord
@@ -818,6 +801,11 @@ Public Function ExportWordHandler() As Boolean
     Dim diagnostic As String
     Dim events As Collection
     Dim exporter As obj_PEB_ExptrWord
+    Dim activeEvents As Collection
+    Dim journal As Collection
+    Dim historyItem As Object
+    Dim exportItem As Object
+    Dim journalDiagnostic As String
     Dim scalar As Variant
     Dim objectValue As Object
     Dim isObject As Boolean
@@ -849,11 +837,43 @@ Public Function ExportWordHandler() As Boolean
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError047")
     End If
     orderDate = scalar
-    If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
+    If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then
+        orderDate = VBA.CDate(orderDate)
+    End If
     If Not ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic) Then GoTo FailedHistoryWord
+    Set activeEvents = New Collection
+    Set journal = New Collection
+    For Each historyItem In events
+        Set exportItem = VBA.CreateObject("Scripting.Dictionary")
+        exportItem.Add "RowId", historyItem("RowId")
+        exportItem.Add "Revision", historyItem("Revision")
+        exportItem.Add "Status", "CancelledOmitted"
+        exportItem.Add "HistoryStamp", ex_PEB_MovementLinks.fn_EventStamp(historyItem)
+        If historyItem("Status") = "Active" Then
+            activeEvents.Add historyItem
+            exportItem("Status") = "Generated"
+        End If
+        journal.Add exportItem
+    Next historyItem
+    If activeEvents.Count = 0 Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryCancelledWord")
+    End If
+    Set events = activeEvents
     Set exporter = New obj_PEB_ExptrWord
     If Not exporter.Initialize() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError048")
     If Not exporter.TryGenerateHistory(events, output, diagnostic) Then GoTo FailedHistoryWord
+    If Not ex_PEB_HistoryRevisions.fn_RecordExport(journal, output, "Word", journalDiagnostic) Then
+        ExportWordHandler = private_SetActionStatus(VBA.Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryJournalFailed"), "{details}", journalDiagnostic), True)
+        exporter.Dispose
+        Exit Function
+    End If
+    If Not private_RefreshExportHistory(journalDiagnostic) Then
+        ExportWordHandler = private_SetActionStatus(VBA.Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryRefreshAfterExport"), "{details}", journalDiagnostic), True)
+        exporter.Dispose
+        Exit Function
+    End If
     ExportWordHandler = private_SetActionStatus(VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryWordSuccess"), "{path}", output), False)
     exporter.Dispose
     Exit Function
@@ -867,6 +887,11 @@ End Function
 Public Function ExportMovementHandler() As Boolean
     Dim enabled As String
     Dim diagnostic As String
+    Dim scalar As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+    Dim orderNumber As String
+    Dim orderDate As Variant
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -878,14 +903,35 @@ Public Function ExportMovementHandler() As Boolean
         Exit Function
     End If
     If enabled <> "true" Then
-        Err.Raise 5, , "Movement enabled must be true or false."
+        ex_PEB_MovementLinks.fn_Fail "InvalidEnabledSetting", enabled
     End If
-    ExportMovementHandler = private_Export("Movement")
+    If ex_PEB_Testing.fn_IsRunning() Then
+        ExportMovementHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.TryGetValue("Form", "AcceptedOrderNumber", scalar, objectValue, isObject) Or isObject Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError046")
+    End If
+    orderNumber = VBA.CStr(scalar)
+    If Not m_pageBase.BindingContext.TryGetValue("Form", "AcceptedOrderDate", scalar, objectValue, isObject) Or isObject Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError047")
+    End If
+    orderDate = scalar
+    If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
+    If Not ex_PEB_MovementBatch.fn_ExportOrder(orderNumber, orderDate, diagnostic) Then
+        GoTo FailedMovement
+    End If
+    If Not private_RefreshExportHistory(diagnostic) Then
+        ExportMovementHandler = private_SetActionStatus(VBA.Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryRefreshAfterExport"), "{details}", diagnostic), True)
+        Exit Function
+    End If
+    ExportMovementHandler = private_SetActionStatus(diagnostic, False)
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
+FailedMovement:
     private_SetActionStatus diagnostic, True
-    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 
 Public Function FromAnnualMainVacationHandler() As Boolean
@@ -1058,9 +1104,74 @@ Failed:
     GoTo Cleanup
 End Function
 
+Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boolean
+    Dim text As Variant
+    Dim formKind As Variant
+    Dim keyField As String
+    Dim diagnostic As String
+    Dim result As obj_LookupResult
+    Dim status As String
+    Dim startedAt As Double
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_reporterActive Or m_hospitalActive Then
+        If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+            Exit Function
+        End If
+    End If
+    m_reporterActive = False
+    m_hospitalActive = False
+    If Not private_TryReadFormValue("ModeForm", formKind) Then Exit Function
+    If Not private_ReadModeConfig("forms." & VBA.CStr(formKind) & ".lookup.key", keyField, diagnostic) Then GoTo Failure
+    If Not private_TryReadFormValue(keyField, text) Then Exit Function
+    If Not m_lookupService.TrySearch(VBA.CStr(text), result, diagnostic) Then
+        If Not m_lookupService.TrySearch(vbNullString, result, status) Then GoTo Failure
+        If Not private_TryEnrichResult(result, status) Then GoTo Failure
+        Set m_lookupResult = result
+        m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
+        m_pageBase.BindingContext.SetValue "Text", "PersonnelStatus", m_messages("PersonnelError")
+        GoTo Failure
+    End If
+    If Not private_TryEnrichResult(result, diagnostic) Then
+        If m_lookupService.TrySearch(vbNullString, result, status) Then
+            If Not private_TryEnrichResult(result, status) Then GoTo Failure
+            Set m_lookupResult = result
+            m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
+        End If
+        GoTo Failure
+    End If
+    Set m_lookupResult = result
+    ex_Core.fn_Diagnostic_WriteLog "LOOKUP_STAGE_STARTED | Name=PublishCandidates"
+    startedAt = VBA.Timer
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "Lookup.PublishCandidates | Rows=" & VBA.CStr(result.RowCount), startedAt
+    If showCandidates Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
+            Exit Function
+        End If
+    End If
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < m_lookupProfile.MinChars Then
+        status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))
+    ElseIf result.RowCount = 0 Then
+        status = m_messages("PersonnelEmpty")
+    Else
+        status = VBA.Replace$(m_messages("PersonnelCount"), "{count}", VBA.CStr(result.RowCount))
+        If result.HasMore Then status = VBA.Replace$(m_messages("PersonnelMore"), "{count}", VBA.CStr(result.RowCount))
+    End If
+    private_SearchPersonnel = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", status)
+    If private_SearchPersonnel Then
+        private_SearchPersonnel = private_SetActionStatus(status, False)
+    End If
+    Exit Function
+Failure:
+    private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
+    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
+End Function
+
 Private Function private_SearchSecondary( _
     ByVal clearDependents As Boolean, _
-    Optional ByVal hospital As Boolean = False _
+    Optional ByVal hospital As Boolean = False, _
+    Optional ByVal showCandidates As Boolean = True _
 ) As Boolean
     Dim key As String
     Dim text As Variant
@@ -1136,7 +1247,11 @@ Private Function private_SearchSecondary( _
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projected) Then
         Err.Raise 5, , "Cannot publish secondary candidates."
     End If
-    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
+    If showCandidates Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
+            Exit Function
+        End If
+    End If
     If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < profile.MinChars Then
         status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(profile.MinChars))
     ElseIf projected.RowCount = 0 Then
@@ -1236,6 +1351,62 @@ Private Function private_SecondaryFields( _
     End If
     Set result = fields
     private_SecondaryFields = True
+End Function
+
+Private Function private_RefreshExportHistory(ByRef diagnostic As String) As Boolean
+    Dim identifier As String
+    Dim message As String
+
+    On Error GoTo EH_REFRESH
+    private_RefreshExportHistory = True
+    If m_historyRows Is Nothing Then
+        Exit Function
+    End If
+    If m_historyRows.Count = 0 Then
+        Exit Function
+    End If
+    If Not m_editHistoryRow Is Nothing Then
+        identifier = m_editHistoryRow("RowId")
+    End If
+    private_RefreshExportHistory = private_RefreshHistory(identifier, message)
+    If Not private_RefreshExportHistory Then
+        diagnostic = message
+    End If
+    Exit Function
+EH_REFRESH:
+    diagnostic = VBA.Err.Description
+    private_RefreshExportHistory = False
+End Function
+
+Private Function private_SetEventStatus(ByVal status As String) As Boolean
+    Dim reason As String
+    Dim diagnostic As String
+    Dim identifier As String
+
+    On Error GoTo EH_STATUS
+    If m_editHistoryRow Is Nothing Then
+        private_SetEventStatus = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistorySelectRequired"), True)
+        Exit Function
+    End If
+    reason = VBA.InputBox(ex_PEB_Export.fn_Config("text.HistoryReasonPrompt"))
+    If VBA.Len(VBA.Trim$(reason)) = 0 Then
+        Exit Function
+    End If
+    identifier = m_editHistoryRow("RowId")
+    If Not ex_PEB_History.fn_SetStatus(m_editHistoryRow, status, reason, m_editHistoryStamp, diagnostic) Then
+        GoTo FailedStatus
+    End If
+    If Not private_RefreshHistory(identifier, diagnostic) Then
+        GoTo FailedStatus
+    End If
+    private_SetEventStatus = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistoryStatusSaved"), False)
+    Exit Function
+FailedStatus:
+    private_SetEventStatus = private_SetActionStatus(diagnostic, True)
+    Exit Function
+EH_STATUS:
+    diagnostic = VBA.Err.Description
+    Resume FailedStatus
 End Function
 
 Private Function private_EndHistoryEdit() As Boolean

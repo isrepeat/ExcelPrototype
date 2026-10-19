@@ -12,7 +12,7 @@ Public Sub fn_Module_Dispose()
     Set m_events = Nothing
     Set m_statuses = Nothing
     ex_PEB_MovementTemplates.fn_Module_Dispose
-    ex_PEB_MovementPlan.fn_Module_Dispose
+    ex_PEB_MovementRegistry.fn_Module_Dispose
     m_bindingField = VBA.vbNullString
 End Sub
 ' --------------------------------------
@@ -176,7 +176,7 @@ Private Sub private_EnsureLoaded()
     private_RequireChildren root, "events"
     Set m_statuses = private_Dictionary()
     If document.selectNodes("/p:eventRoutes/p:events/p:event/p:movement").Length > 0 Then
-        Set m_statuses = ex_PEB_MovementPlan.fn_Statuses()
+        Set m_statuses = ex_PEB_MovementRegistry.fn_Statuses()
     End If
     Set knownTemplates = private_Dictionary()
     If document.selectNodes("/p:eventRoutes/p:events/p:event/p:word").Length > 0 Then
@@ -216,7 +216,7 @@ Private Sub private_EnsureLoaded()
             private_CheckAttributes child, "template"
             route.Add "movement.template", private_Attribute(child, "template")
             Set textTemplate = ex_PEB_MovementTemplates.fn_Template(route("movement.template"))
-            Set movementPlan = ex_PEB_MovementPlan.fn_Event(identifier)
+            Set movementPlan = ex_PEB_MovementRegistry.fn_Event(identifier)
             For Each key In VBA.Array("operation", "profile", "destinationField", "required", "sourceStatus", "targetStatus", "destinationValue", "sourceDestination")
                 route.Add "movement." & key, movementPlan(key)
             Next key

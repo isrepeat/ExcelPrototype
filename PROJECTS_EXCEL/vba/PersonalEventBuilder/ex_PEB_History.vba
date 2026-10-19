@@ -2,6 +2,15 @@ Attribute VB_Name = "ex_PEB_History"
 Option Explicit
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Function fn_Save( _
@@ -29,8 +38,24 @@ Public Function fn_Save( _
     Dim value As String
     Dim originalColumns As Long
     Dim collectionName As Variant
+    Dim transaction As Object
+    Dim previous As Object
+    Dim current As Object
+    Dim stateField As Variant
+    Dim written As Boolean
+    Dim backupFormats() As Variant
+    Dim snapshotStarted As Boolean
+    Dim rollbackDiagnostic As String
+    Dim previousBook As Workbook
+    Dim previousSheet As Object
+    Dim needsValidation As Boolean
+    Dim historyIndex As Object
 
     On Error GoTo EH
+    Set previousBook = Application.ActiveWorkbook
+    Set previousSheet = Application.ActiveSheet
+    ex_PEB_Export.fn_BeginConfigSnapshot
+    snapshotStarted = True
     private_Open book, table, owned
     originalColumns = table.ListColumns.Count
     For Each collectionName In VBA.Array("MetaDocumentTables", "MetaTvoTables", "HistoryReports")
@@ -39,7 +64,8 @@ Public Function fn_Save( _
         End If
     Next collectionName
     Set columns = private_Columns(table, True)
-    Set rows = private_Read(table, columns)
+    Set historyIndex = VBA.CreateObject("Scripting.Dictionary")
+    Set rows = private_Read(table, columns, historyIndex)
     key = private_Identity(values)
     For index = 1 To rows.Count
         Set row = rows(index)
@@ -86,14 +112,18 @@ Public Function fn_Save( _
     Else
         values("RowOrder") = rows(matchIndex)("RowOrder")
     End If
-    values("EventLabel") = ex_PEB_EventRoutes.fn_Value(VBA.CStr(values("EventId")), "caption")
-    values("WordTemplatePath") = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    If Not values.Exists("RequestedStatus") Then
+        values("EventLabel") = ex_PEB_EventRoutes.fn_Value(VBA.CStr(values("EventId")), "caption")
+        values("WordTemplatePath") = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    End If
     ReDim data(1 To 1, 1 To table.ListColumns.Count)
     If matchIndex > 0 Then
         Set target = table.ListRows(rows(matchIndex)("__tableIndex"))
         backup = target.Range.Value2
+        ReDim backupFormats(1 To table.ListColumns.Count)
         For index = 1 To table.ListColumns.Count
             data(1, index) = backup(1, index)
+            backupFormats(index) = target.Range.Cells(1, index).NumberFormat
         Next index
     End If
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
@@ -108,15 +138,62 @@ Public Function fn_Save( _
             End If
         End If
     Next field
-    If matchIndex > 0 And Not changed Then
-        values("HistoryAction") = "SKIP"
-        fn_Save = True
-        GoTo Cleanup
+    Set current = VBA.CreateObject("Scripting.Dictionary")
+    For Each field In columns.Keys
+        current(field) = private_Text(data(1, columns(field)))
+    Next field
+    If values.Exists("RequestedStatus") Then
+        current("RequestedStatus") = values("RequestedStatus")
     End If
+    If values.Exists("ChangeReason") Then
+        current("ChangeReason") = values("ChangeReason")
+    End If
+    If matchIndex > 0 Then
+        Set previous = rows(matchIndex)
+    End If
+    current("Revision") = "0"
+    current("Status") = "Active"
+    current("LastChangeId") = VBA.vbNullString
+    If Not previous Is Nothing Then
+        For Each stateField In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+            current(stateField) = previous(stateField)
+        Next stateField
+    End If
+    If current.Exists("RequestedStatus") Then
+        current("Status") = current("RequestedStatus")
+    End If
+    needsValidation = changed Or Not values.Exists("RequestedStatus")
+    If previous Is Nothing Then
+        needsValidation = True
+    ElseIf current("Status") <> previous("Status") Then
+        needsValidation = True
+    End If
+    If needsValidation Then
+        If Not ex_PEB_HistoryEvntVldtn.fn_Validate(current, previous, diagnostic, historyIndex) Then
+            GoTo Cleanup
+        End If
+    End If
+    If matchIndex > 0 And Not changed And Not values.Exists("RequestedStatus") Then
+        If VBA.CLng(rows(matchIndex)("Revision")) > 0 Then
+            values("HistoryAction") = "SKIP"
+            For Each stateField In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+                values(stateField) = rows(matchIndex)(stateField)
+            Next stateField
+            fn_Save = True
+            GoTo Cleanup
+        End If
+    End If
+    ex_PEB_HistoryRevisions.fn_Prepare table, rows, previous, current, changed, transaction
+    ReDim Preserve data(1 To 1, 1 To table.ListColumns.Count)
+    For Each stateField In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+        data(1, table.ListColumns(VBA.CStr(stateField)).Index) = current(stateField)
+        values(stateField) = current(stateField)
+    Next stateField
     If matchIndex = 0 Then
         Set target = table.ListRows.Add
         added = True
     End If
+    written = True
     target.Range.NumberFormat = "@"
     target.Range.Value2 = data
     book.Save
@@ -126,19 +203,45 @@ Public Function fn_Save( _
     fn_Save = True
 Cleanup:
     On Error Resume Next
+    VBA.Err.Clear
     If Not saved And Not target Is Nothing Then
         If added Then
             target.Delete
-        ElseIf changed Then
-            target.Range.Value2 = backup
+        ElseIf written Then
+            target.Range.Cells(1, 1).Resize(1, UBound(backup, 2)).Value2 = backup
+            For index = 1 To UBound(backupFormats)
+                target.Range.Cells(1, index).NumberFormat = backupFormats(index)
+            Next index
         End If
     End If
+    If VBA.Err.Number <> 0 Then
+        diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", VBA.Err.Description)
+    End If
+    If Not saved Then
+        If Not ex_PEB_HistoryRevisions.fn_Rollback(transaction, rollbackDiagnostic) Then
+            diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$( _
+                ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", rollbackDiagnostic)
+        End If
+    End If
+    VBA.Err.Clear
     If Not saved And originalColumns > 0 Then
-        Do While table.ListColumns.Count > originalColumns
-            table.ListColumns(table.ListColumns.Count).Delete
-        Loop
+        For index = table.ListColumns.Count To originalColumns + 1 Step -1
+            table.ListColumns(index).Delete
+        Next index
+    End If
+    If VBA.Err.Number <> 0 Then
+        diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", VBA.Err.Description)
     End If
     If owned And Not book Is Nothing Then book.Close False
+    If Not previousBook Is Nothing Then
+        previousBook.Activate
+        previousSheet.Activate
+    End If
+    If snapshotStarted Then
+        ex_PEB_Export.fn_EndConfigSnapshot
+    End If
     On Error GoTo 0
     Exit Function
 EH:
@@ -151,7 +254,8 @@ Public Function fn_ReadOrder( _
     ByVal orderDate As Variant, _
     ByRef events As Collection, _
     ByRef diagnostic As String, _
-    Optional ByVal includeChildren As Boolean = True _
+    Optional ByVal includeChildren As Boolean = True, _
+    Optional ByVal people As Object = Nothing _
 ) As Boolean
     Dim book As Workbook
     Dim table As ListObject
@@ -170,13 +274,18 @@ Public Function fn_ReadOrder( _
     Dim parentId As String
     Dim typeName As String
     Dim dateText As String
+    Dim snapshotStarted As Boolean
 
     On Error GoTo EH
+    ex_PEB_Export.fn_BeginConfigSnapshot
+    snapshotStarted = True
     Set events = Nothing
-    If VBA.Len(VBA.Trim$(orderNumber)) = 0 Or VBA.Len(ex_PEB_Export.fn_Text(orderDate)) = 0 Then
-        Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderChooseRequired")
+    If people Is Nothing Then
+        If VBA.Len(VBA.Trim$(orderNumber)) = 0 Or VBA.Len(ex_PEB_Export.fn_Text(orderDate)) = 0 Then
+            Err.Raise 5, , ex_PEB_Export.fn_Config("text.OrderChooseRequired")
+        End If
+        dateText = private_Text(fn_Date(orderDate))
     End If
-    dateText = private_Text(fn_Date(orderDate))
     private_Open book, table, owned
     Set columns = private_Columns(table, False)
     Set rows = private_Read(table, columns)
@@ -193,13 +302,11 @@ Public Function fn_ReadOrder( _
         private_Order row
         If typeName = "Event" Then
             If VBA.Len(row("ParentRowId")) > 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError007")
-            If row("AcceptedOrderNumber") = orderNumber Then
-                If private_Text(fn_Date(row("AcceptedOrderDate"))) = dateText Then
-                    parentId = private_Identity(row)
-                    If identities.Exists(parentId) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError008")
-                    identities.Add parentId, True
-                    private_AddSorted selected, row
-                End If
+            If private_InScope(row, orderNumber, dateText, people) Then
+                parentId = private_Identity(row)
+                If identities.Exists(parentId) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError008")
+                identities.Add parentId, True
+                private_AddSorted selected, row
             End If
             Set row("MetaDocumentTables") = New Collection
             Set row("MetaTvoTables") = New Collection
@@ -207,7 +314,7 @@ Public Function fn_ReadOrder( _
         End If
     Next row
     If Not includeChildren Then
-        If selected.Count = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryEmptyOrder")
+        If selected.Count = 0 And people Is Nothing Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryEmptyOrder")
         Set events = selected
         fn_ReadOrder = True
         GoTo Cleanup
@@ -227,28 +334,26 @@ Public Function fn_ReadOrder( _
                 End If
                 Set root = parent
             Loop
-            If root("AcceptedOrderNumber") = orderNumber Then
-                If private_Text(fn_Date(root("AcceptedOrderDate"))) = dateText Then
-                    Select Case row("RowType")
-                        Case "Document"
-                            Set item = VBA.CreateObject("Scripting.Dictionary")
-                            item("DocumentNote") = row("Document")
-                            item("DocNo") = row("DocumentNumber")
-                            item("DocDateShort") = row("DocumentDate")
-                            item("RowOrder") = row("RowOrder")
-                            private_AddSorted root("MetaDocumentTables"), item
-                        Case "Report"
-                            private_AddSorted root("HistoryReports"), row
-                        Case "TVO"
-                            Set parent = ids(row("ParentRowId"))
-                            row("DutyPositionGenitive") = parent("PositionGenitive")
-                            private_AddSorted root("MetaTvoTables"), row
-                    End Select
-                End If
+            If private_InScope(root, orderNumber, dateText, people) Then
+                Select Case row("RowType")
+                    Case "Document"
+                        Set item = VBA.CreateObject("Scripting.Dictionary")
+                        item("DocumentNote") = row("Document")
+                        item("DocNo") = row("DocumentNumber")
+                        item("DocDateShort") = row("DocumentDate")
+                        item("RowOrder") = row("RowOrder")
+                        private_AddSorted root("MetaDocumentTables"), item
+                    Case "Report"
+                        private_AddSorted root("HistoryReports"), row
+                    Case "TVO"
+                        Set parent = ids(row("ParentRowId"))
+                        row("DutyPositionGenitive") = parent("PositionGenitive")
+                        private_AddSorted root("MetaTvoTables"), row
+                End Select
             End If
         End If
     Next row
-    If selected.Count = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryEmptyOrder")
+    If selected.Count = 0 And people Is Nothing Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryEmptyOrder")
     For Each row In selected
         Set row("MetaTvoTables") = New Collection
         private_Tvo rows, row, row("MetaTvoTables")
@@ -258,6 +363,9 @@ Public Function fn_ReadOrder( _
 Cleanup:
     On Error Resume Next
     If owned And Not book Is Nothing Then book.Close False
+    If snapshotStarted Then
+        ex_PEB_Export.fn_EndConfigSnapshot
+    End If
     On Error GoTo 0
     Exit Function
 EH:
@@ -273,6 +381,10 @@ Public Function fn_Stamp(ByVal values As Object) As String
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
         mapping = VBA.Split(VBA.CStr(field), "=")
         text = private_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(mapping(0))))
+        fn_Stamp = fn_Stamp & VBA.Len(text) & ":" & text
+    Next field
+    For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+        text = ex_PEB_Export.fn_Text(values(field))
         fn_Stamp = fn_Stamp & VBA.Len(text) & ":" & text
     Next field
 End Function
@@ -293,6 +405,27 @@ Public Function fn_Date(ByVal value As Variant) As Date
     result = VBA.DateSerial(VBA.CInt(parts(2)), VBA.CInt(parts(1)), VBA.CInt(parts(0)))
     If VBA.Format$(result, "dd.mm.yyyy") <> text Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError013"), "{value}", VBA.CStr(text))
     fn_Date = result
+End Function
+Public Function fn_SetStatus( _
+    ByVal row As Object, _
+    ByVal status As String, _
+    ByVal reason As String, _
+    ByVal expectedStamp As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim values As Object
+    Dim key As Variant
+
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In row.Keys
+        If Not VBA.IsObject(row(key)) Then
+            values(key) = row(key)
+        End If
+    Next key
+    values("RequestedStatus") = status
+    values("ChangeReason") = reason
+    values("ExpectedHistoryStamp") = expectedStamp
+    fn_SetStatus = fn_Save(values, diagnostic)
 End Function
 ' --------------------------------------
 ' } // namespace API
@@ -347,13 +480,6 @@ Private Function private_Columns( _
                 Exit For
             End If
         Next column
-        If Not found And extend Then
-            Set column = table.ListColumns.Add
-            column.Name = mapping(1)
-            column.Range.NumberFormat = "@"
-            result.Add mapping(0), column.Index
-            found = True
-        End If
         If Not found Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError019"), "{value}", VBA.CStr(mapping(1)))
     Next field
     Set private_Columns = result
@@ -361,7 +487,8 @@ End Function
 
 Private Function private_Read( _
     ByVal table As ListObject, _
-    ByVal columns As Object _
+    ByVal columns As Object, _
+    Optional ByVal historyIndex As Object = Nothing _
 ) As Collection
     Dim result As New Collection
     Dim row As Object
@@ -369,7 +496,28 @@ Private Function private_Read( _
     Dim field As Variant
     Dim index As Long
     Dim hasData As Boolean
+    Dim stateColumns As Object
+    Dim column As ListColumn
+    Dim key As Variant
+    Dim byPerson As Object
+    Dim byId As Object
+    Dim bucket As Collection
 
+    If Not historyIndex Is Nothing Then
+        Set byPerson = VBA.CreateObject("Scripting.Dictionary")
+        byPerson.CompareMode = VBA.vbTextCompare
+        Set byId = VBA.CreateObject("Scripting.Dictionary")
+        historyIndex.Add "ByPerson", byPerson
+        historyIndex.Add "ById", byId
+    End If
+    Set stateColumns = VBA.CreateObject("Scripting.Dictionary")
+    For Each column In table.ListColumns
+        For Each key In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
+            If column.Name = key Then
+                stateColumns.Add key, column.Index
+            End If
+        Next key
+    Next column
     If Not table.DataBodyRange Is Nothing Then
         data = table.DataBodyRange.Value2
         For index = 1 To UBound(data, 1)
@@ -380,12 +528,27 @@ Private Function private_Read( _
                 If VBA.Len(row(field)) > 0 Then hasData = True
             Next field
             row.Add "__tableIndex", index
+            ex_PEB_HistoryRevisions.fn_ReadState table, index, row, stateColumns, data
             If hasData Then
                 If VBA.Len(row("RowId")) = 0 Or VBA.Len(row("RowType")) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError020")
                 result.Add row
+                If Not historyIndex Is Nothing Then
+                    If byId.Exists(row("RowId")) Then
+                        ex_PEB_MovementLinks.fn_Fail "DuplicateHistoryRowId", row("RowId")
+                    End If
+                    byId.Add row("RowId"), row
+                    If row("RowType") = "Event" Then
+                        If Not byPerson.Exists(row("PersonId")) Then
+                            Set bucket = New Collection
+                            byPerson.Add row("PersonId"), bucket
+                        End If
+                        byPerson(row("PersonId")).Add row
+                    End If
+                End If
             End If
         Next index
     End If
+    ex_PEB_HistoryRevisions.fn_ReadSync table, result
     Set private_Read = result
 End Function
 
@@ -403,6 +566,19 @@ Private Function private_Text(ByVal value As Variant) As String
         Case Else
             private_Text = VBA.CStr(value)
     End Select
+End Function
+
+Private Function private_InScope( _
+    ByVal row As Object, _
+    ByVal orderNumber As String, _
+    ByVal dateText As String, _
+    ByVal people As Object _
+) As Boolean
+    If Not people Is Nothing Then
+        private_InScope = people.Exists(ex_PEB_Export.fn_Text(row("PersonId")))
+    ElseIf row("AcceptedOrderNumber") = orderNumber Then
+        private_InScope = (private_Text(fn_Date(row("AcceptedOrderDate"))) = dateText)
+    End If
 End Function
 
 Private Function private_Identity(ByVal values As Object) As String

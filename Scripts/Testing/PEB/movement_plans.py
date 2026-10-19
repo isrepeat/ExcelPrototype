@@ -5,7 +5,7 @@ import re
 
 
 def load_native_plans(settings, source=None):
-    path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_MovementPlan.vba"
+    path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_MovementRegistry.vba"
     source = path.read_text(encoding="utf-8-sig") if source is None else source
     def require(condition, message):
         if not condition:
