@@ -27,6 +27,8 @@ Private m_selectionSource As obj_IUiSelectionSource
 Private m_selectCommand As obj_UiCommand
 Private m_selectedSource As String
 Private m_selectedPath As String
+Private m_columnSource As String
+Private m_columnPath As String
 Private m_selectedStyle As String
 Private m_bodyRange As Range
 Private m_selectedRow As Long
@@ -126,6 +128,9 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     Dim target As Range
     Dim item As Object
     Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim node As Object
+
     If kind <> "selection" And kind <> "confirmSelection" Then Exit Function
     ' Confirmation mode ignores navigation without reading records or changing styles.
     If kind = "selection" And m_selectionMode = "Confirm" Then Exit Function
@@ -139,6 +144,21 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     rowIndex = target.Row - m_bodyRange.Row + 1
     Set item = m_selectionSource.GetItemAt(rowIndex)
     If item Is Nothing Then Exit Function
+    If VBA.Len(m_columnPath) > 0 Then
+        If target.CountLarge <> 1 Then Exit Function
+        columnIndex = target.Column - m_bodyRange.Column + 1
+        If Not m_renderContext.BindingContext.TrySetPathValue(m_columnSource, m_columnPath, columnIndex) Then Exit Function
+        If Not m_selectCommand Is Nothing Then
+            If Not m_selectCommand.ExecuteWithPayload(item) Then Exit Function
+        End If
+        m_renderContext.Styles.RestoreControlArea m_bodyRange.Rows(rowIndex), _
+            m_uiControlBase.ControlNode, m_renderContext.BindingContext
+        Set node = m_uiControlBase.ControlNode.cloneNode(False)
+        node.setAttribute "style", m_selectedStyle
+        m_renderContext.Styles.ApplyOverlay m_bodyRange.Cells(rowIndex, columnIndex), node, m_renderContext.BindingContext
+        obj_IUiEventHandler_HandleEvent = True
+        Exit Function
+    End If
     If m_selectedRow <> rowIndex Then
         If m_selectedRow > 0 And m_partStylesEnabled And VBA.Len(m_selectedStyle) > 0 Then
             m_renderContext.Styles.RestoreControlArea m_bodyRange.Rows(m_selectedRow), _
@@ -430,6 +450,13 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     m_selectedStyle = private_ReadAttribute(controlNode, "selectedStyle")
     m_selectedSource = VBA.vbNullString
     m_selectedPath = VBA.vbNullString
+    m_columnSource = VBA.vbNullString
+    m_columnPath = VBA.vbNullString
+    If VBA.Len(private_ReadAttribute(controlNode, "selectedColumn")) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryParseBinding(private_ReadAttribute(controlNode, "selectedColumn"), _
+                VBA.vbNullString, m_columnSource, m_columnPath, m_renderContext.BindingContext) Then Exit Function
+        If VBA.Len(m_columnPath) = 0 Then Exit Function
+    End If
     If VBA.Len(private_ReadAttribute(controlNode, "selectedItem")) > 0 Then
         If Not ex_UiBindingRuntime.fn_TryParseBinding(private_ReadAttribute(controlNode, "selectedItem"), _
                 VBA.vbNullString, m_selectedSource, m_selectedPath, m_renderContext.BindingContext) Then Exit Function

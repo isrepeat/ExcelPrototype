@@ -235,7 +235,7 @@ Public Function fn_PlanStamp(ByVal plan As Object) As String
                 stamp = stamp & fn_Token(key) & fn_Token(action(key))
             End If
         Next key
-        For Each mapping In VBA.Array("Writes", "ClosingWrites", "Joins")
+        For Each mapping In VBA.Array("Writes", "ClosingWrites", "Joins", "GeneratedWrites", "GeneratedClosingWrites")
             If action.Exists(mapping) Then
                 Set writes = action(mapping)
                 For Each key In writes.Keys

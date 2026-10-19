@@ -306,6 +306,10 @@ Public Function fn_RecordExport( _
     Dim path As String
     Dim previousBook As Workbook
     Dim previousSheet As Object
+    Dim fieldTable As ListObject
+    Dim conflictTable As ListObject
+    Dim fieldCount As Long
+    Dim conflictCount As Long
 
     On Error GoTo EH
     Set previousBook = Application.ActiveWorkbook
@@ -328,6 +332,13 @@ Public Function fn_RecordExport( _
     End If
     Set table = private_Table(book, "history.exports", Nothing)
     count = table.ListRows.Count
+    If exporter = "Movement" Then
+        Set fieldTable = ex_PEB_MovementConflicts.fn_Table(book, "history.fieldState")
+        fieldCount = fieldTable.ListRows.Count
+        Set conflictTable = ex_PEB_MovementConflicts.fn_Table(book, "history.conflicts")
+        conflictCount = conflictTable.ListRows.Count
+        ex_PEB_MovementConflicts.fn_Record book, actions, target
+    End If
     For Each action In actions
         ReDim data(1 To 1, 1 To table.ListColumns.Count)
         data(1, 1) = action("RowId")
@@ -356,6 +367,16 @@ Public Function fn_RecordExport( _
     fn_RecordExport = True
 Cleanup:
     On Error Resume Next
+    If Not saved And Not fieldTable Is Nothing Then
+        Do While fieldTable.ListRows.Count > fieldCount
+            fieldTable.ListRows(fieldTable.ListRows.Count).Delete
+        Loop
+    End If
+    If Not saved And Not conflictTable Is Nothing Then
+        Do While conflictTable.ListRows.Count > conflictCount
+            conflictTable.ListRows(conflictTable.ListRows.Count).Delete
+        Loop
+    End If
     If Not saved And Not table Is Nothing Then
         Do While table.ListRows.Count > count
             table.ListRows(table.ListRows.Count).Delete

@@ -191,6 +191,8 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "AbsenceType", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "WordPreviewText", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ConflictsVisibility", "Collapsed") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ConflictColumn", 0) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderQuery", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderYear", vbNullString) Then Exit Function
@@ -308,6 +310,9 @@ Private Function private_TryRegisterCommands() As Boolean
     Set lookupCommand = New obj_UiCommand
     If Not lookupCommand.Initialize(m_controller, "SelectHistoryHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "SelectHistory", lookupCommand) Then Exit Function
+    Set lookupCommand = New obj_UiCommand
+    If Not lookupCommand.Initialize(m_controller, "SelectConflictHandler") Then Exit Function
+    If Not uiBindingContext.SetObject("Commands", "SelectConflict", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
             "LoadTest", "NextTest", "ResetForm", "CloseCandidates", "CloseHistory", _

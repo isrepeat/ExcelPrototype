@@ -1393,3 +1393,20 @@ value	PersonalEventBuilder::validation.Movement.source.range	B6:AZ20000
 value	PersonalEventBuilder::text.MovementSaveValidationFailed	Подію не збережено. Конфлікт у події {id}: {details}
 value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
 value	PersonalEventBuilder::text.MovementOpenAbsenceMismatch	Для ІПН {person} не знайдено відкритої відсутності «{expected}» на {date}. Відкриті відсутності та дати вибуття: {actual}.
+value	PersonalEventBuilder::history.fieldState.sheet	ExportFieldState
+value	PersonalEventBuilder::history.fieldState.table	tbExportFieldState
+value	PersonalEventBuilder::history.fieldState.fields	EventRowId|Exporter|Target|Side|Field|Revision|GeneratedValue|AppliedValue
+value	PersonalEventBuilder::history.conflicts.sheet	ExportConflicts
+value	PersonalEventBuilder::history.conflicts.table	tbExportConflicts
+value	PersonalEventBuilder::history.conflicts.fields	ConflictId|EventRowId|Revision|Exporter|Target|Side|Field|GeneratedValue|MovementValue|Choice|ResolvedAt|ResolvedBy
+value	PersonalEventBuilder::text.ConflictSchema	Недоступна або некоректна таблиця {table}. Перевірте аркуш, заголовки та можливість запису.
+value	PersonalEventBuilder::text.ConflictPending	Є конфлікти ручних змін. У таблиці нижче оберіть значення через Ctrl+Enter та повторіть експорт РУХ.
+value	PersonalEventBuilder::text.ConflictProgress	Вирішено {resolved} з {total}. Оберіть усі значення та повторіть експорт РУХ.
+value	PersonalEventBuilder::text.ConflictUiError	Не вдалося показати конфлікти РУХ.
+value	PersonalEventBuilder::text.ConflictColumn.Field	Подія / поле
+value	PersonalEventBuilder::text.ConflictColumn.MovementValue	Залишити в РУХ
+value	PersonalEventBuilder::text.ConflictColumn.GeneratedValue	Замінити з EventsHistory
+value	PersonalEventBuilder::text.ConflictStateInvalid	Пошкоджено типізований знімок експортованого поля. Перевірте ExportFieldState.
+value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
+value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
+value	PersonalEventBuilder::text.ConflictPolicyInvalid	Некоректна політика ручних змін РУХ: очікується Overwrite або Resolve.
