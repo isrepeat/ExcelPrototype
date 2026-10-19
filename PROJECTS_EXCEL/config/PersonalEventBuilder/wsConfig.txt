@@ -1309,7 +1309,8 @@ value	PersonalEventBuilder::text.HistoryError045	Word enabled must be true or fa
 value	PersonalEventBuilder::text.HistoryError046	Missing accepted order number.
 value	PersonalEventBuilder::text.HistoryError047	Missing accepted order date.
 value	PersonalEventBuilder::text.HistoryError048	Cannot initialize Word exporter.
-value	PersonalEventBuilder::text.ShowHistory	Події поточного наказу
+value	PersonalEventBuilder::text.ShowHistory	Редагування подій поточного наказу
+value	PersonalEventBuilder::text.CloseTable	×
 value	PersonalEventBuilder::text.UpdateHistory	Оновити
 value	PersonalEventBuilder::text.HistoryEditMode	Нова подія
 value	PersonalEventBuilder::text.HistoryEditing	Редагування: {id}

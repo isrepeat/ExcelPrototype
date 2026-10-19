@@ -268,6 +268,7 @@ Public Function ResetFormHandler() As Boolean
     m_historyOrderNumber = VBA.vbNullString
     m_historyOrderDate = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     ResetFormHandler = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_RESET_END | Success=" & VBA.CStr(ResetFormHandler)
     Exit Function
@@ -318,6 +319,7 @@ Public Function SearchPersonnelHandler() As Boolean
     startedAt = VBA.Timer
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
     ex_Core.fn_Diagnostic_WritePerf "Lookup.PublishCandidates | Rows=" & VBA.CStr(result.RowCount), startedAt
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
     If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < m_lookupProfile.MinChars Then
         status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))
     ElseIf result.RowCount = 0 Then
@@ -716,6 +718,18 @@ Failed:
     private_SetActionStatus diagnostic, True
 End Function
 
+Public Function CloseCandidatesHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
+    CloseCandidatesHandler = m_pageBase.FlushUpdates()
+End Function
+
+Public Function CloseHistoryHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    CloseHistoryHandler = m_pageBase.FlushUpdates()
+End Function
+
 Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Dim record As obj_LookupRecord
     Dim row As Object
@@ -726,6 +740,9 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Dim mode As String
     Dim scalar As Variant
     Dim previousScreenUpdating As Boolean
+    Dim candidates As obj_LookupResult
+    Dim reporterActive As Boolean
+    Dim hospitalActive As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     previousScreenUpdating = Application.ScreenUpdating
@@ -747,10 +764,19 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     If Not private_TryReadFormValue("AutoFillPersonnel", scalar) Then Exit Function
     m_editHistoryAutoFill = scalar
     Application.ScreenUpdating = False
+    Set candidates = m_lookupResult
+    reporterActive = m_reporterActive
+    hospitalActive = m_hospitalActive
     Set m_lookupResult = Nothing
     m_modeId = VBA.vbNullString
     mode = row("EventId")
     If Not private_LoadMode(mode, diagnostic) Then GoTo Failed
+    Set m_lookupResult = candidates
+    m_reporterActive = reporterActive
+    m_hospitalActive = hospitalActive
+    If Not candidates Is Nothing Then
+        If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", candidates) Then GoTo Failed
+    End If
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
         If row.Exists(field) Then updates("Form." & VBA.CStr(field)) = row(field)
@@ -1115,6 +1141,7 @@ Private Function private_SearchSecondary( _
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projected) Then
         Err.Raise 5, , "Cannot publish secondary candidates."
     End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
     If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(text))) < profile.MinChars Then
         status = VBA.Replace$(m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(profile.MinChars))
     ElseIf projected.RowCount = 0 Then

@@ -38,6 +38,8 @@ Private m_candidateLayoutDirty As Boolean
 Private m_bindingDependencies As Collection
 Private m_collapsed As Boolean
 Private m_visibilityMeasured As Boolean
+Private m_closeControl As obj_IUiControl
+Private m_closeName As String
 
 ' //
 ' // Lifecycle
@@ -84,6 +86,7 @@ Private Function obj_IUiElement_Measure( _
     If collapsed And m_visibilityMeasured And Not m_collapsed Then
         ' Dispose active routes and shape actions before the occupied area is reused.
         m_control.Dispose
+        private_DisposeClose
         private_RestoreLocalPosition
         Set m_control = ex_UiControlFactory.fn_Create(m_definition)
         If m_control Is Nothing Then
@@ -144,6 +147,10 @@ Private Function obj_IUiElement_Arrange( _
         End If
         Set m_area = m_context.TargetWorksheet.Cells(row + localRow - 1, column + localColumn - 1).Resize( _
             m_rows - localRow + 1, m_columns - localColumn + 1)
+        If Not private_ArrangeClose(diagnostic) Then
+            obj_IUiElement_Arrange = False
+            Exit Function
+        End If
     End If
 End Function
 
@@ -153,6 +160,10 @@ Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
         Exit Function
     End If
     obj_IUiElement_Render = m_control.Render(diagnostic)
+    If obj_IUiElement_Render And Not m_closeControl Is Nothing Then
+        m_context.Styles.ForgetControl m_closeName
+        obj_IUiElement_Render = m_closeControl.Render(diagnostic)
+    End If
     If obj_IUiElement_Render Then
         m_candidateValuesDirty = False
         m_candidateLayoutDirty = False
@@ -290,6 +301,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    private_DisposeClose
     If Not m_control Is Nothing Then m_control.Dispose
     If Not m_context Is Nothing Then m_context.UnregisterElement ex_UiElementFactory.fn_Attribute(m_definition, "name"), Me
     Set m_control = Nothing
@@ -451,6 +463,74 @@ Private Sub private_RestoreLocalPosition()
     ' Arrange writes sheet coordinates into the node; ConfigurePosition expects local offsets.
     m_definition.setAttribute "row", VBA.CStr(m_localRow)
     m_definition.setAttribute "column", VBA.CStr(m_localColumn)
+End Sub
+
+Private Function private_ArrangeClose(ByRef diagnostic As String) As Boolean
+    Dim definition As Object
+    Dim rows As Long
+    Dim columns As Long
+    Dim command As String
+    Dim caption As String
+
+    private_ArrangeClose = True
+    command = ex_UiElementFactory.fn_Attribute(m_definition, "closeCommand")
+    If VBA.Len(command) = 0 Then Exit Function
+    private_ArrangeClose = False
+    If m_area.Column <= 1 Then
+        diagnostic = "A close button requires a free column to the left of the table."
+        Exit Function
+    End If
+    If m_closeControl Is Nothing Then
+        caption = ex_UiElementFactory.fn_Attribute(m_definition, "closeCaption")
+        If VBA.Len(caption) = 0 Then
+            diagnostic = "A close button requires closeCaption."
+            Exit Function
+        End If
+        m_closeName = "Close_" & ex_UiElementFactory.fn_Attribute(m_definition, "name")
+        If VBA.Len("btn_" & m_closeName) > 31 Then
+            diagnostic = "Close button name exceeds the Excel name limit: " & m_closeName
+            Exit Function
+        End If
+        Set definition = m_definition.ownerDocument.createNode(1, "controls:button", "urn:excelprototype:controls")
+        definition.setAttribute "name", m_closeName
+        definition.setAttribute "type", "button"
+        definition.setAttribute "row", "1"
+        definition.setAttribute "column", "1"
+        definition.setAttribute "rowSpan", "1"
+        definition.setAttribute "columnSpan", "1"
+        definition.setAttribute "caption", caption
+        definition.setAttribute "command", command
+        definition.setAttribute "style", ex_UiElementFactory.fn_Attribute(m_definition, "style")
+        Set m_closeControl = ex_UiControlFactory.fn_Create(definition)
+        If m_closeControl Is Nothing Then
+            diagnostic = "Cannot create close button: " & m_closeName
+            Exit Function
+        End If
+        If Not m_closeControl.Configure(definition, m_context, m_source, diagnostic) Then Exit Function
+    End If
+    If Not m_closeControl.Measure(rows, columns, diagnostic) Then Exit Function
+    If Not m_closeControl.Arrange(m_area.Row, m_area.Column - 1, diagnostic) Then Exit Function
+    Set m_area = m_area.Offset(0, -1).Resize(m_area.Rows.Count, m_area.Columns.Count + 1)
+    private_ArrangeClose = True
+End Function
+
+Private Sub private_DisposeClose()
+    Dim shape As Shape
+
+    If Not m_closeControl Is Nothing Then m_closeControl.Dispose
+    Set m_closeControl = Nothing
+    If m_context Is Nothing Or VBA.Len(m_closeName) = 0 Then Exit Sub
+    ' Remove style regions before their shape becomes an invalid Excel object.
+    m_context.Styles.ForgetControl m_closeName
+    m_context.Router.UnregisterShape "btn_" & m_closeName
+    m_context.UnregisterShapeLayout "btn_" & m_closeName
+    For Each shape In m_context.TargetWorksheet.Shapes
+        If shape.Name = "btn_" & m_closeName Then
+            shape.Delete
+            Exit For
+        End If
+    Next shape
+    m_closeName = VBA.vbNullString
 End Sub
 
 Private Function private_TryVisibility( _
