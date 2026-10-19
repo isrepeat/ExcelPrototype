@@ -561,6 +561,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If Not m_source Is Nothing Then
         If TypeOf m_source Is obj_IUiHeaderPresentation Then Set headerPresentation = m_source
     End If
+    ex_Core.fn_Diagnostic_WriteLog "UI_TABLE_RENDER_BEGIN | TraceVersion=2 | Name=" & m_uiControlBase.ControlName & _
+        " | Rows=" & VBA.CStr(rawTable.RowCount) & " | Columns=" & VBA.CStr(rawTable.ColumnCount) & _
+        " | Area=" & m_targetRange.Address(False, False) & " | SourceType=" & VBA.TypeName(m_source)
         If VBA.Len(rawTable.Title) > 0 Then buffer(targetRow, 1) = rawTable.Title: targetRow = targetRow + 1
         If m_showHeaders And IsArray(rawTable.Headers) Then
             For columnIndex = 1 To rawTable.ColumnCount
@@ -728,6 +731,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     End If
     private_UpdateTextWarning rawTable
     private_Render = True
+    ex_Core.fn_Diagnostic_WriteLog "UI_TABLE_RENDER_END | Name=" & m_uiControlBase.ControlName & _
+        " | Area=" & m_targetRange.Address(False, False) & _
+        " | Occupied=" & VBA.CStr(Application.WorksheetFunction.CountA(m_targetRange))
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.Render", startedAt
 End Function
 

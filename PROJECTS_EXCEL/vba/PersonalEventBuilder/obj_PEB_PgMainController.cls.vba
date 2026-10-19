@@ -239,6 +239,7 @@ Public Function ResetFormHandler() As Boolean
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_ReadModeConfig("forms.styledFields", fields, diagnostic) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_RESET_BEGIN | TraceVersion=2"
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each fieldName In VBA.Split(fields, "|")
         updates("Form." & VBA.CStr(fieldName)) = VBA.vbNullString
@@ -268,6 +269,7 @@ Public Function ResetFormHandler() As Boolean
     m_historyOrderDate = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     ResetFormHandler = m_pageBase.FlushUpdates()
+    ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_RESET_END | Success=" & VBA.CStr(ResetFormHandler)
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -692,6 +694,7 @@ Public Function ShowHistoryHandler() As Boolean
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If ex_PEB_Testing.fn_IsRunning() Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_SHOW_BEGIN | TraceVersion=2"
     If Not private_RefreshHistory(VBA.vbNullString, diagnostic) Then GoTo Failed
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Visible") Then Exit Function
     If Not m_editHistoryRow Is Nothing Then
@@ -702,7 +705,10 @@ Public Function ShowHistoryHandler() As Boolean
             End If
         Next record
     End If
-    ShowHistoryHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistorySelectHint"), False)
+    If Not private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistorySelectHint"), False) Then Exit Function
+    ShowHistoryHandler = m_pageBase.FlushUpdates()
+    ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_SHOW_END | Success=" & VBA.CStr(ShowHistoryHandler) & _
+        " | Records=" & VBA.CStr(m_historyResult.Records.Count)
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -1238,6 +1244,8 @@ Private Function private_RefreshHistory( _
     If Not private_TryReadFormValue("AcceptedOrderNumber", orderNumber) Then Exit Function
     If Not private_TryReadFormValue("AcceptedOrderDate", orderDate) Then Exit Function
     If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
+    ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_READ | OrderNumber=" & VBA.CStr(orderNumber) & _
+        " | OrderDate=" & VBA.CStr(orderDate) & " | DateType=" & VBA.TypeName(orderDate)
     If Not ex_PEB_History.fn_ReadOrder(VBA.CStr(orderNumber), orderDate, events, diagnostic, False) Then
         failure = diagnostic
         private_PublishHistory emptyRows, VBA.vbNullString, diagnostic
@@ -1289,6 +1297,8 @@ Private Function private_PublishHistory( _
     Next index
     Set result = New obj_LookupResult
     If Not result.Initialize(records, columns, False, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WriteLog "PEB_HISTORY_PUBLISH | Records=" & VBA.CStr(records.Count) & _
+        " | Columns=" & VBA.CStr(columns.Count)
     If Not m_pageBase.BindingContext.SetObject("Data", "HistoryEvents", result) Then Exit Function
     Set m_historyResult = result
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
