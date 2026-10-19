@@ -54,6 +54,7 @@ Write every created commit message in English.
 
 ## Configuration and user-facing text in wsConfig
 
+- When adding or renaming configuration keys, place them in their matching hierarchical group and preserve the existing staircase order: sort sibling name segments by increasing length, then ordinal alphabetical order; keep each child branch together. Reposition renamed keys instead of leaving them at their former location. Apply this to PROD and TEST and preserve the existing spacing before ref rows.
 - Store every application configuration in wsConfig / tbConfig, including lookup sources, schemas, limits, search rules, display projections and field mappings. Do not introduce separate XML, JSON or other configuration files for these settings. XAML describes UI structure and bindings; runtime settings come from wsConfig. Existing tool manifests are outside this application-configuration rule.
 - Keep all user-facing messages and UI text in the mode's `wsConfig.txt`, loaded into the workbook's `wsConfig` / `tbConfig`. Read them through the existing configuration API and expose UI values through bindings. This applies to text in any language, not only Cyrillic.
 - Use configuration templates with named placeholders such as `{count}` and `{minChars}` for dynamic messages. Keep only substitution logic in VBA.

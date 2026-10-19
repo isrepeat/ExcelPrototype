@@ -30,7 +30,7 @@ Public Function fn_BuildOrder( _
     ex_PEB_Export.fn_BeginConfigSnapshot
     snapshotStarted = True
     startedAt = VBA.Timer
-    If ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic) Then
+    If ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic, True, Nothing, False) Then
         ex_Core.fn_Diagnostic_WritePerf "Movement.Preview.ReadEvents", startedAt
         fn_BuildOrder = fn_Build(events, target, plan, diagnostic)
     End If
