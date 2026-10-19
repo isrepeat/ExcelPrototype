@@ -426,6 +426,8 @@ Private Function private_Apply( _
     action.Add "Operation", operation
     action.Add "Writes", writes
     action.Add "ClosingWrites", closingWrites
+    action.Add "GeneratedWrites", private_CopyFields(writes)
+    action.Add "GeneratedClosingWrites", private_CopyFields(closingWrites)
     action.Add "Joins", joins
     action.Add "OpeningHash", ex_PEB_MovementLinks.fn_FieldsHash(writes)
     action.Add "ClosingHash", ex_PEB_MovementLinks.fn_FieldsHash(closingWrites)
@@ -630,16 +632,19 @@ Private Function private_Existing( _
     Set updates = New Collection
     If Not opening Is Nothing Then
         private_PlanBasisSide opening, writes, links("OpeningHash"), action("OpeningHash"), _
-            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureBasis"), identifier, updates
+            ex_PEB_Export.fn_Config("export.Movement.headers.DepartureBasis"), identifier, updates, action, "Opening"
     End If
     If Not closing Is Nothing Then
         private_PlanBasisSide closing, closingWrites, links("ClosingHash"), action("ClosingHash"), _
-            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalBasis"), identifier, updates
+            ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalBasis"), identifier, updates, action, "Closing"
         If Not private_Matches(closing("Cells"), joins) Then
             private_Fail "AppliedMovementChanged", identifier
         End If
     End If
     ' Commit the candidate only after both transition sides passed validation.
+    If ex_PEB_MovementConflicts.fn_Pending(identifier) Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.ConflictPending")
+    End If
     For Each entry In updates
         For Each row In rows
             If row("TargetRow") = entry("RowIndex") Then
@@ -739,16 +744,19 @@ Private Sub private_PlanBasisSide( _
     ByVal newHash As String, _
     ByVal basisHeader As String, _
     ByVal identifier As String, _
-    ByVal updates As Collection _
+    ByVal updates As Collection, _
+    ByVal action As Object, _
+    ByVal side As String _
 )
     Dim cells As Object
     Dim key As Variant
     Dim entry As Object
-    Dim basisChanged As Boolean
 
     Set cells = row("Cells")
-    If cells(hashHeader) <> ex_PEB_MovementLinks.fn_FieldsHash(fields, cells) Then
-        private_Fail "AppliedMovementChanged", identifier
+    If Not ex_PEB_MovementConflicts.fn_Resolve(action, side, fields, cells, basisHeader, hashHeader) Then
+        If cells(hashHeader) <> ex_PEB_MovementLinks.fn_FieldsHash(fields, cells) Then
+            private_Fail "AppliedMovementChanged", identifier
+        End If
     End If
     For Each key In fields.Keys
         If row("Formulas").Exists(key) Then
@@ -756,18 +764,31 @@ Private Sub private_PlanBasisSide( _
         End If
         If ex_PEB_MovementLinks.fn_ValueToken(cells(key)) <> ex_PEB_MovementLinks.fn_ValueToken(fields(key)) Then
             If VBA.StrComp(VBA.CStr(key), basisHeader, VBA.vbTextCompare) <> 0 Then
-                private_Fail "AppliedEventChanged", identifier & "/" & VBA.CStr(key)
+                If Not ex_PEB_MovementConflicts.fn_Overwrite() Then
+                    private_Fail "AppliedEventChanged", identifier & "/" & VBA.CStr(key)
+                End If
             End If
-            basisChanged = True
+            Set entry = private_UpdateCell(row("TargetRow"), VBA.CStr(key), cells(key), fields(key))
+            updates.Add entry
         End If
     Next key
-    If basisChanged Then
-        Set entry = private_UpdateCell(row("TargetRow"), basisHeader, cells(basisHeader), fields(basisHeader))
-        updates.Add entry
+    newHash = ex_PEB_MovementLinks.fn_FieldsHash(fields)
+    If cells(hashHeader) <> newHash Then
         Set entry = private_UpdateCell(row("TargetRow"), hashHeader, cells(hashHeader), newHash)
         updates.Add entry
     End If
 End Sub
+
+Private Function private_CopyFields(ByVal fields As Object) As Object
+    Dim copy As Object
+    Dim key As Variant
+
+    Set copy = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In fields.Keys
+        copy.Add key, fields(key)
+    Next key
+    Set private_CopyFields = copy
+End Function
 
 Private Function private_UpdateCell( _
     ByVal rowIndex As Long, _

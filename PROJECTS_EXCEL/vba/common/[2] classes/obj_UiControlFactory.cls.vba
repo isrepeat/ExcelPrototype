@@ -193,6 +193,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 schema.AddAttribute "selectionMode", "enum", m_type = "candidates", "Focus|Confirm", True, 0
                 schema.AddAttribute "onSelect", "string", False, "", True, 0
                 schema.AddAttribute "selectedItem", "string", False, "", True, 0
+                schema.AddAttribute "selectedColumn", "string", False, "", True, 0
                 schema.AddAttribute "selectedStyle", "string", False, "", True, 0
             End If
 

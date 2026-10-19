@@ -46,6 +46,7 @@ Private m_editHistoryStamp As String
 Private m_editHistoryAutoFill As Variant
 Private m_historyOrderNumber As String
 Private m_historyOrderDate As String
+Private m_conflicts As Collection
 
 ' //
 ' // Lifecycle
@@ -131,6 +132,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         private_SetActionStatus diagnostic, True
         Exit Function
     End If
+    If Not private_PublishConflicts(False) Then Exit Function
     Initialize = True
     m_isInitialized = Initialize
     If Not Me.SearchOrdersHandler() Then
@@ -177,6 +179,7 @@ Public Sub Dispose()
     Set m_editHistoryRow = Nothing
     m_editHistoryStamp = VBA.vbNullString
     Set m_pageBase = Nothing
+    Set m_conflicts = Nothing
 End Sub
 
 Public Function ReportNameChangedHandler() As Boolean
@@ -892,6 +895,8 @@ Public Function ExportMovementHandler() As Boolean
     Dim isObject As Boolean
     Dim orderNumber As String
     Dim orderDate As Variant
+    Dim conflicts As Collection
+    Dim exported As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -918,7 +923,15 @@ Public Function ExportMovementHandler() As Boolean
     End If
     orderDate = scalar
     If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
-    If Not ex_PEB_MovementBatch.fn_ExportOrder(orderNumber, orderDate, diagnostic) Then
+    exported = ex_PEB_MovementBatch.fn_ExportOrder(orderNumber, orderDate, diagnostic, m_conflicts, conflicts)
+    Set m_conflicts = conflicts
+    If exported Then
+        Set m_conflicts = Nothing
+    End If
+    If Not private_PublishConflicts() Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.ConflictUiError")
+    End If
+    If Not exported Then
         GoTo FailedMovement
     End If
     If Not private_RefreshExportHistory(diagnostic) Then
@@ -936,6 +949,39 @@ End Function
 
 Public Function FromAnnualMainVacationHandler() As Boolean
     FromAnnualMainVacationHandler = private_SwitchMode("FromAnnualMainVacation")
+End Function
+
+Public Function SelectConflictHandler(ByVal selected As Object) As Boolean
+    Dim record As obj_LookupRecord
+    Dim item As Object
+    Dim column As Variant
+    Dim count As Long
+    Dim message As String
+
+    On Error GoTo EH_CONFLICT
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If selected Is Nothing Or m_conflicts Is Nothing Then Exit Function
+    If Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    Set record = selected
+    If Not private_TryReadFormValue("ConflictColumn", column) Then Exit Function
+    If column <> 2 And column <> 3 Then Exit Function
+    Set item = m_conflicts(VBA.CLng(record.Key))
+    item("Choice") = "Movement"
+    If column = 3 Then
+        item("Choice") = "EventsHistory"
+    End If
+    For Each item In m_conflicts
+        If VBA.Len(item("Choice")) > 0 Then
+            count = count + 1
+        End If
+    Next item
+    message = ex_PEB_Export.fn_Config("text.ConflictProgress")
+    message = VBA.Replace$(message, "{resolved}", VBA.CStr(count))
+    message = VBA.Replace$(message, "{total}", VBA.CStr(m_conflicts.Count))
+    SelectConflictHandler = private_SetActionStatus(message, False)
+    Exit Function
+EH_CONFLICT:
+    private_SetActionStatus VBA.Err.Description, True
 End Function
 
 Public Function FromVacationForCuringHandler() As Boolean
@@ -1447,6 +1493,56 @@ Private Function private_RefreshHistory( _
     m_historyOrderNumber = VBA.CStr(orderNumber)
     m_historyOrderDate = VBA.Format$(ex_PEB_History.fn_Date(orderDate), "dd.mm.yyyy")
     private_RefreshHistory = True
+End Function
+
+Private Function private_PublishConflicts(Optional ByVal flush As Boolean = True) As Boolean
+    Dim records As New Collection
+    Dim columns As New Collection
+    Dim result As obj_LookupResult
+    Dim record As obj_LookupRecord
+    Dim item As Object
+    Dim fields As Object
+    Dim column As Object
+    Dim key As Variant
+    Dim index As Long
+    Dim diagnostic As String
+    Dim visibility As String
+
+    visibility = "Collapsed"
+    If Not m_conflicts Is Nothing Then
+        For Each item In m_conflicts
+            index = index + 1
+            Set fields = VBA.CreateObject("Scripting.Dictionary")
+            fields("Field") = item("EventRowId") & " / " & item("Side") & " / " & item("Field")
+            fields("MovementValue") = item("MovementValue")
+            fields("GeneratedValue") = item("GeneratedValue")
+            If item("Choice") = "Movement" Then
+                fields("MovementValue") = ex_PEB_Export.fn_Config("text.ConflictSelectedPrefix") & fields("MovementValue")
+            ElseIf item("Choice") = "EventsHistory" Then
+                fields("GeneratedValue") = ex_PEB_Export.fn_Config("text.ConflictSelectedPrefix") & fields("GeneratedValue")
+            End If
+            Set record = New obj_LookupRecord
+            If Not record.Initialize(VBA.CStr(index), fields) Then Exit Function
+            records.Add record
+        Next item
+        If m_conflicts.Count > 0 Then
+            visibility = "Visible"
+        End If
+    End If
+    For Each key In VBA.Array("Field", "MovementValue", "GeneratedValue")
+        Set column = VBA.CreateObject("Scripting.Dictionary")
+        column("name") = key
+        column("caption") = ex_PEB_Export.fn_Config("text.ConflictColumn." & key)
+        columns.Add column
+    Next key
+    Set result = New obj_LookupResult
+    If Not result.Initialize(records, columns, False, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "MovementConflicts", result) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ConflictsVisibility", visibility) Then Exit Function
+    private_PublishConflicts = True
+    If flush Then
+        private_PublishConflicts = m_pageBase.FlushUpdates()
+    End If
 End Function
 
 Private Function private_PublishHistory( _

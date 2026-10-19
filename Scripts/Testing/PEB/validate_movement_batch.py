@@ -147,7 +147,8 @@ def main():
     assert 'action("Status") = "AlreadyApplied"' in existing
     assert 'links("OpeningHash")' in existing and 'links("ClosingHash")' in existing
     assert "AppliedMovementFormulaChanged" in side
-    assert side.index("fn_FieldsHash(fields, cells)") < side.index("basisChanged = True")
+    assert side.index("fn_FieldsHash(fields, cells)") < side.index('private_UpdateCell(row("TargetRow"), VBA.CStr(key)')
+    assert 'If Not ex_PEB_MovementConflicts.fn_Overwrite() Then' in side
     assert "basisHeader, VBA.vbTextCompare" in side
     assert 'private_UpdateCell(row("TargetRow"), hashHeader' in side
     assert 'action("IsUpdate") = (updates.Count > 0)' in existing

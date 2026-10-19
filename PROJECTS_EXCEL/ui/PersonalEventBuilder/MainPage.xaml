@@ -419,6 +419,15 @@
                       onSelect="{Binding Path=Commands.SelectHistory}"
                       selectedStyle="candidateSelected"
                       showHeaders="true"/>
+      <controls:table name="MovementConflicts"
+                      itemsSource="{Binding Path=Data.MovementConflicts}"
+                      style="candidateTable"
+                      visibility="{Binding Path=Form.ConflictsVisibility}"
+                      selectionMode="Confirm"
+                      selectedColumn="{Binding Path=Form.ConflictColumn}"
+                      onSelect="{Binding Path=Commands.SelectConflict}"
+                      selectedStyle="candidateSelected"
+                      showHeaders="true"/>
     </stackPanel>
 
     <controls:label name="ActionsSection"

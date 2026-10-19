@@ -16,7 +16,9 @@ End Sub
 Public Function fn_ExportOrder( _
     ByVal orderNumber As String, _
     ByVal orderDate As Variant, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal choices As Collection = Nothing, _
+    Optional ByRef fieldConflicts As Collection _
 ) As Boolean
     Dim target As ListObject
     Dim plan As Object
@@ -41,6 +43,7 @@ Public Function fn_ExportOrder( _
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ExportMovementUnavailable")
     End If
     Set target = private_Target()
+    ex_PEB_MovementConflicts.fn_Begin target.Parent.Parent.FullName, choices
     ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_TARGET | FullName=" & target.Parent.Parent.FullName & _
         " | Path=" & target.Parent.Parent.Path & " | Sheet=" & target.Parent.Name & " | Table=" & target.Name & _
         " | Rows=" & target.ListRows.Count & " | Columns=" & target.ListColumns.Count
@@ -78,6 +81,8 @@ Public Function fn_ExportOrder( _
     End If
     fn_ExportOrder = True
 Cleanup:
+    Set fieldConflicts = ex_PEB_MovementConflicts.fn_Items()
+    ex_PEB_MovementConflicts.fn_Module_Dispose
     private_Stage VBA.vbNullString, stage, startedAt
     ex_Core.fn_Diagnostic_WritePerf "Movement.Export.TotalIncludingCalculation", totalStartedAt
     ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_EXPORT_COMPLETED | Success=" & VBA.CStr(fn_ExportOrder) & " | Diagnostic=" & diagnostic

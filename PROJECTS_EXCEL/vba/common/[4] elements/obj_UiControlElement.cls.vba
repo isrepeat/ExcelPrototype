@@ -249,7 +249,8 @@ Public Function Configure( _
                 Exit Function
             End If
             attributeNode.Text = "{Binding Source=" & bindingSource & "; Path=" & bindingPath & "}"
-            If attributeNode.nodeName <> "selectedItem" Then
+            ' Selection outputs must not invalidate the control that publishes them.
+            If attributeNode.nodeName <> "selectedItem" And attributeNode.nodeName <> "selectedColumn" Then
                 m_bindingDependencies.Add VBA.Array(VBA.CStr(attributeNode.nodeName), bindingSource, bindingPath)
             End If
         End If
