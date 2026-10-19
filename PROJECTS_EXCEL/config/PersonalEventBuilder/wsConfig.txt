@@ -1410,3 +1410,4 @@ value	PersonalEventBuilder::text.ConflictStateInvalid	Пошкоджено ти�
 value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
 value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
 value	PersonalEventBuilder::text.ConflictPolicyInvalid	Некоректна політика ручних змін РУХ: очікується Overwrite або Resolve.
+value	PersonalEventBuilder::text.WordInsertionFailed	Вставлення у WORD: {stage}; секція {anchor}; помилка {number}: {details}

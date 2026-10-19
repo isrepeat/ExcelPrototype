@@ -114,8 +114,13 @@ Public Function TryInsert( _
     Dim endOffset As Long
     Dim font As Object
     Dim paragraphFormat As Object
+    Dim stage As String
+    Dim failureNumber As Long
+    Dim failureSource As String
+    Dim failureText As String
 
     On Error GoTo EH
+    stage = "ResolveAnchor"
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
     identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
     If Not m_anchors.Exists(identifier) Then Err.Raise 5, , "Word template anchor not found: " & identifier
@@ -123,6 +128,7 @@ Public Function TryInsert( _
     m_expectedText = VBA.vbNullString
     positions = m_anchors(identifier)
     ' FormattedText can normalize a copied document; verify against its own baseline.
+    stage = "ReadDocumentText"
     currentText = private_DocumentText(document)
     beginOffset = VBA.InStr(1, currentText, positions(0), VBA.vbBinaryCompare)
     endOffset = VBA.InStr(1, currentText, positions(1), VBA.vbBinaryCompare)
@@ -131,25 +137,48 @@ Public Function TryInsert( _
             VBA.InStr(endOffset + 1, currentText, positions(1), VBA.vbBinaryCompare) > 0 Then
         Err.Raise 5, , "Duplicate Word export marker: " & identifier
     End If
+    stage = "NormalizeText"
     rendered = VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbCr)
     rendered = VBA.Replace$(rendered, VBA.vbLf, VBA.vbCr)
+    stage = "FindBeginMarker"
     Set beginRange = private_FindMarker(document, VBA.CStr(positions(0)))
+    stage = "FindEndMarker"
     Set endRange = private_FindMarker(document, VBA.CStr(positions(1)))
     If beginRange.End > endRange.Start Then Err.Raise 5, , "Reversed Word anchor ranges: " & identifier
+    stage = "CreateInsertionRange"
     Set target = document.Range(beginRange.End, endRange.Start)
+    stage = "CaptureFont"
     Set font = beginRange.Characters(1).Font.Duplicate
+    stage = "CaptureParagraphFormat"
     Set paragraphFormat = beginRange.Paragraphs(1).Format.Duplicate
+    stage = "BuildExpectedText"
     m_expectedText = VBA.Left$(currentText, beginOffset + VBA.Len(positions(0)) - 1) & _
         rendered & VBA.Mid$(currentText, endOffset)
+    stage = "WriteText"
     target.Text = rendered
+    stage = "ApplyFont"
     target.Font = font
+    stage = "ShowText"
     target.Font.Hidden = False
+    stage = "ApplyParagraphFormat"
     target.ParagraphFormat = paragraphFormat
     Set m_insertDocument = document
     TryInsert = True
     Exit Function
 EH:
-    diagnostic = "Word insertion: " & VBA.Err.Description
+    failureNumber = VBA.Err.Number
+    failureSource = VBA.Err.Source
+    failureText = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError "Word.Insertion." & stage, failureNumber, failureSource, failureText
+    ex_Core.fn_Diagnostic_WriteLog "WORD_INSERTION_FAILED | Anchor=" & identifier & _
+        " | Stage=" & stage & " | Characters=" & VBA.CStr(VBA.Len(rendered))
+    If Not ex_Core.fn_Diagnostic_Flush(True) Then
+        Debug.Print "Word insertion diagnostic flush failed."
+    End If
+    diagnostic = VBA.Replace$(ex_PEB_Export.fn_Config("text.WordInsertionFailed"), "{stage}", stage)
+    diagnostic = VBA.Replace$(diagnostic, "{anchor}", identifier)
+    diagnostic = VBA.Replace$(diagnostic, "{number}", VBA.CStr(failureNumber))
+    diagnostic = VBA.Replace$(diagnostic, "{details}", failureText)
 End Function
 
 Public Function TryVerify( _
