@@ -231,7 +231,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
             "DummyMode", "ExtendedModeItems", "EnvironmentSwitch", _
-            "TestScenarioItems", "LoadTest", "NextTest", _
+            "LoadTest", "NextTest", _
             "PreviewWord", "SaveHistory", "ShowHistory", "HistoryEditMode", "CloseTable", "ExportWord", "ExportMovement", _
             "EventVersions", "CancelEvent", "RestoreEvent")
         If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::text." & textKey, configuredText) Then
@@ -244,6 +244,11 @@ Private Function private_TryRegisterBindings() As Boolean
     If configuredText <> "TEST" And configuredText <> "PROD" Then
         ex_WindowsUi.fn_ShowMessage "Invalid environment.name: " & configuredText, vbExclamation, "Configuration"
         Exit Function
+    End If
+    If configuredText = "TEST" Then
+        If Not uiBindingContext.SetValue("Text", "TestScenarioItems", ex_PEB_Export.fn_Config("text.TestScenarioItems")) Then Exit Function
+    Else
+        If Not uiBindingContext.SetValue("Text", "TestScenarioItems", VBA.vbNullString) Then Exit Function
     End If
     If Not uiBindingContext.SetValue("Settings", "TestMode", configuredText = "TEST") Then Exit Function
     If Not uiBindingContext.SetValue("Settings", "TestsRunning", False) Then Exit Function

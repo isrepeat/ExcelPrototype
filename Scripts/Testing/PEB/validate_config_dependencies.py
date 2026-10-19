@@ -32,6 +32,9 @@ def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         path = ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename
         resolved = load_config(path)
+        if filename == "wsConfig.txt":
+            assert not any(key.startswith("PersonalEventBuilder::test.") for key in resolved)
+            assert "PersonalEventBuilder::text.TestScenarioItems" not in resolved
         previous = check_output(["git", "show", f"HEAD:PROJECTS_EXCEL/config/PersonalEventBuilder/{filename}"], cwd=ROOT).decode("utf-8-sig")
         previous_rows = [line.split("\t") for line in previous.splitlines() if line]
         shared_keys = {row[1] for row in actual}
