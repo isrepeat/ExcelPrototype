@@ -1836,8 +1836,10 @@ Private Function private_LoadMode( _
     Dim hasMore As Boolean
     Dim modes As Variant
     Dim currentForm As Variant
+    Dim secondaryCandidates As Boolean
 
     On Error GoTo EH
+    secondaryCandidates = m_reporterActive Or m_hospitalActive
     modes = ex_PEB_EventRoutes.fn_VisibleIds()
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
@@ -1930,6 +1932,10 @@ Private Function private_LoadMode( _
         If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", text) Then Exit Function
     Next mode
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
+    ' Secondary candidates must never be projected or reapplied as primary personnel.
+    If secondaryCandidates Then
+        If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    End If
     m_reporterActive = False
     m_hospitalActive = False
     If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
@@ -1937,9 +1943,11 @@ Private Function private_LoadMode( _
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "EventType", eventType) Then Exit Function
     Set records = New Collection
-    If Not m_lookupResult Is Nothing Then
-        Set records = m_lookupResult.Records
-        hasMore = m_lookupResult.HasMore
+    If Not secondaryCandidates Then
+        If Not m_lookupResult Is Nothing Then
+            Set records = m_lookupResult.Records
+            hasMore = m_lookupResult.HasMore
+        End If
     End If
     m_modeDirection = direction
     m_eventType = eventType
