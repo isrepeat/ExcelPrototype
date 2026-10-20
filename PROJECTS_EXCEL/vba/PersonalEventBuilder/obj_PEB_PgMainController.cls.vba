@@ -1010,6 +1010,8 @@ Public Function ExportWordHandler() As Boolean
         orderDate = VBA.CDate(orderDate)
     End If
     startedAt = VBA.Timer
+    succeeded = ex_PEB_History.fn_EnsureReturnTvo(orderNumber, orderDate, diagnostic)
+    If Not succeeded Then GoTo FailedHistoryWord
     succeeded = ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic)
     ex_Core.fn_Diagnostic_WritePerf "Word.Export.ReadEvents", startedAt
     If Not succeeded Then GoTo FailedHistoryWord
@@ -1926,8 +1928,13 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     ElseIf exporter = "History" Then
         success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing))
-        If success And extensionRows.Count > 0 Then
-            If Not m_extensions.TryAcceptSaved(values("FormExtensionRows"), diagnostic) Then GoTo Failed
+        If success Then
+            If values("FormExtensionRows").Count <> extensionRows.Count Then
+                If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic) Then GoTo Failed
+                If Not ex_PEB_ExtRefresh.fn_Request(m_extensions) Then GoTo Failed
+            ElseIf extensionRows.Count > 0 Then
+                If Not m_extensions.TryAcceptSaved(values("FormExtensionRows"), diagnostic) Then GoTo Failed
+            End If
         End If
         If success Then status = VBA.Replace$(status, "{action}", VBA.CStr(values("HistoryAction")))
         If success And Not m_editHistoryRow Is Nothing Then
