@@ -141,9 +141,6 @@ Public Function TryEnrich( _
         fields("Event.IncomingDate") = VBA.vbNullString
         If hasOrderDate Then fields("Event.IncomingDate") = VBA.Format$(parsedOrderDate, "dd.mm.yyyy")
         fields("Event.Date") = VBA.vbNullString
-        If ex_PEB_EventRoutes.fn_Value(modeId, "direction") <> "Departure" Then
-            fields("Event.Date") = fields("Event.IncomingDate")
-        End If
         Set supplement = New obj_LookupRecord
         If Not supplement.Initialize(record.Key, fields) Then
             Err.Raise 5, , "Cannot initialize empty ticket fields."

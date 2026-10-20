@@ -44,7 +44,8 @@ def main():
     assert "private_Enrich" not in prepare
     assert "private_LookupTable" not in prepare
     assert "private_PrepareFoodSupport" not in prepare
-    assert 'stored("HistoryReports").Count > 0' in prepare
+    assert 'For Each document In stored("HistoryReports")' in prepare
+    assert 'MovementHistoryReportsUnsupported' not in prepare
     assert 'private_PrepareMovementTexts values, Nothing, True' in prepare
 
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):

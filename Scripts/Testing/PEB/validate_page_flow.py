@@ -46,7 +46,8 @@ def main():
         assert cfg["PersonalEventBuilder::ui.pageClass"] == page_class
         paths = resolve_mappings(cfg["ThisWorkbook::ui.pageMappings"], {"MainPage", "wsConfig"}, UI)
         assert paths == {"mainpage": (UI / page_file).resolve()}
-        source = (VBA / f"{page_class}.cls.vba").read_text(encoding="utf-8-sig")
+        source_folder = VBA / "Test" if page_class == "obj_PEB_PgTests" else VBA
+        source = (source_folder / f"{page_class}.cls.vba").read_text(encoding="utf-8-sig")
         assert "Implements obj_IPage" in source and "m_pageBase.Render()" in source
         assert "m_controller.Initialize(m_pageBase)" in source
 
@@ -76,8 +77,8 @@ def main():
             value = node.attrib.get(attribute, "")
             if value.startswith("{Binding Path=Commands."):
                 commands.add(value.removeprefix("{Binding Path=Commands.").removesuffix("}"))
-    assert commands == {"TestRun", "CancelTests", "EnvironmentSwitch", "SelectionChanged", "TestPreview"}
-    controller = (VBA / "obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
+    assert commands == {"TestRun", "CancelTests", "EnvironmentSwitch", "SelectionChanged", "TestPreview", "TestsBasic", "TestsGrouping"}
+    controller = (VBA / "Test/obj_PEB_PgTestsController.cls.vba").read_text(encoding="utf-8-sig")
     for command in commands:
         assert f"Public Function {command}Handler(" in controller, command
     for forbidden in ("createElement", "Shapes.Add", "control.Arrange", "ex_UiControlFactory", "OpenPage"):
@@ -85,15 +86,15 @@ def main():
     regular = (VBA / "obj_PEB_PgMain.cls.vba").read_text(encoding="utf-8-sig")
     assert "ex_PEB_Testing.fn_Open" not in regular
     assert '"Data", "TestCatalog"' not in regular
-    scheduler = (VBA / "ex_PEB_Testing.vba").read_text(encoding="utf-8-sig")
+    scheduler = (VBA / "Test/ex_PEB_Testing.vba").read_text(encoding="utf-8-sig")
     assert "New obj_PEB_PgTestsController" not in scheduler
     assert "Public Function fn_RunSelected" not in scheduler
     assert "Public Function fn_NavigatePreview" not in scheduler
     assert "m_testController.Dispose" not in scheduler
     assert "ex_PEB_Testing.fn_Detach Me" in controller
-    selection = controller.split("Public Function SelectionChangedHandler()", 1)[1].split("End Function", 1)[0]
+    selection = controller.split("Public Function SelectionChangedHandler(", 1)[1].split("End Function", 1)[0]
     assert "private_RefreshSelection" in selection and "private_BindCatalog" not in selection
-    refresh = controller.split("Private Sub private_RefreshSelection", 1)[1].split("End Sub", 1)[0]
+    refresh = controller.split("Private Sub private_RefreshSelection(", 1)[1].split("End Sub", 1)[0]
     assert 'private_MarkDirty "TestCatalog", False' in refresh
     assert "m_catalogTable.SetValueAt" in refresh
     engine_root = ROOT / "PROJECTS_EXCEL/vba/common"
@@ -106,8 +107,8 @@ def main():
     update = table.split("Public Function TryRefreshTemplateBindings", 1)[1].split("End Function", 1)[0]
     assert re.search(r"If Not table Is m_table Then\s+Exit Function\s+End If", update)
     assert "private_SourceSchema(m_source, table) <> m_renderedSchema" in update
-    assert "m_cellTemplates.CanRefreshBindings(table, m_source)" in update
-    assert "m_cellTemplates.TryRefreshBindings(table, diagnostic)" in update
+    assert "m_cellTemplates.CanRefreshBindings(table, m_source, onlyRow)" in update
+    assert "m_cellTemplates.TryRefreshBindings(table, diagnostic, onlyRow)" in update
     context = (engine_root / "[2] classes/obj_UiRenderContext.cls.vba").read_text(encoding="utf-8-sig")
     assert "If pending.Count > 0 Then" in context
     assert not (VBA / "obj_PEB_TestUi.cls.vba").exists()
@@ -117,7 +118,7 @@ def main():
     assert '"ThisWorkbook::ui.pageMappings"' in runtime
     assert "uiFolderPath = fileSystem.GetParentFolderName(xamlPath)" in runtime
     assert "PersonalEventBuilder" not in runtime.split("Private Function private_TryResolveXaml", 1)[1].split("End Function", 1)[0]
-    for path in (VBA / "obj_PEB_PgTests.cls.vba", VBA / "obj_PEB_PgTestsController.cls.vba"):
+    for path in (VBA / "Test/obj_PEB_PgTests.cls.vba", VBA / "Test/obj_PEB_PgTestsController.cls.vba"):
         text = path.read_text(encoding="utf-8-sig")
         procedures = re.findall(r"(?im)^(?:Public|Private) (?:Function|Sub) (\w+)", text)
         assert len(procedures) == len(set(procedures)), path

@@ -54,6 +54,8 @@ Public Function fn_Save( _
     Dim hasExplicitTvo As Boolean
     Dim reuseTvo As Boolean
     Dim restoredTvo As Collection
+    Dim childPlan As Object
+    Dim revisionRows As Collection
 
     On Error GoTo EH
     Set previousBook = Application.ActiveWorkbook
@@ -64,12 +66,15 @@ Public Function fn_Save( _
     originalColumns = table.ListColumns.Count
     For Each collectionName In VBA.Array("MetaDocumentTables", "MetaTvoTables", "HistoryReports")
         If values.Exists(collectionName) Then
-            If values(collectionName).Count > 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryChildrenInTable")
+            If Not values.Exists("FormExtensionRows") Then
+                If values(collectionName).Count > 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryChildrenInTable")
+            End If
         End If
     Next collectionName
     Set columns = private_Columns(table, True)
     Set historyIndex = VBA.CreateObject("Scripting.Dictionary")
     Set rows = private_Read(table, columns, historyIndex)
+    ex_PEB_FormChildren.fn_Attach rows
     key = private_Identity(values)
     For index = 1 To rows.Count
         Set row = rows(index)
@@ -119,6 +124,11 @@ Public Function fn_Save( _
     If Not values.Exists("RequestedStatus") Then
         values("EventLabel") = ex_PEB_EventRoutes.fn_Value(VBA.CStr(values("EventId")), "caption")
         values("WordTemplatePath") = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    End If
+    If values.Exists("FormExtensionRows") Then
+        For Each row In values("FormExtensionRows")
+            If row("RowType") = "TVO" Then hasExplicitTvo = True
+        Next row
     End If
     ' Capture return duties once; explicit history children always take priority.
     If Not values.Exists("RequestedStatus") Then
@@ -195,6 +205,15 @@ Public Function fn_Save( _
     If current.Exists("RequestedStatus") Then
         current("Status") = current("RequestedStatus")
     End If
+    Set revisionRows = rows
+    If values.Exists("FormExtensionRows") Then
+        Set childPlan = ex_PEB_FormChildren.fn_Plan(table, rows, current, values("FormExtensionRows"))
+        If Not childPlan Is Nothing Then
+            changed = True
+            current("ChildrenChanged") = True
+            Set revisionRows = childPlan("Rows")
+        End If
+    End If
     needsValidation = changed Or Not values.Exists("RequestedStatus")
     If previous Is Nothing Then
         needsValidation = True
@@ -216,7 +235,8 @@ Public Function fn_Save( _
             GoTo Cleanup
         End If
     End If
-    ex_PEB_HistoryRevisions.fn_Prepare table, rows, previous, current, changed, transaction
+    ex_PEB_HistoryRevisions.fn_Prepare table, rows, previous, current, changed, transaction, revisionRows
+    If Not childPlan Is Nothing Then transaction.Add "Children", childPlan
     ReDim Preserve data(1 To 1, 1 To table.ListColumns.Count)
     For Each stateField In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
         data(1, table.ListColumns(VBA.CStr(stateField)).Index) = current(stateField)
@@ -230,6 +250,7 @@ Public Function fn_Save( _
     written = True
     target.Range.NumberFormat = "@"
     target.Range.Value2 = data
+    ex_PEB_FormChildren.fn_Write table, childPlan
     ex_PEB_HistoryRecovery.fn_Mark book, recoveryToken, "COMMIT"
     committed = True
     values("HistoryAction") = "INSERT"
@@ -238,6 +259,10 @@ Public Function fn_Save( _
 Cleanup:
     On Error Resume Next
     VBA.Err.Clear
+    If Not committed And Not childPlan Is Nothing Then
+        ex_PEB_FormChildren.fn_Rollback table, childPlan
+        Set target = Nothing
+    End If
     If Not committed And Not target Is Nothing Then
         If added Then
             target.Delete
@@ -345,6 +370,7 @@ Public Function fn_ReadOrder( _
             Set row("MetaDocumentTables") = New Collection
             Set row("MetaTvoTables") = New Collection
             Set row("HistoryReports") = New Collection
+            Set row("FormExtensionRows") = New Collection
         End If
     Next row
     If Not includeChildren Then
@@ -369,6 +395,7 @@ Public Function fn_ReadOrder( _
                 Set root = parent
             Loop
             If private_InScope(root, orderNumber, dateText, people) Then
+                root("FormExtensionRows").Add row
                 Select Case row("RowType")
                     Case "Document"
                         Set item = VBA.CreateObject("Scripting.Dictionary")
@@ -413,6 +440,7 @@ Public Function fn_Stamp(ByVal values As Object) As String
     Dim field As Variant
     Dim mapping As Variant
     Dim text As String
+    Dim child As Object
 
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
         mapping = VBA.Split(VBA.CStr(field), "=")
@@ -423,6 +451,15 @@ Public Function fn_Stamp(ByVal values As Object) As String
         text = ex_PEB_Export.fn_Text(values(field))
         fn_Stamp = fn_Stamp & VBA.Len(text) & ":" & text
     Next field
+    If values.Exists("FormExtensionRows") Then
+        For Each child In values("FormExtensionRows")
+            For Each field In Split(ex_PEB_Export.fn_Config("history.fields"), "|")
+                mapping = Split(field, "=")
+                text = private_Text(child(mapping(0)))
+                fn_Stamp = fn_Stamp & Len(text) & ":" & text
+            Next field
+        Next child
+    End If
 End Function
 
 Public Function fn_Date(ByVal value As Variant) As Date
@@ -688,6 +725,7 @@ Private Sub private_Tvo( _
         If row("RowType") = "TVO" And row("ParentRowId") = parent("RowId") Then private_AddSorted children, row
     Next row
     For Each row In children
+        row("DutyPositionGenitive") = VBA.vbNullString
         For Each field In VBA.Array("RankGenitive", "FIOAccusative", "PositionGenitive", "RankDative", "FIODative")
             If VBA.Len(row(field)) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError025"), "{value}", VBA.CStr(field))
         Next field

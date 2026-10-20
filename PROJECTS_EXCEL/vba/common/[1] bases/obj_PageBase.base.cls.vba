@@ -132,3 +132,22 @@ EH:
         VBA.vbExclamation, "Page update"
     Resume CleanExit
 End Function
+
+Public Function RefreshContent( _
+    ByVal name As String, _
+    ByRef diagnostic As String, _
+    Optional ByVal deferFlush As Boolean = False _
+) As Boolean
+    Dim context As obj_UiRenderContext
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Function
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then Exit Function
+    If Not context.BindingContext Is m_uiBindingContext Then Exit Function
+    context.MarkDirty name, True
+    If deferFlush Then
+        RefreshContent = True
+        Exit Function
+    End If
+    RefreshContent = context.FlushUpdates(diagnostic)
+End Function

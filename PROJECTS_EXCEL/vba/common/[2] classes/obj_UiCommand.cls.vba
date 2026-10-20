@@ -16,6 +16,7 @@ Private m_isDisposed As Boolean
 
 Private m_target As Object
 Private m_methodName As String
+Private m_payload As Object
 
 ' //
 ' // Lifecycle
@@ -47,11 +48,16 @@ End Property
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal target As Object, ByVal methodName As String) As Boolean
+Public Function Initialize( _
+    ByVal target As Object, _
+    ByVal methodName As String, _
+    Optional ByVal payload As Object = Nothing _
+) As Boolean
     If m_isDisposed Or m_isInitialized Then
         Exit Function
     End If
     Set m_target = target
+    Set m_payload = payload
     m_methodName = VBA.Trim$(methodName)
     If m_target Is Nothing Or VBA.Len(m_methodName) = 0 Then
         ex_WindowsUi.fn_ShowMessage "A command target and method are required.", VBA.vbExclamation, "PersonalEventBuilder"
@@ -68,6 +74,7 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     Set m_target = Nothing
+    Set m_payload = Nothing
     m_methodName = VBA.vbNullString
 End Sub
 
@@ -76,7 +83,11 @@ Public Function ExecuteWithPayload(ByVal payload As Object) As Boolean
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod, payload)
+    If m_payload Is Nothing Then
+        callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod, payload)
+    Else
+        callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod, m_payload, payload)
+    End If
     ExecuteWithPayload = VBA.CBool(callbackResult)
     Exit Function
 EH:
@@ -88,7 +99,11 @@ Public Function Execute() As Boolean
     Dim callbackResult As Variant
 
     On Error GoTo EH
-    callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod)
+    If m_payload Is Nothing Then
+        callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod)
+    Else
+        callbackResult = VBA.CallByName(m_target, m_methodName, VbMethod, m_payload)
+    End If
     Execute = VBA.CBool(callbackResult)
     Exit Function
 EH:

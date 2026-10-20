@@ -135,6 +135,7 @@ Public Function fn_Decode(ByVal values As Object) As Collection
         Next field
         If seen.Exists(row("PersonId")) Then GoTo InvalidSnapshot
         seen.Add row("PersonId"), True
+        row("DutyPositionGenitive") = VBA.vbNullString
         result.Add row
     Next node
     Exit Function
