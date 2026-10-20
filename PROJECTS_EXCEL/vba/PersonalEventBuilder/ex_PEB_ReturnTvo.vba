@@ -117,7 +117,7 @@ Public Function fn_Decode(ByVal values As Object) As Collection
     Set root = document.documentElement
     If root.nodeName <> "returnTvo" Then GoTo InvalidSnapshot
     For Each field In VBA.Array("version", "person", "event", "date")
-        If Not root.hasAttribute(VBA.CStr(field)) Then GoTo InvalidSnapshot
+        If root.getAttributeNode(VBA.CStr(field)) Is Nothing Then GoTo InvalidSnapshot
     Next field
     If root.getAttribute("version") <> "1" Or root.getAttribute("person") <> values("PersonId") Or _
             root.getAttribute("event") <> values("EventId") Or _
@@ -129,7 +129,7 @@ Public Function fn_Decode(ByVal values As Object) As Collection
         If node.nodeType <> 1 Or node.nodeName <> "person" Then GoTo InvalidSnapshot
         Set row = VBA.CreateObject("Scripting.Dictionary")
         For Each field In VBA.Split(ex_PEB_Export.fn_Config("returnTvo.snapshot.fields"), "|")
-            If Not node.hasAttribute(VBA.CStr(field)) Then GoTo InvalidSnapshot
+            If node.getAttributeNode(VBA.CStr(field)) Is Nothing Then GoTo InvalidSnapshot
             row(field) = node.getAttribute(VBA.CStr(field))
             If VBA.Len(ex_PEB_Export.fn_Text(row(field))) = 0 Then GoTo InvalidSnapshot
         Next field

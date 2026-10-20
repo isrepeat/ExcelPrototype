@@ -2266,6 +2266,11 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
             End If
         End If
     End If
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Form.EventDate") = VBA.vbNullString
+    If Not private_ReadModeConfig("forms.sourceStyles.default", status, diagnostic) Then GoTo Failed
+    updates("Form.EventDateStyle") = status
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     ex_Core.fn_Diagnostic_WritePerf "Mode.Prepare", startedAt
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
