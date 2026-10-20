@@ -91,6 +91,9 @@ foreach ($templateName in $templates.Keys) {
             }
         }
         if ($stack.Count -ne 0) { throw "Unclosed DSL blocks: $templateName" }
+        foreach ($assignment in [regex]::Matches($text, '#let\s+(__\w+)\s*=')) {
+            $fields.Add($assignment.Groups[1].Value) | Out-Null
+        }
         $references = @([regex]::Matches($text, '\{\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value })
         foreach ($condition in [regex]::Matches($text, '\{#if\s+([^}]+)\}')) {
             $references += @([regex]::Matches($condition.Groups[1].Value, '(?<![\w.])\[([^\]]+)\]') | ForEach-Object { $_.Groups[1].Value })

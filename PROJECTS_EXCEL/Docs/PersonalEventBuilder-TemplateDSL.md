@@ -160,6 +160,10 @@
 
 ## 7. Циклы и локальные вычисления
 
+Quoted string assignments are supported in Word and Movement: `#let __DocumentName = "{[DocumentNote]}";`. The right-hand string is rendered in the current context and stored as a scalar; doubled quotes escape a literal quote. No arbitrary VBA expression is executed. Includes share the current context, while loop iterations use isolated child contexts. Assign `"{item.[DocumentNote]}"` inside a document loop to reuse the same `block.DocumentName` for each child without overwriting the main document's variable.
+
+The event context exposes `SourceStatus`, `TargetStatus` and `Operation` independently of the exporter. Statuses use stable plan identifiers such as `HospitalTreatment` or `MedicalLeave`; operations are `Arrival`, `Departure`, `Transition`. Use the existing `#let` RegexIsMatch function to test these identifiers and combine the resulting Boolean variables with `#and` / `#or`. Domain-specific flags and document phrases do not need to be generated in VBA.
+
 Цикл работает с заранее подготовленной коллекцией словарей:
 
 ```text

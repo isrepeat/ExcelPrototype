@@ -23,6 +23,7 @@ def load_movement(settings, workbook, xml_text=None):
     require(all(child.tag in {f"{{{NS['p']}}}sharedTemplates", f"{{{NS['p']}}}template"} for child in root), "Unknown result element")
     known = set(settings["export.fields"].split("|")) | set(settings["export.shared.inputs.scalars"].split("|")) | {
         "EventName", "SourceEventName", "SourceDestination", "TicketDocument", "FoodSupportDate",
+        "SourceStatus", "TargetStatus", "Operation",
     }
     for section, key in (("lookups", "output"), ("aliases", "name"), ("constants", "name")):
         for number in range(1, int(settings[f"export.shared.{section}.count"]) + 1):

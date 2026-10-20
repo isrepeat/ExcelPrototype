@@ -13,7 +13,7 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_absenceProfile As obj_LookupProfile
-Private m_latestRecords As Collection
+Private m_latestByName As Object
 Private m_returnTickets As obj_PEB_ReturnTickets
 
 ' //
@@ -55,11 +55,11 @@ Public Sub Dispose()
     End If
     Set m_returnTickets = Nothing
     Set m_absenceProfile = Nothing
-    Set m_latestRecords = Nothing
+    Set m_latestByName = Nothing
 End Sub
 
 Public Sub InvalidateCache()
-    Set m_latestRecords = Nothing
+    Set m_latestByName = Nothing
     If Not m_returnTickets Is Nothing Then
         m_returnTickets.InvalidateCache
     End If
@@ -81,6 +81,10 @@ Public Function TryEnrich( _
     Dim parsedOrderDate As Date
     Dim hasOrderDate As Boolean
     Dim returnMode As Boolean
+    Dim copy As obj_LookupRecord
+    Dim name As String
+    Dim value As Variant
+    Dim detail As Variant
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Candidate enricher is not initialized."
@@ -96,10 +100,25 @@ Public Function TryEnrich( _
 
     ' Load and index the extension once, only when candidates exist.
     If candidates.Count > 0 Then
-        If m_latestRecords Is Nothing Then
+        If m_latestByName Is Nothing Then
             If Not private_LoadLatest(diagnostic) Then Exit Function
         End If
-        If Not lookupService.TryExtend(candidates, m_latestRecords, "Personnel.FullName", "error", False, output, diagnostic) Then Exit Function
+        Set output = New Collection
+        For Each record In candidates
+            Set copy = New obj_LookupRecord
+            If Not copy.Initialize(record.Key, record.Fields) Then Err.Raise 5, , "Cannot clone candidate."
+            For Each detail In record.DetailNames
+                If Not copy.SetDetail(VBA.CStr(detail), record.GetDetail(VBA.CStr(detail))) Then
+                    Err.Raise 5, , "Cannot copy candidate details."
+                End If
+            Next detail
+            If Not record.TryGetValue("Personnel.FullName", value) Then Err.Raise 5, , "Candidate name not found."
+            name = ex_TableQuery.fn_NormalizeText(private_Text(value))
+            If VBA.Len(name) > 0 And m_latestByName.Exists(name) Then
+                If Not copy.TryMerge(m_latestByName(name), False) Then Err.Raise 5, , "Cannot merge absence fields."
+            End If
+            output.Add copy
+        Next record
     Else
         Set output = New Collection
     End If
@@ -121,6 +140,10 @@ Public Function TryEnrich( _
         fields("Absence.PlannedArrivalDate") = VBA.vbNullString
         fields("Event.IncomingDate") = VBA.vbNullString
         If hasOrderDate Then fields("Event.IncomingDate") = VBA.Format$(parsedOrderDate, "dd.mm.yyyy")
+        fields("Event.Date") = VBA.vbNullString
+        If ex_PEB_EventRoutes.fn_Value(modeId, "direction") <> "Departure" Then
+            fields("Event.Date") = fields("Event.IncomingDate")
+        End If
         Set supplement = New obj_LookupRecord
         If Not supplement.Initialize(record.Key, fields) Then
             Err.Raise 5, , "Cannot initialize empty ticket fields."
@@ -172,11 +195,9 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
     Dim column As Object
     Dim record As obj_LookupRecord
     Dim name As String
-    Dim key As Variant
     Dim value As Variant
     Dim departureDate As Date
     Dim rowIndex As Long
-    Dim rows As Collection
 
     On Error GoTo EH
     Set tableQueryService = New obj_TableQueryService
@@ -216,11 +237,7 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
             End If
         End If
     Next rowIndex
-    Set rows = New Collection
-    For Each key In byName.Keys
-        rows.Add byName(key)
-    Next key
-    Set m_latestRecords = rows
+    Set m_latestByName = byName
     private_LoadLatest = True
 Cleanup:
     If Not tableQueryService Is Nothing Then tableQueryService.Dispose

@@ -50,6 +50,10 @@ Public Function fn_Save( _
     Dim needsValidation As Boolean
     Dim historyIndex As Object
     Dim recoveryToken As String
+    Dim tvoService As obj_PEB_ExportService
+    Dim hasExplicitTvo As Boolean
+    Dim reuseTvo As Boolean
+    Dim restoredTvo As Collection
 
     On Error GoTo EH
     Set previousBook = Application.ActiveWorkbook
@@ -115,6 +119,35 @@ Public Function fn_Save( _
     If Not values.Exists("RequestedStatus") Then
         values("EventLabel") = ex_PEB_EventRoutes.fn_Value(VBA.CStr(values("EventId")), "caption")
         values("WordTemplatePath") = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.documentTemplate"))
+    End If
+    ' Capture return duties once; explicit history children always take priority.
+    If Not values.Exists("RequestedStatus") Then
+        values("TvoReturnSnapshot") = VBA.vbNullString
+        If ex_PEB_EventRoutes.fn_Value(values("EventId"), "direction") = "Arrival" Then
+            For Each row In rows
+                If row("RowType") = "TVO" And row("ParentRowId") = identifier Then hasExplicitTvo = True
+            Next row
+            If Not hasExplicitTvo Then
+                If matchIndex > 0 Then
+                    Set previous = rows(matchIndex)
+                    reuseTvo = (previous("PersonId") = private_Text(values("PersonId")) And _
+                        previous("EventId") = private_Text(values("EventId")) And _
+                        previous("EventDate") = private_Text(values("EventDate")))
+                    If reuseTvo Then
+                        reuseTvo = (VBA.Len(previous("TvoReturnSnapshot")) > 0)
+                        If reuseTvo Then values("TvoReturnSnapshot") = previous("TvoReturnSnapshot")
+                        If reuseTvo Then Set restoredTvo = ex_PEB_ReturnTvo.fn_Decode(values)
+                    End If
+                End If
+                If Not reuseTvo Then
+                    Set tvoService = New obj_PEB_ExportService
+                    If Not tvoService.Initialize() Then Err.Raise 5, , "Cannot initialize return TVO snapshot service."
+                    If Not tvoService.TryCaptureReturnTvo(values, diagnostic) Then GoTo Cleanup
+                    tvoService.Dispose
+                    Set tvoService = Nothing
+                End If
+            End If
+        End If
     End If
     ReDim data(1 To 1, 1 To table.ListColumns.Count)
     If matchIndex > 0 Then
@@ -239,6 +272,7 @@ Cleanup:
         previousBook.Activate
         previousSheet.Activate
     End If
+    If Not tvoService Is Nothing Then tvoService.Dispose
     If snapshotStarted Then
         ex_PEB_Export.fn_EndConfigSnapshot
     End If
@@ -357,6 +391,9 @@ Public Function fn_ReadOrder( _
     For Each row In selected
         Set row("MetaTvoTables") = New Collection
         private_Tvo rows, row, row("MetaTvoTables")
+        If row("MetaTvoTables").Count = 0 Then
+            Set row("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(row)
+        End If
     Next row
     Set events = selected
     fn_ReadOrder = True
@@ -476,6 +513,16 @@ Private Function private_Columns( _
                 Exit For
             End If
         Next column
+        If Not found And mapping(0) = "TvoReturnSnapshot" Then
+            If extend Then
+                Set column = table.ListColumns.Add
+                column.Name = mapping(1)
+                result.Add mapping(0), column.Index
+            Else
+                result.Add mapping(0), 0
+            End If
+            found = True
+        End If
         If Not found Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError019"), "{value}", VBA.CStr(mapping(1)))
     Next field
     Set private_Columns = result
@@ -527,7 +574,11 @@ Private Function private_Read( _
             Set row = VBA.CreateObject("Scripting.Dictionary")
             hasData = False
             For Each field In fieldKeys
-                row.Add field, private_Text(data(index, columns(field)))
+                If columns(field) = 0 Then
+                    row.Add field, VBA.vbNullString
+                Else
+                    row.Add field, private_Text(data(index, columns(field)))
+                End If
                 If VBA.Len(row(field)) > 0 Then hasData = True
             Next field
             row.Add "__tableIndex", index

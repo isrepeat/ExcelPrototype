@@ -284,6 +284,7 @@ value	PersonalEventBuilder::text.ModeTicketNumberLabel	Квиток.№
 value	PersonalEventBuilder::text.MovementBatchRestored	Дані та числові формати відновлено у відкритій таблиці. Книга залишається відкритою для перевірки.
 value	PersonalEventBuilder::text.MovementNoOpenAbsence	немає відкритих відсутностей
 value	PersonalEventBuilder::text.MovementOpenAmbiguous	У відкритих книгах знайдено декілька таблиць РУХ. Залиште відкритою лише потрібну книгу та повторіть експорт.
+value	PersonalEventBuilder::text.ReturnTvoInvalidChain	Некоректний ланцюжок ТВО в РУХ: перевірте кількість рядків ПІБ, ІПН і кодів посад, порожні рядки та повтори ІПН.
 value	PersonalEventBuilder::text.SourceLegendOrderDate	Поточна дата наказу
 value	PersonalEventBuilder::text.SourceLegendPersonnel	ШПО
 value	PersonalEventBuilder::text.SourceLegendSeparator	—
@@ -307,6 +308,7 @@ value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
 value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
 value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата обрано. Автопідстановку вимкнено; дані можна редагувати вручну.
 value	PersonalEventBuilder::text.ReinitializePagePending	Перезавантаження конфігурації та XML. Дані форми буде очищено.
+value	PersonalEventBuilder::text.ReturnTvoPeriodMismatch	Неможливо відновити ТВО: останній період РУХ не відповідає прибуттю, закритий іншим наказом або починається після дати події.
 value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
 value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
 value	PersonalEventBuilder::text.TestPhase.OpenScenarios	Відкриття книги сценаріїв.
@@ -316,6 +318,7 @@ value	PersonalEventBuilder::text.EnvironmentSwitchPending	Перемикання
 value	PersonalEventBuilder::text.ExportPreviewWordSuccess	Текст поточної події показано в області прев’ю.
 value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
 value	PersonalEventBuilder::text.OrderDocumentNameInvalid	Неможливо сформувати ім’я документа: перевірте плейсхолдери шаблону та дані наказу.
+value	PersonalEventBuilder::text.ReturnTvoInvalidSnapshot	Пошкоджений або завеликий знімок ТВО прибуття. Перевірте подію та збережені дані ТВО.
 value	PersonalEventBuilder::text.SimpleDepartureWhileOpen	Нове вибуття неможливе: попереднє «{actual}» ще не закрито прибуттям.
 value	PersonalEventBuilder::text.WordStorePersonAmbiguous	ПІБ і код посади відповідають кільком записам людини. Уточніть ідентифікатор.
 value	PersonalEventBuilder::text.ExportMovementUnavailable	Експорт РУХ ще не налаштовано. Очікуються параметри книги, аркуша й таблиці.
@@ -374,8 +377,9 @@ value	PersonalEventBuilder::forms.Leave.fields.11.name	IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.record	Event.IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.12.name	EventDate
-value	PersonalEventBuilder::forms.Leave.fields.12.record	Absence.PlannedArrivalDate
+value	PersonalEventBuilder::forms.Leave.fields.12.record	Event.Date
 value	PersonalEventBuilder::forms.Leave.fields.12.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
+value	PersonalEventBuilder::forms.Leave.fields.12.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::forms.Leave.fields.13.name	TicketNumber
 value	PersonalEventBuilder::forms.Leave.fields.13.record	Absence.TicketNumber
 value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
@@ -420,25 +424,29 @@ value	PersonalEventBuilder::forms.Treatment.fields.10.captionKey	PersonalEventBu
 value	PersonalEventBuilder::forms.Treatment.fields.11.name	IncomingNumber
 value	PersonalEventBuilder::forms.Treatment.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingNumberLabel
 value	PersonalEventBuilder::forms.Treatment.fields.12.name	IncomingDate
+value	PersonalEventBuilder::forms.Treatment.fields.12.record	Event.IncomingDate
 value	PersonalEventBuilder::forms.Treatment.fields.12.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
 value	PersonalEventBuilder::forms.Treatment.fields.13.name	Document
 value	PersonalEventBuilder::forms.Treatment.fields.13.captionKey	PersonalEventBuilder::text.ModeDocumentLabel
-value	PersonalEventBuilder::forms.Treatment.fields.14.name	DocumentDate
-value	PersonalEventBuilder::forms.Treatment.fields.14.captionKey	PersonalEventBuilder::text.ModeDocumentDateLabel
-value	PersonalEventBuilder::forms.Treatment.fields.15.name	DocumentNumber
-value	PersonalEventBuilder::forms.Treatment.fields.15.captionKey	PersonalEventBuilder::text.ModeDocumentNumberLabel
+value	PersonalEventBuilder::forms.Treatment.fields.14.name	DocumentNumber
+value	PersonalEventBuilder::forms.Treatment.fields.14.captionKey	PersonalEventBuilder::text.ModeDocumentNumberLabel
+value	PersonalEventBuilder::forms.Treatment.fields.15.name	DocumentDate
+value	PersonalEventBuilder::forms.Treatment.fields.15.captionKey	PersonalEventBuilder::text.ModeDocumentDateLabel
 value	PersonalEventBuilder::forms.Treatment.fields.16.name	EventDate
+value	PersonalEventBuilder::forms.Treatment.fields.16.record	Event.Date
 value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
+value	PersonalEventBuilder::forms.Treatment.fields.16.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::forms.Treatment.fields.count	16
 value	PersonalEventBuilder::forms.Treatment.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition
 value	PersonalEventBuilder::forms.sourceStyles.default	formField
 value	PersonalEventBuilder::forms.sourceStyles.Absence	absenceFormField
-value	PersonalEventBuilder::forms.sourceStyles.Hospital	formField
+value	PersonalEventBuilder::forms.sourceStyles.Document	personnelFormField
+value	PersonalEventBuilder::forms.sourceStyles.Hospital	personnelFormField
 value	PersonalEventBuilder::forms.sourceStyles.Personnel	personnelFormField
 value	PersonalEventBuilder::forms.sourceStyles.CurrentOrder	currentOrderField
 value	PersonalEventBuilder::forms.sourceStyles.ReturnTickets	movementTicketField
-value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital
+value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital|Document
 value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::forms.lookupDefaultStyle	lookupKeyField
 value	PersonalEventBuilder::forms.dynamicStylesEnabled	true
@@ -545,7 +553,7 @@ value	PersonalEventBuilder::export.Word.context.lookups.4.output	ToHospitalAccus
 value	PersonalEventBuilder::export.Word.context.lookups.4.keyHeader	Позначення
 value	PersonalEventBuilder::export.Word.context.lookups.4.valueHeader	Знахідний
 value	PersonalEventBuilder::export.Word.context.lookups.count	4
-value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName|DutyPositionGenitive
+value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName|DutyPositionGenitive|SourceStatus|TargetStatus|Operation
 value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
 value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalGenitive
 value	PersonalEventBuilder::export.Word.context.templates.ToBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
@@ -1062,7 +1070,9 @@ value	PersonalEventBuilder::export.Movement.destinations.MedicalCompany	Меди
 value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
 value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|TicketDate|DocumentDate
 value	PersonalEventBuilder::legend.Absence.entryTemplate	{source} ({modified})
-value	PersonalEventBuilder::legend.sources	Personnel|Absence|ReturnTickets
+value	PersonalEventBuilder::legend.sources	Personnel|Absence|ReturnTickets|Hospital|Document
+value	PersonalEventBuilder::legend.Document.entryTemplate	{source} ({modified})
+value	PersonalEventBuilder::legend.Hospital.entryTemplate	{source} ({modified})
 value	PersonalEventBuilder::legend.Personnel.entryTemplate	{source} ({modified})
 value	PersonalEventBuilder::legend.orderDate.field	Event.IncomingDate
 value	PersonalEventBuilder::legend.orderDate.sourceAlias	CurrentOrder
@@ -1095,6 +1105,23 @@ value	PersonalEventBuilder::lookup.Absence.display.count	0
 value	PersonalEventBuilder::lookup.Absence.minChars	1
 value	PersonalEventBuilder::lookup.Absence.maxResults	1000
 value	PersonalEventBuilder::lookup.Absence.loadingText	Завантаження даних вибуття...
+value	PersonalEventBuilder::lookup.Document.key	Document.Name
+value	PersonalEventBuilder::lookup.Document.apply.count	0
+value	PersonalEventBuilder::lookup.Document.search.1.name	Document.Name
+value	PersonalEventBuilder::lookup.Document.search.1.match	contains
+value	PersonalEventBuilder::lookup.Document.search.count	1
+value	PersonalEventBuilder::lookup.Document.source.path	../Dependencies/Документи.xlsx
+value	PersonalEventBuilder::lookup.Document.source.range	A2:A100
+value	PersonalEventBuilder::lookup.Document.source.sheet	Документи
+value	PersonalEventBuilder::lookup.Document.columns.1.name	Document.Name
+value	PersonalEventBuilder::lookup.Document.columns.1.header	Документи
+value	PersonalEventBuilder::lookup.Document.columns.1.captionKey	PersonalEventBuilder::text.ModeDocumentLabel
+value	PersonalEventBuilder::lookup.Document.columns.1.sourceAlias	Document
+value	PersonalEventBuilder::lookup.Document.columns.count	1
+value	PersonalEventBuilder::lookup.Document.display.count	0
+value	PersonalEventBuilder::lookup.Document.minChars	1
+value	PersonalEventBuilder::lookup.Document.maxResults	50
+value	PersonalEventBuilder::lookup.Document.loadingText	Завантаження документів...
 value	PersonalEventBuilder::lookup.Hospital.key	Hospital.ShortName
 value	PersonalEventBuilder::lookup.Hospital.apply.count	0
 value	PersonalEventBuilder::lookup.Hospital.search.1.name	Hospital.Name
@@ -1274,7 +1301,7 @@ value	PersonalEventBuilder::history.list.columns.12.caption	Стан WORD
 value	PersonalEventBuilder::history.list.columns.count	12
 value	PersonalEventBuilder::history.sheet	EventsHistory
 value	PersonalEventBuilder::history.table	tbEventsHistory
-value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo
+value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo|TvoReturnSnapshot=TvoReturnSnapshot
 value	PersonalEventBuilder::history.exports.sheet	ExportJournal
 value	PersonalEventBuilder::history.exports.table	tbExportJournal
 value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
@@ -1292,6 +1319,12 @@ value	PersonalEventBuilder::history.fieldState.table	tbExportFieldState
 value	PersonalEventBuilder::history.fieldState.fields	EventRowId|Exporter|Target|Side|Field|Revision|GeneratedValue|AppliedValue
 value	PersonalEventBuilder::history.identityFields	AcceptedOrderNumber|AcceptedOrderDate|PersonId|EventId|EventDate
 value	PersonalEventBuilder::history.selfReportPattern	^\s*$|^\s*[Сс][Аа][Мм]\s*$
+value	PersonalEventBuilder::document.fields.1.record	Document.Name
+value	PersonalEventBuilder::document.fields.1.formField	Document
+value	PersonalEventBuilder::document.fields.1.captionKey	PersonalEventBuilder::text.ModeDocumentLabel
+value	PersonalEventBuilder::document.fields.1.sourceAlias	Document
+value	PersonalEventBuilder::document.fields.count	1
+value	PersonalEventBuilder::document.lookup.key	Document
 value	PersonalEventBuilder::hospital.fields.1.record	Hospital.Name
 value	PersonalEventBuilder::hospital.fields.1.formField	Hospital
 value	PersonalEventBuilder::hospital.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
@@ -1314,9 +1347,26 @@ value	PersonalEventBuilder::reporter.fields.3.record	Personnel.PositionCode
 value	PersonalEventBuilder::reporter.fields.3.formField	ReportPositionCode
 value	PersonalEventBuilder::reporter.fields.3.captionKey	PersonalEventBuilder::text.ModeReportPositionCodeLabel
 value	PersonalEventBuilder::reporter.fields.3.sourceAlias	Personnel
-value	PersonalEventBuilder::reporter.fields.count	3
+value	PersonalEventBuilder::reporter.fields.4.record	Event.IncomingDate
+value	PersonalEventBuilder::reporter.fields.4.formField	IncomingDate
+value	PersonalEventBuilder::reporter.fields.4.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
+value	PersonalEventBuilder::reporter.fields.4.sourceAlias	CurrentOrder
+value	PersonalEventBuilder::reporter.fields.count	4
 value	PersonalEventBuilder::reporter.lookup.key	ReportName
 value	PersonalEventBuilder::personnel.autoFill.default	true
+  ref	PersonalEventBuilder::returnTvo.rank.path	__cfgDependencies.filePersonnelShpo
+value	PersonalEventBuilder::returnTvo.rank.when.field	PersonId
+value	PersonalEventBuilder::returnTvo.rank.when.pattern	\S
+value	PersonalEventBuilder::returnTvo.rank.input	PersonId
+  ref	PersonalEventBuilder::returnTvo.rank.range	__cfgDependencies.source.Personnel.range
+  ref	PersonalEventBuilder::returnTvo.rank.sheet	__cfgDependencies.source.Personnel.sheet
+value	PersonalEventBuilder::returnTvo.rank.output	PersonRank
+value	PersonalEventBuilder::returnTvo.rank.keyHeader	ІПН
+value	PersonalEventBuilder::returnTvo.rank.valueHeader	Військове звання фактично
+value	PersonalEventBuilder::returnTvo.headers.TvoName	ТВО.ПІБ
+value	PersonalEventBuilder::returnTvo.headers.TvoPersonId	ТВО.ІПН
+value	PersonalEventBuilder::returnTvo.headers.TvoPositionCode	ТВО.Посада
+value	PersonalEventBuilder::returnTvo.snapshot.fields	PersonId|PersonName|PersonRank|PositionCode|RankGenitive|FIOAccusative|PositionGenitive|RankDative|FIODative
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::candidates.textWarningLimit	255
   ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
@@ -1328,5 +1378,6 @@ value	PersonalEventBuilder::validation.Movement.enabled	true
 value	PersonalEventBuilder::environment.name	PROD
 value	PersonalEventBuilder::environment.config.PROD	../../config/PersonalEventBuilder/wsConfig.txt
 value	PersonalEventBuilder::environment.config.TEST	../../config/PersonalEventBuilder/wsConfig.test.txt
+value	PersonalEventBuilder::eventContext.ToBusinessTrip.targetStatus	BusinessTrip
 value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}

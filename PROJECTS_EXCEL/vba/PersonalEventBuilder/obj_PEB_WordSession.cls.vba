@@ -63,7 +63,7 @@ Public Function Acquire() As Object
         Set m_application = VBA.CreateObject("Word.Application")
     End If
     m_application.Visible = False
-    m_application.ScreenUpdating = False
+    m_application.ScreenUpdating = True
     m_application.DisplayAlerts = 0
     m_application.AutomationSecurity = 3
     Set Acquire = m_application

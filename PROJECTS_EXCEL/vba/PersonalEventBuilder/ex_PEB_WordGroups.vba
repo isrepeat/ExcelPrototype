@@ -114,6 +114,7 @@ Public Function fn_Key( _
     ByVal fields As String _
 ) As String
     Dim field As Variant
+
     Dim value As Variant
     Dim text As String
     Dim result As String
@@ -155,6 +156,8 @@ Private Function private_RenderGroup( _
     Dim child As Object
     Dim result As String
     Dim field As Variant
+    Dim itemContext As Object
+    Dim itemIndex As Long
 
     Set buckets = VBA.CreateObject("Scripting.Dictionary")
     For Each item In items
@@ -182,6 +185,7 @@ Private Function private_RenderGroup( _
             context.Add field, private_NumberRanges(members, aggregate)
         Next aggregate
         If members.Count = 1 Then
+            context("__GroupFirst") = True
             Set branch = group.selectSingleNode("p:single")
         Else
             Set branch = group.selectSingleNode("p:multiple")
@@ -200,8 +204,15 @@ Private Function private_RenderGroup( _
                             private_Append result, private_RenderText(child, context, renderer)
                         End If
                     Case "item"
+                        itemIndex = 0
                         For Each item In members
-                            private_Append result, private_RenderText(child, item, renderer)
+                            itemIndex = itemIndex + 1
+                            Set itemContext = VBA.CreateObject("Scripting.Dictionary")
+                            For Each field In item.Keys
+                                itemContext.Add field, item(field)
+                            Next field
+                            itemContext("__GroupFirst") = (itemIndex = 1)
+                            private_Append result, private_RenderText(child, itemContext, renderer)
                         Next item
                     Case "group"
                         private_Append result, private_RenderGroup(child, members, renderer)

@@ -118,6 +118,8 @@ Public Function TryInsert( _
     Dim failureNumber As Long
     Dim failureSource As String
     Dim failureText As String
+    Dim characterIndex As Long
+    Dim character As String
 
     On Error GoTo EH
     stage = "ResolveAnchor"
@@ -140,6 +142,14 @@ Public Function TryInsert( _
     stage = "NormalizeText"
     rendered = VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbCr)
     rendered = VBA.Replace$(rendered, VBA.vbLf, VBA.vbCr)
+    ' Anchor sections continue the preceding heading, which ends with a colon.
+    For characterIndex = 1 To VBA.Len(rendered)
+        character = VBA.Mid$(rendered, characterIndex, 1)
+        If VBA.UCase$(character) <> VBA.LCase$(character) Then
+            Mid$(rendered, characterIndex, 1) = VBA.LCase$(character)
+            Exit For
+        End If
+    Next characterIndex
     stage = "FindBeginMarker"
     Set beginRange = private_FindMarker(document, VBA.CStr(positions(0)))
     stage = "FindEndMarker"

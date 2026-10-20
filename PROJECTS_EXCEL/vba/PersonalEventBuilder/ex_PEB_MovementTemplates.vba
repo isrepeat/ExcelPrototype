@@ -96,7 +96,7 @@ Private Sub private_EnsureLoaded()
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.fields") & "|" & ex_PEB_Export.fn_Config("export.shared.inputs.scalars"), "|")
         m_knownFields(key) = True
     Next key
-    For Each key In VBA.Array("EventName", "SourceEventName", "SourceDestination", "TicketDocument", "FoodSupportDate")
+    For Each key In VBA.Array("EventName", "SourceEventName", "SourceDestination", "TicketDocument", "FoodSupportDate", "SourceStatus", "TargetStatus", "Operation")
         m_knownFields(key) = True
     Next key
     For Each section In VBA.Array("lookups", "aliases", "constants")
