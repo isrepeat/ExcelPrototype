@@ -304,21 +304,24 @@
             hash="0x02"
             identityBy="PersonId; EffectiveReturnDateShort; EventId"
             orderBy="EffectiveReturnDateShort; HospitalGenitive; PersonId">
+    <derived name="HospitalGroup">
+      <text>hospital:{[HospitalGenitive]}</text>
+    </derived>
     <group by="EffectiveReturnDateShort">
       <single>
-        <text><![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
+        <text><![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}{#if [HospitalGenitive]}З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#newline}{#newline}{#endif}{#include block.PersonLineLower}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
       </single>
       <multiple>
         <header common="EffectiveReturnDateShort">
           <text><![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
         </header>
-        <group by="HospitalGenitive">
+        <group by="HospitalGroup">
           <single>
-            <text><![CDATA[З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
+            <text><![CDATA[{#if [HospitalGenitive]}З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#newline}{#newline}{#endif}{#include block.PersonLineLower}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
           </single>
           <multiple>
             <header common="HospitalGenitive">
-              <text><![CDATA[З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:]]></text>
+              <text><![CDATA[{#if [HospitalGenitive]}З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#endif}]]></text>
             </header>
             <item>
               <text>{#include block.PersonLineUpper}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.</text>

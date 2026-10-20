@@ -278,7 +278,7 @@ Private Function private_RenderGroup( _
                         Else
                             private_RequireCommon child, members
                             text = private_RenderText(child, context, renderer)
-                            If child.baseName = "header" Then text = private_GroupHeader(text)
+                            If child.baseName = "header" And VBA.Len(VBA.Trim$(text)) > 0 Then text = private_GroupHeader(text)
                             private_Append result, text
                         End If
                     Case "item"
