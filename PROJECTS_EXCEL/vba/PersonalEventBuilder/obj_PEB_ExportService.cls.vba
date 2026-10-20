@@ -1202,6 +1202,11 @@ Private Sub private_Enrich( _
     Dim lookupTable As obj_DataTable
     Dim lookupValues As Object
     Dim lookupKey As String
+    Dim lookupInput As String
+    Dim specialPosition As String
+    Dim rankField As String
+    Dim mapping As Variant
+    Dim pair As Variant
 
     On Error GoTo EH
     inputField = ex_PEB_Export.fn_Config(prefix & ".input")
@@ -1223,6 +1228,25 @@ Private Sub private_Enrich( _
     If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, inputField))) = 0 Then
         Err.Raise 5, , "Lookup input is empty: " & inputField
     End If
+    lookupInput = ex_PEB_Export.fn_Text(values(inputField))
+    For Each mapping In Split(ex_PEB_Export.fn_Config("export.shared.positions.inputs"), "|")
+        pair = Split(mapping, "=")
+        If inputField = pair(0) Then
+            rankField = pair(1)
+            lookupInput = private_PositionKey(lookupInput)
+            If lookupInput = ex_PEB_Export.fn_Config("export.shared.positions.rozp.code") Then
+                rx.Pattern = ex_PEB_Export.fn_Config("export.shared.positions.officerPattern")
+                If rx.Test(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, rankField))) Then
+                    specialPosition = ex_PEB_Export.fn_Config("export.shared.positions.rozp.officerUnit")
+                Else
+                    specialPosition = ex_PEB_Export.fn_Config("export.shared.positions.rozp.otherUnit")
+                End If
+                values.Add outputField, Replace$(ex_PEB_Export.fn_Config("export.shared.positions.rozp.text"), "{unit}", specialPosition)
+                Exit Sub
+            End If
+            Exit For
+        End If
+    Next mapping
     Set tableSource = New obj_TableSource
     Set tableQuery = New obj_TableQuery
     Set tableQueryService = New obj_TableQueryService
@@ -1242,14 +1266,14 @@ Private Sub private_Enrich( _
     If header <> valueHeader Then
         tableQuery.AddColumn valueHeader
     End If
-    tableQuery.AddCondition header, QueryEquals, values(inputField), QueryText, True
+    tableQuery.AddCondition header, QueryEquals, lookupInput, QueryText, True
     tableQuery.Limit = 2
     tableQueryService.Backend = QueryAuto
     Set lookupTable = private_LookupTable(tableSource, tableQueryService, lookupValues, diagnostic)
     If lookupTable Is Nothing Then
         Err.Raise 5, , diagnostic
     End If
-    lookupKey = header & VBA.vbNullChar & valueHeader & VBA.vbNullChar & VBA.CStr(values(inputField))
+    lookupKey = header & VBA.vbNullChar & valueHeader & VBA.vbNullChar & lookupInput
     If lookupValues.Exists(lookupKey) Then
         values.Add outputField, lookupValues(lookupKey)
         GoTo Cleanup
@@ -1289,6 +1313,30 @@ EH:
     errorText = VBA.Err.Description
     Resume Cleanup
 End Sub
+
+Private Function private_PositionKey(ByVal value As String) As String
+    Dim normalized As String
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim kind As Variant
+    Dim prefix As String
+    Dim code As String
+
+    private_PositionKey = UCase$(ex_TableQuery.fn_NormalizeText(value))
+    normalized = Replace$(private_PositionKey, " ", vbNullString)
+    For Each mapping In Split(ex_PEB_Export.fn_Config("export.shared.positions.characters"), "|")
+        pair = Split(mapping, "=")
+        normalized = Replace$(normalized, pair(0), pair(1))
+    Next mapping
+    For Each kind In Array("rozp", "spis")
+        prefix = ex_PEB_Export.fn_Config("export.shared.positions." & kind & ".prefix")
+        code = ex_PEB_Export.fn_Config("export.shared.positions." & kind & ".code")
+        If private_PositionKey = code Or Left$(normalized, Len(prefix)) = prefix Then
+            private_PositionKey = code
+            Exit Function
+        End If
+    Next kind
+End Function
 
 Private Function private_LookupTable( _
     ByVal source As obj_TableSource, _

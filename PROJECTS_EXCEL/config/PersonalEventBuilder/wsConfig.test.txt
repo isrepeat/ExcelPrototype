@@ -634,19 +634,60 @@ value	PersonalEventBuilder::forms.Leave.fields.10.captionKey	PersonalEventBuilde
 value	PersonalEventBuilder::forms.Leave.fields.11.name	IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.record	Event.IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
-value	PersonalEventBuilder::forms.Leave.fields.12.name	EventDate
-value	PersonalEventBuilder::forms.Leave.fields.12.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
-value	PersonalEventBuilder::forms.Leave.fields.13.name	TicketNumber
-value	PersonalEventBuilder::forms.Leave.fields.13.record	Absence.TicketNumber
-value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
+value	PersonalEventBuilder::forms.Leave.fields.12.name	TicketNumber
+value	PersonalEventBuilder::forms.Leave.fields.12.record	Absence.TicketNumber
+value	PersonalEventBuilder::forms.Leave.fields.12.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
+value	PersonalEventBuilder::forms.Leave.fields.12.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.13.name	TicketDate
+value	PersonalEventBuilder::forms.Leave.fields.13.record	Absence.TicketDate
+value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeTicketDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.13.sourceAlias	Absence
-value	PersonalEventBuilder::forms.Leave.fields.14.name	TicketDate
-value	PersonalEventBuilder::forms.Leave.fields.14.record	Absence.TicketDate
-value	PersonalEventBuilder::forms.Leave.fields.14.captionKey	PersonalEventBuilder::text.ModeTicketDateLabel
-value	PersonalEventBuilder::forms.Leave.fields.14.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.14.name	EventDate
+value	PersonalEventBuilder::forms.Leave.fields.14.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.count	14
 value	PersonalEventBuilder::forms.Leave.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::forms.readOnly.modes.ToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.FromHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.ToBusinessTrip	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.FromExternalVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.FromBusinessTrip	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.ToMaternityLeave	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForFamily	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.ToAnnualMainVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.FromVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.FromVacationForFamily	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVlkToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.FromAnnualMainVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAwolToBusinessTrip	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAnnualVacationToVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromFamilyVacationToVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.ToMedicalCompanyForTreatment	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.ToOutpatientExaminationOrVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromExternalVlkToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromHospitalToExternalVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.FromMedicalCompanyForTreatment	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.FromOutpatientExaminationOrVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVlkToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAnnualVacationToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromFamilyVacationToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromHospitalToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAnnualVacationToFamilyVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromExternalVlkToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromFamilyVacationToAnnualVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromOutpatientVlkToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAnnualVacationToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromFamilyVacationToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToAnnualVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyForTreatmentToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyVacationForCuringToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyForTreatmentToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.Treatment.fields.1.name	Hospital
 value	PersonalEventBuilder::forms.Treatment.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
 value	PersonalEventBuilder::forms.Treatment.fields.2.name	HospitalShortName
@@ -1249,6 +1290,16 @@ value	PersonalEventBuilder::export.shared.lookups.7.output	ReportPositionGenitiv
 value	PersonalEventBuilder::export.shared.lookups.7.keyHeader	Код
 value	PersonalEventBuilder::export.shared.lookups.7.valueHeader	Родовий
 value	PersonalEventBuilder::export.shared.lookups.count	7
+value	PersonalEventBuilder::export.shared.positions.rozp.code	РОЗП
+value	PersonalEventBuilder::export.shared.positions.rozp.text	який перебуває у розпорядженні командира військової частини {unit}
+  ref	PersonalEventBuilder::export.shared.positions.rozp.prefix	__cfgDependencies.common::position.rozp.prefix
+  ref	PersonalEventBuilder::export.shared.positions.rozp.otherUnit	__cfgDependencies.common::position.rozp.other_unit
+  ref	PersonalEventBuilder::export.shared.positions.rozp.officerUnit	__cfgDependencies.common::position.rozp.officer_unit
+  ref	PersonalEventBuilder::export.shared.positions.spis.code	__cfgDependencies.common::position.spis.short
+  ref	PersonalEventBuilder::export.shared.positions.spis.prefix	__cfgDependencies.common::position.spis.prefix
+value	PersonalEventBuilder::export.shared.positions.inputs	PositionCode=PersonRank|ReportPositionCode=ReportRank
+value	PersonalEventBuilder::export.shared.positions.characters	А=A|В=B
+value	PersonalEventBuilder::export.shared.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)
 value	PersonalEventBuilder::export.shared.constants.1.kind	emptyText
 value	PersonalEventBuilder::export.shared.constants.1.name	VlkNo
 value	PersonalEventBuilder::export.shared.constants.2.kind	emptyText
@@ -1502,6 +1553,13 @@ value	PersonalEventBuilder::lookup.ReturnTickets.temporaryIpn	ТП-ІПН
   ref	PersonalEventBuilder::lookup.ReturnTickets.arrivalHeader	__cfgDependencies.tbTickets::column.arrival_plan
   ref	PersonalEventBuilder::lookup.ReturnTickets.destinationHeader	__cfgDependencies.tbTickets::column.destination
 value	PersonalEventBuilder::lookup.ReturnTickets.departureSourceAlias	Absence
+value	PersonalEventBuilder::lookup.ReturnHospital.modes	FromHospital
+value	PersonalEventBuilder::lookup.ReturnHospital.fields	Hospital|HospitalShortName|Document|DocumentNumber
+value	PersonalEventBuilder::lookup.ReturnHospital.dateField	DocumentDate
+  ref	PersonalEventBuilder::lookup.ReturnHospital.basisHeader	PersonalEventBuilder::export.Movement.headers.DepartureBasis
+value	PersonalEventBuilder::lookup.ReturnHospital.cardPattern	МКСХ\s*(?:№|N(?:o)?\.?)?\s*([0-9]+(?:[/-][0-9A-Za-zА-Яа-яІіЇїЄєҐґ]+)*)
+value	PersonalEventBuilder::lookup.ReturnHospital.sourceAlias	ReturnTickets
+value	PersonalEventBuilder::lookup.ReturnHospital.cardDocument	м/к
   ref	PersonalEventBuilder::orders.source.path	__cfgDependencies.fileOrders
   ref	PersonalEventBuilder::orders.source.range	__cfgDependencies.source.Orders.range
   ref	PersonalEventBuilder::orders.source.sheet	__cfgDependencies.source.Orders.sheet

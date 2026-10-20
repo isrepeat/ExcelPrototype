@@ -62,9 +62,9 @@ def main():
     assert "source.WorkbookPath = snapshot" in provider and "service.Backend = QueryAdo" in provider
     assert "For row = table.RowCount To 1 Step -1" in provider
     assert 'VBA.Len(ticket) > 0 And VBA.Len(orderNumber) > 0' in provider
-    assert 'm_byIpn.Add ipn, VBA.Array(ticket, orderNumber, destination, arrivalDate)' in provider
-    assert 'm_byName.Add name, VBA.Array(ticket, orderNumber, destination, arrivalDate)' in provider
-    assert 'fields("Absence.PlannedArrivalDate") = pair(3)' in provider
+    assert 'm_byIpn.Add ipn, VBA.Array(ticket, orderNumber, destination, arrivalValue)' in provider
+    assert 'm_byName.Add name, VBA.Array(ticket, orderNumber, destination, arrivalValue)' in provider
+    assert 'fields("Absence.PlannedArrivalDate") = Format$(CDate(pair(3)), "dd.mm.yyyy")' in provider
     assert 'fields("Event.IncomingDate") = VBA.Format$(parsedOrderDate, "dd.mm.yyyy")' in enricher
     assert 'fields("Absence.Destination") = pair(2)' in provider
     assert config('wsConfig.txt')['lookup.ReturnTickets.destinationHeader'] == 'Куди'

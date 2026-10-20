@@ -17,6 +17,23 @@ def main():
     controller = (folder / "obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
     revisions = (folder / "ex_PEB_HistoryRevisions.vba").read_text(encoding="utf-8-sig")
     recovery = (folder / "ex_PEB_HistoryRecovery.vba").read_text(encoding="utf-8-sig")
+    return_provider = (folder / "obj_PEB_ReturnTickets.cls.vba").read_text(encoding="utf-8-sig")
+    check_declarations(return_provider)
+    check_blocks(return_provider)
+    enricher = (folder / "obj_PEB_CandidateEnricher.cls.vba").read_text(encoding="utf-8-sig")
+    check_declarations(enricher)
+    check_blocks(enricher)
+    assert "New obj_LookupRecord" not in procedure(enricher, "private_LoadLatest")
+    assert 'm_absenceRecords.Exists(name)' in procedure(enricher, "private_AbsenceRecord")
+    assert "Format$" not in procedure(return_provider, "private_LoadMovement")
+    hospital = procedure(return_provider, "private_LoadHospital")
+    assert "For row = table.RowCount To 1 Step -1" in hospital
+    assert 'm_hospitalByIpn.Add ipn, fields' in hospital
+    assert 'rx.Execute' not in hospital
+    enrich_hospital = procedure(return_provider, "TryEnrichHospital")
+    assert 'If Not cached.Exists("Parsed") Then' in enrich_hospital
+    assert enrich_hospital.index('index.Exists(key)') < enrich_hospital.index('rx.Execute(cached("Basis"))')
+    assert 'm_hospitalStamp = stamp' in hospital
     for source in (manager, children, history, service, controller, revisions, recovery):
         check_declarations(source)
         check_blocks(source)
@@ -63,6 +80,8 @@ def main():
     assert 'RefreshContent("ExtensionRows", diagnostic, True)' in switch_mode
     load_mode = procedure(controller, "private_LoadMode")
     assert 'If CStr(currentForm) <> formKind Then' in load_mode
+    capture_mode = procedure(controller, "private_CaptureModeConfig")
+    assert 'SetValue("Form", CStr(field) & "ReadOnly", False)' in capture_mode
     assert switch_mode.index('updates("Form.EventDate") = VBA.vbNullString') < switch_mode.index('m_pageBase.FlushUpdates()')
     render_context = (ROOT / "PROJECTS_EXCEL/vba/common/[2] classes/obj_UiRenderContext.cls.vba").read_text(encoding="utf-8-sig")
     flush = procedure(render_context, "FlushUpdates")
@@ -79,7 +98,32 @@ def main():
     profiles = []
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         config = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
-        for form, index in (("Leave", 12), ("Treatment", 16)):
+        officer_pattern = re.compile(config["export.shared.positions.officerPattern"], re.IGNORECASE)
+        for rank in ("молодший лейтенант", "майор", "полковник", "капітан медичної служби"):
+            assert officer_pattern.search(rank)
+        for rank in ("солдат", "старший солдат", "головний сержант"):
+            assert not officer_pattern.search(rank)
+        assert config["export.shared.positions.inputs"] == "PositionCode=PersonRank|ReportPositionCode=ReportRank"
+        assert "{unit}" in config["export.shared.positions.rozp.text"]
+        position_key = procedure(service, "private_PositionKey")
+        assert 'Array("rozp", "spis")' in position_key
+        enrich = procedure(service, "private_Enrich")
+        assert enrich.index('private_PositionKey(lookupInput)') < enrich.index('Set tableSource = New')
+        assert 'tableQuery.AddCondition header, QueryEquals, lookupInput' in enrich
+        routes = ET.parse(ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderEventRoutes.xml").getroot()
+        all_fields = set(config["forms.readOnly.fields"].split("|"))
+        for event in routes.findall("{urn:excelprototype:profiles}events/{urn:excelprototype:profiles}event"):
+            dependents = config["forms.readOnly.modes." + event.get("id")].split("|")
+            assert set(dependents) - {"-"} <= all_fields
+        assert "DocumentNumber" not in config["forms.readOnly.modes.FromHospital"].split("|")
+        assert "DocumentDate" not in config["forms.readOnly.modes.FromHospital"].split("|")
+        assert config["lookup.ReturnHospital.dateField"] == "DocumentDate"
+        assert config["lookup.ReturnHospital.modes"] == "FromHospital"
+        pattern = re.compile(config["lookup.ReturnHospital.cardPattern"], re.IGNORECASE)
+        for text, number in (("МКСХ №5231 від 16.10.2026", "5231"), ("рапорт; МКСХ 123/45", "123/45"), ("мксх № 001-2", "001-2")):
+            assert pattern.search(text).group(1) == number
+        assert pattern.search("рапорт №123 від 16.10.2026") is None
+        for form, index in (("Leave", 14), ("Treatment", 16)):
             date_prefix = f"forms.{form}.fields.{index}"
             assert config[date_prefix + ".name"] == "EventDate"
             assert date_prefix + ".record" not in config
@@ -117,6 +161,8 @@ def main():
 
     page = ET.parse(ROOT / "PROJECTS_EXCEL/ui/PersonalEventBuilder/MainPage.xaml").getroot()
     ns = {"p": "urn:excelprototype:profiles", "c": "urn:excelprototype:controls"}
+    for field in page.findall("p:fieldCatalog/p:field", ns):
+        assert field.get("readOnly") == "{Binding Path=Form." + field.get("name") + "ReadOnly}"
     workspace = page.find(".//p:stackPanel[@name='EventWorkspace']", ns)
     assert page.find(".//c:label[@name='PersonnelSection']", ns) is None
     order = [node.get("name") for node in workspace]
@@ -142,6 +188,12 @@ def main():
     assert '"Data", "ExtCandidates"' not in manager
     assert 'ExecuteWithPayload' in (ROOT / "PROJECTS_EXCEL/vba/common/[2] classes/obj_UiCommand.cls.vba").read_text(encoding="utf-8-sig")
     assert 'm_extensions.TryLoad(row("FormExtensionRows"), diagnostic)' in controller
+    assert 'If success And extensionRows.Count > 0 Then' in controller
+    assert 'm_extensions.TryAcceptSaved(values("FormExtensionRows"), diagnostic)' in controller
+    accept_saved = procedure(manager, "TryAcceptSaved")
+    assert 'row("RowId") = child("RowId")' in accept_saved
+    assert 'row("ParentRowId") = child("ParentRowId")' in accept_saved
+    assert "BindingContext" not in accept_saved and ".Build(" not in accept_saved
     save = procedure(history, "fn_Save")
     assert save.index("fn_Plan(") < save.index("ex_PEB_HistoryRevisions.fn_Prepare")
     assert save.index("ex_PEB_HistoryRecovery.fn_Prepare") < save.index("target.Range.Value2 = data")
