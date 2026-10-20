@@ -460,6 +460,41 @@ Public Function TryLoad( _
     TryLoad = True
 End Function
 
+Public Function TryAcceptSaved( _
+    ByVal children As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim index As Long
+    Dim row As Object
+    Dim child As Object
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If children.Count <> m_rows.Count Then
+        diagnostic = "Saved extension count differs from the current form."
+        Exit Function
+    End If
+    ' Validate the correspondence before updating identifiers used by existing commands.
+    For index = 1 To m_rows.Count
+        Set row = m_rows(index)
+        Set child = children(index)
+        If row("Type") <> child("RowType") Then
+            diagnostic = "Saved extension type differs from the current form."
+            Exit Function
+        End If
+        If Not child.Exists("RowId") Or Not child.Exists("ParentRowId") Then
+            diagnostic = "Saved extension identifiers are missing."
+            Exit Function
+        End If
+    Next index
+    For index = 1 To m_rows.Count
+        Set row = m_rows(index)
+        Set child = children(index)
+        row("RowId") = child("RowId")
+        row("ParentRowId") = child("ParentRowId")
+    Next index
+    TryAcceptSaved = True
+End Function
+
 ' //
 ' // Private
 ' //

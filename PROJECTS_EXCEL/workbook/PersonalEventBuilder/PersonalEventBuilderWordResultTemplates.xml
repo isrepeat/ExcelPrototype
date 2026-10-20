@@ -272,7 +272,7 @@
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       #^
-#_      З {[Destination]|nbspAfterSettlementAbbr}:#^
+#_      з {[Destination]|nbspAfterSettlementAbbr}:#^
 #_      {#newline}{#newline}#^
       #^
 #_      {#include block.PersonLineLower}.#^
@@ -291,7 +291,7 @@
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^
       #^
-#_      З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:#^
+#_      з {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:#^
 #_      {#newline}{#newline}#^
       #^
 #_      {#include block.PersonLineLower}.#^

@@ -14,6 +14,8 @@ Private m_isDisposed As Boolean
 
 Private m_absenceProfile As obj_LookupProfile
 Private m_latestByName As Object
+Private m_absenceTable As obj_DataTable
+Private m_absenceRecords As Object
 Private m_returnTickets As obj_PEB_ReturnTickets
 
 ' //
@@ -56,10 +58,16 @@ Public Sub Dispose()
     Set m_returnTickets = Nothing
     Set m_absenceProfile = Nothing
     Set m_latestByName = Nothing
+    If Not m_absenceTable Is Nothing Then m_absenceTable.Dispose
+    Set m_absenceTable = Nothing
+    Set m_absenceRecords = Nothing
 End Sub
 
 Public Sub InvalidateCache()
     Set m_latestByName = Nothing
+    If Not m_absenceTable Is Nothing Then m_absenceTable.Dispose
+    Set m_absenceTable = Nothing
+    Set m_absenceRecords = Nothing
     If Not m_returnTickets Is Nothing Then
         m_returnTickets.InvalidateCache
     End If
@@ -115,7 +123,7 @@ Public Function TryEnrich( _
             If Not record.TryGetValue("Personnel.FullName", value) Then Err.Raise 5, , "Candidate name not found."
             name = ex_TableQuery.fn_NormalizeText(private_Text(value))
             If VBA.Len(name) > 0 And m_latestByName.Exists(name) Then
-                If Not copy.TryMerge(m_latestByName(name), False) Then Err.Raise 5, , "Cannot merge absence fields."
+                If Not copy.TryMerge(private_AbsenceRecord(name), False) Then Err.Raise 5, , "Cannot merge absence fields."
             End If
             output.Add copy
         Next record
@@ -172,6 +180,16 @@ Public Function TryEnrich( _
             Exit Function
         End If
     End If
+    If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Then
+        If m_returnTickets Is Nothing Then
+            Set m_returnTickets = New obj_PEB_ReturnTickets
+            If Not m_returnTickets.Initialize() Then Err.Raise 5, , "Cannot initialize Movement provider."
+        End If
+        If Not m_returnTickets.TryEnrichHospital(output, diagnostic) Then
+            Set output = Nothing
+            Exit Function
+        End If
+    End If
     TryEnrich = True
     Exit Function
 EH:
@@ -188,9 +206,7 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
     Dim dataTable As obj_DataTable
     Dim byName As Object
     Dim datesByName As Object
-    Dim fields As Object
     Dim column As Object
-    Dim record As obj_LookupRecord
     Dim name As String
     Dim value As Variant
     Dim departureDate As Date
@@ -214,27 +230,21 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
         If VBA.Len(name) > 0 Then
             value = dataTable.ValueAt(rowIndex, ex_TableQuery.fn_HeaderIndex(dataTable.Headers, m_absenceProfile.HeaderFor("Absence.DepartureDate")))
             If Not private_TryDate(value, departureDate) Then Err.Raise 5, , "Invalid departure date in extension row: " & VBA.CStr(rowIndex)
-            Set fields = VBA.CreateObject("Scripting.Dictionary")
-            For Each column In m_absenceProfile.Columns
-                value = dataTable.ValueAt(rowIndex, ex_TableQuery.fn_HeaderIndex(dataTable.Headers, column("header")))
-                If VBA.IsError(value) Then Err.Raise 5, , "Excel error in extension column: " & column("header")
-                If VBA.IsNull(value) Or VBA.IsEmpty(value) Then value = VBA.vbNullString
-                fields(column("name")) = value
-            Next column
-            fields("Absence.DepartureDate") = VBA.Format$(departureDate, "dd.mm.yyyy")
-            Set record = New obj_LookupRecord
-            If Not record.Initialize(name, fields) Then Err.Raise 5, , "Cannot initialize absence record."
             ' Equal dates use the last physical row in the source table.
             If Not byName.Exists(name) Then
-                Set byName(name) = record
+                byName(name) = Array(rowIndex, departureDate)
                 datesByName(name) = VBA.CDbl(departureDate)
             ElseIf VBA.CDbl(departureDate) >= datesByName(name) Then
-                Set byName(name) = record
+                byName(name) = Array(rowIndex, departureDate)
                 datesByName(name) = VBA.CDbl(departureDate)
             End If
         End If
     Next rowIndex
     Set m_latestByName = byName
+    Set m_absenceTable = dataTable
+    Set dataTable = Nothing
+    Set m_absenceRecords = CreateObject("Scripting.Dictionary")
+    m_absenceRecords.CompareMode = vbTextCompare
     private_LoadLatest = True
 Cleanup:
     If Not tableQueryService Is Nothing Then tableQueryService.Dispose
@@ -244,6 +254,32 @@ Cleanup:
 EH:
     diagnostic = "Load absence extension: " & VBA.Err.Description
     Resume Cleanup
+End Function
+
+Private Function private_AbsenceRecord(ByVal name As String) As obj_LookupRecord
+    Dim fields As Object
+    Dim column As Object
+    Dim record As obj_LookupRecord
+    Dim location As Variant
+    Dim value As Variant
+
+    If m_absenceRecords.Exists(name) Then
+        Set private_AbsenceRecord = m_absenceRecords(name)
+        Exit Function
+    End If
+    location = m_latestByName(name)
+    Set fields = CreateObject("Scripting.Dictionary")
+    For Each column In m_absenceProfile.Columns
+        value = m_absenceTable.ValueAt(location(0), ex_TableQuery.fn_HeaderIndex(m_absenceTable.Headers, column("header")))
+        If IsError(value) Then Err.Raise 5, , "Excel error in candidate extension column: " & column("header")
+        If IsNull(value) Or IsEmpty(value) Then value = vbNullString
+        fields(column("name")) = value
+    Next column
+    fields("Absence.DepartureDate") = Format$(location(1), "dd.mm.yyyy")
+    Set record = New obj_LookupRecord
+    If Not record.Initialize(name, fields) Then Err.Raise 5, , "Cannot initialize candidate absence record."
+    m_absenceRecords.Add name, record
+    Set private_AbsenceRecord = record
 End Function
 
 Private Function private_TryDate( _

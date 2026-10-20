@@ -554,10 +554,14 @@ Public Function AutoFillPersonnelChangedHandler() As Boolean
     Dim selectedValue As Variant
     Dim selected As Object
     Dim isObject As Boolean
+    Dim diagnostic As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    If Not private_UpdateReadOnly(m_modeId, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
     If VBA.CBool(autoFill) Then
         If Not m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selected, isObject) Then Exit Function
         If isObject Then
@@ -1920,10 +1924,8 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     ElseIf exporter = "History" Then
         success = ex_PEB_History.fn_Save(values, diagnostic)
-        If success Then
-            If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic) Then GoTo Failed
-            If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo Failed
-            If Not m_pageBase.UpdatePage() Then Exit Function
+        If success And extensionRows.Count > 0 Then
+            If Not m_extensions.TryAcceptSaved(values("FormExtensionRows"), diagnostic) Then GoTo Failed
         End If
         If success Then status = VBA.Replace$(status, "{action}", VBA.CStr(values("HistoryAction")))
         If success And Not m_editHistoryRow Is Nothing Then
@@ -1969,6 +1971,8 @@ Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolea
     Dim rowIndex As Long
     Dim key As String
     Dim prefix As String
+    Dim field As Variant
+    Dim fields As String
 
     On Error GoTo EH
     prefix = "PersonalEventBuilder::"
@@ -1996,6 +2000,14 @@ Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolea
             m_modeConfig.Add key, VBA.Trim$(VBA.CStr(values(rowIndex, keyColumn + 1)))
         End If
     Next rowIndex
+    ' Batch updates require existing scalar targets before loading the initial mode.
+    If Not private_ReadModeConfig("forms.readOnly.fields", fields, diagnostic) Then Exit Function
+    For Each field In Split(fields, "|")
+        If Not m_pageBase.BindingContext.SetValue("Form", CStr(field) & "ReadOnly", False) Then
+            diagnostic = "Cannot initialize read-only binding: " & field
+            Exit Function
+        End If
+    Next field
     private_CaptureModeConfig = True
     Exit Function
 EH:
@@ -2107,6 +2119,7 @@ Private Function private_LoadMode( _
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
     If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
+    If Not private_UpdateReadOnly(modeId, diagnostic) Then Exit Function
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
         If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
@@ -2243,6 +2256,35 @@ Private Function private_LoadMode( _
     Exit Function
 EH:
     diagnostic = "Mode configuration: " & VBA.Err.Description
+End Function
+
+Private Function private_UpdateReadOnly( _
+    ByVal modeId As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim fields As String
+    Dim dependents As String
+    Dim field As Variant
+    Dim autoFill As Variant
+    Dim updates As Object
+
+    If Not private_ReadModeConfig("forms.readOnly.fields", fields, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("forms.readOnly.modes." & modeId, dependents, diagnostic) Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    Set updates = CreateObject("Scripting.Dictionary")
+    For Each field In Split(dependents, "|")
+        If field <> "-" Then
+            If InStr(1, "|" & fields & "|", "|" & field & "|", vbBinaryCompare) = 0 Then
+                diagnostic = "Unknown dependent field for mode " & modeId & ": " & field
+                Exit Function
+            End If
+        End If
+    Next field
+    For Each field In Split(fields, "|")
+        updates("Form." & field & "ReadOnly") = CBool(autoFill) And _
+            (InStr(1, "|" & dependents & "|", "|" & field & "|", vbBinaryCompare) > 0)
+    Next field
+    private_UpdateReadOnly = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
 End Function
 
 Private Function private_SwitchMode(ByVal modeId As String) As Boolean
@@ -2478,6 +2520,24 @@ Private Function private_SetCandidateSources( _
         If Not private_ReadModeConfig("lookup.ReturnTickets.departureSourceAlias", sourceAlias, diagnostic) Then Exit Function
     End If
     For Each column In columns
+        If Left$(column("name"), 9) = "Movement." Or _
+            column("formField") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.dateField") Then
+            column("name") = "Manual." & column("formField")
+            column("apply") = False
+            column("sourceAlias") = vbNullString
+        End If
+        If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Then
+            If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.fields") & "|", "|" & column("formField") & "|", vbBinaryCompare) > 0 Then
+                column("name") = "Movement." & column("formField")
+                column("apply") = True
+                column("sourceAlias") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.sourceAlias")
+            End If
+            If column("formField") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.dateField") Then
+                column("name") = orderDateField
+                column("apply") = True
+                column("sourceAlias") = orderDateAlias
+            End If
+        End If
         If VBA.InStr(1, "|" & fields & "|", "|" & column("name") & "|", VBA.vbTextCompare) > 0 Then
             column("sourceAlias") = sourceAlias
         End If
