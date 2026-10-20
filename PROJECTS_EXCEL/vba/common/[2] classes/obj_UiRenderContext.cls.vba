@@ -493,6 +493,10 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Dim layoutChanged As Variant
     Dim refreshed As Boolean
     Dim tableSettingsCaptured As Boolean
+    Dim contentPanel As obj_UiStackPanelElement
+    Dim contentArea As Range
+    Dim childKey As Variant
+    Dim covered As Range
 
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
@@ -583,6 +587,11 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
                     Set area = controlElement.RenderArea
                     private_UnionArea scope, area
                     If Not controlElement.RebuildStructure(diagnostic) Then GoTo CleanExit
+                ElseIf TypeOf registered Is obj_UiStackPanelElement Then
+                    Set contentPanel = registered
+                    private_UnionArea scope, contentPanel.RenderArea
+                    m_styles.ForgetControl VBA.CStr(key)
+                    If Not contentPanel.RebuildContent(diagnostic) Then GoTo CleanExit
                 End If
             End If
 NextStructure:
@@ -599,7 +608,12 @@ NextStructure:
                 Set controlElement = registered
                 Set area = controlElement.RenderArea
                 If Not area Is Nothing Then
-                    If Not oldAreas.Exists(key) Then pending(key) = True
+                    If Not oldAreas.Exists(key) Then
+                        pending(key) = True
+                    Else
+                        Set oldElement = oldElements(key)
+                        If Not registered Is oldElement Then pending(key) = True
+                    End If
                 End If
             End If
         Next key
@@ -629,6 +643,9 @@ NextStructure:
                 If TypeOf registered Is obj_UiControlElement Then
                     Set controlElement = registered
                     private_UnionArea scope, controlElement.RenderArea
+                ElseIf TypeOf registered Is obj_UiStackPanelElement Then
+                    Set contentPanel = registered
+                    private_UnionArea scope, contentPanel.RenderArea
                 End If
             End If
         Next key
@@ -640,6 +657,36 @@ NextStructure:
             m_styles.BeginPartialRender scope
         End If
     End If
+
+    ' Render rebuilt content once; its nested controls are rendered by the owner.
+    For Each key In pending.Keys
+        If m_elements.Exists(key) Then
+            Set registered = m_elements(key)
+            If TypeOf registered Is obj_UiStackPanelElement Then
+                Set contentPanel = registered
+                Set contentArea = contentPanel.RenderArea
+                If Not registered.Render(diagnostic) Then GoTo CleanExit
+                If Not contentArea Is Nothing Then
+                    For Each childKey In pending.Keys
+                        If m_elements.Exists(childKey) Then
+                            Set registered = m_elements(childKey)
+                            If TypeOf registered Is obj_UiControlElement Then
+                                Set controlElement = registered
+                                Set area = controlElement.RenderArea
+                                If Not area Is Nothing Then
+                                    Set covered = Application.Intersect(area, contentArea)
+                                    If Not covered Is Nothing Then
+                                        If covered.CountLarge = area.CountLarge Then pending.Remove childKey
+                                    End If
+                                End If
+                            End If
+                        End If
+                    Next childKey
+                End If
+                pending.Remove key
+            End If
+        End If
+    Next key
 
     ' Обновляем только dirty-контролы, сохраняя остальные объекты листа.
     For Each key In pending.Keys

@@ -438,12 +438,21 @@ Private Function private_ArrangeClose(ByRef diagnostic As String) As Boolean
     Dim columns As Long
     Dim command As String
     Dim caption As String
+    Dim closeColumn As Long
+    Dim firstColumn As Long
+    Dim candidates As obj_UiCandidatesControl
 
     private_ArrangeClose = True
     command = ex_UiElementFactory.fn_Attribute(m_definition, "closeCommand")
     If VBA.Len(command) = 0 Then Exit Function
     private_ArrangeClose = False
-    If m_area.Column <= 1 Then
+    closeColumn = m_area.Column - 1
+    If TypeOf m_control Is obj_UiCandidatesControl Then
+        Set candidates = m_control
+        firstColumn = ex_UiElementFactory.fn_Long(m_definition, "workspaceFirstColumn", 0)
+        If firstColumn > 0 Then closeColumn = m_area.Column - candidates.TableStartColumn + firstColumn - 1
+    End If
+    If closeColumn < 1 Then
         diagnostic = "A close button requires a free column to the left of the table."
         Exit Function
     End If
@@ -476,8 +485,9 @@ Private Function private_ArrangeClose(ByRef diagnostic As String) As Boolean
         If Not m_closeControl.Configure(definition, m_context, m_source, diagnostic) Then Exit Function
     End If
     If Not m_closeControl.Measure(rows, columns, diagnostic) Then Exit Function
-    If Not m_closeControl.Arrange(m_area.Row, m_area.Column - 1, diagnostic) Then Exit Function
-    Set m_area = m_area.Offset(0, -1).Resize(m_area.Rows.Count, m_area.Columns.Count + 1)
+    If Not m_closeControl.Arrange(m_area.Row, closeColumn, diagnostic) Then Exit Function
+    Set m_area = m_context.TargetWorksheet.Cells(m_area.Row, closeColumn).Resize( _
+        m_area.Rows.Count, m_area.Column + m_area.Columns.Count - closeColumn)
     private_ArrangeClose = True
 End Function
 

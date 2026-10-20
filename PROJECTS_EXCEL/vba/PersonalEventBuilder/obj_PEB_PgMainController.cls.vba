@@ -51,6 +51,7 @@ Private m_editHistoryAutoFill As Variant
 Private m_historyOrderNumber As String
 Private m_historyOrderDate As String
 Private m_conflicts As Collection
+Private m_extensions As obj_PEB_FormExtensions
 
 ' //
 ' // Lifecycle
@@ -76,6 +77,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     Set m_pageBase = pageBase
+    Set m_extensions = New obj_PEB_FormExtensions
+    If Not m_extensions.Initialize(pageBase) Then Exit Function
     If m_pageBase Is Nothing Then
         ex_WindowsUi.fn_ShowMessage "The PersonalEventBuilder page controller requires a page base.", _
             VBA.vbExclamation, "PersonalEventBuilder"
@@ -155,6 +158,8 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_extensions Is Nothing Then m_extensions.Dispose
+    Set m_extensions = Nothing
     If Not m_exportService Is Nothing Then m_exportService.Dispose
     Set m_exportService = Nothing
     If Not m_lookupService Is Nothing Then m_lookupService.Dispose
@@ -299,7 +304,9 @@ Public Function ResetFormHandler() As Boolean
     m_historyOrderDate = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
-    ResetFormHandler = m_pageBase.FlushUpdates()
+    If Not m_extensions.Reset(diagnostic) Then GoTo Failed
+    If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo Failed
+    ResetFormHandler = m_pageBase.UpdatePage()
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -502,6 +509,7 @@ Public Function RefreshPersonnelHandler() As Boolean
     m_orderResolver.InvalidateCache
     If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
     If Not m_documentService Is Nothing Then m_documentService.InvalidateCache
+    m_extensions.InvalidateCache
     If m_reporterActive Or m_hospitalActive Or m_documentActive Then
         RefreshPersonnelHandler = private_SearchSecondary(False, m_hospitalActive, True, m_documentActive)
         Exit Function
@@ -935,6 +943,9 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     m_acceptedOrderDate = ex_PEB_History.fn_Date(row("AcceptedOrderDate"))
     Set m_editHistoryRow = row
     m_editHistoryStamp = ex_PEB_History.fn_Stamp(row)
+    If Not m_extensions.TryLoad(row("FormExtensionRows"), diagnostic) Then GoTo Failed
+    If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo Failed
+    If Not m_pageBase.UpdatePage() Then Exit Function
     SelectHistoryHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistoryEditHint"), False)
     GoTo CleanupHistorySelection
 EH:
@@ -1276,6 +1287,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     m_orderResolver.InvalidateCache
     If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
     If Not m_documentService Is Nothing Then m_documentService.InvalidateCache
+    m_extensions.InvalidateCache
     If Not m_pageBase.FlushUpdates() Then Err.Raise 5, , "Cannot render the loaded scenario."
     If Not pebTestScenarios.TryCommit(diagnostic) Then GoTo Failed
     m_testScenario = scenarioId
@@ -1331,6 +1343,7 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
     Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_extensions.HideCandidates() Then Exit Function
     If m_reporterActive Or m_hospitalActive Or m_documentActive Then
         If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
             Exit Function
@@ -1408,6 +1421,7 @@ Private Function private_SearchSecondary( _
 
     On Error GoTo EH
     group = "reporter"
+    If Not m_extensions.HideCandidates() Then Exit Function
     If hospital Then group = "hospital"
     If document Then group = "document"
     If Not private_SecondaryFields(group, fields, diagnostic) Then
@@ -1703,7 +1717,7 @@ Private Function private_RefreshHistory( _
     If Not private_TryReadFormValue("AcceptedOrderNumber", orderNumber) Then Exit Function
     If Not private_TryReadFormValue("AcceptedOrderDate", orderDate) Then Exit Function
     If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
-    If Not ex_PEB_History.fn_ReadOrder(VBA.CStr(orderNumber), orderDate, events, diagnostic, False) Then
+    If Not ex_PEB_History.fn_ReadOrder(VBA.CStr(orderNumber), orderDate, events, diagnostic) Then
         failure = diagnostic
         private_PublishHistory emptyRows, VBA.vbNullString, diagnostic
         diagnostic = failure
@@ -1818,6 +1832,7 @@ Private Function private_PublishHistory( _
 End Function
 
 Private Function private_Export(ByVal action As String) As Boolean
+    Dim extensionRows As Collection
     Dim pebExportService As obj_PEB_ExportService
     Dim pebExptrMovement As obj_PEB_ExptrMovement
     Dim values As Object
@@ -1858,6 +1873,7 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     End If
     Set pebExportService = m_exportService
+    If Not m_extensions.Collect(extensionRows, diagnostic) Then GoTo Failed
     If Not m_editHistoryRow Is Nothing Then
         If m_modeId <> VBA.CStr(m_editHistoryRow("EventId")) Then
             If m_pageBase.BindingContext.TryGetValue("Data", "WordContext", scalar, wordContext, isObject) Then
@@ -1874,7 +1890,9 @@ Private Function private_Export(ByVal action As String) As Boolean
         exporter, _
         values, _
         diagnostic, _
-        action <> "PreviewWord" _
+        action <> "PreviewWord", _
+        Nothing, _
+        extensionRows _
     ) Then GoTo Failed
     If exporter = "History" And Not m_editHistoryRow Is Nothing Then
         values("RowId") = m_editHistoryRow("RowId")
@@ -1902,6 +1920,11 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     ElseIf exporter = "History" Then
         success = ex_PEB_History.fn_Save(values, diagnostic)
+        If success Then
+            If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic) Then GoTo Failed
+            If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo Failed
+            If Not m_pageBase.UpdatePage() Then Exit Function
+        End If
         If success Then status = VBA.Replace$(status, "{action}", VBA.CStr(values("HistoryAction")))
         If success And Not m_editHistoryRow Is Nothing Then
             If Not private_RefreshHistory(VBA.CStr(values("RowId")), diagnostic) Then
@@ -2066,6 +2089,8 @@ Private Function private_LoadMode( _
 
     On Error GoTo EH
     secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
+    currentForm = vbNullString
+    If Len(m_modeId) > 0 Then currentForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
     modes = ex_PEB_EventRoutes.fn_VisibleIds()
     caption = VBA.vbNullString
     text = "secondaryButton"
@@ -2125,7 +2150,7 @@ Private Function private_LoadMode( _
         sourceAlias = VBA.vbNullString
         If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
         If m_modeConfig.Exists(prefix & ".sourceAlias") Then sourceAlias = m_modeConfig(prefix & ".sourceAlias")
-        If fieldName = "EventDate" And direction = "Departure" Then
+        If fieldName = "EventDate" Then
             recordName = VBA.vbNullString
             sourceAlias = VBA.vbNullString
         End If
@@ -2210,6 +2235,10 @@ Private Function private_LoadMode( _
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
+    ' Extension layouts depend on the form kind, not the selected event route.
+    If CStr(currentForm) <> formKind Then
+        If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
+    End If
     private_LoadMode = True
     Exit Function
 EH:
@@ -2231,12 +2260,14 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     Dim oldReturnMode As Boolean
     Dim newReturnMode As Boolean
     Dim updates As Object
+    Dim previousForm As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If modeId = m_modeId Then
         private_SwitchMode = True
         Exit Function
     End If
+    previousForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
     startedAt = VBA.Timer
     If Not private_ReadModeConfig("lookup.ReturnTickets.modes", returnModes, diagnostic) Then GoTo Failed
     returnModes = "|" & returnModes & "|"
@@ -2276,6 +2307,10 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
     startedAt = VBA.Timer
+    If previousForm <> ex_PEB_EventRoutes.fn_Value(modeId, "form") Then
+        If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
+        If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
+    End If
     private_SwitchMode = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "Mode.Flush", startedAt
     Exit Function

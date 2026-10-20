@@ -8,6 +8,10 @@
 #_        рапорт #^
 #_        {#if __IsRaportFromSelf}{[RankGenitive]} {[FIOInitialsGenitive]|nbspBeforeInitials}{#else}{[ReporterGenitive]|nbspBeforeInitials}{#endif}#^
 #_        {#space}(вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
+#_        {#for item in HistoryReports}; рапорт #^
+#_          {#if item.[ReportPerson]}{item.[ReporterGenitive]|lowerFirstLetter|nbspBeforeInitials}{#else}{[RankGenitive]|lowerFirstLetter} {[FIOInitialsGenitive]|nbspBeforeInitials}{#endif}#^
+#_          {#space}(вх. № {item.[IncomingNo]} від {item.[IncomingDateShort]})#^
+#_        {#endfor}#^
         ]]></text>
     </sharedTemplate>
     <sharedTemplate id="block.DocumentName">

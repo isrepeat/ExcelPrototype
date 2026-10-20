@@ -72,7 +72,8 @@ Public Sub fn_Prepare( _
     ByVal previous As Object, _
     ByVal values As Object, _
     ByVal changed As Boolean, _
-    ByRef transaction As Object _
+    ByRef transaction As Object, _
+    Optional ByVal nextRows As Collection = Nothing _
 )
     Dim table As ListObject
     Dim key As Variant
@@ -167,7 +168,8 @@ Public Sub fn_Prepare( _
     If previous Is Nothing Or changed Then
         revision = revision + 1
         values("Revision") = VBA.CStr(revision)
-        values("LastChangeId") = private_Append(source, table, rows, values, revision, changeType, reason, status, previous)
+        If nextRows Is Nothing Then Set nextRows = rows
+        values("LastChangeId") = private_Append(source, table, nextRows, values, revision, changeType, reason, status, previous)
     End If
 End Sub
 
@@ -523,6 +525,7 @@ Private Function private_Append( _
             End If
         End If
     Next row
+    If root.Exists("ChildrenChanged") Then changedFields = "Children"
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
         mapping = VBA.Split(field, "=")
         If Not previous Is Nothing Then

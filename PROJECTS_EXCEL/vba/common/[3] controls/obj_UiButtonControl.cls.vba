@@ -125,11 +125,26 @@ End Function
 ' // API
 ' //
 Public Sub Dispose()
+    Dim shapeName As String
+    Dim buttonShape As Shape
+
     If m_isDisposed Then
         Exit Sub
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_renderContext Is Nothing And Not m_uiControlBase Is Nothing Then
+        shapeName = m_uiControlBase.ShapeName(BUTTON_SHAPE_PREFIX)
+        m_renderContext.Router.UnregisterShape shapeName
+        m_renderContext.UnregisterShapeLayout shapeName
+        ' Full page cleanup may already have deleted the shape; inspect live shapes instead of the cached reference.
+        For Each buttonShape In m_renderContext.TargetWorksheet.Shapes
+            If buttonShape.Name = shapeName Then
+                buttonShape.Delete
+                Exit For
+            End If
+        Next buttonShape
+    End If
     Set m_buttonShape = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing

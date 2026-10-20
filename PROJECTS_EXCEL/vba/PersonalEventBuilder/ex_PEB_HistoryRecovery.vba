@@ -24,6 +24,8 @@ Public Function fn_Prepare( _
     Dim versions As ListObject
     Dim token As String
     Dim index As Long
+    Dim child As Object
+    Dim children As Object
 
     token = table.Parent.Parent.Name & "/" & VBA.Format$(VBA.Now, "yyyymmddhhnnss") & "/" & VBA.CStr(VBA.Timer)
     token = token & "/" & VBA.CStr(after(1, table.ListColumns("RowId").Index)) & _
@@ -41,6 +43,15 @@ Public Function fn_Prepare( _
         private_Row document, root, table, before, "Before"
     End If
     private_Row document, root, table, after, "After"
+    If transaction.Exists("Children") Then
+        Set children = transaction("Children")
+        For Each child In children("Old")
+            private_Row document, root, table, ex_PEB_FormChildren.fn_Data(table, child), "Before"
+        Next child
+        For Each child In children("New")
+            private_Row document, root, table, ex_PEB_FormChildren.fn_Data(table, child), "After"
+        Next child
+    End If
     Set versions = transaction("Table")
     For index = transaction("OriginalRows") + 1 To versions.ListRows.Count
         private_Row document, root, versions, versions.ListRows(index).Range.Value2, "Revision"

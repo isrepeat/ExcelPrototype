@@ -377,9 +377,7 @@ value	PersonalEventBuilder::forms.Leave.fields.11.name	IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.record	Event.IncomingDate
 value	PersonalEventBuilder::forms.Leave.fields.11.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.12.name	EventDate
-value	PersonalEventBuilder::forms.Leave.fields.12.record	Event.Date
 value	PersonalEventBuilder::forms.Leave.fields.12.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
-value	PersonalEventBuilder::forms.Leave.fields.12.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::forms.Leave.fields.13.name	TicketNumber
 value	PersonalEventBuilder::forms.Leave.fields.13.record	Absence.TicketNumber
 value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
@@ -433,9 +431,7 @@ value	PersonalEventBuilder::forms.Treatment.fields.14.captionKey	PersonalEventBu
 value	PersonalEventBuilder::forms.Treatment.fields.15.name	DocumentDate
 value	PersonalEventBuilder::forms.Treatment.fields.15.captionKey	PersonalEventBuilder::text.ModeDocumentDateLabel
 value	PersonalEventBuilder::forms.Treatment.fields.16.name	EventDate
-value	PersonalEventBuilder::forms.Treatment.fields.16.record	Event.Date
 value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
-value	PersonalEventBuilder::forms.Treatment.fields.16.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::forms.Treatment.fields.count	16
 value	PersonalEventBuilder::forms.Treatment.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition
@@ -883,8 +879,10 @@ value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringT
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.shared.inputs.scalars	VlkNo|VlkDateShort|PrevVacationTicketNo|PrevVacationTicketDateShort
-value	PersonalEventBuilder::export.shared.inputs.collections	MetaDocumentTables
+value	PersonalEventBuilder::export.shared.inputs.collections	MetaDocumentTables|HistoryReports
 value	PersonalEventBuilder::export.shared.inputs.dateScalars	VlkDateShort|PrevVacationTicketDateShort
+value	PersonalEventBuilder::export.shared.inputs.HistoryReports.fields	ReportPerson|ReporterGenitive|IncomingNo|IncomingDateShort
+value	PersonalEventBuilder::export.shared.inputs.HistoryReports.required	IncomingNo|IncomingDateShort
 value	PersonalEventBuilder::export.shared.inputs.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
 value	PersonalEventBuilder::export.shared.inputs.MetaDocumentTables.required	DocumentNote
 value	PersonalEventBuilder::export.shared.aliases.1.kind	value
@@ -1370,6 +1368,53 @@ value	PersonalEventBuilder::returnTvo.snapshot.fields	PersonId|PersonName|Person
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::candidates.textWarningLimit	255
   ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
+value	PersonalEventBuilder::extensions.type.TVO.key	PersonName
+value	PersonalEventBuilder::extensions.type.TVO.map	PersonRank=Personnel.Rank|PersonName=Personnel.FullName|PersonId=Personnel.TaxId|PositionCode=Personnel.PositionCode|PersonPosition=Personnel.Position
+value	PersonalEventBuilder::extensions.type.TVO.dates	-
+value	PersonalEventBuilder::extensions.type.TVO.start	PersonRank
+value	PersonalEventBuilder::extensions.type.TVO.anchor	PersonName
+value	PersonalEventBuilder::extensions.type.TVO.fields	PersonRank|PersonName|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::extensions.type.TVO.caption	ТВО
+value	PersonalEventBuilder::extensions.type.TVO.lookups	export.Word.meta.lookups
+value	PersonalEventBuilder::extensions.type.TVO.profile	Personnel
+value	PersonalEventBuilder::extensions.type.TVO.defaults	-
+value	PersonalEventBuilder::extensions.type.TVO.readOnly	PersonRank|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::extensions.type.TVO.required	PersonRank|PersonName|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::extensions.type.TVO.fallbackColumn	1
+value	PersonalEventBuilder::extensions.type.Report.key	ReportName
+value	PersonalEventBuilder::extensions.type.Report.map	ReportRank=Personnel.Rank|ReportName=Personnel.FullName|ReportPositionCode=Personnel.PositionCode
+value	PersonalEventBuilder::extensions.type.Report.dates	IncomingDate
+value	PersonalEventBuilder::extensions.type.Report.start	ReportRank
+value	PersonalEventBuilder::extensions.type.Report.anchor	ReportName
+value	PersonalEventBuilder::extensions.type.Report.fields	ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::extensions.type.Report.caption	Ще один рапорт
+value	PersonalEventBuilder::extensions.type.Report.lookups	export.shared.lookups
+value	PersonalEventBuilder::extensions.type.Report.profile	Personnel
+value	PersonalEventBuilder::extensions.type.Report.defaults	IncomingDate=AcceptedOrderDate
+value	PersonalEventBuilder::extensions.type.Report.readOnly	ReportRank|ReportPositionCode
+value	PersonalEventBuilder::extensions.type.Report.required	ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::extensions.type.Report.fallbackColumn	1
+value	PersonalEventBuilder::extensions.type.Document.key	Document
+value	PersonalEventBuilder::extensions.type.Document.map	Document=Document.Name
+value	PersonalEventBuilder::extensions.type.Document.dates	DocumentDate
+value	PersonalEventBuilder::extensions.type.Document.start	Document
+value	PersonalEventBuilder::extensions.type.Document.anchor	Document
+value	PersonalEventBuilder::extensions.type.Document.fields	Document|DocumentNumber|DocumentDate
+value	PersonalEventBuilder::extensions.type.Document.caption	Ще один документ
+value	PersonalEventBuilder::extensions.type.Document.lookups	-
+value	PersonalEventBuilder::extensions.type.Document.profile	Document
+value	PersonalEventBuilder::extensions.type.Document.defaults	-
+value	PersonalEventBuilder::extensions.type.Document.readOnly	-
+value	PersonalEventBuilder::extensions.type.Document.required	Document
+value	PersonalEventBuilder::extensions.type.Document.fallbackColumn	14
+value	PersonalEventBuilder::extensions.limit	20
+value	PersonalEventBuilder::extensions.types	TVO|Report|Document
+value	PersonalEventBuilder::extensions.invalid	Заповніть обов’язкові поля розширення: {field}
+value	PersonalEventBuilder::extensions.addCaption	+
+value	PersonalEventBuilder::extensions.errorTitle	Розширення форми
+value	PersonalEventBuilder::extensions.duplicateTvo	У ланцюжку ТВО не можна повторювати військовослужбовця або обирати власника події.
+value	PersonalEventBuilder::extensions.limitReached	Досягнуто ліміт розширень форми.
+value	PersonalEventBuilder::extensions.removeCaption	×
   ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
 value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet

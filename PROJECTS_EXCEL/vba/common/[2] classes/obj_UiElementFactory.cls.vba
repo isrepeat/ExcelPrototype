@@ -127,6 +127,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "columnSpan", "positive", False, "", False, 0
             schema.AllowVisualChildren
         Case "stackpanel"
+            schema.AddAttribute "contentSource", "string", False, "", False, 0
             schema.AddAttribute "horizontalAlignment", "enum", False, "start|stretch", False, 0
             schema.AddAttribute "name", "string", False, "", False, 0
             schema.AddAttribute "dataContext", "context", False, "", True, 0

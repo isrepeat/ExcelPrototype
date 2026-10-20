@@ -75,6 +75,95 @@ Public Sub Dispose()
     Set m_lookupTables = Nothing
 End Sub
 
+Public Function TryPrepareExtensions( _
+    ByVal values As Object, _
+    ByVal extensionRows As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim children As New Collection
+    Dim documents As New Collection
+    Dim duties As New Collection
+    Dim reports As New Collection
+    Dim source As Object
+    Dim row As Object
+    Dim item As Object
+    Dim key As Variant
+    Dim mapping As Variant
+    Dim field As Variant
+    Dim kind As String
+    Dim prefix As String
+    Dim lookupPrefix As String
+    Dim lookupInput As String
+    Dim lookupOutput As String
+    Dim index As Long
+
+    On Error GoTo EH_EXTENSIONS
+    If extensionRows Is Nothing Then
+        TryPrepareExtensions = True
+        Exit Function
+    End If
+    For Each source In extensionRows
+        kind = source("RowType")
+        If InStr(1, "|" & ex_PEB_Export.fn_Config("extensions.types") & "|", "|" & kind & "|", vbBinaryCompare) = 0 Then Err.Raise 5, , "Unknown extension type: " & kind
+        Set row = CreateObject("Scripting.Dictionary")
+        For Each field In Split(ex_PEB_Export.fn_Config("history.fields"), "|")
+            mapping = Split(field, "=")
+            row(mapping(0)) = vbNullString
+        Next field
+        For Each key In source.Keys
+            row(key) = source(key)
+        Next key
+        row("ModeForm") = values("ModeForm")
+        prefix = "extensions.type." & kind
+        For Each field In Split(ex_PEB_Export.fn_Config(prefix & ".required"), "|")
+            If Len(ex_PEB_Export.fn_Text(row(field))) = 0 Then Err.Raise 5, , Replace$(ex_PEB_Export.fn_Config("extensions.invalid"), "{field}", CStr(field))
+        Next field
+        For Each field In Split(ex_PEB_Export.fn_Config(prefix & ".dates"), "|")
+            If field <> "-" Then
+                If Len(ex_PEB_Export.fn_Text(row(field))) > 0 Then row(field) = Format$(private_Date(row(field), CStr(field)), "dd.mm.yyyy")
+            End If
+        Next field
+        lookupPrefix = ex_PEB_Export.fn_Config(prefix & ".lookups")
+        If lookupPrefix <> "-" Then
+            For index = 1 To ex_PEB_Export.fn_Count(lookupPrefix & ".count")
+                lookupInput = ex_PEB_Export.fn_Config(lookupPrefix & "." & index & ".input")
+                If Len(ex_PEB_Export.fn_Text(row(lookupInput))) > 0 Then
+                    ' History columns include derived fields; recompute them from this extension's inputs.
+                    lookupOutput = ex_PEB_Export.fn_Config(lookupPrefix & "." & index & ".output")
+                    If row.Exists(lookupOutput) Then row.Remove lookupOutput
+                    private_Enrich row, lookupPrefix & "." & index
+                End If
+            Next index
+        End If
+        children.Add row
+        Select Case kind
+            Case "Document"
+                Set item = CreateObject("Scripting.Dictionary")
+                item("DocumentNote") = row("Document")
+                item("DocNo") = row("DocumentNumber")
+                item("DocDateShort") = row("DocumentDate")
+                documents.Add item
+            Case "TVO"
+                row("DutyPositionGenitive") = vbNullString
+                duties.Add row
+            Case "Report"
+                row("ReportPerson") = row("ReportName")
+                row("IncomingNo") = row("IncomingNumber")
+                row("IncomingDateShort") = row("IncomingDate")
+                row("ReporterGenitive") = Trim$(row("ReportPositionGenitive") & " " & row("ReportRankGenitive") & " " & row("ReportPersonInitialsGenitive"))
+                reports.Add row
+        End Select
+    Next source
+    Set values("FormExtensionRows") = children
+    Set values("MetaDocumentTables") = documents
+    Set values("MetaTvoTables") = duties
+    Set values("HistoryReports") = reports
+    TryPrepareExtensions = True
+    Exit Function
+EH_EXTENSIONS:
+    diagnostic = "Extensions: " & Err.Description
+End Function
+
 Public Function TryCaptureReturnTvo( _
     ByVal values As Object, _
     ByRef diagnostic As String _
@@ -105,7 +194,8 @@ Public Function TryPrepare( _
     ByRef values As Object, _
     ByRef diagnostic As String, _
     Optional ByVal prepareOutput As Boolean = True, _
-    Optional ByVal wordInputs As Object = Nothing _
+    Optional ByVal wordInputs As Object = Nothing, _
+    Optional ByVal extensionRows As Collection = Nothing _
 ) As Boolean
     Dim key As Variant
     Dim scalar As Variant
@@ -170,13 +260,8 @@ Public Function TryPrepare( _
         values.Add VBA.CStr(key), scalar
     Next key
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
-    If values("ModeDirection") = "Departure" Then
-        If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
-            values("EventDate") = values("IncomingDate")
-            If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
-                values("EventDate") = values("AcceptedOrderDate")
-            End If
-        End If
+    If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
+        values("EventDate") = values("AcceptedOrderDate")
     End If
     If exporter = "Word" And values("WordPolicy") = "Omit" And Not history Then
         values("WordOutcome") = "Omitted"
@@ -225,6 +310,7 @@ Public Function TryPrepare( _
         End If
     End If
     If exporter = "Movement" Then
+        If Not Me.TryPrepareExtensions(values, extensionRows, diagnostic) Then GoTo Failed
         private_PrepareMovementTexts values, additionalInputs
     End If
     If exporter = "Word" Then
@@ -240,6 +326,7 @@ Public Function TryPrepare( _
         private_AddAliases values
 
         private_CompleteWordContext values, additionalInputs
+        If Not Me.TryPrepareExtensions(values, extensionRows, diagnostic) Then GoTo Failed
         If Not history And values("ModeDirection") = "Arrival" Then
             If values("MetaTvoTables").Count = 0 Then
                 If Not Me.TryCaptureReturnTvo(values, diagnostic) Then GoTo Failed
@@ -346,9 +433,15 @@ Public Function TryPrepareHistoryMovement( _
             values.Add VBA.CStr(key), stored(key)
         End If
     Next key
-    If stored("HistoryReports").Count > 0 Then
-        Err.Raise 5, , ex_PEB_Export.fn_Config("text.MovementHistoryReportsUnsupported")
-    End If
+    Set values("HistoryReports") = New Collection
+    For Each document In stored("HistoryReports")
+        Set copy = CreateObject("Scripting.Dictionary")
+        copy("ReportPerson") = document("ReportName")
+        copy("IncomingNo") = document("IncomingNumber")
+        copy("IncomingDateShort") = Format$(ex_PEB_History.fn_Date(document("IncomingDate")), "dd.mm.yyyy")
+        copy("ReporterGenitive") = Trim$(document("ReportPositionGenitive") & " " & document("ReportRankGenitive") & " " & document("ReportPersonInitialsGenitive"))
+        values("HistoryReports").Add copy
+    Next document
     values("ModeId") = ex_PEB_Export.fn_Required(stored, "EventId")
     values("PersonAccusative") = ex_PEB_Export.fn_Required(stored, "FIOAccusative")
     For index = 1 To ex_PEB_Export.fn_Count("export.shared.aliases.count")
@@ -1035,7 +1128,7 @@ Private Sub private_CompleteEventInputs( _
                 Next item
             End If
         End If
-        Set values(name) = normalized
+        If Not values.Exists("FormExtensionRows") Then Set values(name) = normalized
     Next name
 End Sub
 

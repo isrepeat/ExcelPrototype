@@ -17,6 +17,7 @@ Private m_isDisposed As Boolean
 
 Private m_children As Collection
 Private m_definition As Object
+Private m_sourceDefinition As Object
 Private m_context As obj_UiRenderContext
 Private m_source As String
 Private m_mode As String
@@ -39,6 +40,14 @@ End Sub
 Private Sub Class_Terminate()
     Me.Dispose
 End Sub
+
+' //
+' // Properties
+' //
+Public Property Get RenderArea() As Range
+    If m_context Is Nothing Or m_rows < 1 Or m_columns < 1 Then Exit Property
+    Set RenderArea = m_context.TargetWorksheet.Cells(m_arrangedRow, m_arrangedColumn).Resize(m_rows, m_columns)
+End Property
 
 ' //
 ' // Interface
@@ -96,6 +105,23 @@ End Sub
 ' //
 ' // API
 ' //
+Public Function RebuildContent(ByRef diagnostic As String) As Boolean
+    Dim child As obj_IUiElement
+    Dim definition As Object
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Len(ex_UiElementFactory.fn_Attribute(m_sourceDefinition, "contentSource")) = 0 Then
+        diagnostic = "Stack panel has no contentSource."
+        Exit Function
+    End If
+    Set definition = m_sourceDefinition.cloneNode(True)
+    For Each child In m_children
+        child.Dispose
+    Next child
+    Set m_children = New Collection
+    RebuildContent = private_ConfigurePanel(definition, m_context, m_source, diagnostic)
+End Function
+
 Public Sub Dispose()
     If m_isDisposed Then
         Exit Sub
@@ -118,7 +144,27 @@ Private Function private_ConfigurePanel( _
     Dim child As obj_IUiElement
     Dim childDefinition As Object
     Dim alignment As String
+    Dim contentPath As String
+    Dim content As Object
+    Dim scalar As Variant
+    Dim isObject As Boolean
 
+    Set m_sourceDefinition = definition.cloneNode(True)
+    contentPath = ex_UiElementFactory.fn_Attribute(definition, "contentSource")
+    If VBA.Len(contentPath) > 0 Then
+        If Not context.BindingContext.TryGetValue("Data", contentPath, scalar, content, isObject) Then
+            diagnostic = "Stack content source not found: " & contentPath
+            Exit Function
+        End If
+        If Not isObject Or content Is Nothing Then
+            diagnostic = "Stack content requires an XML element: " & contentPath
+            Exit Function
+        End If
+        Set definition = definition.cloneNode(True)
+        For Each node In content.childNodes
+            If node.nodeType = 1 Then definition.appendChild node.cloneNode(True)
+        Next node
+    End If
     Set m_definition = definition
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
@@ -251,5 +297,6 @@ Private Sub private_DisposePanel()
     End If
     Set m_children = Nothing
     Set m_definition = Nothing
+    Set m_sourceDefinition = Nothing
     Set m_context = Nothing
 End Sub
