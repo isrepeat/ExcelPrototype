@@ -1171,12 +1171,16 @@ value	PersonalEventBuilder::export.Movement.status.MaternityLeave	Відпуст
 value	PersonalEventBuilder::export.Movement.status.HospitalTreatment	Стаціонарне лікування
 value	PersonalEventBuilder::export.Movement.enabled	true
 value	PersonalEventBuilder::export.Movement.headers.PersonId	ІПН
+value	PersonalEventBuilder::export.Movement.headers.RoadDays	Вибуття.Дорога
 value	PersonalEventBuilder::export.Movement.headers.EventName	Подія
 value	PersonalEventBuilder::export.Movement.headers.PersonName	ПІБ
+value	PersonalEventBuilder::export.Movement.headers.PersonRank	Звання
 value	PersonalEventBuilder::export.Movement.headers.ArrivalDate	Прибуття
 value	PersonalEventBuilder::export.Movement.headers.Destination	Куди
 value	PersonalEventBuilder::export.Movement.headers.ArrivalBasis	Прибуття.Підстава
 value	PersonalEventBuilder::export.Movement.headers.ArrivalOrder	Прибуття.Наказ
+value	PersonalEventBuilder::export.Movement.headers.DurationDays	Вибуття.Термін
+value	PersonalEventBuilder::export.Movement.headers.PositionCode	Посада
 value	PersonalEventBuilder::export.Movement.headers.DepartureDate	Вибуття
 value	PersonalEventBuilder::export.Movement.headers.DepartureBasis	Вибуття.Підстава
 value	PersonalEventBuilder::export.Movement.headers.DepartureOrder	Вибуття.Наказ

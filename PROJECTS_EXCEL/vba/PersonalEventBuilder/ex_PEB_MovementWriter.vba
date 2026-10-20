@@ -35,7 +35,6 @@ Public Function fn_Apply( _
     Dim changed As Boolean
     Dim failure As String
     Dim rollbackError As String
-    Dim dateFormat As String
     Dim settingsTemplate As String
     Dim rollbackTemplate As String
     Dim restoredText As String
@@ -62,7 +61,6 @@ Public Function fn_Apply( _
             plan("PlanStamp") <> ex_PEB_MovementLinks.fn_PlanStamp(plan) Then
         ex_PEB_MovementLinks.fn_Fail "PlanChangedSincePreview", target.Name
     End If
-    dateFormat = ex_PEB_Export.fn_Config("export.Movement.dateFormat")
     settingsTemplate = ex_PEB_Export.fn_Config("text.MovementBatchSettingsError")
     rollbackTemplate = ex_PEB_Export.fn_Config("text.MovementBatchRollbackError")
     restoredText = ex_PEB_Export.fn_Config("text.MovementBatchRestored")
@@ -140,10 +138,13 @@ Public Function fn_Apply( _
         Set cell = target.Parent.Range(entry("Address"))
         If VBA.VarType(entry("Expected")) = VBA.vbString Then
             cell.NumberFormat = "@"
+            cell.Value2 = entry("Expected")
         ElseIf VBA.VarType(entry("Expected")) = VBA.vbDate Then
-            cell.NumberFormat = dateFormat
+            cell.Value2 = VBA.CDbl(entry("Expected"))
+        Else
+            cell.Value2 = entry("Expected")
         End If
-        cell.Value2 = entry("Expected")
+        cell.NumberFormat = entry("WriteFormat")
     Next entry
     private_Stage "Write.Verify", stage, startedAt
     For Each entry In entries
@@ -278,6 +279,10 @@ Private Sub private_Capture( _
     entry.Add "Address", cell.Address
     entry.Add "Value", cell.Value2
     entry.Add "Format", cell.NumberFormat
+    entry.Add "WriteFormat", cell.NumberFormat
+    If rowIndex > target.ListRows.Count And target.ListRows.Count > 0 Then
+        entry("WriteFormat") = target.ListRows(target.ListRows.Count).Range.Cells(1, target.ListColumns(header).Index).NumberFormat
+    End If
     entry.Add "Expected", expected
     entries.Add entry
     seen.Add cell.Address, entry
@@ -302,6 +307,9 @@ Private Sub private_Verify( _
         End If
     Else
         expected = entry("Expected")
+        If cell.NumberFormat <> entry("WriteFormat") Then
+            ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address
+        End If
     End If
     If ex_PEB_MovementLinks.fn_ValueToken(expected) <> ex_PEB_MovementLinks.fn_ValueToken(cell.Value2) Then
         ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address

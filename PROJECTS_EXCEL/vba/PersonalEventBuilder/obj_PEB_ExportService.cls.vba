@@ -905,6 +905,8 @@ Private Sub private_PrepareVacationDuration(ByVal values As Object)
     days = VBA.CLng(matches(0).SubMatches(0))
     If days < 1 Then Err.Raise 5, , "Vacation duration must be positive."
     total = days
+    values("MovementDurationDays") = days
+    values("MovementRoadDays") = 0
     If days Mod 100 >= 11 And days Mod 100 <= 14 Then
         unit = ex_PEB_Export.fn_Config("export.Word.duration.unit.many")
     ElseIf days Mod 10 = 1 Then
@@ -953,6 +955,11 @@ Private Sub private_PrepareVacationDuration(ByVal values As Object)
             End If
         End If
         extras = extras & phrase
+        If reasonKey = "road" Or reasonKey = "businessTrip.road" Then
+            values("MovementRoadDays") = values("MovementRoadDays") + additional
+        Else
+            values("MovementDurationDays") = values("MovementDurationDays") + additional
+        End If
         total = total + additional
     Next operand
     If VBA.Len(extras) > 0 Then extras = extras & ","
@@ -1024,6 +1031,9 @@ Private Sub private_PrepareMovementTexts( _
     If Not storedSnapshot Then
         private_CompleteEventInputs values, inputs
     End If
+    values("MovementDurationDays") = VBA.vbNullString
+    values("MovementRoadDays") = VBA.vbNullString
+    private_PrepareVacationDuration values
     If m_movementRenderer Is Nothing Then
         Set m_movementRenderer = New obj_PEB_DslRenderer
         If Not m_movementRenderer.Initialize(ex_PEB_MovementTemplates.fn_SharedTemplates()) Then

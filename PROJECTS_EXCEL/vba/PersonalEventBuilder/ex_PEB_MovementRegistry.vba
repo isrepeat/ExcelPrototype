@@ -85,14 +85,14 @@ Public Function fn_WriteValue( _
     If values.Exists("MovementColumnTexts") Then
         Set texts = values("MovementColumnTexts")
         If texts.Exists(header) Then
-            fn_WriteValue = texts(header)
+            fn_WriteValue = private_ExportValue(texts(header))
             Exit Function
         End If
     End If
     If field = "MovementBasis" Then
         Err.Raise 5, , "Missing Movement column text: " & header
     End If
-    fn_WriteValue = ex_PEB_Export.fn_Required(values, field)
+    fn_WriteValue = private_ExportValue(ex_PEB_Export.fn_Required(values, field))
 End Function
 
 Public Sub fn_ValidateTexts(ByVal values As Object)
@@ -177,6 +177,9 @@ EH:
 End Sub
 
 Private Sub private_BuildProfiles()
+    Dim fields As Variant
+    Dim headers As Variant
+
     private_AddProfile "Arrival", "close", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), "", "EventDate", ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     private_AddMappings "profiles.Arrival.join", _
         VBA.Array( _
@@ -214,10 +217,13 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder") _
         )
     private_AddProfile "Departure", "append", "", "", "", ""
-    private_AddMappings "profiles.Departure.fields", _
-        VBA.Array( _
+    fields = VBA.Array( _
             "PersonId", _
             "PersonName", _
+            "PersonRank", _
+            "PositionCode", _
+            "MovementDurationDays", _
+            "MovementRoadDays", _
             "EventName", _
             "EventDate", _
             "AcceptedOrderNumber", _
@@ -225,10 +231,14 @@ Private Sub private_BuildProfiles()
             "MovementBasis", _
             "TicketDocument", _
             "FoodSupportDate" _
-        ), _
-        VBA.Array( _
+        )
+    headers = VBA.Array( _
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonRank"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PositionCode"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DurationDays"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.RoadDays"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder"), _
@@ -237,6 +247,7 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
         )
+    private_AddMappings "profiles.Departure.fields", fields, headers
     private_AddMappings "profiles.Departure.identity", _
         VBA.Array( _
             "PersonId", _
@@ -264,10 +275,13 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.EventName") _
         )
-    private_AddMappings "profiles.Transition.fields", _
-        VBA.Array( _
+    fields = VBA.Array( _
             "PersonId", _
             "PersonName", _
+            "PersonRank", _
+            "PositionCode", _
+            "MovementDurationDays", _
+            "MovementRoadDays", _
             "EventName", _
             "EventDate", _
             "AcceptedOrderNumber", _
@@ -275,10 +289,14 @@ Private Sub private_BuildProfiles()
             "MovementBasis", _
             "TicketDocument", _
             "FoodSupportDate" _
-        ), _
-        VBA.Array( _
+        )
+    headers = VBA.Array( _
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonRank"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PositionCode"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DurationDays"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.RoadDays"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder"), _
@@ -287,6 +305,7 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
         )
+    private_AddMappings "profiles.Transition.fields", fields, headers
     private_AddMappings "profiles.Transition.identity", _
         VBA.Array( _
             "PersonId", _
@@ -350,10 +369,13 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.Destination") _
         )
-    private_AddMappings "profiles.TransitionMedicalCompany.fields", _
-        VBA.Array( _
+    fields = VBA.Array( _
             "PersonId", _
             "PersonName", _
+            "PersonRank", _
+            "PositionCode", _
+            "MovementDurationDays", _
+            "MovementRoadDays", _
             "EventName", _
             "EventDate", _
             "AcceptedOrderNumber", _
@@ -361,10 +383,14 @@ Private Sub private_BuildProfiles()
             "MovementBasis", _
             "TicketDocument", _
             "FoodSupportDate" _
-        ), _
-        VBA.Array( _
+        )
+    headers = VBA.Array( _
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.PersonName"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PersonRank"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.PositionCode"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.DurationDays"), _
+            ex_PEB_Export.fn_Config("export.Movement.headers.RoadDays"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.EventName"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureOrder"), _
@@ -373,6 +399,7 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument"), _
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
         )
+    private_AddMappings "profiles.TransitionMedicalCompany.fields", fields, headers
     private_AddMappings "profiles.TransitionMedicalCompany.identity", _
         VBA.Array( _
             "PersonId", _
@@ -806,6 +833,23 @@ Private Sub private_AddProfile( _
         m_values.Add prefix & "departureDateHeader", departureDateHeader
     End If
 End Sub
+
+Private Function private_ExportValue(ByVal value As Variant) As Variant
+    private_ExportValue = VBA.vbNullString
+    If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit Function
+    Select Case VBA.VarType(value)
+        Case VBA.vbBoolean
+            If Not value Then Exit Function
+        Case VBA.vbString
+            If VBA.Len(VBA.Trim$(value)) = 0 Then Exit Function
+            If VBA.IsNumeric(value) Then
+                If VBA.CDbl(value) = 0 Then Exit Function
+            End If
+        Case VBA.vbByte, VBA.vbInteger, VBA.vbLong, VBA.vbSingle, VBA.vbDouble, VBA.vbCurrency, VBA.vbDecimal
+            If value = 0 Then Exit Function
+    End Select
+    private_ExportValue = value
+End Function
 
 Private Sub private_AddMappings( _
     ByVal prefix As String, _
