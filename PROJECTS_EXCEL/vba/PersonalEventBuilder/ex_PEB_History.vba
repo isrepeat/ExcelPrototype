@@ -147,7 +147,10 @@ Public Function fn_Save( _
                     If reuseTvo Then
                         reuseTvo = (VBA.Len(previous("TvoReturnSnapshot")) > 0)
                         If reuseTvo Then values("TvoReturnSnapshot") = previous("TvoReturnSnapshot")
-                        If reuseTvo Then Set restoredTvo = ex_PEB_ReturnTvo.fn_Decode(values)
+                        If reuseTvo Then
+                            Set restoredTvo = ex_PEB_ReturnTvo.fn_Decode(values)
+                            reuseTvo = (restoredTvo.Count > 0)
+                        End If
                     End If
                 End If
                 If Not reuseTvo Then
@@ -157,6 +160,7 @@ Public Function fn_Save( _
                     tvoService.Dispose
                     Set tvoService = Nothing
                 End If
+                private_AddReturnTvoChildren values, identifier
             End If
         End If
     End If
@@ -307,6 +311,32 @@ Cleanup:
 EH:
     diagnostic = VBA.Err.Description
     Resume Cleanup
+End Function
+
+Public Function fn_EnsureReturnTvo( _
+    ByVal orderNumber As String, _
+    ByVal orderDate As Variant, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim events As Collection
+    Dim row As Object
+    Dim child As Object
+    Dim hasTvo As Boolean
+
+    If Not fn_ReadOrder(orderNumber, orderDate, events, diagnostic) Then Exit Function
+    For Each row In events
+        If row("Status") = "Active" And ex_PEB_EventRoutes.fn_Value(row("EventId"), "direction") = "Arrival" Then
+            hasTvo = False
+            For Each child In row("FormExtensionRows")
+                If child("RowType") = "TVO" Then hasTvo = True
+            Next child
+            If Not hasTvo Then
+                row("ExpectedHistoryStamp") = fn_Stamp(row)
+                If Not fn_Save(row, diagnostic) Then Exit Function
+            End If
+        End If
+    Next row
+    fn_EnsureReturnTvo = True
 End Function
 
 Public Function fn_ReadOrder( _
@@ -508,6 +538,38 @@ End Function
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
+Private Sub private_AddReturnTvoChildren( _
+    ByVal values As Object, _
+    ByVal parentId As String _
+)
+    Dim restored As Collection
+    Dim children As Collection
+    Dim source As Object
+    Dim child As Object
+    Dim field As Variant
+    Dim key As Variant
+    Dim mapping As Variant
+
+    Set restored = ex_PEB_ReturnTvo.fn_Decode(values)
+    If Not values.Exists("FormExtensionRows") Then Set values("FormExtensionRows") = New Collection
+    Set children = values("FormExtensionRows")
+    For Each source In restored
+        Set child = VBA.CreateObject("Scripting.Dictionary")
+        For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
+            mapping = VBA.Split(field, "=")
+            child(mapping(0)) = VBA.vbNullString
+        Next field
+        For Each key In source.Keys
+            child(key) = source(key)
+        Next key
+        child("RowType") = "TVO"
+        child("ParentRowId") = parentId
+        child("PersonPosition") = source("PositionGenitive")
+        children.Add child
+    Next source
+    Set values("MetaTvoTables") = restored
+End Sub
+
 Private Sub private_Open( _
     ByRef book As Workbook, _
     ByRef table As ListObject _
