@@ -156,6 +156,7 @@ Public Function TryGenerateHistory( _
                 body = VBA.Join(parts, VBA.vbCrLf & VBA.vbCrLf)
             End If
         End If
+        body = ex_PEB_WordGroups.fn_NormalizeSection(body)
         rendered.Add eventId, body
         totalCharacters = totalCharacters + VBA.Len(body)
     Next eventId

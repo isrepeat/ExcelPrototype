@@ -15,7 +15,8 @@ End Sub
 ' --------------------------------------
 Public Function fn_Save( _
     ByVal values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal rebindFormExtensions As Boolean = False _
 ) As Boolean
     Dim book As Workbook
     Dim table As ListObject
@@ -207,7 +208,7 @@ Public Function fn_Save( _
     End If
     Set revisionRows = rows
     If values.Exists("FormExtensionRows") Then
-        Set childPlan = ex_PEB_FormChildren.fn_Plan(table, rows, current, values("FormExtensionRows"))
+        Set childPlan = ex_PEB_FormChildren.fn_Plan(table, rows, current, values("FormExtensionRows"), rebindFormExtensions)
         If Not childPlan Is Nothing Then
             changed = True
             current("ChildrenChanged") = True

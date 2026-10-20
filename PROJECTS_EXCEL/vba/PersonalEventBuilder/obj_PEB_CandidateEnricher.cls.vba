@@ -88,6 +88,7 @@ Public Function TryEnrich( _
     Dim sequence As Variant
     Dim parsedOrderDate As Date
     Dim hasOrderDate As Boolean
+    Dim useOrderIncomingDate As Boolean
     Dim returnMode As Boolean
     Dim copy As obj_LookupRecord
     Dim name As String
@@ -97,6 +98,7 @@ Public Function TryEnrich( _
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Candidate enricher is not initialized."
     returnMode = VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnTickets.modes") & "|", "|" & modeId & "|", VBA.vbTextCompare) > 0
+    useOrderIncomingDate = VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.IncomingDate.orderDateModes") & "|", "|" & modeId & "|", VBA.vbTextCompare) > 0
     orderNumber = VBA.Trim$(orderNumber)
     If VBA.Len(orderNumber) > 0 Then
         If orderNumber Like "*[!0-9]*" Then Err.Raise 5, , "Order number must contain digits only."
@@ -137,6 +139,7 @@ Public Function TryEnrich( _
         fields("Absence.Type") = VBA.vbNullString
         fields("Absence.Destination") = VBA.vbNullString
         fields("Absence.DepartureDate") = VBA.vbNullString
+        fields("Absence.DurationDays") = VBA.vbNullString
         fields("Absence.TicketNumber") = VBA.vbNullString
         fields("Absence.TicketDate") = VBA.vbNullString
         Set supplement = New obj_LookupRecord
@@ -147,7 +150,9 @@ Public Function TryEnrich( _
         fields("Absence.TicketDate") = VBA.vbNullString
         fields("Absence.PlannedArrivalDate") = VBA.vbNullString
         fields("Event.IncomingDate") = VBA.vbNullString
-        If hasOrderDate Then fields("Event.IncomingDate") = VBA.Format$(parsedOrderDate, "dd.mm.yyyy")
+        If hasOrderDate And useOrderIncomingDate Then
+            fields("Event.IncomingDate") = VBA.Format$(parsedOrderDate, "dd.mm.yyyy")
+        End If
         fields("Event.Date") = VBA.vbNullString
         Set supplement = New obj_LookupRecord
         If Not supplement.Initialize(record.Key, fields) Then

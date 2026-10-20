@@ -220,6 +220,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "PositionCode", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "PersonPosition", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "DepartureDate", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "DurationDays", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "TicketNumber", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "TicketDate", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Data", "SelectedPersonnel", vbNullString) Then Exit Function

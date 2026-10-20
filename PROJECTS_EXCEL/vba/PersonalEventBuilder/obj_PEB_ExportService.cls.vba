@@ -931,6 +931,11 @@ Private Sub private_PrepareVacationDuration(ByVal values As Object)
                 If reason = parts(0) Then reasonKey = parts(1)
             Next mapping
             If VBA.Len(reasonKey) = 0 Then Err.Raise 5, , "Unknown additional vacation reason: " & reason
+            If reasonKey = "road" Then
+                If values("RoutedWordTemplate") = ex_PEB_Export.fn_Config("export.Word.duration.businessTrip.template") Then
+                    reasonKey = "businessTrip.road"
+                End If
+            End If
         End If
         If additional = 1 Then
             unit = ex_PEB_Export.fn_Config("export.Word.duration.additionalUnit.one")
@@ -980,7 +985,7 @@ Private Sub private_PrepareTicket(ByVal values As Object)
     Dim qualified As String
 
     values("TicketDocument") = VBA.vbNullString
-    If ex_PEB_Export.fn_Text(values("ModeForm")) <> ex_PEB_Export.fn_Config("export.ticket.form") Then Exit Sub
+    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("export.ticket.form") & "|", "|" & ex_PEB_Export.fn_Text(values("ModeForm")) & "|", VBA.vbBinaryCompare) = 0 Then Exit Sub
     ticket = ex_PEB_Export.fn_Text(values("TicketNumber"))
     If VBA.Len(ticket) = 0 Then Exit Sub
     If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnTickets.modes") & "|", _

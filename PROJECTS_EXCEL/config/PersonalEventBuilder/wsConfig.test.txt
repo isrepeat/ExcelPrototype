@@ -561,6 +561,7 @@ value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстано
 value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
 value	PersonalEventBuilder::text.HistoryChildrenInTable	Додаткові рапорти, документи та ТВО поки редагуються в EventsHistory. Збереження колекцій із форми ще не підтримується.
 value	PersonalEventBuilder::text.ModeDepartureDateLabel	Вибуття.Дата
+value	PersonalEventBuilder::text.ModeDurationDaysLabel	Вибуття.Термін
 value	PersonalEventBuilder::text.MovementBatchConflicts	РУХ не змінено. Конфліктних або заблокованих подій: {count}
 value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
 value	PersonalEventBuilder::text.TestsGroupingDocuments	Формувати Word-звіт групування
@@ -643,8 +644,14 @@ value	PersonalEventBuilder::forms.Leave.fields.13.record	Absence.TicketDate
 value	PersonalEventBuilder::forms.Leave.fields.13.captionKey	PersonalEventBuilder::text.ModeTicketDateLabel
 value	PersonalEventBuilder::forms.Leave.fields.13.sourceAlias	Absence
 value	PersonalEventBuilder::forms.Leave.fields.14.name	EventDate
+value	PersonalEventBuilder::forms.Leave.fields.14.record	Absence.DepartureDate
 value	PersonalEventBuilder::forms.Leave.fields.14.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
-value	PersonalEventBuilder::forms.Leave.fields.count	14
+value	PersonalEventBuilder::forms.Leave.fields.14.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.15.name	DurationDays
+value	PersonalEventBuilder::forms.Leave.fields.15.record	Absence.DurationDays
+value	PersonalEventBuilder::forms.Leave.fields.15.captionKey	PersonalEventBuilder::text.ModeDurationDaysLabel
+value	PersonalEventBuilder::forms.Leave.fields.15.sourceAlias	Absence
+value	PersonalEventBuilder::forms.Leave.fields.count	15
 value	PersonalEventBuilder::forms.Leave.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
@@ -734,6 +741,64 @@ value	PersonalEventBuilder::forms.Treatment.fields.16.captionKey	PersonalEventBu
 value	PersonalEventBuilder::forms.Treatment.fields.count	16
 value	PersonalEventBuilder::forms.Treatment.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Treatment.lookup.dependents	PersonRank|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::forms.HospitalLeave.fields.1.name	Hospital
+value	PersonalEventBuilder::forms.HospitalLeave.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.2.name	HospitalShortName
+value	PersonalEventBuilder::forms.HospitalLeave.fields.2.captionKey	PersonalEventBuilder::text.ModeHospitalShortNameLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.3.name	Destination
+value	PersonalEventBuilder::forms.HospitalLeave.fields.3.record	Absence.Destination
+value	PersonalEventBuilder::forms.HospitalLeave.fields.3.captionKey	PersonalEventBuilder::text.ModeDestinationLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.3.sourceAlias	Absence
+value	PersonalEventBuilder::forms.HospitalLeave.fields.4.name	PersonRank
+value	PersonalEventBuilder::forms.HospitalLeave.fields.4.record	Personnel.Rank
+value	PersonalEventBuilder::forms.HospitalLeave.fields.4.captionKey	PersonalEventBuilder::text.ModePersonRankLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.4.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.5.name	PersonName
+value	PersonalEventBuilder::forms.HospitalLeave.fields.5.record	Personnel.FullName
+value	PersonalEventBuilder::forms.HospitalLeave.fields.5.captionKey	PersonalEventBuilder::text.ModePersonNameLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.5.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.6.name	PersonId
+value	PersonalEventBuilder::forms.HospitalLeave.fields.6.record	Personnel.TaxId
+value	PersonalEventBuilder::forms.HospitalLeave.fields.6.captionKey	PersonalEventBuilder::text.ModePersonIdLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.6.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.7.name	PositionCode
+value	PersonalEventBuilder::forms.HospitalLeave.fields.7.record	Personnel.PositionCode
+value	PersonalEventBuilder::forms.HospitalLeave.fields.7.captionKey	PersonalEventBuilder::text.ModePositionCodeLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.7.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.8.name	PersonPosition
+value	PersonalEventBuilder::forms.HospitalLeave.fields.8.record	Personnel.Position
+value	PersonalEventBuilder::forms.HospitalLeave.fields.8.captionKey	PersonalEventBuilder::text.ModePersonPositionLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.8.sourceAlias	Personnel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.9.name	ReportRank
+value	PersonalEventBuilder::forms.HospitalLeave.fields.9.captionKey	PersonalEventBuilder::text.ModeReportRankLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.10.name	ReportName
+value	PersonalEventBuilder::forms.HospitalLeave.fields.10.captionKey	PersonalEventBuilder::text.ModeReportNameLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.11.name	ReportPositionCode
+value	PersonalEventBuilder::forms.HospitalLeave.fields.11.captionKey	PersonalEventBuilder::text.ModeReportPositionCodeLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.12.name	IncomingNumber
+value	PersonalEventBuilder::forms.HospitalLeave.fields.12.captionKey	PersonalEventBuilder::text.ModeIncomingNumberLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.13.name	IncomingDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.13.record	Event.IncomingDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.13.captionKey	PersonalEventBuilder::text.ModeIncomingDateLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.14.name	TicketNumber
+value	PersonalEventBuilder::forms.HospitalLeave.fields.14.record	Absence.TicketNumber
+value	PersonalEventBuilder::forms.HospitalLeave.fields.14.captionKey	PersonalEventBuilder::text.ModeTicketNumberLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.14.sourceAlias	Absence
+value	PersonalEventBuilder::forms.HospitalLeave.fields.15.name	TicketDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.15.record	Absence.TicketDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.15.captionKey	PersonalEventBuilder::text.ModeTicketDateLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.15.sourceAlias	Absence
+value	PersonalEventBuilder::forms.HospitalLeave.fields.16.name	EventDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.16.record	Absence.DepartureDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.16.captionKey	PersonalEventBuilder::text.ModeEventDateLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.16.sourceAlias	Absence
+value	PersonalEventBuilder::forms.HospitalLeave.fields.17.name	DurationDays
+value	PersonalEventBuilder::forms.HospitalLeave.fields.17.record	Absence.DurationDays
+value	PersonalEventBuilder::forms.HospitalLeave.fields.17.captionKey	PersonalEventBuilder::text.ModeDurationDaysLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.17.sourceAlias	Absence
+value	PersonalEventBuilder::forms.HospitalLeave.fields.count	17
+value	PersonalEventBuilder::forms.HospitalLeave.lookup.key	PersonName
+value	PersonalEventBuilder::forms.HospitalLeave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.sourceStyles.default	formField
 value	PersonalEventBuilder::forms.sourceStyles.Absence	absenceFormField
 value	PersonalEventBuilder::forms.sourceStyles.Document	personnelFormField
@@ -742,7 +807,7 @@ value	PersonalEventBuilder::forms.sourceStyles.Personnel	personnelFormField
 value	PersonalEventBuilder::forms.sourceStyles.CurrentOrder	currentOrderField
 value	PersonalEventBuilder::forms.sourceStyles.ReturnTickets	movementTicketField
 value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital|Document
-value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber|DurationDays
 value	PersonalEventBuilder::forms.lookupDefaultStyle	lookupKeyField
 value	PersonalEventBuilder::forms.dynamicStylesEnabled	true
 value	PersonalEventBuilder::modes.default	FromAnnualMainVacation
@@ -911,6 +976,9 @@ value	PersonalEventBuilder::export.Word.duration.donation.many	, наданих 
 value	PersonalEventBuilder::export.Word.duration.reasonKeys	дорога=road|донація=donation|донація крові=donation
 value	PersonalEventBuilder::export.Word.duration.fullPattern	^\s*(\d+)((?:\s*\+\s*\d+(?:\s*\([^)]*\))?)*)\s*$
 value	PersonalEventBuilder::export.Word.duration.operandPattern	\+\s*(\d+)(?:\s*\(([^)]*)\))?
+value	PersonalEventBuilder::export.Word.duration.businessTrip.road.one	, необхідної для проїзду до місця відрядження та у зворотному напрямку
+value	PersonalEventBuilder::export.Word.duration.businessTrip.road.many	, необхідних для проїзду до місця відрядження та у зворотному напрямку
+value	PersonalEventBuilder::export.Word.duration.businessTrip.template	ToBusinessTrip
 value	PersonalEventBuilder::export.Word.duration.additionalUnit.one	доби
 value	PersonalEventBuilder::export.Word.duration.additionalUnit.many	діб
 value	PersonalEventBuilder::export.Word.duration.additionalPhrase	, без урахування {days} {unit}
@@ -1326,10 +1394,10 @@ value	PersonalEventBuilder::export.shared.constants.9.name	MetaTvoTables
 value	PersonalEventBuilder::export.shared.constants.10.kind	emptyCollection
 value	PersonalEventBuilder::export.shared.constants.10.name	MetaTables
 value	PersonalEventBuilder::export.shared.constants.count	10
-value	PersonalEventBuilder::export.ticket.form	Leave
+value	PersonalEventBuilder::export.ticket.form	Leave|HospitalLeave
 value	PersonalEventBuilder::export.ticket.numberTemplate	{orderYear}/{orderNum}/{ticketNum}
 value	PersonalEventBuilder::export.ticket.qualifiedPattern	^\d{4}/[^/]+/[^/]+$
-value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber|DurationDays
   ref	PersonalEventBuilder::export.Movement.path	__cfgDependencies.fileMovementExport
   ref	PersonalEventBuilder::export.Movement.sheet	__cfgDependencies.source.MovementExport.sheet
   ref	PersonalEventBuilder::export.Movement.table	__cfgDependencies.source.MovementExport.table
@@ -1397,7 +1465,10 @@ value	PersonalEventBuilder::lookup.Absence.columns.4.header	70
 value	PersonalEventBuilder::lookup.Absence.columns.4.captionKey	PersonalEventBuilder::text.DepartureDateLabel
 value	PersonalEventBuilder::lookup.Absence.columns.5.name	Absence.TicketSequence
 value	PersonalEventBuilder::lookup.Absence.columns.5.header	Стовпець1
-value	PersonalEventBuilder::lookup.Absence.columns.count	5
+value	PersonalEventBuilder::lookup.Absence.columns.6.name	Absence.DurationDays
+value	PersonalEventBuilder::lookup.Absence.columns.6.header	72
+value	PersonalEventBuilder::lookup.Absence.columns.6.captionKey	PersonalEventBuilder::text.ModeDurationDaysLabel
+value	PersonalEventBuilder::lookup.Absence.columns.count	6
 value	PersonalEventBuilder::lookup.Absence.display.count	0
 value	PersonalEventBuilder::lookup.Absence.minChars	1
 value	PersonalEventBuilder::lookup.Absence.maxResults	1000
@@ -1542,6 +1613,7 @@ value	PersonalEventBuilder::lookup.Personnel.display.count	10
 value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
+value	PersonalEventBuilder::lookup.IncomingDate.orderDateModes	ToHospital|FromHospital|FromExternalVlk|FromAnnualMainVacation|FromVacationForCuring|FromVacationForFamily|FromMedicalCompanyForTreatment|FromBusinessTrip
 value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromBusinessTrip
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.path	__cfgDependencies.fileMovementHistory
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.sheet	__cfgDependencies.source.MovementHistory.sheet

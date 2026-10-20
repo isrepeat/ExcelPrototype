@@ -96,10 +96,11 @@ Public Function fn_Render( _
         End If
         result = private_RenderText(template, items(1), renderer)
     Else
+        Set items = private_SortItems(items, private_Attribute(template, "orderBy"))
         result = private_RenderGroup(group, items, renderer)
     End If
     renderer.Dispose
-    fn_Render = result
+    fn_Render = private_ParagraphCase(result)
     Exit Function
 EH:
     errorText = VBA.Err.Description
@@ -107,6 +108,10 @@ EH:
         renderer.Dispose
     End If
     Err.Raise 5, , "Word grouping: " & errorText
+End Function
+
+Public Function fn_NormalizeSection(ByVal text As String) As String
+    fn_NormalizeSection = private_ParagraphCase(text)
 End Function
 
 Public Function fn_Key( _
@@ -141,6 +146,79 @@ End Function
 ' } // namespace API
 ' --------------------------------------
 
+Private Function private_SortItems( _
+    ByVal items As Collection, _
+    ByVal orderBy As String _
+) As Collection
+    Dim sorted As New Collection
+    Dim item As Object
+    Dim fields As Variant
+    Dim dateFields As String
+    Dim prefix As String
+    Dim index As Long
+    Dim position As Long
+    Dim inserted As Boolean
+
+    If VBA.Len(VBA.Trim$(orderBy)) = 0 Then
+        Set private_SortItems = items
+        Exit Function
+    End If
+    fields = VBA.Split(orderBy, ";")
+    dateFields = "|"
+    For index = 1 To ex_PEB_Export.fn_Count("export.shared.aliases.count")
+        prefix = "export.shared.aliases." & VBA.CStr(index)
+        If ex_PEB_Export.fn_Config(prefix & ".kind") = "shortDate" Then
+            dateFields = dateFields & ex_PEB_Export.fn_Config(prefix & ".name") & "|"
+        End If
+    Next index
+
+    ' Sort typed dates before building groups; preserve input order for equal keys.
+    For Each item In items
+        inserted = False
+        For position = 1 To sorted.Count
+            If private_CompareItems(item, sorted(position), fields, dateFields) < 0 Then
+                sorted.Add item, Before:=position
+                inserted = True
+                Exit For
+            End If
+        Next position
+        If Not inserted Then sorted.Add item
+    Next item
+    Set private_SortItems = sorted
+End Function
+
+Private Function private_CompareItems( _
+    ByVal left As Object, _
+    ByVal right As Object, _
+    ByVal fields As Variant, _
+    ByVal dateFields As String _
+) As Long
+    Dim field As Variant
+    Dim name As String
+    Dim leftValue As Variant
+    Dim rightValue As Variant
+    Dim comparison As Long
+
+    For Each field In fields
+        name = VBA.Trim$(VBA.CStr(field))
+        leftValue = ex_PEB_Export.fn_Required(left, name)
+        rightValue = ex_PEB_Export.fn_Required(right, name)
+        If VBA.InStr(1, dateFields, "|" & name & "|", VBA.vbBinaryCompare) > 0 Then
+            leftValue = ex_PEB_History.fn_Date(leftValue)
+            rightValue = ex_PEB_History.fn_Date(rightValue)
+            comparison = 0
+            If leftValue < rightValue Then comparison = -1
+            If leftValue > rightValue Then comparison = 1
+        Else
+            comparison = VBA.StrComp(ex_PEB_Export.fn_Text(leftValue), ex_PEB_Export.fn_Text(rightValue), VBA.vbTextCompare)
+        End If
+        If comparison <> 0 Then
+            private_CompareItems = comparison
+            Exit Function
+        End If
+    Next field
+End Function
+
 Private Function private_RenderGroup( _
     ByVal group As Object, _
     ByVal items As Collection, _
@@ -156,8 +234,7 @@ Private Function private_RenderGroup( _
     Dim child As Object
     Dim result As String
     Dim field As Variant
-    Dim itemContext As Object
-    Dim itemIndex As Long
+    Dim text As String
 
     Set buckets = VBA.CreateObject("Scripting.Dictionary")
     For Each item In items
@@ -185,7 +262,6 @@ Private Function private_RenderGroup( _
             context.Add field, private_NumberRanges(members, aggregate)
         Next aggregate
         If members.Count = 1 Then
-            context("__GroupFirst") = True
             Set branch = group.selectSingleNode("p:single")
         Else
             Set branch = group.selectSingleNode("p:multiple")
@@ -201,18 +277,13 @@ Private Function private_RenderGroup( _
                             private_Append result, private_RenderText(branch, context, renderer)
                         Else
                             private_RequireCommon child, members
-                            private_Append result, private_RenderText(child, context, renderer)
+                            text = private_RenderText(child, context, renderer)
+                            If child.baseName = "header" Then text = private_GroupHeader(text)
+                            private_Append result, text
                         End If
                     Case "item"
-                        itemIndex = 0
                         For Each item In members
-                            itemIndex = itemIndex + 1
-                            Set itemContext = VBA.CreateObject("Scripting.Dictionary")
-                            For Each field In item.Keys
-                                itemContext.Add field, item(field)
-                            Next field
-                            itemContext("__GroupFirst") = (itemIndex = 1)
-                            private_Append result, private_RenderText(child, itemContext, renderer)
+                            private_Append result, private_RenderText(child, item, renderer)
                         Next item
                     Case "group"
                         private_Append result, private_RenderGroup(child, members, renderer)
@@ -498,6 +569,49 @@ Private Function private_Attribute( _
     If VBA.Len(private_Attribute) = 0 Then
         Err.Raise 5, , "Empty Word grouping attribute: " & name
     End If
+End Function
+
+Private Function private_GroupHeader(ByVal text As String) As String
+    text = VBA.Trim$(text)
+    Do While VBA.Len(text) > 0
+        If VBA.InStr(1, ".;:", VBA.Right$(text, 1), VBA.vbBinaryCompare) = 0 Then Exit Do
+        text = VBA.RTrim$(VBA.Left$(text, VBA.Len(text) - 1))
+    Loop
+    If VBA.Len(text) = 0 Then Err.Raise 5, , "Word group header must not be empty."
+    private_GroupHeader = text & ":"
+End Function
+
+Private Function private_ParagraphCase(ByVal text As String) As String
+    Dim paragraphs As Variant
+    Dim paragraph As String
+    Dim character As String
+    Dim afterColon As Boolean
+    Dim index As Long
+    Dim position As Long
+
+    ' Section headings end in a colon; blank paragraphs do not break that context.
+    afterColon = True
+    paragraphs = VBA.Split(text, VBA.vbCrLf)
+    For index = LBound(paragraphs) To UBound(paragraphs)
+        paragraph = VBA.CStr(paragraphs(index))
+        If VBA.Len(VBA.Trim$(paragraph)) > 0 Then
+            For position = 1 To VBA.Len(paragraph)
+                character = VBA.Mid$(paragraph, position, 1)
+                If VBA.LCase$(character) <> VBA.UCase$(character) Then
+                    If afterColon Then
+                        character = VBA.LCase$(character)
+                    Else
+                        character = VBA.UCase$(character)
+                    End If
+                    Mid$(paragraph, position, 1) = character
+                    Exit For
+                End If
+            Next position
+            afterColon = (VBA.Right$(VBA.RTrim$(paragraph), 1) = ":")
+            paragraphs(index) = paragraph
+        End If
+    Next index
+    private_ParagraphCase = VBA.Join(paragraphs, VBA.vbCrLf)
 End Function
 
 Private Sub private_Append( _

@@ -62,7 +62,7 @@
 #_        {#endif}#^
 #_        {#for item in MetaDocumentTables}#^
 #_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
-#_            {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
+#_            ; #^
 #_            #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
 #_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
 #_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
@@ -126,7 +126,7 @@
     <sharedTemplate id="block.ReturnFromVacation">
       <text>
         <![CDATA[#^
-#_        {#if __GroupFirst}{#include block.PersonLineLower}{#else}{#include block.PersonLineUpper}{#endif}.#^
+#_        {#include block.PersonLineUpper}.#^
 #_        {#include block.ReturnToDuty}#^
 #_        {#newline}{#newline}#^
 #_        {#include block.IncomingBasis}#^
@@ -204,6 +204,12 @@
         ]]>
       </text>
     </sharedTemplate>
+    <sharedTemplate id="block.VlkBasisDocuments">
+      <text><![CDATA[#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+      ]]></text>
+    </sharedTemplate>
 
     <sharedTemplate id="block.OptionalVacationTicket">
       <text>
@@ -228,6 +234,15 @@
         ]]>
       </text>
     </sharedTemplate>
+    <sharedTemplate id="block.BusinessTripPeriod">
+      <text>
+        <![CDATA[#^
+#_        {#if [VacationDurationPhrase]}{[VacationDurationPhrase]}{[AdditionalDurationPhrases]}{#space}{#endif}#^
+#_        з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}#^
+#_        {#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
   </sharedTemplates>
 
   <template name="ToBusinessTrip"
@@ -236,7 +251,7 @@
     <derived name="GroupBasis">
       <text>{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}</text>
     </derived>
-    <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort">
+    <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort; VacationDurationPhrase; AdditionalDurationPhrases; DateToShort">
       <aggregate name="CertificateNumbers"
                  field="VacationTicketNo"
                  operation="numberRanges"
@@ -245,7 +260,7 @@
                  rangeSeparator="–"/>
       <single>
         <text><![CDATA[#^
-#_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:#^
+#_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {#include block.BusinessTripPeriod}:#^
 #_      {#newline}{#newline}#^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.DepartureAdministration}#^
@@ -253,8 +268,8 @@
     ]]></text>
       </single>
       <multiple>
-        <header common="DateFromShort; Destination">
-          <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
+        <header common="DateFromShort; Destination; VacationDurationPhrase; AdditionalDurationPhrases; DateToShort">
+          <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {#include block.BusinessTripPeriod}:]]></text>
         </header>
         <item>
           <text>{#include block.PersonLineLower}.{#include block.DepartureAdministration}</text>
@@ -286,21 +301,32 @@
   </template>
 
 <template name="FromHospital"
-            hash="0x02">
-    <text><![CDATA[#^
-#_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
-#_      {#newline}{#newline}#^
-      #^
-#_      з {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:#^
-#_      {#newline}{#newline}#^
-      #^
-#_      {#include block.PersonLineLower}.#^
-#_      {#include block.ReturnToDuty}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      .{#newline}{#newline}#^
-      ]]></text>
+            hash="0x02"
+            identityBy="PersonId; EffectiveReturnDateShort; EventId"
+            orderBy="EffectiveReturnDateShort; HospitalGenitive; PersonId">
+    <group by="EffectiveReturnDateShort">
+      <single>
+        <text><![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
+      </single>
+      <multiple>
+        <header common="EffectiveReturnDateShort">
+          <text><![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
+        </header>
+        <group by="HospitalGenitive">
+          <single>
+            <text><![CDATA[З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
+          </single>
+          <multiple>
+            <header common="HospitalGenitive">
+              <text><![CDATA[З {[HospitalGenitive]|lowerFirstLetter|nbspAfterNumberSign}:]]></text>
+            </header>
+            <item>
+              <text>{#include block.PersonLineUpper}.{#include block.ReturnToDuty}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.</text>
+            </item>
+          </multiple>
+        </group>
+      </multiple>
+    </group>
   </template>
 
 <template name="FromVacationForCuring"
@@ -386,7 +412,7 @@
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
@@ -408,19 +434,22 @@
   </template>
 
 <template name="ToHospital"
-            hash="0x09">
-    <text><![CDATA[#^
-#_      У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
-#_      {#newline}{#newline}#^
-      #^
-#_      {#include block.PersonLineLower}.#^
-#_      {#include block.DepartureAdministration}#^
-#_      {#include block.OptionalFoodCertificate}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      .{#newline}{#newline}#^
-      ]]></text>
+            hash="0x09"
+            identityBy="PersonId; EffectiveReturnDateShort; EventId"
+            orderBy="EffectiveReturnDateShort; HospitalAccusative; PersonId">
+    <group by="HospitalAccusative; EffectiveReturnDateShort">
+      <single>
+        <text><![CDATA[У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
+      </single>
+      <multiple>
+        <header common="HospitalAccusative; EffectiveReturnDateShort">
+          <text><![CDATA[У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
+        </header>
+        <item>
+          <text>{#include block.PersonLineUpper}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.</text>
+        </item>
+      </multiple>
+    </group>
   </template>
 
   <template name="ToAnnualMainVacation"
@@ -448,6 +477,7 @@
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -463,6 +493,7 @@
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -478,7 +509,7 @@
 #_      {#include block.DepartureAdministration}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -511,8 +542,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
-#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -529,7 +559,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
@@ -637,7 +667,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -655,8 +685,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
-#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
@@ -689,8 +718,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
-#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -725,8 +753,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
-#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
@@ -815,7 +842,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
@@ -833,8 +860,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalVlkCertificate}#^
-#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>
@@ -849,8 +875,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
@@ -868,8 +893,7 @@
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalVlkCertificate}#^
+#_      {#include block.VlkBasisDocuments}#^
 #_      {#include block.OptionalVacationTicket}#^
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^

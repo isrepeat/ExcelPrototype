@@ -182,6 +182,7 @@ Public Sub fn_Change( _
         End If
         Set context = VBA.CreateObject("Scripting.Dictionary")
         context.Add "EventId", section.getAttribute("eventId")
+        rendered = ex_PEB_WordGroups.fn_NormalizeSection(rendered)
         context.Add "WordText", rendered
         If Not anchors.TryInsert(document, context, diagnostic) Then
             Err.Raise 5, , diagnostic
