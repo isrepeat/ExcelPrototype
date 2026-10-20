@@ -91,7 +91,12 @@ Public Function fn_Apply( _
     values("EventId") = eventId
     values("ModeDirection") = fn_Value(eventId, "direction")
     values("ModeForm") = fn_Value(eventId, "form")
+    values("Operation") = values("ModeDirection")
+    If values("Operation") = "StatusChange" Then values("Operation") = "Transition"
     If fn_HasRoute(eventId, "Movement") Then
+        values("SourceStatus") = fn_Value(eventId, "movement.sourceStatus")
+        values("TargetStatus") = fn_Value(eventId, "movement.targetStatus")
+        values("Operation") = fn_Value(eventId, "movement.operation")
         values("MovementTemplateId") = fn_Value(eventId, "movement.template")
         values("MovementPlanId") = fn_Value(eventId, "movement.profile")
         values("MovementOperation") = fn_Value(eventId, "movement.operation")
@@ -107,6 +112,14 @@ Public Function fn_Apply( _
         End If
         values("SourceDestination") = fn_Value(eventId, "movement.sourceDestination")
     Else
+        values("SourceStatus") = VBA.vbNullString
+        values("TargetStatus") = VBA.vbNullString
+        If values("Operation") <> "Departure" Then
+            values("SourceStatus") = ex_PEB_Export.fn_Config("eventContext." & eventId & ".sourceStatus")
+        End If
+        If values("Operation") <> "Arrival" Then
+            values("TargetStatus") = ex_PEB_Export.fn_Config("eventContext." & eventId & ".targetStatus")
+        End If
         values("EventName") = fn_Value(eventId, "label")
         values("SourceEventName") = VBA.vbNullString
         values("SourceDestination") = VBA.vbNullString

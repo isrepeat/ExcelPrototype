@@ -10,16 +10,26 @@
 #_        {#space}(вх. № {[IncomingNo]} від {[IncomingDateShort]})#^
         ]]></text>
     </sharedTemplate>
+    <sharedTemplate id="block.DocumentName">
+      <text><![CDATA[#^
+#_        #let __FromHospital = $ex_Helpers.m_RegexIsMatch("{[SourceStatus]}", "^HospitalTreatment$");#^
+#_        {#if __FromHospital}#^
+#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","ВМКСХ"}#^
+#_        {#else}#^
+#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","МКСХ"}#^
+#_        {#endif}#^
+      ]]></text>
+    </sharedTemplate>
     <sharedTemplate id="block.OptionalBasisDocuments">
       <text><![CDATA[#^
-        {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {[DocumentNote]|lowerFirstLetter}#^
+        {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; #let __DocumentName = "{[DocumentNote]}";{#include block.DocumentName}#^
 #_        {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
 #_        {#if [DocDateShort]}{#space}від {[DocDateShort]}{#endif}#^
 #_        {#endif}#^
 #_        {#for item in MetaDocumentTables}#^
 #_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
 #_            {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
-#_            {item.[DocumentNote]|lowerFirstLetter}#^
+#_            #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
 #_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
 #_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
 #_          {#endif}#^

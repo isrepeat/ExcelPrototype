@@ -222,6 +222,7 @@ CleanupHistory:
     private_HistoryStage "Cleanup", stage, startedAt
     On Error Resume Next
     If Not document Is Nothing Then document.Close 0
+    If Not wordApp Is Nothing Then wordApp.ScreenUpdating = True
     If Not anchors Is Nothing Then anchors.Dispose
     If Not templates Is Nothing Then templates.Dispose
     If Not service Is Nothing Then service.Dispose
@@ -417,6 +418,7 @@ Private Function private_Export( _
     End If
     document.Close 0
     Set document = Nothing
+    wordApp.ScreenUpdating = True
     Set wordApp = Nothing
 
     ' Publish validated grouped orders by replacing their previous version.
@@ -437,6 +439,7 @@ Cleanup:
     If Not document Is Nothing Then
         document.Close 0
     End If
+    If Not wordApp Is Nothing Then wordApp.ScreenUpdating = True
     Set wordApp = Nothing
     If VBA.Err.Number <> 0 Then
         cleanupError = VBA.Err.Description

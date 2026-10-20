@@ -13,7 +13,10 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_ReadLatest(ByVal personId As String) As Object
+Public Function fn_ReadLatest( _
+    ByVal personId As String, _
+    Optional ByVal includeTvo As Boolean = False _
+) As Object
     Dim result As Object
     Dim book As Workbook
     Dim table As ListObject
@@ -44,6 +47,12 @@ Public Function fn_ReadLatest(ByVal personId As String) As Object
     For Each field In VBA.Array("EventName", "DepartureDate", "ArrivalDate")
         fields.Add field, ex_PEB_Export.fn_Config("export.Movement.headers." & field)
     Next field
+    If includeTvo Then
+        fields.Add "ArrivalOrder", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder")
+        For Each field In VBA.Array("TvoName", "TvoPersonId", "TvoPositionCode")
+            fields.Add field, ex_PEB_Export.fn_Config("returnTvo.headers." & field)
+        Next field
+    End If
     If VBA.Len(VBA.Trim$(personId)) = 0 Then
         ex_PEB_MovementLinks.fn_Fail "MissingPersonId", ""
     End If

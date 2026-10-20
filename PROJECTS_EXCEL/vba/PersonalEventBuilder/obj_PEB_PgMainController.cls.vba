@@ -31,6 +31,10 @@ Private m_modeConfig As Object
 Private m_reporterFields As Collection
 Private m_reporterActive As Boolean
 Private m_hospitalActive As Boolean
+Private m_documentActive As Boolean
+Private m_documentFields As Collection
+Private m_documentProfile As obj_LookupProfile
+Private m_documentService As obj_LookupService
 Private m_hospitalFields As Collection
 Private m_hospitalProfile As obj_LookupProfile
 Private m_hospitalService As obj_LookupService
@@ -176,7 +180,13 @@ Public Sub Dispose()
     Set m_hospitalService = Nothing
     Set m_hospitalProfile = Nothing
     Set m_hospitalFields = Nothing
+    If Not m_documentService Is Nothing Then m_documentService.Dispose
+    If Not m_documentProfile Is Nothing Then m_documentProfile.Dispose
+    Set m_documentService = Nothing
+    Set m_documentProfile = Nothing
+    Set m_documentFields = Nothing
     m_hospitalActive = False
+    m_documentActive = False
     m_reporterActive = False
     Set m_historyRows = Nothing
     Set m_historyResult = Nothing
@@ -212,6 +222,19 @@ Public Function HospitalChangedHandler() As Boolean
         Exit Function
     End If
     HospitalChangedHandler = private_SearchSecondary(True, True)
+End Function
+
+Public Function DocumentChangedHandler() As Boolean
+    Dim autoFill As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
+    If Not VBA.CBool(autoFill) Then
+        DocumentChangedHandler = True
+        Exit Function
+    End If
+    DocumentChangedHandler = private_SearchSecondary(True, False, True, True)
 End Function
 
 Public Function PersonNameChangedHandler() As Boolean
@@ -269,6 +292,7 @@ Public Function ResetFormHandler() As Boolean
     Set m_lookupResult = result
     m_reporterActive = False
     m_hospitalActive = False
+    m_documentActive = False
     If Not private_EndHistoryEdit() Then Exit Function
     If Not private_PublishHistory(records, VBA.vbNullString, diagnostic) Then GoTo Failed
     m_historyOrderNumber = VBA.vbNullString
@@ -429,8 +453,8 @@ Private Function private_ApplyResolvedOrder() As Boolean
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     m_acceptedOrderNumber = VBA.CStr(number)
     m_acceptedOrderDate = orderDate
-    If m_reporterActive Or m_hospitalActive Then
-        If Not private_SearchSecondary(False, m_hospitalActive, False) Then
+    If m_reporterActive Or m_hospitalActive Or m_documentActive Then
+        If Not private_SearchSecondary(False, m_hospitalActive, False, m_documentActive) Then
             private_ApplyResolvedOrder = private_SetActionStatus(m_messages("OrderAppliedRefreshError"), True)
             Exit Function
         End If
@@ -477,8 +501,9 @@ Public Function RefreshPersonnelHandler() As Boolean
     m_candidateEnricher.InvalidateCache
     m_orderResolver.InvalidateCache
     If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
-    If m_reporterActive Or m_hospitalActive Then
-        RefreshPersonnelHandler = private_SearchSecondary(False, m_hospitalActive)
+    If Not m_documentService Is Nothing Then m_documentService.InvalidateCache
+    If m_reporterActive Or m_hospitalActive Or m_documentActive Then
+        RefreshPersonnelHandler = private_SearchSecondary(False, m_hospitalActive, True, m_documentActive)
         Exit Function
     End If
     RefreshPersonnelHandler = Me.SearchPersonnelHandler()
@@ -843,6 +868,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Dim candidates As obj_LookupResult
     Dim reporterActive As Boolean
     Dim hospitalActive As Boolean
+    Dim documentActive As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     previousScreenUpdating = Application.ScreenUpdating
@@ -867,6 +893,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Set candidates = m_lookupResult
     reporterActive = m_reporterActive
     hospitalActive = m_hospitalActive
+    documentActive = m_documentActive
     Set m_lookupResult = Nothing
     m_modeId = VBA.vbNullString
     mode = row("EventId")
@@ -874,6 +901,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Set m_lookupResult = candidates
     m_reporterActive = reporterActive
     m_hospitalActive = hospitalActive
+    m_documentActive = documentActive
     If Not candidates Is Nothing Then
         If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", candidates) Then GoTo Failed
     End If
@@ -1179,6 +1207,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     Dim oldOrderDate As Variant
     Dim oldReporter As Boolean
     Dim oldHospital As Boolean
+    Dim oldDocument As Boolean
     Dim oldFields As Collection
     Dim status As String
     Dim diagnostic As String
@@ -1224,15 +1253,17 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     oldOrderDate = m_acceptedOrderDate
     oldReporter = m_reporterActive
     oldHospital = m_hospitalActive
+    oldDocument = m_documentActive
     formChanged = True
 
-    ' Empty candidates without running personnel, reporter or hospital searches.
+    ' Empty candidates without querying personnel or secondary directories.
     Set emptyResult = New obj_LookupResult
     If Not emptyResult.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
     Set m_lookupResult = emptyResult
     m_modeId = VBA.vbNullString
     m_reporterActive = False
     m_hospitalActive = False
+    m_documentActive = False
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     m_acceptedOrderNumber = updates("Form.AcceptedOrderNumber")
@@ -1244,6 +1275,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     m_candidateEnricher.InvalidateCache
     m_orderResolver.InvalidateCache
     If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
+    If Not m_documentService Is Nothing Then m_documentService.InvalidateCache
     If Not m_pageBase.FlushUpdates() Then Err.Raise 5, , "Cannot render the loaded scenario."
     If Not pebTestScenarios.TryCommit(diagnostic) Then GoTo Failed
     m_testScenario = scenarioId
@@ -1268,6 +1300,7 @@ Failed:
         Set m_lookupResult = oldResult
         m_reporterActive = oldReporter
         m_hospitalActive = oldHospital
+        m_documentActive = oldDocument
         m_acceptedOrderNumber = oldOrder
         m_acceptedOrderDate = oldOrderDate
         If Not m_pageBase.BindingContext.TryApplyValues(snapshot, rollbackDiagnostic) Then
@@ -1298,13 +1331,14 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
     Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If m_reporterActive Or m_hospitalActive Then
+    If m_reporterActive Or m_hospitalActive Or m_documentActive Then
         If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
             Exit Function
         End If
     End If
     m_reporterActive = False
     m_hospitalActive = False
+    m_documentActive = False
     If Not private_TryReadFormValue("ModeForm", formKind) Then Exit Function
     If Not private_ReadModeConfig("forms." & VBA.CStr(formKind) & ".lookup.key", keyField, diagnostic) Then GoTo Failure
     If Not private_TryReadFormValue(keyField, text) Then Exit Function
@@ -1355,7 +1389,8 @@ End Function
 Private Function private_SearchSecondary( _
     ByVal clearDependents As Boolean, _
     Optional ByVal hospital As Boolean = False, _
-    Optional ByVal showCandidates As Boolean = True _
+    Optional ByVal showCandidates As Boolean = True, _
+    Optional ByVal document As Boolean = False _
 ) As Boolean
     Dim key As String
     Dim text As Variant
@@ -1374,10 +1409,22 @@ Private Function private_SearchSecondary( _
     On Error GoTo EH
     group = "reporter"
     If hospital Then group = "hospital"
+    If document Then group = "document"
     If Not private_SecondaryFields(group, fields, diagnostic) Then
         GoTo Failed
     End If
-    If hospital Then
+    If document Then
+        If m_documentService Is Nothing Then
+            Set m_documentProfile = New obj_LookupProfile
+            If Not m_documentProfile.Initialize("PersonalEventBuilder::lookup.Document", diagnostic) Then GoTo Failed
+            Set m_documentService = New obj_LookupService
+            If Not m_documentService.Initialize(m_documentProfile) Then
+                Err.Raise 5, , "Cannot initialize document lookup service."
+            End If
+        End If
+        Set profile = m_documentProfile
+        Set service = m_documentService
+    ElseIf hospital Then
         If m_hospitalService Is Nothing Then
             Set m_hospitalProfile = New obj_LookupProfile
             If Not m_hospitalProfile.Initialize("PersonalEventBuilder::lookup.Hospital", diagnostic) Then GoTo Failed
@@ -1416,12 +1463,16 @@ Private Function private_SearchSecondary( _
             GoTo Failed
         End If
     End If
-    m_reporterActive = Not hospital
+    m_reporterActive = Not hospital And Not document
     m_hospitalActive = hospital
+    m_documentActive = document
 
     ' Search the selected directory without enriching secondary records with absence data.
     If Not service.TrySearch(VBA.CStr(text), result, diagnostic) Then
         GoTo Failed
+    End If
+    If m_reporterActive Then
+        If Not private_AddReporterOrderDate(result.Records, diagnostic) Then GoTo Failed
     End If
     Set projected = New obj_LookupResult
     If Not projected.Initialize(result.Records, fields, result.HasMore, diagnostic) Then
@@ -1461,13 +1512,40 @@ Failed:
         Set projected = New obj_LookupResult
         If projected.Initialize(records, fields, False, status) Then
             Set m_lookupResult = projected
-            m_reporterActive = Not hospital
+            m_reporterActive = Not hospital And Not document
             m_hospitalActive = hospital
+            m_documentActive = document
             m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", projected
         End If
     End If
     private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
+End Function
+
+Private Function private_AddReporterOrderDate( _
+    ByVal records As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim record As obj_LookupRecord
+    Dim supplement As obj_LookupRecord
+    Dim values As Object
+    Dim dateText As String
+
+    On Error GoTo EH_REPORT_DATE
+    If VBA.Len(ex_PEB_Export.fn_Text(m_acceptedOrderDate)) > 0 Then
+        dateText = VBA.Format$(ex_PEB_History.fn_Date(m_acceptedOrderDate), "dd.mm.yyyy")
+    End If
+    For Each record In records
+        Set values = VBA.CreateObject("Scripting.Dictionary")
+        values("Event.IncomingDate") = dateText
+        Set supplement = New obj_LookupRecord
+        If Not supplement.Initialize(record.Key, values) Then Err.Raise 5, , "Cannot initialize reporter order date."
+        If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot merge reporter order date."
+    Next record
+    private_AddReporterOrderDate = True
+    Exit Function
+EH_REPORT_DATE:
+    diagnostic = VBA.Err.Description
 End Function
 
 Private Function private_SecondaryFields( _
@@ -1483,7 +1561,9 @@ Private Function private_SecondaryFields( _
     Dim fields As Collection
     Dim caption As String
 
-    If group = "hospital" Then
+    If group = "document" Then
+        Set result = m_documentFields
+    ElseIf group = "hospital" Then
         Set result = m_hospitalFields
     Else
         Set result = m_reporterFields
@@ -1528,7 +1608,9 @@ Private Function private_SecondaryFields( _
         column("apply") = True
         fields.Add column
     Next index
-    If group = "hospital" Then
+    If group = "document" Then
+        Set m_documentFields = fields
+    ElseIf group = "hospital" Then
         Set m_hospitalFields = fields
     Else
         Set m_reporterFields = fields
@@ -1983,7 +2065,7 @@ Private Function private_LoadMode( _
     Dim secondaryCandidates As Boolean
 
     On Error GoTo EH
-    secondaryCandidates = m_reporterActive Or m_hospitalActive
+    secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
     modes = ex_PEB_EventRoutes.fn_VisibleIds()
     caption = VBA.vbNullString
     text = "secondaryButton"
@@ -2000,7 +2082,7 @@ Private Function private_LoadMode( _
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
     If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
-    If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive Then
+    If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
         If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
             ' These modes share the same projection and derived event fields.
@@ -2043,6 +2125,10 @@ Private Function private_LoadMode( _
         sourceAlias = VBA.vbNullString
         If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
         If m_modeConfig.Exists(prefix & ".sourceAlias") Then sourceAlias = m_modeConfig(prefix & ".sourceAlias")
+        If fieldName = "EventDate" And direction = "Departure" Then
+            recordName = VBA.vbNullString
+            sourceAlias = VBA.vbNullString
+        End If
         Set column = VBA.CreateObject("Scripting.Dictionary")
         column("formField") = fieldName
         column("apply") = (VBA.Len(recordName) > 0)
@@ -2090,6 +2176,7 @@ Private Function private_LoadMode( _
     End If
     m_reporterActive = False
     m_hospitalActive = False
+    m_documentActive = False
     If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
@@ -2281,6 +2368,9 @@ Private Function private_ApplyModeRecord( _
     End If
     If m_hospitalActive Then
         Set fields = m_hospitalFields
+    End If
+    If m_documentActive Then
+        Set fields = m_documentFields
     End If
     For Each column In fields
         If column("apply") Then

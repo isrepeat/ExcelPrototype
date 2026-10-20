@@ -52,7 +52,8 @@
            value="{Binding Path=ReportRank}"
            label="{Binding Path=Text.ModeReportRankLabel}"
            fieldStyle="{Binding Path=Form.ReportRankStyle}"
-           partStylesEnabled="false"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="ReportName"
            type="text"
            value="{Binding Path=ReportName}"
@@ -65,7 +66,8 @@
            value="{Binding Path=ReportPositionCode}"
            label="{Binding Path=Text.ModeReportPositionCodeLabel}"
            fieldStyle="{Binding Path=Form.ReportPositionCodeStyle}"
-           partStylesEnabled="false"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="IncomingNumber"
            type="text"
            value="{Binding Path=IncomingNumber}"
@@ -110,12 +112,14 @@
            value="{Binding Path=HospitalShortName}"
            label="{Binding Path=Text.ModeHospitalShortNameLabel}"
            fieldStyle="{Binding Path=Form.HospitalShortNameStyle}"
-           partStylesEnabled="false"/>
+           readOnly="{Binding Path=Form.AutoFillPersonnel}"
+           partStylesEnabled="true"/>
     <field name="Document"
            type="text"
            value="{Binding Path=Document}"
            label="{Binding Path=Text.ModeDocumentLabel}"
            fieldStyle="{Binding Path=Form.DocumentStyle}"
+           onChange="{Binding Path=Commands.DocumentChanged}"
            partStylesEnabled="false"/>
     <field name="DocumentDate"
            type="text"
@@ -190,9 +194,9 @@
                 columnSpan="1"/>
       <fieldRef name="Document"
                 columnSpan="1"/>
-      <fieldRef name="DocumentDate"
-                columnSpan="1"/>
       <fieldRef name="DocumentNumber"
+                columnSpan="1"/>
+      <fieldRef name="DocumentDate"
                 columnSpan="1"/>
       <fieldRef name="EventDate"
                 columnSpan="1"/>
@@ -386,9 +390,9 @@
                      caption="{Binding Path=Text.ResetForm}"
                      command="{Binding Path=Commands.ResetForm}"/>
     <controls:button name="ReinitializePage"
-                     row="9"
-                     column="5"
-                     columnSpan="4"
+                     row="22"
+                     column="18"
+                     columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ReinitializePage}"
                      command="{Binding Path=Commands.ReinitializePage}"/>
@@ -497,13 +501,6 @@
                     columnSpan="3"
                     style="{Binding Path=Form.ActionStatusStyle}"
                     text="{Binding Path=Form.ActionStatus}"/>
-    <controls:button name="PreviewWord"
-                     row="3"
-                     column="18"
-                     columnSpan="3"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.PreviewWord}"
-                     command="{Binding Path=Commands.PreviewWord}"/>
     <controls:button name="ExportMovement"
                      row="4"
                      column="18"
@@ -532,27 +529,6 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ShowHistory}"
                      command="{Binding Path=Commands.ShowHistory}"/>
-    <controls:button name="EventVersions"
-                     row="20"
-                     column="18"
-                     columnSpan="3"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.EventVersions}"
-                     command="{Binding Path=Commands.EventVersions}"/>
-    <controls:button name="CancelEvent"
-                     row="21"
-                     column="18"
-                     columnSpan="3"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.CancelEvent}"
-                     command="{Binding Path=Commands.CancelEvent}"/>
-    <controls:button name="RestoreEvent"
-                     row="22"
-                     column="18"
-                     columnSpan="3"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.RestoreEvent}"
-                     command="{Binding Path=Commands.RestoreEvent}"/>
     <controls:label name="HistoryEditMode"
                     row="12"
                     column="18"
@@ -571,7 +547,7 @@
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendPersonnelEntry}"/>
     <controls:label name="SourceLegendAbsence"
-                    row="16"
+                    row="18"
                     column="20"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendAbsenceEntry}"/>
@@ -586,45 +562,75 @@
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="LegendAbsenceSample"
-                    row="16"
+                    row="18"
                     column="18"
                     style="legendSample"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendAbsenceSeparator"
-                    row="16"
+                    row="18"
                     column="19"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="SourceLegendReturnTickets"
-                    row="17"
+                    row="19"
                     column="20"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendReturnTicketsEntry}"/>
     <controls:label name="LegendReturnTicketsSample"
-                    row="17"
+                    row="19"
                     column="18"
                     style="movementTicketField"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendReturnTicketsSeparator"
-                    row="17"
+                    row="19"
                     column="19"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="LegendOrderDateSample"
-                    row="18"
+                    row="20"
                     column="18"
                     style="currentOrderField"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendOrderDateSeparator"
-                    row="18"
+                    row="20"
                     column="19"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="SourceLegendOrderDate"
-                    row="18"
+                    row="20"
                     column="20"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendOrderDate}"/>
+    <controls:label name="LegendHospitalSample"
+                    row="16"
+                    column="18"
+                    style="legendSample"
+                    text="{Binding Path=Text.SourceLegendSample}"/>
+    <controls:label name="LegendHospitalSeparator"
+                    row="16"
+                    column="19"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendSeparator}"/>
+    <controls:label name="SourceLegendHospital"
+                    row="16"
+                    column="20"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendHospitalEntry}"/>
+    <controls:label name="LegendDocumentSample"
+                    row="17"
+                    column="18"
+                    style="legendSample"
+                    text="{Binding Path=Text.SourceLegendSample}"/>
+    <controls:label name="LegendDocumentSeparator"
+                    row="17"
+                    column="19"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendSeparator}"/>
+    <controls:label name="SourceLegendDocument"
+                    row="17"
+                    column="20"
+                    style="legendDescription"
+                    text="{Binding Path=Text.SourceLegendDocumentEntry}"/>
   </grid>
 
   <styles>
@@ -1062,6 +1068,28 @@
         <rule target="control"
               selector="name=SourceLegendTitle"
               styles="{fontColor:#909090;}"/>
+        <rule target="control"
+              selector="name=LegendHospitalSample"
+              style="personnelSource"/>
+        <rule target="controlPart"
+              selector="type=candidates;part=rows;sourceAlias=Hospital"
+              style="personnelSource"/>
+        <rule target="controlPart"
+              selector="type=candidates;part=rows;sourceAlias=Hospital;tags=even"
+              styles="{
+                backColor:#383838;
+              }"/>
+        <rule target="control"
+              selector="name=LegendDocumentSample"
+              style="personnelSource"/>
+        <rule target="controlPart"
+              selector="type=candidates;part=rows;sourceAlias=Document"
+              style="personnelSource"/>
+        <rule target="controlPart"
+              selector="type=candidates;part=rows;sourceAlias=Document;tags=even"
+              styles="{
+                backColor:#383838;
+              }"/>
         <rule target="control"
               selector="name=LegendPersonnelSample"
               style="personnelSource"/>

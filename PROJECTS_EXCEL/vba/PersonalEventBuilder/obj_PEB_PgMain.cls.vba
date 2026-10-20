@@ -319,7 +319,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not lookupCommand.Initialize(m_controller, "SelectConflictHandler") Then Exit Function
     If Not uiBindingContext.SetObject("Commands", "SelectConflict", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
-            "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "EnvironmentSwitch", _
+            "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "DocumentChanged", "EnvironmentSwitch", _
             "LoadTest", "NextTest", "ResetForm", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _

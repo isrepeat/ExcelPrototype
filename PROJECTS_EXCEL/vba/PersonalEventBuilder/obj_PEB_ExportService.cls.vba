@@ -75,6 +75,30 @@ Public Sub Dispose()
     Set m_lookupTables = Nothing
 End Sub
 
+Public Function TryCaptureReturnTvo( _
+    ByVal values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim rows As Collection
+    Dim row As Object
+    Dim index As Long
+
+    On Error GoTo EH_RETURN_TVO
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Export service is not initialized."
+    Set rows = ex_PEB_ReturnTvo.fn_Read(values)
+    For Each row In rows
+        private_Enrich row, "returnTvo.rank"
+        For index = 1 To ex_PEB_Export.fn_Count("export.Word.meta.lookups.count")
+            private_Enrich row, "export.Word.meta.lookups." & VBA.CStr(index)
+        Next index
+    Next row
+    values("TvoReturnSnapshot") = ex_PEB_ReturnTvo.fn_Encode(values, rows)
+    TryCaptureReturnTvo = True
+    Exit Function
+EH_RETURN_TVO:
+    diagnostic = VBA.Err.Description
+End Function
+
 Public Function TryPrepare( _
     ByVal uiBindingContext As obj_UiBindingContext, _
     ByVal exporter As String, _
@@ -146,6 +170,14 @@ Public Function TryPrepare( _
         values.Add VBA.CStr(key), scalar
     Next key
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
+    If values("ModeDirection") = "Departure" Then
+        If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
+            values("EventDate") = values("IncomingDate")
+            If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
+                values("EventDate") = values("AcceptedOrderDate")
+            End If
+        End If
+    End If
     If exporter = "Word" And values("WordPolicy") = "Omit" And Not history Then
         values("WordOutcome") = "Omitted"
         values("WordText") = VBA.vbNullString
@@ -168,7 +200,7 @@ Public Function TryPrepare( _
         End If
     Next key
 
-    ' Требуем полный год, чтобы короткая дата не получила случайный контекст.
+    ' Resolve partial dates against the current calendar date before export.
     dateFields = VBA.Split(ex_PEB_Export.fn_Config("export.dateFields"), "|")
     For Each key In dateFields
         scalar = ex_PEB_Export.fn_Required(values, VBA.CStr(key))
@@ -208,6 +240,12 @@ Public Function TryPrepare( _
         private_AddAliases values
 
         private_CompleteWordContext values, additionalInputs
+        If Not history And values("ModeDirection") = "Arrival" Then
+            If values("MetaTvoTables").Count = 0 Then
+                If Not Me.TryCaptureReturnTvo(values, diagnostic) Then GoTo Failed
+                Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)
+            End If
+        End If
         If history And values("WordPolicy") = "Omit" Then
             TryPrepare = True
             GoTo CleanupPrepare
@@ -1009,30 +1047,42 @@ Private Function private_Date( _
     Dim parsed As Date
     Dim text As String
     Dim rx As Object
+    Dim today As Date
+    Dim dateDay As Long
+    Dim dateMonth As Long
+    Dim dateYear As Long
 
     If VBA.VarType(value) = VBA.vbDate Then
         private_Date = VBA.DateValue(value)
         Exit Function
     End If
     If VBA.IsNumeric(value) And VBA.VarType(value) <> VBA.vbString Then
-        If VBA.CDbl(value) < 1 Or VBA.CDbl(value) > 2958465 Then
-            Err.Raise 5, , "Invalid Excel date: " & key
+        If VBA.CDbl(value) > 31 Then
+            If VBA.CDbl(value) > 2958465 Then
+                Err.Raise 5, , "Invalid Excel date: " & key
+            End If
+            private_Date = VBA.DateValue(VBA.CDate(value))
+            Exit Function
         End If
-        private_Date = VBA.DateValue(VBA.CDate(value))
-        Exit Function
     End If
     text = ex_PEB_Export.fn_Text(value)
     Set rx = VBA.CreateObject("VBScript.RegExp")
-    rx.Pattern = "^\d{2}\.\d{2}\.\d{4}$"
+    rx.Pattern = "^\d{1,2}(\.\d{1,2}(\.\d{4})?)?$"
     If Not rx.Test(text) Then
-        Err.Raise 5, , "Full date DD.MM.YYYY required: " & key
+        Err.Raise 5, , "Date D, D.M or D.M.YYYY required: " & key
     End If
     parts = VBA.Split(text, ".")
-    If VBA.CLng(parts(2)) < 1900 Then
+    today = VBA.DateTime.Date
+    dateDay = VBA.CLng(parts(0))
+    dateMonth = VBA.DateTime.Month(today)
+    dateYear = VBA.DateTime.Year(today)
+    If UBound(parts) >= 1 Then dateMonth = VBA.CLng(parts(1))
+    If UBound(parts) = 2 Then dateYear = VBA.CLng(parts(2))
+    If dateYear < 1900 Then
         Err.Raise 5, , "Invalid date year: " & key
     End If
-    parsed = VBA.DateSerial(VBA.CInt(parts(2)), VBA.CInt(parts(1)), VBA.CInt(parts(0)))
-    If VBA.Format$(parsed, "dd.mm.yyyy") <> text Then
+    parsed = VBA.DateSerial(dateYear, dateMonth, dateDay)
+    If VBA.DateTime.Day(parsed) <> dateDay Or VBA.DateTime.Month(parsed) <> dateMonth Or VBA.DateTime.Year(parsed) <> dateYear Then
         Err.Raise 5, , "Invalid calendar date: " & key
     End If
     private_Date = parsed

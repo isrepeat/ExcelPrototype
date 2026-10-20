@@ -556,6 +556,12 @@ Private Sub private_Let( _
         Err.Raise 5, , "#let requires an internal variable starting with __."
     End If
     expression = VBA.Trim$(VBA.Mid$(statement, separator + 1))
+    If VBA.Left$(expression, 1) = """" Then
+        rx.Pattern = "^""([^""]|"""")*""$"
+        If Not rx.Test(expression) Then Err.Raise 5, , "Invalid #let string literal."
+        values(name) = private_Render(private_Unquote(expression), values, depth + 1)
+        Exit Sub
+    End If
     opening = VBA.InStr(expression, "(")
     If opening = 0 Or VBA.Right$(expression, 1) <> ")" Then
         Err.Raise 5, , "Invalid #let function call."
