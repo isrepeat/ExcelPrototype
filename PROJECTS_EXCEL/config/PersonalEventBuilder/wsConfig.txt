@@ -657,7 +657,7 @@ value	PersonalEventBuilder::export.Word.context.lookups.4.valueHeader	Знахі
 value	PersonalEventBuilder::export.Word.context.lookups.count	4
 value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName|DutyPositionGenitive|SourceStatus|TargetStatus|Operation
 value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
-value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalGenitive
+value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.ToBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
 value	PersonalEventBuilder::export.Word.context.templates.FromExternalVlk.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.FromBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
@@ -777,7 +777,7 @@ value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacati
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyForTreatmentToVacationForCuring	MoveFromMedicalCompanyForTreatmentToVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	MoveFromMedicalCompanyVacationForCuringToVacationForCuring
 value	PersonalEventBuilder::export.Word.documentMode	template
-value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.when.pattern	\S
   ref	PersonalEventBuilder::export.Word.FromHospital.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.input	HospitalShortName
@@ -788,7 +788,7 @@ value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.keyHeader	Поз�
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.1.valueHeader	Родовий
 value	PersonalEventBuilder::export.Word.FromHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.lookups.count	0
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.previewRequired	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate

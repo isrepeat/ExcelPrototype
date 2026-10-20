@@ -448,7 +448,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "FromExternalVlk", _
         "Arrival", _
@@ -458,7 +458,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
         "FromMedicalCompanyForTreatment", _
         "Arrival", _
