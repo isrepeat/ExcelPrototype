@@ -928,7 +928,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.scalarInputs"), "|")
-        If row.Exists(field) Then wordContext(field) = row(field)
+        If field <> "DurationDays" And row.Exists(field) Then wordContext(field) = row(field)
     Next field
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.booleanInputs"), "|")
         Select Case VBA.LCase$(VBA.Trim$(VBA.CStr(row(field))))
@@ -1550,8 +1550,10 @@ Private Function private_AddReporterOrderDate( _
     Dim dateText As String
 
     On Error GoTo EH_REPORT_DATE
-    If VBA.Len(ex_PEB_Export.fn_Text(m_acceptedOrderDate)) > 0 Then
-        dateText = VBA.Format$(ex_PEB_History.fn_Date(m_acceptedOrderDate), "dd.mm.yyyy")
+    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.IncomingDate.orderDateModes") & "|", "|" & m_modeId & "|", VBA.vbTextCompare) > 0 Then
+        If VBA.Len(ex_PEB_Export.fn_Text(m_acceptedOrderDate)) > 0 Then
+            dateText = VBA.Format$(ex_PEB_History.fn_Date(m_acceptedOrderDate), "dd.mm.yyyy")
+        End If
     End If
     For Each record In records
         Set values = VBA.CreateObject("Scripting.Dictionary")
@@ -1923,7 +1925,7 @@ Private Function private_Export(ByVal action As String) As Boolean
             diagnostic = "Cannot publish the Word preview binding."
         End If
     ElseIf exporter = "History" Then
-        success = ex_PEB_History.fn_Save(values, diagnostic)
+        success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing))
         If success And extensionRows.Count > 0 Then
             If Not m_extensions.TryAcceptSaved(values("FormExtensionRows"), diagnostic) Then GoTo Failed
         End If
@@ -2118,7 +2120,7 @@ Private Function private_LoadMode( _
     If direction <> "Arrival" And direction <> "Departure" And direction <> "StatusChange" Then
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
-    If formKind <> "Leave" And formKind <> "Treatment" Then Err.Raise 5, , "Invalid mode form: " & modeId
+    If formKind <> "Leave" And formKind <> "Treatment" And formKind <> "HospitalLeave" Then Err.Raise 5, , "Invalid mode form: " & modeId
     If Not private_UpdateReadOnly(modeId, diagnostic) Then Exit Function
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
@@ -2141,8 +2143,8 @@ Private Function private_LoadMode( _
     End If
     If Not private_ReadModeConfig("forms." & formKind & ".fields.count", countText, diagnostic) Then Exit Function
     If Not VBA.IsNumeric(countText) Then Err.Raise 5, , "Invalid mode field count: " & formKind
-    If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
-        Err.Raise 5, , "Mode field count must be an integer from 1 to 16."
+    If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 17 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
+        Err.Raise 5, , "Mode field count must be an integer from 1 to 17."
     End If
     If Not private_ReadModeConfig("text." & direction & "Type", eventType, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("text.Mode" & direction & "DateLabel", eventDateLabel, diagnostic) Then Exit Function
@@ -2163,7 +2165,7 @@ Private Function private_LoadMode( _
         sourceAlias = VBA.vbNullString
         If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
         If m_modeConfig.Exists(prefix & ".sourceAlias") Then sourceAlias = m_modeConfig(prefix & ".sourceAlias")
-        If fieldName = "EventDate" Then
+        If (fieldName = "EventDate" Or fieldName = "DurationDays") And direction <> "Departure" And direction <> "StatusChange" Then
             recordName = VBA.vbNullString
             sourceAlias = VBA.vbNullString
         End If
@@ -2189,6 +2191,7 @@ Private Function private_LoadMode( _
             "IncomingNumber", _
             "IncomingDate", _
             "EventDate", _
+            "DurationDays", _
             "TicketNumber", _
             "TicketDate", _
             "Hospital", _
@@ -2341,6 +2344,7 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     End If
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     updates("Form.EventDate") = VBA.vbNullString
+    updates("Form.DurationDays") = VBA.vbNullString
     If Not private_ReadModeConfig("forms.sourceStyles.default", status, diagnostic) Then GoTo Failed
     updates("Form.EventDateStyle") = status
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed

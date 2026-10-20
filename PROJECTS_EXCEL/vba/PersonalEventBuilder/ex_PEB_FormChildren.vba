@@ -43,7 +43,8 @@ Public Function fn_Plan( _
     ByVal table As ListObject, _
     ByVal rows As Collection, _
     ByVal root As Object, _
-    ByVal children As Collection _
+    ByVal children As Collection, _
+    Optional ByVal rebindFormExtensions As Boolean = False _
 ) As Object
     Dim plan As Object
     Dim ids As Object
@@ -68,6 +69,7 @@ Public Function fn_Plan( _
     Dim c As Long
     Dim people As Object
     Dim uniformFormat As Variant
+    Dim rebound As Object
 
     Set plan = CreateObject("Scripting.Dictionary")
     Set ids = CreateObject("Scripting.Dictionary")
@@ -90,6 +92,8 @@ Public Function fn_Plan( _
         End If
     Next row
     If Not ids.Exists(root("RowId")) Then pending.Add root
+    Set rebound = CreateObject("Scripting.Dictionary")
+    If rebindFormExtensions Then Set rebound = private_Rebind(children, root, ids, removed)
     For Each child In children
         serial = serial + 1
         identifier = child("RowId")
@@ -98,8 +102,8 @@ Public Function fn_Plan( _
             Do
                 identifier = root("RowId") & "/C" & CStr(index)
                 index = index + 1
-            Loop While ids.Exists(identifier)
-        ElseIf Not removed.Exists(identifier) Then
+            Loop While ids.Exists(identifier) Or rebound.Exists(identifier)
+        ElseIf Not removed.Exists(identifier) And Not rebound.Exists(identifier) Then
             Err.Raise 5, , "Child does not belong to this event: " & identifier
         End If
         If Not removed.Exists(identifier) Then ids.Add identifier, child
@@ -267,4 +271,70 @@ Public Sub fn_Rollback( _
 End Sub
 ' --------------------------------------
 ' } // namespace API
+' --------------------------------------
+
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
+Private Function private_Rebind( _
+    ByVal children As Collection, _
+    ByVal root As Object, _
+    ByVal ids As Object, _
+    ByVal owned As Object _
+) As Object
+    Dim mapping As Object
+    Dim allocated As Object
+    Dim parents As Object
+    Dim child As Object
+    Dim identifier As String
+    Dim replacement As String
+    Dim parentId As String
+    Dim index As Long
+
+    Set mapping = CreateObject("Scripting.Dictionary")
+    Set allocated = CreateObject("Scripting.Dictionary")
+    Set parents = CreateObject("Scripting.Dictionary")
+
+    ' Allocate copies without changing rows belonging to the source event.
+    For Each child In children
+        identifier = CStr(child("RowId"))
+        If Len(identifier) > 0 Then
+            replacement = identifier
+            If Not owned.Exists(identifier) Then
+                If Not ids.Exists(identifier) Then Err.Raise 5, , "Missing source extension: " & identifier
+                If ids(identifier)("RowType") = "Event" Then Err.Raise 5, , "An event cannot be copied as an extension."
+                Do
+                    index = index + 1
+                    replacement = root("RowId") & "/C" & CStr(index)
+                Loop While ids.Exists(replacement) Or allocated.Exists(replacement)
+                allocated.Add replacement, True
+            End If
+            mapping.Add identifier, replacement
+        End If
+    Next child
+
+    ' Preserve nested TVO links; replace only the event-level parent.
+    For Each child In children
+        parentId = CStr(child("ParentRowId"))
+        If Len(parentId) = 0 Or parentId = root("RowId") Then
+            parents.Add CStr(parents.Count + 1), root("RowId")
+        ElseIf mapping.Exists(parentId) Then
+            parents.Add CStr(parents.Count + 1), mapping(parentId)
+        Else
+            If Not ids.Exists(parentId) Then Err.Raise 5, , "Missing source extension parent: " & parentId
+            If ids(parentId)("RowType") <> "Event" Then Err.Raise 5, , "Source extension parent is outside the copied form."
+            parents.Add CStr(parents.Count + 1), root("RowId")
+        End If
+    Next child
+    index = 0
+    For Each child In children
+        index = index + 1
+        identifier = CStr(child("RowId"))
+        If Len(identifier) > 0 Then child("RowId") = mapping(identifier)
+        child("ParentRowId") = parents(CStr(index))
+    Next child
+    Set private_Rebind = allocated
+End Function
+' --------------------------------------
+' } // namespace Private
 ' --------------------------------------

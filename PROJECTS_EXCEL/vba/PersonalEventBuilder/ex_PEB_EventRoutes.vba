@@ -216,7 +216,7 @@ Private Sub private_EnsureLoaded()
         If route("direction") <> "Arrival" And route("direction") <> "Departure" And route("direction") <> "StatusChange" Then
             Err.Raise 5, , "Invalid event direction: " & identifier
         End If
-        If route("form") <> "Leave" And route("form") <> "Treatment" Then
+        If route("form") <> "Leave" And route("form") <> "Treatment" And route("form") <> "HospitalLeave" Then
             Err.Raise 5, , "Invalid event form: " & identifier
         End If
         If route("visible") <> "true" And route("visible") <> "false" Then

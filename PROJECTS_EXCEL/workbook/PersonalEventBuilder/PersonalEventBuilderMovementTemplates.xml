@@ -32,7 +32,7 @@
 #_        {#endif}#^
 #_        {#for item in MetaDocumentTables}#^
 #_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
-#_            {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; {#else}{#if #not item.__first}; {#endif}{#endif}#^
+#_            ; #^
 #_            #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
 #_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
 #_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
@@ -59,6 +59,12 @@
       <text><![CDATA[#^
 #_        {#if [VlkNo] #or [VlkDateShort]}; довідка військово-лікарської комісії{#if [VlkNo]} № {[VlkNo]}{#endif}{#if [VlkDateShort]} від {[VlkDateShort]}{#endif}{#endif}#^
         ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.VlkBasisDocuments">
+      <text><![CDATA[#^
+#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.OptionalBasisDocuments}#^
+      ]]></text>
     </sharedTemplate>
   </sharedTemplates>
   <template name="FromBusinessTrip">
@@ -130,7 +136,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -194,7 +200,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -227,8 +233,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -237,8 +242,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -249,7 +253,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -258,7 +262,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -369,7 +373,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -378,7 +382,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -389,8 +393,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -399,8 +402,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -431,8 +433,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -441,8 +442,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -473,8 +473,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -483,8 +482,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -575,7 +573,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -584,7 +582,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -595,8 +593,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -605,8 +602,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -637,8 +633,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -647,8 +642,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -659,8 +653,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -669,8 +662,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -702,8 +694,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -712,8 +703,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalVlkCertificate}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.VlkBasisDocuments}#^
 #_        .#^
         ]]>
       </text>

@@ -156,7 +156,7 @@
            caption="лікування → відпустка для лікування"
            id="MoveFromHospitalToVacationForCuring"
            direction="StatusChange"
-           form="Leave"
+           form="HospitalLeave"
            visible="true">
       <movement template="MoveFromHospitalToVacationForCuring"/>
       <word template="MoveFromHospitalToVacationForCuring"/>

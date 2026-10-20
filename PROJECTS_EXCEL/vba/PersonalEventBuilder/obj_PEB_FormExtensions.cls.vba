@@ -286,7 +286,7 @@ Public Function Build( _
         node.setAttribute "onSelect", "{Binding Path=Commands." & key & "}"
         node.setAttribute "alignToForm", "ExForm" & row("Id")
         node.setAttribute "workspaceFirstColumn", "1"
-        node.setAttribute "workspaceLastColumn", "16"
+        node.setAttribute "workspaceLastColumn", "17"
         node.setAttribute "showHeaders", "true"
         body.appendChild node
     Next row
