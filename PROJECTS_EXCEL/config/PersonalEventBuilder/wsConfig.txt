@@ -944,7 +944,7 @@ value	PersonalEventBuilder::export.shared.aliases.5.source	PersonAccusative
 value	PersonalEventBuilder::export.shared.aliases.6.kind	value
 value	PersonalEventBuilder::export.shared.aliases.6.name	ReportPerson
 value	PersonalEventBuilder::export.shared.aliases.6.source	ReportName
-value	PersonalEventBuilder::export.shared.aliases.7.kind	value
+value	PersonalEventBuilder::export.shared.aliases.7.kind	incomingNumber
 value	PersonalEventBuilder::export.shared.aliases.7.name	IncomingNo
 value	PersonalEventBuilder::export.shared.aliases.7.source	IncomingNumber
 value	PersonalEventBuilder::export.shared.aliases.8.kind	shortDate
@@ -1055,6 +1055,9 @@ value	PersonalEventBuilder::export.shared.positions.rozp.text	який пере�
 value	PersonalEventBuilder::export.shared.positions.inputs	PositionCode=PersonRank|ReportPositionCode=ReportRank
 value	PersonalEventBuilder::export.shared.positions.characters	А=A|В=B
 value	PersonalEventBuilder::export.shared.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)
+value	PersonalEventBuilder::export.shared.incomingNumber.marker	№
+value	PersonalEventBuilder::export.shared.incomingNumber.pattern	^[0-9]{1,5}$
+value	PersonalEventBuilder::export.shared.incomingNumber.template	1656/{number}-в
 value	PersonalEventBuilder::export.shared.constants.1.kind	emptyText
 value	PersonalEventBuilder::export.shared.constants.1.name	VlkNo
 value	PersonalEventBuilder::export.shared.constants.2.kind	emptyText
