@@ -98,6 +98,20 @@ def main():
     profiles = []
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         config = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
+        number_pattern = re.compile(config["export.shared.incomingNumber.pattern"])
+        marker = config["export.shared.incomingNumber.marker"]
+        number_template = config["export.shared.incomingNumber.template"]
+        def format_number(raw):
+            trimmed = raw.strip()
+            if trimmed.startswith(marker):
+                return trimmed[len(marker):].strip()
+            return number_template.replace("{number}", raw) if number_pattern.fullmatch(raw) else raw
+        for raw, expected in (("2899", "1656/2899-в"), ("001", "1656/001-в"), ("№2899", "2899"), ("№ 2899", "2899"), ("2899/ВЛК", "2899/ВЛК"), ("2899/р", "2899/р"), ("123456", "123456"), ("1656/2899-в", "1656/2899-в"), ("", "")):
+            assert format_number(raw) == expected
+        assert config["export.shared.aliases.7.kind"] == "incomingNumber"
+        assert 'row("IncomingNo") = private_IncomingNumber(row("IncomingNumber"))' in prepare_extensions
+        assert 'copy("IncomingNo") = private_IncomingNumber(document("IncomingNumber"))' in service
+        assert 'report("IncomingNo") = private_IncomingNumber(report("IncomingNumber"))' in service
         officer_pattern = re.compile(config["export.shared.positions.officerPattern"], re.IGNORECASE)
         for rank in ("молодший лейтенант", "майор", "полковник", "капітан медичної служби"):
             assert officer_pattern.search(rank)

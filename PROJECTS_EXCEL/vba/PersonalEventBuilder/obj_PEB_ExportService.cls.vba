@@ -148,7 +148,7 @@ Public Function TryPrepareExtensions( _
                 duties.Add row
             Case "Report"
                 row("ReportPerson") = row("ReportName")
-                row("IncomingNo") = row("IncomingNumber")
+                row("IncomingNo") = private_IncomingNumber(row("IncomingNumber"))
                 row("IncomingDateShort") = row("IncomingDate")
                 row("ReporterGenitive") = Trim$(row("ReportPositionGenitive") & " " & row("ReportRankGenitive") & " " & row("ReportPersonInitialsGenitive"))
                 reports.Add row
@@ -437,7 +437,7 @@ Public Function TryPrepareHistoryMovement( _
     For Each document In stored("HistoryReports")
         Set copy = CreateObject("Scripting.Dictionary")
         copy("ReportPerson") = document("ReportName")
-        copy("IncomingNo") = document("IncomingNumber")
+        copy("IncomingNo") = private_IncomingNumber(document("IncomingNumber"))
         copy("IncomingDateShort") = Format$(ex_PEB_History.fn_Date(document("IncomingDate")), "dd.mm.yyyy")
         copy("ReporterGenitive") = Trim$(document("ReportPositionGenitive") & " " & document("ReportRankGenitive") & " " & document("ReportPersonInitialsGenitive"))
         values("HistoryReports").Add copy
@@ -617,7 +617,7 @@ Public Function TryPrepareHistory( _
         If reportPattern.Test(VBA.CStr(report("ReportPerson"))) Then
             report("ReportPerson") = VBA.vbNullString
         End If
-        report("IncomingNo") = report("IncomingNumber")
+        report("IncomingNo") = private_IncomingNumber(report("IncomingNumber"))
         If VBA.Len(report("IncomingNo")) = 0 Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError032")
         report("IncomingDateShort") = VBA.Format$(ex_PEB_History.fn_Date(report("IncomingDate")), "dd.mm.yyyy")
         report("ReporterGenitive") = VBA.Trim$(report("ReportPositionGenitive") & " " & report("ReportRankGenitive") & " " & report("ReportPersonInitialsGenitive"))
@@ -1442,6 +1442,30 @@ Private Sub private_AddConstants( _
     Next index
 End Sub
 
+Private Function private_IncomingNumber(ByVal value As Variant) As String
+    Dim text As String
+    Dim trimmed As String
+    Dim marker As String
+    Dim rx As Object
+
+    If IsError(value) Then Err.Raise 5, , "Incoming number contains an Excel error."
+    If IsNull(value) Or IsEmpty(value) Then Exit Function
+    text = CStr(value)
+    trimmed = Trim$(text)
+    marker = ex_PEB_Export.fn_Config("export.shared.incomingNumber.marker")
+    If Len(marker) = 0 Then Err.Raise 5, , "Incoming number marker must not be empty."
+    If Left$(trimmed, Len(marker)) = marker Then
+        private_IncomingNumber = Trim$(Mid$(trimmed, Len(marker) + 1))
+        Exit Function
+    End If
+    Set rx = CreateObject("VBScript.RegExp")
+    rx.Pattern = ex_PEB_Export.fn_Config("export.shared.incomingNumber.pattern")
+    private_IncomingNumber = text
+    If rx.Test(text) Then
+        private_IncomingNumber = Replace$(ex_PEB_Export.fn_Config("export.shared.incomingNumber.template"), "{number}", text)
+    End If
+End Function
+
 Private Sub private_AddAliases(ByVal values As Object)
     Dim index As Long
     Dim prefix As String
@@ -1462,6 +1486,8 @@ Private Sub private_AddAliases(ByVal values As Object)
             Err.Raise 5, , "Alias would overwrite an export value: " & name
         End If
         Select Case kind
+            Case "incomingNumber"
+                scalar = private_IncomingNumber(ex_PEB_Export.fn_Required(values, source))
             Case "value"
                 scalar = ex_PEB_Export.fn_Required(values, source)
             Case "shortDate"
