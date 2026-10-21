@@ -146,7 +146,8 @@ End Function
 
 Public Function Build( _
     ByVal formKind As String, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal headerOnly As Boolean = False _
 ) As Boolean
     Dim document As Object
     Dim header As Object
@@ -168,16 +169,23 @@ Public Function Build( _
     Dim anchor As Variant
     Dim kinds As Collection
     Dim cachedHeader As Boolean
+    Dim headerKey As String
+    Dim viewport As Variant
+    Dim ignored As Object
+    Dim isObject As Boolean
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Extensions are not initialized."
     m_form = formKind
     ' Keep existing command objects alive when only extension rows are rebuilt.
     Set document = CreateObject("MSXML2.DOMDocument.6.0")
-    cachedHeader = m_headers.Exists(formKind)
-    ex_Core.fn_Diagnostic_WriteLog "TEMP.Extensions.Cache | Form=" & formKind & " | HeaderHit=" & CStr(cachedHeader) & " | ConfigEntries=" & CStr(m_config.Count)
+    If Not m_page.BindingContext.TryGetValue("Settings", "FormViewportStart", viewport, ignored, isObject) Then
+        Err.Raise 5, , "Missing Settings.FormViewportStart."
+    End If
+    headerKey = formKind & "|" & CStr(viewport)
+    cachedHeader = m_headers.Exists(headerKey)
     If cachedHeader Then
-        Set header = m_headers(formKind).cloneNode(True)
+        Set header = m_headers(headerKey).cloneNode(True)
     Else
         Set header = private_Node(document, "stackPanel")
         header.setAttribute "orientation", "vertical"
@@ -199,11 +207,11 @@ Public Function Build( _
     Next kind
     index = 0
     For Each anchor In groups.Keys
+        index = index + 1
         column = private_Column(CStr(anchor))
         Set kinds = groups(anchor)
         If column = 0 Then column = CLng(private_Config(CStr(kinds(1)), "fallbackColumn"))
         If column > 0 Then
-            index = index + 1
             key = "ExtAdd" & CStr(index)
             Set options = New Collection
             Set kinds = groups(anchor)
@@ -231,7 +239,8 @@ Public Function Build( _
         End If
 NextHeader:
     Next anchor
-    If Not cachedHeader Then Set m_headers(formKind) = header.cloneNode(True)
+    If Not cachedHeader Then Set m_headers(headerKey) = header.cloneNode(True)
+    If headerOnly Then GoTo PublishMarkup
     For Each row In m_rows
         column = private_Column(private_Config(row("Type"), "start"))
         If column = 0 Then
@@ -312,8 +321,11 @@ NextHeader:
         node.setAttribute "showHeaders", "true"
         body.appendChild node
     Next row
+PublishMarkup:
     If Not m_page.BindingContext.SetObject("Data", "ExtensionHeader", header) Then Exit Function
-    If Not m_page.BindingContext.SetObject("Data", "ExtensionBody", body) Then Exit Function
+    If Not headerOnly Then
+        If Not m_page.BindingContext.SetObject("Data", "ExtensionBody", body) Then Exit Function
+    End If
     Build = True
     Exit Function
 EH:
