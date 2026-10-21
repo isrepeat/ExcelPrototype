@@ -866,7 +866,13 @@ value	PersonalEventBuilder::forms.HospitalLeave.fields.17.name	DurationDays
 value	PersonalEventBuilder::forms.HospitalLeave.fields.17.record	Absence.DurationDays
 value	PersonalEventBuilder::forms.HospitalLeave.fields.17.captionKey	PersonalEventBuilder::text.ModeDurationDaysLabel
 value	PersonalEventBuilder::forms.HospitalLeave.fields.17.sourceAlias	Absence
-value	PersonalEventBuilder::forms.HospitalLeave.fields.count	17
+value	PersonalEventBuilder::forms.HospitalLeave.fields.18.name	Document
+value	PersonalEventBuilder::forms.HospitalLeave.fields.18.captionKey	PersonalEventBuilder::text.ModeDocumentLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.19.name	DocumentNumber
+value	PersonalEventBuilder::forms.HospitalLeave.fields.19.captionKey	PersonalEventBuilder::text.ModeDocumentNumberLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.20.name	DocumentDate
+value	PersonalEventBuilder::forms.HospitalLeave.fields.20.captionKey	PersonalEventBuilder::text.ModeDocumentDateLabel
+value	PersonalEventBuilder::forms.HospitalLeave.fields.count	20
 value	PersonalEventBuilder::forms.HospitalLeave.lookup.key	PersonName
 value	PersonalEventBuilder::forms.HospitalLeave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.sourceStyles.default	formField
@@ -1752,7 +1758,7 @@ value	PersonalEventBuilder::history.list.columns.12.caption	Стан WORD
 value	PersonalEventBuilder::history.list.columns.count	12
 value	PersonalEventBuilder::history.sheet	EventsHistory
 value	PersonalEventBuilder::history.table	tbEventsHistory
-value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo|TvoReturnSnapshot=TvoReturnSnapshot
+value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo|TvoReturnSnapshot=TvoReturnSnapshot|ExtensionRole=ExtensionRole
 value	PersonalEventBuilder::history.exports.sheet	ExportJournal
 value	PersonalEventBuilder::history.exports.table	tbExportJournal
 value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
@@ -1826,6 +1832,11 @@ value	PersonalEventBuilder::returnTvo.snapshot.fields	PersonId|PersonName|Person
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::candidates.textWarningLimit	255
   ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.defaults	Document=Vlk
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.required	Vlk
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.primaryCaption	Виписка
+value	PersonalEventBuilder::extensions.role.Vlk.caption	Довідка ВЛК
+value	PersonalEventBuilder::extensions.role.Vlk.required	Document|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::extensions.type.TVO.key	PersonName
 value	PersonalEventBuilder::extensions.type.TVO.map	PersonRank=Personnel.Rank|PersonName=Personnel.FullName|PersonId=Personnel.TaxId|PositionCode=Personnel.PositionCode|PersonPosition=Personnel.Position
 value	PersonalEventBuilder::extensions.type.TVO.dates	-
@@ -1866,13 +1877,17 @@ value	PersonalEventBuilder::extensions.type.Document.readOnly	-
 value	PersonalEventBuilder::extensions.type.Document.required	Document
 value	PersonalEventBuilder::extensions.type.Document.fallbackColumn	14
 value	PersonalEventBuilder::extensions.limit	20
+value	PersonalEventBuilder::extensions.modes	MoveFromHospitalToVacationForCuring
 value	PersonalEventBuilder::extensions.types	TVO|Report|Document
 value	PersonalEventBuilder::extensions.invalid	Заповніть обов’язкові поля розширення: {field}
 value	PersonalEventBuilder::extensions.addCaption	+
 value	PersonalEventBuilder::extensions.errorTitle	Розширення форми
+value	PersonalEventBuilder::extensions.unavailable	Розширення доступне лише для активних видимих полів основної форми.
 value	PersonalEventBuilder::extensions.duplicateTvo	У ланцюжку ТВО не можна повторювати військовослужбовця або обирати власника події.
 value	PersonalEventBuilder::extensions.limitReached	Досягнуто ліміт розширень форми.
 value	PersonalEventBuilder::extensions.removeCaption	×
+value	PersonalEventBuilder::extensions.noServiceSpace	Немає вільних колонок для назви та кнопки розширення.
+value	PersonalEventBuilder::extensions.requiredCaption	Обов’язково
   ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
 value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet

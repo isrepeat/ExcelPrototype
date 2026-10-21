@@ -452,6 +452,10 @@ Private Function private_Table( _
             On Error Resume Next
             Set column = table.ListColumns("Snapshot." & mapping(1))
             On Error GoTo 0
+            If column Is Nothing And mapping(0) = "ExtensionRole" Then
+                Set column = table.ListColumns.Add
+                column.Name = "Snapshot." & mapping(1)
+            End If
             If column Is Nothing Then
                 ex_PEB_MovementLinks.fn_Fail "MissingHistoryColumn", "Snapshot." & mapping(1)
             End If

@@ -1947,9 +1947,9 @@ Private Function private_Export(ByVal action As String) As Boolean
         success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing), m_exportService)
         If success Then
             If values("FormExtensionRows").Count <> extensionRows.Count Then
-                If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic) Then GoTo Failed
+                If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic, True) Then GoTo Failed
                 If Not ex_PEB_ExtRefresh.fn_Request(m_extensions) Then GoTo Failed
-            ElseIf extensionRows.Count > 0 Then
+            Else
                 If Not m_extensions.TryAcceptSaved(values("FormExtensionRows"), diagnostic) Then GoTo Failed
             End If
         End If
@@ -2124,6 +2124,7 @@ Private Function private_LoadMode( _
     Dim modes As Variant
     Dim currentForm As Variant
     Dim secondaryCandidates As Boolean
+    Dim extensionModes As String
 
     On Error GoTo EH
     secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
@@ -2145,9 +2146,12 @@ Private Function private_LoadMode( _
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
     If Not private_UpdateReadOnly(modeId, diagnostic) Then Exit Function
+    extensionModes = "|" & ex_PEB_Export.fn_Config("extensions.modes") & "|"
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
-        If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
+        If VBA.CStr(currentForm) = formKind And m_modeDirection = direction And _
+                InStr(1, extensionModes, "|" & modeId & "|", vbBinaryCompare) = 0 And _
+                InStr(1, extensionModes, "|" & m_modeId & "|", vbBinaryCompare) = 0 Then
             ' These modes share the same projection and derived event fields.
             If Not m_pageBase.BindingContext.SetValue("Settings", m_modeId & "Style", "secondaryButton") Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Settings", modeId & "Style", "activeModeButton") Then Exit Function
@@ -2160,14 +2164,15 @@ Private Function private_LoadMode( _
                 If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
                 Set m_lookupResult = projectedResult
             End If
+            If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
             private_LoadMode = True
             Exit Function
         End If
     End If
     If Not private_ReadModeConfig("forms." & formKind & ".fields.count", countText, diagnostic) Then Exit Function
     If Not VBA.IsNumeric(countText) Then Err.Raise 5, , "Invalid mode field count: " & formKind
-    If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 17 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
-        Err.Raise 5, , "Mode field count must be an integer from 1 to 17."
+    If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16384 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
+        Err.Raise 5, , "Mode field count must be an integer from 1 to 16384."
     End If
     If Not private_ReadModeConfig("text." & direction & "Type", eventType, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("text.Mode" & direction & "DateLabel", eventDateLabel, diagnostic) Then Exit Function
@@ -2184,6 +2189,9 @@ Private Function private_LoadMode( _
             Exit Function
         End If
         If fieldName = "EventDate" Then fieldCaption = eventDateLabel
+        If fieldName = "Document" And InStr(1, extensionModes, "|" & modeId & "|", vbBinaryCompare) > 0 Then
+            fieldCaption = ex_PEB_Export.fn_Config("extensions.mode." & modeId & ".primaryCaption")
+        End If
         recordName = VBA.vbNullString
         sourceAlias = VBA.vbNullString
         If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
@@ -2272,10 +2280,7 @@ Private Function private_LoadMode( _
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
-    ' Extension layouts depend on the form kind, not the selected event route.
-    If CStr(currentForm) <> formKind Then
-        If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
-    End If
+    If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
     private_LoadMode = True
     Exit Function
 EH:
@@ -2374,10 +2379,8 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
     startedAt = VBA.Timer
-    If previousForm <> ex_PEB_EventRoutes.fn_Value(modeId, "form") Then
-        If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
-        If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
-    End If
+    If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
+    If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
     private_SwitchMode = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "Mode.Flush", startedAt
     Exit Function
@@ -2635,8 +2638,9 @@ Private Function private_ScrollForm(ByVal direction As Long) As Boolean
         private_ScrollForm = True
         GoTo CleanScroll
     End If
-    If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic, True) Then GoTo FailedScroll
+    If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo FailedScroll
     If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo FailedScroll
+    If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo FailedScroll
     private_ScrollForm = m_pageBase.FlushUpdates()
 CleanScroll:
     ex_Core.fn_Diagnostic_EndBatch

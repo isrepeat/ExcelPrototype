@@ -216,7 +216,7 @@ Private Sub private_EnsureLoaded()
         If route("direction") <> "Arrival" And route("direction") <> "Departure" And route("direction") <> "StatusChange" Then
             Err.Raise 5, , "Invalid event direction: " & identifier
         End If
-        If ex_PEB_Export.fn_Count("forms." & route("form") & ".fields.count", 17) < 1 Then
+        If ex_PEB_Export.fn_Count("forms." & route("form") & ".fields.count", 16384) < 1 Then
             Err.Raise 5, , "Event form has no configured fields: " & identifier
         End If
         If route("visible") <> "true" And route("visible") <> "false" Then

@@ -118,6 +118,7 @@ Public Function fn_Save( _
     values("RowId") = identifier
     values("ParentRowId") = VBA.vbNullString
     values("RowType") = "Event"
+    values("ExtensionRole") = VBA.vbNullString
     If matchIndex = 0 Then
         values("RowOrder") = VBA.CStr(table.ListRows.Count + 1)
     Else
@@ -455,7 +456,10 @@ Public Function fn_Stamp(ByVal values As Object) As String
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
         mapping = VBA.Split(VBA.CStr(field), "=")
         text = private_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(mapping(0))))
-        fn_Stamp = fn_Stamp & VBA.Len(text) & ":" & text
+        ' Keep existing movement-link stamps stable for rows without extension metadata.
+        If mapping(0) <> "ExtensionRole" Or VBA.Len(text) > 0 Then
+            fn_Stamp = fn_Stamp & VBA.Len(text) & ":" & text
+        End If
     Next field
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
         text = ex_PEB_Export.fn_Text(values(field))
@@ -466,7 +470,9 @@ Public Function fn_Stamp(ByVal values As Object) As String
             For Each field In Split(ex_PEB_Export.fn_Config("history.fields"), "|")
                 mapping = Split(field, "=")
                 text = private_Text(child(mapping(0)))
-                fn_Stamp = fn_Stamp & Len(text) & ":" & text
+                If mapping(0) <> "ExtensionRole" Or Len(text) > 0 Then
+                    fn_Stamp = fn_Stamp & Len(text) & ":" & text
+                End If
             Next field
         Next child
     End If
@@ -592,7 +598,7 @@ Private Function private_Columns( _
                 Exit For
             End If
         Next column
-        If Not found And mapping(0) = "TvoReturnSnapshot" Then
+        If Not found And (mapping(0) = "TvoReturnSnapshot" Or mapping(0) = "ExtensionRole") Then
             If extend Then
                 Set column = table.ListColumns.Add
                 column.Name = mapping(1)
