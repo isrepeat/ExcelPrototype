@@ -55,7 +55,8 @@ Public Function TryExecute( _
     ByVal source As obj_TableSource, _
     ByVal query As obj_TableQuery, _
     ByRef output As obj_DataTable, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal fetchSize As Long = 1 _
 ) As Boolean
     Dim data As New obj_DataTable
     Dim conn As Object
@@ -94,6 +95,9 @@ Public Function TryExecute( _
     If query.Limit < 0 Then
         Err.Raise VBA.vbObjectError + 2151, , "Limit cannot be negative."
     End If
+    If fetchSize < 1 Or fetchSize > 10000 Then
+        Err.Raise VBA.vbObjectError + 2153, , "Invalid ADO fetch size."
+    End If
     canonical = VBA.CreateObject("Scripting.FileSystemObject").GetAbsolutePathName(source.WorkbookPath)
     extension = VBA.LCase$(VBA.Mid$(canonical, VBA.InStrRev(canonical, ".") + 1))
     Select Case extension
@@ -123,6 +127,7 @@ Public Function TryExecute( _
         """;Extended Properties=""" & props & ";HDR=YES;IMEX=1;ReadOnly=True"";"
     ex_Core.fn_Diagnostic_WritePerf "Ado.OpenConnection", startedAt
     Set rs = VBA.CreateObject("ADODB.Recordset")
+    rs.CacheSize = fetchSize
     startedAt = VBA.Timer
     rs.Open "SELECT * FROM " & sqlRef & " WHERE 1=0", conn, 0, 1
     ReDim headers(0 To rs.Fields.Count - 1)
