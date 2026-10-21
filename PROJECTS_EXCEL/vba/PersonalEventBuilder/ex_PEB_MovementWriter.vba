@@ -134,18 +134,12 @@ Public Function fn_Apply( _
     If addedRows > 0 Then
         target.Resize target.Range.Resize(target.Range.Rows.Count + addedRows)
     End If
-    For Each entry In entries
-        Set cell = target.Parent.Range(entry("Address"))
-        If VBA.VarType(entry("Expected")) = VBA.vbString Then
-            cell.NumberFormat = "@"
-            cell.Value2 = entry("Expected")
-        ElseIf VBA.VarType(entry("Expected")) = VBA.vbDate Then
-            cell.Value2 = VBA.CDbl(entry("Expected"))
-        Else
-            cell.Value2 = entry("Expected")
-        End If
-        cell.NumberFormat = entry("WriteFormat")
-    Next entry
+    private_Stage "Write.FormatText", stage, startedAt
+    private_FormatEntries target, entries, True
+    private_Stage "Write.Values", stage, startedAt
+    private_WriteValues target, entries
+    private_Stage "Write.RestoreFormats", stage, startedAt
+    private_FormatEntries target, entries, False
     private_Stage "Write.Verify", stage, startedAt
     For Each entry In entries
         private_Verify target, entry, False
@@ -277,6 +271,8 @@ Private Sub private_Capture( _
     End If
     Set entry = VBA.CreateObject("Scripting.Dictionary")
     entry.Add "Address", cell.Address
+    entry.Add "Row", cell.Row
+    entry.Add "Column", cell.Column
     entry.Add "Value", cell.Value2
     entry.Add "Format", cell.NumberFormat
     entry.Add "WriteFormat", cell.NumberFormat
@@ -286,6 +282,102 @@ Private Sub private_Capture( _
     entry.Add "Expected", expected
     entries.Add entry
     seen.Add cell.Address, entry
+End Sub
+
+Private Sub private_WriteValues( _
+    ByVal target As ListObject, _
+    ByVal entries As Collection _
+)
+    Dim columns As Object
+    Dim rows As Object
+    Dim entry As Object
+    Dim column As Variant
+    Dim rowIds As Variant
+    Dim rowId As Variant
+    Dim values() As Variant
+    Dim value As Variant
+    Dim index As Long
+    Dim cursor As Long
+    Dim first As Long
+    Dim last As Long
+    Dim count As Long
+    Dim writeCount As Long
+
+    Set columns = VBA.CreateObject("Scripting.Dictionary")
+    For Each entry In entries
+        column = CStr(entry("Column"))
+        If Not columns.Exists(column) Then Set columns(column) = VBA.CreateObject("Scripting.Dictionary")
+        Set rows = columns(column)
+        Set rows(CStr(entry("Row"))) = entry
+    Next entry
+
+    ' Write only contiguous runs of planned cells; untouched cells and formulas stay outside each range.
+    For Each column In columns.Keys
+        Set rows = columns(column)
+        rowIds = rows.Keys
+        For index = LBound(rowIds) + 1 To UBound(rowIds)
+            rowId = rowIds(index)
+            cursor = index - 1
+            Do While cursor >= LBound(rowIds)
+                If CLng(rowIds(cursor)) <= CLng(rowId) Then Exit Do
+                rowIds(cursor + 1) = rowIds(cursor)
+                cursor = cursor - 1
+            Loop
+            rowIds(cursor + 1) = rowId
+        Next index
+        first = LBound(rowIds)
+        Do While first <= UBound(rowIds)
+            last = first
+            Do While last < UBound(rowIds)
+                If CLng(rowIds(last + 1)) <> CLng(rowIds(last)) + 1 Then Exit Do
+                last = last + 1
+            Loop
+            count = last - first + 1
+            ReDim values(1 To count, 1 To 1)
+            For index = 1 To count
+                Set entry = rows(rowIds(first + index - 1))
+                value = entry("Expected")
+                If VBA.VarType(value) = VBA.vbDate Then value = VBA.CDbl(value)
+                values(index, 1) = value
+            Next index
+            target.Parent.Cells(CLng(rowIds(first)), CLng(column)).Resize(count, 1).Value2 = values
+            writeCount = writeCount + 1
+            first = last + 1
+        Loop
+    Next column
+    ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_VALUE_BATCH | Cells=" & CStr(entries.Count) & " | Writes=" & CStr(writeCount)
+End Sub
+
+Private Sub private_FormatEntries( _
+    ByVal target As ListObject, _
+    ByVal entries As Collection, _
+    ByVal textOnly As Boolean _
+)
+    Dim groups As Object
+    Dim entry As Object
+    Dim format As String
+    Dim addresses As String
+    Dim key As Variant
+
+    Set groups = VBA.CreateObject("Scripting.Dictionary")
+    For Each entry In entries
+        If Not textOnly Or VBA.VarType(entry("Expected")) = VBA.vbString Then
+            format = entry("WriteFormat")
+            If textOnly Then format = "@"
+            If Not groups.Exists(format) Then groups.Add format, VBA.vbNullString
+            addresses = groups(format)
+            ' Keep each multi-area address below Excel's Range argument limit.
+            If VBA.Len(addresses) + VBA.Len(entry("Address")) + 1 > 200 Then
+                target.Parent.Range(addresses).NumberFormat = format
+                addresses = VBA.vbNullString
+            End If
+            If VBA.Len(addresses) > 0 Then addresses = addresses & ","
+            groups(format) = addresses & entry("Address")
+        End If
+    Next entry
+    For Each key In groups.Keys
+        If VBA.Len(groups(key)) > 0 Then target.Parent.Range(groups(key)).NumberFormat = VBA.CStr(key)
+    Next key
 End Sub
 
 Private Sub private_Verify( _
