@@ -1490,7 +1490,7 @@ Private Function private_SearchSecondary( _
         GoTo Failed
     End If
     If m_reporterActive Then
-        If Not private_AddReporterOrderDate(result.Records, diagnostic) Then GoTo Failed
+        If Not private_EnrichReporters(result.Records, diagnostic) Then GoTo Failed
     End If
     Set projected = New obj_LookupResult
     If Not projected.Initialize(result.Records, fields, result.HasMore, diagnostic) Then
@@ -1540,7 +1540,7 @@ Failed:
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "PersonalEventBuilder"
 End Function
 
-Private Function private_AddReporterOrderDate( _
+Private Function private_EnrichReporters( _
     ByVal records As Collection, _
     ByRef diagnostic As String _
 ) As Boolean
@@ -1555,6 +1555,7 @@ Private Function private_AddReporterOrderDate( _
             dateText = VBA.Format$(ex_PEB_History.fn_Date(m_acceptedOrderDate), "dd.mm.yyyy")
         End If
     End If
+    If Not ex_PEB_Export.fn_TryApplyReporterPositions(records, diagnostic) Then Exit Function
     For Each record In records
         Set values = VBA.CreateObject("Scripting.Dictionary")
         values("Event.IncomingDate") = dateText
@@ -1562,7 +1563,7 @@ Private Function private_AddReporterOrderDate( _
         If Not supplement.Initialize(record.Key, values) Then Err.Raise 5, , "Cannot initialize reporter order date."
         If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot merge reporter order date."
     Next record
-    private_AddReporterOrderDate = True
+    private_EnrichReporters = True
     Exit Function
 EH_REPORT_DATE:
     diagnostic = VBA.Err.Description
@@ -1925,7 +1926,7 @@ Private Function private_Export(ByVal action As String) As Boolean
             diagnostic = "Cannot publish the Word preview binding."
         End If
     ElseIf exporter = "History" Then
-        success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing))
+        success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing), m_exportService)
         If success Then
             If values("FormExtensionRows").Count <> extensionRows.Count Then
                 If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic) Then GoTo Failed

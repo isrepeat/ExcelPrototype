@@ -33,6 +33,25 @@ foreach ($field in @('WordCreateMs', 'WordInsertMs', 'WordVerifyMs', 'WordAppend
     }
 }
 
+[xml]$wordXml = [IO.File]::ReadAllText((Join-Path $root 'workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml'), $utf8)
+$wordNs = [Xml.XmlNamespaceManager]::new($wordXml.NameTable)
+$wordNs.AddNamespace('p', 'urn:excelprototype:profiles')
+foreach ($config in @($test, $production)) {
+    $knownKeys = @{}
+    foreach ($key in ($config[$prefix + 'export.Word.context.xmlKeys'] -split '\|')) {
+        $knownKeys[$key] = $true
+    }
+    foreach ($node in $wordXml.SelectNodes('//p:derived | //p:aggregate', $wordNs)) {
+        $knownKeys[$node.GetAttribute('name')] = $true
+    }
+    foreach ($node in $wordXml.SelectNodes('//p:text', $wordNs)) {
+        foreach ($reference in [regex]::Matches($node.InnerText, '\[([A-Z][A-Za-z0-9_]*)\]')) {
+            $key = $reference.Groups[1].Value
+            if (-not $knownKeys.ContainsKey($key)) { throw "Undeclared Word context placeholder: $key" }
+        }
+    }
+}
+
 [xml]$page = [IO.File]::ReadAllText((Join-Path $root 'ui/PersonalEventBuilder/TestsPage.xaml'), $utf8)
 $ns = [Xml.XmlNamespaceManager]::new($page.NameTable)
 $ns.AddNamespace('c', 'urn:excelprototype:controls')

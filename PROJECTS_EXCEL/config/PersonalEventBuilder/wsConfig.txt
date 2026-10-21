@@ -655,7 +655,7 @@ value	PersonalEventBuilder::export.Word.context.lookups.4.output	ToHospitalAccus
 value	PersonalEventBuilder::export.Word.context.lookups.4.keyHeader	Позначення
 value	PersonalEventBuilder::export.Word.context.lookups.4.valueHeader	Знахідний
 value	PersonalEventBuilder::export.Word.context.lookups.count	4
-value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName|DutyPositionGenitive|SourceStatus|TargetStatus|Operation
+value	PersonalEventBuilder::export.Word.context.xmlKeys	AdditionalDurationPhrases|DateFromShort|DateToShort|Destination|DocDateShort|DocNo|DocumentNote|EffectiveReturnDateShort|EnrollToFoodSupportDateShort|FIO|FIOAccusative|FIODative|FIOInitialsGenitive|HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|IPN|IncomingDateShort|IncomingNo|ManualOrderNo|OrderDateShort|PersonId|PositionGenitive|PrevVacationTicketDateShort|PrevVacationTicketNo|RankDative|RankGenitive|RemoveFromFoodSupportDateShort|ReportPerson|ReporterGenitive|RequiresFoodSupportEnroll|RequiresFoodSupportRemove|ToHospitalAccusative|VacationDatesSameMonth|VacationDatesSameYear|VacationDurationPhrase|VacationTicketDateShort|VacationTicketNo|VlkDateShort|VlkNo|WordTemplateFileName|DutyPositionGenitive|SourceStatus|TargetStatus|Operation
 value	PersonalEventBuilder::export.Word.context.templates.ToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalAccusative
 value	PersonalEventBuilder::export.Word.context.templates.FromHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.ToBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination|VacationTicketNo|VacationTicketDateShort
@@ -1337,7 +1337,9 @@ value	PersonalEventBuilder::lookup.Personnel.columns.5.header	Підрозділ
 value	PersonalEventBuilder::lookup.Personnel.columns.5.captionKey	PersonalEventBuilder::text.UnitHeader
 value	PersonalEventBuilder::lookup.Personnel.columns.6.name	Personnel.PositionCode
 value	PersonalEventBuilder::lookup.Personnel.columns.6.header	Код посади
-value	PersonalEventBuilder::lookup.Personnel.columns.count	6
+value	PersonalEventBuilder::lookup.Personnel.columns.7.name	Personnel.ActingName
+value	PersonalEventBuilder::lookup.Personnel.columns.7.header	Прізвище, ім’я, по батькові ТВО
+value	PersonalEventBuilder::lookup.Personnel.columns.count	7
 value	PersonalEventBuilder::lookup.Personnel.display.1.name	Absence.Type
 value	PersonalEventBuilder::lookup.Personnel.display.1.captionKey	PersonalEventBuilder::text.AbsenceTypeLabel
 value	PersonalEventBuilder::lookup.Personnel.display.1.sourceAlias	Absence
@@ -1470,6 +1472,11 @@ value	PersonalEventBuilder::hospital.fields.2.captionKey	PersonalEventBuilder::t
 value	PersonalEventBuilder::hospital.fields.2.sourceAlias	Hospital
 value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.lookup.key	Hospital
+value	PersonalEventBuilder::reporter.tvo.prefix	тимчасово виконуючого обов'язки
+value	PersonalEventBuilder::reporter.tvo.ambiguous	Для рапортуючого {name} знайдено декілька посад ТВО в ШПО. Уточніть дані джерела.
+  ref	PersonalEventBuilder::reporter.tvo.codeHeader	PersonalEventBuilder::lookup.Personnel.columns.6.header
+  ref	PersonalEventBuilder::reporter.tvo.nameHeader	PersonalEventBuilder::lookup.Personnel.columns.7.header
+value	PersonalEventBuilder::reporter.tvo.missingCode	Для рапортуючого {name} у рядку ТВО в ШПО не заповнено код посади.
 value	PersonalEventBuilder::reporter.fields.1.record	Personnel.Rank
 value	PersonalEventBuilder::reporter.fields.1.formField	ReportRank
 value	PersonalEventBuilder::reporter.fields.1.captionKey	PersonalEventBuilder::text.ModeReportRankLabel

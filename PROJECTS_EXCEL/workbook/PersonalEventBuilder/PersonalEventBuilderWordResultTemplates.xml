@@ -105,7 +105,7 @@
 #_        {#for item in MetaTvoTables}#^
 #_          {#newline}#^
 #_          Тимчасове виконання обов'язків {#if item.[DutyPositionGenitive]}{item.[DutyPositionGenitive]|lowerFirstLetter}{#else}{[PositionGenitive]|lowerFirstLetter}{#endif} покласти на #^
-#_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOAccusative]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
+#_          {item.[RankGenitive]|lowerFirstLetter} {item.[FIOAccusative]}, {item.[PersonId]}, {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
         ]]>
       </text>
@@ -116,7 +116,7 @@
         <![CDATA[#^
 #_        {#for item in MetaTvoTables}#^
 #_          {#newline}#^
-#_          {item.[RankDative]|upperFirstLetter} {item.[FIODative]} повернутись до виконання обов'язків #^
+#_          {item.[RankDative]|upperFirstLetter} {item.[FIODative]}, {item.[PersonId]}, повернутись до виконання обов'язків #^
 #_          {item.[PositionGenitive]|lowerFirstLetter}.#^
 #_        {#endfor}#^
         ]]>

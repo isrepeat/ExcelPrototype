@@ -1222,6 +1222,8 @@ Private Sub private_Enrich( _
     Dim rankField As String
     Dim mapping As Variant
     Dim pair As Variant
+    Dim loadedAvailable As Boolean
+    Dim tvoPositionCode As String
 
     On Error GoTo EH
     inputField = ex_PEB_Export.fn_Config(prefix & ".input")
@@ -1244,6 +1246,15 @@ Private Sub private_Enrich( _
         Err.Raise 5, , "Lookup input is empty: " & inputField
     End If
     lookupInput = ex_PEB_Export.fn_Text(values(inputField))
+    If outputField = "ReportPositionGenitive" Then
+        If Not ex_PEB_Export.fn_TryReporterTvoPosition(ex_PEB_Export.fn_Text(values("ReportName")), tvoPositionCode, diagnostic) Then
+            Err.Raise 5, , diagnostic
+        End If
+        If VBA.Len(tvoPositionCode) > 0 Then
+            lookupInput = tvoPositionCode
+            values(inputField) = tvoPositionCode
+        End If
+    End If
     For Each mapping In Split(ex_PEB_Export.fn_Config("export.shared.positions.inputs"), "|")
         pair = Split(mapping, "=")
         If inputField = pair(0) Then
@@ -1284,6 +1295,13 @@ Private Sub private_Enrich( _
     tableQuery.AddCondition header, QueryEquals, lookupInput, QueryText, True
     tableQuery.Limit = 2
     tableQueryService.Backend = QueryAuto
+    If Not ex_TableDataRuntime.fn_TryQueryLoaded(tableSource, tableQuery, loadedAvailable, dataTable, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    If loadedAvailable Then
+        ex_Core.fn_Diagnostic_WriteLog "EXPORT_LOOKUP_REUSED | Sheet=" & tableSource.SheetName
+        GoTo ReadValue
+    End If
     Set lookupTable = private_LookupTable(tableSource, tableQueryService, lookupValues, diagnostic)
     If lookupTable Is Nothing Then
         Err.Raise 5, , diagnostic
@@ -1291,11 +1309,12 @@ Private Sub private_Enrich( _
     lookupKey = header & VBA.vbNullChar & valueHeader & VBA.vbNullChar & lookupInput
     If lookupValues.Exists(lookupKey) Then
         values.Add outputField, lookupValues(lookupKey)
-        GoTo Cleanup
+        GoTo DecorateReporter
     End If
     If Not ex_TableQuery.fn_TryApply(lookupTable, tableQuery, dataTable, diagnostic) Then
         Err.Raise 5, , diagnostic
     End If
+ReadValue:
     If dataTable.RowCount <> 1 Then
         Err.Raise 5, , "Export lookup must return exactly one row: " & prefix
     End If
@@ -1303,7 +1322,11 @@ Private Sub private_Enrich( _
     If VBA.Len(ex_PEB_Export.fn_Text(values(outputField))) = 0 Then
         Err.Raise 5, , "Export lookup returned an empty value: " & outputField
     End If
-    lookupValues.Add lookupKey, values(outputField)
+    If Not loadedAvailable Then lookupValues.Add lookupKey, values(outputField)
+DecorateReporter:
+    If VBA.Len(tvoPositionCode) > 0 Then
+        values(outputField) = ex_PEB_Export.fn_Config("reporter.tvo.prefix") & " " & values(outputField)
+    End If
 Cleanup:
     If Not dataTable Is Nothing Then
         dataTable.Dispose
