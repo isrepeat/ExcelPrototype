@@ -761,6 +761,16 @@
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="disabledField"
+                  cellType="text"
+                  backColor="#262626"
+                  textColor="#777777"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="formField"
                   cellType="text"
                   indent="0"

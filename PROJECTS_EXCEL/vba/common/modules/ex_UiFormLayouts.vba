@@ -48,6 +48,130 @@ EH:
     diagnostic = "Form layouts: " & VBA.Err.Description
 End Function
 
+Public Function fn_TryPlaceColumns( _
+    ByVal columns As Collection, _
+    ByVal fixedColumns As Object, _
+    ByVal width As Long, _
+    ByRef diagnostic As String, _
+    Optional ByVal groups As Object, _
+    Optional ByVal groupRanges As Object _
+) As Boolean
+    Dim occupied As Object
+    Dim field As Variant
+    Dim column As Object
+    Dim position As Long
+    Dim nextPosition As Long
+    Dim activeGroups As Object
+    Dim members As Collection
+    Dim group As Variant
+    Dim groupName As String
+    Dim groupRow As Long
+    Dim candidateColumn As Long
+    Dim firstColumn As Long
+    Dim lastColumn As Long
+    Dim bounds As Variant
+    Dim firstFixedColumn As Long
+    Dim memberIndex As Long
+    Dim remaining As Long
+    Dim runStart As Long
+    Dim runLength As Long
+    Dim bestLength As Long
+    Dim take As Long
+    Dim alignEnd As Boolean
+
+    On Error GoTo EH_PLACE
+    If width < 1 Then Err.Raise 5, , "Form workspace width must be positive."
+    Set occupied = CreateObject("Scripting.Dictionary")
+    firstFixedColumn = width + 1
+    For Each field In fixedColumns.Keys
+        If Not IsNumeric(fixedColumns(field)) Then Err.Raise 5, , "Invalid fixed column: " & field
+        If CDbl(fixedColumns(field)) <> Fix(CDbl(fixedColumns(field))) Then Err.Raise 5, , "Fixed column must be an integer: " & field
+        position = CLng(fixedColumns(field))
+        If position < firstFixedColumn Then firstFixedColumn = position
+        If position < 1 Or position > width Then Err.Raise 5, , "Fixed column is outside the workspace: " & field
+        If occupied.Exists("1:" & CStr(position)) Then Err.Raise 5, , "Duplicate fixed column: " & CStr(position)
+        occupied.Add "1:" & CStr(position), True
+    Next field
+    Set activeGroups = CreateObject("Scripting.Dictionary")
+    For Each column In columns
+        column("candidateColumn") = 0
+        If Not column.Exists("disabled") Then
+            candidateColumn = candidateColumn + 1
+            column("candidateColumn") = candidateColumn
+        End If
+        field = CStr(column("formField"))
+        If fixedColumns.Exists(field) Then
+            column("column") = CLng(fixedColumns(field))
+            column("row") = 1
+        Else
+            groupName = CStr(field)
+            If Not groups Is Nothing Then
+                If groups.Exists(field) Then groupName = CStr(groups(field))
+            End If
+            If Not activeGroups.Exists(groupName) Then
+                Set members = New Collection
+                activeGroups.Add groupName, members
+            End If
+            activeGroups(groupName).Add column
+        End If
+    Next column
+    For Each group In activeGroups.Keys
+        Set members = activeGroups(group)
+        groupRow = 1
+        memberIndex = 1
+        Do While memberIndex <= members.Count
+            remaining = members.Count - memberIndex + 1
+            nextPosition = 0
+            bestLength = 0
+            runLength = 0
+            firstColumn = 1
+            lastColumn = width
+            If groupRow = 1 And Not groupRanges Is Nothing Then
+                If groupRanges.Exists(group) Then
+                    bounds = groupRanges(group)
+                    firstColumn = CLng(bounds(0))
+                    lastColumn = CLng(bounds(1))
+                    If firstColumn < 1 Or lastColumn > width Or lastColumn < firstColumn Then Err.Raise 5, , "Invalid form group range: " & CStr(group)
+                End If
+            End If
+            alignEnd = (groupRow = 1 And lastColumn < firstFixedColumn)
+            ' Fit the next prefix into this row; only its remaining suffix wraps below.
+            For position = firstColumn To lastColumn + 1
+                If position <= lastColumn And Not occupied.Exists(CStr(groupRow) & ":" & CStr(position)) Then
+                    If runLength = 0 Then runStart = position
+                    runLength = runLength + 1
+                Else
+                    take = runLength
+                    If take > remaining Then take = remaining
+                    If take > bestLength Or (alignEnd And take > 0 And take = bestLength) Then
+                        bestLength = take
+                        nextPosition = runStart
+                        If alignEnd Then nextPosition = position - take
+                    End If
+                    runLength = 0
+                End If
+            Next position
+            If bestLength > 0 Then
+                ex_Core.fn_Diagnostic_WriteLog "TEMP.Form.PlaceGroup | Group=" & CStr(group) & _
+                    " | Row=" & CStr((groupRow - 1) * 2 + 1) & " | Column=" & CStr(nextPosition) & " | Width=" & CStr(bestLength)
+                For take = 1 To bestLength
+                    Set column = members(memberIndex)
+                    column("column") = nextPosition
+                    column("row") = (groupRow - 1) * 2 + 1
+                    occupied.Add CStr(groupRow) & ":" & CStr(nextPosition), True
+                    nextPosition = nextPosition + 1
+                    memberIndex = memberIndex + 1
+                Next take
+            End If
+            groupRow = groupRow + 1
+        Loop
+    Next group
+    fn_TryPlaceColumns = True
+    Exit Function
+EH_PLACE:
+    diagnostic = "Form column map: " & Err.Description
+End Function
+
 Public Function fn_TryResolve( _
     ByVal definition As Object, _
     ByVal bindingContext As obj_UiBindingContext, _
@@ -145,6 +269,13 @@ Private Function private_ResolveFields( _
     Dim seen As Object
     Dim name As String
     Dim catalogName As String
+    Dim position As Long
+    Dim previousPosition As Long
+    Dim width As Long
+    Dim mapped As Boolean
+    Dim row As Long
+    Dim lastRow As Long
+    Dim candidateColumns As Object
 
     On Error GoTo EH
     If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "layoutSource")) > 0 Or _
@@ -168,6 +299,71 @@ Private Function private_ResolveFields( _
     Set resolved = definition.cloneNode(False)
     resolved.removeAttribute "fieldCatalog"
     resolved.removeAttribute "fieldsSource"
+    mapped = False
+    For Each column In configured
+        If column.Exists("column") Then mapped = True
+    Next column
+    If mapped Then
+        width = ex_UiElementFactory.fn_Long(definition, "columnSpan", 0)
+        If width < 1 Then Err.Raise 5, , "Mapped forms require a reserved columnSpan."
+        If ex_UiElementFactory.fn_Attribute(definition, "orientation") <> "horizontal" Or _
+                ex_UiElementFactory.fn_Attribute(definition, "labelPosition") <> "top" Then
+            Err.Raise 5, , "Mapped forms require horizontal fields with top labels."
+        End If
+        resolved.setAttribute "placement", "mapped"
+        resolved.setAttribute "candidateLayout", "packed"
+        Set candidateColumns = CreateObject("Scripting.Dictionary")
+        lastRow = 1
+        For Each column In configured
+            If Not column.Exists("row") Then Err.Raise 5, , "Missing row in form column map."
+            If CLng(column("row")) < 1 Then Err.Raise 5, , "Invalid form row."
+            If CLng(column("row")) > lastRow Then lastRow = CLng(column("row"))
+            If Not column.Exists("candidateColumn") Then Err.Raise 5, , "Missing candidate column in form map."
+            position = CLng(column("candidateColumn"))
+            If position = 0 And column.Exists("disabled") Then
+                ' Disabled display-only fields have no candidate projection column.
+            Else
+                If position < 1 Or position > configured.Count Then Err.Raise 5, , "Invalid candidate column in form map."
+                If candidateColumns.Exists(position) Then Err.Raise 5, , "Duplicate candidate column in form map."
+                candidateColumns.Add position, True
+            End If
+        Next column
+        For row = 1 To lastRow
+            previousPosition = 0
+            For position = 1 To width
+                For Each column In configured
+                    If Not column.Exists("column") Then Err.Raise 5, , "Incomplete form column map."
+                    If CLng(column("column")) = position And CLng(column("row")) = row Then
+                        name = CStr(column("formField"))
+                        If Not fields.Exists(name) Then Err.Raise 5, , "Unknown form field: " & name
+                        If seen.Exists(name) Then Err.Raise 5, , "Duplicate form field: " & name
+                        If previousPosition = position Then Err.Raise 5, , "Duplicate form column: " & CStr(position)
+                        seen.Add name, True
+                        Set field = fields(name).cloneNode(True)
+                        field.setAttribute "columnSpan", "1"
+                        field.setAttribute "column", CStr(position)
+                        field.setAttribute "row", CStr(row)
+                        field.setAttribute "candidateColumn", CStr(column("candidateColumn"))
+                        field.setAttribute "label", CStr(column("caption"))
+                        If column.Exists("disabled") Then
+                            field.setAttribute "disabled", "true"
+                            field.setAttribute "fieldStyle", CStr(column("disabledStyle"))
+                            field.setAttribute "readOnly", "true"
+                            field.setAttribute "required", "false"
+                            field.setAttribute "value", "{Binding Path=Disabled" & name & "}"
+                            field.removeAttribute "onChange"
+                            field.removeAttribute "onFocus"
+                        End If
+                        resolved.appendChild field
+                        previousPosition = position
+                    End If
+                Next column
+            Next position
+        Next row
+        If seen.Count <> configured.Count Then Err.Raise 5, , "Form column map exceeds its reserved columnSpan."
+        private_ResolveFields = True
+        Exit Function
+    End If
     For Each column In configured
         name = VBA.CStr(column("formField"))
         If Not fields.Exists(name) Then Err.Raise 5, , "Unknown form field: " & name
