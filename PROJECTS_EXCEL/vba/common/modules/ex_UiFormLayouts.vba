@@ -57,43 +57,33 @@ Public Function fn_TryPlaceColumns( _
     Optional ByVal groupRanges As Object _
 ) As Boolean
     Dim occupied As Object
-    Dim field As Variant
-    Dim column As Object
-    Dim position As Long
-    Dim nextPosition As Long
     Dim activeGroups As Object
     Dim members As Collection
+    Dim column As Object
+    Dim field As Variant
     Dim group As Variant
     Dim groupName As String
-    Dim groupRow As Long
-    Dim candidateColumn As Long
-    Dim firstColumn As Long
-    Dim lastColumn As Long
-    Dim bounds As Variant
+    Dim position As Long
     Dim firstFixedColumn As Long
-    Dim memberIndex As Long
-    Dim remaining As Long
-    Dim runStart As Long
-    Dim runLength As Long
-    Dim bestLength As Long
-    Dim take As Long
-    Dim alignEnd As Boolean
+    Dim bounds As Variant
+    Dim candidateColumn As Long
 
     On Error GoTo EH_PLACE
     If width < 1 Then Err.Raise 5, , "Form workspace width must be positive."
     Set occupied = CreateObject("Scripting.Dictionary")
+    Set activeGroups = CreateObject("Scripting.Dictionary")
     firstFixedColumn = width + 1
     For Each field In fixedColumns.Keys
         If Not IsNumeric(fixedColumns(field)) Then Err.Raise 5, , "Invalid fixed column: " & field
         If CDbl(fixedColumns(field)) <> Fix(CDbl(fixedColumns(field))) Then Err.Raise 5, , "Fixed column must be an integer: " & field
         position = CLng(fixedColumns(field))
-        If position < firstFixedColumn Then firstFixedColumn = position
         If position < 1 Or position > width Then Err.Raise 5, , "Fixed column is outside the workspace: " & field
-        If occupied.Exists("1:" & CStr(position)) Then Err.Raise 5, , "Duplicate fixed column: " & CStr(position)
-        occupied.Add "1:" & CStr(position), True
+        If occupied.Exists(position) Then Err.Raise 5, , "Duplicate fixed column: " & CStr(position)
+        occupied.Add position, True
+        If position < firstFixedColumn Then firstFixedColumn = position
     Next field
-    Set activeGroups = CreateObject("Scripting.Dictionary")
     For Each column In columns
+        column("row") = 1
         column("candidateColumn") = 0
         If Not column.Exists("disabled") Then
             candidateColumn = candidateColumn + 1
@@ -102,12 +92,10 @@ Public Function fn_TryPlaceColumns( _
         field = CStr(column("formField"))
         If fixedColumns.Exists(field) Then
             column("column") = CLng(fixedColumns(field))
-            column("row") = 1
         Else
-            groupName = CStr(field)
-            If Not groups Is Nothing Then
-                If groups.Exists(field) Then groupName = CStr(groups(field))
-            End If
+            If groups Is Nothing Then Err.Raise 5, , "Missing viewport group for field: " & field
+            If Not groups.Exists(field) Then Err.Raise 5, , "Missing viewport group for field: " & field
+            groupName = CStr(groups(field))
             If Not activeGroups.Exists(groupName) Then
                 Set members = New Collection
                 activeGroups.Add groupName, members
@@ -116,55 +104,21 @@ Public Function fn_TryPlaceColumns( _
         End If
     Next column
     For Each group In activeGroups.Keys
+        If groupRanges Is Nothing Then Err.Raise 5, , "Missing viewport group ranges."
+        If Not groupRanges.Exists(group) Then Err.Raise 5, , "Missing viewport group range: " & CStr(group)
+        bounds = groupRanges(group)
+        If CLng(bounds(0)) < 1 Or CLng(bounds(1)) > width Or CLng(bounds(1)) < CLng(bounds(0)) Then
+            Err.Raise 5, , "Invalid viewport group range: " & CStr(group)
+        End If
         Set members = activeGroups(group)
-        groupRow = 1
-        memberIndex = 1
-        Do While memberIndex <= members.Count
-            remaining = members.Count - memberIndex + 1
-            nextPosition = 0
-            bestLength = 0
-            runLength = 0
-            firstColumn = 1
-            lastColumn = width
-            If groupRow = 1 And Not groupRanges Is Nothing Then
-                If groupRanges.Exists(group) Then
-                    bounds = groupRanges(group)
-                    firstColumn = CLng(bounds(0))
-                    lastColumn = CLng(bounds(1))
-                    If firstColumn < 1 Or lastColumn > width Or lastColumn < firstColumn Then Err.Raise 5, , "Invalid form group range: " & CStr(group)
-                End If
-            End If
-            alignEnd = (groupRow = 1 And lastColumn < firstFixedColumn)
-            ' Fit the next prefix into this row; only its remaining suffix wraps below.
-            For position = firstColumn To lastColumn + 1
-                If position <= lastColumn And Not occupied.Exists(CStr(groupRow) & ":" & CStr(position)) Then
-                    If runLength = 0 Then runStart = position
-                    runLength = runLength + 1
-                Else
-                    take = runLength
-                    If take > remaining Then take = remaining
-                    If take > bestLength Or (alignEnd And take > 0 And take = bestLength) Then
-                        bestLength = take
-                        nextPosition = runStart
-                        If alignEnd Then nextPosition = position - take
-                    End If
-                    runLength = 0
-                End If
-            Next position
-            If bestLength > 0 Then
-                ex_Core.fn_Diagnostic_WriteLog "TEMP.Form.PlaceGroup | Group=" & CStr(group) & _
-                    " | Row=" & CStr((groupRow - 1) * 2 + 1) & " | Column=" & CStr(nextPosition) & " | Width=" & CStr(bestLength)
-                For take = 1 To bestLength
-                    Set column = members(memberIndex)
-                    column("column") = nextPosition
-                    column("row") = (groupRow - 1) * 2 + 1
-                    occupied.Add CStr(groupRow) & ":" & CStr(nextPosition), True
-                    nextPosition = nextPosition + 1
-                    memberIndex = memberIndex + 1
-                Next take
-            End If
-            groupRow = groupRow + 1
-        Loop
+        position = CLng(bounds(0))
+        If CLng(bounds(1)) < firstFixedColumn Then position = CLng(bounds(1)) - members.Count + 1
+        For Each column In members
+            If occupied.Exists(position) Then Err.Raise 5, , "Viewport group overlaps another field: " & CStr(group)
+            column("column") = position
+            occupied.Add position, True
+            position = position + 1
+        Next column
     Next group
     fn_TryPlaceColumns = True
     Exit Function
@@ -276,6 +230,7 @@ Private Function private_ResolveFields( _
     Dim row As Long
     Dim lastRow As Long
     Dim candidateColumns As Object
+    Dim viewport As Boolean
 
     On Error GoTo EH
     If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "layoutSource")) > 0 Or _
@@ -302,6 +257,7 @@ Private Function private_ResolveFields( _
     mapped = False
     For Each column In configured
         If column.Exists("column") Then mapped = True
+        If column.Exists("viewport") Then viewport = True
     Next column
     If mapped Then
         width = ex_UiElementFactory.fn_Long(definition, "columnSpan", 0)
@@ -312,6 +268,7 @@ Private Function private_ResolveFields( _
         End If
         resolved.setAttribute "placement", "mapped"
         resolved.setAttribute "candidateLayout", "packed"
+        If viewport Then resolved.setAttribute "candidateLayout", "viewport"
         Set candidateColumns = CreateObject("Scripting.Dictionary")
         lastRow = 1
         For Each column In configured
@@ -323,7 +280,12 @@ Private Function private_ResolveFields( _
             If position = 0 And column.Exists("disabled") Then
                 ' Disabled display-only fields have no candidate projection column.
             Else
-                If position < 1 Or position > configured.Count Then Err.Raise 5, , "Invalid candidate column in form map."
+                If position < 1 Then Err.Raise 5, , "Invalid candidate column in form map."
+                If viewport Then
+                    If position > width Then Err.Raise 5, , "Candidate column exceeds the viewport."
+                Else
+                    If position > configured.Count Then Err.Raise 5, , "Invalid candidate column in form map."
+                End If
                 If candidateColumns.Exists(position) Then Err.Raise 5, , "Duplicate candidate column in form map."
                 candidateColumns.Add position, True
             End If

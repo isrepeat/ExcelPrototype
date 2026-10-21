@@ -337,6 +337,20 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ResetForm}"
                      command="{Binding Path=Commands.ResetForm}"/>
+    <controls:button name="ScrollFormLeft"
+                     row="9"
+                     column="5"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ScrollFormLeft}"
+                     command="{Binding Path=Commands.ScrollFormLeft}"
+                     visibility="{Binding Path=Settings.FormScrollVisibility}"/>
+    <controls:button name="ScrollFormRight"
+                     row="9"
+                     column="6"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ScrollFormRight}"
+                     command="{Binding Path=Commands.ScrollFormRight}"
+                     visibility="{Binding Path=Settings.FormScrollVisibility}"/>
     <controls:button name="ReinitializePage"
                      row="22"
                      column="19"

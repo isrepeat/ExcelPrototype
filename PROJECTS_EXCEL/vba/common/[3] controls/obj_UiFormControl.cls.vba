@@ -206,9 +206,8 @@ Public Function TryRebuildFields( _
     Dim container As obj_IUiContainer
     Dim oldContainer As Object
     Dim nextContainer As Object
-    Dim retainedCount As Long
-    Dim createdCount As Long
     Dim grid As obj_UiGridElement
+    Dim field As obj_UiFormField
 
     rebuilt = False
     If Not ex_UiFormLayouts.fn_TryResolve(definition, m_context.BindingContext, resolved, diagnostic) Then Exit Function
@@ -235,7 +234,7 @@ Public Function TryRebuildFields( _
         Set oldNode = oldNodes(key)
         If nextNodes.Exists(key) Then
             Set node = nextNodes(key)
-            If oldNode.XML = node.XML Then GoTo RetainField
+            If private_SameField(oldNode, node) Then GoTo RetainField
         End If
         Set child = m_fields(key)
         child.Dispose
@@ -250,13 +249,13 @@ RetainField:
         Set child = Nothing
         If oldNodes.Exists(key) Then
             Set oldNode = oldNodes(key)
-            If oldNode.XML = node.XML Then
+            If private_SameField(oldNode, node) Then
                 Set child = m_fields(key)
-                retainedCount = retainedCount + 1
+                Set field = child
+                field.SetLayoutPosition node
             End If
         End If
         If child Is Nothing Then
-            createdCount = createdCount + 1
             Set child = New obj_UiFormField
             ' Keep partially configured replacements owned until the collection is committed.
             container.AddChild child
@@ -279,7 +278,6 @@ RetainField:
     Set m_fields = nextFields
     Set m_definition = resolved.cloneNode(True)
     m_retainedFieldsLayout = True
-    ex_Core.fn_Diagnostic_WriteLog "TEMP.Form.Reconcile | Name=" & m_name & " | Retained=" & CStr(retainedCount) & " | Created=" & CStr(createdCount)
     rebuilt = True
 End Function
 
@@ -287,4 +285,24 @@ Public Function GetDefinition() As Object
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If m_definition Is Nothing Then Exit Function
     Set GetDefinition = m_definition.cloneNode(True)
+End Function
+
+' //
+' // Private
+' //
+Private Function private_SameField( _
+    ByVal previous As Object, _
+    ByVal current As Object _
+) As Boolean
+    Dim oldNode As Object
+    Dim newNode As Object
+    Dim attributeName As Variant
+
+    Set oldNode = previous.cloneNode(True)
+    Set newNode = current.cloneNode(True)
+    For Each attributeName In Array("row", "column", "candidateColumn")
+        oldNode.removeAttribute CStr(attributeName)
+        newNode.removeAttribute CStr(attributeName)
+    Next attributeName
+    private_SameField = (oldNode.XML = newNode.XML)
 End Function

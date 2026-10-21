@@ -122,7 +122,7 @@ Public Sub fn_Diagnostic_EndBatch()
     m_diagnosticBatchDepth = m_diagnosticBatchDepth - 1
     If m_diagnosticBatchDepth <> 0 Then Exit Sub
     If VBA.StrComp(m_diagnosticMode, DIAGNOSTIC_MODE_IMMEDIATE, VBA.vbTextCompare) = 0 Then
-        If Not fn_Diagnostic_Flush() Then Debug.Print "Diagnostic batch flush failed."
+        If Not fn_Diagnostic_Flush(True) Then Debug.Print "Diagnostic batch flush failed."
     End If
 End Sub
 

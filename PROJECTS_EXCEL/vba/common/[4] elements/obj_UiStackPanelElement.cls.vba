@@ -127,6 +127,14 @@ Public Sub ReplaceChildren(ByVal children As Collection)
     Set m_children = children
 End Sub
 
+Public Sub SetPosition( _
+    ByVal row As Long, _
+    ByVal column As Long _
+)
+    m_row = row
+    m_column = column
+End Sub
+
 Public Sub RegisterLayoutPart()
     If m_rows > 0 And m_columns > 0 Then
         m_context.Styles.RegisterPart m_definition, Me.RenderArea, "layout"

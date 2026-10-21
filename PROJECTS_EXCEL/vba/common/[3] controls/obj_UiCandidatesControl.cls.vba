@@ -263,6 +263,7 @@ NextCountField:
     Next node
     If fieldCount = 0 Then Err.Raise 5, , "Alignment form has no fields: " & formName
     reservedColumns = private_ReadLong(formNode, "columnSpan", fieldCount)
+    If private_ReadAttribute(formNode, "candidateLayout") = "viewport" Then fieldCount = reservedColumns
     If fieldCount > reservedColumns Then Err.Raise 5, , "Alignment form exceeds its reserved columnSpan: " & formName
     Set beforeColumns = private_ExtraColumns("columnsBefore")
     Set afterColumns = private_ExtraColumns("columnsAfter")
@@ -342,7 +343,9 @@ NextProjectedField:
     Next extraHeader
     For columnIndex = 1 To table.ColumnCount
         If VBA.Len(VBA.CStr(table.HeaderAt(columnIndex))) > 0 Then
-            If Not matched.Exists(columnIndex) Then Err.Raise 5, , "Candidate header has no matching form field: " & table.HeaderAt(columnIndex)
+            If Not matched.Exists(columnIndex) And private_ReadAttribute(formNode, "candidateLayout") <> "viewport" Then
+                Err.Raise 5, , "Candidate header has no matching form field: " & table.HeaderAt(columnIndex)
+            End If
         End If
     Next columnIndex
     Set projected = New obj_UiRawTable

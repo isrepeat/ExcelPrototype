@@ -120,6 +120,14 @@ Public Sub RefreshLayoutPart()
     panel.RegisterLayoutPart
 End Sub
 
+Public Sub SetLayoutPosition(ByVal definition As Object)
+    Dim panel As obj_UiStackPanelElement
+
+    Set panel = m_panel
+    panel.SetPosition ex_UiElementFactory.fn_Long(definition, "row", 1), _
+        ex_UiElementFactory.fn_Long(definition, "column", 1)
+End Sub
+
 ' //
 ' // Private
 ' //

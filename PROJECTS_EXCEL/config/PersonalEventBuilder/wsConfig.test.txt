@@ -263,6 +263,7 @@ value	PersonalEventBuilder::text.PersonnelCount	Кандидатів: {count}. �
 value	PersonalEventBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
 value	PersonalEventBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
 value	PersonalEventBuilder::text.PositionHeader	Посада
+value	PersonalEventBuilder::text.ScrollFormLeft	◀
 value	PersonalEventBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
 value	PersonalEventBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
 value	PersonalEventBuilder::text.TestsCancelled	Запуск зупинено користувачем.
@@ -335,6 +336,7 @@ value	PersonalEventBuilder::text.PersonNameLabel	ПІБ
 value	PersonalEventBuilder::text.PersonRankLabel	Звання
 value	PersonalEventBuilder::text.PersonUnitLabel	Підрозділ
 value	PersonalEventBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
+value	PersonalEventBuilder::text.ScrollFormRight	▶
 value	PersonalEventBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
 value	PersonalEventBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
 value	PersonalEventBuilder::text.TestPreviewLink	Переглянути
@@ -672,6 +674,7 @@ value	PersonalEventBuilder::forms.columns.groups.Left	Hospital|HospitalShortName
 value	PersonalEventBuilder::forms.columns.groups.Right	TicketNumber|TicketDate|EventDate|DurationDays
 value	PersonalEventBuilder::forms.columns.ranges.Left	1|2
 value	PersonalEventBuilder::forms.columns.ranges.Right	16|17
+value	PersonalEventBuilder::forms.columns.scrollStep	1
 value	PersonalEventBuilder::forms.columns.disabledStyle	disabledField
 value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::forms.readOnly.modes.ToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
