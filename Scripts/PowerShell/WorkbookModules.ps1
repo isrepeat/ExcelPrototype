@@ -186,11 +186,16 @@ function Get-WorkbookModulePlan([string]$SourceFolder, [string]$Profile) {
             throw "Invalid relative module path: $pattern"
         }
         if ([IO.Path]::GetExtension($normalized) -notin @('.vba', '.bas', '.cls', '.frm')) { throw "Unsupported module pattern: $pattern" }
-        # Use the same wildcard syntax, including [[] for a literal opening bracket.
-        $matcher = New-Object Management.Automation.WildcardPattern($normalized, [Management.Automation.WildcardOptions]::IgnoreCase)
-        $matches = @($candidates | Where-Object {
-            $matcher.IsMatch($_.FullName.Substring($root.Length + 1))
-        } | Sort-Object FullName)
+        # Match the VBA loader: only * and ? activate wildcard expansion.
+        if ($normalized.Contains('*') -or $normalized.Contains('?')) {
+            $matcher = New-Object Management.Automation.WildcardPattern($normalized, [Management.Automation.WildcardOptions]::IgnoreCase)
+            $matches = @($candidates | Where-Object {
+                $matcher.IsMatch($_.FullName.Substring($root.Length + 1))
+            } | Sort-Object FullName)
+        } else {
+            $literalPath = Join-Path $root $normalized
+            $matches = @($candidates | Where-Object { $_.FullName -ieq $literalPath })
+        }
         if ($matches.Count -eq 0) { throw "No source files match: $pattern" }
         foreach ($file in $matches) {
             if (-not $seenPaths.ContainsKey($file.FullName)) { $selected.Add($file); $seenPaths[$file.FullName] = $true }
