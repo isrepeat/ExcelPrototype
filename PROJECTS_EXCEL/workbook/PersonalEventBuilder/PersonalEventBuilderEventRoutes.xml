@@ -7,7 +7,7 @@
            caption="З відрядження"
            id="FromBusinessTrip"
            direction="Arrival"
-           form="Leave"
+           form="LeaveArrival"
            visible="true">
       <movement template="FromBusinessTrip"/>
       <word template="FromBusinessTrip"/>
@@ -25,7 +25,7 @@
            caption="З відпустки для лікування"
            id="FromVacationForCuring"
            direction="Arrival"
-           form="Leave"
+           form="LeaveArrival"
            visible="true">
       <movement template="FromVacationForCuring"/>
       <word template="FromVacationForCuring"/>
@@ -34,7 +34,7 @@
            caption="З щорічної відпустки"
            id="FromAnnualMainVacation"
            direction="Arrival"
-           form="Leave"
+           form="LeaveArrival"
            visible="true">
       <movement template="FromAnnualMainVacation"/>
       <word template="FromAnnualMainVacation"/>
@@ -43,7 +43,7 @@
            caption="З відпустки за сімейними обставинами"
            id="FromVacationForFamily"
            direction="Arrival"
-           form="Leave"
+           form="LeaveArrival"
            visible="true">
       <movement template="FromVacationForFamily"/>
       <word template="FromVacationForFamily"/>

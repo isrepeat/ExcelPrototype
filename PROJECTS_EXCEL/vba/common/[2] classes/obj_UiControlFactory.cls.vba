@@ -220,6 +220,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemMargin", "number", False, "", False, 0
 
         Case "form"
+            schema.AddAttribute "fieldCatalog", "string", False, "", False, 0
+            schema.AddAttribute "fieldsSource", "string", False, "", True, 0
             schema.AddAttribute "layoutSource", "string", False, "", False, 0
             schema.AddAttribute "layout", "string", False, "", True, 0
             schema.AddAttribute "orientation", "enum", True, "horizontal|vertical", False, 0
