@@ -313,32 +313,6 @@ EH:
     Resume Cleanup
 End Function
 
-Public Function fn_EnsureReturnTvo( _
-    ByVal orderNumber As String, _
-    ByVal orderDate As Variant, _
-    ByRef diagnostic As String _
-) As Boolean
-    Dim events As Collection
-    Dim row As Object
-    Dim child As Object
-    Dim hasTvo As Boolean
-
-    If Not fn_ReadOrder(orderNumber, orderDate, events, diagnostic) Then Exit Function
-    For Each row In events
-        If row("Status") = "Active" And ex_PEB_EventRoutes.fn_Value(row("EventId"), "direction") = "Arrival" Then
-            hasTvo = False
-            For Each child In row("FormExtensionRows")
-                If child("RowType") = "TVO" Then hasTvo = True
-            Next child
-            If Not hasTvo Then
-                row("ExpectedHistoryStamp") = fn_Stamp(row)
-                If Not fn_Save(row, diagnostic) Then Exit Function
-            End If
-        End If
-    Next row
-    fn_EnsureReturnTvo = True
-End Function
-
 Public Function fn_ReadOrder( _
     ByVal orderNumber As String, _
     ByVal orderDate As Variant, _

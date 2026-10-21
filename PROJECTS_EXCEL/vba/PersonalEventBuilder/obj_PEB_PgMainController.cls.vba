@@ -1010,8 +1010,6 @@ Public Function ExportWordHandler() As Boolean
         orderDate = VBA.CDate(orderDate)
     End If
     startedAt = VBA.Timer
-    succeeded = ex_PEB_History.fn_EnsureReturnTvo(orderNumber, orderDate, diagnostic)
-    If Not succeeded Then GoTo FailedHistoryWord
     succeeded = ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic)
     ex_Core.fn_Diagnostic_WritePerf "Word.Export.ReadEvents", startedAt
     If Not succeeded Then GoTo FailedHistoryWord
