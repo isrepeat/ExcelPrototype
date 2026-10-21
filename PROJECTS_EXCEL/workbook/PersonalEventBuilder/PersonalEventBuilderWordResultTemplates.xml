@@ -175,7 +175,7 @@
     <sharedTemplate id="block.StatusChangePersonLine">
       <text>
         <![CDATA[#^
-#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter}, #^
+#_        NN. {[RankGenitive]|upperFirstLetter} {[FIOAccusative]}, {#if [IPN]}{[IPN]}, {#endif}{[PositionGenitive]|lowerFirstLetter},{#space}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -240,6 +240,7 @@
 #_        {#if [VacationDurationPhrase]}{[VacationDurationPhrase]}{[AdditionalDurationPhrases]}{#space}{#endif}#^
 #_        з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}#^
 #_        {#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}#^
+#_        {#if #not [VacationDurationPhrase]}{#space}до окремого розпорядження{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -251,7 +252,10 @@
     <derived name="GroupBasis">
       <text>{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}</text>
     </derived>
-    <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort; VacationDurationPhrase; AdditionalDurationPhrases; DateToShort">
+    <derived name="BusinessTripPeriod">
+      <text>{#include block.BusinessTripPeriod}</text>
+    </derived>
+    <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort; BusinessTripPeriod">
       <aggregate name="CertificateNumbers"
                  field="VacationTicketNo"
                  operation="numberRanges"
@@ -260,7 +264,7 @@
                  rangeSeparator="–"/>
       <single>
         <text><![CDATA[#^
-#_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {#include block.BusinessTripPeriod}:#^
+#_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {[BusinessTripPeriod]}:#^
 #_      {#newline}{#newline}#^
 #_      {#include block.PersonLineLower}.#^
 #_      {#include block.DepartureAdministration}#^
@@ -268,8 +272,8 @@
     ]]></text>
       </single>
       <multiple>
-        <header common="DateFromShort; Destination; VacationDurationPhrase; AdditionalDurationPhrases; DateToShort">
-          <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {#include block.BusinessTripPeriod}:]]></text>
+        <header common="DateFromShort; Destination; BusinessTripPeriod">
+          <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {[BusinessTripPeriod]}:]]></text>
         </header>
         <item>
           <text>{#include block.PersonLineLower}.{#include block.DepartureAdministration}</text>
