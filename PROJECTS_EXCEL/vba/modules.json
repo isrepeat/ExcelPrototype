@@ -1,4 +1,27 @@
 {
+  "PeopleRegistry": [
+    "common/modules/ex_Core.vba",
+    "common/modules/ex_TableQuery.vba",
+    "common/modules/ex_WindowsUi.vba",
+    "common/[0] interfaces/obj_ITableQueryExecutor.interface.cls.vba",
+    "common/[0] interfaces/obj_IUiColumnAliases.interface.cls.vba",
+    "common/[0] interfaces/obj_IUiRowRecords.interface.cls.vba",
+    "common/[0] interfaces/obj_IUiTableSource.interface.cls.vba",
+    "common/[2] classes/obj_AdoQueryExecutor.cls.vba",
+    "common/[2] classes/obj_DataTable.cls.vba",
+    "common/[2] classes/obj_QueryCondition.cls.vba",
+    "common/[2] classes/obj_QueryGroup.cls.vba",
+    "common/[2] classes/obj_QueryOrder.cls.vba",
+    "common/[2] classes/obj_QueryValueFormat.cls.vba",
+    "common/[2] classes/obj_QueryWorkbookSession.cls.vba",
+    "common/[2] classes/obj_TableQuery.cls.vba",
+    "common/[2] classes/obj_TableSource.cls.vba",
+    "common/[2] classes/obj_UiRawTable.cls.vba",
+    "PeopleRegistry/ex_PR_Source.vba",
+    "PeopleRegistry/ex_RuntimeLifecycle.vba",
+    "PeopleRegistry/ex_PeopleRegistry.vba",
+    "PeopleRegistry/ThisWorkbook.vba"
+  ],
   "PeriodsGeneration": [
     "common/modules/ex_*.vba",
     "common/[[]0] interfaces/*.cls.vba",
