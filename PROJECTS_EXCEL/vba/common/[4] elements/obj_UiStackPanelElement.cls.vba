@@ -122,6 +122,17 @@ Public Function RebuildContent(ByRef diagnostic As String) As Boolean
     RebuildContent = private_ConfigurePanel(definition, m_context, m_source, diagnostic)
 End Function
 
+Public Sub ReplaceChildren(ByVal children As Collection)
+    ' The owner disposes removed children before transferring the retained collection.
+    Set m_children = children
+End Sub
+
+Public Sub RegisterLayoutPart()
+    If m_rows > 0 And m_columns > 0 Then
+        m_context.Styles.RegisterPart m_definition, Me.RenderArea, "layout"
+    End If
+End Sub
+
 Public Sub Dispose()
     If m_isDisposed Then
         Exit Sub

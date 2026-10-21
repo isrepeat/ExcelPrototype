@@ -2109,8 +2109,13 @@ Private Function private_LoadMode( _
     Dim modes As Variant
     Dim currentForm As Variant
     Dim secondaryCandidates As Boolean
+    Dim modeStartedAt As Double
+    Dim modeStageStartedAt As Double
+    Dim projectionStartedAt As Double
 
     On Error GoTo EH
+    modeStartedAt = VBA.Timer
+    modeStageStartedAt = modeStartedAt
     secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
     currentForm = vbNullString
     If Len(m_modeId) > 0 Then currentForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
@@ -2133,6 +2138,7 @@ Private Function private_LoadMode( _
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
         If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
+            ex_Core.fn_Diagnostic_WriteLog "TEMP.Mode.Load | Path=SharedForm | From=" & m_modeId & " | To=" & modeId
             ' These modes share the same projection and derived event fields.
             If Not m_pageBase.BindingContext.SetValue("Settings", m_modeId & "Style", "secondaryButton") Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Settings", modeId & "Style", "activeModeButton") Then Exit Function
@@ -2146,9 +2152,11 @@ Private Function private_LoadMode( _
                 Set m_lookupResult = projectedResult
             End If
             private_LoadMode = True
+            ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Load.SharedForm", modeStartedAt
             Exit Function
         End If
     End If
+    ex_Core.fn_Diagnostic_WriteLog "TEMP.Mode.Load | Path=RebuildForm | From=" & m_modeId & " | To=" & modeId
     If Not private_ReadModeConfig("forms." & formKind & ".fields.count", countText, diagnostic) Then Exit Function
     If Not VBA.IsNumeric(countText) Then Err.Raise 5, , "Invalid mode field count: " & formKind
     If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 17 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
@@ -2236,6 +2244,8 @@ Private Function private_LoadMode( _
     End If
     m_modeDirection = direction
     m_eventType = eventType
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Load.BindingsAndColumns", modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
     If records.Count > 0 Then
         If Not m_candidateEnricher.TryEnrich( _
             m_lookupService, _
@@ -2248,18 +2258,35 @@ Private Function private_LoadMode( _
         ) Then Exit Function
         Set records = enrichedRecords
     End If
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Load.Enrich | Records=" & VBA.CStr(records.Count), modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
+    projectionStartedAt = modeStageStartedAt
     If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Projection.PrepareRecords", modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
     Set projectedResult = New obj_LookupResult
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Projection.CreateResult", modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
     If Not private_SetCandidateSources(columns, modeId, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Projection.SetSources", modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
     If Not projectedResult.Initialize(records, columns, hasMore, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Projection.InitializeResult", modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Projection.PublishCandidates", modeStageStartedAt
+    modeStageStartedAt = VBA.Timer
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Load.ProjectCandidates", projectionStartedAt
+    modeStageStartedAt = VBA.Timer
     ' Extension layouts depend on the form kind, not the selected event route.
     If CStr(currentForm) <> formKind Then
         If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
     End If
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Load.BuildExtensions", modeStageStartedAt
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Load.Total", modeStartedAt
     private_LoadMode = True
     Exit Function
 EH:
@@ -2311,6 +2338,8 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     Dim newReturnMode As Boolean
     Dim updates As Object
     Dim previousForm As String
+    Dim switchStartedAt As Double
+    Dim switchStageStartedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If modeId = m_modeId Then
@@ -2319,6 +2348,8 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     End If
     previousForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
     startedAt = VBA.Timer
+    switchStartedAt = startedAt
+    ex_Core.fn_Diagnostic_WriteLog "TEMP.Mode.Switch.Start | From=" & m_modeId & " | To=" & modeId
     If Not private_ReadModeConfig("lookup.ReturnTickets.modes", returnModes, diagnostic) Then GoTo Failed
     returnModes = "|" & returnModes & "|"
     oldReturnMode = VBA.InStr(1, returnModes, "|" & m_modeId & "|", VBA.vbTextCompare) > 0
@@ -2332,7 +2363,10 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
             If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
         End If
     End If
+    switchStageStartedAt = VBA.Timer
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Switch.LoadMode", switchStageStartedAt
+    switchStageStartedAt = VBA.Timer
     If m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selectedObject, isObject) Then
         If isObject Then
             If TypeOf selectedObject Is obj_LookupRecord Then
@@ -2347,6 +2381,7 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
             End If
         End If
     End If
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Switch.RestoreSelection", switchStageStartedAt
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     updates("Form.EventDate") = VBA.vbNullString
     updates("Form.DurationDays") = VBA.vbNullString
@@ -2359,11 +2394,14 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
     startedAt = VBA.Timer
     If previousForm <> ex_PEB_EventRoutes.fn_Value(modeId, "form") Then
+        switchStageStartedAt = VBA.Timer
         If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
         If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
+        ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Switch.QueueExtensions", switchStageStartedAt
     End If
     private_SwitchMode = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "Mode.Flush", startedAt
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Switch.Total | To=" & modeId, switchStartedAt
     Exit Function
 Failed:
     private_SetActionStatus diagnostic, True
@@ -2518,7 +2556,15 @@ Private Function private_SetCandidateSources( _
     Dim orderDateField As String
     Dim orderDateAlias As String
     Dim column As Object
+    Dim sourceStartedAt As Double
+    Dim columnStartedAt As Double
+    Dim hospitalDateField As String
+    Dim hospitalFields As String
+    Dim hospitalSourceAlias As String
+    Dim hospitalModes As String
+    Dim isHospitalMode As Boolean
 
+    sourceStartedAt = VBA.Timer
     If Not private_ReadModeConfig("lookup.ReturnTickets.modes", modes, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("lookup.ReturnTickets.styleFields", fields, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("legend.orderDate.field", orderDateField, diagnostic) Then Exit Function
@@ -2528,20 +2574,29 @@ Private Function private_SetCandidateSources( _
     Else
         If Not private_ReadModeConfig("lookup.ReturnTickets.departureSourceAlias", sourceAlias, diagnostic) Then Exit Function
     End If
+    hospitalDateField = ex_PEB_Export.fn_Config("lookup.ReturnHospital.dateField")
+    hospitalModes = ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes")
+    isHospitalMode = InStr(1, "|" & hospitalModes & "|", "|" & modeId & "|", vbTextCompare) > 0
+    If isHospitalMode Then
+        hospitalFields = ex_PEB_Export.fn_Config("lookup.ReturnHospital.fields")
+        hospitalSourceAlias = ex_PEB_Export.fn_Config("lookup.ReturnHospital.sourceAlias")
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Sources.ReadConfig", sourceStartedAt
     For Each column In columns
+        columnStartedAt = VBA.Timer
         If Left$(column("name"), 9) = "Movement." Or _
-            column("formField") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.dateField") Then
+            column("formField") = hospitalDateField Then
             column("name") = "Manual." & column("formField")
             column("apply") = False
             column("sourceAlias") = vbNullString
         End If
-        If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Then
-            If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.fields") & "|", "|" & column("formField") & "|", vbBinaryCompare) > 0 Then
+        If isHospitalMode Then
+            If InStr(1, "|" & hospitalFields & "|", "|" & column("formField") & "|", vbBinaryCompare) > 0 Then
                 column("name") = "Movement." & column("formField")
                 column("apply") = True
-                column("sourceAlias") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.sourceAlias")
+                column("sourceAlias") = hospitalSourceAlias
             End If
-            If column("formField") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.dateField") Then
+            If column("formField") = hospitalDateField Then
                 column("name") = orderDateField
                 column("apply") = True
                 column("sourceAlias") = orderDateAlias
@@ -2551,7 +2606,9 @@ Private Function private_SetCandidateSources( _
             column("sourceAlias") = sourceAlias
         End If
         If column("name") = orderDateField Then column("sourceAlias") = orderDateAlias
+        ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Sources.Column | Field=" & VBA.CStr(column("formField")), columnStartedAt
     Next column
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Mode.Sources.Total | Columns=" & VBA.CStr(columns.Count), sourceStartedAt
     private_SetCandidateSources = True
 End Function
 

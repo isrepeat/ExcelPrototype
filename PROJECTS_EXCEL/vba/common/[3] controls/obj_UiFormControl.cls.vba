@@ -21,6 +21,9 @@ Private m_row As Long
 Private m_column As Long
 Private m_definition As Object
 Private m_reservedColumns As Long
+Private m_fields As Object
+Private m_source As String
+Private m_retainedFieldsLayout As Boolean
 
 ' //
 ' // Lifecycle
@@ -71,6 +74,8 @@ Private Function obj_IUiControl_Configure( _
         Exit Function
     End If
     Set m_context = context
+    m_source = source
+    Set m_fields = CreateObject("Scripting.Dictionary")
     Set m_definition = definition.cloneNode(True)
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
@@ -90,6 +95,7 @@ Private Function obj_IUiControl_Configure( _
                         child.Dispose
                         Exit Function
                     End If
+                    m_fields.Add ex_UiElementFactory.fn_Attribute(node, "name"), child
                 Case Else
                     If VBA.CStr(node.namespaceURI) <> "urn:excelprototype:controls" Then
                         diagnostic = "Form only accepts field and controls namespace children: " & m_name
@@ -129,7 +135,21 @@ Private Function obj_IUiControl_Arrange( _
     ByVal column As Long, _
     ByRef diagnostic As String _
 ) As Boolean
+    Dim panel As obj_UiStackPanelElement
+    Dim field As obj_UiFormField
+    Dim key As Variant
+
     obj_IUiControl_Arrange = m_panel.Arrange(row + m_row - 1, column + m_column - 1, diagnostic)
+    If obj_IUiControl_Arrange And m_retainedFieldsLayout Then
+        m_context.Styles.ForgetControl m_name
+        Set panel = m_panel
+        panel.RegisterLayoutPart
+        For Each key In m_fields.Keys
+            Set field = m_fields(key)
+            field.RefreshLayoutPart
+        Next key
+        m_retainedFieldsLayout = False
+    End If
 End Function
 
 Private Function obj_IUiControl_Render(ByRef diagnostic As String) As Boolean
@@ -154,7 +174,98 @@ Public Sub Dispose()
     Set m_panel = Nothing
     Set m_context = Nothing
     Set m_definition = Nothing
+    Set m_fields = Nothing
 End Sub
+
+Public Function TryRebuildFields( _
+    ByVal definition As Object, _
+    ByRef rebuilt As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim resolved As Object
+    Dim oldNodes As Object
+    Dim nextNodes As Object
+    Dim nextFields As Object
+    Dim children As Collection
+    Dim node As Object
+    Dim oldNode As Object
+    Dim child As obj_IUiElement
+    Dim panel As obj_UiStackPanelElement
+    Dim key As Variant
+    Dim name As String
+    Dim container As obj_IUiContainer
+    Dim oldContainer As Object
+    Dim nextContainer As Object
+    Dim retainedCount As Long
+    Dim createdCount As Long
+
+    rebuilt = False
+    If Not ex_UiFormLayouts.fn_TryResolve(definition, m_context.BindingContext, resolved, diagnostic) Then Exit Function
+    TryRebuildFields = True
+    ' Only field-only forms with identical container attributes can retain their children.
+    Set oldContainer = m_definition.cloneNode(False)
+    Set nextContainer = resolved.cloneNode(False)
+    If nextContainer.XML <> oldContainer.XML Then Exit Function
+    Set oldNodes = CreateObject("Scripting.Dictionary")
+    Set nextNodes = CreateObject("Scripting.Dictionary")
+    For Each node In m_definition.ChildNodes
+        If node.NodeType = 1 Then
+            If node.namespaceURI <> "urn:excelprototype:profiles" Or node.baseName <> "field" Then Exit Function
+            oldNodes.Add ex_UiElementFactory.fn_Attribute(node, "name"), node
+        End If
+    Next node
+    For Each node In resolved.ChildNodes
+        If node.NodeType = 1 Then
+            If node.namespaceURI <> "urn:excelprototype:profiles" Or node.baseName <> "field" Then Exit Function
+            nextNodes.Add ex_UiElementFactory.fn_Attribute(node, "name"), node
+        End If
+    Next node
+    For Each key In m_fields.Keys
+        Set oldNode = oldNodes(key)
+        If nextNodes.Exists(key) Then
+            Set node = nextNodes(key)
+            If oldNode.XML = node.XML Then GoTo RetainField
+        End If
+        Set child = m_fields(key)
+        child.Dispose
+RetainField:
+    Next key
+    Set nextFields = CreateObject("Scripting.Dictionary")
+    Set children = New Collection
+    Set container = m_panel
+    For Each key In nextNodes.Keys
+        Set node = nextNodes(key)
+        name = CStr(key)
+        Set child = Nothing
+        If oldNodes.Exists(key) Then
+            Set oldNode = oldNodes(key)
+            If oldNode.XML = node.XML Then
+                Set child = m_fields(key)
+                retainedCount = retainedCount + 1
+            End If
+        End If
+        If child Is Nothing Then
+            createdCount = createdCount + 1
+            Set child = New obj_UiFormField
+            ' Keep partially configured replacements owned until the collection is committed.
+            container.AddChild child
+            If Not child.Configure(node, m_context, m_source, diagnostic) Then
+                child.Dispose
+                TryRebuildFields = False
+                Exit Function
+            End If
+        End If
+        children.Add child
+        nextFields.Add name, child
+    Next key
+    Set panel = m_panel
+    panel.ReplaceChildren children
+    Set m_fields = nextFields
+    Set m_definition = resolved.cloneNode(True)
+    m_retainedFieldsLayout = True
+    ex_Core.fn_Diagnostic_WriteLog "TEMP.Form.Reconcile | Name=" & m_name & " | Retained=" & CStr(retainedCount) & " | Created=" & CStr(createdCount)
+    rebuilt = True
+End Function
 
 Public Function GetDefinition() As Object
     If Not m_isInitialized Or m_isDisposed Then Exit Function

@@ -112,6 +112,14 @@ Public Sub Dispose()
     Set m_context = Nothing
 End Sub
 
+Public Sub RefreshLayoutPart()
+    Dim panel As obj_UiStackPanelElement
+
+    m_context.Styles.ForgetControl m_name
+    Set panel = m_panel
+    panel.RegisterLayoutPart
+End Sub
+
 ' //
 ' // Private
 ' //
