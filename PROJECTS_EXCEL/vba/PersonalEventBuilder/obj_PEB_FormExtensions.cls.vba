@@ -260,6 +260,7 @@ NextHeader:
     If Not cachedHeader Then Set m_headers(headerKey) = header.cloneNode(True)
     If headerOnly Then GoTo PublishMarkup
     private_BuildRows document, body
+    private_BuildTicket document, body
     For Each row In m_rows
         If Not private_Active(row) Then GoTo NextCandidates
         If Not private_Visible(row("Type")) Then GoTo NextCandidates
@@ -555,6 +556,10 @@ Private Function private_ModeId() As String
 End Function
 
 Private Function private_Allowed(ByVal kind As String) As Boolean
+    private_Allowed = private_HasFormFields(private_Config(kind, "fields"))
+End Function
+
+Private Function private_HasFormFields(ByVal fieldNames As String) As Boolean
     Dim fields As Object
     Dim field As Variant
     Dim index As Long
@@ -565,11 +570,74 @@ Private Function private_Allowed(ByVal kind As String) As Boolean
     For index = 1 To CLng(private_ReadConfig(prefix & "count"))
         fields(private_ReadConfig(prefix & index & ".name")) = True
     Next index
-    For Each field In Split(private_Config(kind, "fields"), "|")
+    For Each field In Split(fieldNames, "|")
         If Not fields.Exists(CStr(field)) Then Exit Function
     Next field
-    private_Allowed = True
+    private_HasFormFields = True
 End Function
+
+Private Sub private_BuildTicket( _
+    ByVal document As Object, _
+    ByVal body As Object _
+)
+    Dim fields As Variant
+    Dim field As Variant
+    Dim grid As Object
+    Dim form As Object
+    Dim node As Object
+    Dim column As Long
+    Dim width As Long
+    Dim titleColumn As Long
+    Dim markerColumn As Long
+
+    If Not private_HasFormFields(private_ReadConfig("forms.sections.Ticket.fields")) Then Exit Sub
+    fields = Split(private_ReadConfig("forms.sections.Ticket.fields"), "|")
+    width = CLng(private_ReadConfig("forms.columns.count"))
+    column = private_Column(private_ReadConfig("forms.sections.Ticket.anchor"))
+    If width < UBound(fields) + 4 Then Err.Raise 5, , private_ReadConfig("extensions.noServiceSpace")
+    If column < 1 Or column + UBound(fields) > width Then Exit Sub
+    titleColumn = column - 1
+    markerColumn = column + UBound(fields) + 1
+    If titleColumn < 1 Then titleColumn = width
+    If markerColumn > width Then markerColumn = 1
+    If titleColumn = markerColumn Then Err.Raise 5, , private_ReadConfig("extensions.noServiceSpace")
+    Set grid = private_Node(document, "grid")
+    Set node = private_Node(document, "controls:label")
+    node.setAttribute "name", "TicketTitle"
+    node.setAttribute "column", CStr(titleColumn)
+    node.setAttribute "rowSpan", "2"
+    node.setAttribute "style", "statusHeading"
+    node.setAttribute "text", private_ReadConfig("forms.sections.Ticket.caption")
+    grid.appendChild node
+    Set node = private_Node(document, "controls:label")
+    node.setAttribute "name", "TicketMarker"
+    node.setAttribute "column", CStr(markerColumn)
+    node.setAttribute "rowSpan", "2"
+    node.setAttribute "style", "secondaryButton"
+    node.setAttribute "text", private_ReadConfig("forms.sections.Ticket.marker")
+    grid.appendChild node
+    Set form = private_Node(document, "controls:form")
+    form.setAttribute "name", "TicketForm"
+    form.setAttribute "dataContext", "{Binding Path=Form}"
+    form.setAttribute "column", CStr(column)
+    form.setAttribute "orientation", "horizontal"
+    form.setAttribute "labelPosition", "top"
+    form.setAttribute "labelStyle", "formLabel"
+    form.setAttribute "fieldStyle", "formField"
+    For Each field In fields
+        Set node = private_Node(document, "field")
+        node.setAttribute "name", CStr(field)
+        node.setAttribute "type", "text"
+        node.setAttribute "value", "{Binding Path=" & field & "}"
+        node.setAttribute "label", private_ReadConfig("text.Mode" & field & "Label")
+        node.setAttribute "fieldStyle", "{Binding Path=Form." & field & "Style}"
+        node.setAttribute "readOnly", "{Binding Path=Form." & field & "ReadOnly}"
+        node.setAttribute "partStylesEnabled", "true"
+        form.appendChild node
+    Next field
+    grid.appendChild form
+    body.appendChild grid
+End Sub
 
 Private Function private_Visible(ByVal kind As String) As Boolean
     Dim field As Variant

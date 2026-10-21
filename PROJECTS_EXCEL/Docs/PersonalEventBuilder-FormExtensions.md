@@ -14,11 +14,16 @@ Switching to a mode that lacks an extension's fields hides that extension and ex
 
 - `extensions.mode.<mode>.defaults`: `Type=Role` entries separated by `|`.
 - `extensions.mode.<mode>.required`: role identifiers separated by `|`, or `-` for optional defaults.
-- `extensions.mode.<mode>.primaryCaption`: the primary document field caption.
 
 Each role defines `extensions.role.<role>.caption` and `.required` (field identifiers separated by `|`). Defaults are created once per event and mode. Returning to a mode reuses its existing rows. Required rows display the configured required marker instead of a remove button and enforce their role's required fields during collection.
 
-`MoveFromHospitalToVacationForCuring` uses the primary caption `Виписка` and a required `Document=Vlk` extension captioned `Довідка ВЛК`. The additional document requires its name, number and date. Defaults do not fabricate document values.
+`MoveFromHospitalToVacationForCuring` uses a required `Document=Vlk` extension captioned `Довідка ВЛК`. The additional document requires its name, number and date. Defaults do not fabricate document values. Fixed main-form fields always use their canonical `text.Mode<Field>Label` caption in every mode, including `Документ`.
+
+## Primary ticket section
+
+`forms.sections.Ticket` configures the section caption, field list, viewport anchor and presence marker. The section appears below extensions when both ticket fields belong to the current mode and its anchored cells fit inside the viewport. It contains `TicketNumber` and `TicketDate`, bound directly to the existing `Form` values, styles and read-only properties. It cannot be removed. The marker indicates that this primary section is always present in applicable modes; existing ticket-value validation is unchanged.
+
+Ticket fields remain in the mode's data projection for personnel autofill, history and export. They are excluded only from the main form's placement map and candidate display. The main form can therefore place event date and duration immediately after its fixed columns. Scrolling rebuilds the ticket section alongside extensions.
 
 ## History compatibility
 
