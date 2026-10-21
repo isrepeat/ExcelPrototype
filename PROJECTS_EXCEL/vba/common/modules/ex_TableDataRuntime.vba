@@ -40,6 +40,28 @@ Public Sub fn_ResetCaches()
         lookupService.InvalidateCache
     Next lookupService
 End Sub
+
+Public Function fn_TryQueryLoaded( _
+    ByVal source As obj_TableSource, _
+    ByVal query As obj_TableQuery, _
+    ByRef available As Boolean, _
+    ByRef result As obj_DataTable, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim lookupService As obj_LookupService
+
+    available = False
+    Set result = Nothing
+    fn_TryQueryLoaded = True
+    If m_lookupServices Is Nothing Then Exit Function
+    For Each lookupService In m_lookupServices
+        If Not lookupService.TryQueryLoaded(source, query, available, result, diagnostic) Then
+            fn_TryQueryLoaded = False
+            Exit Function
+        End If
+        If available Then Exit Function
+    Next lookupService
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

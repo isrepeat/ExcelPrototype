@@ -16,7 +16,8 @@ End Sub
 Public Function fn_Save( _
     ByVal values As Object, _
     ByRef diagnostic As String, _
-    Optional ByVal rebindFormExtensions As Boolean = False _
+    Optional ByVal rebindFormExtensions As Boolean = False, _
+    Optional ByVal exportService As obj_PEB_ExportService _
 ) As Boolean
     Dim book As Workbook
     Dim table As ListObject
@@ -154,11 +155,15 @@ Public Function fn_Save( _
                     End If
                 End If
                 If Not reuseTvo Then
-                    Set tvoService = New obj_PEB_ExportService
-                    If Not tvoService.Initialize() Then Err.Raise 5, , "Cannot initialize return TVO snapshot service."
-                    If Not tvoService.TryCaptureReturnTvo(values, diagnostic) Then GoTo Cleanup
-                    tvoService.Dispose
-                    Set tvoService = Nothing
+                    If exportService Is Nothing Then
+                        Set tvoService = New obj_PEB_ExportService
+                        If Not tvoService.Initialize() Then Err.Raise 5, , "Cannot initialize return TVO snapshot service."
+                        If Not tvoService.TryCaptureReturnTvo(values, diagnostic) Then GoTo Cleanup
+                        tvoService.Dispose
+                        Set tvoService = Nothing
+                    Else
+                        If Not exportService.TryCaptureReturnTvo(values, diagnostic) Then GoTo Cleanup
+                    End If
                 End If
                 private_AddReturnTvoChildren values, identifier
             End If

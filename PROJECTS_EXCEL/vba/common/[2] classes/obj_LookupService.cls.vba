@@ -121,6 +121,40 @@ EH:
     Resume Cleanup
 End Function
 
+Public Function TryQueryLoaded( _
+    ByVal source As obj_TableSource, _
+    ByVal query As obj_TableQuery, _
+    ByRef available As Boolean, _
+    ByRef result As obj_DataTable, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim column As Variant
+    Dim header As Variant
+    Dim found As Boolean
+
+    available = False
+    Set result = Nothing
+    TryQueryLoaded = True
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_cache Is Nothing Then Exit Function
+    If VBA.StrComp(source.WorkbookPath, m_profile.Source.WorkbookPath, VBA.vbTextCompare) <> 0 Then Exit Function
+    If VBA.StrComp(source.SheetName, m_profile.Source.SheetName, VBA.vbTextCompare) <> 0 Then Exit Function
+    If VBA.StrComp(source.RangeAddress, m_profile.Source.RangeAddress, VBA.vbTextCompare) <> 0 Then Exit Function
+    If VBA.StrComp(source.TableName, m_profile.Source.TableName, VBA.vbTextCompare) <> 0 Then Exit Function
+    For Each column In query.Columns
+        found = False
+        For Each header In m_cache.Headers
+            If VBA.StrComp(VBA.Trim$(VBA.CStr(header)), VBA.Trim$(VBA.CStr(column)), VBA.vbTextCompare) = 0 Then
+                found = True
+                Exit For
+            End If
+        Next header
+        If Not found Then Exit Function
+    Next column
+    available = True
+    TryQueryLoaded = ex_TableQuery.fn_TryApply(m_cache, query, result, diagnostic)
+End Function
+
 Public Function TryProject( _
     ByVal records As Collection, _
     ByRef result As obj_LookupResult, _
