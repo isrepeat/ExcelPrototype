@@ -219,12 +219,14 @@ Private Function private_ConfigureField( _
     panelNode.setAttribute "orientation", VBA.IIf(position = "left", "horizontal", "vertical")
     Set m_panel = New obj_UiStackPanelElement
     Set container = m_panel
-    panelNode.setAttribute "row", "1"
-    panelNode.setAttribute "column", "1"
+    panelNode.setAttribute "row", CStr(ex_UiElementFactory.fn_Long(fieldNode, "row", 1))
+    panelNode.setAttribute "column", CStr(ex_UiElementFactory.fn_Long(fieldNode, "column", 1))
     panelNode.setAttribute "rowSpan", "1"
     panelNode.setAttribute "columnSpan", "1"
     If Not m_panel.Configure(panelNode, context, source, diagnostic) Then Exit Function
     Set labelNode = fieldNode.cloneNode(False)
+    labelNode.setAttribute "row", "1"
+    labelNode.setAttribute "column", "1"
     For Each editorAttribute In VBA.Array("value", "itemsSource", "selectedItem", _
             "onChange", "onFocus", "command", "readOnly", "required")
         labelNode.removeAttribute VBA.CStr(editorAttribute)
@@ -239,6 +241,8 @@ Private Function private_ConfigureField( _
     If Not label.Configure(labelNode, context, source, diagnostic) Then Exit Function
     container.AddChild label
     Set editorNode = fieldNode.cloneNode(False)
+    editorNode.setAttribute "row", "1"
+    editorNode.setAttribute "column", "1"
     editorNode.setAttribute "type", VBA.IIf(kind = "select", "Select", "Input")
     editorNode.setAttribute "inputType", kind
     editorNode.setAttribute "name", m_name & "_input"
@@ -249,6 +253,10 @@ Private Function private_ConfigureField( _
     editorNode.setAttribute "onChange", private_Inherit(fieldNode, formNode, "onChange", VBA.vbNullString)
     editorNode.setAttribute "onFocus", private_Inherit(fieldNode, formNode, "onFocus", VBA.vbNullString)
     editorNode.setAttribute "readOnly", private_Inherit(fieldNode, formNode, "readOnly", "false")
+    If ex_UiElementFactory.fn_Attribute(fieldNode, "disabled") = "true" Then
+        editorNode.removeAttribute "onChange"
+        editorNode.removeAttribute "onFocus"
+    End If
     Set editor = New obj_UiControlElement
     If Not editor.Configure(editorNode, context, source, diagnostic) Then Exit Function
     container.AddChild editor

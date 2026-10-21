@@ -107,6 +107,17 @@ Public Sub Dispose()
     private_DisposePanel
 End Sub
 
+Public Sub ReplaceChildren(ByVal children As Collection)
+    Set m_children = children
+End Sub
+
+Public Sub RegisterLayoutPart()
+    If m_rows > 0 And m_columns > 0 Then
+        m_context.Styles.RegisterPart m_definition, _
+            m_context.TargetWorksheet.Cells(m_arrangedRow, m_arrangedColumn).Resize(m_rows, m_columns), "layout"
+    End If
+End Sub
+
 ' //
 ' // Private
 ' //

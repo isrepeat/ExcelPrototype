@@ -24,6 +24,7 @@ Private m_pendingOrder As obj_LookupRecord
 Private m_acceptedOrderNumber As String
 Private m_acceptedOrderDate As Variant
 Private m_modeFields As Collection
+Private m_displayFields As Collection
 Private m_modeId As String
 Private m_modeDirection As String
 Private m_eventType As String
@@ -178,6 +179,7 @@ Public Sub Dispose()
     Set m_lookupProfile = Nothing
     Set m_lookupResult = Nothing
     Set m_modeFields = Nothing
+    Set m_displayFields = Nothing
     Set m_modeConfig = Nothing
     Set m_reporterFields = Nothing
     If Not m_hospitalService Is Nothing Then m_hospitalService.Dispose
@@ -1224,6 +1226,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     Dim oldHospital As Boolean
     Dim oldDocument As Boolean
     Dim oldFields As Collection
+    Dim oldDisplayFields As Collection
     Dim status As String
     Dim diagnostic As String
     Dim rollbackDiagnostic As String
@@ -1261,6 +1264,7 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     Next source
     Set oldResult = m_lookupResult
     Set oldFields = m_modeFields
+    Set oldDisplayFields = m_displayFields
     oldMode = m_modeId
     oldDirection = m_modeDirection
     oldEventType = m_eventType
@@ -1313,6 +1317,7 @@ Failed:
         m_modeDirection = oldDirection
         m_eventType = oldEventType
         Set m_modeFields = oldFields
+        Set m_displayFields = oldDisplayFields
         Set m_lookupResult = oldResult
         m_reporterActive = oldReporter
         m_hospitalActive = oldHospital
@@ -1325,7 +1330,7 @@ Failed:
         If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", oldResult) Then
             diagnostic = diagnostic & " Cannot restore candidates."
         End If
-        If Not m_pageBase.BindingContext.SetObject("Data", "EventFields", oldFields) Then
+        If Not m_pageBase.BindingContext.SetObject("Data", "EventFields", oldDisplayFields) Then
             diagnostic = diagnostic & " Cannot restore form fields."
         End If
         If Not m_pageBase.FlushUpdates() Then diagnostic = diagnostic & " Cannot render restored form."
@@ -2190,6 +2195,7 @@ Private Function private_LoadMode( _
         column("sourceAlias") = sourceAlias
         columns.Add column
     Next index
+    If Not private_PlaceFields(columns, diagnostic) Then Exit Function
     For Each field In VBA.Array("EventType", _
             "Destination", _
             "PersonRank", _
@@ -2233,7 +2239,7 @@ Private Function private_LoadMode( _
     If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "EventFields", columns) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "EventFields", m_displayFields) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "EventType", eventType) Then Exit Function
     Set records = New Collection
     If Not secondaryCandidates Then
@@ -2543,6 +2549,94 @@ Private Function private_TryEnrichResult( _
     Set result = enrichedResult
     If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
     private_TryEnrichResult = True
+End Function
+
+Private Function private_PlaceFields( _
+    ByVal columns As Collection, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim fixedColumns As Object
+    Dim key As Variant
+    Dim prefix As String
+    Dim widthText As String
+    Dim column As Object
+    Dim groups As Object
+    Dim fields As Variant
+    Dim field As Variant
+    Dim groupRanges As Object
+    Dim rangeText As String
+    Dim displayFields As Collection
+    Dim activeFields As Object
+    Dim caption As String
+    Dim disabledStyle As String
+
+    If Not private_ReadModeConfig("forms.columns.count", widthText, diagnostic) Then Exit Function
+    If Not IsNumeric(widthText) Then
+        diagnostic = "Invalid configuration: PersonalEventBuilder::forms.columns.count"
+        Exit Function
+    End If
+    If CDbl(widthText) < 1 Or CDbl(widthText) > 16384 Or CDbl(widthText) <> Fix(CDbl(widthText)) Then
+        diagnostic = "Invalid configuration: PersonalEventBuilder::forms.columns.count"
+        Exit Function
+    End If
+    prefix = "forms.columns.fixed."
+    Set fixedColumns = CreateObject("Scripting.Dictionary")
+    For Each key In m_modeConfig.Keys
+        If Left$(CStr(key), Len(prefix)) = prefix Then
+            fixedColumns.Add Mid$(CStr(key), Len(prefix) + 1), m_modeConfig(key)
+        End If
+    Next key
+    If fixedColumns.Count = 0 Then
+        diagnostic = "Required configuration group not found: PersonalEventBuilder::forms.columns.fixed"
+        Exit Function
+    End If
+    Set groups = CreateObject("Scripting.Dictionary")
+    Set groupRanges = CreateObject("Scripting.Dictionary")
+    prefix = "forms.columns.groups."
+    For Each key In m_modeConfig.Keys
+        If Left$(CStr(key), Len(prefix)) = prefix Then
+            If Not private_ReadModeConfig("forms.columns.ranges." & Mid$(CStr(key), Len(prefix) + 1), rangeText, diagnostic) Then Exit Function
+            fields = Split(rangeText, "|")
+            If UBound(fields) <> 1 Then
+                diagnostic = "Invalid form group range: " & CStr(key)
+                Exit Function
+            End If
+            groupRanges.Add CStr(key), fields
+            fields = Split(CStr(m_modeConfig(key)), "|")
+            For Each field In fields
+                If groups.Exists(CStr(field)) Then
+                    diagnostic = "Duplicate form group field: " & CStr(field)
+                    Exit Function
+                End If
+                groups.Add CStr(field), CStr(key)
+            Next field
+        End If
+    Next key
+    Set displayFields = New Collection
+    If Not private_ReadModeConfig("forms.columns.disabledStyle", disabledStyle, diagnostic) Then Exit Function
+    Set activeFields = CreateObject("Scripting.Dictionary")
+    For Each column In columns
+        displayFields.Add column
+        activeFields.Add CStr(column("formField")), True
+    Next column
+    For Each field In fixedColumns.Keys
+        If Not activeFields.Exists(field) Then
+            If Not private_ReadModeConfig("text.Mode" & CStr(field) & "Label", caption, diagnostic) Then Exit Function
+            Set column = CreateObject("Scripting.Dictionary")
+            column("formField") = CStr(field)
+            column("caption") = caption
+            column("disabled") = True
+            column("disabledStyle") = disabledStyle
+            displayFields.Add column
+            If Not m_pageBase.BindingContext.SetValue("Form", "Disabled" & CStr(field), vbNullString) Then Exit Function
+        End If
+    Next field
+    If Not ex_UiFormLayouts.fn_TryPlaceColumns(displayFields, fixedColumns, CLng(widthText), diagnostic, groups, groupRanges) Then Exit Function
+    Set m_displayFields = displayFields
+    For Each column In columns
+        fixedColumns(CStr(column("formField"))) = CLng(column("column"))
+    Next column
+    private_PlaceFields = m_pageBase.BindingContext.SetObject("Data", "FormColumnMap", fixedColumns)
 End Function
 
 Private Function private_SetCandidateSources( _

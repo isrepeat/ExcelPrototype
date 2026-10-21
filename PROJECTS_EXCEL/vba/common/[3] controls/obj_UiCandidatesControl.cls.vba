@@ -245,11 +245,21 @@ Private Function private_AlignToForm( _
     End If
     For Each node In formNode.ChildNodes
         If node.NodeType = 1 Then
+            If private_ReadAttribute(node, "disabled") = "true" Then GoTo NextCountField
             If node.baseName <> "field" Then Err.Raise 5, , "Aligned form only supports fields: " & formName
             fieldSpan = private_ReadLong(node, "columnSpan", 1)
             If fieldSpan < 1 Then Err.Raise 5, , "Aligned field columnSpan must be positive."
-            fieldCount = fieldCount + fieldSpan
+            If private_ReadAttribute(formNode, "candidateLayout") = "packed" Then
+                position = private_ReadLong(node, "candidateColumn", 0)
+                If position < 1 Then Err.Raise 5, , "Missing candidate column: " & private_ReadAttribute(node, "name")
+                If position + fieldSpan - 1 > fieldCount Then fieldCount = position + fieldSpan - 1
+            Else
+                position = private_ReadLong(node, "column", fieldCount + 1)
+                If position <= fieldCount Then Err.Raise 5, , "Overlapping alignment field: " & private_ReadAttribute(node, "name")
+                fieldCount = position + fieldSpan - 1
+            End If
         End If
+NextCountField:
     Next node
     If fieldCount = 0 Then Err.Raise 5, , "Alignment form has no fields: " & formName
     reservedColumns = private_ReadLong(formNode, "columnSpan", fieldCount)
@@ -273,6 +283,10 @@ Private Function private_AlignToForm( _
         End If
     End If
     ReDim headers(0 To totalColumns - 1)
+    For coveredColumn = 0 To totalColumns - 1
+        headers(coveredColumn) = VBA.vbNullString
+    Next coveredColumn
+    position = 0
     If table.RowCount > 0 Then ReDim values(1 To table.RowCount, 1 To totalColumns)
     Set matched = VBA.CreateObject("Scripting.Dictionary")
     Set columnSpans = VBA.CreateObject("Scripting.Dictionary")
@@ -283,11 +297,16 @@ Private Function private_AlignToForm( _
     ' Match headers to field labels; leave extra form fields blank.
     For Each fieldNode In formNode.ChildNodes
         If fieldNode.NodeType = 1 Then
+            If private_ReadAttribute(fieldNode, "disabled") = "true" Then GoTo NextProjectedField
             If VBA.Len(private_ReadAttribute(fieldNode, "labelPosition")) > 0 And _
                     private_ReadAttribute(fieldNode, "labelPosition") <> "top" Then
                 Err.Raise 5, , "Aligned field requires a top label: " & private_ReadAttribute(fieldNode, "name")
             End If
-            position = position + 1
+            If private_ReadAttribute(formNode, "candidateLayout") = "packed" Then
+                position = beforeColumns.Count + private_ReadLong(fieldNode, "candidateColumn", 0)
+            Else
+                position = beforeColumns.Count + private_ReadLong(fieldNode, "column", position - beforeColumns.Count + 1)
+            End If
             fieldSpan = private_ReadLong(fieldNode, "columnSpan", 1)
             columnSpans(position) = fieldSpan
             For coveredColumn = position + 1 To position + fieldSpan - 1
@@ -314,7 +333,9 @@ Private Function private_AlignToForm( _
             Next columnIndex
             position = position + fieldSpan - 1
         End If
+NextProjectedField:
     Next fieldNode
+    position = beforeColumns.Count + fieldCount
     For Each extraHeader In afterColumns
         position = position + 1
         private_CopyExtraColumn table, VBA.CStr(extraHeader), position, headers, values, matched

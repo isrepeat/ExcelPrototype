@@ -239,6 +239,7 @@ NextHeader:
             column = CLng(private_Config(row("Type"), "fallbackColumn"))
         End If
         width = UBound(Split(private_Config(row("Type"), "fields"), "|")) + 1
+        column = private_FitColumn(column, width)
         Set grid = private_Node(document, "grid")
         body.appendChild grid
         Set node = private_Node(document, "controls:label")
@@ -295,6 +296,7 @@ NextHeader:
         node.setAttribute "itemsSource", "{Binding Path=Data.ExCandidates" & row("Id") & "}"
         column = private_Column(private_Config(row("Type"), "start"))
         If column = 0 Then column = CLng(private_Config(row("Type"), "fallbackColumn"))
+        column = private_FitColumn(column, UBound(Split(private_Config(row("Type"), "fields"), "|")) + 1)
         node.setAttribute "column", CStr(column)
         node.setAttribute "style", "candidateTable"
         node.setAttribute "visibility", "{Binding Path=Form.ExVisible" & row("Id") & "}"
@@ -306,7 +308,7 @@ NextHeader:
         node.setAttribute "onSelect", "{Binding Path=Commands." & key & "}"
         node.setAttribute "alignToForm", "ExForm" & row("Id")
         node.setAttribute "workspaceFirstColumn", "1"
-        node.setAttribute "workspaceLastColumn", "17"
+        node.setAttribute "workspaceLastColumn", private_ReadConfig("forms.columns.count")
         node.setAttribute "showHeaders", "true"
         body.appendChild node
     Next row
@@ -616,14 +618,28 @@ Private Function private_Add(ByVal kind As String) As Object
 End Function
 
 Private Function private_Column(ByVal field As String) As Long
-    Dim index As Long
+    Dim value As Variant
+    Dim source As Object
+    Dim isObject As Boolean
 
-    For index = 1 To CLng(private_ReadConfig("forms." & m_form & ".fields.count"))
-        If private_ReadConfig("forms." & m_form & ".fields." & index & ".name") = field Then
-            private_Column = index
-            Exit Function
-        End If
-    Next index
+    If Not m_page.BindingContext.TryGetValue("Data", "FormColumnMap", value, source, isObject) Then
+        Err.Raise 5, , "Cannot resolve the active form column map: Data.FormColumnMap"
+    End If
+    If Not isObject Then Err.Raise 5, , "The active form column map must be a dictionary."
+    If source.Exists(field) Then private_Column = CLng(source(field))
+End Function
+
+Private Function private_FitColumn( _
+    ByVal column As Long, _
+    ByVal width As Long _
+) As Long
+    Dim workspaceWidth As Long
+
+    workspaceWidth = CLng(private_ReadConfig("forms.columns.count"))
+    If width < 1 Or width > workspaceWidth Then Err.Raise 5, , "Extension group exceeds the workspace width."
+    If column < 1 Then column = 1
+    If column + width - 1 > workspaceWidth Then column = workspaceWidth - width + 1
+    private_FitColumn = column
 End Function
 
 Private Function private_Node( _

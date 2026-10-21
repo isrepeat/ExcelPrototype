@@ -80,7 +80,11 @@ Private Function obj_IUiControl_Configure( _
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     m_reservedColumns = ex_UiElementFactory.fn_Long(definition, "columnSpan", 0)
-    Set m_panel = New obj_UiStackPanelElement
+    If ex_UiElementFactory.fn_Attribute(definition, "placement") = "mapped" Then
+        Set m_panel = New obj_UiGridElement
+    Else
+        Set m_panel = New obj_UiStackPanelElement
+    End If
     Set container = m_panel
     Set panelNode = definition.cloneNode(False)
     panelNode.setAttribute "row", "1"
@@ -136,14 +140,20 @@ Private Function obj_IUiControl_Arrange( _
     ByRef diagnostic As String _
 ) As Boolean
     Dim panel As obj_UiStackPanelElement
+    Dim grid As obj_UiGridElement
     Dim field As obj_UiFormField
     Dim key As Variant
 
     obj_IUiControl_Arrange = m_panel.Arrange(row + m_row - 1, column + m_column - 1, diagnostic)
     If obj_IUiControl_Arrange And m_retainedFieldsLayout Then
         m_context.Styles.ForgetControl m_name
-        Set panel = m_panel
-        panel.RegisterLayoutPart
+        If TypeOf m_panel Is obj_UiGridElement Then
+            Set grid = m_panel
+            grid.RegisterLayoutPart
+        Else
+            Set panel = m_panel
+            panel.RegisterLayoutPart
+        End If
         For Each key In m_fields.Keys
             Set field = m_fields(key)
             field.RefreshLayoutPart
@@ -198,6 +208,7 @@ Public Function TryRebuildFields( _
     Dim nextContainer As Object
     Dim retainedCount As Long
     Dim createdCount As Long
+    Dim grid As obj_UiGridElement
 
     rebuilt = False
     If Not ex_UiFormLayouts.fn_TryResolve(definition, m_context.BindingContext, resolved, diagnostic) Then Exit Function
@@ -258,8 +269,13 @@ RetainField:
         children.Add child
         nextFields.Add name, child
     Next key
-    Set panel = m_panel
-    panel.ReplaceChildren children
+    If TypeOf m_panel Is obj_UiGridElement Then
+        Set grid = m_panel
+        grid.ReplaceChildren children
+    Else
+        Set panel = m_panel
+        panel.ReplaceChildren children
+    End If
     Set m_fields = nextFields
     Set m_definition = resolved.cloneNode(True)
     m_retainedFieldsLayout = True
