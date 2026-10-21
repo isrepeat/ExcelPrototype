@@ -717,6 +717,10 @@ value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToVaca
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyVacationForCuringToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyForTreatmentToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.sections.Ticket.anchor	Document
+value	PersonalEventBuilder::forms.sections.Ticket.fields	TicketNumber|TicketDate
+value	PersonalEventBuilder::forms.sections.Ticket.marker	Обов’язково
+value	PersonalEventBuilder::forms.sections.Ticket.caption	Квиток
 value	PersonalEventBuilder::forms.Treatment.fields.1.name	Hospital
 value	PersonalEventBuilder::forms.Treatment.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
 value	PersonalEventBuilder::forms.Treatment.fields.2.name	HospitalShortName
@@ -1834,7 +1838,6 @@ value	PersonalEventBuilder::candidates.textWarningLimit	255
   ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.defaults	Document=Vlk
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.required	Vlk
-value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.primaryCaption	Виписка
 value	PersonalEventBuilder::extensions.role.Vlk.caption	Довідка ВЛК
 value	PersonalEventBuilder::extensions.role.Vlk.required	Document|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::extensions.type.TVO.key	PersonName

@@ -2124,7 +2124,6 @@ Private Function private_LoadMode( _
     Dim modes As Variant
     Dim currentForm As Variant
     Dim secondaryCandidates As Boolean
-    Dim extensionModes As String
 
     On Error GoTo EH
     secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
@@ -2146,12 +2145,9 @@ Private Function private_LoadMode( _
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
     If Not private_UpdateReadOnly(modeId, diagnostic) Then Exit Function
-    extensionModes = "|" & ex_PEB_Export.fn_Config("extensions.modes") & "|"
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
-        If VBA.CStr(currentForm) = formKind And m_modeDirection = direction And _
-                InStr(1, extensionModes, "|" & modeId & "|", vbBinaryCompare) = 0 And _
-                InStr(1, extensionModes, "|" & m_modeId & "|", vbBinaryCompare) = 0 Then
+        If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
             ' These modes share the same projection and derived event fields.
             If Not m_pageBase.BindingContext.SetValue("Settings", m_modeId & "Style", "secondaryButton") Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Settings", modeId & "Style", "activeModeButton") Then Exit Function
@@ -2189,9 +2185,6 @@ Private Function private_LoadMode( _
             Exit Function
         End If
         If fieldName = "EventDate" Then fieldCaption = eventDateLabel
-        If fieldName = "Document" And InStr(1, extensionModes, "|" & modeId & "|", vbBinaryCompare) > 0 Then
-            fieldCaption = ex_PEB_Export.fn_Config("extensions.mode." & modeId & ".primaryCaption")
-        End If
         recordName = VBA.vbNullString
         sourceAlias = VBA.vbNullString
         If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
@@ -2544,7 +2537,9 @@ Private Function private_PlaceFields( _
     Dim activeFields As Object
     Dim caption As String
     Dim disabledStyle As String
+    Dim sectionFields As String
 
+    sectionFields = "|" & ex_PEB_Export.fn_Config("forms.sections.Ticket.fields") & "|"
     If Not private_ReadModeConfig("forms.columns.count", widthText, diagnostic) Then Exit Function
     If Not IsNumeric(widthText) Then
         diagnostic = "Invalid configuration: PersonalEventBuilder::forms.columns.count"
@@ -2591,7 +2586,15 @@ Private Function private_PlaceFields( _
     If Not private_ReadModeConfig("forms.columns.disabledStyle", disabledStyle, diagnostic) Then Exit Function
     Set activeFields = CreateObject("Scripting.Dictionary")
     For Each column In columns
-        displayFields.Add column
+        If fixedColumns.Exists(CStr(column("formField"))) Then
+            If Not private_ReadModeConfig("text.Mode" & CStr(column("formField")) & "Label", caption, diagnostic) Then Exit Function
+            column("caption") = caption
+        End If
+        If InStr(1, sectionFields, "|" & CStr(column("formField")) & "|", vbBinaryCompare) > 0 Then
+            column("column") = 0
+        Else
+            displayFields.Add column
+        End If
         activeFields.Add CStr(column("formField")), True
     Next column
     For Each field In fixedColumns.Keys
@@ -2609,7 +2612,9 @@ Private Function private_PlaceFields( _
     If Not ex_UiFormLayouts.fn_TryPlaceColumns(displayFields, fixedColumns, CLng(widthText), diagnostic, groups, groupRanges) Then Exit Function
     Set m_displayFields = displayFields
     For Each column In columns
-        fixedColumns(CStr(column("formField"))) = CLng(column("column"))
+        If CLng(column("column")) > 0 Then
+            fixedColumns(CStr(column("formField"))) = CLng(column("column"))
+        End If
     Next column
     private_PlaceFields = m_pageBase.BindingContext.SetObject("Data", "FormColumnMap", fixedColumns)
 End Function
