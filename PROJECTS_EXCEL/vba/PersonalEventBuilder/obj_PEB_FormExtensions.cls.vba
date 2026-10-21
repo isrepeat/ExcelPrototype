@@ -23,6 +23,8 @@ Private m_profiles As Object
 Private m_nextId As Long
 Private m_form As String
 Private m_active As Object
+Private m_config As Object
+Private m_headers As Object
 
 ' //
 ' // Lifecycle
@@ -68,6 +70,8 @@ Public Function Initialize(ByVal page As obj_PageBase) As Boolean
     Set m_defaultStyles = CreateObject("Scripting.Dictionary")
     Set m_services = CreateObject("Scripting.Dictionary")
     Set m_profiles = CreateObject("Scripting.Dictionary")
+    Set m_config = CreateObject("Scripting.Dictionary")
+    Set m_headers = CreateObject("Scripting.Dictionary")
     If Not m_page.BindingContext.SetValue("Form", "ExtCandidatesVisibility", "Collapsed") Then Exit Function
     m_isInitialized = True
     m_page.BindingContext.Subscribe Me
@@ -101,12 +105,16 @@ Public Sub Dispose()
     Set m_profiles = Nothing
     Set m_rows = Nothing
     Set m_active = Nothing
+    Set m_config = Nothing
+    Set m_headers = Nothing
     Set m_page = Nothing
 End Sub
 
 Public Sub InvalidateCache()
     Dim key As Variant
 
+    m_config.RemoveAll
+    m_headers.RemoveAll
     For Each key In m_services.Keys
         m_services(key).InvalidateCache
     Next key
@@ -159,20 +167,29 @@ Public Function Build( _
     Dim groups As Object
     Dim anchor As Variant
     Dim kinds As Collection
+    Dim cachedHeader As Boolean
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Extensions are not initialized."
     m_form = formKind
     ' Keep existing command objects alive when only extension rows are rebuilt.
     Set document = CreateObject("MSXML2.DOMDocument.6.0")
-    Set header = private_Node(document, "stackPanel")
-    header.setAttribute "orientation", "vertical"
+    cachedHeader = m_headers.Exists(formKind)
+    ex_Core.fn_Diagnostic_WriteLog "TEMP.Extensions.Cache | Form=" & formKind & " | HeaderHit=" & CStr(cachedHeader) & " | ConfigEntries=" & CStr(m_config.Count)
+    If cachedHeader Then
+        Set header = m_headers(formKind).cloneNode(True)
+    Else
+        Set header = private_Node(document, "stackPanel")
+        header.setAttribute "orientation", "vertical"
+    End If
     Set body = private_Node(document, "stackPanel")
     body.setAttribute "orientation", "vertical"
-    Set grid = private_Node(document, "grid")
-    header.appendChild grid
+    If Not cachedHeader Then
+        Set grid = private_Node(document, "grid")
+        header.appendChild grid
+    End If
     Set groups = CreateObject("Scripting.Dictionary")
-    For Each kind In Split(ex_PEB_Export.fn_Config("extensions.types"), "|")
+    For Each kind In Split(private_ReadConfig("extensions.types"), "|")
         anchor = private_Config(CStr(kind), "anchor")
         If Not groups.Exists(anchor) Then
             Set kinds = New Collection
@@ -199,19 +216,22 @@ Public Function Build( _
             Set payload("Types") = kinds
             payload("Path") = key
             private_Command key, payload
+            If cachedHeader Then GoTo NextHeader
             Set node = private_Node(document, "controls:select")
             node.setAttribute "name", key
             node.setAttribute "itemsSource", "{Binding Path=Data." & key & "}"
             node.setAttribute "column", CStr(column)
             node.setAttribute "style", "secondaryButton"
             node.setAttribute "value", "{Binding Path=Form." & key & "}"
-            node.setAttribute "placeholder", ex_PEB_Export.fn_Config("extensions.addCaption")
+            node.setAttribute "placeholder", private_ReadConfig("extensions.addCaption")
             node.setAttribute "panelStyle", "formSelectPanel"
             node.setAttribute "itemStyle", "formSelectItem"
             node.setAttribute "onChange", "{Binding Path=Commands." & key & "}"
             grid.appendChild node
         End If
+NextHeader:
     Next anchor
+    If Not cachedHeader Then Set m_headers(formKind) = header.cloneNode(True)
     For Each row In m_rows
         column = private_Column(private_Config(row("Type"), "start"))
         If column = 0 Then
@@ -234,7 +254,7 @@ Public Function Build( _
         node.setAttribute "name", key
         node.setAttribute "column", CStr(column + width - 1)
         node.setAttribute "style", "secondaryButton"
-        node.setAttribute "caption", ex_PEB_Export.fn_Config("extensions.removeCaption")
+        node.setAttribute "caption", private_ReadConfig("extensions.removeCaption")
         node.setAttribute "command", "{Binding Path=Commands." & key & "}"
         grid.appendChild node
         Set form = private_Node(document, "controls:form")
@@ -253,7 +273,7 @@ Public Function Build( _
             node.setAttribute "name", path
             node.setAttribute "type", "text"
             node.setAttribute "value", "{Binding Path=" & path & "}"
-            node.setAttribute "label", ex_PEB_Export.fn_Config("text.Mode" & field & "Label")
+            node.setAttribute "label", private_ReadConfig("text.Mode" & field & "Label")
             node.setAttribute "fieldStyle", "{Binding Path=Form." & path & "Style}"
             node.setAttribute "partStylesEnabled", "true"
             If InStr(1, "|" & private_Config(row("Type"), "readOnly") & "|", "|" & field & "|", vbBinaryCompare) > 0 Then
@@ -324,7 +344,7 @@ Public Function HandleAction( _
             HandleAction = m_page.BindingContext.SetValue("Form", "ExVisible" & row("Id"), "Collapsed")
             Exit Function
         Case "add"
-            If m_rows.Count >= CLng(ex_PEB_Export.fn_Config("extensions.limit")) Then Err.Raise 5, , ex_PEB_Export.fn_Config("extensions.limitReached")
+            If m_rows.Count >= CLng(private_ReadConfig("extensions.limit")) Then Err.Raise 5, , private_ReadConfig("extensions.limitReached")
             If Not m_page.BindingContext.TryGetValue("Form", payload("Path"), value, ignored, isObject) Then Exit Function
             For Each kind In payload("Types")
                 If private_Config(CStr(kind), "caption") = CStr(value) Then Set row = private_Add(CStr(kind))
@@ -383,7 +403,7 @@ Public Function HandleAction( _
 EH:
     diagnostic = Err.Description
 Failed:
-    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, ex_PEB_Export.fn_Config("extensions.errorTitle")
+    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, private_ReadConfig("extensions.errorTitle")
 End Function
 
 Public Function TryRefresh(ByRef diagnostic As String) As Boolean
@@ -426,7 +446,7 @@ Public Function Collect( _
         Next field
         For Each field In Split(private_Config(row("Type"), "required"), "|")
             If Len(Trim$(item(field))) = 0 Then
-                diagnostic = Replace$(ex_PEB_Export.fn_Config("extensions.invalid"), "{field}", CStr(field))
+                diagnostic = Replace$(private_ReadConfig("extensions.invalid"), "{field}", CStr(field))
                 Exit Function
             End If
         Next field
@@ -506,14 +526,14 @@ Private Function private_Style( _
     Dim defaultStyle As String
     Dim style As String
 
-    defaultStyle = ex_PEB_Export.fn_Config("forms.sourceStyles.default")
+    defaultStyle = private_ReadConfig("forms.sourceStyles.default")
     style = defaultStyle
-    If ex_PEB_Export.fn_Config("forms.dynamicStylesEnabled") = "true" Then
-        style = ex_PEB_Export.fn_Config("forms.sourceStyles." & sourceAlias)
+    If private_ReadConfig("forms.dynamicStylesEnabled") = "true" Then
+        style = private_ReadConfig("forms.sourceStyles." & sourceAlias)
     End If
     If field = private_Config(kind, "key") Then
         If style = defaultStyle Then
-            style = ex_PEB_Export.fn_Config("forms.lookupDefaultStyle")
+            style = private_ReadConfig("forms.lookupDefaultStyle")
         Else
             style = style & "Lookup"
         End If
@@ -525,7 +545,12 @@ Private Function private_Config( _
     ByVal kind As String, _
     ByVal key As String _
 ) As String
-    private_Config = ex_PEB_Export.fn_Config("extensions.type." & kind & "." & key)
+    private_Config = private_ReadConfig("extensions.type." & kind & "." & key)
+End Function
+
+Private Function private_ReadConfig(ByVal key As String) As String
+    If Not m_config.Exists(key) Then m_config.Add key, ex_PEB_Export.fn_Config(key)
+    private_ReadConfig = m_config(key)
 End Function
 
 Private Sub private_RemoveChildren(ByVal parentId As String)
@@ -593,8 +618,8 @@ End Function
 Private Function private_Column(ByVal field As String) As Long
     Dim index As Long
 
-    For index = 1 To CLng(ex_PEB_Export.fn_Config("forms." & m_form & ".fields.count"))
-        If ex_PEB_Export.fn_Config("forms." & m_form & ".fields." & index & ".name") = field Then
+    For index = 1 To CLng(private_ReadConfig("forms." & m_form & ".fields.count"))
+        If private_ReadConfig("forms." & m_form & ".fields." & index & ".name") = field Then
             private_Column = index
             Exit Function
         End If
@@ -698,7 +723,7 @@ Private Function private_PublishCandidates( _
             If mapping(0) = field Then column("name") = mapping(1)
         Next pair
         column("formField") = private_Path(row, CStr(field))
-        column("caption") = ex_PEB_Export.fn_Config("text.Mode" & field & "Label")
+        column("caption") = private_ReadConfig("text.Mode" & field & "Label")
         columns.Add column
     Next field
     If Not projected.Initialize(records, columns, hasMore, diagnostic) Then Exit Function

@@ -161,6 +161,7 @@ Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
     If obj_IUiElement_Render Then
         m_candidateValuesDirty = False
         m_candidateLayoutDirty = False
+        m_context.CompleteControlRender ex_UiElementFactory.fn_Attribute(m_definition, "name"), Me
     End If
     If Not obj_IUiElement_Render Then
         diagnostic = "Cannot render control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
@@ -349,10 +350,23 @@ Public Function TryRefreshValues( _
     Dim candidates As obj_UiCandidatesControl
     Dim table As obj_UiTableControl
     Dim dependency As String
+    Dim collapsed As Boolean
 
     refreshed = False
     TryRefreshValues = True
-    If m_collapsed Then Exit Function
+    If m_collapsed Then
+        If Not TypeOf m_control Is obj_UiCandidatesControl Then Exit Function
+        If Not private_TryVisibility(collapsed, diagnostic) Then
+            TryRefreshValues = False
+            Exit Function
+        End If
+        If collapsed Then
+            refreshed = True
+            m_candidateValuesDirty = False
+            m_candidateLayoutDirty = False
+        End If
+        Exit Function
+    End If
     If TypeOf m_control Is obj_UiTableControl Then
         dependency = ex_UiElementFactory.fn_Attribute(m_definition, "name")
         If Not pending.Exists(dependency) Then
@@ -376,10 +390,25 @@ Public Function TryRefreshValues( _
     If refreshed Then m_candidateValuesDirty = False
 End Function
 
-Public Function RebuildStructure(ByRef diagnostic As String) As Boolean
+Public Function RebuildStructure( _
+    ByRef diagnostic As String, _
+    Optional ByRef retainedFields As Boolean = False _
+) As Boolean
+    Dim form As obj_UiFormControl
+
+    retainedFields = False
     If VBA.LCase$(ex_UiElementFactory.fn_Attribute(m_definition, "type")) <> "form" Then
         RebuildStructure = True
         Exit Function
+    End If
+    If TypeOf m_control Is obj_UiFormControl Then
+        Set form = m_control
+        private_RestoreLocalPosition
+        If Not form.TryRebuildFields(m_definition, retainedFields, diagnostic) Then Exit Function
+        If retainedFields Then
+            RebuildStructure = True
+            Exit Function
+        End If
     End If
     If Not m_control Is Nothing Then m_control.Dispose
     private_RestoreLocalPosition
@@ -551,6 +580,8 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
     Dim attributeName As String
     Dim source As String
     Dim path As String
+    Dim collapsed As Boolean
+    Dim diagnostic As String
 
     If m_isDisposed Or m_control Is Nothing Then Exit Sub
     If m_bindingDependencies Is Nothing Then Exit Sub
@@ -562,6 +593,8 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
             If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                     VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
                 If attributeName = "visibility" Then
+                    If Not private_TryVisibility(collapsed, diagnostic) Then Err.Raise 5, , diagnostic
+                    If collapsed = m_collapsed Then GoTo NextAttribute
                     m_candidateLayoutDirty = True
                     m_context.MarkDirty ex_UiElementFactory.fn_Attribute(m_definition, "name"), True
                     GoTo NextAttribute

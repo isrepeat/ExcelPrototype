@@ -370,6 +370,7 @@ Private Sub private_ApplyStage( _
     Dim errorDescription As String
     Dim regionKey As Variant
     Dim operation As String
+    Dim ruleStartedAt As Double
 
     On Error GoTo EH_STAGE
     startedAt = VBA.Timer
@@ -387,6 +388,7 @@ Private Sub private_ApplyStage( _
                 And (Not sheetOnly Or rule("target") = "sheet") _
                 And (Not skipSheet Or rule("target") <> "sheet") Then
             ex_Core.fn_Diagnostic_WriteLog "STYLE_RULE_STARTED | Index=" & VBA.CStr(ruleIndex) & " | Target=" & rule("target")
+            ruleStartedAt = VBA.Timer
             Set properties = rule("properties")
             Set selector = rule("selector")
             If stageName = "default" And private_IsPriorityPartRule(rule) Then GoTo NextStageRule
@@ -395,6 +397,7 @@ Private Sub private_ApplyStage( _
             operation = "ApplyRegions"
             private_ApplyRegions regions, properties
             If rule("target") = "sheet" And m_partialScope Is Nothing Then private_ApplyWorksheetProperties m_targetWorksheet, properties
+            ex_Core.fn_Diagnostic_WritePerf "TEMP.Style.Rule | Index=" & VBA.CStr(ruleIndex) & " | Target=" & rule("target"), ruleStartedAt
         End If
 NextStageRule:
     Next rule
@@ -436,17 +439,22 @@ Private Sub private_ApplyCellPartRules(ByVal scope As Range)
     Dim selector As Object
     Dim regions As Collection
     Dim pageScope As Range
+    Dim ruleIndex As Long
+    Dim ruleStartedAt As Double
 
     If m_pipeline Is Nothing Then Exit Sub
     Set pageScope = scope
     If pageScope Is Nothing Then Set pageScope = private_GetSheetScope(m_targetWorksheet)
     For Each rule In m_pipeline.Rules
+        ruleIndex = ruleIndex + 1
         If rule("enabled") And rule("stage") = "default" And rule("target") = "controlpart" Then
             Set selector = rule("selector")
             If selector.Exists("part") Then
                 If selector("part") = "cell" Or selector("part") = "editor" Then
+                    ruleStartedAt = VBA.Timer
                     Set regions = m_pipeline.ResolveRegions(rule, m_targetWorksheet, pageScope)
                     private_ApplyRegions regions, rule("properties")
+                    ex_Core.fn_Diagnostic_WritePerf "TEMP.Style.PartRule | Index=" & VBA.CStr(ruleIndex), ruleStartedAt
                 End If
             End If
         End If
@@ -462,7 +470,20 @@ Private Sub private_ApplyRegions( _
     Dim shape As Object
     Dim region As Object
     Dim count As Long
+    Dim uniformProperties As Boolean
+    Dim key As Variant
 
+    ' Cell-local properties can be applied to a union without changing border or sizing semantics.
+    uniformProperties = True
+    For Each key In properties.Keys
+        Select Case CStr(key)
+            Case "backcolor", "textcolor", "fontcolor", "fontbold", "fontitalic", "fontsize", "fontname", _
+                    "horizontal", "vertical", "indent", "format", "numberformat", "wraptext"
+            Case Else
+                uniformProperties = False
+                Exit For
+        End Select
+    Next key
     For Each region In regions
         Set rowArea = region("area")
         Set shape = region("shape")
@@ -475,7 +496,7 @@ Private Sub private_ApplyRegions( _
                 If rowArea Is Nothing Then GoTo NextRegion
             End If
         End If
-        If region("part") = "row" And Not rowArea Is Nothing And shape Is Nothing Then
+        If (region("part") = "row" Or uniformProperties) And Not rowArea Is Nothing And shape Is Nothing Then
             If batch Is Nothing Then
                 Set batch = rowArea
             Else

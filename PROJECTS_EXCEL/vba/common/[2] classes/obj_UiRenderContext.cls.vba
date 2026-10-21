@@ -436,6 +436,19 @@ Public Function TryEnsureSmart( _
     diagnostic = "Rendered table was not found: " & controlName & "[" & VBA.CStr(tableIndex) & "]"
 End Function
 
+Public Sub CompleteControlRender( _
+    ByVal name As String, _
+    ByVal controlElement As obj_UiControlElement _
+)
+    Dim registered As obj_IUiElement
+
+    ' Consume children rendered by their owner, using identity rather than overlapping ranges.
+    If m_pending Is Nothing Then Exit Sub
+    If Not m_pending.Exists(name) Or Not m_elements.Exists(name) Then Exit Sub
+    Set registered = m_elements(name)
+    If registered Is controlElement Then m_pending.Remove name
+End Sub
+
 Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
@@ -497,6 +510,11 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Dim contentArea As Range
     Dim childKey As Variant
     Dim covered As Range
+    Dim tempStageStartedAt As Double
+    Dim tempControlStartedAt As Double
+    Dim tempControlAction As String
+    Dim retainedForms As Object
+    Dim retainedFields As Boolean
 
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
@@ -533,6 +551,7 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
         Application.AutoCorrect.AutoFillFormulasInLists = False
     End If
     startedAt = VBA.Timer
+    tempStageStartedAt = startedAt
     m_rendering = True
     Set pending = m_dirty
     Set m_pending = pending
@@ -558,7 +577,11 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
             End If
         Next layoutChanged
     End If
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.RefreshValues | Pending=" & VBA.CStr(pending.Count) & " | Layout=" & VBA.CStr(needsLayout), tempStageStartedAt
+    tempStageStartedAt = VBA.Timer
     If needsLayout Then
+        Set retainedForms = VBA.CreateObject("Scripting.Dictionary")
+        retainedForms.CompareMode = VBA.vbTextCompare
         Set oldAreas = VBA.CreateObject("Scripting.Dictionary")
         oldAreas.CompareMode = VBA.vbTextCompare
         Set oldElements = VBA.CreateObject("Scripting.Dictionary")
@@ -583,24 +606,38 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
                 Set registered = m_elements(key)
                 If TypeOf registered Is obj_UiControlElement Then
                     Set controlElement = registered
-                    m_styles.ForgetControl VBA.CStr(key)
                     Set area = controlElement.RenderArea
-                    private_UnionArea scope, area
-                    If Not controlElement.RebuildStructure(diagnostic) Then GoTo CleanExit
+                    ex_Core.fn_Diagnostic_WriteLog "TEMP.Flush.RebuildControl | Name=" & VBA.CStr(key)
+                    If Not controlElement.RebuildStructure(diagnostic, retainedFields) Then GoTo CleanExit
+                    If retainedFields Then
+                        retainedForms(key) = True
+                        pending.Remove key
+                        ex_Core.fn_Diagnostic_WriteLog "TEMP.Flush.RetainFormFields | Name=" & VBA.CStr(key)
+                    Else
+                        m_styles.ForgetControl VBA.CStr(key)
+                        private_UnionArea scope, area
+                    End If
                 ElseIf TypeOf registered Is obj_UiStackPanelElement Then
                     Set contentPanel = registered
                     private_UnionArea scope, contentPanel.RenderArea
                     m_styles.ForgetControl VBA.CStr(key)
+                    ex_Core.fn_Diagnostic_WriteLog "TEMP.Flush.RebuildContent | Name=" & VBA.CStr(key)
                     If Not contentPanel.RebuildContent(diagnostic) Then GoTo CleanExit
                 End If
             End If
 NextStructure:
         Next key
     End If
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.RebuildStructures", tempStageStartedAt
+    tempStageStartedAt = VBA.Timer
     If needsLayout Then
         Set m_tablePlans = New Collection
         If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
+        ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.Measure", tempStageStartedAt
+        tempStageStartedAt = VBA.Timer
         If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
+        ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.Arrange", tempStageStartedAt
+        tempStageStartedAt = VBA.Timer
         ' Newly visible controls have no previous area and still require rendering.
         For Each key In m_elements.Keys
             Set registered = m_elements(key)
@@ -619,6 +656,7 @@ NextStructure:
         Next key
         ' Изменение размеров может сдвинуть соседей в stackPanel или grid.
         For Each key In oldAreas.Keys
+            If retainedForms.Exists(key) Then GoTo NextOldArea
             If m_elements.Exists(key) Then
                 Set registered = m_elements(key)
                 Set oldElement = oldElements(key)
@@ -632,8 +670,14 @@ NextStructure:
                             private_UnionArea scope, oldArea
                         End If
                     End If
+                Else
+                    private_UnionArea scope, oldAreas(key)
                 End If
+            Else
+                ' Removed fields must release their old cells even when the form is retained.
+                private_UnionArea scope, oldAreas(key)
             End If
+NextOldArea:
         Next key
         m_rows = rows
         m_columns = columns
@@ -650,6 +694,7 @@ NextStructure:
             End If
         Next key
         If Not scope Is Nothing Then
+            ex_Core.fn_Diagnostic_WriteLog "TEMP.Flush.ClearScope | Address=" & scope.Address & " | Pending=" & VBA.CStr(pending.Count)
             ex_UiTables.fn_Prepare m_targetWorksheet, m_tablePlans, scope
             For Each part In scope.Areas
                 ex_UiTables.fn_ClearRange part
@@ -658,6 +703,8 @@ NextStructure:
         End If
     End If
 
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.PrepareAndClear", tempStageStartedAt
+    tempStageStartedAt = VBA.Timer
     ' Render rebuilt content once; its nested controls are rendered by the owner.
     For Each key In pending.Keys
         If m_elements.Exists(key) Then
@@ -665,7 +712,9 @@ NextStructure:
             If TypeOf registered Is obj_UiStackPanelElement Then
                 Set contentPanel = registered
                 Set contentArea = contentPanel.RenderArea
+                tempControlStartedAt = VBA.Timer
                 If Not registered.Render(diagnostic) Then GoTo CleanExit
+                ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.Content | Name=" & VBA.CStr(key), tempControlStartedAt
                 If Not contentArea Is Nothing Then
                     For Each childKey In pending.Keys
                         If m_elements.Exists(childKey) Then
@@ -688,30 +737,49 @@ NextStructure:
         End If
     Next key
 
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.RenderContent", tempStageStartedAt
+    tempStageStartedAt = VBA.Timer
     ' Обновляем только dirty-контролы, сохраняя остальные объекты листа.
     For Each key In pending.Keys
-        If m_elements.Exists(key) Then
+        If pending.Exists(key) And m_elements.Exists(key) Then
             Set registered = m_elements(key)
+            tempControlStartedAt = VBA.Timer
             If TypeOf registered Is obj_UiControlElement Then
                 Set controlElement = registered
                 If pending(key) Then
+                    tempControlAction = "Render"
                     m_styles.ForgetControl VBA.CStr(key)
                     If Not registered.Render(diagnostic) Then GoTo CleanExit
                 Else
+                    tempControlAction = "RefreshVisual"
                     If Not controlElement.RefreshVisual(diagnostic) Then GoTo CleanExit
                 End If
             Else
+                tempControlAction = "RenderElement"
                 If Not registered.Render(diagnostic) Then GoTo CleanExit
             End If
+            ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.Control | Name=" & VBA.CStr(key) & " | Action=" & tempControlAction, tempControlStartedAt
         End If
     Next key
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.RenderControls", tempStageStartedAt
+    tempStageStartedAt = VBA.Timer
+    tempControlStartedAt = tempStageStartedAt
     If Not scope Is Nothing Then m_styles.CompletePartialRender
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.CompleteStyles", tempStageStartedAt
+    tempStageStartedAt = VBA.Timer
     If needsLayout Then private_ArrangeShapes
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.ArrangeShapes", tempStageStartedAt
+    ex_Core.fn_Diagnostic_WritePerf "TEMP.Flush.StylesAndShapes", tempControlStartedAt
     FlushUpdates = True
     ex_Core.fn_Diagnostic_WritePerf "Page.FlushDirty | Sheet=" & m_targetWorksheet.Name & " | Count=" & VBA.CStr(pending.Count), startedAt
 CleanExit:
     m_styles.EndPartialRender
     If Not FlushUpdates Then
+        If Not retainedForms Is Nothing Then
+            For Each key In retainedForms.Keys
+                If m_elements.Exists(key) Then m_dirty(key) = True
+            Next key
+        End If
         ' Сохраняем неудавшиеся обновления для повторной попытки.
         If Not pending Is Nothing Then
             For Each key In pending.Keys
