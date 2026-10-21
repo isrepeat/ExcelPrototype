@@ -150,111 +150,6 @@
            partStylesEnabled="false"/>
   </fieldCatalog>
 
-  <formLayouts name="EventLayouts"
-               catalog="EventFields">
-    <formLayout name="Leave">
-      <fieldRef name="Destination"
-                columnSpan="1"/>
-      <fieldRef name="PersonRank"
-                columnSpan="1"/>
-      <fieldRef name="PersonName"
-                columnSpan="1"/>
-      <fieldRef name="PersonId"
-                columnSpan="1"/>
-      <fieldRef name="PositionCode"
-                columnSpan="1"/>
-      <fieldRef name="PersonPosition"
-                columnSpan="1"/>
-      <fieldRef name="ReportRank"
-                columnSpan="1"/>
-      <fieldRef name="ReportName"
-                columnSpan="1"/>
-      <fieldRef name="ReportPositionCode"
-                columnSpan="1"/>
-      <fieldRef name="IncomingNumber"
-                columnSpan="1"/>
-      <fieldRef name="IncomingDate"
-                columnSpan="1"/>
-      <fieldRef name="TicketNumber"
-                columnSpan="1"/>
-      <fieldRef name="TicketDate"
-                columnSpan="1"/>
-      <fieldRef name="EventDate"
-                columnSpan="1"/>
-      <fieldRef name="DurationDays"
-                columnSpan="1"/>
-    </formLayout>
-    <formLayout name="HospitalLeave">
-      <fieldRef name="Hospital"
-                columnSpan="1"/>
-      <fieldRef name="HospitalShortName"
-                columnSpan="1"/>
-      <fieldRef name="Destination"
-                columnSpan="1"/>
-      <fieldRef name="PersonRank"
-                columnSpan="1"/>
-      <fieldRef name="PersonName"
-                columnSpan="1"/>
-      <fieldRef name="PersonId"
-                columnSpan="1"/>
-      <fieldRef name="PositionCode"
-                columnSpan="1"/>
-      <fieldRef name="PersonPosition"
-                columnSpan="1"/>
-      <fieldRef name="ReportRank"
-                columnSpan="1"/>
-      <fieldRef name="ReportName"
-                columnSpan="1"/>
-      <fieldRef name="ReportPositionCode"
-                columnSpan="1"/>
-      <fieldRef name="IncomingNumber"
-                columnSpan="1"/>
-      <fieldRef name="IncomingDate"
-                columnSpan="1"/>
-      <fieldRef name="TicketNumber"
-                columnSpan="1"/>
-      <fieldRef name="TicketDate"
-                columnSpan="1"/>
-      <fieldRef name="EventDate"
-                columnSpan="1"/>
-      <fieldRef name="DurationDays"
-                columnSpan="1"/>
-    </formLayout>
-    <formLayout name="Treatment">
-      <fieldRef name="Hospital"
-                columnSpan="1"/>
-      <fieldRef name="HospitalShortName"
-                columnSpan="1"/>
-      <fieldRef name="PersonRank"
-                columnSpan="1"/>
-      <fieldRef name="PersonName"
-                columnSpan="1"/>
-      <fieldRef name="PersonId"
-                columnSpan="1"/>
-      <fieldRef name="PositionCode"
-                columnSpan="1"/>
-      <fieldRef name="PersonPosition"
-                columnSpan="1"/>
-      <fieldRef name="ReportRank"
-                columnSpan="1"/>
-      <fieldRef name="ReportName"
-                columnSpan="1"/>
-      <fieldRef name="ReportPositionCode"
-                columnSpan="1"/>
-      <fieldRef name="IncomingNumber"
-                columnSpan="1"/>
-      <fieldRef name="IncomingDate"
-                columnSpan="1"/>
-      <fieldRef name="Document"
-                columnSpan="1"/>
-      <fieldRef name="DocumentNumber"
-                columnSpan="1"/>
-      <fieldRef name="DocumentDate"
-                columnSpan="1"/>
-      <fieldRef name="EventDate"
-                columnSpan="1"/>
-    </formLayout>
-  </formLayouts>
 
   <grid row="2"
         column="2">
@@ -480,8 +375,8 @@
                      labelPosition="top"
                      labelStyle="formLabel"
                      fieldStyle="formField"
-                     layoutSource="EventLayouts"
-                     layout="{Binding Path=Form.ModeForm}"/>
+                     fieldCatalog="EventFields"
+                     fieldsSource="{Binding Path=Data.EventFields}"/>
 
       <stackPanel name="ExtensionRows"
                   orientation="vertical"

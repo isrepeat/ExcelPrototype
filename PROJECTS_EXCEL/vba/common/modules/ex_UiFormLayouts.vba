@@ -71,6 +71,10 @@ Public Function fn_TryResolve( _
 
     On Error GoTo EH
     Set resolved = Nothing
+    If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "fieldsSource")) > 0 Then
+        fn_TryResolve = private_ResolveFields(definition, bindingContext, resolved, diagnostic)
+        Exit Function
+    End If
     source = ex_UiElementFactory.fn_Attribute(definition, "layoutSource")
     rawLayout = ex_UiElementFactory.fn_Attribute(definition, "layout")
     If VBA.Len(source) = 0 And VBA.Len(rawLayout) = 0 Then
@@ -124,6 +128,63 @@ End Function
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
+Private Function private_ResolveFields( _
+    ByVal definition As Object, _
+    ByVal bindingContext As obj_UiBindingContext, _
+    ByRef resolved As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim catalogs As Object
+    Dim fields As Object
+    Dim configured As Object
+    Dim scalar As Variant
+    Dim isObject As Boolean
+    Dim column As Object
+    Dim field As Object
+    Dim node As Object
+    Dim seen As Object
+    Dim name As String
+    Dim catalogName As String
+
+    On Error GoTo EH
+    If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "layoutSource")) > 0 Or _
+            VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "layout")) > 0 Then
+        Err.Raise 5, , "Form fieldsSource cannot be combined with a named layout."
+    End If
+    For Each node In definition.ChildNodes
+        If node.NodeType = 1 Then Err.Raise 5, , "A fieldsSource form cannot contain inline fields."
+    Next node
+    catalogName = ex_UiElementFactory.fn_Attribute(definition, "fieldCatalog")
+    Set catalogs = private_Index(definition.ownerDocument.documentElement, "fieldCatalog")
+    If Not catalogs.Exists(catalogName) Then Err.Raise 5, , "Field catalog was not found: " & catalogName
+    Set fields = private_Index(catalogs(catalogName), "field")
+    If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+        ex_UiElementFactory.fn_Attribute(definition, "fieldsSource"), _
+        bindingContext, scalar, configured, isObject _
+    ) Then Err.Raise 5, , "Cannot resolve form fieldsSource."
+    If Not isObject Then Err.Raise 5, , "Form fieldsSource must be a collection."
+    If Not TypeOf configured Is Collection Then Err.Raise 5, , "Form fieldsSource must be a collection."
+    Set seen = VBA.CreateObject("Scripting.Dictionary")
+    Set resolved = definition.cloneNode(False)
+    resolved.removeAttribute "fieldCatalog"
+    resolved.removeAttribute "fieldsSource"
+    For Each column In configured
+        name = VBA.CStr(column("formField"))
+        If Not fields.Exists(name) Then Err.Raise 5, , "Unknown form field: " & name
+        If seen.Exists(name) Then Err.Raise 5, , "Duplicate form field: " & name
+        seen.Add name, True
+        Set field = fields(name).cloneNode(True)
+        field.setAttribute "columnSpan", "1"
+        field.setAttribute "label", VBA.CStr(column("caption"))
+        resolved.appendChild field
+    Next column
+    private_ResolveFields = True
+    Exit Function
+EH:
+    Set resolved = Nothing
+    diagnostic = "Form fields: " & VBA.Err.Description
+End Function
+
 Private Function private_Index( _
     ByVal parent As Object, _
     ByVal tag As String _

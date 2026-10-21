@@ -145,10 +145,12 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim ordinaryStyle As String
     Dim lookupStyle As String
     Dim lookupFields As String
+    Dim eventFields As New Collection
 
     If m_pageBase Is Nothing Then Exit Function
     Set uiBindingContext = m_pageBase.BindingContext
     If uiBindingContext Is Nothing Then Exit Function
+    If Not uiBindingContext.SetObject("Data", "EventFields", eventFields) Then Exit Function
     configuredText = ex_PEB_Export.fn_Config("forms.dynamicStylesEnabled")
     If configuredText <> "true" And configuredText <> "false" Then Err.Raise 5, , "Invalid forms.dynamicStylesEnabled."
     m_dynamicStylesEnabled = (configuredText = "true")

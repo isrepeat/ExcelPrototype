@@ -1325,6 +1325,9 @@ Failed:
         If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", oldResult) Then
             diagnostic = diagnostic & " Cannot restore candidates."
         End If
+        If Not m_pageBase.BindingContext.SetObject("Data", "EventFields", oldFields) Then
+            diagnostic = diagnostic & " Cannot restore form fields."
+        End If
         If Not m_pageBase.FlushUpdates() Then diagnostic = diagnostic & " Cannot render restored form."
         If VBA.Err.Number <> 0 Then diagnostic = diagnostic & " Restore: " & VBA.Err.Description
         On Error GoTo 0
@@ -2126,7 +2129,6 @@ Private Function private_LoadMode( _
     If direction <> "Arrival" And direction <> "Departure" And direction <> "StatusChange" Then
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
-    If formKind <> "Leave" And formKind <> "Treatment" And formKind <> "HospitalLeave" Then Err.Raise 5, , "Invalid mode form: " & modeId
     If Not private_UpdateReadOnly(modeId, diagnostic) Then Exit Function
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
@@ -2171,10 +2173,6 @@ Private Function private_LoadMode( _
         sourceAlias = VBA.vbNullString
         If m_modeConfig.Exists(prefix & ".record") Then recordName = m_modeConfig(prefix & ".record")
         If m_modeConfig.Exists(prefix & ".sourceAlias") Then sourceAlias = m_modeConfig(prefix & ".sourceAlias")
-        If (fieldName = "EventDate" Or fieldName = "DurationDays") And direction <> "Departure" And direction <> "StatusChange" Then
-            recordName = VBA.vbNullString
-            sourceAlias = VBA.vbNullString
-        End If
         Set column = VBA.CreateObject("Scripting.Dictionary")
         column("formField") = fieldName
         column("apply") = (VBA.Len(recordName) > 0)
@@ -2227,6 +2225,7 @@ Private Function private_LoadMode( _
     If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeDirection", direction) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeForm", formKind) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "EventFields", columns) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "EventType", eventType) Then Exit Function
     Set records = New Collection
     If Not secondaryCandidates Then
