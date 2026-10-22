@@ -221,7 +221,6 @@ Public Function Build( _
     End If
     Set groups = CreateObject("Scripting.Dictionary")
     For Each kind In Split(private_ReadConfig("extensions.types"), "|")
-        If private_Config(CStr(kind), "binding") = "primary" Then GoTo NextKind
         If Not private_Visible(CStr(kind)) Then GoTo NextKind
         anchor = private_Config(CStr(kind), "anchor")
         If Not groups.Exists(anchor) Then
@@ -573,10 +572,6 @@ Private Function private_ModeId() As String
 End Function
 
 Private Function private_Allowed(ByVal kind As String) As Boolean
-    If private_Config(kind, "binding") = "primary" Then
-        private_Allowed = private_HasFormFields(private_Config(kind, "fields"))
-        Exit Function
-    End If
     private_Allowed = private_HasFormFields(private_Config(kind, "anchor"))
 End Function
 
@@ -614,21 +609,29 @@ Private Function private_Active(ByVal row As Object) As Boolean
 End Function
 
 Private Function private_Required(ByVal row As Object) As Boolean
-    Dim roles As String
+    Dim prefix As String
+    Dim index As Long
 
-    If private_Config(row("Type"), "binding") = "primary" Then
-        private_Required = True
-        Exit Function
-    End If
     If row("Mode") <> m_mode Or Len(row("Role")) = 0 Then Exit Function
     If InStr(1, "|" & private_ReadConfig("extensions.modes") & "|", "|" & m_mode & "|", vbBinaryCompare) = 0 Then Exit Function
-    roles = private_ReadConfig("extensions.mode." & m_mode & ".required")
-    private_Required = InStr(1, "|" & roles & "|", "|" & row("Role") & "|", vbBinaryCompare) > 0
+    prefix = "extensions.mode." & m_mode & ".default"
+    For index = 1 To ex_PEB_Export.fn_Count(prefix & ".count")
+        If private_ReadConfig(prefix & "." & index & ".type") = row("Type") And _
+                private_ReadConfig(prefix & "." & index & ".role") = row("Role") Then
+            private_Required = Not private_DefaultRemovable(prefix & "." & index)
+            Exit Function
+        End If
+    Next index
 End Function
 
 Private Sub private_ApplyDefaults()
-    Dim definition As Variant
-    Dim pair As Variant
+    Dim index As Long
+    Dim prefix As String
+    Dim kind As String
+    Dim role As String
+    Dim removable As Boolean
+    Dim definitions As Object
+    Dim key As String
     Dim row As Object
     Dim selected As Object
     Dim modes As String
@@ -636,14 +639,21 @@ Private Sub private_ApplyDefaults()
     If m_defaultModes.Exists(m_mode) Then Exit Sub
     modes = private_ReadConfig("extensions.modes")
     If InStr(1, "|" & modes & "|", "|" & m_mode & "|", vbBinaryCompare) = 0 Then Exit Sub
-    For Each definition In Split(private_ReadConfig("extensions.mode." & m_mode & ".defaults"), "|")
-        pair = Split(definition, "=")
-        If UBound(pair) <> 1 Then Err.Raise 5, , "Invalid extension default: " & definition
-        If Not private_Allowed(CStr(pair(0))) Then Err.Raise 5, , "Default extension has missing form fields: " & pair(0)
+    Set definitions = CreateObject("Scripting.Dictionary")
+    For index = 1 To ex_PEB_Export.fn_Count("extensions.mode." & m_mode & ".default.count")
+        prefix = "extensions.mode." & m_mode & ".default." & index
+        kind = private_ReadConfig(prefix & ".type")
+        role = private_ReadConfig(prefix & ".role")
+        removable = private_DefaultRemovable(prefix)
+        If Len(role) = 0 Then Err.Raise 5, , "Default extension role is required: " & prefix
+        key = kind & "|" & role
+        If definitions.Exists(key) Then Err.Raise 5, , "Duplicate default extension type and role: " & prefix
+        definitions.Add key, True
+        If Not private_Allowed(kind) Then Err.Raise 5, , "Default extension has missing form fields: " & kind
         Set selected = Nothing
         For Each row In m_rows
-            If row("Type") = pair(0) Then
-                If row("Role") = pair(1) And row("Mode") = m_mode Then
+            If row("Type") = kind Then
+                If row("Role") = role And row("Mode") = m_mode Then
                     Set selected = row
                     Exit For
                 End If
@@ -651,8 +661,8 @@ Private Sub private_ApplyDefaults()
         Next row
         If selected Is Nothing Then
             For Each row In m_rows
-                If row("Type") = pair(0) And Len(row("Mode")) = 0 Then
-                    If row("Role") = pair(1) Or (Len(row("Role")) = 0 And Len(row("RowId")) > 0) Then
+                If row("Type") = kind And Len(row("Mode")) = 0 Then
+                    If row("Role") = role Or (Len(row("Role")) = 0 And Len(row("RowId")) > 0) Then
                         Set selected = row
                         Exit For
                     End If
@@ -661,13 +671,21 @@ Private Sub private_ApplyDefaults()
         End If
         If selected Is Nothing Then
             If m_rows.Count >= CLng(private_ReadConfig("extensions.limit")) Then Err.Raise 5, , private_ReadConfig("extensions.limitReached")
-            Set selected = private_Add(CStr(pair(0)))
+            Set selected = private_Add(kind)
         End If
-        selected("Role") = pair(1)
+        selected("Role") = role
         selected("Mode") = m_mode
-    Next definition
+    Next index
     m_defaultModes(m_mode) = True
 End Sub
+
+Private Function private_DefaultRemovable(ByVal prefix As String) As Boolean
+    Dim value As String
+
+    value = LCase$(Trim$(private_ReadConfig(prefix & ".removable")))
+    If value <> "true" And value <> "false" Then Err.Raise 5, , "Invalid Boolean configuration: " & prefix & ".removable"
+    private_DefaultRemovable = (value = "true")
+End Function
 
 Private Sub private_MenuCommand( _
     ByVal name As String, _
@@ -797,11 +815,7 @@ Private Sub private_BuildRows( _
         form.setAttribute "fieldStyle", "formField"
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             path = private_Path(row, CStr(field))
-            If private_Config(row("Type"), "binding") = "primary" Then
-                private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), Nothing
-            Else
-                private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), row
-            End If
+            private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), row
             If lane > m_candidateLanes Then m_candidateLanes = lane
             Set node = private_Node(document, "field")
             node.setAttribute "name", path
@@ -818,10 +832,6 @@ Private Sub private_BuildRows( _
             End Select
             node.setAttribute "fieldStyle", "{Binding Path=Form." & path & "Style}"
             node.setAttribute "partStylesEnabled", "true"
-            If private_Config(row("Type"), "binding") = "primary" Then
-                node.setAttribute "readOnly", "{Binding Path=Form." & path & "ReadOnly}"
-                GoTo AppendField
-            End If
             If InStr(1, "|" & private_Config(row("Type"), "readOnly") & "|", "|" & field & "|", vbBinaryCompare) > 0 Then
                 node.setAttribute "readOnly", "{Binding Path=Form.AutoFillPersonnel}"
             End If
@@ -830,7 +840,6 @@ Private Sub private_BuildRows( _
                 private_Command key, private_Payload("search", row)
                 node.setAttribute "onChange", "{Binding Path=Commands." & key & "}"
             End If
-AppendField:
             form.appendChild node
         Next field
         grid.appendChild form
@@ -842,21 +851,10 @@ End Sub
 Private Function private_RenderRows() As Collection
     Dim rows As New Collection
     Dim row As Object
-    Dim kind As Variant
 
     For Each row In m_rows
         If private_Required(row) Then rows.Add row
     Next row
-    For Each kind In Split(private_ReadConfig("extensions.types"), "|")
-        If private_Config(CStr(kind), "binding") = "primary" Then
-            Set row = CreateObject("Scripting.Dictionary")
-            row("Type") = CStr(kind)
-            row("Id") = "Primary" & CStr(kind)
-            row("Mode") = vbNullString
-            row("Role") = vbNullString
-            rows.Add row
-        End If
-    Next kind
     For Each row In m_rows
         If Not private_Required(row) Then rows.Add row
     Next row
@@ -897,8 +895,6 @@ Private Sub private_PublishCandidateDetails()
     Dim definition As Object
     Dim cell As Object
     Dim extension As Object
-    Dim columnIndex As Long
-    Dim prefix As String
     Dim fieldValue As Variant
     Dim mapping As Variant
     Dim pair As Variant
@@ -928,42 +924,21 @@ Private Sub private_PublishCandidateDetails()
         Set extension = definition("extension")
         sourceField = vbNullString
         sourceAlias = vbNullString
-        If extension Is Nothing Then
-            For columnIndex = 1 To CLng(private_ReadConfig("forms." & m_form & ".fields.count"))
-                prefix = "forms." & m_form & ".fields." & CStr(columnIndex)
-                If private_ReadConfig(prefix & ".name") = definition("field") Then
-                    sourceField = private_ReadConfig(prefix & ".record")
-                    sourceAlias = private_ReadConfig(prefix & ".sourceAlias")
-                    If InStr(1, "|" & private_ReadConfig("lookup.ReturnTickets.styleFields") & "|", "|" & sourceField & "|", vbTextCompare) > 0 Then
-                        If InStr(1, "|" & private_ReadConfig("lookup.ReturnTickets.modes") & "|", "|" & m_mode & "|", vbTextCompare) > 0 Then
-                            sourceAlias = private_ReadConfig("lookup.ReturnTickets.sourceAlias")
-                        Else
-                            sourceAlias = private_ReadConfig("lookup.ReturnTickets.departureSourceAlias")
-                        End If
-                    End If
-                    Exit For
-                End If
-            Next columnIndex
-        End If
         For Each record In records
             fieldValue = Empty
-            If extension Is Nothing Then
-                If Len(sourceField) > 0 Then record.TryGetValue sourceField, fieldValue
-            Else
-                ' Related records must belong to this candidate; never reuse the current form values.
-                Set details = record.GetDetail(CStr(extension("Type")))
-                If details.Count >= CLng(definition("ordinal")) Then
-                    Set related = details(CLng(definition("ordinal")))
-                    sourceField = CStr(definition("field"))
-                    For Each mapping In Split(private_Config(extension("Type"), "map"), "|")
-                        pair = Split(CStr(mapping), "=")
-                        If UBound(pair) = 1 Then
-                            If pair(0) = sourceField Then sourceField = pair(1)
-                        End If
-                    Next mapping
-                    related.TryGetValue sourceField, fieldValue
-                    If InStr(sourceField, ".") > 0 Then sourceAlias = Split(sourceField, ".")(0)
-                End If
+            ' Related records must belong to this candidate; never reuse the current form values.
+            Set details = record.GetDetail(CStr(extension("Type")))
+            If details.Count >= CLng(definition("ordinal")) Then
+                Set related = details(CLng(definition("ordinal")))
+                sourceField = CStr(definition("field"))
+                For Each mapping In Split(private_Config(extension("Type"), "map"), "|")
+                    pair = Split(CStr(mapping), "=")
+                    If UBound(pair) = 1 Then
+                        If pair(0) = sourceField Then sourceField = pair(1)
+                    End If
+                Next mapping
+                related.TryGetValue sourceField, fieldValue
+                If InStr(sourceField, ".") > 0 Then sourceAlias = Split(sourceField, ".")(0)
             End If
             If VarType(fieldValue) = vbDate Then fieldValue = Format$(CDate(fieldValue), "dd.mm.yyyy")
             values.Add fieldValue
@@ -1072,10 +1047,6 @@ Private Function private_Path( _
     ByVal row As Object, _
     ByVal field As String _
 ) As String
-    If private_Config(row("Type"), "binding") = "primary" Then
-        private_Path = field
-        Exit Function
-    End If
     private_Path = "Ex" & row("Id") & "_" & field
 End Function
 

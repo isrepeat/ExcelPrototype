@@ -265,6 +265,7 @@ Public Function TryPrepare( _
         End If
         values.Add VBA.CStr(key), scalar
     Next key
+    ex_PEB_Export.fn_TicketDocumentValues values
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
     If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
         values("EventDate") = values("AcceptedOrderDate")
@@ -489,6 +490,7 @@ Public Function TryPrepareHistoryMovement( _
     Next document
     Set values("MetaDocumentTables") = documents
     mode = ex_PEB_EventRoutes.fn_Apply(values, "Movement")
+    ex_PEB_Export.fn_TicketDocumentValues values, True
     For Each key In VBA.Split(ex_PEB_EventRoutes.fn_Value(mode, "movement.required"), "|")
         If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then
             Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
@@ -1017,6 +1019,7 @@ Private Sub private_PrepareTicket(ByVal values As Object)
         qualified = VBA.Replace(qualified, "{ticketNum}", ticket)
     End If
     values("TicketNumber") = qualified
+    If CStr(values("Document")) = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then values("DocumentNumber") = qualified
     values("TicketDocument") = qualified
 End Sub
 

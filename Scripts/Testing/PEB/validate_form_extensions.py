@@ -146,6 +146,19 @@ def main():
         profiles.append(extension)
         assert set(config["extensions.types"].split("|")) == {"TVO", "Report", "Document"}
         assert 1 <= int(config["extensions.limit"]) <= 100
+        for mode in config["extensions.modes"].split("|"):
+            prefix = f"extensions.mode.{mode}."
+            assert prefix + "defaults" not in config
+            assert prefix + "required" not in config
+            identities = set()
+            for index in range(1, int(config[prefix + "default.count"]) + 1):
+                entry = prefix + f"default.{index}."
+                kind, role = config[entry + "type"], config[entry + "role"]
+                assert kind in config["extensions.types"].split("|")
+                assert config[entry + "removable"] in {"true", "false"}
+                assert config[f"extensions.role.{role}.caption"]
+                assert (kind, role) not in identities
+                identities.add((kind, role))
         saved = {field.split("=")[0] for field in config["history.fields"].split("|")}
         for kind in config["extensions.types"].split("|"):
             prefix = "extensions.type." + kind + "."
