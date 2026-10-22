@@ -104,7 +104,7 @@ def main():
     export_helpers = (VBA / "ex_PEB_Export.vba").read_text(encoding="utf-8-sig")
     assert 'values("TicketNumber") = values("DocumentNumber")' in export_helpers
     assert 'values("TicketDate") = values("DocumentDate")' in export_helpers
-    assert 'values("DocumentNumber") = values("TicketNumber")' in export_helpers
+    assert 'values("DocumentNumber") = legacyNumber' in export_helpers
     readonly = controller.split("Private Function private_UpdateReadOnly(", 1)[1].split("End Function", 1)[0]
     assert 'updates("Form.DocumentReadOnly") = True' in readonly
     assert 'updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")' in readonly

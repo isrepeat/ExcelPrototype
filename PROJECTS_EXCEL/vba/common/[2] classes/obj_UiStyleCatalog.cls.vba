@@ -818,12 +818,12 @@ Private Sub private_ApplyProperties( _
         End If
     End If
     If properties.Exists("columnwidth") Then
-        If Not targetRange Is Nothing And VBA.IsNumeric(properties("columnwidth")) Then _
-            targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("columnwidth"))
+        If Not targetRange Is Nothing Then _
+            targetRange.EntireColumn.ColumnWidth = private_ReadWidth(CStr(properties("columnwidth")))
     End If
     If properties.Exists("width") Then
-        If Not targetRange Is Nothing And VBA.IsNumeric(properties("width")) Then _
-            targetRange.EntireColumn.ColumnWidth = VBA.CDbl(properties("width"))
+        If Not targetRange Is Nothing Then _
+            targetRange.EntireColumn.ColumnWidth = private_ReadWidth(CStr(properties("width")))
     End If
     If properties.Exists("rowheight") Then
         If Not targetRange Is Nothing Then
@@ -919,12 +919,18 @@ Private Sub private_ClampWidth( _
     Dim column As Range
     Dim width As Double
 
-    If Not VBA.IsNumeric(value) Then ex_UiStyleDiagnostics.fn_Raise "Width"
-    width = VBA.CDbl(value)
+    width = private_ReadWidth(value)
     For Each column In area.Columns
         If (minimum And column.ColumnWidth < width) Or (Not minimum And column.ColumnWidth > width) Then column.ColumnWidth = width
     Next column
 End Sub
+
+Private Function private_ReadWidth(ByVal value As String) As Double
+    If Not ex_Helpers.fn_TryParseInvariantNumber(value, private_ReadWidth) Then
+        ex_UiStyleDiagnostics.fn_Raise "Width"
+    End If
+    If private_ReadWidth < 0 Or private_ReadWidth > 255 Then ex_UiStyleDiagnostics.fn_Raise "Width"
+End Function
 
 Private Sub private_ApplyBorders( _
     ByVal targetRange As Range, _

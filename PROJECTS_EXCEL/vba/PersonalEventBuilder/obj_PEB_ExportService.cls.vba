@@ -451,6 +451,8 @@ Public Function TryPrepareHistoryMovement( _
     Next document
     values("ModeId") = ex_PEB_Export.fn_Required(stored, "EventId")
     values("PersonAccusative") = ex_PEB_Export.fn_Required(stored, "FIOAccusative")
+    values("ModeForm") = ex_PEB_EventRoutes.fn_Value(CStr(values("ModeId")), "form")
+    ex_PEB_Export.fn_TicketDocumentValues values, True
     For index = 1 To ex_PEB_Export.fn_Count("export.shared.aliases.count")
         name = ex_PEB_Export.fn_Config("export.shared.aliases." & index & ".name")
         If values.Exists(name) Then
@@ -540,6 +542,7 @@ Public Function TryPrepareHistory( _
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.dateFields"), "|")
         If VBA.Len(VBA.CStr(values(key))) > 0 Then values(key) = ex_PEB_History.fn_Date(values(key))
     Next key
+    ex_PEB_Export.fn_TicketDocumentValues values, True
     values("PersonAccusative") = values("FIOAccusative")
     values.Remove "FIOAccusative"
     private_AddAliases values

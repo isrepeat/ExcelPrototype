@@ -516,6 +516,120 @@ Public Function fn_SetStatus( _
     values("ExpectedHistoryStamp") = expectedStamp
     fn_SetStatus = fn_Save(values, diagnostic)
 End Function
+
+Public Function fn_DeleteLast(ByVal expected As Object, ByVal expectedStamp As String, ByRef diagnostic As String) As Boolean
+    Dim book As Workbook
+    Dim table As ListObject
+    Dim versions As ListObject
+    Dim events As Collection
+    Dim current As Object
+    Dim ids As Object
+    Dim removed As New Collection
+    Dim columns As Object
+    Dim entry As Object
+    Dim target As ListObject
+    Dim restored As ListRow
+    Dim identifier As String
+    Dim parentId As String
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim pass As Long
+    Dim previousCount As Long
+    Dim idColumn As Long
+    Dim parentColumn As Long
+    Dim formula As Variant
+    Dim formats As Variant
+    Dim previousEvents As Boolean
+    Dim previousScreen As Boolean
+    Dim guarded As Boolean
+    Dim rollbackError As String
+
+    On Error GoTo EH_DELETE
+    private_Open book, table
+    Set versions = book.Worksheets(ex_PEB_Export.fn_Config("history.versions.sheet")).ListObjects( _
+        ex_PEB_Export.fn_Config("history.versions.table"))
+    If versions.Parent.ProtectContents Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError017")
+    If Not fn_ReadOrder(CStr(expected("AcceptedOrderNumber")), expected("AcceptedOrderDate"), events, diagnostic, True, Nothing, False) Then Exit Function
+    Set current = events(events.Count)
+    If current("RowId") <> expected("RowId") Or fn_Stamp(current) <> expectedStamp Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
+    End If
+    identifier = CStr(current("RowId"))
+    Set ids = CreateObject("Scripting.Dictionary")
+    ids.Add identifier, True
+    Set columns = private_Columns(table, False)
+    idColumn = CLng(columns("RowId"))
+    parentColumn = CLng(columns("ParentRowId"))
+    Do
+        previousCount = ids.Count
+        For rowIndex = 1 To table.ListRows.Count
+            parentId = ex_PEB_Export.fn_Text(table.DataBodyRange.Cells(rowIndex, parentColumn).Value2)
+            If ids.Exists(parentId) Then
+                ids(ex_PEB_Export.fn_Text(table.DataBodyRange.Cells(rowIndex, idColumn).Value2)) = True
+            End If
+        Next rowIndex
+    Loop While ids.Count <> previousCount
+    ' Validate both tables before changing either one.
+    columnIndex = versions.ListColumns("EventRowId").Index
+    previousEvents = Application.EnableEvents
+    previousScreen = Application.ScreenUpdating
+    guarded = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    For pass = 1 To 2
+        If pass = 1 Then
+            Set target = versions
+            idColumn = columnIndex
+        Else
+            Set target = table
+            idColumn = CLng(columns("RowId"))
+        End If
+        For rowIndex = target.ListRows.Count To 1 Step -1
+            If ids.Exists(ex_PEB_Export.fn_Text(target.DataBodyRange.Cells(rowIndex, idColumn).Value2)) Then
+                Set entry = CreateObject("Scripting.Dictionary")
+                entry.Add "Table", target
+                entry.Add "Index", rowIndex
+                formula = target.ListRows(rowIndex).Range.Formula
+                entry.Add "Formula", formula
+                ReDim formats(1 To target.ListColumns.Count)
+                For previousCount = 1 To target.ListColumns.Count
+                    formats(previousCount) = target.DataBodyRange.Cells(rowIndex, previousCount).NumberFormat
+                Next previousCount
+                entry.Add "Formats", formats
+                target.ListRows(rowIndex).Delete
+                removed.Add entry
+            End If
+        Next rowIndex
+    Next pass
+    fn_DeleteLast = True
+CleanupDelete:
+    If guarded Then
+        Application.EnableEvents = previousEvents
+        Application.ScreenUpdating = previousScreen
+    End If
+    Exit Function
+EH_DELETE:
+    diagnostic = Err.Description
+    On Error Resume Next
+    For rowIndex = removed.Count To 1 Step -1
+        Set entry = removed(rowIndex)
+        Set target = entry("Table")
+        Err.Clear
+        Set restored = target.ListRows.Add(Position:=CLng(entry("Index")))
+        If Err.Number = 0 Then
+            formats = entry("Formats")
+            For columnIndex = 1 To target.ListColumns.Count
+                restored.Range.Cells(1, columnIndex).NumberFormat = formats(columnIndex)
+            Next columnIndex
+            restored.Range.Formula = entry("Formula")
+        End If
+        If Err.Number <> 0 Then rollbackError = rollbackError & " " & Err.Description
+    Next rowIndex
+    On Error GoTo 0
+    If Len(rollbackError) > 0 Then diagnostic = diagnostic & " " & Replace$(ex_PEB_Export.fn_Config("text.HistoryRollbackError"), "{details}", rollbackError)
+    GoTo CleanupDelete
+End Function
+
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
@@ -587,6 +701,12 @@ Private Function private_Columns( _
     Dim found As Boolean
 
     Set result = VBA.CreateObject("Scripting.Dictionary")
+    For Each column In table.ListColumns
+        If column.Name = "TicketNumber" Or column.Name = "TicketDate" Then
+            If extend Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryTicketMigrationRequired")
+            result.Add column.Name, column.Index
+        End If
+    Next column
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
         mapping = VBA.Split(VBA.CStr(field), "=")
         If UBound(mapping) <> 1 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError018"), "{value}", VBA.CStr(field))

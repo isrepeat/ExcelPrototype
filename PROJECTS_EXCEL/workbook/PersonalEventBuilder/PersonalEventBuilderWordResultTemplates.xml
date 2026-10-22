@@ -47,9 +47,9 @@
       <text><![CDATA[#^
 #_        #let __FromHospital = $ex_Helpers.m_RegexIsMatch("{[SourceStatus]}", "^HospitalTreatment$");#^
 #_        {#if __FromHospital}#^
-#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","виписка із медичної карти стаціонарного хворого"}#^
+#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","виписка із медичної карти стаціонарного хворого"|regexreplace:"^\s*[Вв]\s*/\s*[Кк]\s*$","відпускний квиток"}#^
 #_        {#else}#^
-#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","медична карта стаціонарного хворого"}#^
+#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","медична карта стаціонарного хворого"|regexreplace:"^\s*[Вв]\s*/\s*[Кк]\s*$","відпускний квиток"}#^
 #_        {#endif}#^
       ]]></text>
     </sharedTemplate>
@@ -130,6 +130,7 @@
 #_        {#include block.ReturnToDuty}#^
 #_        {#newline}{#newline}#^
 #_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
 #_        {#include block.OptionalVacationTicket}#^
 #_        .#^
         ]]>
@@ -214,7 +215,10 @@
     <sharedTemplate id="block.OptionalVacationTicket">
       <text>
         <![CDATA[#^
+#_        #let __TicketInDocument = $ex_Helpers.m_RegexIsMatch("{[DocumentNote]}", "^\s*[Вв]\s*/\s*[Кк]\s*$");#^
+#_        {#if __TicketInDocument}{#else}#^
 #_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; відпускний квиток{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
+#_        {#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -469,7 +473,7 @@
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
-#_      ; відпускний квиток № {[VacationTicketNo]} від {[VacationTicketDateShort]}#^
+#_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

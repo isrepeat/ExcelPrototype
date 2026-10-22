@@ -42,7 +42,10 @@
     </sharedTemplate>
     <sharedTemplate id="block.OptionalVacationTicket">
       <text><![CDATA[#^
-#_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; відпускний квиток{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
+#_        #let __TicketInDocument = $ex_Helpers.m_RegexIsMatch("{[DocumentNote]}", "^\s*[Вв]\s*/\s*[Кк]\s*$");#^
+#_        {#if __TicketInDocument}{#else}#^
+#_        {#if [VacationTicketNo] #or [VacationTicketDateShort]}; В/к{#if [VacationTicketNo]} № {[VacationTicketNo]}{#endif}{#if [VacationTicketDateShort]} від {[VacationTicketDateShort]}{#endif}{#endif}#^
+#_        {#endif}#^
         ]]></text>
     </sharedTemplate>
     <sharedTemplate id="block.OptionalBusinessTripCertificate">
@@ -52,7 +55,7 @@
     </sharedTemplate>
     <sharedTemplate id="block.OptionalPreviousVacationTicket">
       <text><![CDATA[#^
-#_        {#if [PrevVacationTicketNo] #or [PrevVacationTicketDateShort]}; відпускний квиток{#if [PrevVacationTicketNo]} № {[PrevVacationTicketNo]}{#endif}{#if [PrevVacationTicketDateShort]} від {[PrevVacationTicketDateShort]}{#endif}{#endif}#^
+#_        {#if [PrevVacationTicketNo] #or [PrevVacationTicketDateShort]}; В/к{#if [PrevVacationTicketNo]} № {[PrevVacationTicketNo]}{#endif}{#if [PrevVacationTicketDateShort]} від {[PrevVacationTicketDateShort]}{#endif}{#endif}#^
         ]]></text>
     </sharedTemplate>
     <sharedTemplate id="block.OptionalVlkCertificate">

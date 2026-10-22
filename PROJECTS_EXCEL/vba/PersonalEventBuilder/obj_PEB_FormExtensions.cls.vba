@@ -25,6 +25,9 @@ Private m_form As String
 Private m_active As Object
 Private m_config As Object
 Private m_headers As Object
+Private m_menuSignatures As Object
+Private m_detailsSignature As String
+Private m_hasDetailsSignature As Boolean
 Private m_defaultModes As Object
 Private m_mode As String
 Private m_viewport As String
@@ -81,6 +84,7 @@ Public Function Initialize(ByVal page As obj_PageBase) As Boolean
     Set m_profiles = CreateObject("Scripting.Dictionary")
     Set m_config = CreateObject("Scripting.Dictionary")
     Set m_headers = CreateObject("Scripting.Dictionary")
+    Set m_menuSignatures = CreateObject("Scripting.Dictionary")
     Set m_defaultModes = CreateObject("Scripting.Dictionary")
     Set m_candidateCells = New Collection
     If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", m_candidateCells) Then Exit Function
@@ -119,6 +123,7 @@ Public Sub Dispose()
     Set m_active = Nothing
     Set m_config = Nothing
     Set m_headers = Nothing
+    Set m_menuSignatures = Nothing
     Set m_defaultModes = Nothing
     Set m_candidateCells = Nothing
     Set m_page = Nothing
@@ -129,6 +134,8 @@ Public Sub InvalidateCache()
 
     m_config.RemoveAll
     m_headers.RemoveAll
+    m_menuSignatures.RemoveAll
+    m_hasDetailsSignature = False
     For Each key In m_services.Keys
         m_services(key).InvalidateCache
     Next key
@@ -242,12 +249,11 @@ NextKind:
             For Each kind In kinds
                 options.Add private_Config(CStr(kind), "caption")
             Next kind
-            If Not m_page.BindingContext.SetObject("Data", key, options) Then Exit Function
             If Not m_page.BindingContext.SetValue("Form", key, vbNullString) Then Exit Function
             Set payload = private_Payload("add", Nothing)
             Set payload("Types") = kinds
             payload("Path") = key
-            private_MenuCommand key, payload
+            private_PublishMenu key, kinds, options, payload
             If cachedHeader Then GoTo NextHeader
             Set node = private_Node(document, "controls:select")
             node.setAttribute "name", key
@@ -297,9 +303,9 @@ NextHeader:
 NextCandidates:
     Next row
 PublishMarkup:
-    If Not m_page.BindingContext.SetObject("Data", "ExtensionHeader", header) Then Exit Function
+    If Not private_PublishMarkup("ExtensionHeader", header) Then Exit Function
     If Not headerOnly Then
-        If Not m_page.BindingContext.SetObject("Data", "ExtensionBody", body) Then Exit Function
+        If Not private_PublishMarkup("ExtensionBody", body) Then Exit Function
     End If
     Build = True
     Exit Function
@@ -693,7 +699,6 @@ Private Sub private_MenuCommand( _
 )
     Dim command As obj_UiCommand
 
-    ' Build runs before the deferred panel refresh, outside the dropdown callback.
     If m_commands.Exists(name) Then
         Set command = m_commands(name)
         command.Dispose
@@ -701,6 +706,37 @@ Private Sub private_MenuCommand( _
     End If
     private_Command name, payload
 End Sub
+
+Private Sub private_PublishMenu(ByVal name As String, ByVal kinds As Collection, ByVal options As Collection, ByVal payload As Object)
+    Dim kind As Variant
+    Dim signature As String
+
+    For Each kind In kinds
+        signature = signature & "|" & CStr(kind)
+    Next kind
+    If m_menuSignatures.Exists(name) Then
+        If m_menuSignatures(name) = signature Then Exit Sub
+    End If
+    If Not m_page.BindingContext.SetObject("Data", name, options) Then Err.Raise 5, , "Cannot publish extension menu."
+    private_MenuCommand name, payload
+    m_menuSignatures(name) = signature
+End Sub
+
+Private Function private_PublishMarkup(ByVal key As String, ByVal node As Object) As Boolean
+    Dim value As Variant
+    Dim previous As Object
+    Dim isObject As Boolean
+
+    If m_page.BindingContext.TryGetValue("Data", key, value, previous, isObject) Then
+        If isObject Then
+            If previous.XML = node.XML Then
+                private_PublishMarkup = True
+                Exit Function
+            End If
+        End If
+    End If
+    private_PublishMarkup = m_page.BindingContext.SetObject("Data", key, node)
+End Function
 
 Private Sub private_BuildRows( _
     ByVal document As Object, _
@@ -912,7 +948,7 @@ Private Sub private_PublishCandidateDetails()
         End If
     End If
     If result Is Nothing Or Not primary Then
-        If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", cells) Then Err.Raise 5, , "Cannot publish candidate details."
+        If Not private_PublishDetails(cells) Then Err.Raise 5, , "Cannot publish candidate details."
         Exit Sub
     End If
     Set records = result.Records
@@ -947,8 +983,37 @@ Private Sub private_PublishCandidateDetails()
         cell.Add "sourceAlias", sourceAlias
         cells.Add cell
     Next definition
-    If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", cells) Then Err.Raise 5, , "Cannot publish candidate details."
+    If Not private_PublishDetails(cells) Then Err.Raise 5, , "Cannot publish candidate details."
 End Sub
+
+Private Function private_PublishDetails(ByVal cells As Collection) As Boolean
+    Dim cell As Object
+    Dim values As Collection
+    Dim value As Variant
+    Dim signature As String
+    Dim token As String
+
+    For Each cell In cells
+        signature = signature & "|" & CStr(cell("lane")) & ":" & CStr(cell("column")) & ":" & CStr(cell("sourceAlias"))
+        Set values = cell("values")
+        signature = signature & ":" & CStr(values.Count)
+        For Each value In values
+            token = vbNullString
+            If Not IsNull(value) Then token = CStr(value)
+            signature = signature & "|" & CStr(VarType(value)) & ":" & CStr(Len(token)) & ":" & token
+        Next value
+    Next cell
+    private_PublishDetails = True
+    If m_hasDetailsSignature Then
+        If m_detailsSignature = signature Then Exit Function
+    End If
+    If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", cells) Then
+        private_PublishDetails = False
+        Exit Function
+    End If
+    m_detailsSignature = signature
+    m_hasDetailsSignature = True
+End Function
 
 Private Function private_Style( _
     ByVal kind As String, _

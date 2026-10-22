@@ -97,20 +97,6 @@
            label="{Binding Path=Text.ModeDurationDaysLabel}"
            fieldStyle="{Binding Path=Form.DurationDaysStyle}"
            partStylesEnabled="false"/>
-    <field name="TicketNumber"
-           type="text"
-           value="{Binding Path=TicketNumber}"
-           label="{Binding Path=Text.ModeTicketNumberLabel}"
-           fieldStyle="{Binding Path=Form.TicketNumberStyle}"
-           readOnly="{Binding Path=Form.TicketNumberReadOnly}"
-           partStylesEnabled="true"/>
-    <field name="TicketDate"
-           type="text"
-           value="{Binding Path=TicketDate}"
-           label="{Binding Path=Text.ModeTicketDateLabel}"
-           fieldStyle="{Binding Path=Form.TicketDateStyle}"
-           readOnly="{Binding Path=Form.TicketDateReadOnly}"
-           partStylesEnabled="true"/>
     <field name="Hospital"
            type="text"
            value="{Binding Path=Hospital}"
@@ -321,8 +307,8 @@
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:checkbox name="AutoFillPersonnel"
-                       row="9"
-                       column="1"
+                       row="1"
+                       column="15"
                        columnSpan="2"
                        style="secondaryButton"
                        value="{Binding Path=Form.AutoFillPersonnel}"
@@ -331,22 +317,22 @@
                        uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
                        onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
     <controls:button name="ResetForm"
-                     row="9"
-                     column="3"
+                     row="1"
+                     column="17"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ResetForm}"
                      command="{Binding Path=Commands.ResetForm}"/>
     <controls:button name="ScrollFormLeft"
-                     row="9"
-                     column="5"
+                     row="2"
+                     column="17"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ScrollFormLeft}"
                      command="{Binding Path=Commands.ScrollFormLeft}"
                      visibility="{Binding Path=Settings.FormScrollVisibility}"/>
     <controls:button name="ScrollFormRight"
-                     row="9"
-                     column="6"
+                     row="2"
+                     column="18"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ScrollFormRight}"
                      command="{Binding Path=Commands.ScrollFormRight}"
@@ -368,13 +354,13 @@
     <controls:label name="WordPreview"
                     row="3"
                     column="9"
-                    rowSpan="7"
+                    rowSpan="6"
                     columnSpan="8"
                     style="wordPreview"
                     text="{Binding Path=Form.WordPreviewText}"/>
 
     <stackPanel name="EventWorkspace"
-                row="10"
+                row="9"
                 column="1"
                 orientation="vertical">
       <stackPanel name="ExtensionMenus"
@@ -1013,12 +999,12 @@
                 rowHeight:10;
               }"/>
         <rule target="usedRange"
-              selector="row=13"
+              selector="row=12"
               styles="{
                 rowHeight:45;
               }"/>
         <rule target="usedRange"
-              selector="row=14:"
+              selector="row=13:"
               styles="{
                 rowHeight:38;
               }"/>

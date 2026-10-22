@@ -402,26 +402,26 @@ value	PersonalEventBuilder::forms.Leave.fields.count	16
 value	PersonalEventBuilder::forms.Leave.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.columns.count	18
-value	PersonalEventBuilder::forms.columns.fixed.Document	13
-value	PersonalEventBuilder::forms.columns.fixed.PersonId	5
-value	PersonalEventBuilder::forms.columns.fixed.PersonName	4
-value	PersonalEventBuilder::forms.columns.fixed.PersonRank	3
-value	PersonalEventBuilder::forms.columns.fixed.ReportName	9
-value	PersonalEventBuilder::forms.columns.fixed.ReportRank	8
-value	PersonalEventBuilder::forms.columns.fixed.DocumentDate	15
-value	PersonalEventBuilder::forms.columns.fixed.IncomingDate	12
-value	PersonalEventBuilder::forms.columns.fixed.PositionCode	6
-value	PersonalEventBuilder::forms.columns.fixed.DocumentNumber	14
-value	PersonalEventBuilder::forms.columns.fixed.IncomingNumber	11
-value	PersonalEventBuilder::forms.columns.fixed.PersonPosition	7
-value	PersonalEventBuilder::forms.columns.fixed.ReportPositionCode	10
+value	PersonalEventBuilder::forms.columns.fixed.Document	14
+value	PersonalEventBuilder::forms.columns.fixed.PersonId	6
+value	PersonalEventBuilder::forms.columns.fixed.PersonName	5
+value	PersonalEventBuilder::forms.columns.fixed.PersonRank	4
+value	PersonalEventBuilder::forms.columns.fixed.ReportName	10
+value	PersonalEventBuilder::forms.columns.fixed.ReportRank	9
+value	PersonalEventBuilder::forms.columns.fixed.DocumentDate	16
+value	PersonalEventBuilder::forms.columns.fixed.IncomingDate	13
+value	PersonalEventBuilder::forms.columns.fixed.PositionCode	7
+value	PersonalEventBuilder::forms.columns.fixed.DocumentNumber	15
+value	PersonalEventBuilder::forms.columns.fixed.IncomingNumber	12
+value	PersonalEventBuilder::forms.columns.fixed.PersonPosition	8
+value	PersonalEventBuilder::forms.columns.fixed.ReportPositionCode	11
 value	PersonalEventBuilder::forms.columns.groups.Left	Hospital|HospitalShortName|Destination
 value	PersonalEventBuilder::forms.columns.groups.Right	EventDate|DurationDays
-value	PersonalEventBuilder::forms.columns.ranges.Left	1|2
-value	PersonalEventBuilder::forms.columns.ranges.Right	16|18
+value	PersonalEventBuilder::forms.columns.ranges.Left	1|3
+value	PersonalEventBuilder::forms.columns.ranges.Right	17|18
 value	PersonalEventBuilder::forms.columns.scrollStep	1
 value	PersonalEventBuilder::forms.columns.disabledStyle	disabledField
-value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::forms.readOnly.modes.ToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.FromHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.ToBusinessTrip	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
@@ -628,7 +628,7 @@ value	PersonalEventBuilder::forms.sourceStyles.Personnel	personnelFormField
 value	PersonalEventBuilder::forms.sourceStyles.CurrentOrder	currentOrderField
 value	PersonalEventBuilder::forms.sourceStyles.ReturnTickets	movementTicketField
 value	PersonalEventBuilder::forms.lookupFields	PersonName|ReportName|Hospital|Document
-value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber|DurationDays
+value	PersonalEventBuilder::forms.styledFields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber|DurationDays
 value	PersonalEventBuilder::forms.lookupDefaultStyle	lookupKeyField
 value	PersonalEventBuilder::forms.dynamicStylesEnabled	true
 value	PersonalEventBuilder::modes.default	FromAnnualMainVacation
@@ -869,8 +869,8 @@ value	PersonalEventBuilder::export.Word.FromHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Word.ToBusinessTrip.lookups.count	0
-value	PersonalEventBuilder::export.Word.ToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
-value	PersonalEventBuilder::export.Word.ToBusinessTrip.previewRequired	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.ToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|DocumentNumber|DocumentDate
+value	PersonalEventBuilder::export.Word.ToBusinessTrip.previewRequired	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::export.Word.documentFields.1.token	{yyyy}
 value	PersonalEventBuilder::export.Word.documentFields.1.value	{AcceptedOrderDate|dateformat:"yyyy"}
 value	PersonalEventBuilder::export.Word.documentFields.2.token	{mm}
@@ -903,7 +903,7 @@ value	PersonalEventBuilder::export.Word.ToVacationForFamily.required	PersonId|Pe
 value	PersonalEventBuilder::export.Word.ToVacationForFamily.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.lookups.count	0
 value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.ToAnnualMainVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::export.Word.FromVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
@@ -1041,7 +1041,7 @@ value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.r
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|TicketNumber|TicketDate
+value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Word.MoveFromAnnualVacationToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
@@ -1231,7 +1231,7 @@ value	PersonalEventBuilder::export.shared.constants.count	10
 value	PersonalEventBuilder::export.ticket.form	Leave|LeaveArrival|HospitalLeave
 value	PersonalEventBuilder::export.ticket.numberTemplate	{orderYear}/{orderNum}/{ticketNum}
 value	PersonalEventBuilder::export.ticket.qualifiedPattern	^\d{4}/[^/]+/[^/]+$
-value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber|DurationDays
+value	PersonalEventBuilder::export.fields	ModeId|ModeDirection|ModeForm|AcceptedOrderNumber|AcceptedOrderDate|EventType|Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber|DurationDays
   ref	PersonalEventBuilder::export.Movement.path	__cfgDependencies.fileMovementExport
   ref	PersonalEventBuilder::export.Movement.sheet	__cfgDependencies.source.MovementExport.sheet
   ref	PersonalEventBuilder::export.Movement.table	__cfgDependencies.source.MovementExport.table
@@ -1271,7 +1271,7 @@ value	PersonalEventBuilder::export.Movement.dateFormat	dd.mm.yyyy
 value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
 value	PersonalEventBuilder::export.Movement.destinations.MedicalCompany	Медична рота А7383
 value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
-value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|TicketDate|DocumentDate
+value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|DocumentDate
 value	PersonalEventBuilder::legend.Absence.entryTemplate	{source} ({modified})
 value	PersonalEventBuilder::legend.sources	Personnel|Absence|ReturnTickets|Hospital|Document
 value	PersonalEventBuilder::legend.Document.entryTemplate	{source} ({modified})
@@ -1384,11 +1384,11 @@ value	PersonalEventBuilder::lookup.Personnel.apply.8.target	Form.DepartureDate
 value	PersonalEventBuilder::lookup.Personnel.apply.8.required	true
 value	PersonalEventBuilder::lookup.Personnel.apply.9.field	Absence.TicketNumber
 value	PersonalEventBuilder::lookup.Personnel.apply.9.policy	overwrite
-value	PersonalEventBuilder::lookup.Personnel.apply.9.target	Form.TicketNumber
+value	PersonalEventBuilder::lookup.Personnel.apply.9.target	Form.DocumentNumber
 value	PersonalEventBuilder::lookup.Personnel.apply.9.required	true
 value	PersonalEventBuilder::lookup.Personnel.apply.10.field	Absence.TicketDate
 value	PersonalEventBuilder::lookup.Personnel.apply.10.policy	overwrite
-value	PersonalEventBuilder::lookup.Personnel.apply.10.target	Form.TicketDate
+value	PersonalEventBuilder::lookup.Personnel.apply.10.target	Form.DocumentDate
 value	PersonalEventBuilder::lookup.Personnel.apply.10.required	true
 value	PersonalEventBuilder::lookup.Personnel.apply.count	10
 value	PersonalEventBuilder::lookup.Personnel.search.1.name	Personnel.FullName
@@ -1502,8 +1502,8 @@ value	PersonalEventBuilder::history.list.columns.5.field	IncomingNumber
 value	PersonalEventBuilder::history.list.columns.5.caption	Вх. №
 value	PersonalEventBuilder::history.list.columns.6.field	IncomingDate
 value	PersonalEventBuilder::history.list.columns.6.caption	Вх. дата
-value	PersonalEventBuilder::history.list.columns.7.field	TicketNumber
-value	PersonalEventBuilder::history.list.columns.7.caption	Квиток / посвідчення
+value	PersonalEventBuilder::history.list.columns.7.field	DocumentNumber
+value	PersonalEventBuilder::history.list.columns.7.caption	Документ.№
 value	PersonalEventBuilder::history.list.columns.8.field	RowId
 value	PersonalEventBuilder::history.list.columns.8.caption	ID запису
 value	PersonalEventBuilder::history.list.columns.9.field	Status
@@ -1517,7 +1517,7 @@ value	PersonalEventBuilder::history.list.columns.12.caption	Стан WORD
 value	PersonalEventBuilder::history.list.columns.count	12
 value	PersonalEventBuilder::history.sheet	EventsHistory
 value	PersonalEventBuilder::history.table	tbEventsHistory
-value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|TicketNumber=TicketNumber|TicketDate=TicketDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo|TvoReturnSnapshot=TvoReturnSnapshot|ExtensionRole=ExtensionRole
+value	PersonalEventBuilder::history.fields	RowId=RowId|ParentRowId=ParentRowId|RowType=RowType|RowOrder=RowOrder|EventLabel=EventLabel|PersonName=PersonName|PersonRank=PersonRank|PersonId=PersonId|PersonPosition=PersonPosition|EventDate=EventDate|Destination=Destination|DurationDays=DurationDays|EventId=EventId|PositionCode=PositionCode|RankGenitive=RankGenitive|FIOAccusative=FIOAccusative|FIOInitialsGenitive=FIOInitialsGenitive|PositionGenitive=PositionGenitive|ReportName=ReportName|ReportRank=ReportRank|ReportPositionCode=ReportPositionCode|IncomingNumber=IncomingNumber|IncomingDate=IncomingDate|Hospital=Hospital|HospitalShortName=HospitalShortName|ToHospitalShort=ToHospitalShort|Document=Document|DocumentNumber=DocumentNumber|DocumentDate=DocumentDate|VlkNo=VlkNo|RequiresFoodSupportEnroll=RequiresFoodSupportEnroll|RequiresFoodSupportRemove=RequiresFoodSupportRemove|FoodSupportDate=FoodSupportDate|ReportRankGenitive=ReportRankGenitive|ReportPersonInitialsGenitive=ReportPersonInitialsGenitive|ReportPositionGenitive=ReportPositionGenitive|HospitalGenitive=HospitalGenitive|HospitalAccusative=HospitalAccusative|HospitalDative=HospitalDative|ToHospitalAccusative=ToHospitalAccusative|Signatory=Signatory|RankDative=RankDative|FIODative=FIODative|WordTemplatePath=WordTemplatePath|WordOutput=WordOutput|AcceptedOrderNumber=OrderNumber|AcceptedOrderDate=OrderDate|PrevVacationTicketNo=PrevVacationTicketNo|PrevVacationTicketDateShort=PrevVacationTicketDate|VlkDateShort=VlkDate|DateToShort=DateTo|TvoReturnSnapshot=TvoReturnSnapshot|ExtensionRole=ExtensionRole
 value	PersonalEventBuilder::history.exports.sheet	ExportJournal
 value	PersonalEventBuilder::history.exports.table	tbExportJournal
 value	PersonalEventBuilder::history.exports.fields	EventRowId|Revision|AppliedAt|AppliedBy|Exporter|Target|Result|HistoryStamp
@@ -1704,9 +1704,7 @@ value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оно
 value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	PersonalEventBuilder::lookup.ReturnTickets.document	В/к
 value	PersonalEventBuilder::text.DeleteLastEvent	Видалити останню подію
-value	PersonalEventBuilder::text.DeleteLastEventConfirm	Видалити останню подію наказу № {order} від {orderDate}: {person}, {event}, дата події {date}? Подію буде скасовано зі збереженням історії ревізій.
-value	PersonalEventBuilder::text.DeleteLastEventReason	Скасування останньої помилково доданої події кнопкою швидкого видалення.
-value	PersonalEventBuilder::text.ReplaceLastEventReason	Заміна останньої скасованої події виправленими даними.
-value	PersonalEventBuilder::text.LastEventDeleted	Останню подію наказу скасовано. Виправте дані та натисніть «Додати / оновити подію», щоб замінити її. Збережіть книгу історії вручну (Ctrl+S).
-value	PersonalEventBuilder::text.LastEventAlreadyDeleted	Останню подію цього наказу вже скасовано. Попередню подію не змінено. Виправте дані та натисніть «Додати / оновити подію», щоб замінити скасовану.
+value	PersonalEventBuilder::text.DeleteLastEventConfirm	Видалити останню подію наказу № {order} від {orderDate}: {person}, {event}, дата події {date}? Подію, усі дочірні рядки та всі її ревізії буде фізично видалено. РУХ і Word не змінюються.
+value	PersonalEventBuilder::text.LastEventDeleted	Останню подію наказу, дочірні рядки та всі ревізії видалено. РУХ і Word не змінено. Збережіть книгу історії вручну (Ctrl+S).
 value	PersonalEventBuilder::text.LastEventChanged	Остання подія наказу змінилася. Перевірте історію та повторіть дію.
+value	PersonalEventBuilder::text.HistoryTicketMigrationRequired	Структура історії містить старі колонки TicketNumber/TicketDate. Закрийте книгу та виконайте міграцію migrate_history_ticket_columns.py перед збереженням подій.
