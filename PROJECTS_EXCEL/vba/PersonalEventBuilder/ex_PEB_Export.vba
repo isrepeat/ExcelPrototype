@@ -22,6 +22,18 @@ Public Function fn_IsTicketDocumentForm(ByVal formKind As String) As Boolean
     fn_IsTicketDocumentForm = InStr(1, "|" & ex_PEB_Export.fn_Config("export.ticket.form") & "|", "|" & formKind & "|", vbBinaryCompare) > 0
 End Function
 
+Public Function fn_FixedDocument(ByVal modeId As String) As String
+    If InStr(1, "|" & ex_PEB_Export.fn_Config("document.fixed.modes") & "|", "|" & modeId & "|", vbBinaryCompare) > 0 Then
+        fn_FixedDocument = ex_PEB_Export.fn_Config("document.fixed." & modeId)
+    ElseIf ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+        fn_FixedDocument = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
+End Function
+
+Public Function fn_IsTicketDocumentMode(ByVal modeId As String) As Boolean
+    fn_IsTicketDocumentMode = (ex_PEB_Export.fn_FixedDocument(modeId) = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document"))
+End Function
+
 Public Sub fn_TicketDocumentValues(ByVal values As Object, Optional ByVal stored As Boolean = False)
     Dim document As String
     Dim legacyNumber As Variant
@@ -33,10 +45,24 @@ Public Sub fn_TicketDocumentValues(ByVal values As Object, Optional ByVal stored
     If values.Exists("TicketDate") Then legacyDate = values("TicketDate")
     values("TicketNumber") = vbNullString
     values("TicketDate") = vbNullString
-    If Not ex_PEB_Export.fn_IsTicketDocumentForm(CStr(values("ModeForm"))) Then Exit Sub
+    document = ex_PEB_Export.fn_FixedDocument(CStr(values("ModeId")))
+    If Len(document) > 0 And Not ex_PEB_Export.fn_IsTicketDocumentMode(CStr(values("ModeId"))) Then
+        If Not stored Then
+            values("Document") = document
+        End If
+        ' Preserve the meaning of ticket fields in previously saved event snapshots.
+        If Not stored Or CStr(values("Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
+            Exit Sub
+        End If
+    End If
+    If Len(document) = 0 Then Exit Sub
     document = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
     If stored Then
         If CStr(values("Document")) <> document Then
+            ' A saved medical document must not become a vacation ticket just because the form policy changed.
+            If Len(ex_PEB_Export.fn_Text(legacyNumber)) = 0 And Len(ex_PEB_Export.fn_Text(legacyDate)) = 0 Then
+                Exit Sub
+            End If
             If Len(ex_PEB_Export.fn_Text(legacyNumber)) > 0 Then values("DocumentNumber") = legacyNumber
             If Len(ex_PEB_Export.fn_Text(legacyDate)) > 0 Then values("DocumentDate") = legacyDate
         End If
@@ -64,6 +90,31 @@ Public Function fn_Config(ByVal key As String) As String
         Err.Raise 5, , "Empty configuration key: PersonalEventBuilder::" & key
     End If
     fn_Config = value
+End Function
+
+Public Function fn_BasisDocuments(ByVal values As Object) As Collection
+    Dim documents As New Collection
+    Dim document As Object
+    Dim item As Object
+
+    Set document = VBA.CreateObject("Scripting.Dictionary")
+    document.Add "DocumentNote", ex_PEB_Export.fn_Required(values, "DocumentNote")
+    document.Add "DocNo", ex_PEB_Export.fn_Required(values, "DocNo")
+    document.Add "DocDateShort", ex_PEB_Export.fn_Required(values, "DocDateShort")
+    documents.Add document
+    For Each item In values("MetaDocumentTables")
+        documents.Add item
+    Next item
+    If values.Exists("VlkNo") And values.Exists("VlkDateShort") Then
+        If Len(ex_PEB_Export.fn_Text(values("VlkNo"))) > 0 Or Len(ex_PEB_Export.fn_Text(values("VlkDateShort"))) > 0 Then
+            Set document = VBA.CreateObject("Scripting.Dictionary")
+            document.Add "DocumentNote", ex_PEB_Export.fn_Config("extensions.role.Vlk.document")
+            document.Add "DocNo", values("VlkNo")
+            document.Add "DocDateShort", values("VlkDateShort")
+            documents.Add document
+        End If
+    End If
+    Set fn_BasisDocuments = documents
 End Function
 
 Public Function fn_TryApplyReporterPositions( _

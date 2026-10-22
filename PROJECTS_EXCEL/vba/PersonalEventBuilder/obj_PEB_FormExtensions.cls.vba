@@ -396,6 +396,9 @@ Public Function HandleAction( _
                     updates("Form." & private_Path(row, mapping(0)) & "Style") = private_Style(row("Type"), CStr(mapping(0)), "default")
                 End If
             Next field
+            If Len(private_FixedDocument(row)) > 0 Then
+                updates("Form." & private_Path(row, "Document")) = private_FixedDocument(row)
+            End If
             If Not m_page.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
             HandleAction = m_page.FlushUpdates()
             Exit Function
@@ -451,6 +454,9 @@ Public Function Collect( _
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             If Not m_page.BindingContext.TryGetValue("Form", private_Path(row, CStr(field)), scalar, ignored, isObject) Then Exit Function
             If isObject Or IsError(scalar) Or IsNull(scalar) Then Exit Function
+            If field = "Document" And Len(private_FixedDocument(row)) > 0 Then
+                scalar = private_FixedDocument(row)
+            End If
             item(field) = ex_PEB_Export.fn_ExtensionValue(scalar, private_FieldConfig(row("Type"), CStr(field), "type"), CStr(field))
         Next field
         requiredFields = private_Config(row("Type"), "required")
@@ -851,6 +857,11 @@ Private Sub private_BuildRows( _
         form.setAttribute "fieldStyle", "formField"
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             path = private_Path(row, CStr(field))
+            If field = "Document" And Len(private_FixedDocument(row)) > 0 Then
+                If Not m_page.BindingContext.SetValue("Form", path, private_FixedDocument(row)) Then
+                    Err.Raise 5, , "Cannot initialize fixed extension document."
+                End If
+            End If
             private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), row
             If lane > m_candidateLanes Then m_candidateLanes = lane
             Set node = private_Node(document, "field")
@@ -870,6 +881,9 @@ Private Sub private_BuildRows( _
             node.setAttribute "partStylesEnabled", "true"
             If InStr(1, "|" & private_Config(row("Type"), "readOnly") & "|", "|" & field & "|", vbBinaryCompare) > 0 Then
                 node.setAttribute "readOnly", "{Binding Path=Form.AutoFillPersonnel}"
+            End If
+            If field = "Document" And Len(private_FixedDocument(row)) > 0 Then
+                node.setAttribute "readOnly", "true"
             End If
             If field = private_Config(row("Type"), "key") Then
                 key = "ExSearch" & row("Id")
@@ -1107,6 +1121,12 @@ Private Sub private_RemoveChildren(ByVal parentId As String)
         Next index
     Loop
 End Sub
+
+Private Function private_FixedDocument(ByVal row As Object) As String
+    If row("Type") = "Document" And Len(row("Role")) > 0 Then
+        private_FixedDocument = private_ReadConfig("extensions.role." & row("Role") & ".document")
+    End If
+End Function
 
 Private Function private_Path( _
     ByVal row As Object, _

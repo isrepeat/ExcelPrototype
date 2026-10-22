@@ -14,6 +14,7 @@ Private m_isDisposed As Boolean
 
 Private m_maxDepth As Long
 Private m_sharedTemplates As Object
+Private m_resources As Object
 
 ' //
 ' // Lifecycle
@@ -28,7 +29,10 @@ End Sub
 ' //
 ' // API
 ' //
-Public Function Initialize(ByVal sharedTemplates As Object) As Boolean
+Public Function Initialize( _
+    ByVal sharedTemplates As Object, _
+    Optional ByVal resources As Object = Nothing _
+) As Boolean
     If m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
@@ -36,6 +40,7 @@ Public Function Initialize(ByVal sharedTemplates As Object) As Boolean
         Err.Raise 5, , "Shared DSL templates are required."
     End If
     Set m_sharedTemplates = sharedTemplates
+    Set m_resources = resources
     m_maxDepth = ex_PEB_Export.fn_Count("export.dsl.maxDepth")
     If m_maxDepth < 1 Or m_maxDepth > 64 Then
         Err.Raise 5, , "DSL maxDepth must be between 1 and 64."
@@ -51,6 +56,7 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     Set m_sharedTemplates = Nothing
+    Set m_resources = Nothing
 End Sub
 
 Public Function TryRender( _
@@ -99,6 +105,7 @@ Private Function private_Render( _
     Dim output As String
     Dim name As String
     Dim collectionName As String
+    Dim orderName As String
     Dim separator As Long
     Dim items As Collection
     Dim item As Variant
@@ -161,6 +168,18 @@ Private Function private_Render( _
             End If
             name = VBA.Trim$(VBA.Left$(expression, separator - 1))
             collectionName = VBA.Trim$(VBA.Mid$(expression, separator + 4))
+            orderName = VBA.vbNullString
+            separator = VBA.InStr(collectionName, " orderBy:")
+            If separator > 0 Then
+                orderName = private_Unquote(VBA.Trim$(VBA.Mid$(collectionName, separator + 9)))
+                If Len(orderName) = 0 Then
+                    Err.Raise 5, , "orderBy requires an item order name."
+                End If
+                collectionName = VBA.Trim$(VBA.Left$(collectionName, separator - 1))
+            End If
+            If collectionName = "BasisDocuments" Then
+                Set values(collectionName) = ex_PEB_Export.fn_BasisDocuments(values)
+            End If
             If Not values.Exists(collectionName) Then
                 Err.Raise 5, , "Unknown template collection: " & collectionName
             End If
@@ -168,6 +187,9 @@ Private Function private_Render( _
                 Err.Raise 5, , "Template collection required: " & collectionName
             End If
             Set items = values(collectionName)
+            If Len(orderName) > 0 Then
+                Set items = ex_PEB_DslResources.fn_OrderItems(m_resources, orderName, items)
+            End If
             body = VBA.Mid$(template, cursor, ending - cursor)
             index = 0
             For Each item In items
@@ -342,6 +364,12 @@ Private Function private_Value( _
             formatter = VBA.Left$(formatter, colon - 1)
         End If
         Select Case formatter
+            Case "lookup"
+                argument = private_Unquote(argument)
+                If Len(argument) = 0 Then
+                    Err.Raise 5, , "lookup requires a dictionary name."
+                End If
+                value = ex_PEB_DslResources.fn_Lookup(m_resources, argument, ex_PEB_Export.fn_Text(value), values)
             Case "upper"
                 value = VBA.UCase$(ex_PEB_Export.fn_Text(value))
             Case "lower"

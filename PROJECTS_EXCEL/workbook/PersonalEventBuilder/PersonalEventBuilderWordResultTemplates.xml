@@ -2,6 +2,37 @@
 <wordResultTemplates xmlns="urn:excelprototype:profiles"
                      version="2"
                      generationMode="anchored">
+  <resources>
+    <dictionary name="DocumentNames"
+                ignoreCase="true"
+                normalize="trim,slashSpaces"
+                onMissing="keep">
+      <entry key="м/к">
+        <variant value="медична карта стаціонарного хворого"/>
+        <variant value="виписка із медичної карти стаціонарного хворого"
+                 field="SourceStatus"
+                 equals="HospitalTreatment"/>
+      </entry>
+      <entry key="в/к">
+        <variant value="відпускний квиток"/>
+      </entry>
+      <entry key="Довідка ВЛК">
+        <variant value="довідка військово-лікарської комісії"/>
+      </entry>
+    </dictionary>
+    <itemOrder name="BasisDocuments"
+               field="DocumentNote"
+               ignoreCase="true"
+               normalize="trim,slashSpaces">
+      <item key="м/к"
+            aliases="медична карта стаціонарного хворого|виписка із медичної карти стаціонарного хворого"/>
+      <item key="Довідка ВЛК"
+            aliases="довідка військово-лікарської комісії"/>
+      <others/>
+      <item key="в/к"
+            aliases="відпускний квиток"/>
+    </itemOrder>
+  </resources>
   <documentFilepath>
     <![CDATA[modes\PrsnlEvntBuilder\{WordTemplateFileName|regexreplace:"\.[^.]+$",""}_{ManualOrderNo|regexreplace:"[/:*?<>|]","_"}.docx]]>
   </documentFilepath>
@@ -45,53 +76,19 @@
 
     <sharedTemplate id="block.DocumentName">
       <text><![CDATA[#^
-#_        #let __FromHospital = $ex_Helpers.m_RegexIsMatch("{[SourceStatus]}", "^HospitalTreatment$");#^
-#_        {#if __FromHospital}#^
-#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","виписка із медичної карти стаціонарного хворого"|regexreplace:"^\s*[Вв]\s*/\s*[Кк]\s*$","відпускний квиток"}#^
-#_        {#else}#^
-#_          {[__DocumentName]|lowerFirstLetter|regexreplace:"^\s*[Мм]\s*/\s*[Кк]\s*$","медична карта стаціонарного хворого"|regexreplace:"^\s*[Вв]\s*/\s*[Кк]\s*$","відпускний квиток"}#^
-#_        {#endif}#^
+#_        {[__DocumentName]|lookup:"DocumentNames"|lowerFirstLetter}#^
       ]]></text>
     </sharedTemplate>
     <sharedTemplate id="block.OptionalBasisDocuments">
-      <text>
-        <![CDATA[#^
-#_        #let __BasisTicket = $ex_Helpers.m_RegexIsMatch("{[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$");#^
-#_        {#if __BasisTicket}{#else}#^
-#_        {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; #let __DocumentName = "{[DocumentNote]}";{#include block.DocumentName}#^
-#_        {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
-#_        {#if [DocDateShort]}{#space}від {[DocDateShort]}{#endif}#^
-#_        {#endif}#^
-#_        {#endif}#^
-#_        {#for item in MetaDocumentTables}#^
-#_          #let __ItemTicket = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$");#^
-#_          {#if __ItemTicket}{#else}#^
+      <text><![CDATA[#^
+#_        {#for item in BasisDocuments orderBy:"BasisDocuments"}#^
 #_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
-#_            ; #^
-#_            #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
+#_            ; #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
 #_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
 #_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
 #_          {#endif}#^
-#_          {#endif}#^
 #_        {#endfor}#^
-#_        {#if __BasisTicket}#^
-#_          {#if [DocumentNote] #and [DocNo] #or [DocumentNote] #and [DocDateShort]}; #let __DocumentName = "{[DocumentNote]}";{#include block.DocumentName}#^
-#_          {#if [DocNo]}{#space}№ {[DocNo]}{#endif}#^
-#_          {#if [DocDateShort]}{#space}від {[DocDateShort]}{#endif}#^
-#_          {#endif}#^
-#_        {#endif}#^
-#_        {#for item in MetaDocumentTables}#^
-#_          #let __ItemTicket = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$");#^
-#_          {#if __ItemTicket}#^
-#_            {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
-#_              ; #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
-#_              {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
-#_              {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
-#_            {#endif}#^
-#_          {#endif}#^
-#_        {#endfor}#^
-        ]]>
-        </text>
+      ]]></text>
     </sharedTemplate>
 
     <sharedTemplate id="block.MetaRowsInline">
@@ -229,7 +226,6 @@
     </sharedTemplate>
     <sharedTemplate id="block.VlkBasisDocuments">
       <text><![CDATA[#^
-#_        {#include block.OptionalVlkCertificate}#^
 #_        {#include block.OptionalBasisDocuments}#^
       ]]></text>
     </sharedTemplate>

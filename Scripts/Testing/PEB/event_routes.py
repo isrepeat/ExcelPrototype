@@ -7,6 +7,7 @@ import re
 from movement_templates import load_movement
 from movement_plans import load_native_plans
 from config_dependencies import load_config
+from dsl_resources import load_resources
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKBOOK = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
@@ -127,8 +128,9 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
         require("<!DOCTYPE" not in text.upper() and "<!ENTITY" not in text.upper(), "Word DTD/entities are prohibited")
         word_root = ET.fromstring(text)
         require(word_root.tag == f"{{{NS['p']}}}wordResultTemplates" and word_root.get("version") == "2", "Invalid Word root/version")
-        require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("documentFilepath", "sharedTemplates", "template")} for child in word_root),
+        require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("resources", "documentFilepath", "sharedTemplates", "template")} for child in word_root),
                 "Unknown Word template section")
+        load_resources(word_root, set(settings["export.Word.context.xmlKeys"].split("|")) | {"ModeId"})
         templates = index(word_root.findall("p:template", NS), "name")
         for template in templates.values():
             validate_word_template(template)

@@ -353,7 +353,7 @@ Public Function TryPrepare( _
                 GoTo Failed
             End If
             Set m_pebDslRenderer = New obj_PEB_DslRenderer
-            If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then
+            If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then
                 Err.Raise 5, , "Cannot initialize DSL renderer."
             End If
         End If
@@ -620,7 +620,7 @@ Public Function TryPrepareHistory( _
             m_ownsWordTemplates = False
         End If
         Set m_pebDslRenderer = New obj_PEB_DslRenderer
-        If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
+        If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
     End If
     ' Keep each report structured; the basis block renders the complete ordered list.
     Set reports = values("HistoryReports")
@@ -1008,7 +1008,7 @@ Private Sub private_PrepareTicket(ByVal values As Object)
     Dim qualified As String
 
     values("TicketDocument") = VBA.vbNullString
-    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("export.ticket.form") & "|", "|" & ex_PEB_Export.fn_Text(values("ModeForm")) & "|", VBA.vbBinaryCompare) = 0 Then Exit Sub
+    If CStr(values("Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then Exit Sub
     ticket = ex_PEB_Export.fn_Text(values("TicketNumber"))
     If VBA.Len(ticket) = 0 Then Exit Sub
     If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnTickets.modes") & "|", _
@@ -1053,7 +1053,7 @@ Private Sub private_PrepareMovementTexts( _
     private_PrepareVacationDuration values
     If m_movementRenderer Is Nothing Then
         Set m_movementRenderer = New obj_PEB_DslRenderer
-        If Not m_movementRenderer.Initialize(ex_PEB_MovementTemplates.fn_SharedTemplates()) Then
+        If Not m_movementRenderer.Initialize(ex_PEB_MovementTemplates.fn_SharedTemplates(), ex_PEB_MovementTemplates.fn_Resources()) Then
             Err.Raise 5, , "Cannot initialize Movement DSL renderer."
         End If
     End If
