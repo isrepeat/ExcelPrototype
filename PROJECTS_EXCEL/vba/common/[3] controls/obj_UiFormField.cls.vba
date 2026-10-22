@@ -243,6 +243,7 @@ Private Function private_ConfigureField( _
     labelNode.setAttribute "rowSpan", "1"
     labelNode.setAttribute "name", m_name & "_label"
     labelNode.setAttribute "text", ex_UiElementFactory.fn_Attribute(fieldNode, "label")
+    labelNode.setAttribute "readOnly", "true"
     labelNode.setAttribute "columnSpan", VBA.CStr(labelColumns)
     labelNode.setAttribute "style", private_Inherit(fieldNode, formNode, "labelStyle", VBA.vbNullString)
     Set label = New obj_UiControlElement

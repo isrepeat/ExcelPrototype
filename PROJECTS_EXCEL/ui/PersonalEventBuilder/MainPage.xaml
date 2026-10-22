@@ -353,14 +353,14 @@
                      visibility="{Binding Path=Settings.FormScrollVisibility}"/>
     <controls:button name="ReinitializePage"
                      row="22"
-                     column="19"
+                     column="20"
                      columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ReinitializePage}"
                      command="{Binding Path=Commands.ReinitializePage}"/>
     <controls:button name="EnvironmentSwitch"
                      row="1"
-                     column="21"
+                     column="22"
                      style="secondaryButton"
                      caption="{Binding Path=Text.EnvironmentSwitch}"
                      command="{Binding Path=Commands.EnvironmentSwitch}"
@@ -384,7 +384,7 @@
                      dataContext="{Binding Path=Form}"
                      row="1"
                      column="1"
-                     columnSpan="17"
+                     columnSpan="18"
                      orientation="horizontal"
                      labelPosition="top"
                      labelStyle="formLabel"
@@ -411,7 +411,7 @@
                              closeCaption="{Binding Path=Text.CloseTable}"
                              alignToForm="PersonnelForm"
                              workspaceFirstColumn="1"
-                             workspaceLastColumn="17"
+                             workspaceLastColumn="18"
                              selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
                              selectedItem="{Binding Path=Data.SelectedPersonnel}"
                              onSelect="{Binding Path=Commands.SelectPersonnel}"
@@ -445,158 +445,158 @@
 
     <controls:label name="ActionsSection"
                     row="1"
-                    column="19"
+                    column="20"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"
                      row="2"
-                     column="19"
+                     column="20"
                      columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
     <controls:label name="LastStatusLabel"
                     row="8"
-                    column="19"
+                    column="20"
                     columnSpan="3"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
     <controls:label name="ActionStatus"
                     row="9"
-                    column="19"
+                    column="20"
                     rowSpan="3"
                     columnSpan="3"
                     style="{Binding Path=Form.ActionStatusStyle}"
                     text="{Binding Path=Form.ActionStatus}"/>
     <controls:button name="ExportMovement"
                      row="4"
-                     column="19"
+                     column="20"
                      columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ExportMovement}"
                      command="{Binding Path=Commands.ExportMovement}"/>
     <controls:button name="ExportWord"
                      row="5"
-                     column="19"
+                     column="20"
                      columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ExportWord}"
                      command="{Binding Path=Commands.ExportWord}"/>
     <controls:button name="SaveHistory"
                      row="6"
-                     column="19"
+                     column="20"
                      columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.SaveHistory}"
                      command="{Binding Path=Commands.SaveHistory}"/>
     <controls:button name="ShowHistory"
                      row="7"
-                     column="19"
+                     column="20"
                      columnSpan="3"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ShowHistory}"
                      command="{Binding Path=Commands.ShowHistory}"/>
     <controls:label name="HistoryEditMode"
                     row="12"
-                    column="19"
+                    column="20"
                     columnSpan="3"
                     style="statusHeading"
                     text="{Binding Path=Text.HistoryEditMode}"/>
     <controls:label name="SourceLegendTitle"
                     row="14"
-                    column="19"
+                    column="20"
                     columnSpan="3"
                     style="sectionTitle"
                     text="{Binding Path=Text.SourceLegendTitle}"/>
     <controls:label name="SourceLegendPersonnel"
                     row="15"
-                    column="21"
+                    column="22"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendPersonnelEntry}"/>
     <controls:label name="SourceLegendAbsence"
                     row="18"
-                    column="21"
+                    column="22"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendAbsenceEntry}"/>
     <controls:label name="LegendPersonnelSample"
                     row="15"
-                    column="19"
+                    column="20"
                     style="legendSample"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendPersonnelSeparator"
                     row="15"
-                    column="20"
+                    column="21"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="LegendAbsenceSample"
                     row="18"
-                    column="19"
+                    column="20"
                     style="legendSample"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendAbsenceSeparator"
                     row="18"
-                    column="20"
+                    column="21"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="SourceLegendReturnTickets"
                     row="19"
-                    column="21"
+                    column="22"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendReturnTicketsEntry}"/>
     <controls:label name="LegendReturnTicketsSample"
                     row="19"
-                    column="19"
+                    column="20"
                     style="movementTicketField"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendReturnTicketsSeparator"
                     row="19"
-                    column="20"
+                    column="21"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="LegendOrderDateSample"
                     row="20"
-                    column="19"
+                    column="20"
                     style="currentOrderField"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendOrderDateSeparator"
                     row="20"
-                    column="20"
+                    column="21"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="SourceLegendOrderDate"
                     row="20"
-                    column="21"
+                    column="22"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendOrderDate}"/>
     <controls:label name="LegendHospitalSample"
                     row="16"
-                    column="19"
+                    column="20"
                     style="legendSample"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendHospitalSeparator"
                     row="16"
-                    column="20"
+                    column="21"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="SourceLegendHospital"
                     row="16"
-                    column="21"
+                    column="22"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendHospitalEntry}"/>
     <controls:label name="LegendDocumentSample"
                     row="17"
-                    column="19"
+                    column="20"
                     style="legendSample"
                     text="{Binding Path=Text.SourceLegendSample}"/>
     <controls:label name="LegendDocumentSeparator"
                     row="17"
-                    column="20"
+                    column="21"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendSeparator}"/>
     <controls:label name="SourceLegendDocument"
                     row="17"
-                    column="21"
+                    column="22"
                     style="legendDescription"
                     text="{Binding Path=Text.SourceLegendDocumentEntry}"/>
   </grid>
@@ -896,6 +896,19 @@
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="extensionRemove"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#292929"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="secondaryButton"
                   indent="0"
                   paddingLeft="10"
@@ -962,29 +975,29 @@
                 width:2;
               }"/>
         <rule target="column"
-              selector="address=B:R"
+              selector="address=B:S"
               styles="{
-                width:14;
+                width:13.428571;
               }"/>
         <rule target="column"
-              selector="address=J:R"
-              styles="{width:14.142857;}"/>
+              selector="address=E:S"
+              styles="{width:13.571429;}"/>
         <rule target="column"
-              selector="address=S:S"
+              selector="address=T:T"
               styles="{
                 width:2;
               }"/>
         <rule target="column"
-              selector="address=T:T"
+              selector="address=U:U"
               styles="{
-                width:15;
+                width:12.714286;
               }"/>
         <rule target="column"
-              selector="address=U:U"
-              styles="{width:3;}"/>
-        <rule target="column"
               selector="address=V:V"
-              styles="{width:15;}"/>
+              styles="{width:2.285714;}"/>
+        <rule target="column"
+              selector="address=W:W"
+              styles="{width:12.714286;}"/>
       </layer>
       <layer name="table-parts">
         <rule target="usedRange"

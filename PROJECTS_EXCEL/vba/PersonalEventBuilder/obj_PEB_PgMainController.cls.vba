@@ -125,7 +125,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Personnel lookup"
         Exit Function
     End If
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then Exit Function
+    If Not private_PublishCandidates(m_lookupResult) Then Exit Function
     If Not private_CaptureModeConfig(diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
         Exit Function
@@ -303,7 +303,7 @@ Public Function ResetFormHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Err.Raise 5, , "Cannot clear candidate selection."
     End If
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then
+    If Not private_PublishCandidates(result) Then
         Err.Raise 5, , "Cannot clear candidates."
     End If
     Set m_lookupResult = result
@@ -927,7 +927,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     m_hospitalActive = hospitalActive
     m_documentActive = documentActive
     If Not candidates Is Nothing Then
-        If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", candidates) Then GoTo Failed
+        If Not private_PublishCandidates(candidates) Then GoTo Failed
     End If
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
@@ -1337,7 +1337,7 @@ Failed:
         If Not m_pageBase.BindingContext.TryApplyValues(snapshot, rollbackDiagnostic) Then
             diagnostic = diagnostic & " Restore form: " & rollbackDiagnostic
         End If
-        If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", oldResult) Then
+        If Not private_PublishCandidates(oldResult) Then
             diagnostic = diagnostic & " Cannot restore candidates."
         End If
         If Not private_PublishViewport(rollbackDiagnostic) Then
@@ -1353,6 +1353,14 @@ Failed:
     private_SetActionStatus status, True
     ex_WindowsUi.fn_ShowMessage status, VBA.vbExclamation, ex_PEB_Export.fn_Config("text.TestTitle")
     GoTo Cleanup
+End Function
+
+Private Function private_PublishCandidates(ByVal result As obj_LookupResult) As Boolean
+    Dim primary As Boolean
+
+    primary = Not (m_reporterActive Or m_hospitalActive Or m_documentActive)
+    If Not m_pageBase.BindingContext.SetValue("Data", "PersonnelCandidatesArePrimary", primary) Then Exit Function
+    private_PublishCandidates = m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result)
 End Function
 
 Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boolean
@@ -1381,7 +1389,7 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
         If Not m_lookupService.TrySearch(vbNullString, result, status) Then GoTo Failure
         If Not private_TryEnrichResult(result, status) Then GoTo Failure
         Set m_lookupResult = result
-        m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
+        private_PublishCandidates result
         m_pageBase.BindingContext.SetValue "Text", "PersonnelStatus", m_messages("PersonnelError")
         GoTo Failure
     End If
@@ -1389,14 +1397,14 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
         If m_lookupService.TrySearch(vbNullString, result, status) Then
             If Not private_TryEnrichResult(result, status) Then GoTo Failure
             Set m_lookupResult = result
-            m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", result
+            private_PublishCandidates result
         End If
         GoTo Failure
     End If
     Set m_lookupResult = result
     ex_Core.fn_Diagnostic_WriteLog "LOOKUP_STAGE_STARTED | Name=PublishCandidates"
     startedAt = VBA.Timer
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
+    If Not private_PublishCandidates(result) Then Exit Function
     ex_Core.fn_Diagnostic_WritePerf "Lookup.PublishCandidates | Rows=" & VBA.CStr(result.RowCount), startedAt
     If showCandidates Then
         If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
@@ -1515,7 +1523,7 @@ Private Function private_SearchSecondary( _
         GoTo Failed
     End If
     Set m_lookupResult = projected
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projected) Then
+    If Not private_PublishCandidates(projected) Then
         Err.Raise 5, , "Cannot publish secondary candidates."
     End If
     If showCandidates Then
@@ -1551,7 +1559,7 @@ Failed:
             m_reporterActive = Not hospital And Not document
             m_hospitalActive = hospital
             m_documentActive = document
-            m_pageBase.BindingContext.SetObject "Data", "PersonnelCandidates", projected
+            private_PublishCandidates projected
         End If
     End If
     private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
@@ -2157,7 +2165,7 @@ Private Function private_LoadMode( _
             If Not m_lookupResult Is Nothing Then
                 Set projectedResult = m_lookupResult
                 If Not private_TryEnrichResult(projectedResult, diagnostic) Then Exit Function
-                If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
+                If Not private_PublishCandidates(projectedResult) Then Exit Function
                 Set m_lookupResult = projectedResult
             End If
             If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
@@ -2269,7 +2277,7 @@ Private Function private_LoadMode( _
     Set projectedResult = New obj_LookupResult
     If Not private_SetCandidateSources(columns, modeId, diagnostic) Then Exit Function
     If Not projectedResult.Initialize(records, columns, hasMore, diagnostic) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", projectedResult) Then Exit Function
+    If Not private_PublishCandidates(projectedResult) Then Exit Function
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
@@ -2418,7 +2426,7 @@ Private Function private_ClearPersonnelGroup( _
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     Set emptyResult = New obj_LookupResult
     If Not emptyResult.Initialize(records, m_modeFields, False, diagnostic) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
+    If Not private_PublishCandidates(emptyResult) Then Exit Function
     Set m_lookupResult = emptyResult
     private_ClearPersonnelGroup = True
     Exit Function
@@ -2538,8 +2546,19 @@ Private Function private_PlaceFields( _
     Dim caption As String
     Dim disabledStyle As String
     Dim sectionFields As String
+    Dim sectionKind As Variant
+    Dim sectionIndex As Long
+    Dim sectionPrefix As String
 
-    sectionFields = "|" & ex_PEB_Export.fn_Config("forms.sections.Ticket.fields") & "|"
+    sectionFields = "|"
+    For Each sectionKind In Split(ex_PEB_Export.fn_Config("extensions.types"), "|")
+        sectionPrefix = "extensions.type." & CStr(sectionKind)
+        If ex_PEB_Export.fn_Config(sectionPrefix & ".binding") = "primary" Then
+            For sectionIndex = 1 To ex_PEB_Export.fn_Count(sectionPrefix & ".form.count")
+                sectionFields = sectionFields & ex_PEB_Export.fn_Config(sectionPrefix & ".form." & CStr(sectionIndex) & ".name") & "|"
+            Next sectionIndex
+        End If
+    Next sectionKind
     If Not private_ReadModeConfig("forms.columns.count", widthText, diagnostic) Then Exit Function
     If Not IsNumeric(widthText) Then
         diagnostic = "Invalid configuration: PersonalEventBuilder::forms.columns.count"

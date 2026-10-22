@@ -310,6 +310,7 @@ Private Function private_ResolveFields( _
                         If column.Exists("disabled") Then
                             field.setAttribute "disabled", "true"
                             field.setAttribute "fieldStyle", CStr(column("disabledStyle"))
+                            field.setAttribute "labelStyle", CStr(column("disabledStyle"))
                             field.setAttribute "readOnly", "true"
                             field.setAttribute "required", "false"
                             field.setAttribute "value", "{Binding Path=Disabled" & name & "}"
