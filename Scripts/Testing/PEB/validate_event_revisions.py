@@ -8,6 +8,27 @@ from validate_movement_batch import check_module_contract
 from validate_movement_planner import check_declarations, procedure
 
 
+def check_arrival_to_transition(preview, sparse):
+    existing = procedure(preview, "private_Existing")
+    transition = existing.split('Case "transition"', 1)[1].split('End Select', 1)[0]
+    assert 'If closing Is Nothing Then' in transition
+    assert 'If opening Is Nothing Or closing Is Nothing Then' not in transition
+    assert existing.index('private_PlanBasisSide closing') < existing.index('private_PlanOpening(')
+    assert existing.index('private_Matches(closing("Cells"), joins)') < existing.index('private_PlanOpening(')
+    assert existing.index('fn_Pending(identifier)') < existing.index('private_PlanOpening(')
+    assert existing.index('private_PlanOpening(') < existing.index('rows.Add addedOpening')
+    assert 'action("IsUpdate") = (updates.Count > 0)' in existing
+    opening = procedure(preview, "private_PlanOpening")
+    for guard in ('ExistingIdentityRequiresLink', 'FormulaColumnWrite', 'private_RequireHeader'):
+        assert guard in opening
+    assert 'private_UpdateCell(targetIndex, VBA.CStr(key), VBA.vbNullString, cells(key))' in opening
+    assert 'cells(links("OpeningId")) = action("RowId")' in opening
+    assert 'cells(links("OpeningHash")) = action("OpeningHash")' in opening
+    writer = procedure(sparse, "fn_Apply")
+    assert 'If Not action("IsUpdate") Or action("TargetIndex") > target.ListRows.Count Then' in writer
+    assert writer.index('addedRows = addedRows + 1') < writer.index('private_Extension(target, addedRows)')
+
+
 def main():
     folder = ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder"
     revisions = (folder / "ex_PEB_HistoryRevisions.vba").read_text(encoding="utf-8-sig")
@@ -45,6 +66,7 @@ def main():
     assert "If readSync Then" in procedure(history, "private_Read")
     check_declarations(history)
     check_declarations(controller)
+    check_arrival_to_transition(preview, sparse)
     for source in (revisions, history, batch):
         assert ".ListColumns.Add" not in source
         assert ".Worksheets.Add" not in source
