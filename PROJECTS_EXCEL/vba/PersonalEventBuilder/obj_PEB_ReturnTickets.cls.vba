@@ -194,7 +194,10 @@ Public Function TryEnrichHospital( _
                     rx.Pattern = ex_PEB_Export.fn_Config("lookup.ReturnHospital.cardPattern")
                     rx.IgnoreCase = True
                 End If
-                Set matches = rx.Execute(cached("Basis"))
+                ' VBScript RegExp does not treat nonbreaking spaces as whitespace.
+                value = VBA.Replace$(cached("Basis"), VBA.ChrW$(160), " ")
+                value = VBA.Replace$(value, VBA.ChrW$(8239), " ")
+                Set matches = rx.Execute(value)
                 If matches.Count > 0 Then
                     cached("Movement.Document") = ex_PEB_Export.fn_Config("lookup.ReturnHospital.cardDocument")
                     cached("Movement.DocumentNumber") = matches(0).SubMatches(0)
