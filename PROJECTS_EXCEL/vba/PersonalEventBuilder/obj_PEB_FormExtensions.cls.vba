@@ -154,6 +154,8 @@ Public Function Reset(ByRef diagnostic As String) As Boolean
     Dim row As Object
     Dim field As Variant
 
+    ex_PEB_ExtRefresh.fn_Cancel Me
+
     For Each row In m_rows
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             If Not m_page.BindingContext.SetValue("Form", private_Path(row, CStr(field)), vbNullString) Then Exit Function
