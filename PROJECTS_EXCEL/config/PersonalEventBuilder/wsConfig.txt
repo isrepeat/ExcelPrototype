@@ -1703,3 +1703,10 @@ value	PersonalEventBuilder::eventContext.ToBusinessTrip.targetStatus	BusinessTri
 value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	PersonalEventBuilder::lookup.ReturnTickets.document	В/к
+value	PersonalEventBuilder::text.DeleteLastEvent	Видалити останню подію
+value	PersonalEventBuilder::text.DeleteLastEventConfirm	Видалити останню подію наказу № {order} від {orderDate}: {person}, {event}, дата події {date}? Подію буде скасовано зі збереженням історії ревізій.
+value	PersonalEventBuilder::text.DeleteLastEventReason	Скасування останньої помилково доданої події кнопкою швидкого видалення.
+value	PersonalEventBuilder::text.ReplaceLastEventReason	Заміна останньої скасованої події виправленими даними.
+value	PersonalEventBuilder::text.LastEventDeleted	Останню подію наказу скасовано. Виправте дані та натисніть «Додати / оновити подію», щоб замінити її. Збережіть книгу історії вручну (Ctrl+S).
+value	PersonalEventBuilder::text.LastEventAlreadyDeleted	Останню подію цього наказу вже скасовано. Попередню подію не змінено. Виправте дані та натисніть «Додати / оновити подію», щоб замінити скасовану.
+value	PersonalEventBuilder::text.LastEventChanged	Остання подія наказу змінилася. Перевірте історію та повторіть дію.

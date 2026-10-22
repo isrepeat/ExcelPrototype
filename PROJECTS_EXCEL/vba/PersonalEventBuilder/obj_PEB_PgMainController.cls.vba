@@ -55,6 +55,7 @@ Private m_historyOrderNumber As String
 Private m_historyOrderDate As String
 Private m_conflicts As Collection
 Private m_extensions As obj_PEB_FormExtensions
+Private m_replacementEvent As Object
 
 ' //
 ' // Lifecycle
@@ -161,6 +162,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    Set m_replacementEvent = Nothing
     If Not m_extensions Is Nothing Then m_extensions.Dispose
     Set m_extensions = Nothing
     If Not m_exportService Is Nothing Then m_exportService.Dispose
@@ -289,6 +291,7 @@ Public Function ResetFormHandler() As Boolean
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    Set m_replacementEvent = Nothing
     If Not private_ReadModeConfig("forms.styledFields", fields, diagnostic) Then GoTo Failed
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each fieldName In VBA.Split(fields, "|")
@@ -811,6 +814,65 @@ Public Function SaveHistoryHandler() As Boolean
     SaveHistoryHandler = private_Export("History")
 End Function
 
+Public Function DeleteLastEventHandler() As Boolean
+    Dim row As Object
+    Dim current As Object
+    Dim diagnostic As String
+    Dim prompt As String
+    Dim identifier As String
+    Dim stamp As String
+    Dim status As String
+
+    On Error GoTo EH_DELETE
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        DeleteLastEventHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If Not private_ReadLastOrderEvent(row, diagnostic) Then GoTo FailedDelete
+    If row("Status") = "Cancelled" Then
+        If Not private_EndHistoryEdit() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
+        Set m_replacementEvent = row
+        DeleteLastEventHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.LastEventAlreadyDeleted"), False)
+        Exit Function
+    End If
+    identifier = CStr(row("RowId"))
+    stamp = ex_PEB_History.fn_Stamp(row)
+    prompt = ex_PEB_Export.fn_Config("text.DeleteLastEventConfirm")
+    prompt = Replace$(prompt, "{person}", CStr(row("PersonName")))
+    prompt = Replace$(prompt, "{event}", CStr(row("EventLabel")))
+    prompt = Replace$(prompt, "{date}", CStr(row("EventDate")))
+    prompt = Replace$(prompt, "{order}", CStr(row("AcceptedOrderNumber")))
+    prompt = Replace$(prompt, "{orderDate}", CStr(row("AcceptedOrderDate")))
+    If ex_WindowsUi.fn_ShowMessage(prompt, vbYesNo Or vbQuestion Or vbDefaultButton2, _
+            ex_PEB_Export.fn_Config("text.DeleteLastEvent")) <> vbYes Then
+        DeleteLastEventHandler = True
+        Exit Function
+    End If
+    ' Re-read the workbook after confirmation; another action may have changed the last event.
+    If Not private_ReadLastOrderEvent(current, diagnostic) Then GoTo FailedDelete
+    If current("RowId") <> identifier Or ex_PEB_History.fn_Stamp(current) <> stamp Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
+    End If
+    If Not ex_PEB_History.fn_SetStatus(current, "Cancelled", _
+            ex_PEB_Export.fn_Config("text.DeleteLastEventReason"), stamp, diagnostic) Then GoTo FailedDelete
+    Set m_replacementEvent = Nothing
+    status = ex_PEB_Export.fn_Config("text.LastEventDeleted")
+    If private_ReadLastOrderEvent(current, diagnostic) Then
+        If current("RowId") = identifier And current("Status") = "Cancelled" Then Set m_replacementEvent = current
+    Else
+        status = status & " " & diagnostic
+    End If
+    If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
+    If Not private_RefreshHistory(vbNullString, diagnostic) Then status = status & " " & diagnostic
+    DeleteLastEventHandler = private_SetActionStatus(status, False)
+    Exit Function
+EH_DELETE:
+    diagnostic = Err.Description
+FailedDelete:
+    DeleteLastEventHandler = private_SetActionStatus(diagnostic, True)
+End Function
+
 Public Function EventVersionsHandler() As Boolean
     Dim diagnostic As String
     Dim identifier As String
@@ -917,6 +979,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
     End If
     Set row = m_historyRows(record.Key)
+    Set m_replacementEvent = Nothing
     If Not private_EndHistoryEdit() Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", scalar) Then Exit Function
     m_editHistoryAutoFill = scalar
@@ -1226,6 +1289,27 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_ReadLastOrderEvent(ByRef row As Object, ByRef diagnostic As String) As Boolean
+    Dim orderNumber As Variant
+    Dim orderDate As Variant
+    Dim events As Collection
+
+    Set row = Nothing
+    diagnostic = ex_PEB_Export.fn_Config("text.OrderChooseRequired")
+    If Not private_TryReadFormValue("AcceptedOrderNumber", orderNumber) Then Exit Function
+    If Not private_TryReadFormValue("AcceptedOrderDate", orderDate) Then Exit Function
+    If IsNumeric(orderDate) And VarType(orderDate) <> vbString Then orderDate = CDate(orderDate)
+    If Not ex_PEB_History.fn_ReadOrder(CStr(orderNumber), orderDate, events, diagnostic, True, Nothing, False) Then Exit Function
+    If events.Count = 0 Then
+        diagnostic = ex_PEB_Export.fn_Config("text.HistoryEmptyOrder")
+        Exit Function
+    End If
+    ' ReadOrder returns root events sorted by their persisted RowOrder, with their child records attached.
+    Set row = events(events.Count)
+    diagnostic = vbNullString
+    private_ReadLastOrderEvent = True
+End Function
+
 Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     Dim pebTestScenarios As obj_PEB_TestScenarios
     Dim updates As Object
@@ -1891,6 +1975,7 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim pebExportService As obj_PEB_ExportService
     Dim pebExptrMovement As obj_PEB_ExptrMovement
     Dim values As Object
+    Dim replacement As Object
     Dim diagnostic As String
     Dim exporter As String
     Dim success As Boolean
@@ -1959,6 +2044,22 @@ Private Function private_Export(ByVal action As String) As Boolean
             values("DateToShort") = m_editHistoryRow("DateToShort")
         End If
     End If
+    If exporter = "History" And m_editHistoryRow Is Nothing Then
+        If Not m_replacementEvent Is Nothing Then
+            If CStr(values("AcceptedOrderNumber")) = CStr(m_replacementEvent("AcceptedOrderNumber")) And _
+                    ex_PEB_History.fn_Date(values("AcceptedOrderDate")) = ex_PEB_History.fn_Date(m_replacementEvent("AcceptedOrderDate")) Then
+                If Not private_ReadLastOrderEvent(replacement, diagnostic) Then GoTo Failed
+                If replacement("RowId") <> m_replacementEvent("RowId") Or _
+                        ex_PEB_History.fn_Stamp(replacement) <> ex_PEB_History.fn_Stamp(m_replacementEvent) Then
+                    Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
+                End If
+                values("RowId") = replacement("RowId")
+                values("ExpectedHistoryStamp") = ex_PEB_History.fn_Stamp(replacement)
+                values("RequestedStatus") = "Active"
+                values("ChangeReason") = ex_PEB_Export.fn_Config("text.ReplaceLastEventReason")
+            End If
+        End If
+    End If
     If exporter = "Word" Then
         If values("WordPolicy") = "Omit" Then
             status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
@@ -1975,6 +2076,7 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     ElseIf exporter = "History" Then
         success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing), m_exportService)
+        If success Then Set m_replacementEvent = Nothing
         If success Then
             If values("FormExtensionRows").Count <> extensionRows.Count Then
                 If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic, True) Then GoTo Failed

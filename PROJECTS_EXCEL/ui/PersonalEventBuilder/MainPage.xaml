@@ -456,6 +456,13 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
+    <controls:button name="DeleteLastEvent"
+                     row="23"
+                     column="20"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.DeleteLastEvent}"
+                     command="{Binding Path=Commands.DeleteLastEvent}"/>
     <controls:label name="LastStatusLabel"
                     row="8"
                     column="20"
@@ -862,7 +869,7 @@
                   backColor="#2D2D2D"
                   textColor="#FFFFFF"
                   fontName="Calibri"
-                  fontSize="9"
+                  fontSize="10"
                   fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
@@ -876,7 +883,7 @@
                   paddingRight="10"
                   backColor="#505050"
                   fontName="Calibri"
-                  fontSize="9"
+                  fontSize="10"
                   fontBold="false"
                   borderColor="#808080"
                   borderWeight="thin"
@@ -1013,7 +1020,7 @@
         <rule target="usedRange"
               selector="row=14:"
               styles="{
-                rowHeight:25;
+                rowHeight:38;
               }"/>
         <rule target="control"
               selector="name=OrderQuery"
