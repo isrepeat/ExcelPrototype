@@ -167,6 +167,17 @@
       </text>
     </column>
   </template>
+  <template name="ToBusinessTrip">
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
   <template name="ToAnnualMainVacation">
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>

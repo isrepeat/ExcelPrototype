@@ -507,6 +507,16 @@ Private Sub private_BuildEvents()
         "", _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
+        "ToBusinessTrip", _
+        "Departure", _
+        "Departure", _
+        "", _
+        "BusinessTrip", _
+        "Destination", _
+        "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+    private_AddEvent _
         "ToAnnualMainVacation", _
         "Departure", _
         "Departure", _
