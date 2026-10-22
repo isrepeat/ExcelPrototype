@@ -61,7 +61,7 @@ column	tbTickets::column.tvo_ipn	ТВО.ІПН
 column	tbTickets::column.document	Супровідний документ
 column	tbTickets::column.duration	Вибуття.Термін
 column	tbTickets::column.out_date	Вибуття
-column	tbTickets::column.out_food	Вибуття.Продовольче
+column	tbTickets::column.out_food	Вибуття.ПЗ
 column	tbTickets::column.position	Посада
 column	tbTickets::column.out_order	Вибуття.Наказ
 column	tbTickets::column.destination	Куди

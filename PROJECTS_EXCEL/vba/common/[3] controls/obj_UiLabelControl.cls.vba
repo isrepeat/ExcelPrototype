@@ -13,6 +13,7 @@ Option Explicit
 
 Implements obj_IUiControl
 Implements obj_IUiBindingTarget
+Implements obj_IUiEventHandler
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -20,6 +21,7 @@ Private m_isDisposed As Boolean
 Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
+Private m_registeredRange As Range
 
 ' //
 ' // Lifecycle
@@ -131,6 +133,28 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
     obj_IUiBindingTarget_RefreshBindings = private_Render(context)
 End Function
 
+Private Function obj_IUiEventHandler_HandleEvent( _
+    ByVal kind As String, _
+    ByVal payload As Variant _
+) As Boolean
+    Dim previousEvents As Boolean
+    Dim caption As String
+
+    If Not m_isInitialized Or m_isDisposed Or kind <> "change" Then Exit Function
+    If m_registeredRange Is Nothing Then Exit Function
+    If Not m_uiControlBase.TryGetCaption(m_renderContext.BindingContext, caption) Then Exit Function
+    previousEvents = Application.EnableEvents
+    On Error GoTo EH_HEADER
+    Application.EnableEvents = False
+    m_registeredRange.Cells(1, 1).Value2 = caption
+    Application.EnableEvents = previousEvents
+    obj_IUiEventHandler_HandleEvent = True
+    Exit Function
+EH_HEADER:
+    Application.EnableEvents = previousEvents
+    Err.Raise Err.Number, "Label.HandleEvent", Err.Description
+End Function
+
 ' //
 ' // API
 ' //
@@ -140,6 +164,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    private_UnregisterHeader
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
     Set m_renderContext = Nothing
@@ -159,6 +184,16 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_UnregisterHeader()
+    Dim cell As Range
+
+    If m_registeredRange Is Nothing Then Exit Sub
+    For Each cell In m_registeredRange.Cells
+        m_renderContext.Router.UnregisterCell cell
+    Next cell
+    Set m_registeredRange = Nothing
+End Sub
+
 Private Function private_Configure(ByVal controlNode As Object) As Boolean
     private_Configure = m_uiControlBase.Configure(controlNode)
 End Function
@@ -166,6 +201,7 @@ End Function
 Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As Boolean
     Dim startedAt As Double
     Dim targetRange As Range
+    Dim cell As Range
 
     startedAt = VBA.Timer
     Dim captionText As String
@@ -176,6 +212,13 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If targetRange.Cells.CountLarge > 1 Then targetRange.Merge
     targetRange.Value2 = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    If ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "readOnly") = "true" Then
+        private_UnregisterHeader
+        Set m_registeredRange = targetRange
+        For Each cell In m_registeredRange.Cells
+            uiRenderContext.Router.RegisterCell cell, Me
+        Next cell
+    End If
     private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Label.Render", startedAt
 End Function

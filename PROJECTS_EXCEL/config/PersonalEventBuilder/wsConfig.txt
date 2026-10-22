@@ -398,7 +398,7 @@ value	PersonalEventBuilder::forms.Leave.fields.15.sourceAlias	Absence
 value	PersonalEventBuilder::forms.Leave.fields.count	15
 value	PersonalEventBuilder::forms.Leave.lookup.key	PersonName
 value	PersonalEventBuilder::forms.Leave.lookup.dependents	Destination|PersonRank|PersonId|PositionCode|PersonPosition|TicketNumber|TicketDate
-value	PersonalEventBuilder::forms.columns.count	17
+value	PersonalEventBuilder::forms.columns.count	18
 value	PersonalEventBuilder::forms.columns.fixed.Document	13
 value	PersonalEventBuilder::forms.columns.fixed.PersonId	5
 value	PersonalEventBuilder::forms.columns.fixed.PersonName	4
@@ -415,7 +415,7 @@ value	PersonalEventBuilder::forms.columns.fixed.ReportPositionCode	10
 value	PersonalEventBuilder::forms.columns.groups.Left	Hospital|HospitalShortName|Destination
 value	PersonalEventBuilder::forms.columns.groups.Right	TicketNumber|TicketDate|EventDate|DurationDays
 value	PersonalEventBuilder::forms.columns.ranges.Left	1|2
-value	PersonalEventBuilder::forms.columns.ranges.Right	16|17
+value	PersonalEventBuilder::forms.columns.ranges.Right	16|18
 value	PersonalEventBuilder::forms.columns.scrollStep	1
 value	PersonalEventBuilder::forms.columns.disabledStyle	disabledField
 value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|TicketNumber|TicketDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
@@ -459,10 +459,6 @@ value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToVaca
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyVacationForCuringToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyForTreatmentToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromMedicalCompanyVacationForCuringToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|TicketNumber|TicketDate
-value	PersonalEventBuilder::forms.sections.Ticket.anchor	Document
-value	PersonalEventBuilder::forms.sections.Ticket.fields	TicketNumber|TicketDate
-value	PersonalEventBuilder::forms.sections.Ticket.marker	Обов’язково
-value	PersonalEventBuilder::forms.sections.Ticket.caption	Квиток
 value	PersonalEventBuilder::forms.Treatment.fields.1.name	Hospital
 value	PersonalEventBuilder::forms.Treatment.fields.1.captionKey	PersonalEventBuilder::text.ModeHospitalLabel
 value	PersonalEventBuilder::forms.Treatment.fields.2.name	HospitalShortName
@@ -1265,8 +1261,8 @@ value	PersonalEventBuilder::export.Movement.headers.DepartureDate	Вибуття
 value	PersonalEventBuilder::export.Movement.headers.DepartureBasis	Вибуття.Підстава
 value	PersonalEventBuilder::export.Movement.headers.DepartureOrder	Вибуття.Наказ
 value	PersonalEventBuilder::export.Movement.headers.TicketDocument	Супровідний документ
-value	PersonalEventBuilder::export.Movement.headers.ArrivalFoodSupport	Прибуття.Продовольче
-value	PersonalEventBuilder::export.Movement.headers.DepartureFoodSupport	Вибуття.Продовольче
+value	PersonalEventBuilder::export.Movement.headers.ArrivalFoodSupport	Прибуття.ПЗ
+value	PersonalEventBuilder::export.Movement.headers.DepartureFoodSupport	Вибуття.ПЗ
 value	PersonalEventBuilder::export.Movement.templates.path	./PersonalEventBuilderMovementTemplates.xml
 value	PersonalEventBuilder::export.Movement.dateFormat	dd.mm.yyyy
 value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
@@ -1620,6 +1616,7 @@ value	PersonalEventBuilder::extensions.type.TVO.form.5.format	@
   ref	PersonalEventBuilder::extensions.type.TVO.form.5.caption	PersonalEventBuilder::text.ModePersonPositionLabel
 value	PersonalEventBuilder::extensions.type.TVO.form.count	5
 value	PersonalEventBuilder::extensions.type.TVO.anchor	PersonRank
+value	PersonalEventBuilder::extensions.type.TVO.binding	child
 value	PersonalEventBuilder::extensions.type.TVO.caption	ТВО
 value	PersonalEventBuilder::extensions.type.TVO.lookups	export.Word.meta.lookups
 value	PersonalEventBuilder::extensions.type.TVO.profile	Personnel
@@ -1650,12 +1647,25 @@ value	PersonalEventBuilder::extensions.type.Report.form.5.format	dd.mm.yyyy
   ref	PersonalEventBuilder::extensions.type.Report.form.5.caption	PersonalEventBuilder::text.ModeIncomingDateLabel
 value	PersonalEventBuilder::extensions.type.Report.form.count	5
 value	PersonalEventBuilder::extensions.type.Report.anchor	ReportRank
+value	PersonalEventBuilder::extensions.type.Report.binding	child
 value	PersonalEventBuilder::extensions.type.Report.caption	Ще один рапорт
 value	PersonalEventBuilder::extensions.type.Report.lookups	export.shared.lookups
 value	PersonalEventBuilder::extensions.type.Report.profile	Personnel
 value	PersonalEventBuilder::extensions.type.Report.defaults	IncomingDate=AcceptedOrderDate
 value	PersonalEventBuilder::extensions.type.Report.readOnly	ReportRank|ReportPositionCode
 value	PersonalEventBuilder::extensions.type.Report.required	ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::extensions.type.Ticket.form.1.name	TicketNumber
+value	PersonalEventBuilder::extensions.type.Ticket.form.1.type	text
+value	PersonalEventBuilder::extensions.type.Ticket.form.1.format	@
+value	PersonalEventBuilder::extensions.type.Ticket.form.1.caption	Квиток.№
+value	PersonalEventBuilder::extensions.type.Ticket.form.2.name	TicketDate
+value	PersonalEventBuilder::extensions.type.Ticket.form.2.type	date
+value	PersonalEventBuilder::extensions.type.Ticket.form.2.format	dd.mm.yyyy
+value	PersonalEventBuilder::extensions.type.Ticket.form.2.caption	Квиток.Дата
+value	PersonalEventBuilder::extensions.type.Ticket.form.count	2
+value	PersonalEventBuilder::extensions.type.Ticket.anchor	Document
+value	PersonalEventBuilder::extensions.type.Ticket.binding	primary
+value	PersonalEventBuilder::extensions.type.Ticket.caption	Квиток
 value	PersonalEventBuilder::extensions.type.Document.key	Document
 value	PersonalEventBuilder::extensions.type.Document.map	Document=Document.Name
 value	PersonalEventBuilder::extensions.type.Document.form.1.name	Document
@@ -1672,6 +1682,7 @@ value	PersonalEventBuilder::extensions.type.Document.form.3.format	dd.mm.yyyy
   ref	PersonalEventBuilder::extensions.type.Document.form.3.caption	PersonalEventBuilder::text.ModeDocumentDateLabel
 value	PersonalEventBuilder::extensions.type.Document.form.count	3
 value	PersonalEventBuilder::extensions.type.Document.anchor	Document
+value	PersonalEventBuilder::extensions.type.Document.binding	child
 value	PersonalEventBuilder::extensions.type.Document.caption	Ще один документ
 value	PersonalEventBuilder::extensions.type.Document.lookups	-
 value	PersonalEventBuilder::extensions.type.Document.profile	Document
@@ -1680,7 +1691,7 @@ value	PersonalEventBuilder::extensions.type.Document.readOnly	-
 value	PersonalEventBuilder::extensions.type.Document.required	Document
 value	PersonalEventBuilder::extensions.limit	20
 value	PersonalEventBuilder::extensions.modes	MoveFromHospitalToVacationForCuring
-value	PersonalEventBuilder::extensions.types	TVO|Report|Document
+value	PersonalEventBuilder::extensions.types	TVO|Report|Document|Ticket
 value	PersonalEventBuilder::extensions.invalid	Заповніть обов’язкові поля розширення: {field}
 value	PersonalEventBuilder::extensions.addCaption	+
 value	PersonalEventBuilder::extensions.errorTitle	Розширення форми

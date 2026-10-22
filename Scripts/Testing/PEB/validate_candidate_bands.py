@@ -26,7 +26,7 @@ def main():
     assert "private_SelectedArea(m_selectedRow)" in procedure(table, "obj_IUiEventHandler_HandleEvent")
     assert "private_AddCandidateCell lane, private_ExtensionColumn" in procedure(manager, "private_BuildRows")
     assert 'private_Config(kind, "anchor")' in procedure(manager, "private_Allowed")
-    assert 'private_Config(kind, "fields")' not in procedure(manager, "private_Allowed")
+    assert 'private_Config(kind, "binding")' in procedure(manager, "private_Allowed")
     assert '+ index - 1' in procedure(manager, "private_ExtensionColumn")
     assert 'private_FieldConfig(row("Type"), CStr(field), "caption")' in procedure(manager, "private_BuildRows")
     assert 'private_FieldConfig(row("Type"), CStr(field), "format")' in procedure(manager, "private_BuildRows")
@@ -34,6 +34,7 @@ def main():
         config = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         for kind in config["extensions.types"].split("|"):
             prefix = f"extensions.type.{kind}"
+            assert config[prefix + ".binding"] in ("primary", "child")
             assert prefix + ".fields" not in config
             assert prefix + ".dates" not in config
             assert prefix + ".start" not in config
@@ -48,6 +49,8 @@ def main():
                 if config[field + ".format"] == "dd.mm.yyyy":
                     assert config[field + ".type"] == "date"
             assert len(names) == len(set(names))
+        assert config["extensions.type.Ticket.binding"] == "primary"
+        assert not any(key.startswith("forms.sections.Ticket.") for key in config)
     # Independent names need no matching primary field; only the anchor sets position.
     assert [13 + index for index, _ in enumerate(("CardKind", "CardCode", "IssuedOn"))] == [13, 14, 15]
     export = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_Export.vba").read_text(encoding="utf-8-sig")
@@ -64,11 +67,23 @@ def main():
     assert 'Case "text", "number", "date"' in normalize
     assert 'If Not IsNumeric(value)' in normalize
     assert 'fn_ParseDate(value, field)' in normalize
-    assert "m_candidateLanes + 1" in procedure(manager, "private_BuildTicket")
+    assert 'private_BuildTicket' not in manager
+    assert 'forms.sections.Ticket' not in manager
+    assert 'Set renderRows = private_RenderRows()' in procedure(manager, "private_BuildRows")
+    assert '"binding") = "primary"' in procedure(manager, "private_RenderRows")
     publish = procedure(manager, "private_PublishCandidateDetails")
     assert "record.TryGetValue sourceField" in publish
     assert 'record.GetDetail(CStr(extension("Type")))' in publish
     assert 'TryGetValue("Form"' not in publish
+    assert '"PersonnelCandidatesArePrimary"' in publish
+    assert 'If result Is Nothing Or Not primary Then' in publish
+    controller = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
+    check_declarations(controller)
+    check_blocks(controller)
+    publish_source = procedure(controller, "private_PublishCandidates")
+    assert 'Not (m_reporterActive Or m_hospitalActive Or m_documentActive)' in publish_source
+    assert publish_source.index('"PersonnelCandidatesArePrimary"') < publish_source.index('"PersonnelCandidates", result')
+    assert controller.count('SetObject("Data", "PersonnelCandidates",') == 1
     assert 'cell.Add "sourceAlias", sourceAlias' in publish
     assert 'lookup.ReturnTickets.sourceAlias' in publish
     assert "candidates.AppendDetailSourceRanges m_bodyRange, sourceRanges" in procedure(table, "private_Render")

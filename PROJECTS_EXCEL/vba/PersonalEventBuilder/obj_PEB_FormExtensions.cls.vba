@@ -221,6 +221,7 @@ Public Function Build( _
     End If
     Set groups = CreateObject("Scripting.Dictionary")
     For Each kind In Split(private_ReadConfig("extensions.types"), "|")
+        If private_Config(CStr(kind), "binding") = "primary" Then GoTo NextKind
         If Not private_Visible(CStr(kind)) Then GoTo NextKind
         anchor = private_Config(CStr(kind), "anchor")
         If Not groups.Exists(anchor) Then
@@ -271,7 +272,6 @@ NextHeader:
     Set m_candidateCells = New Collection
     m_candidateLanes = 0
     private_BuildRows document, body
-    private_BuildTicket document, body
     private_PublishCandidateDetails
     For Each row In m_rows
         If Not private_Active(row) Then GoTo NextCandidates
@@ -573,6 +573,10 @@ Private Function private_ModeId() As String
 End Function
 
 Private Function private_Allowed(ByVal kind As String) As Boolean
+    If private_Config(kind, "binding") = "primary" Then
+        private_Allowed = private_HasFormFields(private_Config(kind, "fields"))
+        Exit Function
+    End If
     private_Allowed = private_HasFormFields(private_Config(kind, "anchor"))
 End Function
 
@@ -593,69 +597,6 @@ Private Function private_HasFormFields(ByVal fieldNames As String) As Boolean
     private_HasFormFields = True
 End Function
 
-Private Sub private_BuildTicket( _
-    ByVal document As Object, _
-    ByVal body As Object _
-)
-    Dim fields As Variant
-    Dim field As Variant
-    Dim grid As Object
-    Dim form As Object
-    Dim node As Object
-    Dim column As Long
-    Dim width As Long
-    Dim titleColumn As Long
-    Dim markerColumn As Long
-
-    If Not private_HasFormFields(private_ReadConfig("forms.sections.Ticket.fields")) Then Exit Sub
-    fields = Split(private_ReadConfig("forms.sections.Ticket.fields"), "|")
-    width = CLng(private_ReadConfig("forms.columns.count"))
-    column = private_Column(private_ReadConfig("forms.sections.Ticket.anchor"))
-    If width < UBound(fields) + 4 Then Err.Raise 5, , private_ReadConfig("extensions.noServiceSpace")
-    If column < 1 Or column + UBound(fields) > width Then Exit Sub
-    titleColumn = column - 1
-    markerColumn = column + UBound(fields) + 1
-    If titleColumn < 1 Then titleColumn = width
-    If markerColumn > width Then markerColumn = 1
-    If titleColumn = markerColumn Then Err.Raise 5, , private_ReadConfig("extensions.noServiceSpace")
-    Set grid = private_Node(document, "grid")
-    Set node = private_Node(document, "controls:label")
-    node.setAttribute "name", "TicketTitle"
-    node.setAttribute "column", CStr(titleColumn)
-    node.setAttribute "rowSpan", "2"
-    node.setAttribute "style", "statusHeading"
-    node.setAttribute "text", private_ReadConfig("forms.sections.Ticket.caption")
-    grid.appendChild node
-    Set node = private_Node(document, "controls:label")
-    node.setAttribute "name", "TicketMarker"
-    node.setAttribute "column", CStr(markerColumn)
-    node.setAttribute "rowSpan", "2"
-    node.setAttribute "style", "requiredMarker"
-    node.setAttribute "text", private_ReadConfig("forms.sections.Ticket.marker")
-    grid.appendChild node
-    Set form = private_Node(document, "controls:form")
-    form.setAttribute "name", "TicketForm"
-    form.setAttribute "dataContext", "{Binding Path=Form}"
-    form.setAttribute "column", CStr(column)
-    form.setAttribute "orientation", "horizontal"
-    form.setAttribute "labelPosition", "top"
-    form.setAttribute "labelStyle", "formLabel"
-    form.setAttribute "fieldStyle", "formField"
-    For Each field In fields
-        private_AddCandidateCell m_candidateLanes + 1, column + form.ChildNodes.Length, CStr(field), Nothing
-        Set node = private_Node(document, "field")
-        node.setAttribute "name", CStr(field)
-        node.setAttribute "type", "text"
-        node.setAttribute "value", "{Binding Path=" & field & "}"
-        node.setAttribute "label", private_ReadConfig("text.Mode" & field & "Label")
-        node.setAttribute "fieldStyle", "{Binding Path=Form." & field & "Style}"
-        node.setAttribute "readOnly", "{Binding Path=Form." & field & "ReadOnly}"
-        node.setAttribute "partStylesEnabled", "true"
-        form.appendChild node
-    Next field
-    grid.appendChild form
-    body.appendChild grid
-End Sub
 
 Private Function private_Visible(ByVal kind As String) As Boolean
     Dim column As Long
@@ -675,6 +616,10 @@ End Function
 Private Function private_Required(ByVal row As Object) As Boolean
     Dim roles As String
 
+    If private_Config(row("Type"), "binding") = "primary" Then
+        private_Required = True
+        Exit Function
+    End If
     If row("Mode") <> m_mode Or Len(row("Role")) = 0 Then Exit Function
     If InStr(1, "|" & private_ReadConfig("extensions.modes") & "|", "|" & m_mode & "|", vbBinaryCompare) = 0 Then Exit Function
     roles = private_ReadConfig("extensions.mode." & m_mode & ".required")
@@ -762,11 +707,13 @@ Private Sub private_BuildRows( _
     Dim key As String
     Dim path As String
     Dim caption As String
+    Dim renderRows As Collection
 
     Set occupied = CreateObject("Scripting.Dictionary")
     Set grid = private_Node(document, "grid")
     width = CLng(private_ReadConfig("forms.columns.count"))
-    For Each row In m_rows
+    Set renderRows = private_RenderRows()
+    For Each row In renderRows
         If Not private_Active(row) Then GoTo NextRow
         If Not private_Visible(row("Type")) Then GoTo NextRow
         Set slots = CreateObject("Scripting.Dictionary")
@@ -834,6 +781,7 @@ Private Sub private_BuildRows( _
         node.setAttribute "rowSpan", "2"
         node.setAttribute "style", "secondaryButton"
         If private_Required(row) Then node.setAttribute "style", "requiredMarker"
+        If Not private_Required(row) Then node.setAttribute "style", "extensionRemove"
         grid.appendChild node
         Set form = private_Node(document, "controls:form")
         form.setAttribute "name", "ExForm" & row("Id")
@@ -849,7 +797,11 @@ Private Sub private_BuildRows( _
         form.setAttribute "fieldStyle", "formField"
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             path = private_Path(row, CStr(field))
-            private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), row
+            If private_Config(row("Type"), "binding") = "primary" Then
+                private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), Nothing
+            Else
+                private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), row
+            End If
             If lane > m_candidateLanes Then m_candidateLanes = lane
             Set node = private_Node(document, "field")
             node.setAttribute "name", path
@@ -866,6 +818,10 @@ Private Sub private_BuildRows( _
             End Select
             node.setAttribute "fieldStyle", "{Binding Path=Form." & path & "Style}"
             node.setAttribute "partStylesEnabled", "true"
+            If private_Config(row("Type"), "binding") = "primary" Then
+                node.setAttribute "readOnly", "{Binding Path=Form." & path & "ReadOnly}"
+                GoTo AppendField
+            End If
             If InStr(1, "|" & private_Config(row("Type"), "readOnly") & "|", "|" & field & "|", vbBinaryCompare) > 0 Then
                 node.setAttribute "readOnly", "{Binding Path=Form.AutoFillPersonnel}"
             End If
@@ -874,6 +830,7 @@ Private Sub private_BuildRows( _
                 private_Command key, private_Payload("search", row)
                 node.setAttribute "onChange", "{Binding Path=Commands." & key & "}"
             End If
+AppendField:
             form.appendChild node
         Next field
         grid.appendChild form
@@ -881,6 +838,30 @@ NextRow:
     Next row
     If grid.ChildNodes.Length > 0 Then body.appendChild grid
 End Sub
+
+Private Function private_RenderRows() As Collection
+    Dim rows As New Collection
+    Dim row As Object
+    Dim kind As Variant
+
+    For Each row In m_rows
+        If private_Required(row) Then rows.Add row
+    Next row
+    For Each kind In Split(private_ReadConfig("extensions.types"), "|")
+        If private_Config(CStr(kind), "binding") = "primary" Then
+            Set row = CreateObject("Scripting.Dictionary")
+            row("Type") = CStr(kind)
+            row("Id") = "Primary" & CStr(kind)
+            row("Mode") = vbNullString
+            row("Role") = vbNullString
+            rows.Add row
+        End If
+    Next kind
+    For Each row In m_rows
+        If Not private_Required(row) Then rows.Add row
+    Next row
+    Set private_RenderRows = rows
+End Function
 
 Private Sub private_AddCandidateCell(ByVal lane As Long, ByVal column As Long, ByVal field As String, ByVal extension As Object)
     Dim cell As Object
@@ -923,14 +904,18 @@ Private Sub private_PublishCandidateDetails()
     Dim pair As Variant
     Dim sourceField As String
     Dim sourceAlias As String
+    Dim primary As Boolean
 
     Set cells = New Collection
+    If m_page.BindingContext.TryGetValue("Data", "PersonnelCandidatesArePrimary", value, source, isObject) Then
+        If Not isObject Then primary = CBool(value)
+    End If
     If m_page.BindingContext.TryGetValue("Data", "PersonnelCandidates", value, source, isObject) Then
         If isObject Then
             If TypeOf source Is obj_LookupResult Then Set result = source
         End If
     End If
-    If result Is Nothing Then
+    If result Is Nothing Or Not primary Then
         If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", cells) Then Err.Raise 5, , "Cannot publish candidate details."
         Exit Sub
     End If
@@ -1087,6 +1072,10 @@ Private Function private_Path( _
     ByVal row As Object, _
     ByVal field As String _
 ) As String
+    If private_Config(row("Type"), "binding") = "primary" Then
+        private_Path = field
+        Exit Function
+    End If
     private_Path = "Ex" & row("Id") & "_" & field
 End Function
 

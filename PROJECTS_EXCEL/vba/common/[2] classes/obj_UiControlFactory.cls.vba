@@ -126,6 +126,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.RequireAnyAttribute "text|caption"
             schema.AddAttribute "text", "string", False, "", True, 0
             schema.AddAttribute "caption", "string", False, "", True, 0
+            If m_type = "label" Then schema.AddAttribute "readOnly", "boolean", False, "", False, 0
             If m_type = "checkbox" Then
                 schema.AddAttribute "onChange", "string", False, "", True, 0
                 schema.AddAttribute "commandParameter", "string", False, "", True, 0
