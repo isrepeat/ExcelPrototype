@@ -401,6 +401,7 @@
                   orientation="vertical">
         <controls:candidates name="Candidates"
                              itemsSource="{Binding Path=Data.PersonnelCandidates}"
+                             detailsSource="{Binding Path=Data.PersonnelCandidateDetails}"
                              textWarningLimit="{Binding Path=Settings.CandidateTextWarningLimit}"
                              textWarningColumn="{Binding Path=Settings.CandidateTextWarningColumn}"
                              column="1"
@@ -861,7 +862,7 @@
                   backColor="#2D2D2D"
                   textColor="#FFFFFF"
                   fontName="Calibri"
-                  fontSize="11"
+                  fontSize="9"
                   fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
@@ -875,11 +876,24 @@
                   paddingRight="10"
                   backColor="#505050"
                   fontName="Calibri"
-                  fontSize="11"
+                  fontSize="9"
                   fontBold="false"
                   borderColor="#808080"
                   borderWeight="thin"
                   borderScope="outline"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="requiredMarker"
+                  indent="0"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#3B3B3B"
+                  textColor="#92D050"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="true"
+                  borderColor="#000000"
+                  borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="secondaryButton"
@@ -984,9 +998,9 @@
                 rowHeight:45;
               }"/>
         <rule target="usedRange"
-              selector="row=16:"
+              selector="row=14:"
               styles="{
-                rowHeight:45;
+                rowHeight:25;
               }"/>
         <rule target="control"
               selector="name=OrderQuery"

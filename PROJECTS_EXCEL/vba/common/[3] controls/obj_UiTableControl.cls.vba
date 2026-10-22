@@ -161,7 +161,7 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     End If
     If m_selectedRow <> rowIndex Then
         If m_selectedRow > 0 And m_partStylesEnabled And VBA.Len(m_selectedStyle) > 0 Then
-            m_renderContext.Styles.RestoreControlArea m_bodyRange.Rows(m_selectedRow), _
+            m_renderContext.Styles.RestoreControlArea private_SelectedArea(m_selectedRow), _
                 m_uiControlBase.ControlNode, m_renderContext.BindingContext
         End If
         m_selectedRow = rowIndex
@@ -573,6 +573,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim evenRows As Range
     Dim oddRows As Range
     Dim taggedArea As Range
+    Dim candidates As obj_UiCandidatesSource
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -700,6 +701,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
                         If Not columnMetadata Is Nothing Then
                             sourceAlias = columnMetadata.SourceAliasAt(columnIndex)
                             If VBA.Len(sourceAlias) > 0 Then
+                                Set fieldRange = private_SourceColumnArea(columnIndex, columnSpan)
                                 If sourceRanges.Exists(sourceAlias) Then
                                     Set sourceRanges(sourceAlias) = Application.Union(sourceRanges(sourceAlias), fieldRange)
                                 Else
@@ -709,6 +711,10 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
                         End If
                     End If
                 Next columnIndex
+                If TypeOf m_source Is obj_UiCandidatesSource Then
+                    Set candidates = m_source
+                    candidates.AppendDetailSourceRanges m_bodyRange, sourceRanges
+                End If
                 For Each sourceKey In sourceRanges.Keys
                     Set sourceArea = sourceRanges(sourceKey)
                     uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, sourceArea, "rows", sourceAlias:=VBA.CStr(sourceKey)
@@ -828,8 +834,57 @@ Private Sub private_StyleSelectedRow(ByVal rowIndex As Long)
     If VBA.Len(m_selectedStyle) = 0 Or m_bodyRange Is Nothing Then Exit Sub
     Set node = m_uiControlBase.ControlNode.cloneNode(False)
     node.setAttribute "style", m_selectedStyle
-    m_renderContext.Styles.ApplyOverlay m_bodyRange.Rows(rowIndex), node, m_renderContext.BindingContext
+    m_renderContext.Styles.ApplyOverlay private_SelectedArea(rowIndex), node, m_renderContext.BindingContext
 End Sub
+
+Private Function private_SelectedArea(ByVal rowIndex As Long) As Range
+    Dim firstRow As Long
+    Dim rowCount As Long
+    Dim candidates As obj_UiCandidatesSource
+
+    firstRow = rowIndex
+    rowCount = 1
+    If TypeOf m_selectionSource Is obj_UiCandidatesSource Then
+        Set candidates = m_selectionSource
+        candidates.GetRowGroup rowIndex, firstRow, rowCount
+    End If
+    Set private_SelectedArea = m_bodyRange.Rows(firstRow).Resize(rowCount, m_bodyRange.Columns.Count)
+End Function
+
+Private Function private_SourceColumnArea(ByVal columnIndex As Long, ByVal columnSpan As Long) As Range
+    Dim candidates As obj_UiCandidatesSource
+    Dim firstRow As Long
+    Dim rowCount As Long
+    Dim rowIndex As Long
+    Dim area As Range
+    Dim cell As Range
+
+    If TypeOf m_selectionSource Is obj_UiCandidatesSource Then
+        Set candidates = m_selectionSource
+        candidates.GetRowGroup 1, firstRow, rowCount
+        If rowCount = 1 Then
+            Set private_SourceColumnArea = m_bodyRange.Columns(columnIndex).Resize(m_bodyRange.Rows.Count, columnSpan)
+            Exit Function
+        End If
+        rowIndex = 1
+        Do While rowIndex <= m_bodyRange.Rows.Count
+            candidates.GetRowGroup rowIndex, firstRow, rowCount
+            If rowCount < 1 Or firstRow + rowCount <= rowIndex Then
+                Err.Raise 5, , "Candidate row group does not advance."
+            End If
+            Set cell = m_bodyRange.Cells(firstRow, columnIndex).Resize(1, columnSpan)
+            If area Is Nothing Then
+                Set area = cell
+            Else
+                Set area = Application.Union(area, cell)
+            End If
+            rowIndex = firstRow + rowCount
+        Loop
+        Set private_SourceColumnArea = area
+    Else
+        Set private_SourceColumnArea = m_bodyRange.Columns(columnIndex).Resize(m_bodyRange.Rows.Count, columnSpan)
+    End If
+End Function
 
 Private Sub private_UpdateTextWarning( _
     ByVal table As obj_UiRawTable, _

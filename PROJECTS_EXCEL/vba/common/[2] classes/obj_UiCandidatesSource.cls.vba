@@ -22,6 +22,8 @@ Private m_table As obj_UiRawTable
 Private m_selectionSource As obj_IUiSelectionSource
 Private m_sourceAliases As Object
 Private m_columnSpans As Object
+Private m_rowsPerItem As Long
+Private m_detailCells As Collection
 
 ' //
 ' // Lifecycle
@@ -51,7 +53,7 @@ End Function
 Private Function obj_IUiSelectionSource_GetItemAt(ByVal rowIndex As Long) As Object
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If rowIndex < 1 Or rowIndex > m_table.RowCount Then Exit Function
-    Set obj_IUiSelectionSource_GetItemAt = m_selectionSource.GetItemAt(rowIndex)
+    Set obj_IUiSelectionSource_GetItemAt = m_selectionSource.GetItemAt((rowIndex - 1) \ m_rowsPerItem + 1)
 End Function
 
 Private Function obj_IUiColumnMetadata_SourceAliasAt(ByVal columnIndex As Long) As String
@@ -79,7 +81,7 @@ Private Function obj_IUiHeaderPresentation_HeaderTextAt(ByVal columnIndex As Lon
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If columnIndex < 1 Or columnIndex > m_table.ColumnCount Then Exit Function
-    For rowIndex = 1 To m_table.RowCount
+    For rowIndex = 1 To m_table.RowCount Step m_rowsPerItem
         value = m_table.ValueAt(rowIndex, columnIndex)
         hasValue = False
         If VBA.IsError(value) Then
@@ -101,14 +103,19 @@ Public Function Initialize( _
     ByVal table As obj_UiRawTable, _
     ByVal selectionSource As obj_IUiSelectionSource, _
     Optional ByVal sourceAliases As Object, _
-    Optional ByVal columnSpans As Object _
+    Optional ByVal columnSpans As Object, _
+    Optional ByVal rowsPerItem As Long = 1, _
+    Optional ByVal detailCells As Collection _
 ) As Boolean
     If m_isInitialized Or m_isDisposed Then Exit Function
     If table Is Nothing Or selectionSource Is Nothing Then Exit Function
+    If rowsPerItem < 1 Then Exit Function
     Set m_table = table
     Set m_selectionSource = selectionSource
     Set m_sourceAliases = sourceAliases
     Set m_columnSpans = columnSpans
+    m_rowsPerItem = rowsPerItem
+    Set m_detailCells = detailCells
     m_isInitialized = True
     Initialize = True
 End Function
@@ -122,4 +129,41 @@ Public Sub Dispose()
     Set m_selectionSource = Nothing
     Set m_sourceAliases = Nothing
     Set m_columnSpans = Nothing
+    Set m_detailCells = Nothing
+End Sub
+
+Public Sub AppendDetailSourceRanges(ByVal body As Range, ByVal ranges As Object)
+    Dim definition As Object
+    Dim sourceAlias As String
+    Dim rowIndex As Long
+    Dim area As Range
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Sub
+    If m_detailCells Is Nothing Then Exit Sub
+    For Each definition In m_detailCells
+        If definition.Exists("sourceAlias") Then
+            sourceAlias = CStr(definition("sourceAlias"))
+            If Len(sourceAlias) > 0 Then
+                For rowIndex = 1 To m_table.RowCount Step m_rowsPerItem
+                    Set area = body.Cells(rowIndex + CLng(definition("lane")), CLng(definition("column")))
+                    If ranges.Exists(sourceAlias) Then
+                        Set ranges(sourceAlias) = Application.Union(ranges(sourceAlias), area)
+                    Else
+                        ranges.Add sourceAlias, area
+                    End If
+                Next rowIndex
+            End If
+        End If
+    Next definition
+End Sub
+
+Public Sub GetRowGroup( _
+    ByVal rowIndex As Long, _
+    ByRef firstRow As Long, _
+    ByRef rowCount As Long _
+)
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Candidate source is not initialized."
+    If rowIndex < 1 Or rowIndex > m_table.RowCount Then Err.Raise 5, , "Candidate row is outside the table."
+    firstRow = ((rowIndex - 1) \ m_rowsPerItem) * m_rowsPerItem + 1
+    rowCount = m_rowsPerItem
 End Sub

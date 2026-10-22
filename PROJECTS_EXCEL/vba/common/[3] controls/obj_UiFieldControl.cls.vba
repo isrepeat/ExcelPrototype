@@ -486,6 +486,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), _
             uiRenderContext.BindingContext, m_appliedStyleName) Then Exit Function
     End If
+    If Len(ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "numberFormat")) > 0 Then
+        m_targetRange.NumberFormat = ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "numberFormat")
+    End If
     m_targetRange.Value2 = value
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly

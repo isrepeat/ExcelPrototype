@@ -28,6 +28,8 @@ Private m_headers As Object
 Private m_defaultModes As Object
 Private m_mode As String
 Private m_viewport As String
+Private m_candidateCells As Collection
+Private m_candidateLanes As Long
 
 ' //
 ' // Lifecycle
@@ -51,6 +53,10 @@ Private Sub obj_IUiBindingListener_OnValueChanged( _
     Dim isObject As Boolean
 
     If m_isDisposed Or Not m_isInitialized Then Exit Sub
+    If sourceName = "Data" And bindingPath = "PersonnelCandidates" Then
+        private_PublishCandidateDetails
+        Exit Sub
+    End If
     If sourceName <> "Form" Then Exit Sub
     If Not m_defaultStyles.Exists(bindingPath) Then Exit Sub
     If Not m_page.BindingContext.TryGetValue(sourceName, bindingPath, value, ignored, isObject) Then Exit Sub
@@ -76,6 +82,8 @@ Public Function Initialize(ByVal page As obj_PageBase) As Boolean
     Set m_config = CreateObject("Scripting.Dictionary")
     Set m_headers = CreateObject("Scripting.Dictionary")
     Set m_defaultModes = CreateObject("Scripting.Dictionary")
+    Set m_candidateCells = New Collection
+    If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", m_candidateCells) Then Exit Function
     If Not m_page.BindingContext.SetValue("Form", "ExtCandidatesVisibility", "Collapsed") Then Exit Function
     m_isInitialized = True
     m_page.BindingContext.Subscribe Me
@@ -112,6 +120,7 @@ Public Sub Dispose()
     Set m_config = Nothing
     Set m_headers = Nothing
     Set m_defaultModes = Nothing
+    Set m_candidateCells = Nothing
     Set m_page = Nothing
 End Sub
 
@@ -259,8 +268,11 @@ NextHeader:
     End If
     If Not cachedHeader Then Set m_headers(headerKey) = header.cloneNode(True)
     If headerOnly Then GoTo PublishMarkup
+    Set m_candidateCells = New Collection
+    m_candidateLanes = 0
     private_BuildRows document, body
     private_BuildTicket document, body
+    private_PublishCandidateDetails
     For Each row In m_rows
         If Not private_Active(row) Then GoTo NextCandidates
         If Not private_Visible(row("Type")) Then GoTo NextCandidates
@@ -422,6 +434,7 @@ Public Function Collect( _
     Dim isObject As Boolean
     Dim requiredFields As String
 
+    On Error GoTo EH_COLLECT
     Set output = New Collection
     For Each row In m_rows
         If Not private_Active(row) Then GoTo NextCollectedRow
@@ -433,7 +446,7 @@ Public Function Collect( _
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             If Not m_page.BindingContext.TryGetValue("Form", private_Path(row, CStr(field)), scalar, ignored, isObject) Then Exit Function
             If isObject Or IsError(scalar) Or IsNull(scalar) Then Exit Function
-            item(field) = CStr(scalar)
+            item(field) = ex_PEB_Export.fn_ExtensionValue(scalar, private_FieldConfig(row("Type"), CStr(field), "type"), CStr(field))
         Next field
         requiredFields = private_Config(row("Type"), "required")
         If private_Required(row) Then requiredFields = private_ReadConfig("extensions.role." & row("Role") & ".required")
@@ -447,6 +460,10 @@ Public Function Collect( _
 NextCollectedRow:
     Next row
     Collect = True
+    Exit Function
+EH_COLLECT:
+    diagnostic = Err.Description
+    Set output = Nothing
 End Function
 
 Public Function TryLoad( _
@@ -556,7 +573,7 @@ Private Function private_ModeId() As String
 End Function
 
 Private Function private_Allowed(ByVal kind As String) As Boolean
-    private_Allowed = private_HasFormFields(private_Config(kind, "fields"))
+    private_Allowed = private_HasFormFields(private_Config(kind, "anchor"))
 End Function
 
 Private Function private_HasFormFields(ByVal fieldNames As String) As Boolean
@@ -613,7 +630,7 @@ Private Sub private_BuildTicket( _
     node.setAttribute "name", "TicketMarker"
     node.setAttribute "column", CStr(markerColumn)
     node.setAttribute "rowSpan", "2"
-    node.setAttribute "style", "secondaryButton"
+    node.setAttribute "style", "requiredMarker"
     node.setAttribute "text", private_ReadConfig("forms.sections.Ticket.marker")
     grid.appendChild node
     Set form = private_Node(document, "controls:form")
@@ -625,6 +642,7 @@ Private Sub private_BuildTicket( _
     form.setAttribute "labelStyle", "formLabel"
     form.setAttribute "fieldStyle", "formField"
     For Each field In fields
+        private_AddCandidateCell m_candidateLanes + 1, column + form.ChildNodes.Length, CStr(field), Nothing
         Set node = private_Node(document, "field")
         node.setAttribute "name", CStr(field)
         node.setAttribute "type", "text"
@@ -640,12 +658,12 @@ Private Sub private_BuildTicket( _
 End Sub
 
 Private Function private_Visible(ByVal kind As String) As Boolean
-    Dim field As Variant
+    Dim column As Long
 
     If Not private_Allowed(kind) Then Exit Function
-    For Each field In Split(private_Config(kind, "fields"), "|")
-        If private_Column(CStr(field)) < 1 Then Exit Function
-    Next field
+    column = private_Column(private_Config(kind, "anchor"))
+    If column < 1 Then Exit Function
+    If column + CLng(private_Config(kind, "form.count")) - 1 > CLng(private_ReadConfig("forms.columns.count")) Then Exit Function
     private_Visible = True
 End Function
 
@@ -755,7 +773,7 @@ Private Sub private_BuildRows( _
         firstColumn = width + 1
         lastColumn = 0
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
-            column = private_Column(CStr(field))
+            column = private_ExtensionColumn(row("Type"), CStr(field))
             slots(column) = True
             If column < firstColumn Then firstColumn = column
             If column > lastColumn Then lastColumn = column
@@ -815,6 +833,7 @@ Private Sub private_BuildRows( _
         node.setAttribute "column", CStr(removeColumn)
         node.setAttribute "rowSpan", "2"
         node.setAttribute "style", "secondaryButton"
+        If private_Required(row) Then node.setAttribute "style", "requiredMarker"
         grid.appendChild node
         Set form = private_Node(document, "controls:form")
         form.setAttribute "name", "ExForm" & row("Id")
@@ -830,13 +849,21 @@ Private Sub private_BuildRows( _
         form.setAttribute "fieldStyle", "formField"
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             path = private_Path(row, CStr(field))
+            private_AddCandidateCell lane, private_ExtensionColumn(row("Type"), CStr(field)), CStr(field), row
+            If lane > m_candidateLanes Then m_candidateLanes = lane
             Set node = private_Node(document, "field")
             node.setAttribute "name", path
             node.setAttribute "type", "text"
-            node.setAttribute "column", CStr(private_Column(CStr(field)))
-            node.setAttribute "candidateColumn", CStr(private_Column(CStr(field)))
+            node.setAttribute "column", CStr(private_ExtensionColumn(row("Type"), CStr(field)))
+            node.setAttribute "candidateColumn", CStr(private_ExtensionColumn(row("Type"), CStr(field)))
             node.setAttribute "value", "{Binding Path=" & path & "}"
-            node.setAttribute "label", private_ReadConfig("text.Mode" & field & "Label")
+            node.setAttribute "label", private_FieldConfig(row("Type"), CStr(field), "caption")
+            node.setAttribute "numberFormat", private_FieldConfig(row("Type"), CStr(field), "format")
+            Select Case private_FieldConfig(row("Type"), CStr(field), "type")
+                Case "text", "number", "date"
+                Case Else
+                    Err.Raise 5, , "Unsupported extension field type: " & CStr(field)
+            End Select
             node.setAttribute "fieldStyle", "{Binding Path=Form." & path & "Style}"
             node.setAttribute "partStylesEnabled", "true"
             If InStr(1, "|" & private_Config(row("Type"), "readOnly") & "|", "|" & field & "|", vbBinaryCompare) > 0 Then
@@ -853,6 +880,114 @@ Private Sub private_BuildRows( _
 NextRow:
     Next row
     If grid.ChildNodes.Length > 0 Then body.appendChild grid
+End Sub
+
+Private Sub private_AddCandidateCell(ByVal lane As Long, ByVal column As Long, ByVal field As String, ByVal extension As Object)
+    Dim cell As Object
+    Dim sibling As Object
+    Dim ordinal As Long
+
+    Set cell = CreateObject("Scripting.Dictionary")
+    cell.Add "lane", lane
+    cell.Add "column", column
+    cell.Add "field", field
+    cell.Add "extension", extension
+    If Not extension Is Nothing Then
+        For Each sibling In m_rows
+            If private_Active(sibling) And sibling("Type") = extension("Type") Then ordinal = ordinal + 1
+            If sibling Is extension Then Exit For
+        Next sibling
+        cell.Add "ordinal", ordinal
+    End If
+    m_candidateCells.Add cell
+End Sub
+
+Private Sub private_PublishCandidateDetails()
+    Dim value As Variant
+    Dim source As Object
+    Dim isObject As Boolean
+    Dim result As obj_LookupResult
+    Dim record As obj_LookupRecord
+    Dim related As obj_LookupRecord
+    Dim records As Collection
+    Dim details As Collection
+    Dim cells As Collection
+    Dim values As Collection
+    Dim definition As Object
+    Dim cell As Object
+    Dim extension As Object
+    Dim columnIndex As Long
+    Dim prefix As String
+    Dim fieldValue As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim sourceField As String
+    Dim sourceAlias As String
+
+    Set cells = New Collection
+    If m_page.BindingContext.TryGetValue("Data", "PersonnelCandidates", value, source, isObject) Then
+        If isObject Then
+            If TypeOf source Is obj_LookupResult Then Set result = source
+        End If
+    End If
+    If result Is Nothing Then
+        If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", cells) Then Err.Raise 5, , "Cannot publish candidate details."
+        Exit Sub
+    End If
+    Set records = result.Records
+    For Each definition In m_candidateCells
+        Set cell = CreateObject("Scripting.Dictionary")
+        cell.Add "lane", definition("lane")
+        cell.Add "column", definition("column")
+        Set values = New Collection
+        Set extension = definition("extension")
+        sourceField = vbNullString
+        sourceAlias = vbNullString
+        If extension Is Nothing Then
+            For columnIndex = 1 To CLng(private_ReadConfig("forms." & m_form & ".fields.count"))
+                prefix = "forms." & m_form & ".fields." & CStr(columnIndex)
+                If private_ReadConfig(prefix & ".name") = definition("field") Then
+                    sourceField = private_ReadConfig(prefix & ".record")
+                    sourceAlias = private_ReadConfig(prefix & ".sourceAlias")
+                    If InStr(1, "|" & private_ReadConfig("lookup.ReturnTickets.styleFields") & "|", "|" & sourceField & "|", vbTextCompare) > 0 Then
+                        If InStr(1, "|" & private_ReadConfig("lookup.ReturnTickets.modes") & "|", "|" & m_mode & "|", vbTextCompare) > 0 Then
+                            sourceAlias = private_ReadConfig("lookup.ReturnTickets.sourceAlias")
+                        Else
+                            sourceAlias = private_ReadConfig("lookup.ReturnTickets.departureSourceAlias")
+                        End If
+                    End If
+                    Exit For
+                End If
+            Next columnIndex
+        End If
+        For Each record In records
+            fieldValue = Empty
+            If extension Is Nothing Then
+                If Len(sourceField) > 0 Then record.TryGetValue sourceField, fieldValue
+            Else
+                ' Related records must belong to this candidate; never reuse the current form values.
+                Set details = record.GetDetail(CStr(extension("Type")))
+                If details.Count >= CLng(definition("ordinal")) Then
+                    Set related = details(CLng(definition("ordinal")))
+                    sourceField = CStr(definition("field"))
+                    For Each mapping In Split(private_Config(extension("Type"), "map"), "|")
+                        pair = Split(CStr(mapping), "=")
+                        If UBound(pair) = 1 Then
+                            If pair(0) = sourceField Then sourceField = pair(1)
+                        End If
+                    Next mapping
+                    related.TryGetValue sourceField, fieldValue
+                    If InStr(sourceField, ".") > 0 Then sourceAlias = Split(sourceField, ".")(0)
+                End If
+            End If
+            If VarType(fieldValue) = vbDate Then fieldValue = Format$(CDate(fieldValue), "dd.mm.yyyy")
+            values.Add fieldValue
+        Next record
+        cell.Add "values", values
+        cell.Add "sourceAlias", sourceAlias
+        cells.Add cell
+    Next definition
+    If Not m_page.BindingContext.SetObject("Data", "PersonnelCandidateDetails", cells) Then Err.Raise 5, , "Cannot publish candidate details."
 End Sub
 
 Private Function private_Style( _
@@ -882,7 +1017,45 @@ Private Function private_Config( _
     ByVal kind As String, _
     ByVal key As String _
 ) As String
+    Dim index As Long
+    Dim fields As String
+
+    If key = "fields" Then
+        For index = 1 To CLng(private_ReadConfig("extensions.type." & kind & ".form.count"))
+            If index > 1 Then fields = fields & "|"
+            fields = fields & private_ReadConfig("extensions.type." & kind & ".form." & CStr(index) & ".name")
+        Next index
+        If Len(fields) = 0 Then Err.Raise 5, , "Extension form requires at least one field: " & kind
+        private_Config = fields
+        Exit Function
+    End If
     private_Config = private_ReadConfig("extensions.type." & kind & "." & key)
+End Function
+
+Private Function private_FieldConfig(ByVal kind As String, ByVal field As String, ByVal key As String) As String
+    Dim index As Long
+    Dim prefix As String
+
+    For index = 1 To CLng(private_Config(kind, "form.count"))
+        prefix = "extensions.type." & kind & ".form." & CStr(index)
+        If private_ReadConfig(prefix & ".name") = field Then
+            private_FieldConfig = private_ReadConfig(prefix & "." & key)
+            Exit Function
+        End If
+    Next index
+    Err.Raise 5, , "Extension field is not configured: " & kind & "." & field
+End Function
+
+Private Function private_ExtensionColumn(ByVal kind As String, ByVal field As String) As Long
+    Dim index As Long
+
+    For index = 1 To CLng(private_Config(kind, "form.count"))
+        If private_ReadConfig("extensions.type." & kind & ".form." & CStr(index) & ".name") = field Then
+            private_ExtensionColumn = private_Column(private_Config(kind, "anchor")) + index - 1
+            Exit Function
+        End If
+    Next index
+    Err.Raise 5, , "Extension field is not configured: " & kind & "." & field
 End Function
 
 Private Function private_ReadConfig(ByVal key As String) As String
@@ -1063,7 +1236,7 @@ Private Function private_PublishCandidates( _
             If mapping(0) = field Then column("name") = mapping(1)
         Next pair
         column("formField") = private_Path(row, CStr(field))
-        column("caption") = private_ReadConfig("text.Mode" & field & "Label")
+        column("caption") = private_FieldConfig(row("Type"), CStr(field), "caption")
         columns.Add column
     Next field
     If Not projected.Initialize(records, columns, hasMore, diagnostic) Then Exit Function

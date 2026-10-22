@@ -1842,43 +1842,86 @@ value	PersonalEventBuilder::extensions.role.Vlk.caption	Довідка ВЛК
 value	PersonalEventBuilder::extensions.role.Vlk.required	Document|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::extensions.type.TVO.key	PersonName
 value	PersonalEventBuilder::extensions.type.TVO.map	PersonRank=Personnel.Rank|PersonName=Personnel.FullName|PersonId=Personnel.TaxId|PositionCode=Personnel.PositionCode|PersonPosition=Personnel.Position
-value	PersonalEventBuilder::extensions.type.TVO.dates	-
-value	PersonalEventBuilder::extensions.type.TVO.start	PersonRank
-value	PersonalEventBuilder::extensions.type.TVO.anchor	PersonName
-value	PersonalEventBuilder::extensions.type.TVO.fields	PersonRank|PersonName|PersonId|PositionCode|PersonPosition
+value	PersonalEventBuilder::extensions.type.TVO.form.1.name	PersonRank
+value	PersonalEventBuilder::extensions.type.TVO.form.1.type	text
+value	PersonalEventBuilder::extensions.type.TVO.form.1.format	@
+  ref	PersonalEventBuilder::extensions.type.TVO.form.1.caption	PersonalEventBuilder::text.ModePersonRankLabel
+value	PersonalEventBuilder::extensions.type.TVO.form.2.name	PersonName
+value	PersonalEventBuilder::extensions.type.TVO.form.2.type	text
+value	PersonalEventBuilder::extensions.type.TVO.form.2.format	@
+  ref	PersonalEventBuilder::extensions.type.TVO.form.2.caption	PersonalEventBuilder::text.ModePersonNameLabel
+value	PersonalEventBuilder::extensions.type.TVO.form.3.name	PersonId
+value	PersonalEventBuilder::extensions.type.TVO.form.3.type	text
+value	PersonalEventBuilder::extensions.type.TVO.form.3.format	@
+  ref	PersonalEventBuilder::extensions.type.TVO.form.3.caption	PersonalEventBuilder::text.ModePersonIdLabel
+value	PersonalEventBuilder::extensions.type.TVO.form.4.name	PositionCode
+value	PersonalEventBuilder::extensions.type.TVO.form.4.type	text
+value	PersonalEventBuilder::extensions.type.TVO.form.4.format	@
+  ref	PersonalEventBuilder::extensions.type.TVO.form.4.caption	PersonalEventBuilder::text.ModePositionCodeLabel
+value	PersonalEventBuilder::extensions.type.TVO.form.5.name	PersonPosition
+value	PersonalEventBuilder::extensions.type.TVO.form.5.type	text
+value	PersonalEventBuilder::extensions.type.TVO.form.5.format	@
+  ref	PersonalEventBuilder::extensions.type.TVO.form.5.caption	PersonalEventBuilder::text.ModePersonPositionLabel
+value	PersonalEventBuilder::extensions.type.TVO.form.count	5
+value	PersonalEventBuilder::extensions.type.TVO.anchor	PersonRank
 value	PersonalEventBuilder::extensions.type.TVO.caption	ТВО
 value	PersonalEventBuilder::extensions.type.TVO.lookups	export.Word.meta.lookups
 value	PersonalEventBuilder::extensions.type.TVO.profile	Personnel
 value	PersonalEventBuilder::extensions.type.TVO.defaults	-
 value	PersonalEventBuilder::extensions.type.TVO.readOnly	PersonRank|PersonId|PositionCode|PersonPosition
 value	PersonalEventBuilder::extensions.type.TVO.required	PersonRank|PersonName|PersonId|PositionCode|PersonPosition
-value	PersonalEventBuilder::extensions.type.TVO.fallbackColumn	1
 value	PersonalEventBuilder::extensions.type.Report.key	ReportName
 value	PersonalEventBuilder::extensions.type.Report.map	ReportRank=Personnel.Rank|ReportName=Personnel.FullName|ReportPositionCode=Personnel.PositionCode
-value	PersonalEventBuilder::extensions.type.Report.dates	IncomingDate
-value	PersonalEventBuilder::extensions.type.Report.start	ReportRank
-value	PersonalEventBuilder::extensions.type.Report.anchor	ReportName
-value	PersonalEventBuilder::extensions.type.Report.fields	ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::extensions.type.Report.form.1.name	ReportRank
+value	PersonalEventBuilder::extensions.type.Report.form.1.type	text
+value	PersonalEventBuilder::extensions.type.Report.form.1.format	@
+  ref	PersonalEventBuilder::extensions.type.Report.form.1.caption	PersonalEventBuilder::text.ModeReportRankLabel
+value	PersonalEventBuilder::extensions.type.Report.form.2.name	ReportName
+value	PersonalEventBuilder::extensions.type.Report.form.2.type	text
+value	PersonalEventBuilder::extensions.type.Report.form.2.format	@
+  ref	PersonalEventBuilder::extensions.type.Report.form.2.caption	PersonalEventBuilder::text.ModeReportNameLabel
+value	PersonalEventBuilder::extensions.type.Report.form.3.name	ReportPositionCode
+value	PersonalEventBuilder::extensions.type.Report.form.3.type	text
+value	PersonalEventBuilder::extensions.type.Report.form.3.format	@
+  ref	PersonalEventBuilder::extensions.type.Report.form.3.caption	PersonalEventBuilder::text.ModeReportPositionCodeLabel
+value	PersonalEventBuilder::extensions.type.Report.form.4.name	IncomingNumber
+value	PersonalEventBuilder::extensions.type.Report.form.4.type	text
+value	PersonalEventBuilder::extensions.type.Report.form.4.format	@
+  ref	PersonalEventBuilder::extensions.type.Report.form.4.caption	PersonalEventBuilder::text.ModeIncomingNumberLabel
+value	PersonalEventBuilder::extensions.type.Report.form.5.name	IncomingDate
+value	PersonalEventBuilder::extensions.type.Report.form.5.type	date
+value	PersonalEventBuilder::extensions.type.Report.form.5.format	dd.mm.yyyy
+  ref	PersonalEventBuilder::extensions.type.Report.form.5.caption	PersonalEventBuilder::text.ModeIncomingDateLabel
+value	PersonalEventBuilder::extensions.type.Report.form.count	5
+value	PersonalEventBuilder::extensions.type.Report.anchor	ReportRank
 value	PersonalEventBuilder::extensions.type.Report.caption	Ще один рапорт
 value	PersonalEventBuilder::extensions.type.Report.lookups	export.shared.lookups
 value	PersonalEventBuilder::extensions.type.Report.profile	Personnel
 value	PersonalEventBuilder::extensions.type.Report.defaults	IncomingDate=AcceptedOrderDate
 value	PersonalEventBuilder::extensions.type.Report.readOnly	ReportRank|ReportPositionCode
 value	PersonalEventBuilder::extensions.type.Report.required	ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::extensions.type.Report.fallbackColumn	1
 value	PersonalEventBuilder::extensions.type.Document.key	Document
 value	PersonalEventBuilder::extensions.type.Document.map	Document=Document.Name
-value	PersonalEventBuilder::extensions.type.Document.dates	DocumentDate
-value	PersonalEventBuilder::extensions.type.Document.start	Document
+value	PersonalEventBuilder::extensions.type.Document.form.1.name	Document
+value	PersonalEventBuilder::extensions.type.Document.form.1.type	text
+value	PersonalEventBuilder::extensions.type.Document.form.1.format	@
+  ref	PersonalEventBuilder::extensions.type.Document.form.1.caption	PersonalEventBuilder::text.ModeDocumentLabel
+value	PersonalEventBuilder::extensions.type.Document.form.2.name	DocumentNumber
+value	PersonalEventBuilder::extensions.type.Document.form.2.type	text
+value	PersonalEventBuilder::extensions.type.Document.form.2.format	@
+  ref	PersonalEventBuilder::extensions.type.Document.form.2.caption	PersonalEventBuilder::text.ModeDocumentNumberLabel
+value	PersonalEventBuilder::extensions.type.Document.form.3.name	DocumentDate
+value	PersonalEventBuilder::extensions.type.Document.form.3.type	date
+value	PersonalEventBuilder::extensions.type.Document.form.3.format	dd.mm.yyyy
+  ref	PersonalEventBuilder::extensions.type.Document.form.3.caption	PersonalEventBuilder::text.ModeDocumentDateLabel
+value	PersonalEventBuilder::extensions.type.Document.form.count	3
 value	PersonalEventBuilder::extensions.type.Document.anchor	Document
-value	PersonalEventBuilder::extensions.type.Document.fields	Document|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::extensions.type.Document.caption	Ще один документ
 value	PersonalEventBuilder::extensions.type.Document.lookups	-
 value	PersonalEventBuilder::extensions.type.Document.profile	Document
 value	PersonalEventBuilder::extensions.type.Document.defaults	-
 value	PersonalEventBuilder::extensions.type.Document.readOnly	-
 value	PersonalEventBuilder::extensions.type.Document.required	Document
-value	PersonalEventBuilder::extensions.type.Document.fallbackColumn	14
 value	PersonalEventBuilder::extensions.limit	20
 value	PersonalEventBuilder::extensions.modes	MoveFromHospitalToVacationForCuring
 value	PersonalEventBuilder::extensions.types	TVO|Report|Document

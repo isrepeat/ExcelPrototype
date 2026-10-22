@@ -20,6 +20,7 @@ Private m_definition As Object
 Private m_context As obj_UiRenderContext
 Private m_column As Long
 Private m_tableStartColumn As Long
+Private m_detailCells As Collection
 
 ' //
 ' // Lifecycle
@@ -124,6 +125,7 @@ Public Sub Dispose()
     Set m_tableControl = Nothing
     Set m_definition = Nothing
     Set m_context = Nothing
+    Set m_detailCells = Nothing
 End Sub
 
 Public Function TryRefreshValues( _
@@ -155,6 +157,7 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
     Dim columnIndex As Long
     Dim columnSpans As Object
     Dim tableDefinition As Object
+    Dim rowsPerItem As Long
 
     If Not ex_UiBindingRuntime.fn_TryResolveValue( _
             private_ReadAttribute(m_definition, "itemsSource"), m_context.BindingContext, value, sourceObject, isObject) Then
@@ -188,16 +191,80 @@ Private Function private_PrepareSource(ByRef diagnostic As String) As Boolean
         Next columnIndex
     End If
     If Not private_AlignToForm(table, columnSpans, diagnostic) Then Exit Function
+    If Not private_ExpandDetails(table, rowsPerItem, diagnostic) Then Exit Function
     Set tableDefinition = m_definition.cloneNode(True)
     tableDefinition.setAttribute "column", VBA.CStr(m_tableStartColumn)
     If Not m_control.Configure(tableDefinition, m_context, VBA.vbNullString, diagnostic) Then Exit Function
     Set candidatesSource = New obj_UiCandidatesSource
-    If Not candidatesSource.Initialize(table, selectionSource, sourceAliases, columnSpans) Then
+    If Not candidatesSource.Initialize(table, selectionSource, sourceAliases, columnSpans, rowsPerItem, m_detailCells) Then
         diagnostic = "Cannot initialize candidates source."
         Exit Function
     End If
     m_tableControl.SetSource candidatesSource
     private_PrepareSource = True
+End Function
+
+Private Function private_ExpandDetails( _
+    ByRef table As obj_UiRawTable, _
+    ByRef rowsPerItem As Long, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim value As Variant
+    Dim details As Object
+    Dim isObject As Boolean
+    Dim cell As Object
+    Dim values As Variant
+    Dim itemValues As Collection
+    Dim expanded As obj_UiRawTable
+    Dim itemIndex As Long
+    Dim columnIndex As Long
+    Dim targetRow As Long
+    Dim lane As Long
+    Dim column As Long
+    Dim occupied As Object
+    Dim key As String
+
+    On Error GoTo EH_DETAILS
+    rowsPerItem = 1
+    Set m_detailCells = Nothing
+    private_ExpandDetails = True
+    If Len(private_ReadAttribute(m_definition, "detailsSource")) = 0 Then Exit Function
+    If Not ex_UiBindingRuntime.fn_TryResolveValue( _
+        private_ReadAttribute(m_definition, "detailsSource"), m_context.BindingContext, value, details, isObject _
+    ) Then Err.Raise 5, , "Cannot resolve candidate detailsSource."
+    If Not isObject Then Err.Raise 5, , "Candidate detailsSource must be a collection."
+    If Not TypeOf details Is Collection Then Err.Raise 5, , "Candidate detailsSource must be a collection."
+    Set m_detailCells = details
+    Set occupied = VBA.CreateObject("Scripting.Dictionary")
+    For Each cell In details
+        lane = CLng(cell("lane"))
+        column = CLng(cell("column"))
+        If lane < 1 Or column < 1 Or column > table.ColumnCount Then Err.Raise 5, , "Candidate detail is outside the workspace."
+        key = CStr(lane) & "|" & CStr(column)
+        If occupied.Exists(key) Then Err.Raise 5, , "Candidate details overlap."
+        occupied.Add key, True
+        If lane + 1 > rowsPerItem Then rowsPerItem = lane + 1
+    Next cell
+    If rowsPerItem = 1 Or table.RowCount = 0 Then Exit Function
+    ReDim values(1 To table.RowCount * rowsPerItem, 1 To table.ColumnCount)
+    For itemIndex = 1 To table.RowCount
+        targetRow = (itemIndex - 1) * rowsPerItem + 1
+        For columnIndex = 1 To table.ColumnCount
+            values(targetRow, columnIndex) = table.ValueAt(itemIndex, columnIndex)
+        Next columnIndex
+        For Each cell In details
+            Set itemValues = cell("values")
+            If itemValues.Count <> table.RowCount Then Err.Raise 5, , "Candidate detail row count does not match its source."
+            values(targetRow + CLng(cell("lane")), CLng(cell("column"))) = itemValues(itemIndex)
+        Next cell
+    Next itemIndex
+    Set expanded = New obj_UiRawTable
+    If Not expanded.Initialize(values, table.Headers, table.Title) Then Err.Raise 5, , "Cannot initialize candidate detail rows."
+    Set table = expanded
+    Exit Function
+EH_DETAILS:
+    diagnostic = "Candidate details: " & Err.Description
+    private_ExpandDetails = False
 End Function
 
 Private Function private_AlignToForm( _
