@@ -258,6 +258,7 @@ Private Function private_ConfigureField( _
     editorNode.setAttribute "columnSpan", VBA.CStr(editorColumns)
     editorNode.setAttribute "rowSpan", "1"
     editorNode.setAttribute "style", private_Inherit(fieldNode, formNode, "fieldStyle", VBA.vbNullString)
+    editorNode.setAttribute "numberFormat", ex_UiElementFactory.fn_Attribute(fieldNode, "numberFormat")
     editorNode.setAttribute "onChange", private_Inherit(fieldNode, formNode, "onChange", VBA.vbNullString)
     editorNode.setAttribute "onFocus", private_Inherit(fieldNode, formNode, "onFocus", VBA.vbNullString)
     editorNode.setAttribute "readOnly", private_Inherit(fieldNode, formNode, "readOnly", "false")

@@ -95,6 +95,8 @@ Public Function TryPrepareExtensions( _
     Dim lookupPrefix As String
     Dim lookupInput As String
     Dim lookupOutput As String
+    Dim fieldPrefix As String
+    Dim fieldType As String
     Dim index As Long
 
     On Error GoTo EH_EXTENSIONS
@@ -118,11 +120,15 @@ Public Function TryPrepareExtensions( _
         For Each field In Split(ex_PEB_Export.fn_Config(prefix & ".required"), "|")
             If Len(ex_PEB_Export.fn_Text(row(field))) = 0 Then Err.Raise 5, , Replace$(ex_PEB_Export.fn_Config("extensions.invalid"), "{field}", CStr(field))
         Next field
-        For Each field In Split(ex_PEB_Export.fn_Config(prefix & ".dates"), "|")
-            If field <> "-" Then
-                If Len(ex_PEB_Export.fn_Text(row(field))) > 0 Then row(field) = Format$(private_Date(row(field), CStr(field)), "dd.mm.yyyy")
+        For index = 1 To ex_PEB_Export.fn_Count(prefix & ".form.count")
+            fieldPrefix = prefix & ".form." & CStr(index)
+            field = ex_PEB_Export.fn_Config(fieldPrefix & ".name")
+            fieldType = ex_PEB_Export.fn_Config(fieldPrefix & ".type")
+            row(field) = ex_PEB_Export.fn_ExtensionValue(row(field), fieldType, CStr(field))
+            If fieldType = "date" And Len(ex_PEB_Export.fn_Text(row(field))) > 0 Then
+                row(field) = Format$(row(field), "dd.mm.yyyy")
             End If
-        Next field
+        Next index
         lookupPrefix = ex_PEB_Export.fn_Config(prefix & ".lookups")
         If lookupPrefix <> "-" Then
             For index = 1 To ex_PEB_Export.fn_Count(lookupPrefix & ".count")
@@ -1151,49 +1157,7 @@ Private Function private_Date( _
     ByVal value As Variant, _
     ByVal key As String _
 ) As Date
-    Dim parts As Variant
-    Dim parsed As Date
-    Dim text As String
-    Dim rx As Object
-    Dim today As Date
-    Dim dateDay As Long
-    Dim dateMonth As Long
-    Dim dateYear As Long
-
-    If VBA.VarType(value) = VBA.vbDate Then
-        private_Date = VBA.DateValue(value)
-        Exit Function
-    End If
-    If VBA.IsNumeric(value) And VBA.VarType(value) <> VBA.vbString Then
-        If VBA.CDbl(value) > 31 Then
-            If VBA.CDbl(value) > 2958465 Then
-                Err.Raise 5, , "Invalid Excel date: " & key
-            End If
-            private_Date = VBA.DateValue(VBA.CDate(value))
-            Exit Function
-        End If
-    End If
-    text = ex_PEB_Export.fn_Text(value)
-    Set rx = VBA.CreateObject("VBScript.RegExp")
-    rx.Pattern = "^\d{1,2}(\.\d{1,2}(\.\d{4})?)?$"
-    If Not rx.Test(text) Then
-        Err.Raise 5, , "Date D, D.M or D.M.YYYY required: " & key
-    End If
-    parts = VBA.Split(text, ".")
-    today = VBA.DateTime.Date
-    dateDay = VBA.CLng(parts(0))
-    dateMonth = VBA.DateTime.Month(today)
-    dateYear = VBA.DateTime.Year(today)
-    If UBound(parts) >= 1 Then dateMonth = VBA.CLng(parts(1))
-    If UBound(parts) = 2 Then dateYear = VBA.CLng(parts(2))
-    If dateYear < 1900 Then
-        Err.Raise 5, , "Invalid date year: " & key
-    End If
-    parsed = VBA.DateSerial(dateYear, dateMonth, dateDay)
-    If VBA.DateTime.Day(parsed) <> dateDay Or VBA.DateTime.Month(parsed) <> dateMonth Or VBA.DateTime.Year(parsed) <> dateYear Then
-        Err.Raise 5, , "Invalid calendar date: " & key
-    End If
-    private_Date = parsed
+    private_Date = ex_PEB_Export.fn_ParseDate(value, key)
 End Function
 
 Private Sub private_Enrich( _

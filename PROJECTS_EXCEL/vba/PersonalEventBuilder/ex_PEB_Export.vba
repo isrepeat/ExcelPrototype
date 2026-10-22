@@ -259,6 +259,76 @@ Public Function fn_Required( _
     End If
     fn_Required = values(key)
 End Function
+
+Public Function fn_ParseDate( _
+    ByVal value As Variant, _
+    ByVal key As String _
+) As Date
+    Dim parts As Variant
+    Dim parsed As Date
+    Dim text As String
+    Dim rx As Object
+    Dim today As Date
+    Dim dateDay As Long
+    Dim dateMonth As Long
+    Dim dateYear As Long
+
+    If VBA.VarType(value) = VBA.vbDate Then
+        fn_ParseDate = VBA.DateValue(value)
+        Exit Function
+    End If
+    If VBA.IsNumeric(value) And VBA.VarType(value) <> VBA.vbString Then
+        If VBA.CDbl(value) > 31 Then
+            If VBA.CDbl(value) > 2958465 Then
+                Err.Raise 5, , "Invalid Excel date: " & key
+            End If
+            fn_ParseDate = VBA.DateValue(VBA.CDate(value))
+            Exit Function
+        End If
+    End If
+    text = ex_PEB_Export.fn_Text(value)
+    Set rx = VBA.CreateObject("VBScript.RegExp")
+    rx.Pattern = "^\d{1,2}(\.\d{1,2}(\.\d{4})?)?$"
+    If Not rx.Test(text) Then
+        Err.Raise 5, , "Date D, D.M or D.M.YYYY required: " & key
+    End If
+    parts = VBA.Split(text, ".")
+    today = VBA.DateTime.Date
+    dateDay = VBA.CLng(parts(0))
+    dateMonth = VBA.DateTime.Month(today)
+    dateYear = VBA.DateTime.Year(today)
+    If UBound(parts) >= 1 Then dateMonth = VBA.CLng(parts(1))
+    If UBound(parts) = 2 Then dateYear = VBA.CLng(parts(2))
+    If dateYear < 1900 Then
+        Err.Raise 5, , "Invalid date year: " & key
+    End If
+    parsed = VBA.DateSerial(dateYear, dateMonth, dateDay)
+    If VBA.DateTime.Day(parsed) <> dateDay Or VBA.DateTime.Month(parsed) <> dateMonth Or VBA.DateTime.Year(parsed) <> dateYear Then
+        Err.Raise 5, , "Invalid calendar date: " & key
+    End If
+    fn_ParseDate = parsed
+End Function
+
+Public Function fn_ExtensionValue(ByVal value As Variant, ByVal fieldType As String, ByVal field As String) As Variant
+    Select Case fieldType
+        Case "text", "number", "date"
+        Case Else
+            Err.Raise 5, , "Unsupported extension field type: " & fieldType & " (" & field & ")"
+    End Select
+    If Len(ex_PEB_Export.fn_Text(value)) = 0 Then
+        fn_ExtensionValue = vbNullString
+        Exit Function
+    End If
+    Select Case fieldType
+        Case "text"
+            fn_ExtensionValue = CStr(value)
+        Case "number"
+            If Not IsNumeric(value) Then Err.Raise 5, , Replace$(ex_PEB_Export.fn_Config("extensions.invalid"), "{field}", field)
+            fn_ExtensionValue = CDbl(value)
+        Case "date"
+            fn_ExtensionValue = ex_PEB_Export.fn_ParseDate(value, field)
+    End Select
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

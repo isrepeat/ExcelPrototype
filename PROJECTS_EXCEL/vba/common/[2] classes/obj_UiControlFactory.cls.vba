@@ -179,6 +179,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 schema.AddChild "tableList.tablePolicy", wrapper, 0, 1, "urn:excelprototype:controls"
             End If
             If m_type = "candidates" Then
+                schema.AddAttribute "detailsSource", "string", False, "", True, 0
                 schema.AddAttribute "partStylesEnabled", "boolean", False, "", False, 0
                 schema.AddAttribute "detailedPartStylesEnabled", "boolean", False, "", False, 0
                 schema.AddAttribute "textWarningLimit", "positive", False, "", True, 0
@@ -204,6 +205,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             End If
             schema.AddAttribute "value", "string", True, "", True, 0
             schema.AddAttribute "inputType", "enum", False, "text|select|checkbox", False, 0
+            schema.AddAttribute "numberFormat", "string", False, "", False, 0
             schema.AddAttribute "placeholder", "string", False, "", True, 0
             schema.AddAttribute "readOnly", "boolean", False, "", True, 0
             schema.AddAttribute "partStylesEnabled", "boolean", False, "", False, 0
@@ -260,6 +262,7 @@ Private Function private_FieldSchema() As obj_UiMarkupSchema
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "labelStyle", "string", False, "", True, 0
     schema.AddAttribute "fieldStyle", "string", False, "", True, 0
+    schema.AddAttribute "numberFormat", "string", False, "", False, 0
     schema.AddAttribute "onFocus", "string", False, "", True, 0
     schema.AddAttribute "onChange", "string", False, "", True, 0
     schema.AddAttribute "readOnly", "boolean", False, "", True, 0
