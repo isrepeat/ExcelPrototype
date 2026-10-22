@@ -286,9 +286,16 @@ Public Function ResetFormHandler() As Boolean
     Dim diagnostic As String
     Dim records As New Collection
     Dim result As obj_LookupResult
+    Dim previousScreenUpdating As Boolean
+    Dim settingsCaptured As Boolean
+    Dim startedAt As Double
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    startedAt = VBA.Timer
+    previousScreenUpdating = Application.ScreenUpdating
+    settingsCaptured = True
+    Application.ScreenUpdating = False
     If Not private_ReadModeConfig("forms.styledFields", fields, diagnostic) Then GoTo Failed
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each fieldName In VBA.Split(fields, "|")
@@ -296,7 +303,7 @@ Public Function ResetFormHandler() As Boolean
     Next fieldName
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Form.ActionStatus") = VBA.vbNullString
-    updates("Text.PersonnelStatus") = VBA.vbNullString
+    If Not m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", VBA.vbNullString) Then GoTo Cleanup
     If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
     End If
@@ -317,20 +324,27 @@ Public Function ResetFormHandler() As Boolean
     m_reporterActive = False
     m_hospitalActive = False
     m_documentActive = False
-    If Not private_EndHistoryEdit() Then Exit Function
+    If Not private_EndHistoryEdit() Then GoTo Cleanup
     If Not private_PublishHistory(records, VBA.vbNullString, diagnostic) Then GoTo Failed
     m_historyOrderNumber = VBA.vbNullString
     m_historyOrderDate = VBA.vbNullString
-    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then GoTo Cleanup
     If Not m_extensions.Reset(diagnostic) Then GoTo Failed
-    If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo Failed
-    ResetFormHandler = m_pageBase.UpdatePage()
+    ' Rebuild only extension containers; flush existing bindings for all other controls.
+    If Not m_extensions.TryRefresh(diagnostic) Then GoTo Failed
+    ResetFormHandler = True
+Cleanup:
+    If settingsCaptured Then
+        Application.ScreenUpdating = previousScreenUpdating
+        ex_Core.fn_Diagnostic_WritePerf "Form.Reset", startedAt
+    End If
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
 Failed:
     ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
+    GoTo Cleanup
 End Function
 
 Public Function SearchPersonnelHandler() As Boolean

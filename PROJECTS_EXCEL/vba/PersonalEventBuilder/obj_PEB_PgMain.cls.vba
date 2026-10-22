@@ -243,6 +243,7 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
         If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
     Next textKey
+    If Not uiBindingContext.SetValue("Text", "PersonnelStatus", VBA.vbNullString) Then Exit Function
     configuredText = ex_PEB_Export.fn_Config("environment.name")
     If configuredText <> "TEST" And configuredText <> "PROD" Then
         ex_WindowsUi.fn_ShowMessage "Invalid environment.name: " & configuredText, vbExclamation, "Configuration"
