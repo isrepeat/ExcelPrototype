@@ -20,19 +20,28 @@ def main():
         settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         load_movement(settings, folder)
     pattern = r"^\s*[Вв]\s*/\s*[Кк]\s*$"
+    ticket_pattern = r"^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$"
     for root in (word, movement):
         shared = {node.get("id"): "".join(node.itertext()) for node in root.findall("{*}sharedTemplates/{*}sharedTemplate")}
         ticket = shared["block.OptionalVacationTicket"]
         assert "#let __TicketInDocument" in ticket
         assert "{#if __TicketInDocument}{#else}" in ticket
-        assert pattern in ticket
+        assert ticket_pattern in ticket
+        documents = shared["block.OptionalBasisDocuments"]
+        assert documents.count('{#for item in MetaDocumentTables}') == 2
+        assert documents.index('{#if __BasisTicket}{#else}') < documents.index('{#if __BasisTicket}#^')
+        assert documents.index('{#if __ItemTicket}{#else}') < documents.index('{#if __BasisTicket}#^')
+        assert documents.rindex('{#if __ItemTicket}#^') > documents.index('{#if __BasisTicket}#^')
+        for value in ('В/к', ' В / К ', 'відпускний квиток', 'Відпускний квиток'):
+            assert re.fullmatch(ticket_pattern, value)
+        assert not re.fullmatch(ticket_pattern, 'довідка військово-лікарської комісії')
     names = "".join(next(node for node in word.iter() if node.get("id") == "block.DocumentName").itertext())
     assert names.count('"відпускний квиток"') == 2
     for value in ("В/к", "в/к", " В / К "):
         assert re.sub(pattern, "відпускний квиток", value) == "відпускний квиток"
         assert re.fullmatch(pattern, value)
     assert re.sub(pattern, "відпускний квиток", "довідка ВЛК") == "довідка ВЛК"
-    assert "відпускний квиток" not in movement_path.read_text(encoding="utf-8-sig")
+    assert '; відпускний квиток' not in movement_path.read_text(encoding="utf-8-sig")
     assert '; відпускний квиток №' not in word_path.read_text(encoding="utf-8-sig")
     print("PASS: Word ticket expansion, Movement abbreviation and duplicate-suppression contracts. VBA was not executed.")
 
