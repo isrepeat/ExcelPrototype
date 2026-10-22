@@ -7,6 +7,9 @@ import re
 def load_native_plans(settings, source=None):
     path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_MovementRegistry.vba"
     source = path.read_text(encoding="utf-8-sig") if source is None else source
+    tvo_enabled = bool(re.search(r'(?mi)^#Const TVO_DEPRECATED = True$', source))
+    source = re.sub(r'(?ms)^#If TVO_DEPRECATED Then\n(.*?)^#End If$',
+                    lambda match: match[1] if tvo_enabled else '', source)
     def require(condition, message):
         if not condition:
             raise ValueError("Native Movement plan: " + message)
@@ -32,7 +35,16 @@ def load_native_plans(settings, source=None):
         for key, value in profiles[name].items():
             if value:
                 values[f"profiles.{name}.{key}"] = value
-    for match in re.finditer(r'private_AddMappings ("(?:[^"]|"")*"),\s*VBA.Array\((.*?)\),\s*VBA.Array\((.*?)\)', body("private_BuildProfiles")):
+    arrays = {}
+    def expand_arrays(match):
+        if match[1]:
+            arrays[match[1]] = match[2]
+            return match[0]
+        return f'private_AddMappings {match[3]}, VBA.Array({arrays["fields"]}), VBA.Array({arrays["headers"]})'
+    profile_body = re.sub(
+        r'(?m)^\s*(fields|headers) = VBA.Array\((.*?)\)|private_AddMappings ("[^"]+"), fields, headers',
+        expand_arrays, body("private_BuildProfiles"))
+    for match in re.finditer(r'private_AddMappings ("(?:[^"]|"")*"),\s*VBA.Array\((.*?)\),\s*VBA.Array\((.*?)\)', profile_body):
         prefix = strings(match.group(1))[0]
         fields, headers = strings(match.group(2)), strings(match.group(3))
         require(fields and len(fields) == len(headers), "Invalid mapping: " + prefix)
@@ -41,6 +53,13 @@ def load_native_plans(settings, source=None):
         for number, (field, header) in enumerate(zip(fields, headers), 1):
             values[f"{prefix}.{number}.field"] = field
             values[f"{prefix}.{number}.header"] = header
+    for match in re.finditer(r'private_AddTvoMappings "([^"]+)"', profile_body):
+        prefix = match[1]
+        count = int(values[prefix + '.count'])
+        for number, field in enumerate(('TvoName', 'TvoPersonId', 'TvoPositionCode'), count + 1):
+            values[f'{prefix}.{number}.field'] = field
+            values[f'{prefix}.{number}.header'] = settings['returnTvo.headers.' + field]
+        values[prefix + '.count'] = str(count + 3)
     for match in re.finditer(r'm_values.Add ("profiles\.[^"]+\.guard.openHeader"), ("[^"]+")', body("private_BuildProfiles")):
         key, value = strings(match.group(0))
         values[key] = value

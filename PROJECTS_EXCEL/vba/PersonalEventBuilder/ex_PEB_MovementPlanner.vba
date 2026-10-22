@@ -1,6 +1,8 @@
 Attribute VB_Name = "ex_PEB_MovementPlanner"
 Option Explicit
 
+#Const TVO_DEPRECATED = True
+
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
@@ -840,7 +842,13 @@ Private Sub private_PlanBasisSide( _
         If ex_PEB_MovementLinks.fn_ValueToken(cells(key)) <> ex_PEB_MovementLinks.fn_ValueToken(fields(key)) Then
             If VBA.StrComp(VBA.CStr(key), basisHeader, VBA.vbTextCompare) <> 0 Then
                 If Not ex_PEB_MovementConflicts.fn_Overwrite() Then
+#If TVO_DEPRECATED Then
+                    If Not ex_PEB_MovementRegistry.fn_IsTvoHeader(VBA.CStr(key)) Then
+                        private_Fail "AppliedEventChanged", identifier & "/" & VBA.CStr(key)
+                    End If
+#Else
                     private_Fail "AppliedEventChanged", identifier & "/" & VBA.CStr(key)
+#End If
                 End If
             End If
             Set entry = private_UpdateCell(row("TargetRow"), VBA.CStr(key), cells(key), fields(key))

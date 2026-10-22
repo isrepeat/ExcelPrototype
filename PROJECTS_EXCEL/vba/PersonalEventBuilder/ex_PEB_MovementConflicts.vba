@@ -1,6 +1,8 @@
 Attribute VB_Name = "ex_PEB_MovementConflicts"
 Option Explicit
 
+#Const TVO_DEPRECATED = True
+
 Private m_target As String
 Private m_states As Object
 Private m_choices As Collection
@@ -102,6 +104,10 @@ Public Function fn_Resolve( _
     Dim validHash As Boolean
     Dim previousFields As Object
     Dim completeState As Boolean
+#If TVO_DEPRECATED Then
+    Dim legacyFields As Object
+    Dim fieldKey As String
+#End If
 
     If m_states Is Nothing Then
         Exit Function
@@ -112,6 +118,20 @@ Public Function fn_Resolve( _
         Exit Function
     End If
     validHash = (cells(hashHeader) = ex_PEB_MovementLinks.fn_FieldsHash(fields, cells))
+#If TVO_DEPRECATED Then
+    ' Older exports did not own TVO columns; migrate only empty, untracked cells.
+    If Not validHash And side = "Opening" Then
+        Set legacyFields = VBA.CreateObject("Scripting.Dictionary")
+        For Each field In fields.Keys
+            fieldKey = private_Key(action("RowId"), side, field)
+            If Not ex_PEB_MovementRegistry.fn_IsTvoHeader(VBA.CStr(field)) Or m_states.Exists(fieldKey) Or _
+                    VBA.Len(ex_PEB_Export.fn_Text(cells(field))) > 0 Then
+                legacyFields.Add field, fields(field)
+            End If
+        Next field
+        validHash = (cells(hashHeader) = ex_PEB_MovementLinks.fn_FieldsHash(legacyFields, cells))
+    End If
+#End If
     Set previousFields = VBA.CreateObject("Scripting.Dictionary")
     completeState = True
     For Each field In fields.Keys
