@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 
 from event_routes import ROOT, parse_config
 from movement_templates import load_movement
+from dsl_resources import load_resources, lookup
 
 
 def main():
@@ -28,15 +29,16 @@ def main():
         assert "{#if __TicketInDocument}{#else}" in ticket
         assert ticket_pattern in ticket
         documents = shared["block.OptionalBasisDocuments"]
-        assert documents.count('{#for item in MetaDocumentTables}') == 2
-        assert documents.index('{#if __BasisTicket}{#else}') < documents.index('{#if __BasisTicket}#^')
-        assert documents.index('{#if __ItemTicket}{#else}') < documents.index('{#if __BasisTicket}#^')
-        assert documents.rindex('{#if __ItemTicket}#^') > documents.index('{#if __BasisTicket}#^')
+        assert '{#for item in BasisDocuments orderBy:"BasisDocuments"}' in documents
+        assert 'm_RegexIsMatch' not in documents
         for value in ('В/к', ' В / К ', 'відпускний квиток', 'Відпускний квиток'):
             assert re.fullmatch(ticket_pattern, value)
         assert not re.fullmatch(ticket_pattern, 'довідка військово-лікарської комісії')
     names = "".join(next(node for node in word.iter() if node.get("id") == "block.DocumentName").itertext())
-    assert names.count('"відпускний квиток"') == 2
+    assert 'lookup:"DocumentNames"' in names
+    resources = load_resources(word, {'SourceStatus', 'ModeId'})
+    for value in ("В/к", "в/к", " В / К "):
+        assert lookup(resources, "DocumentNames", value, {'SourceStatus': ''}) == "відпускний квиток"
     for value in ("В/к", "в/к", " В / К "):
         assert re.sub(pattern, "відпускний квиток", value) == "відпускний квиток"
         assert re.fullmatch(pattern, value)

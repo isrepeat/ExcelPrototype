@@ -107,6 +107,7 @@ Public Sub fn_Change( _
         text = templates.SharedTemplates(key)
         sharedPlan = sharedPlan & VBA.Len(key) & ":" & key & VBA.Len(text) & ":" & text
     Next key
+    sharedPlan = sharedPlan & VBA.Len(templates.ResourcesXml) & ":" & templates.ResourcesXml
     If operation <> "DELETE" Then
         Set template = templates.Definition(VBA.CStr(values("TemplateName")))
         Set targetSection = store.BindSection( _
@@ -116,7 +117,7 @@ Public Sub fn_Change( _
             template.XML, _
             sharedPlan _
         )
-        Set keys = private_ContextKeys(template, templates.SharedTemplates)
+        Set keys = private_ContextKeys(template, templates.SharedTemplates, templates.ResourcesXml)
     End If
 
     ' Reject duplicate inserts in memory before scanning Word anchor ranges.
@@ -162,7 +163,7 @@ Public Sub fn_Change( _
         rendered = VBA.vbNullString
         If events.Count > 0 Then
             If template.selectNodes("p:group").Length > 0 Then
-                rendered = ex_PEB_WordGroups.fn_Render(template, events, templates.SharedTemplates)
+                rendered = ex_PEB_WordGroups.fn_Render(template, events, templates.SharedTemplates, templates.Resources)
             Else
                 For Each item In events
                     If Not templates.TryRender(section.getAttribute("template"), item, text, diagnostic) Then
@@ -237,7 +238,8 @@ End Sub
 
 Private Function private_ContextKeys( _
     ByVal template As Object, _
-    ByVal sharedTemplates As Object _
+    ByVal sharedTemplates As Object, _
+    ByVal resourcesXml As String _
 ) As Collection
     Dim known As Object
     Dim included As Object
@@ -256,6 +258,7 @@ Private Function private_ContextKeys( _
     expression.Global = True
     expression.Pattern = "#include\s+([A-Za-z0-9_.]+)"
     queue.Add template.XML
+    text = resourcesXml
     Do While queue.Count > 0
         name = queue(1)
         queue.Remove 1
@@ -271,7 +274,7 @@ Private Function private_ContextKeys( _
             End If
         Next match
     Loop
-    For Each key In VBA.Split("EventId|TemplateName|PersonId|PersonName|PositionCode|AcceptedOrderNumber|OrderDateShort|DateFromShort", "|")
+    For Each key In VBA.Split("EventId|TemplateName|PersonId|PersonName|PositionCode|AcceptedOrderNumber|OrderDateShort|DateFromShort|DocumentNote|DocNo|DocDateShort|MetaDocumentTables|VlkNo|VlkDateShort", "|")
         known.Add VBA.CStr(key), True
     Next key
     Set fieldExpression = VBA.CreateObject("VBScript.RegExp")
@@ -279,7 +282,7 @@ Private Function private_ContextKeys( _
     fieldExpression.Global = True
     fieldExpression.Pattern = "[A-Za-z_][A-Za-z0-9_]*\.\[[A-Za-z_][A-Za-z0-9_]*\]"
     text = fieldExpression.Replace(text, VBA.vbNullString)
-    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.xmlKeys") & "|" & ex_PEB_Export.fn_Config("export.Word.context.requiredKeys"), "|")
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.xmlKeys") & "|" & ex_PEB_Export.fn_Config("export.Word.context.requiredKeys") & "|ModeId", "|")
         fieldExpression.Pattern = "(^|[^A-Za-z0-9_])" & VBA.CStr(key) & "([^A-Za-z0-9_]|$)"
         If fieldExpression.Test(text) Then
             known(VBA.CStr(key)) = True

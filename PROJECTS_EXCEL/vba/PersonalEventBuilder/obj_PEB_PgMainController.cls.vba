@@ -237,7 +237,7 @@ Public Function DocumentChangedHandler() As Boolean
     Dim autoFill As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(m_modeId, "form")) Then
+    If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
         DocumentChangedHandler = True
         Exit Function
     End If
@@ -297,8 +297,8 @@ Public Function ResetFormHandler() As Boolean
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Form.ActionStatus") = VBA.vbNullString
     updates("Text.PersonnelStatus") = VBA.vbNullString
-    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(m_modeId, "form")) Then
-        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
+        updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
     End If
     Set result = New obj_LookupResult
     If Not result.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
@@ -988,12 +988,22 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
         If row.Exists(field) Then updates("Form." & VBA.CStr(field)) = row(field)
     Next field
-    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(CStr(row("EventId")), "form")) Then
+    If ex_PEB_Export.fn_IsTicketDocumentMode(CStr(row("EventId"))) Then
         If CStr(row("Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
+            updates("Form.DocumentNumber") = vbNullString
+            updates("Form.DocumentDate") = vbNullString
             If row.Exists("TicketNumber") Then updates("Form.DocumentNumber") = row("TicketNumber")
             If row.Exists("TicketDate") Then updates("Form.DocumentDate") = row("TicketDate")
         End If
         updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
+    If Len(ex_PEB_Export.fn_FixedDocument(CStr(row("EventId")))) > 0 Then
+        If Not ex_PEB_Export.fn_IsTicketDocumentMode(CStr(row("EventId"))) And _
+                CStr(row("Document")) <> ex_PEB_Export.fn_FixedDocument(CStr(row("EventId"))) Then
+            updates("Form.DocumentNumber") = vbNullString
+            updates("Form.DocumentDate") = vbNullString
+        End If
+        updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(CStr(row("EventId")))
     End If
     updates("Form.AutoFillPersonnel") = False
     updates("Form.WordPreviewText") = VBA.vbNullString
@@ -1377,13 +1387,16 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     m_hospitalActive = False
     m_documentActive = False
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
-    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+    If ex_PEB_Export.fn_IsTicketDocumentMode(modeId) Then
         If Not updates.Exists("Form.Document") Then updates("Form.Document") = vbNullString
         If CStr(updates("Form.Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
             If updates.Exists("Form.TicketNumber") Then updates("Form.DocumentNumber") = updates("Form.TicketNumber")
             If updates.Exists("Form.TicketDate") Then updates("Form.DocumentDate") = updates("Form.TicketDate")
         End If
         updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
+    If Len(ex_PEB_Export.fn_FixedDocument(modeId)) > 0 Then
+        updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(modeId)
     End If
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     m_acceptedOrderNumber = updates("Form.AcceptedOrderNumber")
@@ -2408,16 +2421,15 @@ Private Function private_UpdateReadOnly( _
             (InStr(1, "|" & dependents & "|", "|" & field & "|", vbBinaryCompare) > 0)
     Next field
     If Len(m_modeId) > 0 Then
-        If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(m_modeId, "form")) <> _
-                ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+        If ex_PEB_Export.fn_FixedDocument(m_modeId) <> ex_PEB_Export.fn_FixedDocument(modeId) Then
             updates("Form.Document") = vbNullString
             updates("Form.DocumentNumber") = vbNullString
             updates("Form.DocumentDate") = vbNullString
         End If
     End If
-    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+    If Len(ex_PEB_Export.fn_FixedDocument(modeId)) > 0 Then
         updates("Form.DocumentReadOnly") = True
-        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+        updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(modeId)
     End If
     private_UpdateReadOnly = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
 End Function
@@ -2456,7 +2468,7 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
             Set updates = VBA.CreateObject("Scripting.Dictionary")
             updates("Form.TicketNumber") = VBA.vbNullString
             updates("Form.TicketDate") = VBA.vbNullString
-            If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+            If ex_PEB_Export.fn_IsTicketDocumentMode(modeId) Then
                 updates("Form.DocumentNumber") = vbNullString
                 updates("Form.DocumentDate") = vbNullString
             End If
@@ -2616,6 +2628,9 @@ Private Function private_ApplyModeRecord( _
         End If
 NextAppliedField:
     Next column
+    If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
+        updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
+    End If
     private_ApplyModeRecord = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
 End Function
 
@@ -2878,7 +2893,8 @@ Private Function private_SetCandidateSources( _
     End If
     For Each column In columns
         If Left$(column("name"), 9) = "Movement." Or _
-            (column("formField") = hospitalDateField And Not ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form"))) Then
+            ((column("formField") = hospitalDateField Or column("formField") = "DocumentNumber") And _
+                Not ex_PEB_Export.fn_IsTicketDocumentMode(modeId)) Then
             column("name") = "Manual." & column("formField")
             column("apply") = False
             column("sourceAlias") = vbNullString

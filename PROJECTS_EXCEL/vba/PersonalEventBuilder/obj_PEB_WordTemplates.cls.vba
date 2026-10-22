@@ -14,6 +14,8 @@ Private m_isDisposed As Boolean
 
 Private m_templates As Object
 Private m_sharedTemplates As Object
+Private m_resources As Object
+Private m_resourcesXml As String
 Private m_documentFilepath As String
 
 ' //
@@ -41,6 +43,20 @@ Public Property Get DocumentFilepath() As String
         Err.Raise 5, , "Word templates are not initialized."
     End If
     DocumentFilepath = m_documentFilepath
+End Property
+
+Public Property Get Resources() As Object
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Word templates are not initialized."
+    End If
+    Set Resources = m_resources
+End Property
+
+Public Property Get ResourcesXml() As String
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Word templates are not initialized."
+    End If
+    ResourcesXml = m_resourcesXml
 End Property
 
 ' //
@@ -91,6 +107,10 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         Err.Raise 5, , "Unsupported Word DSL XML version."
     End If
     knownKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.xmlKeys") & "|"
+    Set m_resources = ex_PEB_DslResources.fn_Load(node, knownKeys & "ModeId|")
+    If node.selectNodes("p:resources").Length = 1 Then
+        m_resourcesXml = node.selectSingleNode("p:resources").XML
+    End If
     For Each textNode In document.selectNodes("//p:derived | //p:aggregate")
         knownKeys = knownKeys & VBA.CStr(textNode.getAttribute("name")) & "|"
     Next textNode
@@ -98,6 +118,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     expression.Global = True
     expression.Pattern = "\[([A-Z][A-Za-z0-9_]*)\]"
     For Each textNode In document.selectNodes("//p:text")
+        ex_PEB_DslResources.fn_ValidateText textNode.Text, m_resources
         For Each reference In expression.Execute(textNode.Text)
             name = VBA.CStr(reference.SubMatches(0))
             If VBA.InStr(1, knownKeys, "|" & name & "|", VBA.vbBinaryCompare) = 0 Then
@@ -151,6 +172,8 @@ Public Sub Dispose()
     m_isInitialized = False
     Set m_templates = Nothing
     Set m_sharedTemplates = Nothing
+    Set m_resources = Nothing
+    m_resourcesXml = VBA.vbNullString
     m_documentFilepath = VBA.vbNullString
 End Sub
 
@@ -198,7 +221,7 @@ Public Function TryRender( _
     End If
     Set events = New Collection
     events.Add values
-    rendered = ex_PEB_WordGroups.fn_Render(m_templates(name), events, m_sharedTemplates)
+    rendered = ex_PEB_WordGroups.fn_Render(m_templates(name), events, m_sharedTemplates, m_resources)
     TryRender = True
     Exit Function
 EH:

@@ -3,6 +3,7 @@
 from pathlib import Path
 from xml.etree import ElementTree as ET
 import re
+from dsl_resources import load_resources
 
 NS = {"p": "urn:excelprototype:profiles"}
 
@@ -20,7 +21,7 @@ def load_movement(settings, workbook, xml_text=None):
     require(root.tag == f"{{{NS['p']}}}resultTemplates" and root.get("version") == "1", "Invalid root/version")
     attributes(root, {"version"}, {"version"})
     require(len(root.findall("p:sharedTemplates", NS)) == 1, "Expected one sharedTemplates section")
-    require(all(child.tag in {f"{{{NS['p']}}}sharedTemplates", f"{{{NS['p']}}}template"} for child in root), "Unknown result element")
+    require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("resources", "sharedTemplates", "template")} for child in root), "Unknown result element")
     known = set(settings["export.fields"].split("|")) | set(settings["export.shared.inputs.scalars"].split("|")) | {
         "EventName", "SourceEventName", "SourceDestination", "TicketDocument", "FoodSupportDate",
         "SourceStatus", "TargetStatus", "Operation",
@@ -32,6 +33,7 @@ def load_movement(settings, workbook, xml_text=None):
         known.add(name)
         known.update(settings[f"export.shared.inputs.{name}.fields"].split("|"))
     shared, templates = {}, {}
+    load_resources(root, known)
     column_texts = {}
     for node in root.findall("p:sharedTemplates/p:sharedTemplate", NS):
         attributes(node, {"id"}, {"id"})

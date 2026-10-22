@@ -158,6 +158,66 @@
 
 Каталоги общих блоков Word и Movement раздельные. Например, Word-блок `block.IncomingBasis` содержит `Підстава:`, а Movement-блок с тем же именем формирует основание без этой подписи. Определять блок нужно в файле, где он используется.
 
+### Resource dictionaries
+
+Word and Movement templates can declare one optional `resources` section directly under their root element. Resources are parsed and indexed once when the template file is loaded. Each file owns its dictionaries, so Word and Movement can use the same dictionary name with different output phrases.
+
+```xml
+<resources>
+  <dictionary name="DocumentNames"
+              ignoreCase="true"
+              normalize="trim,slashSpaces"
+              onMissing="keep">
+    <entry key="м/к">
+      <variant value="медична карта стаціонарного хворого"/>
+      <variant value="виписка із медичної карти стаціонарного хворого"
+               field="SourceStatus"
+               equals="HospitalTreatment"/>
+    </entry>
+  </dictionary>
+</resources>
+```
+
+Use the dictionary as a formatter:
+
+```text
+{[__DocumentName]|lookup:"DocumentNames"|lowerFirstLetter}
+```
+
+All alternatives are sibling `variant` elements. Each entry requires exactly one unconditional variant. A conditional variant supplies both `field` and `equals`; the field must be declared in the template context. `SourceStatus` and `ModeId` can select status-specific or mode-specific phrases. One matching condition overrides the unconditional variant regardless of XML order. Multiple matching conditions are an error.
+
+`ignoreCase` controls key and condition-value comparison. `normalize="trim"` replaces nonbreaking spaces, narrow nonbreaking spaces and tabs with ordinary spaces and trims outer spaces. `trim,slashSpaces` also removes spaces adjacent to slash characters, making ` М / К ` equivalent to `м/к` in a case-insensitive dictionary. It does not remove spaces inside full document names.
+
+`onMissing="keep"` preserves an unknown input verbatim; `onMissing="error"` rejects it. Unknown dictionary names, duplicate normalized keys, missing or duplicate unconditional variants, duplicate conditions and unsupported attributes are errors. Lookup uses indexed keys and conditional values rather than regular expressions. WORD event snapshots retain dictionary condition fields, and the template fingerprint includes resource XML.
+
+### Item ordering
+
+An `itemOrder` resource sorts any collection of dictionaries by a configured field. Document preparation remains separate from sorting. Both export files declare:
+
+```xml
+<itemOrder name="BasisDocuments"
+           field="DocumentNote"
+           ignoreCase="true"
+           normalize="trim,slashSpaces">
+  <item key="м/к"/>
+  <item key="Довідка ВЛК"/>
+  <others/>
+  <item key="в/к"/>
+</itemOrder>
+```
+
+Place this element inside `resources`. Each order requires `name`, `field`, `ignoreCase`, `normalize` and exactly one `others` placeholder. `field` names a required scalar field on each collection item, rather than a root context field. `ignoreCase` selects case-sensitive or case-insensitive matching; `normalize` accepts `none`, `trim` or `trim,slashSpaces`. Optional `aliases` contains pipe-separated equivalent keys. Duplicate normalized keys, duplicate aliases, missing item fields and unknown order names are errors. The key `@others` is reserved internally.
+
+The same mechanism supports non-document collections: an order with `field="Priority"` can be used by `{#for item in Tasks orderBy:"TaskPriorities"}`. Neither the source collection nor the UI is reordered.
+
+```text
+{#for item in BasisDocuments orderBy:"BasisDocuments"}
+  {item.[DocumentNote]} № {item.[DocNo]} від {item.[DocDateShort]}
+{#endfor}
+```
+
+`BasisDocuments` combines the main document, additional document forms and legacy VLK scalar fields without changing UI or history order. Sorting is stable: documents with the same known type retain their relative order, and unknown documents retain their order inside `others`. Current templates place medical cards first, VLK certificates next, unknown documents next and vacation tickets last. Blank document rows are omitted by the output condition.
+
 ## 7. Циклы и локальные вычисления
 
 Quoted string assignments are supported in Word and Movement: `#let __DocumentName = "{[DocumentNote]}";`. The right-hand string is rendered in the current context and stored as a scalar; doubled quotes escape a literal quote. No arbitrary VBA expression is executed. Includes share the current context, while loop iterations use isolated child contexts. Assign `"{item.[DocumentNote]}"` inside a document loop to reuse the same `block.DocumentName` for each child without overwriting the main document's variable.

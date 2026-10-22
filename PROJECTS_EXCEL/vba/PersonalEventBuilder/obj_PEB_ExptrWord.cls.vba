@@ -139,7 +139,7 @@ Public Function TryGenerateHistory( _
     For Each eventId In sections.Keys
         Set definition = templates.Definition(sectionTemplates(eventId))
         If definition.selectNodes("p:group").Length > 0 Then
-            body = ex_PEB_WordGroups.fn_Render(definition, sections(eventId), templates.SharedTemplates)
+            body = ex_PEB_WordGroups.fn_Render(definition, sections(eventId), templates.SharedTemplates, templates.Resources)
         Else
             ReDim parts(0 To sections(eventId).Count - 1)
             partCount = 0

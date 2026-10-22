@@ -6,6 +6,7 @@ Private m_templates As Object
 Private m_shared As Object
 Private m_columnTexts As Object
 Private m_knownFields As Object
+Private m_resources As Object
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -16,6 +17,7 @@ Public Sub fn_Module_Dispose()
     Set m_shared = Nothing
     Set m_columnTexts = Nothing
     Set m_knownFields = Nothing
+    Set m_resources = Nothing
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -43,6 +45,11 @@ Public Function fn_Texts(ByVal name As String) As Object
         Err.Raise 5, , "Result column texts not found: " & name
     End If
     Set fn_Texts = m_columnTexts(name)
+End Function
+
+Public Function fn_Resources() As Object
+    private_EnsureLoaded
+    Set fn_Resources = m_resources
 End Function
 ' --------------------------------------
 ' } // namespace API
@@ -84,7 +91,8 @@ Private Sub private_EnsureLoaded()
     End If
     For Each child In root.childNodes
         If child.nodeType = 1 Then
-            If child.namespaceURI <> "urn:excelprototype:profiles" Or (child.baseName <> "sharedTemplates" And child.baseName <> "template") Then
+            If child.namespaceURI <> "urn:excelprototype:profiles" Or _
+                    InStr(1, "|resources|sharedTemplates|template|", "|" & child.baseName & "|", vbBinaryCompare) = 0 Then
                 Err.Raise 5, , "Unknown result template element: " & child.nodeName
             End If
         End If
@@ -114,6 +122,7 @@ Private Sub private_EnsureLoaded()
             m_knownFields(section) = True
         Next section
     Next key
+    Set m_resources = ex_PEB_DslResources.fn_Load(root, "|" & VBA.Join(m_knownFields.Keys, "|") & "|")
     For Each node In root.selectNodes("p:sharedTemplates/p:sharedTemplate")
         private_CheckAttributes node, "id"
         private_RequireChildren node, "text"
@@ -176,6 +185,8 @@ Private Sub private_ValidateText( _
     Dim expression As Object
     Dim reference As Object
     Dim name As String
+
+    ex_PEB_DslResources.fn_ValidateText text, m_resources
 
     If depth > ex_PEB_Export.fn_Count("export.dsl.maxDepth") Then
         Err.Raise 5, , "Movement include-depth limit exceeded."

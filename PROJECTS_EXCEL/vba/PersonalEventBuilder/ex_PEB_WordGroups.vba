@@ -53,7 +53,8 @@ End Sub
 Public Function fn_Render( _
     ByVal template As Object, _
     ByVal events As Collection, _
-    ByVal sharedTemplates As Object _
+    ByVal sharedTemplates As Object, _
+    Optional ByVal resources As Object = Nothing _
 ) As String
     Dim renderer As obj_PEB_DslRenderer
     Dim item As Object
@@ -67,7 +68,7 @@ Public Function fn_Render( _
 
     On Error GoTo EH
     Set renderer = New obj_PEB_DslRenderer
-    If Not renderer.Initialize(sharedTemplates) Then
+    If Not renderer.Initialize(sharedTemplates, resources) Then
         Err.Raise 5, , "Cannot initialize grouped Word renderer."
     End If
     Set items = New Collection

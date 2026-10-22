@@ -196,7 +196,7 @@ Private Sub private_EnsureLoaded()
         Set templates = private_LoadXml(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.templates.path")))
         For Each node In templates.documentElement.childNodes
             If node.nodeType = 1 Then
-                If node.namespaceURI <> "urn:excelprototype:profiles" Or VBA.InStr(1, "|documentFilepath|sharedTemplates|template|", "|" & node.baseName & "|", VBA.vbBinaryCompare) = 0 Then
+                If node.namespaceURI <> "urn:excelprototype:profiles" Or VBA.InStr(1, "|resources|documentFilepath|sharedTemplates|template|", "|" & node.baseName & "|", VBA.vbBinaryCompare) = 0 Then
                     Err.Raise 5, , "Unknown Word template section: " & node.nodeName
                 End If
             End If

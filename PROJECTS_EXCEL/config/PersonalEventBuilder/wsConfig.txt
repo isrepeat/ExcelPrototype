@@ -428,7 +428,7 @@ value	PersonalEventBuilder::forms.readOnly.modes.ToBusinessTrip	Destination|Pers
 value	PersonalEventBuilder::forms.readOnly.modes.FromExternalVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.FromBusinessTrip	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.ToMaternityLeave	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
-value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
+value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForFamily	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.ToAnnualMainVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.FromVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
@@ -448,7 +448,7 @@ value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToVlk	
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVlkToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAnnualVacationToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromFamilyVacationToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
-value	PersonalEventBuilder::forms.readOnly.modes.MoveFromHospitalToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
+value	PersonalEventBuilder::forms.readOnly.modes.MoveFromHospitalToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromVacationForCuringToHospital	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromAnnualVacationToFamilyVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromExternalVlkToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
@@ -1536,6 +1536,9 @@ value	PersonalEventBuilder::history.fieldState.table	tbExportFieldState
 value	PersonalEventBuilder::history.fieldState.fields	EventRowId|Exporter|Target|Side|Field|Revision|GeneratedValue|AppliedValue
 value	PersonalEventBuilder::history.identityFields	AcceptedOrderNumber|AcceptedOrderDate|PersonId|EventId|EventDate
 value	PersonalEventBuilder::history.selfReportPattern	^\s*$|^\s*[Сс][Аа][Мм]\s*$
+value	PersonalEventBuilder::document.fixed.modes	ToVacationForCuring|MoveFromHospitalToVacationForCuring
+value	PersonalEventBuilder::document.fixed.ToVacationForCuring	В/к
+value	PersonalEventBuilder::document.fixed.MoveFromHospitalToVacationForCuring	В/к
 value	PersonalEventBuilder::document.fields.1.record	Document.Name
 value	PersonalEventBuilder::document.fields.1.formField	Document
 value	PersonalEventBuilder::document.fields.1.captionKey	PersonalEventBuilder::text.ModeDocumentLabel
@@ -1592,12 +1595,27 @@ value	PersonalEventBuilder::returnTvo.snapshot.fields	PersonId|PersonName|Person
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::candidates.textWarningLimit	255
   ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel
-value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.count	1
+value	PersonalEventBuilder::extensions.mode.ToVacationForCuring.default.count	1
+value	PersonalEventBuilder::extensions.mode.ToVacationForCuring.default.1.type	Document
+value	PersonalEventBuilder::extensions.mode.ToVacationForCuring.default.1.role	Vlk
+value	PersonalEventBuilder::extensions.mode.ToVacationForCuring.default.1.removable	false
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.count	2
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.1.type	Document
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.1.role	Vlk
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.1.removable	false
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.2.type	Document
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.2.role	MedicalCard
+value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.2.removable	false
+value	PersonalEventBuilder::extensions.mode.MoveFromVacationForCuringToVacationForCuring.default.count	1
+value	PersonalEventBuilder::extensions.mode.MoveFromVacationForCuringToVacationForCuring.default.1.type	Document
+value	PersonalEventBuilder::extensions.mode.MoveFromVacationForCuringToVacationForCuring.default.1.role	Vlk
+value	PersonalEventBuilder::extensions.mode.MoveFromVacationForCuringToVacationForCuring.default.1.removable	false
 value	PersonalEventBuilder::extensions.role.Vlk.caption	Довідка ВЛК
+value	PersonalEventBuilder::extensions.role.Vlk.document	Довідка ВЛК
 value	PersonalEventBuilder::extensions.role.Vlk.required	Document|DocumentNumber|DocumentDate
+value	PersonalEventBuilder::extensions.role.MedicalCard.caption	Медична карта
+value	PersonalEventBuilder::extensions.role.MedicalCard.document	м/к
+value	PersonalEventBuilder::extensions.role.MedicalCard.required	Document|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::extensions.type.TVO.key	PersonName
 value	PersonalEventBuilder::extensions.type.TVO.map	PersonRank=Personnel.Rank|PersonName=Personnel.FullName|PersonId=Personnel.TaxId|PositionCode=Personnel.PositionCode|PersonPosition=Personnel.Position
 value	PersonalEventBuilder::extensions.type.TVO.form.1.name	PersonRank
@@ -1681,7 +1699,7 @@ value	PersonalEventBuilder::extensions.type.Document.defaults	-
 value	PersonalEventBuilder::extensions.type.Document.readOnly	-
 value	PersonalEventBuilder::extensions.type.Document.required	Document
 value	PersonalEventBuilder::extensions.limit	20
-value	PersonalEventBuilder::extensions.modes	MoveFromHospitalToVacationForCuring
+value	PersonalEventBuilder::extensions.modes	ToVacationForCuring|MoveFromHospitalToVacationForCuring|MoveFromVacationForCuringToVacationForCuring
 value	PersonalEventBuilder::extensions.types	TVO|Report|Document
 value	PersonalEventBuilder::extensions.invalid	Заповніть обов’язкові поля розширення: {field}
 value	PersonalEventBuilder::extensions.addCaption	+
