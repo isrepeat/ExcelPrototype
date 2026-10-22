@@ -438,7 +438,14 @@ Private Function private_Apply( _
         private_Apply = True
         Exit Function
     End If
+    If values("EventId") = "MoveFromAwolToBusinessTrip" Then
+        private_PlanReturnPlaceholder rows, headers, action, links, nextTargetIndex
+    End If
     If private_Existing(rows, values, action, writes, closingWrites, joins, links, headers, nextTargetIndex) Then
+        If action.Exists("PlaceholderWrites") And action("Status") = "AlreadyApplied" Then
+            action("Status") = "Planned"
+            action("IsUpdate") = True
+        End If
         private_Apply = True
         Exit Function
     End If
@@ -476,7 +483,10 @@ Private Function private_Apply( _
                 If VBA.Len(ex_PEB_Export.fn_Text(cells(key))) > 0 Then
                     If private_Date(cells(key)) = eventDate Then
                         If VBA.Len(row("OriginRowId")) = 0 And VBA.Len(row("ClosingRowId")) = 0 Then
-                            private_Fail "AmbiguousHistoricalSameDay", VBA.CStr(row("SourceRow"))
+                            ' The unique selected period may start and end on the same date.
+                            If index <> selected Or operation = "append" Or VBA.CStr(key) <> departureHeader Then
+                                private_Fail "AmbiguousHistoricalSameDay", VBA.CStr(row("SourceRow"))
+                            End If
                         End If
                     End If
                 End If
@@ -555,6 +565,77 @@ EH:
     diagnostic = VBA.Err.Description
     ex_Core.fn_Diagnostic_WriteError "Movement.Preview.Event", VBA.Err.Number, VBA.Err.Source, diagnostic
 End Function
+
+Private Sub private_PlanReturnPlaceholder( _
+    ByVal rows As Collection, _
+    ByVal headers As Object, _
+    ByVal action As Object, _
+    ByVal links As Object, _
+    ByRef nextTargetIndex As Long _
+)
+    Dim row As Object
+    Dim cells As Object
+    Dim writes As Object
+    Dim closingWrites As Object
+    Dim key As Variant
+    Dim identifier As String
+    Dim eventHeader As String
+    Dim personHeader As String
+    Dim statusName As String
+
+    ' The closed placeholder has its own stable link; its dates can later be edited manually.
+    identifier = action("RowId") & "/Return"
+    eventHeader = ex_PEB_Export.fn_Config("export.Movement.headers.EventName")
+    personHeader = ex_PEB_Export.fn_Config("export.Movement.headers.PersonId")
+    statusName = ex_PEB_Export.fn_Config("export.Movement.status.ReturnToOtherUnit")
+    For Each row In rows
+        Set cells = row("Cells")
+        If cells(links("OpeningId")) = identifier Then
+            If cells(personHeader) <> action("PersonId") Or cells(eventHeader) <> statusName Then
+                private_Fail "AppliedMovementChanged", identifier
+            End If
+            Exit Sub
+        End If
+    Next row
+
+    ' Create one closed zero-length period before the new business-trip period.
+    Set writes = private_CopyFields(action("Writes"))
+    Set closingWrites = action("ClosingWrites")
+    writes(eventHeader) = statusName
+    For Each key In closingWrites.Keys
+        writes(key) = closingWrites(key)
+    Next key
+    For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")
+        writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")
+    Next key
+    Set cells = VBA.CreateObject("Scripting.Dictionary")
+    cells.CompareMode = VBA.vbTextCompare
+    For Each key In headers.Keys
+        cells.Add VBA.CStr(key), VBA.vbNullString
+    Next key
+    For Each key In writes.Keys
+        private_RequireHeader headers, VBA.CStr(key)
+        If headers(key) Then
+            private_Fail "FormulaColumnWrite", VBA.CStr(key)
+        End If
+        cells(key) = writes(key)
+    Next key
+    writes.Add links("OpeningId"), identifier
+    writes.Add links("OpeningHash"), ex_PEB_MovementLinks.fn_FieldsHash(writes)
+    cells(links("OpeningId")) = identifier
+    cells(links("OpeningHash")) = writes(links("OpeningHash"))
+    nextTargetIndex = nextTargetIndex + 1
+    Set row = VBA.CreateObject("Scripting.Dictionary")
+    row.Add "Cells", cells
+    row.Add "Formulas", VBA.CreateObject("Scripting.Dictionary")
+    row.Add "SourceRow", 0
+    row.Add "TargetRow", nextTargetIndex
+    row.Add "OriginRowId", identifier
+    row.Add "ClosingRowId", VBA.vbNullString
+    rows.Add row
+    action.Add "PlaceholderIndex", nextTargetIndex
+    action.Add "PlaceholderWrites", writes
+End Sub
 
 Private Sub private_ValidateLink( _
     ByVal cells As Object, _
@@ -712,7 +793,8 @@ Private Function private_PlanOpening( _
         Set cells = row("Cells")
         If VBA.StrComp(ex_PEB_Export.fn_Text(cells(personHeader)), action("PersonId"), VBA.vbTextCompare) = 0 Then
             If VBA.Len(ex_PEB_Export.fn_Text(cells(departureHeader))) > 0 Then
-                If private_Date(cells(departureHeader)) = action("EventDate") Then
+                If private_Date(cells(departureHeader)) = action("EventDate") And _
+                        row("OriginRowId") <> action("RowId") & "/Return" Then
                     private_Fail "ExistingIdentityRequiresLink", VBA.CStr(row("SourceRow"))
                 End If
             End If

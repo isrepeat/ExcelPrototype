@@ -230,12 +230,12 @@ Public Function fn_PlanStamp(ByVal plan As Object) As String
         If action.Exists("Operation") Then
             stamp = stamp & fn_Token(action("Operation"))
         End If
-        For Each key In VBA.Array("SourceRow", "ClosingIndex", "TargetIndex", "IsUpdate", "Revision", "EventStatus")
+        For Each key In VBA.Array("SourceRow", "ClosingIndex", "TargetIndex", "PlaceholderIndex", "IsUpdate", "Revision", "EventStatus")
             If action.Exists(key) Then
                 stamp = stamp & fn_Token(key) & fn_Token(action(key))
             End If
         Next key
-        For Each mapping In VBA.Array("Writes", "ClosingWrites", "Joins", "GeneratedWrites", "GeneratedClosingWrites")
+        For Each mapping In VBA.Array("Writes", "ClosingWrites", "PlaceholderWrites", "Joins", "GeneratedWrites", "GeneratedClosingWrites")
             If action.Exists(mapping) Then
                 Set writes = action(mapping)
                 For Each key In writes.Keys

@@ -74,8 +74,8 @@
       <movement template="FromMedicalCompanyForTreatment"/>
       <word template="FromMedicalCompanyForTreatment"/>
     </event>
-    <event label="СЗЧ → відрядження"
-           caption="У відрядження СЗЧ"
+    <event label="СЗЧ => Відрядження"
+           caption="СЗЧ => Відрядження"
            id="MoveFromAwolToBusinessTrip"
            direction="StatusChange"
            form="Leave"

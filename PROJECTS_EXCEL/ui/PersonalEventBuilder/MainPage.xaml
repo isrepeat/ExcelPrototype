@@ -9,6 +9,7 @@
            type="text"
            value="{Binding Path=Destination}"
            label="{Binding Path=Text.ModeDestinationLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.DestinationStyle}"
            readOnly="{Binding Path=Form.DestinationReadOnly}"
            partStylesEnabled="true"/>
@@ -16,6 +17,7 @@
            type="text"
            value="{Binding Path=PersonRank}"
            label="{Binding Path=Text.ModePersonRankLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.PersonRankStyle}"
            readOnly="{Binding Path=Form.PersonRankReadOnly}"
            partStylesEnabled="true"/>
@@ -23,6 +25,7 @@
            type="text"
            value="{Binding Path=PersonName}"
            label="{Binding Path=Text.ModePersonNameLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.PersonNameStyle}"
            onChange="{Binding Path=Commands.PersonNameChanged}"
            readOnly="{Binding Path=Form.PersonNameReadOnly}"
@@ -31,6 +34,7 @@
            type="text"
            value="{Binding Path=PersonId}"
            label="{Binding Path=Text.ModePersonIdLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.PersonIdStyle}"
            readOnly="{Binding Path=Form.PersonIdReadOnly}"
            partStylesEnabled="true"/>
@@ -38,6 +42,7 @@
            type="text"
            value="{Binding Path=PositionCode}"
            label="{Binding Path=Text.ModePositionCodeLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.PositionCodeStyle}"
            readOnly="{Binding Path=Form.PositionCodeReadOnly}"
            partStylesEnabled="true"/>
@@ -45,6 +50,7 @@
            type="text"
            value="{Binding Path=PersonPosition}"
            label="{Binding Path=Text.ModePersonPositionLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.PersonPositionStyle}"
            readOnly="{Binding Path=Form.PersonPositionReadOnly}"
            partStylesEnabled="true"/>
@@ -52,6 +58,7 @@
            type="text"
            value="{Binding Path=ReportRank}"
            label="{Binding Path=Text.ModeReportRankLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.ReportRankStyle}"
            readOnly="{Binding Path=Form.ReportRankReadOnly}"
            partStylesEnabled="true"/>
@@ -59,6 +66,7 @@
            type="text"
            value="{Binding Path=ReportName}"
            label="{Binding Path=Text.ModeReportNameLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.ReportNameStyle}"
            onChange="{Binding Path=Commands.ReportNameChanged}"
            readOnly="{Binding Path=Form.ReportNameReadOnly}"
@@ -67,6 +75,7 @@
            type="text"
            value="{Binding Path=ReportPositionCode}"
            label="{Binding Path=Text.ModeReportPositionCodeLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.ReportPositionCodeStyle}"
            readOnly="{Binding Path=Form.ReportPositionCodeReadOnly}"
            partStylesEnabled="true"/>
@@ -74,6 +83,7 @@
            type="text"
            value="{Binding Path=IncomingNumber}"
            label="{Binding Path=Text.ModeIncomingNumberLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.IncomingNumberStyle}"
            readOnly="{Binding Path=Form.IncomingNumberReadOnly}"
            partStylesEnabled="false"/>
@@ -81,6 +91,7 @@
            type="text"
            value="{Binding Path=IncomingDate}"
            label="{Binding Path=Text.ModeIncomingDateLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.IncomingDateStyle}"
            readOnly="{Binding Path=Form.IncomingDateReadOnly}"
            partStylesEnabled="false"/>
@@ -88,6 +99,7 @@
            type="text"
            value="{Binding Path=EventDate}"
            label="{Binding Path=Text.ModeEventDateLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.EventDateStyle}"
            readOnly="{Binding Path=Form.EventDateReadOnly}"
            partStylesEnabled="false"/>
@@ -95,12 +107,14 @@
            type="text"
            value="{Binding Path=DurationDays}"
            label="{Binding Path=Text.ModeDurationDaysLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.DurationDaysStyle}"
            partStylesEnabled="false"/>
     <field name="Hospital"
            type="text"
            value="{Binding Path=Hospital}"
            label="{Binding Path=Text.ModeHospitalLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.HospitalStyle}"
            onChange="{Binding Path=Commands.HospitalChanged}"
            readOnly="{Binding Path=Form.HospitalReadOnly}"
@@ -109,6 +123,7 @@
            type="text"
            value="{Binding Path=HospitalShortName}"
            label="{Binding Path=Text.ModeHospitalShortNameLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.HospitalShortNameStyle}"
            readOnly="{Binding Path=Form.HospitalShortNameReadOnly}"
            partStylesEnabled="true"/>
@@ -116,6 +131,7 @@
            type="text"
            value="{Binding Path=Document}"
            label="{Binding Path=Text.ModeDocumentLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.DocumentStyle}"
            onChange="{Binding Path=Commands.DocumentChanged}"
            readOnly="{Binding Path=Form.DocumentReadOnly}"
@@ -124,6 +140,7 @@
            type="text"
            value="{Binding Path=DocumentDate}"
            label="{Binding Path=Text.ModeDocumentDateLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.DocumentDateStyle}"
            readOnly="{Binding Path=Form.DocumentDateReadOnly}"
            partStylesEnabled="false"/>
@@ -131,6 +148,7 @@
            type="text"
            value="{Binding Path=DocumentNumber}"
            label="{Binding Path=Text.ModeDocumentNumberLabel}"
+           numberFormat="@"
            fieldStyle="{Binding Path=Form.DocumentNumberStyle}"
            readOnly="{Binding Path=Form.DocumentNumberReadOnly}"
            partStylesEnabled="false"/>
