@@ -307,6 +307,13 @@ Private Function private_ResolveFields( _
                         field.setAttribute "row", CStr(row)
                         field.setAttribute "candidateColumn", CStr(column("candidateColumn"))
                         field.setAttribute "label", CStr(column("caption"))
+                        If column.Exists("lockedStyle") Then
+                            field.setAttribute "fieldStyle", CStr(column("lockedStyle"))
+                            field.setAttribute "labelStyle", CStr(column("lockedStyle"))
+                            field.setAttribute "readOnly", "true"
+                            field.removeAttribute "onChange"
+                            field.removeAttribute "onFocus"
+                        End If
                         If column.Exists("disabled") Then
                             field.setAttribute "disabled", "true"
                             field.setAttribute "fieldStyle", CStr(column("disabledStyle"))

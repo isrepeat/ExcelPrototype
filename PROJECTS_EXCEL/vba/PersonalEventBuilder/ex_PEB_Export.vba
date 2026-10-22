@@ -18,6 +18,27 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_IsTicketDocumentForm(ByVal formKind As String) As Boolean
+    fn_IsTicketDocumentForm = InStr(1, "|" & ex_PEB_Export.fn_Config("export.ticket.form") & "|", "|" & formKind & "|", vbBinaryCompare) > 0
+End Function
+
+Public Sub fn_TicketDocumentValues(ByVal values As Object, Optional ByVal stored As Boolean = False)
+    Dim document As String
+
+    If Not ex_PEB_Export.fn_IsTicketDocumentForm(CStr(values("ModeForm"))) Then Exit Sub
+    document = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    If stored Then
+        If CStr(values("Document")) <> document Then
+            values("DocumentNumber") = values("TicketNumber")
+            values("DocumentDate") = values("TicketDate")
+        End If
+    End If
+    values("Document") = document
+    ' Keep legacy history and template inputs synchronized at the persistence boundary.
+    values("TicketNumber") = values("DocumentNumber")
+    values("TicketDate") = values("DocumentDate")
+End Sub
+
 Public Function fn_Config(ByVal key As String) As String
     Dim value As String
 

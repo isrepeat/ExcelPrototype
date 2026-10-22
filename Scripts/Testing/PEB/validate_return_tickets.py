@@ -44,6 +44,17 @@ def resolve(rows, orders, ipn, fio, year):
 def main():
     for name in ("wsConfig.txt", "wsConfig.test.txt"):
         cfg = config(name)
+        assert cfg["lookup.ReturnTickets.document"] == "В/к"
+        assert "Ticket" not in cfg["extensions.types"].split("|")
+        assert not any(key.startswith("extensions.type.") and key.endswith(".binding") for key in cfg)
+        for form in cfg["export.ticket.form"].split("|"):
+            fields = {cfg[f"forms.{form}.fields.{index}.name"]:
+                      cfg.get(f"forms.{form}.fields.{index}.record", "")
+                      for index in range(1, int(cfg[f"forms.{form}.fields.count"]) + 1)}
+            assert not {"TicketNumber", "TicketDate"} & fields.keys()
+            assert fields["Document"] == "Event.Document"
+            assert fields["DocumentNumber"] == "Absence.TicketNumber"
+            assert fields["DocumentDate"] == "Absence.TicketDate"
         assert set(cfg["lookup.ReturnTickets.modes"].split("|")) == MODES
         assert cfg["lookup.ReturnTickets.ticketHeader"] == "Супровідний документ"
         assert cfg["lookup.ReturnTickets.orderHeader"] == "Вибуття.Наказ"
@@ -90,6 +101,14 @@ def main():
     assert 'Me.SelectPersonnelHandler(record)' in mode_switch
     ticket_export = exporter.split("Private Sub private_PrepareTicket(", 1)[1].split("End Sub", 1)[0]
     assert ticket_export.index('lookup.ReturnTickets.modes') < ticket_export.index('pattern.Pattern')
+    export_helpers = (VBA / "ex_PEB_Export.vba").read_text(encoding="utf-8-sig")
+    assert 'values("TicketNumber") = values("DocumentNumber")' in export_helpers
+    assert 'values("TicketDate") = values("DocumentDate")' in export_helpers
+    assert 'values("DocumentNumber") = values("TicketNumber")' in export_helpers
+    readonly = controller.split("Private Function private_UpdateReadOnly(", 1)[1].split("End Function", 1)[0]
+    assert 'updates("Form.DocumentReadOnly") = True' in readonly
+    assert 'updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")' in readonly
+    assert '.binding' not in controller
 
     year = 2026
     rows = [

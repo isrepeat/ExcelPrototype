@@ -237,6 +237,10 @@ Public Function DocumentChangedHandler() As Boolean
     Dim autoFill As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(m_modeId, "form")) Then
+        DocumentChangedHandler = True
+        Exit Function
+    End If
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
     If Not VBA.CBool(autoFill) Then
@@ -293,6 +297,9 @@ Public Function ResetFormHandler() As Boolean
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Form.ActionStatus") = VBA.vbNullString
     updates("Text.PersonnelStatus") = VBA.vbNullString
+    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(m_modeId, "form")) Then
+        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
     Set result = New obj_LookupResult
     If Not result.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
@@ -933,6 +940,13 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
         If row.Exists(field) Then updates("Form." & VBA.CStr(field)) = row(field)
     Next field
+    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(CStr(row("EventId")), "form")) Then
+        If CStr(row("Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
+            updates("Form.DocumentNumber") = row("TicketNumber")
+            updates("Form.DocumentDate") = row("TicketDate")
+        End If
+        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
     updates("Form.AutoFillPersonnel") = False
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Text.SaveHistory") = ex_PEB_Export.fn_Config("text.UpdateHistory")
@@ -1294,6 +1308,14 @@ Private Function private_LoadTest(ByVal nextStep As Boolean) As Boolean
     m_hospitalActive = False
     m_documentActive = False
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+        If Not updates.Exists("Form.Document") Then updates("Form.Document") = vbNullString
+        If CStr(updates("Form.Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
+            If updates.Exists("Form.TicketNumber") Then updates("Form.DocumentNumber") = updates("Form.TicketNumber")
+            If updates.Exists("Form.TicketDate") Then updates("Form.DocumentDate") = updates("Form.TicketDate")
+        End If
+        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     m_acceptedOrderNumber = updates("Form.AcceptedOrderNumber")
     m_acceptedOrderDate = updates("Form.AcceptedOrderDate")
@@ -2314,6 +2336,18 @@ Private Function private_UpdateReadOnly( _
         updates("Form." & field & "ReadOnly") = CBool(autoFill) And _
             (InStr(1, "|" & dependents & "|", "|" & field & "|", vbBinaryCompare) > 0)
     Next field
+    If Len(m_modeId) > 0 Then
+        If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(m_modeId, "form")) <> _
+                ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+            updates("Form.Document") = vbNullString
+            updates("Form.DocumentNumber") = vbNullString
+            updates("Form.DocumentDate") = vbNullString
+        End If
+    End If
+    If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+        updates("Form.DocumentReadOnly") = True
+        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    End If
     private_UpdateReadOnly = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
 End Function
 
@@ -2351,6 +2385,10 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
             Set updates = VBA.CreateObject("Scripting.Dictionary")
             updates("Form.TicketNumber") = VBA.vbNullString
             updates("Form.TicketDate") = VBA.vbNullString
+            If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
+                updates("Form.DocumentNumber") = vbNullString
+                updates("Form.DocumentDate") = vbNullString
+            End If
             If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
         End If
     End If
@@ -2445,6 +2483,7 @@ Private Function private_PrepareModeRecords( _
     For Each record In records
         Set fields = VBA.CreateObject("Scripting.Dictionary")
         fields("Event.Type") = m_eventType
+        fields("Event.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
         Set supplement = New obj_LookupRecord
         If Not supplement.Initialize(record.Key, fields) Then Exit Function
         If Not record.TryMerge(supplement, True) Then
@@ -2545,20 +2584,6 @@ Private Function private_PlaceFields( _
     Dim activeFields As Object
     Dim caption As String
     Dim disabledStyle As String
-    Dim sectionFields As String
-    Dim sectionKind As Variant
-    Dim sectionIndex As Long
-    Dim sectionPrefix As String
-
-    sectionFields = "|"
-    For Each sectionKind In Split(ex_PEB_Export.fn_Config("extensions.types"), "|")
-        sectionPrefix = "extensions.type." & CStr(sectionKind)
-        If ex_PEB_Export.fn_Config(sectionPrefix & ".binding") = "primary" Then
-            For sectionIndex = 1 To ex_PEB_Export.fn_Count(sectionPrefix & ".form.count")
-                sectionFields = sectionFields & ex_PEB_Export.fn_Config(sectionPrefix & ".form." & CStr(sectionIndex) & ".name") & "|"
-            Next sectionIndex
-        End If
-    Next sectionKind
     If Not private_ReadModeConfig("forms.columns.count", widthText, diagnostic) Then Exit Function
     If Not IsNumeric(widthText) Then
         diagnostic = "Invalid configuration: PersonalEventBuilder::forms.columns.count"
@@ -2609,11 +2634,10 @@ Private Function private_PlaceFields( _
             If Not private_ReadModeConfig("text.Mode" & CStr(column("formField")) & "Label", caption, diagnostic) Then Exit Function
             column("caption") = caption
         End If
-        If InStr(1, sectionFields, "|" & CStr(column("formField")) & "|", vbBinaryCompare) > 0 Then
-            column("column") = 0
-        Else
-            displayFields.Add column
+        If column("formField") = "Document" And column("name") = "Event.Document" Then
+            column("lockedStyle") = disabledStyle
         End If
+        displayFields.Add column
         activeFields.Add CStr(column("formField")), True
     Next column
     For Each field In fixedColumns.Keys
@@ -2780,7 +2804,7 @@ Private Function private_SetCandidateSources( _
     End If
     For Each column In columns
         If Left$(column("name"), 9) = "Movement." Or _
-            column("formField") = hospitalDateField Then
+            (column("formField") = hospitalDateField And Not ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form"))) Then
             column("name") = "Manual." & column("formField")
             column("apply") = False
             column("sourceAlias") = vbNullString
