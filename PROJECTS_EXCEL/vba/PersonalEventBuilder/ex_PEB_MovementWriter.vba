@@ -73,9 +73,11 @@ Public Function fn_Apply( _
     private_Stage "Write.Capture", stage, startedAt
     originalAddress = target.Range.Address
     For Each action In plan("Actions")
-        If action("Status") = "Planned" And Not action("IsUpdate") Then
+        If action("Status") = "Planned" Then
             If action("Operation") <> "close" Then
-                addedRows = addedRows + 1
+                If Not action("IsUpdate") Or action("TargetIndex") > target.ListRows.Count Then
+                    addedRows = addedRows + 1
+                End If
             End If
         End If
     Next action

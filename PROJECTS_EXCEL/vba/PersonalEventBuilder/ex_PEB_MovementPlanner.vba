@@ -436,7 +436,7 @@ Private Function private_Apply( _
         private_Apply = True
         Exit Function
     End If
-    If private_Existing(rows, values, action, writes, closingWrites, joins, links) Then
+    If private_Existing(rows, values, action, writes, closingWrites, joins, links, headers, nextTargetIndex) Then
         private_Apply = True
         Exit Function
     End If
@@ -583,7 +583,9 @@ Private Function private_Existing( _
     ByVal writes As Object, _
     ByVal closingWrites As Object, _
     ByVal joins As Object, _
-    ByVal links As Object _
+    ByVal links As Object, _
+    ByVal headers As Object, _
+    ByRef nextTargetIndex As Long _
 ) As Boolean
     Dim row As Object
     Dim opening As Object
@@ -592,6 +594,7 @@ Private Function private_Existing( _
     Dim identifier As String
     Dim updates As Collection
     Dim entry As Object
+    Dim addedOpening As Object
 
     identifier = values("RowId")
     operation = action("Operation")
@@ -622,11 +625,13 @@ Private Function private_Existing( _
                 private_Fail "UnexpectedEventLinks", identifier
             End If
         Case "transition"
-            If opening Is Nothing Or closing Is Nothing Then
+            If closing Is Nothing Then
                 private_Fail "IncompleteTransitionLinks", identifier
             End If
-            If opening Is closing Then
-                private_Fail "InvalidTransitionLinks", identifier
+            If Not opening Is Nothing Then
+                If opening Is closing Then
+                    private_Fail "InvalidTransitionLinks", identifier
+                End If
             End If
     End Select
     Set updates = New Collection
@@ -645,6 +650,10 @@ Private Function private_Existing( _
     If ex_PEB_MovementConflicts.fn_Pending(identifier) Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ConflictPending")
     End If
+    ' An exported arrival already owns the closing side; add only the new departure.
+    If operation = "transition" And opening Is Nothing Then
+        Set addedOpening = private_PlanOpening(rows, headers, writes, links, action, nextTargetIndex + 1, updates)
+    End If
     For Each entry In updates
         For Each row In rows
             If row("TargetRow") = entry("RowIndex") Then
@@ -653,6 +662,11 @@ Private Function private_Existing( _
             End If
         Next row
     Next entry
+    If Not addedOpening Is Nothing Then
+        rows.Add addedOpening
+        Set opening = addedOpening
+        nextTargetIndex = nextTargetIndex + 1
+    End If
     If Not opening Is Nothing Then
         opening("OriginRowId") = identifier
         action.Add "TargetIndex", opening("TargetRow")
@@ -671,6 +685,67 @@ Private Function private_Existing( _
         action("Status") = "AlreadyApplied"
     End If
     private_Existing = True
+End Function
+
+Private Function private_PlanOpening( _
+    ByVal rows As Collection, _
+    ByVal headers As Object, _
+    ByVal writes As Object, _
+    ByVal links As Object, _
+    ByVal action As Object, _
+    ByVal targetIndex As Long, _
+    ByVal updates As Collection _
+) As Object
+    Dim row As Object
+    Dim cells As Object
+    Dim entry As Object
+    Dim key As Variant
+    Dim personHeader As String
+    Dim departureHeader As String
+
+    ' Reject an unlinked duplicate instead of creating a second departure.
+    personHeader = ex_PEB_Export.fn_Config("export.Movement.headers.PersonId")
+    departureHeader = ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
+    For Each row In rows
+        Set cells = row("Cells")
+        If VBA.StrComp(ex_PEB_Export.fn_Text(cells(personHeader)), action("PersonId"), VBA.vbTextCompare) = 0 Then
+            If VBA.Len(ex_PEB_Export.fn_Text(cells(departureHeader))) > 0 Then
+                If private_Date(cells(departureHeader)) = action("EventDate") Then
+                    private_Fail "ExistingIdentityRequiresLink", VBA.CStr(row("SourceRow"))
+                End If
+            End If
+        End If
+    Next row
+
+    ' Build a detached row and journal its writes together with the closing updates.
+    Set cells = VBA.CreateObject("Scripting.Dictionary")
+    cells.CompareMode = VBA.vbTextCompare
+    For Each key In headers.Keys
+        cells.Add VBA.CStr(key), VBA.vbNullString
+    Next key
+    For Each key In writes.Keys
+        private_RequireHeader headers, VBA.CStr(key)
+        If headers(key) Then
+            private_Fail "FormulaColumnWrite", VBA.CStr(key)
+        End If
+        cells(key) = writes(key)
+    Next key
+    cells(links("OpeningId")) = action("RowId")
+    cells(links("OpeningHash")) = action("OpeningHash")
+    For Each key In cells.Keys
+        If writes.Exists(key) Or key = links("OpeningId") Or key = links("OpeningHash") Then
+            Set entry = private_UpdateCell(targetIndex, VBA.CStr(key), VBA.vbNullString, cells(key))
+            updates.Add entry
+        End If
+    Next key
+    Set row = VBA.CreateObject("Scripting.Dictionary")
+    row.Add "Cells", cells
+    row.Add "Formulas", VBA.CreateObject("Scripting.Dictionary")
+    row.Add "SourceRow", 0
+    row.Add "TargetRow", targetIndex
+    row.Add "OriginRowId", action("RowId")
+    row.Add "ClosingRowId", VBA.vbNullString
+    Set private_PlanOpening = row
 End Function
 
 Private Sub private_Cancel( _
