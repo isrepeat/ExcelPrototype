@@ -187,7 +187,7 @@ Private Sub private_EnsureLoaded()
     Set m_statuses = VBA.CreateObject("Scripting.Dictionary")
     Set knownNames = VBA.CreateObject("Scripting.Dictionary")
     m_formFields = "|" & ex_PEB_Export.fn_Config("export.fields") & "|"
-    For Each identifier In VBA.Array("HospitalTreatment", "AnnualVacation", "MedicalLeave", "FamilyVacation", "MaternityLeave", "BusinessTrip", "OutpatientVlk", "ExternalVlk", "Awol")
+    For Each identifier In VBA.Array("HospitalTreatment", "AnnualVacation", "MedicalLeave", "FamilyVacation", "MaternityLeave", "BusinessTrip", "OutpatientVlk", "ExternalVlk", "Awol", "ReturnToOtherUnit")
         statusName = ex_PEB_Export.fn_Config("export.Movement.status." & identifier)
         If knownNames.Exists(statusName) Then
             Err.Raise 5, , "Duplicate Movement status name: " & statusName

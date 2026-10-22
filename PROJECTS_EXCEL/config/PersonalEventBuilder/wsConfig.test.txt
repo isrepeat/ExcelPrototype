@@ -1484,7 +1484,7 @@ value	PersonalEventBuilder::export.Movement.links.OpeningId	PEB.OpeningId
 value	PersonalEventBuilder::export.Movement.links.ClosingId	PEB.ClosingId
 value	PersonalEventBuilder::export.Movement.links.OpeningHash	PEB.OpeningHash
 value	PersonalEventBuilder::export.Movement.links.ClosingHash	PEB.ClosingHash
-value	PersonalEventBuilder::export.Movement.status.Awol	СЗЧ
+value	PersonalEventBuilder::export.Movement.status.Awol	Самовільне залишення частини
 value	PersonalEventBuilder::export.Movement.status.ExternalVlk	ВЛК за межами
 value	PersonalEventBuilder::export.Movement.status.BusinessTrip	Відрядження
 value	PersonalEventBuilder::export.Movement.status.MedicalLeave	Відпустка для лікування
@@ -1493,6 +1493,7 @@ value	PersonalEventBuilder::export.Movement.status.AnnualVacation	Щорічна
 value	PersonalEventBuilder::export.Movement.status.FamilyVacation	Відпустка за сімейними обставинами
 value	PersonalEventBuilder::export.Movement.status.MaternityLeave	Відпустка у зв'язку з вагітністю та пологами
 value	PersonalEventBuilder::export.Movement.status.HospitalTreatment	Стаціонарне лікування
+value	PersonalEventBuilder::export.Movement.status.ReturnToOtherUnit	Повернення до іншої частини
 value	PersonalEventBuilder::export.Movement.enabled	true
 value	PersonalEventBuilder::export.Movement.headers.PersonId	ІПН
 value	PersonalEventBuilder::export.Movement.headers.RoadDays	Вибуття.Дорога
@@ -1891,7 +1892,7 @@ value	PersonalEventBuilder::extensions.type.Report.form.4.format	@
   ref	PersonalEventBuilder::extensions.type.Report.form.4.caption	PersonalEventBuilder::text.ModeIncomingNumberLabel
 value	PersonalEventBuilder::extensions.type.Report.form.5.name	IncomingDate
 value	PersonalEventBuilder::extensions.type.Report.form.5.type	date
-value	PersonalEventBuilder::extensions.type.Report.form.5.format	dd.mm.yyyy
+value	PersonalEventBuilder::extensions.type.Report.form.5.format	@
   ref	PersonalEventBuilder::extensions.type.Report.form.5.caption	PersonalEventBuilder::text.ModeIncomingDateLabel
 value	PersonalEventBuilder::extensions.type.Report.form.count	5
 value	PersonalEventBuilder::extensions.type.Report.anchor	ReportRank
@@ -1913,7 +1914,7 @@ value	PersonalEventBuilder::extensions.type.Document.form.2.format	@
   ref	PersonalEventBuilder::extensions.type.Document.form.2.caption	PersonalEventBuilder::text.ModeDocumentNumberLabel
 value	PersonalEventBuilder::extensions.type.Document.form.3.name	DocumentDate
 value	PersonalEventBuilder::extensions.type.Document.form.3.type	date
-value	PersonalEventBuilder::extensions.type.Document.form.3.format	dd.mm.yyyy
+value	PersonalEventBuilder::extensions.type.Document.form.3.format	@
   ref	PersonalEventBuilder::extensions.type.Document.form.3.caption	PersonalEventBuilder::text.ModeDocumentDateLabel
 value	PersonalEventBuilder::extensions.type.Document.form.count	3
 value	PersonalEventBuilder::extensions.type.Document.anchor	Document

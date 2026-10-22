@@ -74,6 +74,9 @@ Public Function fn_Apply( _
     originalAddress = target.Range.Address
     For Each action In plan("Actions")
         If action("Status") = "Planned" Then
+            If action.Exists("PlaceholderWrites") Then
+                addedRows = addedRows + 1
+            End If
             If action("Operation") <> "close" Then
                 If Not action("IsUpdate") Or action("TargetIndex") > target.ListRows.Count Then
                     addedRows = addedRows + 1
@@ -87,6 +90,12 @@ Public Function fn_Apply( _
     End If
     Set actual = VBA.CreateObject("Scripting.Dictionary")
     For Each action In plan("Actions")
+        If action("Status") = "Planned" And action.Exists("PlaceholderWrites") Then
+            Set fields = action("PlaceholderWrites")
+            For Each key In fields.Keys
+                private_Capture target, action("PlaceholderIndex"), VBA.CStr(key), fields(key), entries, actual
+            Next key
+        End If
         If action("Status") = "Planned" And action("IsUpdate") Then
             For Each update In action("UpdateCells")
                 private_Capture target, update("RowIndex"), update("Header"), update("After"), _
