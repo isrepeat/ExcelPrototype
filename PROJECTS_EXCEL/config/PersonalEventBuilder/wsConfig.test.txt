@@ -1699,7 +1699,7 @@ value	PersonalEventBuilder::lookup.Personnel.display.count	10
 value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
-value	PersonalEventBuilder::lookup.IncomingDate.orderDateModes	ToHospital|FromHospital|FromExternalVlk|FromAnnualMainVacation|FromVacationForCuring|FromVacationForFamily|FromMedicalCompanyForTreatment|FromBusinessTrip
+value	PersonalEventBuilder::lookup.IncomingDate.orderDateModes	ToHospital|FromHospital|FromExternalVlk|FromAnnualMainVacation|FromVacationForCuring|FromVacationForFamily|FromMedicalCompanyForTreatment|FromBusinessTrip|FromOutpatientExaminationOrVlk
 value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromBusinessTrip
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.path	__cfgDependencies.fileMovementHistory
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.sheet	__cfgDependencies.source.MovementHistory.sheet
