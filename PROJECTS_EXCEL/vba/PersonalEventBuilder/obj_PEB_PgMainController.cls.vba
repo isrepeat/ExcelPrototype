@@ -55,7 +55,6 @@ Private m_historyOrderNumber As String
 Private m_historyOrderDate As String
 Private m_conflicts As Collection
 Private m_extensions As obj_PEB_FormExtensions
-Private m_replacementEvent As Object
 
 ' //
 ' // Lifecycle
@@ -162,7 +161,6 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
-    Set m_replacementEvent = Nothing
     If Not m_extensions Is Nothing Then m_extensions.Dispose
     Set m_extensions = Nothing
     If Not m_exportService Is Nothing Then m_exportService.Dispose
@@ -291,7 +289,6 @@ Public Function ResetFormHandler() As Boolean
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    Set m_replacementEvent = Nothing
     If Not private_ReadModeConfig("forms.styledFields", fields, diagnostic) Then GoTo Failed
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each fieldName In VBA.Split(fields, "|")
@@ -830,12 +827,6 @@ Public Function DeleteLastEventHandler() As Boolean
         Exit Function
     End If
     If Not private_ReadLastOrderEvent(row, diagnostic) Then GoTo FailedDelete
-    If row("Status") = "Cancelled" Then
-        If Not private_EndHistoryEdit() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
-        Set m_replacementEvent = row
-        DeleteLastEventHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.LastEventAlreadyDeleted"), False)
-        Exit Function
-    End If
     identifier = CStr(row("RowId"))
     stamp = ex_PEB_History.fn_Stamp(row)
     prompt = ex_PEB_Export.fn_Config("text.DeleteLastEventConfirm")
@@ -854,17 +845,12 @@ Public Function DeleteLastEventHandler() As Boolean
     If current("RowId") <> identifier Or ex_PEB_History.fn_Stamp(current) <> stamp Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
     End If
-    If Not ex_PEB_History.fn_SetStatus(current, "Cancelled", _
-            ex_PEB_Export.fn_Config("text.DeleteLastEventReason"), stamp, diagnostic) Then GoTo FailedDelete
-    Set m_replacementEvent = Nothing
+    If Not ex_PEB_History.fn_DeleteLast(current, stamp, diagnostic) Then GoTo FailedDelete
     status = ex_PEB_Export.fn_Config("text.LastEventDeleted")
-    If private_ReadLastOrderEvent(current, diagnostic) Then
-        If current("RowId") = identifier And current("Status") = "Cancelled" Then Set m_replacementEvent = current
-    Else
-        status = status & " " & diagnostic
-    End If
     If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
-    If Not private_RefreshHistory(vbNullString, diagnostic) Then status = status & " " & diagnostic
+    If Not private_RefreshHistory(vbNullString, diagnostic) Then
+        If diagnostic <> ex_PEB_Export.fn_Config("text.HistoryEmptyOrder") Then status = status & " " & diagnostic
+    End If
     DeleteLastEventHandler = private_SetActionStatus(status, False)
     Exit Function
 EH_DELETE:
@@ -979,7 +965,6 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
     End If
     Set row = m_historyRows(record.Key)
-    Set m_replacementEvent = Nothing
     If Not private_EndHistoryEdit() Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", scalar) Then Exit Function
     m_editHistoryAutoFill = scalar
@@ -1005,8 +990,8 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Next field
     If ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(CStr(row("EventId")), "form")) Then
         If CStr(row("Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
-            updates("Form.DocumentNumber") = row("TicketNumber")
-            updates("Form.DocumentDate") = row("TicketDate")
+            If row.Exists("TicketNumber") Then updates("Form.DocumentNumber") = row("TicketNumber")
+            If row.Exists("TicketDate") Then updates("Form.DocumentDate") = row("TicketDate")
         End If
         updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
     End If
@@ -1975,7 +1960,6 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim pebExportService As obj_PEB_ExportService
     Dim pebExptrMovement As obj_PEB_ExptrMovement
     Dim values As Object
-    Dim replacement As Object
     Dim diagnostic As String
     Dim exporter As String
     Dim success As Boolean
@@ -2044,22 +2028,6 @@ Private Function private_Export(ByVal action As String) As Boolean
             values("DateToShort") = m_editHistoryRow("DateToShort")
         End If
     End If
-    If exporter = "History" And m_editHistoryRow Is Nothing Then
-        If Not m_replacementEvent Is Nothing Then
-            If CStr(values("AcceptedOrderNumber")) = CStr(m_replacementEvent("AcceptedOrderNumber")) And _
-                    ex_PEB_History.fn_Date(values("AcceptedOrderDate")) = ex_PEB_History.fn_Date(m_replacementEvent("AcceptedOrderDate")) Then
-                If Not private_ReadLastOrderEvent(replacement, diagnostic) Then GoTo Failed
-                If replacement("RowId") <> m_replacementEvent("RowId") Or _
-                        ex_PEB_History.fn_Stamp(replacement) <> ex_PEB_History.fn_Stamp(m_replacementEvent) Then
-                    Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
-                End If
-                values("RowId") = replacement("RowId")
-                values("ExpectedHistoryStamp") = ex_PEB_History.fn_Stamp(replacement)
-                values("RequestedStatus") = "Active"
-                values("ChangeReason") = ex_PEB_Export.fn_Config("text.ReplaceLastEventReason")
-            End If
-        End If
-    End If
     If exporter = "Word" Then
         If values("WordPolicy") = "Omit" Then
             status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
@@ -2076,7 +2044,6 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     ElseIf exporter = "History" Then
         success = ex_PEB_History.fn_Save(values, diagnostic, (m_editHistoryRow Is Nothing), m_exportService)
-        If success Then Set m_replacementEvent = Nothing
         If success Then
             If values("FormExtensionRows").Count <> extensionRows.Count Then
                 If Not m_extensions.TryLoad(values("FormExtensionRows"), diagnostic, True) Then GoTo Failed
@@ -2288,9 +2255,11 @@ Private Function private_LoadMode( _
             m_modeId = modeId
             If Not m_lookupResult Is Nothing Then
                 Set projectedResult = m_lookupResult
-                If Not private_TryEnrichResult(projectedResult, diagnostic) Then Exit Function
-                If Not private_PublishCandidates(projectedResult) Then Exit Function
-                Set m_lookupResult = projectedResult
+                If projectedResult.RowCount > 0 Then
+                    If Not private_TryEnrichResult(projectedResult, diagnostic, False) Then Exit Function
+                    If Not private_PublishCandidates(projectedResult) Then Exit Function
+                    Set m_lookupResult = projectedResult
+                End If
             End If
             If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
             private_LoadMode = True
@@ -2652,7 +2621,8 @@ End Function
 
 Private Function private_TryEnrichResult( _
     ByRef result As obj_LookupResult, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal refreshLegend As Boolean = True _
 ) As Boolean
     Dim records As Collection
     Dim enrichedResult As obj_LookupResult
@@ -2664,7 +2634,9 @@ Private Function private_TryEnrichResult( _
     If Not private_SetCandidateSources(m_modeFields, m_modeId, diagnostic) Then Exit Function
     If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then Exit Function
     Set result = enrichedResult
-    If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
+    If refreshLegend Then
+        If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
+    End If
     private_TryEnrichResult = True
 End Function
 

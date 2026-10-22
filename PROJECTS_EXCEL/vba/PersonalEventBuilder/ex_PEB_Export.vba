@@ -24,17 +24,25 @@ End Function
 
 Public Sub fn_TicketDocumentValues(ByVal values As Object, Optional ByVal stored As Boolean = False)
     Dim document As String
+    Dim legacyNumber As Variant
+    Dim legacyDate As Variant
 
+    legacyNumber = vbNullString
+    legacyDate = vbNullString
+    If values.Exists("TicketNumber") Then legacyNumber = values("TicketNumber")
+    If values.Exists("TicketDate") Then legacyDate = values("TicketDate")
+    values("TicketNumber") = vbNullString
+    values("TicketDate") = vbNullString
     If Not ex_PEB_Export.fn_IsTicketDocumentForm(CStr(values("ModeForm"))) Then Exit Sub
     document = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
     If stored Then
         If CStr(values("Document")) <> document Then
-            values("DocumentNumber") = values("TicketNumber")
-            values("DocumentDate") = values("TicketDate")
+            If Len(ex_PEB_Export.fn_Text(legacyNumber)) > 0 Then values("DocumentNumber") = legacyNumber
+            If Len(ex_PEB_Export.fn_Text(legacyDate)) > 0 Then values("DocumentDate") = legacyDate
         End If
     End If
     values("Document") = document
-    ' Keep legacy history and template inputs synchronized at the persistence boundary.
+    ' These aliases are derived for legacy templates; history stores only the document fields.
     values("TicketNumber") = values("DocumentNumber")
     values("TicketDate") = values("DocumentDate")
 End Sub
