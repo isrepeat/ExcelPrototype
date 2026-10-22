@@ -9,6 +9,8 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+#Const TVO_DEPRECATED = True
+
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
@@ -491,6 +493,9 @@ Public Function TryPrepareHistoryMovement( _
         documents.Add copy
     Next document
     Set values("MetaDocumentTables") = documents
+#If TVO_DEPRECATED Then
+    Set values("MetaTvoTables") = stored("MetaTvoTables")
+#End If
     mode = ex_PEB_EventRoutes.fn_Apply(values, "Movement")
     ex_PEB_Export.fn_TicketDocumentValues values, True
     For Each key In VBA.Split(ex_PEB_EventRoutes.fn_Value(mode, "movement.required"), "|")
