@@ -858,7 +858,7 @@ Private Sub private_ValidateNewID( _
     End If
     For index = 1 To Len(identifier)
         character = Mid$(identifier, index, 1)
-        If AscW(character) >= 0 And AscW(character) <= 32 Then
+        If AscW(character) >= 0 And AscW(character) < 32 Then
             Err.Raise vbObjectError + 2061, , invalidMessage
         End If
         If InStr(1, private_Cfg("Value.InvalidIDCharacters"), character, vbBinaryCompare) > 0 Then

@@ -43,7 +43,7 @@ value	PeopleRegistry::Title.History	Історія ID
 value	PeopleRegistry::Title.Replace	Заміна ІД
 value	PeopleRegistry::Value.Separator	_
 value	PeopleRegistry::Value.RemovedCharacters	 _.,;:/\|[](){}<>!?"'`
-value	PeopleRegistry::Value.InvalidIDCharacters	  .,;:/\|[](){}<>!?"'`
+value	PeopleRegistry::Value.InvalidIDCharacters	  ,;:/\|[](){}<>!?"'`
 value	PeopleRegistry::Button.Save	Зареєструвати
 value	PeopleRegistry::Button.Replace	Замінити ІД
 value	PeopleRegistry::Button.LockHistory	Заблокувати історію
@@ -91,7 +91,7 @@ value	PeopleRegistry::Source.List.IDColumn	ІПН
 value	PeopleRegistry::Source.List.NameColumn	ПІБ
 value	PeopleRegistry::Source.Path	C:\Users\isrepeat\OneDrive\Рабочий стол\РУХ_last.xlsx
 value	PeopleRegistry::Source.Caption	Джерело перевірки — лише читання
-value	PeopleRegistry::Source.Arrivals.Range	C5:F20000
+value	PeopleRegistry::Source.Arrivals.Range	C5:G20000
 value	PeopleRegistry::Source.Arrivals.Sheet	Прибулі
 value	PeopleRegistry::Source.Arrivals.IDColumn	ІН
 value	PeopleRegistry::Source.Arrivals.NameColumn	ПІБ
@@ -110,7 +110,7 @@ value	PeopleRegistry::Message.Migrated	ID замінено. Зв’язок мі
 value	PeopleRegistry::Message.ReadOnly	Книга має бути збережена на диску та доступна для запису.
 value	PeopleRegistry::Message.Cancelled	Створення окремої особи скасовано. Для наявної особи заповніть Попередній ІД.
 value	PeopleRegistry::Message.CellError	Вхідні дані містять помилку Excel. Виправте клітинку.
-value	PeopleRegistry::Message.InvalidID	Поле ІД має містити від 1 до {max} символів без пробілів і заборонених розділових знаків. Символи _ та - дозволені.
+value	PeopleRegistry::Message.InvalidID	Поле ІД має містити від 1 до {max} символів без керувальних символів і заборонених розділових знаків. Пробіли та символи . _ і - дозволені.
 value	PeopleRegistry::Message.UnknownID	ID не знайдено в РУХ або історії генератора. Перевірте значення.
 value	PeopleRegistry::Message.EmptyToken	ПІБ або місце прибуття не містить символів для створення ID.
 value	PeopleRegistry::Message.IDConflict	Ідентифікатори належать різним особам. Автоматичне об’єднання заборонено.
