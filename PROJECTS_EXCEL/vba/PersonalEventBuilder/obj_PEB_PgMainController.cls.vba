@@ -1514,8 +1514,10 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
     Dim result As obj_LookupResult
     Dim status As String
     Dim startedAt As Double
+    Dim totalStartedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    totalStartedAt = VBA.Timer
     If Not m_extensions.HideCandidates() Then Exit Function
     If m_reporterActive Or m_hospitalActive Or m_documentActive Then
         If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
@@ -1566,6 +1568,7 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
     If private_SearchPersonnel Then
         private_SearchPersonnel = private_SetActionStatus(status, False)
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.Handler | Rows=" & VBA.CStr(result.RowCount), totalStartedAt
     Exit Function
 Failure:
     private_SetActionStatus VBA.Replace$(m_messages("PersonnelActionError"), "{details}", diagnostic), True
@@ -1591,8 +1594,11 @@ Private Function private_SearchSecondary( _
     Dim profile As obj_LookupProfile
     Dim service As obj_LookupService
     Dim group As String
+    Dim totalStartedAt As Double
+    Dim stageStartedAt As Double
 
     On Error GoTo EH
+    totalStartedAt = VBA.Timer
     group = "reporter"
     If Not m_extensions.HideCandidates() Then Exit Function
     If hospital Then group = "hospital"
@@ -1655,12 +1661,17 @@ Private Function private_SearchSecondary( _
     m_documentActive = document
 
     ' Search the selected directory without enriching secondary records with absence data.
+    stageStartedAt = VBA.Timer
     If Not service.TrySearch(VBA.CStr(text), result, diagnostic) Then
         GoTo Failed
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Secondary.Search | Group=" & group, stageStartedAt
+    stageStartedAt = VBA.Timer
     If m_reporterActive Then
         If Not private_EnrichReporters(result.Records, diagnostic) Then GoTo Failed
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Secondary.Enrich | Group=" & group & " | Rows=" & VBA.CStr(result.RowCount), stageStartedAt
+    stageStartedAt = VBA.Timer
     Set projected = New obj_LookupResult
     If Not projected.Initialize(result.Records, fields, result.HasMore, diagnostic) Then
         GoTo Failed
@@ -1669,6 +1680,7 @@ Private Function private_SearchSecondary( _
     If Not private_PublishCandidates(projected) Then
         Err.Raise 5, , "Cannot publish secondary candidates."
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Secondary.ProjectAndPublish | Group=" & group, stageStartedAt
     If showCandidates Then
         If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
             Exit Function
@@ -1689,6 +1701,7 @@ Private Function private_SearchSecondary( _
     ' Publishing candidates requests a layout refresh after the handler returns.
     ' A full page rebuild must not dispose a control while its handler is executing.
     private_SearchSecondary = True
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Secondary.Handler | Group=" & group & " | Rows=" & VBA.CStr(projected.RowCount), totalStartedAt
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -2680,18 +2693,45 @@ Private Function private_TryEnrichResult( _
 ) As Boolean
     Dim records As Collection
     Dim enrichedResult As obj_LookupResult
+    Dim stageStartedAt As Double
+    Dim totalStartedAt As Double
+    Dim configSnapshotActive As Boolean
 
+    On Error GoTo Failed
+    totalStartedAt = VBA.Timer
+    ex_PEB_Export.fn_BeginConfigSnapshot
+    configSnapshotActive = True
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.ConfigSnapshot", totalStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_candidateEnricher.TryEnrich(m_lookupService, result.Records, _
-            m_acceptedOrderNumber, m_acceptedOrderDate, m_modeId, records, diagnostic) Then Exit Function
+            m_acceptedOrderNumber, m_acceptedOrderDate, m_modeId, records, diagnostic) Then GoTo Cleanup
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.Enrich | Rows=" & VBA.CStr(records.Count), stageStartedAt
+    stageStartedAt = VBA.Timer
     Set enrichedResult = New obj_LookupResult
-    If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
-    If Not private_SetCandidateSources(m_modeFields, m_modeId, diagnostic) Then Exit Function
-    If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then Exit Function
+    If Not private_PrepareModeRecords(records, diagnostic) Then GoTo Cleanup
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.PrepareModeRecords", stageStartedAt
+    stageStartedAt = VBA.Timer
+    If Not private_SetCandidateSources(m_modeFields, m_modeId, diagnostic) Then GoTo Cleanup
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.SetSources", stageStartedAt
+    stageStartedAt = VBA.Timer
+    If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then GoTo Cleanup
     Set result = enrichedResult
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.ProjectResult", stageStartedAt
+    stageStartedAt = VBA.Timer
     If refreshLegend Then
-        If Not Me.TryRefreshSourceLegend(diagnostic) Then Exit Function
+        If Not Me.TryRefreshSourceLegend(diagnostic) Then GoTo Cleanup
+        ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.SourceLegend", stageStartedAt
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.PostSearch | Rows=" & VBA.CStr(records.Count), totalStartedAt
     private_TryEnrichResult = True
+Cleanup:
+    If configSnapshotActive Then
+        ex_PEB_Export.fn_EndConfigSnapshot
+    End If
+    Exit Function
+Failed:
+    diagnostic = VBA.Err.Description
+    Resume Cleanup
 End Function
 
 Private Function private_PlaceFields( _
@@ -2913,6 +2953,7 @@ Private Function private_SetCandidateSources( _
     Dim hospitalSourceAlias As String
     Dim hospitalModes As String
     Dim isHospitalMode As Boolean
+    Dim isTicketDocumentMode As Boolean
 
     If Not private_ReadModeConfig("lookup.ReturnTickets.modes", modes, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("lookup.ReturnTickets.styleFields", fields, diagnostic) Then Exit Function
@@ -2930,10 +2971,11 @@ Private Function private_SetCandidateSources( _
         hospitalFields = ex_PEB_Export.fn_Config("lookup.ReturnHospital.fields")
         hospitalSourceAlias = ex_PEB_Export.fn_Config("lookup.ReturnHospital.sourceAlias")
     End If
+    isTicketDocumentMode = ex_PEB_Export.fn_IsTicketDocumentMode(modeId)
     For Each column In columns
         If Left$(column("name"), 9) = "Movement." Or _
             ((column("formField") = hospitalDateField Or column("formField") = "DocumentNumber") And _
-                Not ex_PEB_Export.fn_IsTicketDocumentMode(modeId)) Then
+                Not isTicketDocumentMode) Then
             column("name") = "Manual." & column("formField")
             column("apply") = False
             column("sourceAlias") = vbNullString

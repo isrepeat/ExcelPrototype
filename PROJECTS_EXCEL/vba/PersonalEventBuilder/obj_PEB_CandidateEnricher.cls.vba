@@ -96,8 +96,10 @@ Public Function TryEnrich( _
     Dim value As Variant
     Dim detail As Variant
     Dim snapshot As obj_TableSnapshotSet
+    Dim stageStartedAt As Double
 
     On Error GoTo EH
+    stageStartedAt = VBA.Timer
     Set snapshot = ex_TableSnapshots.fn_Current()
     If Not snapshot Is Nothing Then
         If m_generation <> ex_TableSnapshots.fn_Generation() Then
@@ -118,6 +120,8 @@ Public Function TryEnrich( _
     End If
 
     ' Load and index the extension once, only when candidates exist.
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.Configure", stageStartedAt
+    stageStartedAt = VBA.Timer
     If candidates.Count > 0 Then
         If m_latestByName Is Nothing Then
             If Not private_LoadLatest(diagnostic) Then Exit Function
@@ -143,6 +147,8 @@ Public Function TryEnrich( _
     End If
 
     ' Always clear derived tickets before choosing the source for this mode.
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.Absence | Rows=" & VBA.CStr(output.Count), stageStartedAt
+    stageStartedAt = VBA.Timer
     For Each record In output
         Set fields = VBA.CreateObject("Scripting.Dictionary")
         fields("Absence.Type") = VBA.vbNullString
@@ -182,6 +188,8 @@ Public Function TryEnrich( _
             End If
         End If
     Next record
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.DerivedFields", stageStartedAt
+    stageStartedAt = VBA.Timer
     If returnMode Then
         If Not snapshot Is Nothing Then
             Set m_returnTickets = snapshot.Prepared("ReturnTickets")
@@ -197,6 +205,8 @@ Public Function TryEnrich( _
             Exit Function
         End If
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.ReturnTickets | Enabled=" & VBA.CStr(returnMode), stageStartedAt
+    stageStartedAt = VBA.Timer
     If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Then
         If Not snapshot Is Nothing Then
             Set m_returnTickets = snapshot.Prepared("ReturnTickets")
@@ -210,6 +220,7 @@ Public Function TryEnrich( _
             Exit Function
         End If
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.ReturnHospital", stageStartedAt
     TryEnrich = True
     Exit Function
 EH:
