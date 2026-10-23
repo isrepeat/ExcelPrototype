@@ -8,7 +8,7 @@ def main():
         settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         events = load_registry(settings)["events"]
         blocks = [group.split("|") for group in settings["ui.extendedModes"].split("||")]
-        assert [len(group) for group in blocks] == [2, 1, 3, 3, 3, 1, 2, 2]
+        assert [len(group) for group in blocks] == [2, 1, 3, 3, 3, 1, 3, 3]
         menu = [identifier for group in blocks for identifier in group]
         assert len(menu) == len(set(menu))
         assert all(identifier in events for identifier in menu)
@@ -17,9 +17,9 @@ def main():
         assert extended - hidden_aliases <= set(menu)
         groups = (
             ("ExternalVlk", "ВЛК за межами → ", (
-                "MoveFromExternalVlkToHospital", "MoveFromExternalVlkToVacationForCuring")),
+                "MoveFromExternalVlkToHospital", "MoveFromExternalVlkToVacationForCuring", "MoveFromExternalVlkToAnnualVacation")),
             ("OutpatientVlk", "Амбулаторне ВЛК → ", (
-                "MoveFromOutpatientVlkToHospital", "MoveFromOutpatientVlkToVacationForCuring")),
+                "MoveFromOutpatientVlkToHospital", "MoveFromOutpatientVlkToVacationForCuring", "MoveFromOutpatientVlkToAnnualVacation")),
         )
         expected = []
         destinations = []
@@ -35,13 +35,13 @@ def main():
                 assert event.get("caption").startswith(prefix)
                 assert movement.get("template") == identifier
                 if source == "OutpatientVlk":
-                    target = {"HospitalTreatment": "ToHospital", "MedicalLeave": "ToVacationForCuring"}
+                    target = {"HospitalTreatment": "ToHospital", "MedicalLeave": "ToVacationForCuring", "AnnualVacation": "ToAnnualMainVacation"}
                     assert event.find("p:word", NS).get("template") == target[movement.get("targetStatus")]
                     assert settings["export.Word.textAnchors." + identifier]
                 assert settings["forms.readOnly.modes." + identifier]
                 expected.append(identifier)
             destinations.append(targets)
-        assert destinations[0] == destinations[1] == {"HospitalTreatment", "MedicalLeave"}
+        assert destinations[0] == destinations[1] == {"HospitalTreatment", "MedicalLeave", "AnnualVacation"}
         start = menu.index(expected[0])
         assert menu[start:start + len(expected)] == expected
         assert not set(menu) & {"MoveFromVlkToHospital", "MoveFromVlkToVacationForCuring"}
