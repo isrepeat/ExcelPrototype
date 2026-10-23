@@ -31,7 +31,15 @@ def main():
     history = (folder / "ex_PEB_History.vba").read_text(encoding="utf-8-sig")
     check_declarations(history)
     check_blocks(history)
-    physical = procedure(history, "fn_DeleteLast")
+    assert 'fn_DeleteEvent(expected, expectedStamp, diagnostic, True)' in procedure(history, "fn_DeleteLast")
+    selected = procedure(controller, "DeleteEventHandler")
+    assert selected.index('m_editHistoryRow Is Nothing') < selected.index('fn_ShowMessage')
+    assert selected.index('fn_ShowMessage') < selected.index('fn_DeleteEvent')
+    assert 'fn_DeleteEvent(row, stamp, diagnostic)' in selected
+    assert selected.index('Set row = m_editHistoryRow') < selected.index('fn_ShowMessage')
+    assert selected.index('stamp = m_editHistoryStamp') < selected.index('fn_ShowMessage')
+    assert 'vbDefaultButton2' in selected and 'fn_SetStatus' not in selected
+    physical = procedure(history, "fn_DeleteEvent")
     assert 'Set current = events(events.Count)' in physical
     assert 'fn_Stamp(current) <> expectedStamp' in physical
     assert 'Loop While ids.Count <> previousCount' in physical
@@ -44,12 +52,15 @@ def main():
     assert physical.count('Application.ScreenUpdating = previousScreen') == 1
     assert 'fn_Save' not in physical and 'fn_SetStatus' not in physical
     assert not re.search(r'\.(?:Save|SaveAs|Close)\b', physical)
-    assert '"DeleteLastEvent"' in procedure(page, "private_TryRegisterCommands")
+    assert 'candidate("RowId") = expected("RowId")' in physical
+    assert 'VBA.Array("exports", "conflicts", "fieldState")' in physical
+    assert '"DeleteEvent"' in procedure(page, "private_TryRegisterCommands")
     root = ET.parse(ROOT / "PROJECTS_EXCEL/ui/PersonalEventBuilder/MainPage.xaml").getroot()
-    button = next(node for node in root.iter() if node.get("name") == "DeleteLastEvent")
-    assert button.get("command") == "{Binding Path=Commands.DeleteLastEvent}"
+    button = next(node for node in root.iter() if node.get("name") == "DeleteEvent")
+    assert button.get("command") == "{Binding Path=Commands.DeleteEvent}"
     assert (button.get("row"), button.get("column")) == ("23", "20")
-    keys = ("DeleteLastEvent", "DeleteLastEventConfirm", "LastEventDeleted", "LastEventChanged")
+    assert not any(node.get("name") == "DeleteLastEvent" for node in root.iter())
+    keys = ("DeleteEvent", "DeleteEventConfirm", "EventDeleted", "LastEventChanged")
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         config = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         assert all(config["text." + key] for key in keys)
@@ -72,6 +83,24 @@ def main():
     assert removed == {"last", "child", "nested"}
     revisions = [("last", 1), ("last", 2), ("other-order", 1)]
     assert [row for row in revisions if row[0] not in removed] == [("other-order", 1)]
+    # Selecting an earlier event must preserve the last event and unrelated links.
+    selected_id = "first"
+    assert next(row for row in scoped if row[0] == selected_id) != scoped[-1]
+    parents = {"report": selected_id, "nested-report": "report", "other-child": "last"}
+    removed = {selected_id}
+    while True:
+        following = removed | {child for child, parent in parents.items() if parent in removed}
+        if following == removed:
+            break
+        removed = following
+    for linked_rows in (
+        [("first", 1), ("first", 2), ("report", 1), ("last", 1)],
+        [("first", "Movement"), ("nested-report", "Word"), ("last", "Movement")],
+        [("report", "conflict"), ("last", "conflict")],
+        [("first", "field"), ("last", "field")],
+    ):
+        kept = [row for row in linked_rows if row[0] not in removed]
+        assert kept == [linked_rows[-1]]
     print("PASS: physical deletion, order scope, descendants, all revisions, confirmation, stale checks and rollback. VBA was not executed.")
 
 

@@ -465,13 +465,6 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
-    <controls:button name="DeleteLastEvent"
-                     row="23"
-                     column="20"
-                     columnSpan="3"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.DeleteLastEvent}"
-                     command="{Binding Path=Commands.DeleteLastEvent}"/>
     <controls:label name="LastStatusLabel"
                     row="8"
                     column="20"
@@ -519,6 +512,13 @@
                     columnSpan="3"
                     style="statusHeading"
                     text="{Binding Path=Text.HistoryEditMode}"/>
+    <controls:button name="DeleteEvent"
+                     row="23"
+                     column="20"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.DeleteEvent}"
+                     command="{Binding Path=Commands.DeleteEvent}"/>
     <controls:label name="SourceLegendTitle"
                     row="14"
                     column="20"

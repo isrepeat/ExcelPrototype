@@ -209,12 +209,14 @@ value	PersonalEventBuilder::text.TestsBasic	Базові тести
 value	PersonalEventBuilder::text.UnitHeader	Підрозділ
 value	PersonalEventBuilder::text.ArrivalType	Прибуття
 value	PersonalEventBuilder::text.CancelEvent	Скасувати подію
+value	PersonalEventBuilder::text.DeleteEvent	Видалити вибрану подію
 value	PersonalEventBuilder::text.ExportTitle	Експорт події
 value	PersonalEventBuilder::text.PreviewWord	Показати прев’ю
 value	PersonalEventBuilder::text.SaveHistory	Додати / оновити подію
 value	PersonalEventBuilder::text.ShowHistory	Редагування подій поточного наказу
 value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	PersonalEventBuilder::text.TaxIdHeader	ІПН
+value	PersonalEventBuilder::text.EventDeleted	Вибрану подію, дочірні записи, усі ревізії та зв’язки експорту видалено. РУХ і Word не змінено. Збережіть книгу історії вручну (Ctrl+S).
 value	PersonalEventBuilder::text.ExportFailed	Експорт не виконано: {details}
 value	PersonalEventBuilder::text.ModeSelected	Режим: {mode}.
 value	PersonalEventBuilder::text.RestoreEvent	Відновити подію
@@ -395,6 +397,7 @@ value	PersonalEventBuilder::text.TestsGroupingStep	[Крок {step}]
 value	PersonalEventBuilder::text.TestsWordNoTiming	—
 value	PersonalEventBuilder::text.TicketNumberLabel	Квиток №
 value	PersonalEventBuilder::text.WordStoreNotFound	Не знайдено подію з указаним UID. Оновлення та видалення потребують існуючої події.
+value	PersonalEventBuilder::text.DeleteEventConfirm	Повністю видалити вибрану подію: {person}, {event}, дата {date}, ID {id}? Подію, усі дочірні записи, ревізії, журнал експорту, конфлікти та стан полів буде фізично видалено без створення нової ревізії. РУХ і Word не змінюються.
 value	PersonalEventBuilder::text.DepartureDateLabel	Дата вибуття
 value	PersonalEventBuilder::text.HistoryStatusSaved	Статус події змінено. Збережіть EventsHistory вручну (Ctrl+S). Застосуйте зміни кнопкою «Експорт РУХ» та повторно сформуйте WORD.
 value	PersonalEventBuilder::text.HistorySyncPending	Зміни не підтверджено
