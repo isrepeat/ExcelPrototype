@@ -625,6 +625,8 @@ Public Function TryPrepareHistory( _
             Set m_pebWordTemplates = wordTemplates
             m_ownsWordTemplates = False
         End If
+    End If
+    If m_pebDslRenderer Is Nothing Then
         Set m_pebDslRenderer = New obj_PEB_DslRenderer
         If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
     End If

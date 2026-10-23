@@ -21,6 +21,19 @@ def main():
     assert 'If Not documentContext Is Nothing Then' in prepare
     assert prepare.index('fn_ValueToken(documentContext(key))') < prepare.index('Set values("WordDocumentReplacements") = documentContext')
     assert 'm_ownsWordTemplates = False' in prepare
+    # Snapshot synchronization can supply templates while clearing the renderer.
+    renderer_guard = prepare.index('If m_pebDslRenderer Is Nothing Then')
+    template_guard = prepare.index('If m_pebWordTemplates Is Nothing Then')
+    depth = 0
+    for line in prepare[template_guard:renderer_guard].splitlines():
+        stripped = line.strip()
+        if stripped.startswith('If ') and stripped.endswith(' Then'):
+            depth += 1
+        elif stripped == 'End If':
+            depth -= 1
+    assert depth == 0, 'Renderer initialization must not depend on missing templates'
+    assert renderer_guard < prepare.index('Set m_pebDslRenderer = New obj_PEB_DslRenderer')
+    assert renderer_guard < prepare.index('m_pebDslRenderer.TryRender(')
     assert 'VBA.Join(parts, VBA.vbCrLf & VBA.vbCrLf)' in generate
     assert 'body = body & text' not in generate
     assert 'For Each eventId In rendered.Keys' in generate
