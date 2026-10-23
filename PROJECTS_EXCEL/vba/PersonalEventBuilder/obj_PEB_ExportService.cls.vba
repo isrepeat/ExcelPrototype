@@ -18,7 +18,7 @@ Private m_movementRenderer As obj_PEB_DslRenderer
 Private m_pebDslRenderer As obj_PEB_DslRenderer
 Private m_pebWordTemplates As obj_PEB_WordTemplates
 Private m_ownsWordTemplates As Boolean
-Private m_lookupTables As Object
+Private m_snapshotGeneration As Long
 
 ' //
 ' // Lifecycle
@@ -37,17 +37,11 @@ Public Function Initialize() As Boolean
     If m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
-    Set m_lookupTables = VBA.CreateObject("Scripting.Dictionary")
-    m_lookupTables.CompareMode = VBA.vbTextCompare
     m_isInitialized = True
     Initialize = True
 End Function
 
 Public Sub Dispose()
-    Dim entry As Collection
-    Dim key As Variant
-    Dim table As obj_DataTable
-
     If m_isDisposed Then
         Exit Sub
     End If
@@ -67,14 +61,6 @@ Public Sub Dispose()
     Set m_movementRenderer = Nothing
     Set m_pebDslRenderer = Nothing
     Set m_pebWordTemplates = Nothing
-    If Not m_lookupTables Is Nothing Then
-        For Each key In m_lookupTables.Keys
-            Set entry = m_lookupTables(key)
-            Set table = entry(2)
-            table.Dispose
-        Next key
-    End If
-    Set m_lookupTables = Nothing
 End Sub
 
 Public Function TryPrepareExtensions( _
@@ -179,21 +165,32 @@ Public Function TryCaptureReturnTvo( _
     Dim rows As Collection
     Dim row As Object
     Dim index As Long
+    Dim startedAt As Double
+    Dim stageStartedAt As Double
 
+    startedAt = VBA.Timer
     On Error GoTo EH_RETURN_TVO
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Export service is not initialized."
+    stageStartedAt = VBA.Timer
     Set rows = ex_PEB_ReturnTvo.fn_Read(values)
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Read | Rows=" & VBA.CStr(rows.Count), stageStartedAt
+    stageStartedAt = VBA.Timer
     For Each row In rows
         private_Enrich row, "returnTvo.rank"
         For index = 1 To ex_PEB_Export.fn_Count("export.Word.meta.lookups.count")
             private_Enrich row, "export.Word.meta.lookups." & VBA.CStr(index)
         Next index
     Next row
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Enrich", stageStartedAt
+    stageStartedAt = VBA.Timer
     values("TvoReturnSnapshot") = ex_PEB_ReturnTvo.fn_Encode(values, rows)
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Encode", stageStartedAt
     TryCaptureReturnTvo = True
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Capture | Success=True", startedAt
     Exit Function
 EH_RETURN_TVO:
     diagnostic = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Capture | Success=False", startedAt
 End Function
 
 Public Function TryPrepare( _
@@ -220,6 +217,7 @@ Public Function TryPrepare( _
     Dim templateName As String
     Dim startedAt As Double
     Dim stageStartedAt As Double
+    Dim detailStartedAt As Double
     Dim additionalInputs As Object
     Dim groupTemplate As Object
     Dim history As Boolean
@@ -228,17 +226,7 @@ Public Function TryPrepare( _
     On Error GoTo EH
     ex_PEB_Export.fn_BeginConfigSnapshot
     ex_Core.fn_Diagnostic_WritePerf "Preview.ConfigSnapshot", startedAt
-    ' Keep templates for an isolated test run; interactive operations still reload XML.
-    If Not ex_PEB_Testing.fn_IsRunning() Then
-        If Not m_pebDslRenderer Is Nothing Then m_pebDslRenderer.Dispose
-        If Not m_pebWordTemplates Is Nothing Then
-            If m_ownsWordTemplates Then
-                m_pebWordTemplates.Dispose
-            End If
-        End If
-        Set m_pebDslRenderer = Nothing
-        Set m_pebWordTemplates = Nothing
-    End If
+    private_SyncSnapshot
     diagnostic = VBA.vbNullString
     Set values = Nothing
     If Not m_isInitialized Or m_isDisposed Then
@@ -331,32 +319,46 @@ Public Function TryPrepare( _
         End If
         ex_Core.fn_Diagnostic_WritePerf "Preview.Lookups", stageStartedAt
         stageStartedAt = VBA.Timer
+        detailStartedAt = VBA.Timer
         private_AddConstants values
         private_AddAliases values
 
         private_CompleteWordContext values, additionalInputs
         If Not Me.TryPrepareExtensions(values, extensionRows, diagnostic) Then GoTo Failed
+        ex_Core.fn_Diagnostic_WritePerf "Preview.ContextAndExtensions", detailStartedAt
+        detailStartedAt = VBA.Timer
         If Not history And values("ModeDirection") = "Arrival" Then
             If values("MetaTvoTables").Count = 0 Then
                 If Not Me.TryCaptureReturnTvo(values, diagnostic) Then GoTo Failed
                 Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)
             End If
         End If
+        ex_Core.fn_Diagnostic_WritePerf "Preview.ReturnTvo", detailStartedAt
         If history And values("WordPolicy") = "Omit" Then
             TryPrepare = True
             GoTo CleanupPrepare
         End If
+        detailStartedAt = VBA.Timer
         If m_pebWordTemplates Is Nothing Then
             Set m_pebWordTemplates = New obj_PEB_WordTemplates
             m_ownsWordTemplates = True
             If Not m_pebWordTemplates.Initialize(diagnostic) Then
                 GoTo Failed
             End If
+            Set m_pebDslRenderer = Nothing
+            m_snapshotGeneration = ex_TableSnapshots.fn_Generation()
+            ex_Core.fn_Diagnostic_WritePerf "Preview.TemplateCacheLoad", detailStartedAt
+        Else
+            ex_Core.fn_Diagnostic_WritePerf "Preview.TemplateCacheHit", detailStartedAt
+        End If
+        If m_pebDslRenderer Is Nothing Then
             Set m_pebDslRenderer = New obj_PEB_DslRenderer
             If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then
                 Err.Raise 5, , "Cannot initialize DSL renderer."
             End If
         End If
+        ex_Core.fn_Diagnostic_WritePerf "Preview.TemplateInitialize", detailStartedAt
+        detailStartedAt = VBA.Timer
         templateName = VBA.CStr(values("RoutedWordTemplate"))
         If Not additionalInputs Is Nothing Then
             If additionalInputs.Exists("TemplateName") Then
@@ -373,9 +375,12 @@ Public Function TryPrepare( _
                 Err.Raise 5, , "Required Word context value is empty: " & key
             End If
         Next key
+        ex_Core.fn_Diagnostic_WritePerf "Preview.TemplateContext", detailStartedAt
+        detailStartedAt = VBA.Timer
         If Not m_pebWordTemplates.TryRender(templateName, values, rendered, diagnostic) Then
             GoTo Failed
         End If
+        ex_Core.fn_Diagnostic_WritePerf "Preview.DslRender", detailStartedAt
         ex_Core.fn_Diagnostic_WritePerf "Preview.TemplatesAndDsl", stageStartedAt
         If VBA.Len(rendered) = 0 Or VBA.Len(rendered) > 32767 Then
             Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
@@ -430,6 +435,7 @@ Public Function TryPrepareHistoryMovement( _
     Dim copy As Object
 
     On Error GoTo EH
+    private_SyncSnapshot
     diagnostic = VBA.vbNullString
     Set values = Nothing
     If Not m_isInitialized Or m_isDisposed Then
@@ -537,6 +543,7 @@ Public Function TryPrepareHistory( _
     Dim starting As Date
 
     On Error GoTo EH
+    private_SyncSnapshot
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError026")
     values("ModeId") = values("EventId")
     template = ex_PEB_EventRoutes.fn_Apply(values, "Word")
@@ -612,9 +619,8 @@ Public Function TryPrepareHistory( _
     Next key
     If m_pebWordTemplates Is Nothing Then
         If wordTemplates Is Nothing Then
-            Set m_pebWordTemplates = New obj_PEB_WordTemplates
-            m_ownsWordTemplates = True
-            If Not m_pebWordTemplates.Initialize(diagnostic) Then Exit Function
+            Set m_pebWordTemplates = ex_PEB_Export.fn_WordTemplates()
+            m_ownsWordTemplates = False
         Else
             Set m_pebWordTemplates = wordTemplates
             m_ownsWordTemplates = False
@@ -676,6 +682,34 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_SyncSnapshot()
+    Dim snapshot As obj_TableSnapshotSet
+
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If snapshot Is Nothing Then
+        Exit Sub
+    End If
+    If m_snapshotGeneration = ex_TableSnapshots.fn_Generation() Then
+        Exit Sub
+    End If
+    If Not m_pebDslRenderer Is Nothing Then
+        m_pebDslRenderer.Dispose
+    End If
+    If Not m_movementRenderer Is Nothing Then
+        m_movementRenderer.Dispose
+    End If
+    If Not m_pebWordTemplates Is Nothing Then
+        If m_ownsWordTemplates Then
+            m_pebWordTemplates.Dispose
+        End If
+    End If
+    Set m_pebDslRenderer = Nothing
+    Set m_movementRenderer = Nothing
+    Set m_pebWordTemplates = snapshot.Prepared("WordTemplates")
+    m_ownsWordTemplates = False
+    m_snapshotGeneration = ex_TableSnapshots.fn_Generation()
+End Sub
+
 Private Sub private_PrepareOrderDocument(ByVal values As Object)
     Dim source As obj_TableSource
     Dim query As obj_TableQuery
@@ -1189,9 +1223,9 @@ Private Sub private_Enrich( _
     Dim whenField As String
     Dim whenPattern As String
     Dim rx As Object
-    Dim lookupTable As obj_DataTable
-    Dim lookupValues As Object
-    Dim lookupKey As String
+
+
+
     Dim lookupInput As String
     Dim specialPosition As String
     Dim rankField As String
@@ -1199,7 +1233,11 @@ Private Sub private_Enrich( _
     Dim pair As Variant
     Dim loadedAvailable As Boolean
     Dim tvoPositionCode As String
+    Dim startedAt As Double
+    Dim stageStartedAt As Double
 
+    startedAt = VBA.Timer
+    stageStartedAt = startedAt
     On Error GoTo EH
     inputField = ex_PEB_Export.fn_Config(prefix & ".input")
     outputField = ex_PEB_Export.fn_Config(prefix & ".output")
@@ -1215,16 +1253,20 @@ Private Sub private_Enrich( _
     rx.IgnoreCase = True
     If Not rx.Test(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, whenField))) Then
         values.Add outputField, VBA.vbNullString
-        Exit Sub
+        GoTo Cleanup
     End If
     If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, inputField))) = 0 Then
         Err.Raise 5, , "Lookup input is empty: " & inputField
     End If
     lookupInput = ex_PEB_Export.fn_Text(values(inputField))
     If outputField = "ReportPositionGenitive" Then
+        ex_Core.fn_Diagnostic_WritePerf "Lookup.Configure | Lookup=" & prefix, stageStartedAt
+        stageStartedAt = VBA.Timer
         If Not ex_PEB_Export.fn_TryReporterTvoPosition(ex_PEB_Export.fn_Text(values("ReportName")), tvoPositionCode, diagnostic) Then
             Err.Raise 5, , diagnostic
         End If
+        ex_Core.fn_Diagnostic_WritePerf "Lookup.ReporterTvo | Lookup=" & prefix, stageStartedAt
+        stageStartedAt = VBA.Timer
         If VBA.Len(tvoPositionCode) > 0 Then
             lookupInput = tvoPositionCode
             values(inputField) = tvoPositionCode
@@ -1243,7 +1285,7 @@ Private Sub private_Enrich( _
                     specialPosition = ex_PEB_Export.fn_Config("export.shared.positions.rozp.otherUnit")
                 End If
                 values.Add outputField, Replace$(ex_PEB_Export.fn_Config("export.shared.positions.rozp.text"), "{unit}", specialPosition)
-                Exit Sub
+                GoTo Cleanup
             End If
             Exit For
         End If
@@ -1270,25 +1312,21 @@ Private Sub private_Enrich( _
     tableQuery.AddCondition header, QueryEquals, lookupInput, QueryText, True
     tableQuery.Limit = 2
     tableQueryService.Backend = QueryAuto
+    ex_Core.fn_Diagnostic_WritePerf "Lookup.Prepare | Lookup=" & prefix, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not ex_TableDataRuntime.fn_TryQueryLoaded(tableSource, tableQuery, loadedAvailable, dataTable, diagnostic) Then
         Err.Raise 5, , diagnostic
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Lookup.LoadedQuery | Lookup=" & prefix, stageStartedAt
     If loadedAvailable Then
         ex_Core.fn_Diagnostic_WriteLog "EXPORT_LOOKUP_REUSED | Sheet=" & tableSource.SheetName
         GoTo ReadValue
     End If
-    Set lookupTable = private_LookupTable(tableSource, tableQueryService, lookupValues, diagnostic)
-    If lookupTable Is Nothing Then
+    stageStartedAt = VBA.Timer
+    If Not tableQueryService.TryExecute(tableSource, tableQuery, dataTable, diagnostic) Then
         Err.Raise 5, , diagnostic
     End If
-    lookupKey = header & VBA.vbNullChar & valueHeader & VBA.vbNullChar & lookupInput
-    If lookupValues.Exists(lookupKey) Then
-        values.Add outputField, lookupValues(lookupKey)
-        GoTo DecorateReporter
-    End If
-    If Not ex_TableQuery.fn_TryApply(lookupTable, tableQuery, dataTable, diagnostic) Then
-        Err.Raise 5, , diagnostic
-    End If
+    ex_Core.fn_Diagnostic_WritePerf "Lookup.Table | Lookup=" & prefix, stageStartedAt
 ReadValue:
     If dataTable.RowCount <> 1 Then
         Err.Raise 5, , "Export lookup must return exactly one row: " & prefix
@@ -1297,7 +1335,7 @@ ReadValue:
     If VBA.Len(ex_PEB_Export.fn_Text(values(outputField))) = 0 Then
         Err.Raise 5, , "Export lookup returned an empty value: " & outputField
     End If
-    If Not loadedAvailable Then lookupValues.Add lookupKey, values(outputField)
+
 DecorateReporter:
     If VBA.Len(tvoPositionCode) > 0 Then
         values(outputField) = ex_PEB_Export.fn_Config("reporter.tvo.prefix") & " " & values(outputField)
@@ -1315,6 +1353,7 @@ Cleanup:
     If Not tableSource Is Nothing Then
         tableSource.Dispose
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Lookup.Total | Lookup=" & prefix & " | Success=" & VBA.CStr(errorNumber = 0), startedAt
     If errorNumber <> 0 Then
         ' Propagate the saved error instead of entering this handler again.
         On Error GoTo 0
@@ -1326,6 +1365,8 @@ EH:
     errorText = VBA.Err.Description
     Resume Cleanup
 End Sub
+
+
 
 Private Function private_PositionKey(ByVal value As String) As String
     Dim normalized As String
@@ -1351,67 +1392,7 @@ Private Function private_PositionKey(ByVal value As String) As String
     Next kind
 End Function
 
-Private Function private_LookupTable( _
-    ByVal source As obj_TableSource, _
-    ByVal service As obj_TableQueryService, _
-    ByRef lookupValues As Object, _
-    ByRef diagnostic As String _
-) As obj_DataTable
-    Dim key As String
-    Dim stamp As String
-    Dim fileSystem As Object
-    Dim file As Object
-    Dim book As Workbook
-    Dim isOpen As Boolean
-    Dim entry As Collection
-    Dim table As obj_DataTable
-    Dim previous As obj_DataTable
-    Dim query As obj_TableQuery
-    Dim startedAt As Double
 
-    startedAt = VBA.Timer
-    key = source.WorkbookPath & VBA.vbNullChar & source.SheetName & VBA.vbNullChar & _
-        source.RangeAddress & VBA.vbNullChar & source.TableName
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    Set file = fileSystem.GetFile(source.WorkbookPath)
-    stamp = VBA.CStr(file.DateLastModified) & "|" & VBA.CStr(file.Size)
-    For Each book In Application.Workbooks
-        If VBA.StrComp(book.FullName, source.WorkbookPath, VBA.vbTextCompare) = 0 Then
-            isOpen = True
-            Exit For
-        End If
-    Next book
-    If m_lookupTables.Exists(key) Then
-        Set entry = m_lookupTables(key)
-        If Not isOpen And entry(1) = stamp Then
-            Set private_LookupTable = entry(2)
-            Set lookupValues = entry(3)
-            ex_Core.fn_Diagnostic_WritePerf "Preview.LookupCacheHit | Sheet=" & source.SheetName, startedAt
-            Exit Function
-        End If
-    End If
-    Set query = New obj_TableQuery
-    If Not query.Initialize() Then Err.Raise 5, , "Cannot initialize export directory query."
-    If Not service.TryExecute(source, query, table, diagnostic) Then
-        query.Dispose
-        Exit Function
-    End If
-    query.Dispose
-    If m_lookupTables.Exists(key) Then
-        Set entry = m_lookupTables(key)
-        Set previous = entry(2)
-        previous.Dispose
-    End If
-    Set entry = New Collection
-    If isOpen Then stamp = VBA.vbNullString
-    entry.Add stamp
-    entry.Add table
-    Set lookupValues = VBA.CreateObject("Scripting.Dictionary")
-    entry.Add lookupValues
-    Set m_lookupTables(key) = entry
-    Set private_LookupTable = table
-    ex_Core.fn_Diagnostic_WritePerf "Preview.LookupCacheLoad | Sheet=" & source.SheetName, startedAt
-End Function
 
 Private Sub private_AddConstants( _
     ByVal values As Object, _

@@ -23,6 +23,32 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Properties
+' //
+Public Property Get IndexCondition() As obj_QueryCondition
+    Dim item As Object
+    Dim condition As obj_QueryCondition
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Query group is unavailable."
+    End If
+    If MatchAny Then
+        Exit Property
+    End If
+    For Each item In m_items
+        If TypeOf item Is obj_QueryGroup Then
+            Set condition = item.IndexCondition
+        ElseIf item.Operation = QueryEquals And item.ValueType = QueryText Then
+            Set condition = item
+        End If
+        If Not condition Is Nothing Then
+            Set IndexCondition = condition
+            Exit Property
+        End If
+    Next item
+End Property
+
+' //
 ' // API
 ' //
 Public Function Initialize() As Boolean

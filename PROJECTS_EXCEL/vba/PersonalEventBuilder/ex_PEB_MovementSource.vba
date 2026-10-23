@@ -18,31 +18,26 @@ Public Function fn_ReadLatest( _
     Optional ByVal includeTvo As Boolean = False _
 ) As Object
     Dim result As Object
-    Dim book As Workbook
-    Dim table As ListObject
     Dim fields As Object
-    Dim names As Object
-    Dim ids As Variant
-    Dim person As String
-    Dim path As String
     Dim field As Variant
-    Dim index As Long
-    Dim column As Long
+    Dim source As obj_TableSource
+    Dim query As obj_TableQuery
+    Dim service As obj_TableQueryService
+    Dim table As obj_DataTable
+    Dim diagnostic As String
+    Dim row As Long
     Dim dateKey As Double
-    Dim latestKey As Double
     Dim arrivalKey As Double
+    Dim latestKey As Double
     Dim latestArrivalKey As Double
-    Dim conn As Object
-    Dim command As Object
-    Dim records As Object
-    Dim parameter As Object
-    Dim sql As String
-    Dim props As String
-    Dim extension As String
+    Dim startedAt As Double
     Dim failure As String
 
     On Error GoTo EH
-    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("validation.Movement.source.path"))
+    startedAt = VBA.Timer
+    If VBA.Len(VBA.Trim$(personId)) = 0 Then
+        ex_PEB_MovementLinks.fn_Fail "MissingPersonId", ""
+    End If
     Set fields = VBA.CreateObject("Scripting.Dictionary")
     For Each field In VBA.Array("EventName", "DepartureDate", "ArrivalDate")
         fields.Add field, ex_PEB_Export.fn_Config("export.Movement.headers." & field)
@@ -53,98 +48,52 @@ Public Function fn_ReadLatest( _
             fields.Add field, ex_PEB_Export.fn_Config("returnTvo.headers." & field)
         Next field
     End If
-    If VBA.Len(VBA.Trim$(personId)) = 0 Then
-        ex_PEB_MovementLinks.fn_Fail "MissingPersonId", ""
+    Set source = New obj_TableSource
+    Set query = New obj_TableQuery
+    Set service = New obj_TableQueryService
+    If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then
+        Err.Raise 5, , "Cannot initialize Movement snapshot query."
     End If
-    For Each book In Application.Workbooks
-        If VBA.StrComp(book.FullName, path, VBA.vbTextCompare) = 0 Then
-            Set table = book.Worksheets(ex_PEB_Export.fn_Config("validation.Movement.source.sheet")).ListObjects( _
-                ex_PEB_Export.fn_Config("validation.Movement.source.table"))
-            Set names = VBA.CreateObject("Scripting.Dictionary")
-            For Each field In fields.Keys
-                names(field) = table.ListColumns(fields(field)).Index
-            Next field
-            If Not table.DataBodyRange Is Nothing Then
-                ids = table.ListColumns(ex_PEB_Export.fn_Config("export.Movement.headers.PersonId")).DataBodyRange.Value2
-                For index = 1 To table.ListRows.Count
-                    If table.ListRows.Count = 1 Then
-                        person = private_Text(ids)
-                    Else
-                        person = private_Text(ids(index, 1))
-                    End If
-                    If person = personId Then
-                        dateKey = fn_OrderDate(table.DataBodyRange.Cells(index, names("DepartureDate")).Value2)
-                        arrivalKey = fn_OrderDate(table.DataBodyRange.Cells(index, names("ArrivalDate")).Value2)
-                        If result Is Nothing Or dateKey > latestKey Or _
-                                (dateKey = latestKey And arrivalKey <= latestArrivalKey) Then
-                            latestKey = dateKey
-                            latestArrivalKey = arrivalKey
-                            Set result = VBA.CreateObject("Scripting.Dictionary")
-                            For Each field In fields.Keys
-                                result(field) = table.DataBodyRange.Cells(index, names(field)).Value2
-                            Next field
-                        End If
-                    End If
-                Next index
-            End If
-            Set fn_ReadLatest = result
-            Exit Function
-        End If
-    Next book
-
-    ' Read one period; dates establish order and are not business constraints.
+    source.WorkbookPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("validation.Movement.source.path"))
+    source.SheetName = ex_PEB_Export.fn_Config("validation.Movement.source.sheet")
+    source.RangeAddress = ex_PEB_Export.fn_Config("validation.Movement.source.range")
     For Each field In fields.Keys
-        If VBA.Len(sql) > 0 Then
-            sql = sql & ", "
-        End If
-        sql = sql & private_Identifier(fields(field))
+        query.AddColumn fields(field)
     Next field
-    sql = "SELECT TOP 1 " & sql & " FROM " & private_Identifier( _
-        ex_PEB_Export.fn_Config("validation.Movement.source.sheet") & "$" & _
-        ex_PEB_Export.fn_Config("validation.Movement.source.range"))
-    sql = sql & " WHERE Trim(" & private_Identifier(ex_PEB_Export.fn_Config("export.Movement.headers.PersonId")) & " & '') = ?"
-    sql = sql & " ORDER BY " & private_Identifier(fields("DepartureDate")) & " DESC, " & _
-        private_Identifier(fields("ArrivalDate")) & " ASC"
-    extension = VBA.LCase$(VBA.Mid$(path, VBA.InStrRev(path, ".") + 1))
-    Select Case extension
-        Case "xlsx", "xlsm"
-            props = "Excel 12.0 Xml"
-        Case "xlsb"
-            props = "Excel 12.0"
-        Case "xls"
-            props = "Excel 8.0"
-        Case Else
-            ex_PEB_MovementLinks.fn_Fail "UnsupportedSourceFormat", path
-    End Select
-    Set conn = VBA.CreateObject("ADODB.Connection")
-    conn.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=""" & VBA.Replace$(path, """", """""") & _
-        """;Extended Properties=""" & props & ";HDR=YES;IMEX=1;ReadOnly=True"";"
-    Set command = VBA.CreateObject("ADODB.Command")
-    command.CommandType = 1
-    Set parameter = command.CreateParameter("p1", 202, 1, VBA.Len(personId), personId)
-    command.Parameters.Append parameter
-    Set command.ActiveConnection = conn
-    command.CommandText = sql
-    Set records = command.Execute
-    If Not records.EOF Then
-        Set result = VBA.CreateObject("Scripting.Dictionary")
-        column = 0
-        For Each field In fields.Keys
-            result(field) = records.Fields(column).Value
-            column = column + 1
-        Next field
+    query.AddCondition ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), QueryEquals, personId, QueryText, True
+    If Not service.TryExecute(source, query, table, diagnostic) Then
+        Err.Raise 5, , diagnostic
     End If
+    ' Preserve the latest-period ordering and all subsequent business validation.
+    For row = 1 To table.RowCount
+        dateKey = fn_OrderDate(table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields("DepartureDate"))))
+        arrivalKey = fn_OrderDate(table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields("ArrivalDate"))))
+        If result Is Nothing Or dateKey > latestKey Or (dateKey = latestKey And arrivalKey <= latestArrivalKey) Then
+            latestKey = dateKey
+            latestArrivalKey = arrivalKey
+            Set result = VBA.CreateObject("Scripting.Dictionary")
+            For Each field In fields.Keys
+                result(field) = table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))
+            Next field
+        End If
+    Next row
     Set fn_ReadLatest = result
 Cleanup:
-    On Error Resume Next
-    If Not records Is Nothing Then
-        records.Close
+    If Not table Is Nothing Then
+        table.Dispose
     End If
-    If Not conn Is Nothing Then
-        conn.Close
+    If Not source Is Nothing Then
+        source.Dispose
     End If
-    On Error GoTo 0
+    If Not query Is Nothing Then
+        query.Dispose
+    End If
+    If Not service Is Nothing Then
+        service.Dispose
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "MovementSource.ReadLatest", startedAt
     If VBA.Len(failure) > 0 Then
+        On Error GoTo 0
         Err.Raise 5, , failure
     End If
     Exit Function
@@ -175,11 +124,6 @@ End Function
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
-Private Function private_Identifier(ByVal value As String) As String
-    value = VBA.Replace$(value, ".", "#")
-    private_Identifier = "[" & VBA.Replace$(value, "]", "]]") & "]"
-End Function
-
 Private Function private_Text(ByVal value As Variant) As String
     If VBA.IsError(value) Then
         ex_PEB_MovementLinks.fn_Fail "InvalidSourceCell", ""

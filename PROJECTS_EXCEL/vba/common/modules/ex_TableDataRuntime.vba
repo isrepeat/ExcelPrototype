@@ -35,6 +35,7 @@ End Sub
 Public Sub fn_ResetCaches()
     Dim lookupService As obj_LookupService
 
+    ex_TableSnapshots.fn_Invalidate
     If m_lookupServices Is Nothing Then Exit Sub
     For Each lookupService In m_lookupServices
         lookupService.InvalidateCache
@@ -53,6 +54,13 @@ Public Function fn_TryQueryLoaded( _
     available = False
     Set result = Nothing
     fn_TryQueryLoaded = True
+    If Not ex_TableSnapshots.fn_TryQuery(source, query, available, result, diagnostic) Then
+        fn_TryQueryLoaded = False
+        Exit Function
+    End If
+    If available Then
+        Exit Function
+    End If
     If m_lookupServices Is Nothing Then Exit Function
     For Each lookupService In m_lookupServices
         If Not lookupService.TryQueryLoaded(source, query, available, result, diagnostic) Then

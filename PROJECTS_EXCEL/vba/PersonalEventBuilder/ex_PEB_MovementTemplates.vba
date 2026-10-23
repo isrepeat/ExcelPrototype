@@ -7,6 +7,8 @@ Private m_shared As Object
 Private m_columnTexts As Object
 Private m_knownFields As Object
 Private m_resources As Object
+Private m_staging As Boolean
+Private m_generation As Long
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -18,6 +20,7 @@ Public Sub fn_Module_Dispose()
     Set m_columnTexts = Nothing
     Set m_knownFields = Nothing
     Set m_resources = Nothing
+    m_generation = 0
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -26,6 +29,29 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_BuildSnapshot() As Object
+    Dim previous As Object
+    Dim message As String
+
+    Set previous = private_State()
+    On Error GoTo EH
+    fn_Module_Dispose
+    m_staging = True
+    private_EnsureLoaded
+    Set fn_BuildSnapshot = private_State()
+Cleanup:
+    private_Restore previous
+    m_staging = False
+    If VBA.Len(message) > 0 Then
+        On Error GoTo 0
+        Err.Raise 5, , message
+    End If
+    Exit Function
+EH:
+    message = VBA.Err.Description
+    Resume Cleanup
+End Function
+
 Public Function fn_Template(ByVal name As String) As Object
     private_EnsureLoaded
     If Not m_templates.Exists(name) Then
@@ -72,7 +98,18 @@ Private Sub private_EnsureLoaded()
     Dim index As Long
     Dim propertyName As String
     Dim message As String
+    Dim snapshot As obj_TableSnapshotSet
 
+    If Not m_staging Then
+        ' Route validation must not start loading business dependencies.
+        Set snapshot = ex_TableSnapshots.fn_Active()
+        If Not snapshot Is Nothing Then
+            If m_generation <> ex_TableSnapshots.fn_Generation() Then
+                private_Restore snapshot.Prepared("MovementTemplates")
+                m_generation = ex_TableSnapshots.fn_Generation()
+            End If
+        End If
+    End If
     If Not m_document Is Nothing Then
         Exit Sub
     End If
@@ -175,6 +212,28 @@ EH:
     message = VBA.Err.Description
     fn_Module_Dispose
     Err.Raise 5, , "Result text templates: " & message
+End Sub
+
+Private Function private_State() As Object
+    Dim state As Object
+
+    Set state = VBA.CreateObject("Scripting.Dictionary")
+    Set state("document") = m_document
+    Set state("templates") = m_templates
+    Set state("shared") = m_shared
+    Set state("columns") = m_columnTexts
+    Set state("fields") = m_knownFields
+    Set state("resources") = m_resources
+    Set private_State = state
+End Function
+
+Private Sub private_Restore(ByVal state As Object)
+    Set m_document = state("document")
+    Set m_templates = state("templates")
+    Set m_shared = state("shared")
+    Set m_columnTexts = state("columns")
+    Set m_knownFields = state("fields")
+    Set m_resources = state("resources")
 End Sub
 
 Private Sub private_ValidateText( _

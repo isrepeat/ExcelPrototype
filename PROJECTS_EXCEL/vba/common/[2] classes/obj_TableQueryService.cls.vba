@@ -64,12 +64,14 @@ Public Function TryExecute( _
     ByVal source As obj_TableSource, _
     ByVal query As obj_TableQuery, _
     ByRef output As obj_DataTable, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal useSnapshot As Boolean = True _
 ) As Boolean
     Dim executor As obj_ITableQueryExecutor
     Dim book As Workbook
     Dim selected As en_QueryBackend
     Dim path As String
+    Dim available As Boolean
 
     On Error GoTo EH
     Set output = Nothing
@@ -82,6 +84,15 @@ Public Function TryExecute( _
     End If
     If Not source.TryValidate(diagnostic) Then
         Exit Function
+    End If
+    If useSnapshot Then
+        If Not ex_TableSnapshots.fn_TryQuery(source, query, available, output, diagnostic) Then
+            Exit Function
+        End If
+        If available Then
+            TryExecute = True
+            Exit Function
+        End If
     End If
     selected = Backend
     If selected = QueryAuto Then

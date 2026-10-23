@@ -15,13 +15,11 @@ Private m_isDisposed As Boolean
 Private m_byIpn As Object
 Private m_byName As Object
 Private m_orderDates As Object
-Private m_movementStamp As String
-Private m_ordersStamp As String
 Private m_orderYear As Long
 Private m_hospitalByIpn As Object
 Private m_hospitalByName As Object
-Private m_hospitalStamp As String
 Private m_hospitalNames As Object
+Private m_loadingSnapshot As obj_TableSnapshotSet
 
 ' //
 ' // Lifecycle
@@ -57,13 +55,28 @@ Public Sub InvalidateCache()
     Set m_hospitalNames = Nothing
     Set m_hospitalByIpn = Nothing
     Set m_hospitalByName = Nothing
-    m_hospitalStamp = vbNullString
     Set m_byIpn = Nothing
     Set m_byName = Nothing
     Set m_orderDates = Nothing
-    m_movementStamp = VBA.vbNullString
-    m_ordersStamp = VBA.vbNullString
 End Sub
+
+Public Function PrepareSnapshot( _
+    ByVal snapshot As obj_TableSnapshotSet, _
+    ByRef diagnostic As String _
+) As Boolean
+    On Error GoTo EH
+    Set m_loadingSnapshot = snapshot
+    private_LoadMovement
+    private_LoadOrders
+    private_LoadHospital
+    PrepareSnapshot = True
+Cleanup:
+    Set m_loadingSnapshot = Nothing
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    Resume Cleanup
+End Function
 
 Public Function TryEnrich( _
     ByVal records As Collection, _
@@ -226,7 +239,6 @@ Private Sub private_LoadHospital()
     Dim institutions As obj_DataTable
     Dim names As Object
     Dim fields As Object
-    Dim stamp As String
     Dim destination As String
     Dim key As String
     Dim row As Long
@@ -239,10 +251,9 @@ Private Sub private_LoadHospital()
     Dim ipn As String
     Dim name As String
 
-    stamp = private_Stamp(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("lookup.ReturnTickets.source.path"))) & "|" & _
-        private_Stamp(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("lookup.Hospital.source.path")))
-    If Not m_hospitalByIpn Is Nothing And stamp = m_hospitalStamp Then Exit Sub
-    m_hospitalStamp = vbNullString
+    If Not m_hospitalByIpn Is Nothing Then
+        Exit Sub
+    End If
     Set institutions = private_ReadSaved("lookup.Hospital")
     fullColumn = ex_TableQuery.fn_HeaderIndex(institutions.Headers, ex_PEB_Export.fn_Config("lookup.Hospital.columns.1.header"))
     shortColumn = ex_TableQuery.fn_HeaderIndex(institutions.Headers, ex_PEB_Export.fn_Config("lookup.Hospital.columns.2.header"))
@@ -281,12 +292,10 @@ Private Sub private_LoadHospital()
 NextHospitalRow:
     Next row
     table.Dispose
-    m_hospitalStamp = stamp
 End Sub
 
 Private Sub private_LoadMovement()
     Dim table As obj_DataTable
-    Dim stamp As String
     Dim row As Long
     Dim ipnColumn As Long
     Dim nameColumn As Long
@@ -303,11 +312,9 @@ Private Sub private_LoadMovement()
     Dim prefix As String
 
     prefix = "lookup.ReturnTickets"
-    stamp = private_Stamp(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config(prefix & ".source.path")))
-    If Not m_byIpn Is Nothing And stamp = m_movementStamp Then
+    If Not m_byIpn Is Nothing Then
         Exit Sub
     End If
-    m_movementStamp = VBA.vbNullString
     Set table = private_ReadSaved(prefix)
     ipnColumn = ex_TableQuery.fn_HeaderIndex(table.Headers, ex_PEB_Export.fn_Config(prefix & ".ipnHeader"))
     nameColumn = ex_TableQuery.fn_HeaderIndex(table.Headers, ex_PEB_Export.fn_Config(prefix & ".nameHeader"))
@@ -345,12 +352,10 @@ Private Sub private_LoadMovement()
         End If
     Next row
     table.Dispose
-    m_movementStamp = stamp
 End Sub
 
 Private Sub private_LoadOrders()
     Dim table As obj_DataTable
-    Dim stamp As String
     Dim numberColumn As Long
     Dim dateColumn As Long
     Dim row As Long
@@ -358,11 +363,9 @@ Private Sub private_LoadOrders()
     Dim dateValue As Variant
     Dim orderDate As Date
 
-    stamp = private_Stamp(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("orders.source.path")))
-    If Not m_orderDates Is Nothing And stamp = m_ordersStamp And m_orderYear = VBA.Year(VBA.Date) Then
+    If Not m_orderDates Is Nothing And m_orderYear = VBA.Year(VBA.Date) Then
         Exit Sub
     End If
-    m_ordersStamp = VBA.vbNullString
     Set table = private_ReadSaved("orders")
     numberColumn = ex_TableQuery.fn_HeaderIndex(table.Headers, ex_PEB_Export.fn_Config("orders.numberHeader"))
     dateColumn = ex_TableQuery.fn_HeaderIndex(table.Headers, ex_PEB_Export.fn_Config("orders.dateHeader"))
@@ -385,7 +388,6 @@ Private Sub private_LoadOrders()
         End If
     Next row
     table.Dispose
-    m_ordersStamp = stamp
 End Sub
 
 Private Function private_ReadSaved(ByVal prefix As String) As obj_DataTable
@@ -393,85 +395,35 @@ Private Function private_ReadSaved(ByVal prefix As String) As obj_DataTable
     Dim query As obj_TableQuery
     Dim service As obj_TableQueryService
     Dim table As obj_DataTable
-    Dim fileSystem As Object
-    Dim original As String
-    Dim snapshot As String
-    Dim stamp As String
     Dim diagnostic As String
-    Dim errorNumber As Long
-    Dim errorText As String
+    Dim failure As String
 
     On Error GoTo EH
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    original = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config(prefix & ".source.path"))
-    stamp = private_Stamp(original)
-    snapshot = fileSystem.BuildPath(fileSystem.GetSpecialFolder(2).Path, fileSystem.GetTempName & "." & fileSystem.GetExtensionName(original))
-    ' Copy disk contents, including when the source workbook has unsaved live edits.
-    fileSystem.CopyFile original, snapshot, False
     Set source = New obj_TableSource
     Set query = New obj_TableQuery
     Set service = New obj_TableQueryService
-    If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then
-        Err.Raise 5, , "Cannot initialize saved Movement lookup."
-    End If
-    source.WorkbookPath = snapshot
+    If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then Err.Raise 5, , "Cannot initialize snapshot lookup."
+    source.WorkbookPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config(prefix & ".source.path"))
     source.SheetName = ex_PEB_Export.fn_Config(prefix & ".source.sheet")
     source.RangeAddress = ex_PEB_Export.fn_Config(prefix & ".source.range")
-    If VBA.LCase$(source.RangeAddress) = "auto" Then
-        Err.Raise 5, , "Saved Movement lookup requires an explicit range."
-    End If
-    service.Backend = QueryAdo
-    If Not service.TryExecute(source, query, table, diagnostic) Then
-        Err.Raise 5, , diagnostic
-    End If
-    If private_Stamp(original) <> stamp Then
-        Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTicketsSourceChanged")
-    End If
-Cleanup:
-    On Error Resume Next
-    If Not service Is Nothing Then
-        service.Dispose
-    End If
-    If Not query Is Nothing Then
-        query.Dispose
-    End If
-    If Not source Is Nothing Then
-        source.Dispose
-    End If
-    If VBA.Len(snapshot) > 0 Then
-        If fileSystem.FileExists(snapshot) Then
-            fileSystem.DeleteFile snapshot
-        End If
-    End If
-    If VBA.Err.Number <> 0 And errorNumber = 0 Then
-        errorNumber = VBA.Err.Number
-        errorText = VBA.Err.Description
-    End If
-    On Error GoTo 0
-    If errorNumber <> 0 Then
-        If Not table Is Nothing Then
-            table.Dispose
-        End If
-        Err.Raise errorNumber, , errorText
+    If m_loadingSnapshot Is Nothing Then
+        If Not service.TryExecute(source, query, table, diagnostic) Then Err.Raise 5, , diagnostic
+    Else
+        If Not m_loadingSnapshot.TryQuery(source, query, table, diagnostic) Then Err.Raise 5, , diagnostic
     End If
     Set private_ReadSaved = table
+Cleanup:
+    If Not source Is Nothing Then source.Dispose
+    If Not query Is Nothing Then query.Dispose
+    If Not service Is Nothing Then service.Dispose
+    If VBA.Len(failure) > 0 Then
+        On Error GoTo 0
+        Err.Raise 5, , failure
+    End If
     Exit Function
 EH:
-    errorNumber = VBA.Err.Number
-    errorText = VBA.Err.Description
+    failure = VBA.Err.Description
     Resume Cleanup
-End Function
-
-Private Function private_Stamp(ByVal path As String) As String
-    Dim fileSystem As Object
-    Dim file As Object
-
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    If Not fileSystem.FileExists(path) Then
-        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.ReturnTicketsSourceMissing"), "{path}", path)
-    End If
-    Set file = fileSystem.GetFile(path)
-    private_Stamp = VBA.CStr(file.DateLastModified) & "|" & VBA.CStr(file.Size)
 End Function
 
 Private Function private_OrderNumber(ByVal value As Variant) As String

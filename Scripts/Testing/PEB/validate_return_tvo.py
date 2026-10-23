@@ -19,8 +19,8 @@ def main():
     latest = procedure(source, "fn_ReadLatest")
     assert 'Optional ByVal includeTvo As Boolean = False' in latest
     assert 'If includeTvo Then' in latest
-    assert 'table.DataBodyRange.Cells(index, names(field)).Value2' in latest
-    assert 'records.Fields(column).Value' in latest
+    assert 'service.TryExecute(source, query, table, diagnostic)' in latest
+    assert 'table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))' in latest
     capture = procedure(restore, "fn_Read")
     assert capture.index('"direction") <> "Arrival"') < capture.index('fn_ReadLatest(')
     assert 'plan("operation") <> "Arrival"' in capture

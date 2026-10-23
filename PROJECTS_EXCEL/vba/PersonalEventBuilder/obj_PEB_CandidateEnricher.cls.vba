@@ -17,6 +17,7 @@ Private m_latestByName As Object
 Private m_absenceTable As obj_DataTable
 Private m_absenceRecords As Object
 Private m_returnTickets As obj_PEB_ReturnTickets
+Private m_generation As Long
 
 ' //
 ' // Lifecycle
@@ -52,26 +53,26 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     If Not m_absenceProfile Is Nothing Then m_absenceProfile.Dispose
-    If Not m_returnTickets Is Nothing Then
-        m_returnTickets.Dispose
-    End If
     Set m_returnTickets = Nothing
     Set m_absenceProfile = Nothing
     Set m_latestByName = Nothing
-    If Not m_absenceTable Is Nothing Then m_absenceTable.Dispose
     Set m_absenceTable = Nothing
     Set m_absenceRecords = Nothing
 End Sub
 
 Public Sub InvalidateCache()
     Set m_latestByName = Nothing
-    If Not m_absenceTable Is Nothing Then m_absenceTable.Dispose
     Set m_absenceTable = Nothing
     Set m_absenceRecords = Nothing
-    If Not m_returnTickets Is Nothing Then
-        m_returnTickets.InvalidateCache
-    End If
+    Set m_returnTickets = Nothing
 End Sub
+
+Public Function PrepareSnapshot( _
+    ByVal snapshot As obj_TableSnapshotSet, _
+    ByRef diagnostic As String _
+) As Boolean
+    PrepareSnapshot = private_LoadLatest(diagnostic, snapshot)
+End Function
 
 Public Function TryEnrich( _
     ByVal lookupService As obj_LookupService, _
@@ -94,8 +95,16 @@ Public Function TryEnrich( _
     Dim name As String
     Dim value As Variant
     Dim detail As Variant
+    Dim snapshot As obj_TableSnapshotSet
 
     On Error GoTo EH
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If Not snapshot Is Nothing Then
+        If m_generation <> ex_TableSnapshots.fn_Generation() Then
+            Me.InvalidateCache
+        End If
+        m_generation = ex_TableSnapshots.fn_Generation()
+    End If
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Candidate enricher is not initialized."
     returnMode = VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnTickets.modes") & "|", "|" & modeId & "|", VBA.vbTextCompare) > 0
     useOrderIncomingDate = VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.IncomingDate.orderDateModes") & "|", "|" & modeId & "|", VBA.vbTextCompare) > 0
@@ -174,6 +183,9 @@ Public Function TryEnrich( _
         End If
     Next record
     If returnMode Then
+        If Not snapshot Is Nothing Then
+            Set m_returnTickets = snapshot.Prepared("ReturnTickets")
+        End If
         If m_returnTickets Is Nothing Then
             Set m_returnTickets = New obj_PEB_ReturnTickets
             If Not m_returnTickets.Initialize() Then
@@ -186,6 +198,9 @@ Public Function TryEnrich( _
         End If
     End If
     If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Then
+        If Not snapshot Is Nothing Then
+            Set m_returnTickets = snapshot.Prepared("ReturnTickets")
+        End If
         If m_returnTickets Is Nothing Then
             Set m_returnTickets = New obj_PEB_ReturnTickets
             If Not m_returnTickets.Initialize() Then Err.Raise 5, , "Cannot initialize Movement provider."
@@ -205,7 +220,10 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
+Private Function private_LoadLatest( _
+    ByRef diagnostic As String, _
+    Optional ByVal snapshot As obj_TableSnapshotSet = Nothing _
+) As Boolean
     Dim tableQueryService As obj_TableQueryService
     Dim tableQuery As obj_TableQuery
     Dim dataTable As obj_DataTable
@@ -216,8 +234,22 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
     Dim value As Variant
     Dim departureDate As Date
     Dim rowIndex As Long
+    Dim prepared As Object
 
     On Error GoTo EH
+    If snapshot Is Nothing Then
+        Set snapshot = ex_TableSnapshots.fn_Current()
+    End If
+    If Not snapshot Is Nothing Then
+        If snapshot.Prepared.Exists("Absence.Latest") Then
+            Set prepared = snapshot.Prepared("Absence.Latest")
+            Set m_latestByName = prepared("latest")
+            Set m_absenceTable = prepared("table")
+            Set m_absenceRecords = prepared("records")
+            private_LoadLatest = True
+            Exit Function
+        End If
+    End If
     Set tableQueryService = New obj_TableQueryService
     Set tableQuery = New obj_TableQuery
     If Not tableQueryService.Initialize() Or Not tableQuery.Initialize() Then Err.Raise 5, , "Cannot initialize extension query."
@@ -225,7 +257,15 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
     For Each column In m_absenceProfile.Columns
         tableQuery.AddColumn column("header")
     Next column
-    If Not tableQueryService.TryExecute(m_absenceProfile.Source, tableQuery, dataTable, diagnostic) Then GoTo Cleanup
+    If snapshot Is Nothing Then
+        If Not tableQueryService.TryExecute(m_absenceProfile.Source, tableQuery, dataTable, diagnostic) Then
+            GoTo Cleanup
+        End If
+    Else
+        If Not snapshot.TryQuery(m_absenceProfile.Source, tableQuery, dataTable, diagnostic) Then
+            GoTo Cleanup
+        End If
+    End If
     Set byName = VBA.CreateObject("Scripting.Dictionary")
     byName.CompareMode = VBA.vbTextCompare
     Set datesByName = VBA.CreateObject("Scripting.Dictionary")
@@ -250,6 +290,13 @@ Private Function private_LoadLatest(ByRef diagnostic As String) As Boolean
     Set dataTable = Nothing
     Set m_absenceRecords = CreateObject("Scripting.Dictionary")
     m_absenceRecords.CompareMode = vbTextCompare
+    If Not snapshot Is Nothing Then
+        Set prepared = VBA.CreateObject("Scripting.Dictionary")
+        Set prepared("latest") = m_latestByName
+        Set prepared("table") = m_absenceTable
+        Set prepared("records") = m_absenceRecords
+        snapshot.Prepared.Add "Absence.Latest", prepared
+    End If
     private_LoadLatest = True
 Cleanup:
     If Not tableQueryService Is Nothing Then tableQueryService.Dispose

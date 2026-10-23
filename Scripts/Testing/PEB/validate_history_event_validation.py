@@ -18,16 +18,16 @@ def main():
     history = read("ex_PEB_History.vba")
     preview = read("ex_PEB_MovementPlanner.vba")
     full_rules = read("ex_PEB_MovementValidation.vba")
-    for name, text in (("ex_PEB_HistoryEvntVldtn", validator), ("ex_PEB_MovementSource", source),
-                       ("ex_PEB_MovementValidation", full_rules)):
+    for name, text in (("ex_PEB_HistoryEvntVldtn", validator), ("ex_PEB_MovementValidation", full_rules)):
         check_module_contract(text, name)
+    check_module_sections(source)
+    assert not re.search(r"(?m)^Private m_", source)
     check_module_sections(history)
     check_module_sections(registry)
     for text in (validator, source, registry):
         check_declarations(text)
         check_blocks(text)
-    for text in (validator, source):
-        assert not re.search(r"(?m)^Private m_", text)
+    assert not re.search(r"(?m)^Private m_", validator)
     save = procedure(history, "fn_Save")
     gate = save.index("ex_PEB_HistoryEvntVldtn.fn_Validate(current, previous, diagnostic, historyIndex)")
     for mutation in ("ex_PEB_HistoryRevisions.fn_Prepare", "Set target = table.ListRows.Add", "written = True"):
@@ -60,12 +60,13 @@ def main():
     assert 'VBA.Val(first("RowOrder")) < VBA.Val(second("RowOrder"))' in ordering
     assert "Err.Raise" not in ordering
     query = procedure(source, "fn_ReadLatest")
-    for forbidden in ("Workbooks.Open", 'CreateObject("Excel.Application")', "obj_TableQueryService",
+    for forbidden in ("Workbooks.Open", 'CreateObject("Excel.Application")',
                       "OpeningId", "ClosingId", "OrderNumber", "Hash", "fn_ReadPeople"):
         assert forbidden not in source
     assert 'VBA.Array("EventName", "DepartureDate", "ArrivalDate")' in query
-    assert "SELECT TOP 1" in query and "ORDER BY" in query and "WHERE Trim(" in query
-    assert query.index("command.Parameters.Append parameter") < query.index("command.CommandText = sql")
+    assert 'query.AddCondition ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), QueryEquals' in query
+    assert 'service.TryExecute(source, query, table, diagnostic)' in query
+    assert 'dateKey > latestKey' in query and 'arrivalKey <= latestArrivalKey' in query
     cleanup = query.split("Cleanup:", 1)[1].split("EH:", 1)[0]
     assert cleanup.index("On Error GoTo 0") < cleanup.index("Err.Raise 5, , failure")
     groups = procedure(registry, "fn_EventsByOperation")

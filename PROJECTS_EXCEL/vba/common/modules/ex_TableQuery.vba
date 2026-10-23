@@ -81,7 +81,7 @@ Public Function fn_HeaderIndex( _
     Dim i As Long
 
     For i = LBound(headers) To UBound(headers)
-        If VBA.StrComp(VBA.Trim$(VBA.CStr(headers(i))), VBA.Trim$(name), VBA.vbTextCompare) = 0 Then
+        If VBA.StrComp(VBA.Replace$(VBA.Trim$(VBA.CStr(headers(i))), ".", "#"), VBA.Replace$(VBA.Trim$(name), ".", "#"), VBA.vbTextCompare) = 0 Then
             If fn_HeaderIndex > 0 Then
                 Err.Raise VBA.vbObjectError + 2100, , "Ambiguous column: " & name
             End If
