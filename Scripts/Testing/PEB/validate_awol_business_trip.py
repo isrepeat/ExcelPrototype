@@ -46,7 +46,7 @@ def main():
         assert plans['statuses']['ReturnToOtherUnit'] == 'Повернення до іншої частини'
     routes = ET.parse(ROOT / 'PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderEventRoutes.xml')
     event = next(node for node in routes.iter() if node.get('id') == 'MoveFromAwolToBusinessTrip')
-    assert event.get('caption') == event.get('label') == 'СЗЧ => Відрядження'
+    assert event.get('caption') == event.get('label') == 'СЗЧ → Відрядження'
     print('PASS: AWOL source status, closed placeholder dates, stable link, repeated-export guard, '
           'writer allocation, plan fingerprint and caption. Office/VBA not executed.')
 
