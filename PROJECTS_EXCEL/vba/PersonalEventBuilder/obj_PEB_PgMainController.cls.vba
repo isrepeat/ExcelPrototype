@@ -854,6 +854,50 @@ Public Function SaveHistoryHandler() As Boolean
     SaveHistoryHandler = private_Export("History")
 End Function
 
+Public Function DeleteEventHandler() As Boolean
+    Dim row As Object
+    Dim stamp As String
+    Dim diagnostic As String
+    Dim prompt As String
+    Dim status As String
+    Dim identifier As String
+
+    On Error GoTo FailedDelete
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        DeleteEventHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If m_editHistoryRow Is Nothing Then
+        DeleteEventHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistorySelectRequired"), True)
+        Exit Function
+    End If
+    Set row = m_editHistoryRow
+    stamp = m_editHistoryStamp
+    identifier = VBA.CStr(row("RowId"))
+    prompt = ex_PEB_Export.fn_Config("text.DeleteEventConfirm")
+    prompt = VBA.Replace$(prompt, "{person}", VBA.CStr(row("PersonName")))
+    prompt = VBA.Replace$(prompt, "{event}", VBA.CStr(row("EventLabel")))
+    prompt = VBA.Replace$(prompt, "{date}", VBA.CStr(row("EventDate")))
+    prompt = VBA.Replace$(prompt, "{id}", identifier)
+    If ex_WindowsUi.fn_ShowMessage(prompt, vbYesNo Or vbQuestion Or vbDefaultButton2, _
+            ex_PEB_Export.fn_Config("text.DeleteEvent")) <> vbYes Then
+        DeleteEventHandler = True
+        Exit Function
+    End If
+    If Not ex_PEB_History.fn_DeleteEvent(row, stamp, diagnostic) Then GoTo FailedDelete
+    status = ex_PEB_Export.fn_Config("text.EventDeleted")
+    If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
+    If Not private_RefreshHistory(vbNullString, diagnostic) Then
+        If diagnostic <> ex_PEB_Export.fn_Config("text.HistoryEmptyOrder") Then status = status & " " & diagnostic
+    End If
+    DeleteEventHandler = private_SetActionStatus(status, False)
+    Exit Function
+FailedDelete:
+    If Err.Number <> 0 Then diagnostic = Err.Description
+    DeleteEventHandler = private_SetActionStatus(diagnostic, True)
+End Function
+
 Public Function DeleteLastEventHandler() As Boolean
     Dim row As Object
     Dim current As Object

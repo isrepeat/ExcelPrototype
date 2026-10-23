@@ -522,6 +522,15 @@ Public Function fn_SetStatus( _
 End Function
 
 Public Function fn_DeleteLast(ByVal expected As Object, ByVal expectedStamp As String, ByRef diagnostic As String) As Boolean
+    fn_DeleteLast = fn_DeleteEvent(expected, expectedStamp, diagnostic, True)
+End Function
+
+Public Function fn_DeleteEvent( _
+    ByVal expected As Object, _
+    ByVal expectedStamp As String, _
+    ByRef diagnostic As String, _
+    Optional ByVal requireLast As Boolean = False _
+) As Boolean
     Dim book As Workbook
     Dim table As ListObject
     Dim versions As ListObject
@@ -547,6 +556,9 @@ Public Function fn_DeleteLast(ByVal expected As Object, ByVal expectedStamp As S
     Dim previousScreen As Boolean
     Dim guarded As Boolean
     Dim rollbackError As String
+    Dim targets As New Collection
+    Dim candidate As Variant
+    Dim group As Variant
 
     On Error GoTo EH_DELETE
     private_Open book, table
@@ -554,7 +566,17 @@ Public Function fn_DeleteLast(ByVal expected As Object, ByVal expectedStamp As S
         ex_PEB_Export.fn_Config("history.versions.table"))
     If versions.Parent.ProtectContents Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError017")
     If Not fn_ReadOrder(CStr(expected("AcceptedOrderNumber")), expected("AcceptedOrderDate"), events, diagnostic, True, Nothing, False) Then Exit Function
-    Set current = events(events.Count)
+    If requireLast Then
+        If events.Count > 0 Then Set current = events(events.Count)
+    Else
+        For Each candidate In events
+            If candidate("RowId") = expected("RowId") Then
+                Set current = candidate
+                Exit For
+            End If
+        Next candidate
+    End If
+    If current Is Nothing Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
     If current("RowId") <> expected("RowId") Or fn_Stamp(current) <> expectedStamp Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
     End If
@@ -573,20 +595,31 @@ Public Function fn_DeleteLast(ByVal expected As Object, ByVal expectedStamp As S
             End If
         Next rowIndex
     Loop While ids.Count <> previousCount
-    ' Validate both tables before changing either one.
+    ' Validate all related tables before changing any of them.
     columnIndex = versions.ListColumns("EventRowId").Index
+    targets.Add versions
+    For Each group In VBA.Array("exports", "conflicts", "fieldState")
+        Set target = book.Worksheets(ex_PEB_Export.fn_Config("history." & group & ".sheet")).ListObjects( _
+            ex_PEB_Export.fn_Config("history." & group & ".table"))
+        targets.Add target
+    Next group
+    targets.Add table
+    For Each candidate In targets
+        Set target = candidate
+        If target.Parent.ProtectContents Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError017")
+        If Not target Is table Then columnIndex = target.ListColumns("EventRowId").Index
+    Next candidate
     previousEvents = Application.EnableEvents
     previousScreen = Application.ScreenUpdating
     guarded = True
     Application.EnableEvents = False
     Application.ScreenUpdating = False
-    For pass = 1 To 2
-        If pass = 1 Then
-            Set target = versions
-            idColumn = columnIndex
-        Else
-            Set target = table
+    For pass = 1 To targets.Count
+        Set target = targets(pass)
+        If target Is table Then
             idColumn = CLng(columns("RowId"))
+        Else
+            idColumn = target.ListColumns("EventRowId").Index
         End If
         For rowIndex = target.ListRows.Count To 1 Step -1
             If ids.Exists(ex_PEB_Export.fn_Text(target.DataBodyRange.Cells(rowIndex, idColumn).Value2)) Then
@@ -605,7 +638,7 @@ Public Function fn_DeleteLast(ByVal expected As Object, ByVal expectedStamp As S
             End If
         Next rowIndex
     Next pass
-    fn_DeleteLast = True
+    fn_DeleteEvent = True
 CleanupDelete:
     If guarded Then
         Application.EnableEvents = previousEvents
