@@ -763,4 +763,44 @@
       </text>
     </column>
   </template>
+  <template name="MoveFromExternalVlkToAnnualVacation">
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="MoveFromOutpatientVlkToAnnualVacation">
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
 </resultTemplates>

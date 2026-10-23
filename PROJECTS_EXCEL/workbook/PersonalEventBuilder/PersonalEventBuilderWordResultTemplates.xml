@@ -946,4 +946,20 @@
       ]]>
     </text>
   </template>
+  <template name="MoveFromExternalVlkToAnnualVacation"
+            hash="0x26">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який {#include block.StatusChangeResidenceVerb}на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що вибув у щорічну основну відпустку#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#include block.StatusChangeFoodSupport}#^
+#_      {#newline}{#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 </wordResultTemplates>

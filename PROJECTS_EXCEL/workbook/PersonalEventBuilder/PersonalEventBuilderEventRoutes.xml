@@ -369,5 +369,23 @@
       <movement template="MoveFromVacationForCuringToAnnualVacation"/>
       <word template="MoveFromVacationForCuringToAnnualVacation"/>
     </event>
+    <event label="ВЛК за межами → щорічна відпустка"
+           caption="ВЛК за межами → щорічна відпустка"
+           id="MoveFromExternalVlkToAnnualVacation"
+           direction="StatusChange"
+           form="Leave"
+           visible="false">
+      <movement template="MoveFromExternalVlkToAnnualVacation"/>
+      <word template="MoveFromExternalVlkToAnnualVacation"/>
+    </event>
+    <event label="Амбулаторне ВЛК → щорічна відпустка"
+           caption="Амбулаторне ВЛК → щорічна відпустка"
+           id="MoveFromOutpatientVlkToAnnualVacation"
+           direction="Departure"
+           form="Leave"
+           visible="false">
+      <movement template="MoveFromOutpatientVlkToAnnualVacation"/>
+      <word template="ToAnnualMainVacation"/>
+    </event>
   </events>
 </eventRoutes>
