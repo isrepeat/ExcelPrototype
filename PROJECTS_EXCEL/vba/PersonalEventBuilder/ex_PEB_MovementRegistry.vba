@@ -844,6 +844,16 @@ Private Sub private_BuildEvents()
         "", _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
+        "MoveFromOutpatientVlkToHospital", _
+        "Transition", _
+        "Transition", _
+        "OutpatientVlk", _
+        "HospitalTreatment", _
+        "HospitalShortName", _
+        "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+    private_AddEvent _
         "MoveFromOutpatientVlkToVacationForCuring", _
         "Transition", _
         "Transition", _

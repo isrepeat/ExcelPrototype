@@ -203,6 +203,9 @@ Private Function private_ToggleDropdown() As Boolean
         m_dropdownCreated = True
         Application.ScreenUpdating = previousScreenUpdating
     End If
+    If Not m_isExpanded And Not m_uiFieldControl Is Nothing Then
+        If Not m_uiFieldControl.RefreshDropdownHighlight(m_itemShapeNames) Then Exit Function
+    End If
     m_isExpanded = Not m_isExpanded
     private_UpdateHeader
     private_ToggleDropdown = private_ApplyVisibility()
@@ -257,8 +260,8 @@ Private Function private_ApplyVisibility() As Boolean
     Set panelShape = m_worksheet.Shapes(m_panelShapeName)
     panelShape.Visible = VBA.IIf(m_isExpanded, msoTrue, msoFalse)
     If m_isExpanded Then panelShape.ZOrder msoBringToFront
-    For itemIndex = 1 To m_itemShapeNames.Count
-        Set itemShape = m_worksheet.Shapes(VBA.CStr(m_itemShapeNames(itemIndex)))
+    For itemIndex = 2 To m_shapeNames.Count
+        Set itemShape = m_worksheet.Shapes(VBA.CStr(m_shapeNames(itemIndex)))
         itemShape.Visible = VBA.IIf(m_isExpanded, msoTrue, msoFalse)
         If m_isExpanded Then itemShape.ZOrder msoBringToFront
     Next itemIndex

@@ -283,7 +283,12 @@
                          placeholder="{Binding Path=Text.ExtendedModes}"
                          panelStyle="formSelectPanel"
                          itemStyle="formSelectItem"
-                         itemHeight="25"
+                         itemHeight="30"
+                         highlightValue="{Binding Path=Form.ExtendedMode}"
+                         highlightStyle="activeModeButton"
+                         separatorBefore="{Binding Path=Data.ExtendedModeSeparators}"
+                         separatorStyle="formSelectSeparator"
+                         separatorHeight="2"
                          onChange="{Binding Path=Commands.ExtendedModeChanged}"/>
       </stackPanel>
     </stackPanel>

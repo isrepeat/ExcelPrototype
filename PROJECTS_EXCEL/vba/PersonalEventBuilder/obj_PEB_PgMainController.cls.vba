@@ -735,6 +735,7 @@ Public Function ExtendedModeChangedHandler() As Boolean
     Dim selected As Variant
     Dim eventId As Variant
     Dim diagnostic As String
+    Dim modeIds As String
 
     On Error GoTo EH_EXTENDED
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -743,8 +744,11 @@ Public Function ExtendedModeChangedHandler() As Boolean
         ExtendedModeChangedHandler = True
         Exit Function
     End If
-    For Each eventId In ex_PEB_EventRoutes.fn_Ids()
-        If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "visible") = "false" Then
+    If Not private_ReadModeConfig("ui.extendedModes", modeIds, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    For Each eventId In VBA.Split(modeIds, "|")
+        If VBA.Len(VBA.CStr(eventId)) > 0 Then
             If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption") = VBA.CStr(selected) Then
                 ExtendedModeChangedHandler = private_SwitchMode(VBA.CStr(eventId))
                 Exit Function
@@ -2239,19 +2243,30 @@ Private Function private_PublishExtendedModes(ByRef diagnostic As String) As Boo
     Dim captions As Object
     Dim eventId As Variant
     Dim caption As String
+    Dim modeIds As String
+    Dim separators As String
 
     On Error GoTo EH_EXTENDED
     Set items = New Collection
     Set captions = VBA.CreateObject("Scripting.Dictionary")
     captions.CompareMode = VBA.vbTextCompare
-    For Each eventId In ex_PEB_EventRoutes.fn_Ids()
-        If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "visible") = "false" Then
+    If Not private_ReadModeConfig("ui.extendedModes", modeIds, diagnostic) Then Exit Function
+    For Each eventId In VBA.Split(modeIds, "|")
+        If VBA.Len(VBA.CStr(eventId)) = 0 Then
+            If VBA.Len(separators) > 0 Then
+                separators = separators & "|"
+            End If
+            separators = separators & VBA.CStr(items.Count + 1)
+        Else
             caption = ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption")
-            If captions.Exists(caption) Then Err.Raise 5, , "Duplicate extended event caption: " & caption
+            If captions.Exists(caption) Then
+                Err.Raise 5, , "Duplicate extended event caption: " & caption
+            End If
             captions.Add caption, True
             items.Add caption
         End If
     Next eventId
+    If Not m_pageBase.BindingContext.SetValue("Data", "ExtendedModeSeparators", separators) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "ExtendedModes", items) Then Exit Function
     private_PublishExtendedModes = True
     Exit Function
