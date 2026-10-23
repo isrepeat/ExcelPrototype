@@ -221,6 +221,9 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemStyle", "string", False, "", True, 0
             schema.AddAttribute "itemHeight", "number", False, "", False, 0
             schema.AddAttribute "itemMargin", "number", False, "", False, 0
+            schema.AddAttribute "separatorBefore", "string", False, "", True, 0
+            schema.AddAttribute "separatorStyle", "string", False, "", True, 0
+            schema.AddAttribute "separatorHeight", "number", False, "", False, 0
 
         Case "form"
             schema.AddAttribute "fieldCatalog", "string", False, "", False, 0

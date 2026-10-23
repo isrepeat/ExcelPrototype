@@ -12,9 +12,9 @@ def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(folder / filename)
         registry = load_registry(settings)
-        assert len(registry["events"]) == 40
-        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 37
-        assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is None
+        assert len(registry["events"]) == 41
+        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 38
+        assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is not None
         movement_only = {name for name, event in registry["events"].items() if event.find("p:word", NS) is None}
         assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "MoveFromAwolToBusinessTrip"}
         for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
@@ -24,7 +24,7 @@ def main():
             assert event.find("p:word", NS).get("template") == event_id
             assert event.find("p:movement", NS).get("template") == event_id
             assert settings["export.Word.textAnchors." + event_id] == event_id
-        templates = [path for path in WORKBOOK.glob("*.docx") if not path.name.startswith("~$")]
+        templates = [path for path in WORKBOOK.glob("*.docx") if path.name.startswith("{yyyy}")]
         assert len(templates) == 1
         with ZipFile(templates[0]) as package:
             document = ET.fromstring(package.read("word/document.xml"))
@@ -94,7 +94,7 @@ def main():
         rejected += 1
     else:
         raise AssertionError("Retired omittedTemplates section accepted")
-    print(f"PASS: TEST/PROD, 37 Word routes and 3 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
+    print(f"PASS: TEST/PROD, 38 Word routes and 3 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":

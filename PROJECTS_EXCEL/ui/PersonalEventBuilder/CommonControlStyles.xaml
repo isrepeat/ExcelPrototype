@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <styleCatalog xmlns="urn:excelprototype:profiles"
               version="1">
+  <controlStyle name="formSelectSeparator"
+                backColor="#808080"
+                borderColor="#808080"
+                borderWeight="thin"/>
   <controlStyle name="selectShapeBase"
                 backColor="#FFFFFF"
                 textColor="#111827"
