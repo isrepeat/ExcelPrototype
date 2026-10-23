@@ -4,6 +4,7 @@ Option Explicit
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    ex_TableSnapshots.fn_Module_Dispose
     ex_PEB_Testing.fn_Module_Dispose
     ex_PEB_EventRoutes.fn_Module_Dispose
     ex_UiPageManager.fn_Module_Dispose

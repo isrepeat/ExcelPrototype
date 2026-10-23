@@ -53,6 +53,8 @@ def main():
             assert value in resolved, (key, value)
             if key in previous:
                 expected = previous[key]
+                if key == "PersonalEventBuilder::lookup.ReturnTickets.source.range":
+                    expected = resolved["PersonalEventBuilder::validation.Movement.source.range"]
                 assert resolved[key] == expected, (filename, key, resolved[key], expected)
             count += 1
         if filename.endswith("test.txt"):

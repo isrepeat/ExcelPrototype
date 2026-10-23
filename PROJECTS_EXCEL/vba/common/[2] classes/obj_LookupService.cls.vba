@@ -10,6 +10,8 @@ Private m_isDisposed As Boolean
 
 Private m_profile As obj_LookupProfile
 Private m_cache As obj_DataTable
+Private m_generation As Long
+Private m_sharedCache As Boolean
 
 ' //
 ' // Lifecycle
@@ -44,9 +46,21 @@ Public Sub Dispose()
 End Sub
 
 Public Sub InvalidateCache()
-    If Not m_cache Is Nothing Then m_cache.Dispose
+    If Not m_cache Is Nothing Then
+        If Not m_sharedCache Then
+            m_cache.Dispose
+        End If
+    End If
     Set m_cache = Nothing
+    m_sharedCache = False
 End Sub
+
+Public Function PrepareSnapshot( _
+    ByVal snapshot As obj_TableSnapshotSet, _
+    ByRef diagnostic As String _
+) As Boolean
+    PrepareSnapshot = private_LoadCache(diagnostic, snapshot)
+End Function
 
 Public Function TrySearch( _
     ByVal text As String, _
@@ -310,7 +324,10 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
+Private Function private_LoadCache( _
+    ByRef diagnostic As String, _
+    Optional ByVal snapshot As obj_TableSnapshotSet = Nothing _
+) As Boolean
     Dim service As obj_TableQueryService
     Dim query As obj_TableQuery
     Dim column As Object
@@ -320,8 +337,26 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
     Dim key As String
     Dim startedAt As Double
     Dim busyEntered As Boolean
+    Dim cacheKey As String
 
     On Error GoTo EH
+    If snapshot Is Nothing Then
+        Set snapshot = ex_TableSnapshots.fn_Current()
+    End If
+    If Not snapshot Is Nothing Then
+        If m_generation <> ex_TableSnapshots.fn_Generation() Then
+            Me.InvalidateCache
+        End If
+        m_generation = ex_TableSnapshots.fn_Generation()
+        cacheKey = "LookupProjection:" & ex_TableSnapshots.fn_SourceKey(m_profile.Source) & VBA.vbNullChar & m_profile.KeyField
+        For Each column In m_profile.Columns
+            cacheKey = cacheKey & VBA.vbNullChar & column("header")
+        Next column
+        If snapshot.Prepared.Exists(cacheKey) Then
+            Set m_cache = snapshot.Prepared(cacheKey)
+            m_sharedCache = True
+        End If
+    End If
     If Not m_cache Is Nothing Then
         ex_Core.fn_Diagnostic_WriteLog "LOOKUP_CACHE_HIT | Rows=" & VBA.CStr(m_cache.RowCount)
         private_LoadCache = True
@@ -336,7 +371,15 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
     For Each column In m_profile.Columns
         query.AddColumn column("header")
     Next column
-    If Not service.TryExecute(m_profile.Source, query, m_cache, diagnostic) Then GoTo Cleanup
+    If snapshot Is Nothing Then
+        If Not service.TryExecute(m_profile.Source, query, m_cache, diagnostic) Then
+            GoTo Cleanup
+        End If
+    Else
+        If Not snapshot.TryQuery(m_profile.Source, query, m_cache, diagnostic) Then
+            GoTo Cleanup
+        End If
+    End If
     startedAt = VBA.Timer
     keyIndex = ex_TableQuery.fn_HeaderIndex(m_cache.Headers, m_profile.HeaderFor(m_profile.KeyField))
     Set keys = VBA.CreateObject("Scripting.Dictionary")
@@ -349,6 +392,10 @@ Private Function private_LoadCache(ByRef diagnostic As String) As Boolean
         End If
     Next rowIndex
     ex_Core.fn_Diagnostic_WritePerf "Lookup.ValidateKeys | Rows=" & VBA.CStr(m_cache.RowCount), startedAt
+    If Not snapshot Is Nothing Then
+        snapshot.Prepared.Add cacheKey, m_cache
+        m_sharedCache = True
+    End If
     private_LoadCache = True
 Cleanup:
     If Not service Is Nothing Then service.Dispose

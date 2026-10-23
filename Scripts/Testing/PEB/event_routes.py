@@ -137,7 +137,7 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
     for identifier, event in events.items():
         attributes(event, "id|caption|label|direction|form|visible", "id|caption|label|direction|form|visible")
         require(event.get("direction") in ("Arrival", "Departure", "StatusChange"), f"Invalid direction: {identifier}")
-        require(event.get("form") in ("Leave", "Treatment"), f"Invalid form: {identifier}")
+        require(f"forms.{event.get('form')}.fields.count" in settings, f"Invalid form: {identifier}")
         require(event.get("visible") in ("true", "false"), f"Invalid visibility: {identifier}")
         tags = [child.tag for child in event]
         allowed = {f"{{{NS['p']}}}movement", f"{{{NS['p']}}}word"}

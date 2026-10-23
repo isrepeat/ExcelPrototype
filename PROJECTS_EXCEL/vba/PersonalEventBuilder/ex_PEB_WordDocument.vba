@@ -87,10 +87,7 @@ Public Sub fn_Change( _
     On Error GoTo EH
     resultCode = VBA.vbNullString
     Set store = New obj_PEB_WordEventStore
-    Set templates = New obj_PEB_WordTemplates
-    If Not templates.Initialize(diagnostic) Then
-        Err.Raise 5, , diagnostic
-    End If
+    Set templates = ex_PEB_Export.fn_WordTemplates()
     Set parts = document.CustomXMLParts.SelectByNamespace(STORE_NS)
     If parts.Count > 1 Then
         Err.Raise 5, , "Duplicate Word event stores."
@@ -213,9 +210,7 @@ Cleanup:
     If Not anchors Is Nothing Then
         anchors.Dispose
     End If
-    If Not templates Is Nothing Then
-        templates.Dispose
-    End If
+    Set templates = Nothing
     If Not store Is Nothing Then
         store.Dispose
     End If

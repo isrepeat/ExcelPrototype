@@ -104,8 +104,7 @@ Public Function TryGenerateHistory( _
     If m_documentMode <> "template" Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError037")
     Set service = New obj_PEB_ExportService
     If Not service.Initialize() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError038")
-    Set templates = New obj_PEB_WordTemplates
-    If Not templates.Initialize(diagnostic) Then GoTo CleanupHistory
+    Set templates = ex_PEB_Export.fn_WordTemplates()
     Set sections = VBA.CreateObject("Scripting.Dictionary")
     Set sectionTemplates = VBA.CreateObject("Scripting.Dictionary")
     Set rendered = VBA.CreateObject("Scripting.Dictionary")
@@ -225,7 +224,7 @@ CleanupHistory:
     If Not document Is Nothing Then document.Close 0
     If Not wordApp Is Nothing Then wordApp.ScreenUpdating = True
     If Not anchors Is Nothing Then anchors.Dispose
-    If Not templates Is Nothing Then templates.Dispose
+    Set templates = Nothing
     If Not service Is Nothing Then service.Dispose
     If Not published And VBA.Len(temporary) > 0 Then
         If fileSystem.FileExists(temporary) Then fileSystem.DeleteFile temporary

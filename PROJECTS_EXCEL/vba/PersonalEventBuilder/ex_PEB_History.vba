@@ -58,6 +58,7 @@ Public Function fn_Save( _
     Dim restoredTvo As Collection
     Dim childPlan As Object
     Dim revisionRows As Collection
+    Dim tvoStartedAt As Double
 
     On Error GoTo EH
     Set previousBook = Application.ActiveWorkbook
@@ -134,6 +135,7 @@ Public Function fn_Save( _
         Next row
     End If
     ' Capture return duties once; explicit history children always take priority.
+    tvoStartedAt = VBA.Timer
     If Not values.Exists("RequestedStatus") Then
         values("TvoReturnSnapshot") = VBA.vbNullString
         If ex_PEB_EventRoutes.fn_Value(values("EventId"), "direction") = "Arrival" Then
@@ -170,6 +172,8 @@ Public Function fn_Save( _
             End If
         End If
     End If
+    ex_Core.fn_Diagnostic_WritePerf "History.ReturnTvo | Reused=" & VBA.CStr(reuseTvo) & _
+        " | Explicit=" & VBA.CStr(hasExplicitTvo), tvoStartedAt
     ReDim data(1 To 1, 1 To table.ListColumns.Count)
     If matchIndex > 0 Then
         Set target = table.ListRows(rows(matchIndex)("__tableIndex"))

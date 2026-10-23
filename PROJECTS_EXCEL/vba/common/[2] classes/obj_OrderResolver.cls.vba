@@ -16,6 +16,7 @@ Private m_source As obj_TableSource
 Private m_dateHeader As String
 Private m_numberHeader As String
 Private m_orders As Collection
+Private m_generation As Long
 Private m_rowsBefore As Long
 Private m_rowsAfter As Long
 Private m_configPrefix As String
@@ -89,6 +90,13 @@ Public Sub InvalidateCache()
     Set m_orders = Nothing
 End Sub
 
+Public Function PrepareSnapshot( _
+    ByVal snapshot As obj_TableSnapshotSet, _
+    ByRef diagnostic As String _
+) As Boolean
+    PrepareSnapshot = private_Load(diagnostic, snapshot)
+End Function
+
 Public Function TryGetNearby( _
     ByRef matches As Collection, _
     ByRef diagnostic As String _
@@ -105,6 +113,7 @@ Public Function TryGetNearby( _
     On Error GoTo EH
     Set matches = New Collection
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , private_Message("OrderSourceError")
+    private_SyncSnapshot
     If m_orders Is Nothing Then
         If Not private_Load(diagnostic) Then Exit Function
     End If
@@ -192,6 +201,7 @@ Public Function TrySearch( _
         Err.Raise 5, , private_Message("OrderInvalidInput")
     End If
 
+    private_SyncSnapshot
     If m_orders Is Nothing Then
         If Not private_Load(diagnostic) Then Exit Function
     End If
@@ -218,7 +228,10 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_Load(ByRef diagnostic As String) As Boolean
+Private Function private_Load( _
+    ByRef diagnostic As String, _
+    Optional ByVal snapshot As obj_TableSnapshotSet = Nothing _
+) As Boolean
     Dim tableQueryService As obj_TableQueryService
     Dim tableQuery As obj_TableQuery
     Dim dataTable As obj_DataTable
@@ -235,15 +248,30 @@ Private Function private_Load(ByRef diagnostic As String) As Boolean
     Dim numberColumn As Long
 
     On Error GoTo EH
+    If snapshot Is Nothing Then
+        Set snapshot = ex_TableSnapshots.fn_Current()
+    End If
+    If Not snapshot Is Nothing Then
+        If snapshot.Prepared.Exists("Orders:" & m_configPrefix) Then
+            Set m_orders = snapshot.Prepared("Orders:" & m_configPrefix)
+            private_Load = True
+            Exit Function
+        End If
+    End If
     Set tableQueryService = New obj_TableQueryService
     Set tableQuery = New obj_TableQuery
     If Not tableQueryService.Initialize() Or Not tableQuery.Initialize() Then Err.Raise 5, , private_Message("OrderSourceError")
     tableQueryService.Backend = QueryAdo
     tableQuery.AddColumn m_dateHeader
     tableQuery.AddColumn m_numberHeader
-    If Not tableQueryService.TryExecute(m_source, tableQuery, dataTable, diagnostic) Then
-        diagnostic = VBA.Replace$(private_Message("OrderReadError"), "{details}", diagnostic)
-        GoTo Cleanup
+    If snapshot Is Nothing Then
+        If Not tableQueryService.TryExecute(m_source, tableQuery, dataTable, diagnostic) Then
+            GoTo Cleanup
+        End If
+    Else
+        If Not snapshot.TryQuery(m_source, tableQuery, dataTable, diagnostic) Then
+            GoTo Cleanup
+        End If
     End If
     dateColumn = ex_TableQuery.fn_HeaderIndex(dataTable.Headers, m_dateHeader)
     numberColumn = ex_TableQuery.fn_HeaderIndex(dataTable.Headers, m_numberHeader)
@@ -277,6 +305,9 @@ Private Function private_Load(ByRef diagnostic As String) As Boolean
         End If
     Next rowIndex
     Set m_orders = rows
+    If Not snapshot Is Nothing Then
+        snapshot.Prepared.Add "Orders:" & m_configPrefix, rows
+    End If
     private_Load = True
 Cleanup:
     If Not dataTable Is Nothing Then dataTable.Dispose
@@ -287,6 +318,19 @@ EH:
     diagnostic = VBA.Err.Description
     Resume Cleanup
 End Function
+
+Private Sub private_SyncSnapshot()
+    Dim snapshot As obj_TableSnapshotSet
+
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If snapshot Is Nothing Then
+        Exit Sub
+    End If
+    If m_generation <> ex_TableSnapshots.fn_Generation() Then
+        Set m_orders = Nothing
+    End If
+    m_generation = ex_TableSnapshots.fn_Generation()
+End Sub
 
 Private Function private_TryDate( _
     ByVal text As String, _

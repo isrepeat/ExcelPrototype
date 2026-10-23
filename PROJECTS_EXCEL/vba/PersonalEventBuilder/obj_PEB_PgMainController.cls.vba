@@ -75,11 +75,17 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim diagnostic As String
     Dim defaultMode As String
     Dim emptyHistory As New Collection
+    Dim dependencyLoader As obj_PEB_DependencyLoader
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
     End If
     Set m_pageBase = pageBase
+    Set dependencyLoader = New obj_PEB_DependencyLoader
+    If Not dependencyLoader.Initialize() Then
+        Exit Function
+    End If
+    ex_TableSnapshots.fn_Register dependencyLoader, ex_PEB_Export.fn_Config("text.DependenciesRequired")
     Set m_extensions = New obj_PEB_FormExtensions
     If Not m_extensions.Initialize(pageBase) Then Exit Function
     If m_pageBase Is Nothing Then
@@ -149,10 +155,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not private_PublishConflicts(False) Then Exit Function
     Initialize = True
     m_isInitialized = Initialize
-    If Not Me.SearchOrdersHandler() Then
-        Me.Dispose
-        Initialize = False
-    End If
+    private_SetActionStatus ex_PEB_Export.fn_Config("text.DependenciesRequired"), False
 End Function
 
 Public Sub Dispose()
@@ -533,21 +536,43 @@ Failed:
 End Function
 
 Public Function RefreshPersonnelHandler() As Boolean
+    Dim diagnostic As String
+    Dim snapshot As obj_TableSnapshotSet
+    Dim status As String
+
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then
+        RefreshPersonnelHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    On Error GoTo FailedDependencies
+    If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then
+        GoTo FailedDependencies
+    End If
     If Not m_exportService Is Nothing Then m_exportService.Dispose
     Set m_exportService = Nothing
-    ex_TableDataRuntime.fn_ResetCaches
     m_lookupService.InvalidateCache
     m_candidateEnricher.InvalidateCache
     m_orderResolver.InvalidateCache
     If Not m_hospitalService Is Nothing Then m_hospitalService.InvalidateCache
     If Not m_documentService Is Nothing Then m_documentService.InvalidateCache
     m_extensions.InvalidateCache
-    If m_reporterActive Or m_hospitalActive Or m_documentActive Then
-        RefreshPersonnelHandler = private_SearchSecondary(False, m_hospitalActive, True, m_documentActive)
+    If Not Me.SearchOrdersHandler() Then
         Exit Function
     End If
-    RefreshPersonnelHandler = Me.SearchPersonnelHandler()
+    status = VBA.Replace$(ex_PEB_Export.fn_Config("text.DependenciesReady"), "{time}", VBA.Format$(VBA.Now, "dd.mm.yyyy hh:nn:ss"))
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If snapshot.Prepared("Tvo.ChainErrors").Count > 0 Then
+        status = status & VBA.vbLf & VBA.Replace$(ex_PEB_Export.fn_Config("text.DependenciesTvoWarnings"), _
+            "{count}", VBA.CStr(snapshot.Prepared("Tvo.ChainErrors").Count))
+    End If
+    RefreshPersonnelHandler = private_SetActionStatus(status, False)
+    Exit Function
+FailedDependencies:
+    If VBA.Len(diagnostic) = 0 Then
+        diagnostic = VBA.Err.Description
+    End If
+    RefreshPersonnelHandler = private_SetActionStatus(diagnostic, True)
 End Function
 
 Public Function DummyMode11Handler() As Boolean

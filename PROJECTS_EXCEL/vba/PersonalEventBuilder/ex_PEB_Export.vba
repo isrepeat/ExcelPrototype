@@ -92,6 +92,55 @@ Public Function fn_Config(ByVal key As String) As String
     fn_Config = value
 End Function
 
+Public Function fn_WordTemplates() As obj_PEB_WordTemplates
+    Dim snapshot As obj_TableSnapshotSet
+    Dim templates As obj_PEB_WordTemplates
+    Dim diagnostic As String
+
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If Not snapshot Is Nothing Then
+        Set fn_WordTemplates = snapshot.Prepared("WordTemplates")
+        Exit Function
+    End If
+    Set templates = New obj_PEB_WordTemplates
+    If Not templates.Initialize(diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    Set fn_WordTemplates = templates
+End Function
+
+Public Function fn_TvoChain(ByVal positionCode As String) As Collection
+    Dim snapshot As obj_TableSnapshotSet
+    Dim chains As Object
+    Dim errors As Object
+    Dim result As Collection
+    Dim entry As Object
+    Dim copy As Object
+    Dim field As Variant
+
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If snapshot Is Nothing Then
+        Err.Raise 5, , "Dependency snapshot is unavailable."
+    End If
+    positionCode = ex_TableQuery.fn_NormalizeText(positionCode)
+    Set chains = snapshot.Prepared("Tvo.Chains")
+    Set errors = snapshot.Prepared("Tvo.ChainErrors")
+    If errors.Exists(positionCode) Then
+        Err.Raise 5, , errors(positionCode)
+    End If
+    Set result = New Collection
+    If chains.Exists(positionCode) Then
+        For Each entry In chains(positionCode)
+            Set copy = VBA.CreateObject("Scripting.Dictionary")
+            For Each field In entry.Keys
+                copy.Add field, entry(field)
+            Next field
+            result.Add copy
+        Next entry
+    End If
+    Set fn_TvoChain = result
+End Function
+
 Public Function fn_BasisDocuments(ByVal values As Object) As Collection
     Dim documents As New Collection
     Dim document As Object
@@ -186,6 +235,9 @@ Public Function fn_TryReporterTvoPositions( _
     Dim row As Long
     Dim key As String
     Dim positionCode As String
+    Dim snapshot As obj_TableSnapshotSet
+    Dim prepared As Object
+    Dim matches As Collection
 
     On Error GoTo EH
     Set positions = VBA.CreateObject("Scripting.Dictionary")
@@ -193,6 +245,26 @@ Public Function fn_TryReporterTvoPositions( _
     Set requested = VBA.CreateObject("Scripting.Dictionary")
     requested.CompareMode = VBA.vbTextCompare
     If reporterNames.Count = 0 Then
+        fn_TryReporterTvoPositions = True
+        Exit Function
+    End If
+    Set snapshot = ex_TableSnapshots.fn_Current()
+    If Not snapshot Is Nothing Then
+        Set prepared = snapshot.Prepared("Tvo.ReporterPositions")
+        For Each reporterName In reporterNames
+            key = ex_TableQuery.fn_NormalizeText(VBA.CStr(reporterName))
+            If prepared.Exists(key) Then
+                Set matches = prepared(key)
+                If matches.Count <> 1 Then
+                    Err.Raise 5, , VBA.Replace$(fn_Config("reporter.tvo.ambiguous"), "{name}", VBA.CStr(reporterName))
+                End If
+                positionCode = matches(1)
+                If VBA.Len(positionCode) = 0 Then
+                    Err.Raise 5, , VBA.Replace$(fn_Config("reporter.tvo.missingCode"), "{name}", VBA.CStr(reporterName))
+                End If
+                positions(key) = positionCode
+            End If
+        Next reporterName
         fn_TryReporterTvoPositions = True
         Exit Function
     End If

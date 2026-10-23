@@ -58,7 +58,7 @@ def main():
         assert set(cfg["lookup.ReturnTickets.modes"].split("|")) == MODES
         assert cfg["lookup.ReturnTickets.ticketHeader"] == "Супровідний документ"
         assert cfg["lookup.ReturnTickets.orderHeader"] == "Вибуття.Наказ"
-        assert cfg["lookup.ReturnTickets.source.range"] == "B6:Y20000"
+        assert cfg["lookup.ReturnTickets.source.range"] == cfg["validation.Movement.source.range"]
         assert cfg["lookup.ReturnTickets.temporaryIpn"] == "ТП-ІПН"
         if name.endswith("test.txt"):
             assert "tests/PersonalEventBuilder/Dependencies/test_РУХ.xlsx" in Path(cfg["lookup.ReturnTickets.source.path"]).as_posix()
@@ -69,8 +69,8 @@ def main():
     enricher = (VBA / "obj_PEB_CandidateEnricher.cls.vba").read_text(encoding="utf-8-sig")
     controller = (VBA / "obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
     exporter = (VBA / "obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
-    assert "fileSystem.CopyFile original, snapshot, False" in provider
-    assert "source.WorkbookPath = snapshot" in provider and "service.Backend = QueryAdo" in provider
+    assert 'm_loadingSnapshot.TryQuery(source, query, table, diagnostic)' in provider
+    assert 'CopyFile' not in provider and 'GetFile' not in provider
     assert "For row = table.RowCount To 1 Step -1" in provider
     assert 'VBA.Len(ticket) > 0 And VBA.Len(orderNumber) > 0' in provider
     assert 'm_byIpn.Add ipn, VBA.Array(ticket, orderNumber, destination, arrivalValue)' in provider
@@ -87,13 +87,12 @@ def main():
     ado_headers = ["ІПН", "ПІБ", "Супровідний документ", "Вибуття#Наказ"]
     assert config("wsConfig.txt")["lookup.ReturnTickets.orderHeader"].replace(".", "#") in ado_headers
     assert 'VBA.Year(orderDate) = m_orderYear' in provider
-    assert 'private_Stamp(original) <> stamp' in provider
-    assert 'stamp = m_movementStamp' in provider and 'stamp = m_ordersStamp' in provider
-    assert 'fileSystem.DeleteFile snapshot' in provider
+    assert 'snapshot.Prepared("ReturnTickets")' in enricher
+    assert 'Stamp' not in provider and 'PrepareSnapshot' in provider
     assert not re.search(r"Workbooks|SaveCopyAs|AcceptedOrder", provider)
     assert 'If Not returnMode And record.TryGetValue("Absence.TicketSequence"' in enricher
     assert 'm_returnTickets.TryEnrich(output, diagnostic)' in enricher
-    assert 'm_returnTickets.InvalidateCache' in enricher
+    assert 'snapshot.Prepared("ReturnTickets")' in enricher
     mode_loader = controller.split("Private Function private_LoadMode(", 1)[1].split("End Function", 1)[0]
     assert 'enrichedRecords' in mode_loader and 'm_candidateEnricher.TryEnrich(' in mode_loader
     mode_switch = controller.split("Private Function private_SwitchMode(", 1)[1].split("End Function", 1)[0]
@@ -107,7 +106,7 @@ def main():
     assert 'values("DocumentNumber") = legacyNumber' in export_helpers
     readonly = controller.split("Private Function private_UpdateReadOnly(", 1)[1].split("End Function", 1)[0]
     assert 'updates("Form.DocumentReadOnly") = True' in readonly
-    assert 'updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")' in readonly
+    assert 'updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(modeId)' in readonly
     assert '.binding' not in controller
 
     year = 2026
