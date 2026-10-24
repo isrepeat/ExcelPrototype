@@ -15,6 +15,192 @@ Private m_filterHeaderCell As Range
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Sub fn_AppendTenTableRows()
+    Const ROW_COUNT As Long = 10
+    Dim tableObj As ListObject
+    Dim templateRow As Range
+    Dim addedRows As Range
+    Dim templateCell As Range
+    Dim originalTableRows As Long
+    Dim previousCalculation As XlCalculation
+    Dim previousEnableEvents As Boolean
+    Dim previousScreenUpdating As Boolean
+    Dim stateChanged As Boolean
+    Dim errorNumber As Long
+    Dim errorDescription As String
+    Dim errorSource As String
+
+    On Error GoTo EH
+
+    ' Validate the target before changing the table or application state.
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then _
+        Err.Raise 5, "PERSONAL.Table.WorksheetRequired"
+    Set tableObj = Application.ActiveCell.ListObject
+    If tableObj Is Nothing Then _
+        Err.Raise 5, "PERSONAL.Table.SelectCellInsideTable"
+    If tableObj.DataBodyRange Is Nothing Then _
+        Err.Raise 5, "PERSONAL.Table.TemplateRowRequired"
+    If tableObj.Parent.ProtectContents Then _
+        Err.Raise 1004, "PERSONAL.Table.WorksheetProtected"
+    If tableObj.Range.Row + tableObj.Range.Rows.Count + ROW_COUNT - 1 > tableObj.Parent.Rows.Count Then _
+        Err.Raise 6, "PERSONAL.Table.InsufficientWorksheetRows"
+    Set templateRow = tableObj.DataBodyRange.Rows(tableObj.ListRows.Count)
+    originalTableRows = tableObj.Range.Rows.Count
+    Set addedRows = templateRow.Offset(1, 0).Resize(ROW_COUNT)
+
+    ' Expand once instead of rebuilding table dependencies for each new row.
+    previousEnableEvents = Application.EnableEvents
+    previousScreenUpdating = Application.ScreenUpdating
+    previousCalculation = Application.Calculation
+    stateChanged = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    addedRows.Insert Shift:=xlDown, CopyOrigin:=xlFormatFromLeftOrAbove
+    tableObj.Resize tableObj.Range.Cells(1, 1).Resize( _
+        originalTableRows + ROW_COUNT, tableObj.ListColumns.Count)
+    Set addedRows = templateRow.Offset(1, 0).Resize(ROW_COUNT)
+
+    ' Apply the template to the entire block, keeping constant fields empty.
+    templateRow.Copy
+    addedRows.PasteSpecial Paste:=xlPasteFormats
+    addedRows.PasteSpecial Paste:=xlPasteValidation
+    addedRows.ClearContents
+    addedRows.RowHeight = templateRow.RowHeight
+    For Each templateCell In templateRow.Cells
+        If templateCell.HasFormula Then
+            addedRows.Columns(templateCell.Column - templateRow.Column + 1).FormulaR1C1 = _
+                templateCell.FormulaR1C1
+        End If
+    Next templateCell
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_ROWS_APPENDED | Table=" & tableObj.Name & _
+        " | Count=" & VBA.CStr(ROW_COUNT)
+
+CleanExit:
+    If stateChanged Then
+        Application.CutCopyMode = False
+        Application.Calculation = previousCalculation
+        Application.EnableEvents = previousEnableEvents
+        Application.ScreenUpdating = previousScreenUpdating
+    End If
+    Exit Sub
+EH:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    errorSource = VBA.Err.Source
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_ROWS_APPEND_ERROR | Source=" & errorSource & _
+        " | Description=" & errorDescription
+    ex_WindowsUi.fn_ShowMessage errorSource & VBA.vbCrLf & errorDescription, VBA.vbExclamation
+    Resume CleanExit
+End Sub
+
+Public Sub fn_RemoveEmptyTableTail()
+    Const SCAN_ROWS As Long = 256
+    Dim tableObj As ListObject
+    Dim bodyRange As Range
+    Dim scanRange As Range
+    Dim removedRange As Range
+    Dim sheetFormatRow As Range
+    Dim constantCells As Range
+    Dim constantArea As Range
+    Dim scanEnd As Long
+    Dim scanStart As Long
+    Dim lastDataRow As Long
+    Dim lastConstantRow As Long
+    Dim removeCount As Long
+    Dim specialCellsError As Long
+    Dim previousCalculation As XlCalculation
+    Dim previousEnableEvents As Boolean
+    Dim previousScreenUpdating As Boolean
+    Dim stateChanged As Boolean
+    Dim errorDescription As String
+    Dim errorSource As String
+
+    On Error GoTo EH
+
+    ' Only constant input values prevent removal; calculated columns are templates.
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then _
+        Err.Raise 5, "PERSONAL.Table.WorksheetRequired"
+    Set tableObj = Application.ActiveCell.ListObject
+    If tableObj Is Nothing Then _
+        Err.Raise 5, "PERSONAL.Table.SelectCellInsideTable"
+    Set bodyRange = tableObj.DataBodyRange
+    If bodyRange Is Nothing Then Exit Sub
+    If tableObj.Parent.ProtectContents Then _
+        Err.Raise 1004, "PERSONAL.Table.WorksheetProtected"
+    lastDataRow = bodyRange.Row - 1
+    scanEnd = bodyRange.Rows.Count
+    ' Inspect the tail in small blocks instead of enumerating constants in the whole table.
+    Do While scanEnd > 0
+        scanStart = scanEnd - SCAN_ROWS + 1
+        If scanStart < 1 Then scanStart = 1
+        Set scanRange = bodyRange.Rows(scanStart).Resize( _
+            scanEnd - scanStart + 1, bodyRange.Columns.Count)
+        Set constantCells = Nothing
+        On Error Resume Next
+        Set constantCells = scanRange.SpecialCells(xlCellTypeConstants)
+        specialCellsError = VBA.Err.Number
+        VBA.Err.Clear
+        On Error GoTo EH
+        If specialCellsError <> 0 And specialCellsError <> 1004 Then _
+            Err.Raise specialCellsError, "PERSONAL.Table.FindConstantCells"
+        If Not constantCells Is Nothing Then
+            Set constantCells = Application.Intersect(scanRange, constantCells)
+        End If
+        If Not constantCells Is Nothing Then
+            For Each constantArea In constantCells.Areas
+                lastConstantRow = constantArea.Row + constantArea.Rows.Count - 1
+                If lastConstantRow > lastDataRow Then lastDataRow = lastConstantRow
+            Next constantArea
+            Exit Do
+        End If
+        scanEnd = scanStart - 1
+    Loop
+    removeCount = bodyRange.Row + bodyRange.Rows.Count - 1 - lastDataRow
+    If removeCount = 0 Then Exit Sub
+
+    ' Shrink without shifting worksheet cells; retain native deletion for totals or an empty table.
+    previousEnableEvents = Application.EnableEvents
+    previousScreenUpdating = Application.ScreenUpdating
+    previousCalculation = Application.Calculation
+    stateChanged = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    Application.Calculation = xlCalculationManual
+    Set removedRange = bodyRange.Rows(bodyRange.Rows.Count - removeCount + 1).Resize( _
+        removeCount, bodyRange.Columns.Count)
+    If tableObj.ShowTotals Or removeCount = bodyRange.Rows.Count Or _
+            bodyRange.Row + bodyRange.Rows.Count > tableObj.Parent.Rows.Count Then
+        removedRange.Delete Shift:=xlUp
+    Else
+        Set sheetFormatRow = bodyRange.Rows(bodyRange.Rows.Count).Offset(1, 0)
+        tableObj.Resize tableObj.Range.Resize(tableObj.Range.Rows.Count - removeCount)
+        removedRange.ClearContents
+        ' Resize drops table-style fills; restore the surrounding worksheet format explicitly.
+        sheetFormatRow.Copy
+        removedRange.PasteSpecial Paste:=xlPasteFormats
+        removedRange.RowHeight = sheetFormatRow.RowHeight
+    End If
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_TAIL_REMOVED | Table=" & tableObj.Name & _
+        " | Count=" & VBA.CStr(removeCount)
+
+CleanExit:
+    If stateChanged Then
+        Application.CutCopyMode = False
+        Application.Calculation = previousCalculation
+        Application.EnableEvents = previousEnableEvents
+        Application.ScreenUpdating = previousScreenUpdating
+    End If
+    Exit Sub
+EH:
+    errorDescription = VBA.Err.Description
+    errorSource = VBA.Err.Source
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_TAIL_REMOVE_ERROR | Source=" & errorSource & _
+        " | Description=" & errorDescription
+    ex_WindowsUi.fn_ShowMessage errorSource & VBA.vbCrLf & errorDescription, VBA.vbExclamation
+    Resume CleanExit
+End Sub
+
 Public Sub fn_RecalculateWorkbook()
     Application.Calculate
 End Sub

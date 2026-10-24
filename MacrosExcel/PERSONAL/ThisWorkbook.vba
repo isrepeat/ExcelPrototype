@@ -39,6 +39,8 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     private_TryUnbindKey "^+%r"
     private_TryUnbindKey "^%d"
     private_TryUnbindKey "^%u"
+    private_TryUnbindKey "^%{DOWN}"
+    private_TryUnbindKey "^%{UP}"
     ex_Core.fn_Diagnostic_WriteLog "PERSONAL_WORKBOOK_BEFORE_CLOSE_COMPLETED | ElapsedMs=" & _
         private_FormatElapsedMilliseconds(startedAt)
 End Sub
@@ -63,6 +65,18 @@ Public Sub BindKeys()
     On Error GoTo EH
     private_InitializeFilterInputEvents
 
+    If private_TryBindKey("^%{UP}", _
+            "ex_ShortcutsHandlers.fn_RemoveEmptyTableTail") Then
+        boundCount = boundCount + 1
+    Else
+        failedCount = failedCount + 1
+    End If
+    If private_TryBindKey("^%{DOWN}", _
+            "ex_ShortcutsHandlers.fn_AppendTenTableRows") Then
+        boundCount = boundCount + 1
+    Else
+        failedCount = failedCount + 1
+    End If
     If private_TryBindKey("^q", _
             "ex_ShortcutsHandlers.fn_FilterContainsCurrentColumn") Then
         boundCount = boundCount + 1
