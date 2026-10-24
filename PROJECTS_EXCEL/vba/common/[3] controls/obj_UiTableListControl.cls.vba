@@ -77,6 +77,7 @@ Private Function obj_IUiControl_Measure(ByRef rows As Long, ByRef columns As Lon
     Dim representation As String
     Dim excelTableName As String
 
+    On Error GoTo Failed
     private_ClearChildren
     raw = ex_UiElementFactory.fn_Attribute(m_definition, "itemsSource")
     If Not ex_UiBindingRuntime.fn_TryResolveValue(raw, m_context.BindingContext, value, sourceObject, isObject) Then
@@ -119,6 +120,10 @@ Private Function obj_IUiControl_Measure(ByRef rows As Long, ByRef columns As Lon
     rows = rows + ex_UiElementFactory.fn_Long(m_definition, "row", 1) - 1
     columns = columns + ex_UiElementFactory.fn_Long(m_definition, "column", 1) - 1
     obj_IUiControl_Measure = True
+    Exit Function
+Failed:
+    diagnostic = "TableList.Measure | Name=" & ex_UiElementFactory.fn_Attribute(m_definition, "name") & _
+        " | Table=" & VBA.CStr(index) & " | " & VBA.Err.Description
 End Function
 
 Private Function obj_IUiControl_Arrange(ByVal row As Long, ByVal column As Long, ByRef diagnostic As String) As Boolean
@@ -137,11 +142,21 @@ End Function
 
 Private Function obj_IUiControl_Render(ByRef diagnostic As String) As Boolean
     Dim child As obj_IUiControl
+    Dim index As Long
+    Dim startedAt As Double
 
+    On Error GoTo Failed
+    startedAt = VBA.Timer
     For Each child In m_children
+        index = index + 1
         If Not child.Render(diagnostic) Then Exit Function
     Next child
     obj_IUiControl_Render = True
+    ex_Core.fn_Diagnostic_WritePerf "Control.TableList.Render | Tables=" & VBA.CStr(index), startedAt
+    Exit Function
+Failed:
+    diagnostic = "TableList.Render | Name=" & ex_UiElementFactory.fn_Attribute(m_definition, "name") & _
+        " | Table=" & VBA.CStr(index) & " | " & VBA.Err.Description
 End Function
 
 Private Function obj_IUiControl_Validate(ByVal errors As Collection) As Boolean

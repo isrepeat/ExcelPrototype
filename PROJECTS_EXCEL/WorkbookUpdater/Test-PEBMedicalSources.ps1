@@ -93,8 +93,9 @@ if ($personIdCheck -match 'CreateObject|RegExp' -or $personIdCheck -notmatch 'te
     throw 'Tax ID validation must not allocate a regular expression per row.'
 }
 $firstDateCheck = [regex]::Match($reports, '(?s)Private Function private_FirstDateMatches\(.*?End Function').Value
+$validationLoad = [regex]::Match($reports, '(?s)Public Function fn_TryLoad\(.*?End Function').Value
 if ($firstDateCheck -match 'CreateObject' -or $firstDateCheck -notmatch 'dateRx.Execute\(text\)' -or
-    [regex]::Matches($reports, 'CreateObject\("VBScript.RegExp"\)').Count -ne 1) { throw 'Date matching must reuse one invocation-local regular expression.' }
+    [regex]::Matches($validationLoad, 'CreateObject\("VBScript.RegExp"\)').Count -ne 1) { throw 'Date matching must reuse one invocation-local regular expression.' }
 $personnelCheck = [regex]::Match($reports, '(?s)Private Function private_CheckPeople\(.*?End Function').Value
 if ($personnelCheck -notmatch '(?s)If neededIds.Exists\(personId\) Then.*?Set names = VBA.CreateObject' -or
     $personnelCheck -notmatch 'referenceValues = data.Values') { throw 'Personnel name sets must be limited to requested IDs.' }

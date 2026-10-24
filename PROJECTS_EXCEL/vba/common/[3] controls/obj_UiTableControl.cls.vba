@@ -479,6 +479,7 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     If VBA.Len(m_sourceRaw) > 0 Then Set m_table = Nothing
     m_sourceRaw = private_ReadAttribute(controlNode, "itemsSource")
     If VBA.Len(m_sourceRaw) = 0 And m_table Is Nothing Then Exit Function
+    If VBA.Len(m_sourceRaw) = 0 Then Set m_source = m_table
     m_showHeaders = private_ReadBoolean(controlNode, "showHeaders", True)
     m_selectedStyle = private_ReadAttribute(controlNode, "selectedStyle")
     m_selectedSource = VBA.vbNullString
@@ -668,6 +669,13 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         End If
     Next columnIndex
     m_targetRange.Value2 = displayBuffer
+    If VBA.Len(rawTable.Title) > 0 Then
+        If private_ReadLong(m_uiControlBase.ControlNode, "titleColumnSpan", 1) > rawTable.ColumnCount Then
+            Err.Raise 5, , "Table titleColumnSpan exceeds table width"
+        End If
+        m_targetRange.Cells(1, 1).Resize(1, _
+            private_ReadLong(m_uiControlBase.ControlNode, "titleColumnSpan", 1)).Merge
+    End If
     If Not columnLayout Is Nothing Then
         targetRow = 1
         If VBA.Len(rawTable.Title) > 0 Then targetRow = targetRow + 1

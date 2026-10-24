@@ -155,7 +155,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not private_PublishConflicts(False) Then Exit Function
     Initialize = True
     m_isInitialized = Initialize
-    private_SetActionStatus ex_PEB_Export.fn_Config("text.DependenciesRequired"), False
+    private_SetActionStatus VBA.vbNullString, False
 End Function
 
 Public Sub Dispose()
@@ -341,6 +341,8 @@ Public Function ResetFormHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then GoTo Cleanup
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then GoTo Cleanup
     If Not m_extensions.Reset(diagnostic) Then GoTo Failed
+    If Not private_ResetReportSearch(diagnostic) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetValue("Form", "ReportSearchVisible", "Collapsed") Then GoTo Cleanup
     ' Rebuild only extension containers; flush existing bindings for all other controls.
     If Not m_extensions.TryRefresh(diagnostic) Then GoTo Failed
     ResetFormHandler = True
@@ -1037,6 +1039,105 @@ Public Function CloseCandidatesHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     CloseCandidatesHandler = m_pageBase.FlushUpdates()
+End Function
+
+Public Function OpenReportSearchHandler() As Boolean
+    Dim diagnostic As String
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_ResetReportSearch(diagnostic) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetValue("Form", "ReportSearchVisible", "Visible") Then GoTo Failed
+    If Not private_SetActionStatus(ex_PEB_Export.fn_Config("validation.MedicalReports.search.text.Opened"), False) Then GoTo Failed
+    OpenReportSearchHandler = m_pageBase.FlushUpdates()
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    If VBA.Len(diagnostic) = 0 Then diagnostic = ex_PEB_Export.fn_Config("validation.MedicalReports.search.text.OpenFailed")
+    If Not private_SetActionStatus(diagnostic, True) Then Exit Function
+    OpenReportSearchHandler = m_pageBase.FlushUpdates()
+End Function
+
+Public Function CloseReportSearchHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ReportSearchVisible", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ReportResultsVisible", "Collapsed") Then Exit Function
+    CloseReportSearchHandler = m_pageBase.FlushUpdates()
+End Function
+
+Public Function RunReportSearchHandler() As Boolean
+    Dim fromValue As Variant
+    Dim toValue As Variant
+    Dim nameValue As Variant
+    Dim dateValue As Variant
+    Dim dateFrom As Date
+    Dim dateTo As Date
+    Dim eventDate As Date
+    Dim result As obj_UiRawTableList
+    Dim status As String
+    Dim diagnostic As String
+    Dim renderStartedAt As Double
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ReportResultsVisible", "Collapsed") Then Exit Function
+    If Not private_TryReadFormValue("ReportSearchFrom", fromValue) Then Exit Function
+    If Not private_TryReadFormValue("ReportSearchTo", toValue) Then Exit Function
+    If Not private_TryReadFormValue("ReportSearchName", nameValue) Then Exit Function
+    If Not private_TryReadFormValue("ReportSearchDate", dateValue) Then Exit Function
+    On Error GoTo InvalidDate
+    dateFrom = ex_PEB_History.fn_Date(fromValue)
+    dateTo = ex_PEB_History.fn_Date(toValue)
+    If dateFrom = 0 Or dateTo = 0 Then GoTo InvalidDate
+    If VBA.Len(VBA.Trim$(VBA.CStr(dateValue))) > 0 Then
+        eventDate = ex_PEB_History.fn_Date(dateValue)
+        If eventDate = 0 Then GoTo InvalidDate
+    End If
+    On Error GoTo EH
+    If Not ex_PEB_MedicalReports.fn_TrySearch(dateFrom, dateTo, VBA.CStr(nameValue), eventDate, result, status, diagnostic) Then
+        status = diagnostic
+        GoTo Failed
+    End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "ReportSearchResults", result) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ReportResultsVisible", "Visible") Then Exit Function
+    If Not private_SetActionStatus(status, False) Then Exit Function
+    renderStartedAt = VBA.Timer
+    RunReportSearchHandler = m_pageBase.FlushUpdates()
+    ex_Core.fn_Diagnostic_WritePerf "MedicalSearch.Render | Success=" & VBA.CStr(RunReportSearchHandler), renderStartedAt
+    Exit Function
+InvalidDate:
+    status = ex_PEB_Export.fn_Config("validation.MedicalReports.search.text.InvalidDate")
+    GoTo Failed
+EH:
+    status = VBA.Err.Description
+Failed:
+    If Not private_SetActionStatus(status, True) Then Exit Function
+    RunReportSearchHandler = m_pageBase.FlushUpdates()
+End Function
+
+Private Function private_ResetReportSearch(ByRef diagnostic As String) As Boolean
+    Dim result As obj_UiRawTableList
+    Dim updates As Object
+    Dim today As Date
+
+    diagnostic = VBA.vbNullString
+    today = VBA.Date
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Form.ReportSearchFrom") = VBA.Format$(VBA.DateAdd("d", _
+        -ex_PEB_Export.fn_Count("validation.MedicalReports.search.defaultDays", 3660), today), "dd.mm.yyyy")
+    updates("Form.ReportSearchTo") = VBA.Format$(today, "dd.mm.yyyy")
+    updates("Form.ReportSearchName") = VBA.vbNullString
+    updates("Form.ReportSearchDate") = VBA.vbNullString
+    updates("Form.ReportResultsVisible") = "Collapsed"
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
+    Set result = New obj_UiRawTableList
+    If Not result.Initialize() Then
+        diagnostic = ex_PEB_Export.fn_Config("validation.MedicalReports.search.text.OpenFailed")
+        Exit Function
+    End If
+    private_ResetReportSearch = m_pageBase.BindingContext.SetObject("Data", "ReportSearchResults", result)
+    If Not private_ResetReportSearch Then diagnostic = ex_PEB_Export.fn_Config("validation.MedicalReports.search.text.OpenFailed")
 End Function
 
 Public Function ValidateMedicalHandler() As Boolean
