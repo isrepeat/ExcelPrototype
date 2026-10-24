@@ -458,6 +458,21 @@ Public Function OrderQueryChangedHandler() As Boolean
     OrderQueryChangedHandler = Me.SearchOrdersHandler()
 End Function
 
+Public Function EmptyOrdersHandler() As Boolean
+    Dim snapshot As obj_TableSnapshotSet
+    Dim status As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    Set snapshot = ex_TableSnapshots.fn_Active()
+    If snapshot Is Nothing Then
+        status = ex_PEB_Export.fn_Config("text.DependenciesRequired")
+    Else
+        status = m_messages("OrderEmpty")
+    End If
+    If Not private_SetActionStatus(status, True) Then Exit Function
+    EmptyOrdersHandler = m_pageBase.FlushUpdates()
+End Function
+
 
 Private Function private_ApplyResolvedOrder() As Boolean
     Dim number As Variant
@@ -491,6 +506,7 @@ Private Function private_ApplyResolvedOrder() As Boolean
     updates("Form.AcceptedOrderNumber") = number
     updates("Form.AcceptedOrderDate") = orderDate
     updates("Form.AcceptedOrderText") = acceptedText
+    updates("Form.MedicalVisibility") = "Collapsed"
 
     ' Apply only a uniquely resolved pair; invalid and ambiguous input keeps the previous pair.
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
@@ -1013,6 +1029,50 @@ Public Function CloseCandidatesHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     CloseCandidatesHandler = m_pageBase.FlushUpdates()
+End Function
+
+Public Function ValidateMedicalHandler() As Boolean
+    Dim result As obj_LookupResult
+    Dim status As String
+    Dim diagnostic As String
+    Dim startedAt As Double
+    Dim stageAt As Double
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    startedAt = VBA.Timer
+    On Error GoTo EH
+    If ex_PEB_Testing.fn_IsRunning() Then
+        ValidateMedicalHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "MedicalVisibility", "Collapsed") Then Exit Function
+    If VBA.Len(m_acceptedOrderNumber) = 0 Then
+        diagnostic = m_messages("OrderChooseRequired")
+        GoTo Failed
+    End If
+    If Not ex_PEB_MedicalReports.fn_TryLoad(m_acceptedOrderNumber, VBA.CDate(m_acceptedOrderDate), result, status, diagnostic) Then
+        GoTo Failed
+    End If
+    stageAt = VBA.Timer
+    If Not m_pageBase.BindingContext.SetObject("Data", "MedicalReports", result) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MedicalVisibility", "Visible") Then Exit Function
+    If Not private_SetActionStatus(status, False) Then Exit Function
+    ValidateMedicalHandler = m_pageBase.FlushUpdates()
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Render | Success=" & VBA.CStr(ValidateMedicalHandler), stageAt
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Total | Success=" & VBA.CStr(ValidateMedicalHandler), startedAt
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    If Not private_SetActionStatus(diagnostic, True) Then Exit Function
+    ValidateMedicalHandler = m_pageBase.FlushUpdates()
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Total | Success=False", startedAt
+End Function
+
+Public Function CloseMedicalHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MedicalVisibility", "Collapsed") Then Exit Function
+    CloseMedicalHandler = m_pageBase.FlushUpdates()
 End Function
 
 Public Function CloseHistoryHandler() As Boolean

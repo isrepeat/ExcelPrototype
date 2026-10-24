@@ -8,6 +8,7 @@ Option Explicit
 Implements obj_IUiTableSource
 Implements obj_IUiSelectionSource
 Implements obj_IUiColumnMetadata
+Implements obj_IUiRowTags
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -16,6 +17,7 @@ Private m_records As Collection
 Private m_table As obj_UiRawTable
 Private m_hasMore As Boolean
 Private m_sourceAliases As Variant
+Private m_rowTagField As String
 
 ' //
 ' // Lifecycle
@@ -73,6 +75,19 @@ Private Function obj_IUiColumnMetadata_SourceAliasAt(ByVal columnIndex As Long) 
     obj_IUiColumnMetadata_SourceAliasAt = m_sourceAliases(columnIndex)
 End Function
 
+Private Function obj_IUiRowTags_RowTagsAt(ByVal rowIndex As Long) As String
+    Dim record As obj_LookupRecord
+    Dim value As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If VBA.Len(m_rowTagField) = 0 Then Exit Function
+    If rowIndex < 1 Or rowIndex > m_records.Count Then Exit Function
+    Set record = m_records(rowIndex)
+    If record.TryGetValue(m_rowTagField, value) Then
+        obj_IUiRowTags_RowTagsAt = VBA.CStr(value)
+    End If
+End Function
+
 ' //
 ' // API
 ' //
@@ -80,7 +95,8 @@ Public Function Initialize( _
     ByVal records As Collection, _
     ByVal columns As Collection, _
     ByVal hasMore As Boolean, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal rowTagField As String = "" _
 ) As Boolean
     Dim headers As Variant
     Dim values As Variant
@@ -123,6 +139,7 @@ Public Function Initialize( _
         If Not m_table.Initialize(values, headers) Then Exit Function
     End If
     m_hasMore = hasMore
+    m_rowTagField = rowTagField
     m_isInitialized = True
     diagnostic = VBA.vbNullString
     Initialize = True
@@ -138,6 +155,7 @@ Public Sub Dispose()
     m_isInitialized = False
     Set m_records = Nothing
     m_sourceAliases = Empty
+    m_rowTagField = VBA.vbNullString
     If Not m_table Is Nothing Then m_table.Dispose
     Set m_table = Nothing
 End Sub

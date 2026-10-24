@@ -252,6 +252,21 @@ Public Function RefreshReadOnly() As Boolean
     RefreshReadOnly = True
 End Function
 
+Public Function HandleEmptyDropdown() As Boolean
+    Dim command As obj_UiCommand
+    Dim rawCommand As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    rawCommand = private_ReadAttribute(m_uiControlBase.ControlNode, "onEmpty")
+    HandleEmptyDropdown = True
+    If VBA.Len(rawCommand) = 0 Then Exit Function
+    If Not ex_UiBindingRuntime.fn_TryResolveCommand(rawCommand, m_renderContext.BindingContext, command) Then
+        HandleEmptyDropdown = False
+        Exit Function
+    End If
+    HandleEmptyDropdown = command.Execute()
+End Function
+
 Public Function RefreshDropdownHighlight(ByVal itemShapeNames As Collection) As Boolean
     Dim raw As String
     Dim value As Variant

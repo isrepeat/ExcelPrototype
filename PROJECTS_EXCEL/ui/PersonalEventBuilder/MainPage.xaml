@@ -315,6 +315,7 @@
                      highlightValue="{Binding Path=Data.TodayOrderOptions}"
                      highlightStyle="currentOrderItem"
                      itemHeight="20"
+                     onEmpty="{Binding Path=Commands.EmptyOrders}"
                      onChange="{Binding Path=Commands.OrderQueryChanged}"/>
     <controls:label name="OrderYearLabel"
                     row="1"
@@ -339,6 +340,13 @@
                        checkedGlyph="{Binding Path=Text.CheckboxChecked}"
                        uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
                        onChange="{Binding Path=Commands.AutoFillPersonnelChanged}"/>
+    <controls:button name="ValidateMedical"
+                     row="2"
+                     column="15"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ValidateMedical}"
+                     command="{Binding Path=Commands.ValidateMedical}"/>
     <controls:button name="ResetForm"
                      row="1"
                      column="17"
@@ -428,6 +436,13 @@
                              detailedPartStylesEnabled="true"
                              selectedStyle="candidateSelected"
                              showHeaders="true"/>
+        <controls:table name="MedicalReports"
+                        itemsSource="{Binding Path=Data.MedicalReports}"
+                        style="candidateTable"
+                        visibility="{Binding Path=Form.MedicalVisibility}"
+                        closeCommand="{Binding Path=Commands.CloseMedical}"
+                        closeCaption="{Binding Path=Text.CloseTable}"
+                        showHeaders="true"/>
         <controls:table name="HistoryEvents"
                         itemsSource="{Binding Path=Data.HistoryEvents}"
                         style="candidateTable"
@@ -1054,6 +1069,26 @@
                 fontBold:true;
                 horizontal:center;
                 vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=medicalRecorded"
+              styles="{
+                backColor:#225C35;
+                fontColor:#FFFFFF;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=medicalConflict"
+              styles="{
+                backColor:#8B2525;
+                fontColor:#FFFFFF;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=medicalReview"
+              styles="{
+                backColor:#7F3B12;
+                fontColor:#FFF0B3;
+                fontBold:true;
               }"/>
         <rule target="controlPart"
               selector="type=candidates;part=row;tags=even"

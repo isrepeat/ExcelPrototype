@@ -203,6 +203,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             private_AddShapeLayoutSchema schema
             If m_type = "select" Then
                 schema.RequireAnyAttribute "items|itemsSource"
+                schema.AddAttribute "onEmpty", "string", False, "", True, 0
             End If
             schema.AddAttribute "value", "string", True, "", True, 0
             schema.AddAttribute "inputType", "enum", False, "text|select|checkbox", False, 0
