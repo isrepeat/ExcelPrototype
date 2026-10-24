@@ -216,6 +216,7 @@ Public Sub fn_Write( _
         Set target = table.ListRows.Add
         target.Range.NumberFormat = "@"
         target.Range.Value2 = data
+        ex_PEB_History.fn_ClearEmptyCells target.Range, data
     Next row
 End Sub
 
@@ -236,6 +237,7 @@ Public Function fn_Data( _
         mapping = Split(field, "=")
         data(1, table.ListColumns(mapping(1)).Index) = row(mapping(0))
     Next field
+    ex_PEB_History.fn_NormalizeEmptyCells data
     fn_Data = data
 End Function
 
