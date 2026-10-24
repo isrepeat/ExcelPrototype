@@ -566,7 +566,9 @@ Private Function private_Append( _
         Next field
         Set target = table.ListRows.Add
         target.Range.NumberFormat = "@"
+        ex_PEB_History.fn_NormalizeEmptyCells data
         target.Range.Value2 = data
+        ex_PEB_History.fn_ClearEmptyCells target.Range, data
     Next snapshot
     private_Append = identifier
 End Function
@@ -625,7 +627,9 @@ Private Sub private_WriteRows( _
     End If
     Set area = table.DataBodyRange.Rows(first).Resize(rows.Count)
     area.NumberFormat = "@"
+    ex_PEB_History.fn_NormalizeEmptyCells data
     area.Value2 = data
+    ex_PEB_History.fn_ClearEmptyCells area, data
 End Sub
 ' --------------------------------------
 ' } // namespace Private

@@ -257,6 +257,7 @@ Public Function fn_Save( _
         data(1, table.ListColumns(VBA.CStr(stateField)).Index) = current(stateField)
         values(stateField) = current(stateField)
     Next stateField
+    fn_NormalizeEmptyCells data
     recoveryToken = ex_PEB_HistoryRecovery.fn_Prepare(table, backup, data, transaction)
     If matchIndex = 0 Then
         Set target = table.ListRows.Add
@@ -265,6 +266,7 @@ Public Function fn_Save( _
     written = True
     target.Range.NumberFormat = "@"
     target.Range.Value2 = data
+    fn_ClearEmptyCells target.Range, data
     ex_PEB_FormChildren.fn_Write table, childPlan
     ex_PEB_HistoryRecovery.fn_Mark book, recoveryToken, "COMMIT"
     committed = True
@@ -499,6 +501,62 @@ Public Function fn_Date(ByVal value As Variant) As Date
     If VBA.Format$(result, "dd.mm.yyyy") <> text Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError013"), "{value}", VBA.CStr(text))
     fn_Date = result
 End Function
+Public Sub fn_NormalizeEmptyCells(ByRef data As Variant)
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+
+    ' Preserve actual blank cells when writing text-formatted history ranges.
+    For rowIndex = LBound(data, 1) To UBound(data, 1)
+        For columnIndex = LBound(data, 2) To UBound(data, 2)
+            If VBA.VarType(data(rowIndex, columnIndex)) = VBA.vbString Then
+                If VBA.Len(data(rowIndex, columnIndex)) = 0 Then
+                    data(rowIndex, columnIndex) = Empty
+                End If
+            End If
+        Next columnIndex
+    Next rowIndex
+End Sub
+
+Public Sub fn_ClearEmptyCells( _
+    ByVal area As Range, _
+    ByRef data As Variant _
+)
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+    Dim firstColumn As Long
+    Dim lastColumn As Long
+    Dim isBlank As Boolean
+    Dim run As Range
+    Dim blanks As Range
+
+    ' Inspect the in-memory array and combine consecutive blanks before touching Excel.
+    lastColumn = UBound(data, 2)
+    For rowIndex = LBound(data, 1) To UBound(data, 1)
+        firstColumn = 0
+        For columnIndex = LBound(data, 2) To lastColumn + 1
+            isBlank = False
+            If columnIndex <= lastColumn Then
+                isBlank = VBA.IsEmpty(data(rowIndex, columnIndex))
+                If VBA.VarType(data(rowIndex, columnIndex)) = VBA.vbString Then
+                    isBlank = (VBA.Len(data(rowIndex, columnIndex)) = 0)
+                End If
+            End If
+            If isBlank Then
+                If firstColumn = 0 Then firstColumn = columnIndex
+            ElseIf firstColumn > 0 Then
+                Set run = area.Cells(rowIndex - LBound(data, 1) + 1, firstColumn - LBound(data, 2) + 1).Resize(1, columnIndex - firstColumn)
+                If blanks Is Nothing Then
+                    Set blanks = run
+                Else
+                    Set blanks = Application.Union(blanks, run)
+                End If
+                firstColumn = 0
+            End If
+        Next columnIndex
+    Next rowIndex
+    If Not blanks Is Nothing Then blanks.ClearContents
+End Sub
+
 Public Function fn_SetStatus( _
     ByVal row As Object, _
     ByVal status As String, _
