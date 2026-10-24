@@ -197,12 +197,14 @@ Private Function private_ReadFile( _
     Dim key As String
     Dim value As Variant
     Dim failure As String
+    Dim fileName As String
     Dim startedAt As Double
     Dim stageAt As Double
 
     On Error GoTo EH
     startedAt = VBA.Timer
     stageAt = VBA.Timer
+    fileName = VBA.Mid$(path, VBA.InStrRev(path, "\") + 1)
     Set source = New obj_TableSource
     Set query = New obj_TableQuery
     If Not source.Initialize() Or Not query.Initialize() Then private_Fail "InitFailed", "obj_TableSource / obj_TableQuery"
@@ -232,9 +234,9 @@ Private Function private_ReadFile( _
             Next field
             If rows.Exists(key) Then
                 Set existing = rows(key)
-                existing("Sources") = existing("Sources") & VBA.vbLf & path
+                existing("Sources") = existing("Sources") & VBA.vbLf & fileName
             Else
-                fields.Add "Sources", path
+                fields.Add "Sources", fileName
                 rows.Add key, fields
             End If
         End If

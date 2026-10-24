@@ -1022,7 +1022,12 @@ Private Function private_Matches( _
 
     For Each key In mappings.Keys
         actual = ex_PEB_Export.fn_Required(cells, VBA.CStr(key))
-        If VBA.VarType(mappings(key)) = VBA.vbDate Then
+        If VBA.CStr(key) = ex_PEB_Export.fn_Config("export.Movement.headers.Destination") Then
+            If VBA.StrComp( _
+                    ex_PEB_MovementRegistry.fn_Destination(actual), _
+                    ex_PEB_MovementRegistry.fn_Destination(mappings(key)), _
+                    VBA.vbTextCompare) <> 0 Then Exit Function
+        ElseIf VBA.VarType(mappings(key)) = VBA.vbDate Then
             If VBA.Len(ex_PEB_Export.fn_Text(actual)) = 0 Then
                 Exit Function
             End If

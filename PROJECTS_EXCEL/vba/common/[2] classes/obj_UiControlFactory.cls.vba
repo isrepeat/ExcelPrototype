@@ -153,6 +153,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "showHeaders", "boolean", False, "", False, 0
             schema.AddAttribute "showAutoFilter", "boolean", False, "", False, 0
             schema.AddAttribute "representation", "enum", False, "Raw|Smart", False, 0
+            schema.AddAttribute "selectionKeyColumn", "string", False, "", False, 0
             If m_type = "table" Then schema.AddAttribute "excelTableName", "string", False, "", False, 255
             If m_type = "table" Then
                 Set wrapper = New obj_UiMarkupSchema

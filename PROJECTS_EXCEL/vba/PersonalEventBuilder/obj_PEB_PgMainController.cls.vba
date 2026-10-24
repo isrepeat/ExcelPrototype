@@ -306,6 +306,9 @@ Public Function ResetFormHandler() As Boolean
     Next fieldName
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Form.ActionStatus") = VBA.vbNullString
+    updates("Form.MedicalVisibility") = "Collapsed"
+    updates("Form.EjosVisibility") = "Collapsed"
+    updates("Form.ConflictColumn") = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", VBA.vbNullString) Then GoTo Cleanup
     If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
@@ -323,6 +326,10 @@ Public Function ResetFormHandler() As Boolean
     If Not private_PublishCandidates(result) Then
         Err.Raise 5, , "Cannot clear candidates."
     End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "EjosResults", result) Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetObject("Data", "MedicalReports", result) Then GoTo Cleanup
+    Set m_conflicts = Nothing
+    If Not private_PublishConflicts(False) Then GoTo Cleanup
     Set m_lookupResult = result
     m_reporterActive = False
     m_hospitalActive = False
@@ -507,6 +514,7 @@ Private Function private_ApplyResolvedOrder() As Boolean
     updates("Form.AcceptedOrderDate") = orderDate
     updates("Form.AcceptedOrderText") = acceptedText
     updates("Form.MedicalVisibility") = "Collapsed"
+    updates("Form.EjosVisibility") = "Collapsed"
 
     ' Apply only a uniquely resolved pair; invalid and ambiguous input keeps the previous pair.
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
@@ -1033,8 +1041,13 @@ End Function
 
 Public Function ValidateMedicalHandler() As Boolean
     Dim result As obj_LookupResult
+    Dim ejosResult As obj_LookupResult
     Dim status As String
+    Dim ejosStatus As String
     Dim diagnostic As String
+    Dim ejosDiagnostic As String
+    Dim medicalLoaded As Boolean
+    Dim ejosLoaded As Boolean
     Dim startedAt As Double
     Dim stageAt As Double
 
@@ -1046,20 +1059,31 @@ Public Function ValidateMedicalHandler() As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("Form", "MedicalVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "EjosVisibility", "Collapsed") Then Exit Function
     If VBA.Len(m_acceptedOrderNumber) = 0 Then
         diagnostic = m_messages("OrderChooseRequired")
         GoTo Failed
     End If
-    If Not ex_PEB_MedicalReports.fn_TryLoad(m_acceptedOrderNumber, VBA.CDate(m_acceptedOrderDate), result, status, diagnostic) Then
-        GoTo Failed
-    End If
+    ejosLoaded = ex_PEB_EjosValidation.fn_TryLoad(m_acceptedOrderNumber, VBA.CDate(m_acceptedOrderDate), ejosResult, ejosStatus, ejosDiagnostic)
+    medicalLoaded = ex_PEB_MedicalReports.fn_TryLoad(m_acceptedOrderNumber, VBA.CDate(m_acceptedOrderDate), result, status, diagnostic)
     stageAt = VBA.Timer
-    If Not m_pageBase.BindingContext.SetObject("Data", "MedicalReports", result) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "MedicalVisibility", "Visible") Then Exit Function
-    If Not private_SetActionStatus(status, False) Then Exit Function
+    If ejosLoaded Then
+        If Not m_pageBase.BindingContext.SetObject("Data", "EjosResults", ejosResult) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "EjosVisibility", "Visible") Then Exit Function
+    Else
+        ejosStatus = ejosDiagnostic
+    End If
+    If medicalLoaded Then
+        If Not m_pageBase.BindingContext.SetObject("Data", "MedicalReports", result) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "MedicalVisibility", "Visible") Then Exit Function
+    Else
+        status = diagnostic
+    End If
+    status = ejosStatus & VBA.vbLf & status
+    If Not private_SetActionStatus(status, Not (ejosLoaded And medicalLoaded)) Then Exit Function
     ValidateMedicalHandler = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Render | Success=" & VBA.CStr(ValidateMedicalHandler), stageAt
-    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Total | Success=" & VBA.CStr(ValidateMedicalHandler), startedAt
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Total | Success=" & VBA.CStr(ValidateMedicalHandler And ejosLoaded And medicalLoaded), startedAt
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
@@ -1067,6 +1091,12 @@ Failed:
     If Not private_SetActionStatus(diagnostic, True) Then Exit Function
     ValidateMedicalHandler = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Total | Success=False", startedAt
+End Function
+
+Public Function CloseEjosHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "EjosVisibility", "Collapsed") Then Exit Function
+    CloseEjosHandler = m_pageBase.FlushUpdates()
 End Function
 
 Public Function CloseMedicalHandler() As Boolean
@@ -2142,6 +2172,8 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim scalar As Variant
     Dim isObject As Boolean
     Dim contextField As Variant
+    Dim previewWarning As Boolean
+    Dim previewDiagnostic As String
 
     If ex_PEB_Testing.fn_IsRunning() Then
         private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
@@ -2232,6 +2264,12 @@ Private Function private_Export(ByVal action As String) As Boolean
                 private_EndHistoryEdit
             End If
         End If
+        If success Then
+            If Not private_PublishSavedPreview(values, previewDiagnostic) Then
+                previewWarning = True
+                status = status & " " & previewDiagnostic
+            End If
+        End If
     Else
         Set pebExptrMovement = New obj_PEB_ExptrMovement
         If Not pebExptrMovement.Initialize() Then
@@ -2242,7 +2280,7 @@ Private Function private_Export(ByVal action As String) As Boolean
     If Not success Then
         GoTo Failed
     End If
-    private_SetActionStatus status, False
+    private_SetActionStatus status, previewWarning
     private_Export = True
 Cleanup:
     If Not pebExptrMovement Is Nothing Then
@@ -2258,6 +2296,37 @@ Failed:
     End If
     private_SetActionStatus diagnostic, True
     GoTo Cleanup
+End Function
+
+Private Function private_PublishSavedPreview( _
+    ByVal values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim text As String
+    Dim failure As String
+    Dim startedAt As Double
+    Dim failureNumber As Long
+
+    On Error GoTo EH
+    startedAt = VBA.Timer
+    diagnostic = VBA.vbNullString
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then
+        diagnostic = ex_PEB_Export.fn_Config("text.HistoryPreviewFailed")
+        Exit Function
+    End If
+    ' Reuse the point rendered for this save; never export a document here.
+    If values("WordPolicy") <> "Omit" Then
+        text = VBA.Replace$(VBA.CStr(ex_PEB_Export.fn_Required(values, "WordText")), VBA.vbCrLf, VBA.vbLf)
+    End If
+    private_PublishSavedPreview = m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", text)
+    If Not private_PublishSavedPreview Then diagnostic = ex_PEB_Export.fn_Config("text.HistoryPreviewFailed")
+    ex_Core.fn_Diagnostic_WritePerf "History.Preview.Publish | Success=" & VBA.CStr(private_PublishSavedPreview), startedAt
+    Exit Function
+EH:
+    failure = VBA.Err.Description
+    failureNumber = VBA.Err.Number
+    diagnostic = ex_PEB_Export.fn_Config("text.HistoryPreviewFailed")
+    ex_Core.fn_Diagnostic_WriteError "History.Preview.Publish", failureNumber, "private_PublishSavedPreview", failure
 End Function
 
 Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolean

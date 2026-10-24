@@ -195,6 +195,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "ConflictsVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "MedicalVisibility", "Collapsed") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "EjosVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "ConflictColumn", 0) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderQuery", vbNullString) Then Exit Function
@@ -328,7 +329,7 @@ Private Function private_TryRegisterCommands() As Boolean
             "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "DocumentChanged", "EnvironmentSwitch", _
             "LoadTest", "NextTest", "ResetForm", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", _
-            "ValidateMedical", "CloseMedical", "EmptyOrders", _
+            "ValidateMedical", "CloseMedical", "CloseEjos", "EmptyOrders", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand

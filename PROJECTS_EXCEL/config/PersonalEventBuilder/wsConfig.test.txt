@@ -537,6 +537,7 @@ value	PersonalEventBuilder::text.ExportHistorySuccess	Подію записан�
 value	PersonalEventBuilder::text.HistoryCancelPending	Скасування не підтверджено
 value	PersonalEventBuilder::text.HistoryCancelledWord	У наказі немає активних подій для WORD. Раніше сформований файл не змінено.
 value	PersonalEventBuilder::text.HistoryJournalFailed	Файл створено, але запис журналу експорту не виконано: {details}
+value	PersonalEventBuilder::text.HistoryPreviewFailed	Подію збережено, але не вдалося оновити прев’ю.
 value	PersonalEventBuilder::text.HistoryRollbackError	Не вдалося повністю відновити історію після помилки: {details}
 value	PersonalEventBuilder::text.HistorySyncConfirmed	Версію підтверджено
 value	PersonalEventBuilder::text.ModeArrivalDateLabel	Прибуття.Дата
@@ -1539,6 +1540,7 @@ value	PersonalEventBuilder::export.Movement.headers.ArrivalFoodSupport	Приб�
 value	PersonalEventBuilder::export.Movement.headers.DepartureFoodSupport	Вибуття.ПЗ
 value	PersonalEventBuilder::export.Movement.templates.path	./PersonalEventBuilderMovementTemplates.xml
 value	PersonalEventBuilder::export.Movement.dateFormat	dd.mm.yyyy
+value	PersonalEventBuilder::export.Movement.destination.unitPattern	(^|[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ./-])(?:в[ \t]*/[ \t]*ч[ \t]*)?([A-Za-zА-Яа-яІіЇїЄєҐґ]?[ \t]*[0-9]{4})(?=$|[^0-9A-Za-zА-Яа-яІіЇїЄєҐґ./-])
 value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
 value	PersonalEventBuilder::export.Movement.destinations.MedicalCompany	Медична рота А7383
 value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
@@ -1992,6 +1994,53 @@ value	PersonalEventBuilder::snapshots.progress.Absence	Підготовка да
 value	PersonalEventBuilder::snapshots.progress.Profile	Довідник: {source}
 value	PersonalEventBuilder::snapshots.progress.Tickets	Підготовка квитків і медичних документів
 value	PersonalEventBuilder::snapshots.progress.Movement	Підготовка шаблонів РУХ
+value	PersonalEventBuilder::validation.Ejos.text.Loaded	ЕЖОС: рядків — {rows}, знайдено в EventsHistory — {recorded}, попереджень — {warnings}, скасовано — {cancelled}.
+value	PersonalEventBuilder::validation.Ejos.text.Recorded	В EventsHistory є активна відповідна подія для цієї особи, дати вибуття та обраного наказу.
+value	PersonalEventBuilder::validation.Ejos.text.Cancelled	СКАСОВАНО у колонці 65 або 69.
+value	PersonalEventBuilder::validation.Ejos.text.Duplicate	Повторний рядок з тим самим ПІБ, кодом посади, видом події та датою вибуття.
+value	PersonalEventBuilder::validation.Ejos.text.InitFailed	Не вдалося підготувати перевірку ЕЖОС.
+value	PersonalEventBuilder::validation.Ejos.text.NoteHeader	Примітка
+value	PersonalEventBuilder::validation.Ejos.text.InvalidCell	ЕЖОС: помилка у значенні клітинки.
+value	PersonalEventBuilder::validation.Ejos.text.MissingName	Не вказано ПІБ у колонці 66.
+value	PersonalEventBuilder::validation.Ejos.text.NotRecorded	Відповідну активну подію в EventsHistory не знайдено.
+value	PersonalEventBuilder::validation.Ejos.text.UnknownKind	Вид події у колонці 68 не має налаштованого відповідника.
+value	PersonalEventBuilder::validation.Ejos.text.CodeMismatch	Код посади у колонці 67 не відповідає ПІБ у ШПО або не заповнений. Переперевірте особу.
+value	PersonalEventBuilder::validation.Ejos.text.NameMismatch	За кодом посади знайдено інше ПІБ у ШПО. Особу не підтверджено.
+value	PersonalEventBuilder::validation.Ejos.text.AmbiguousName	ПІБ відповідає кільком ІПН у ШПО. Особу не підтверджено.
+value	PersonalEventBuilder::validation.Ejos.text.InvalidReturn	Некоректна дата повернення у колонці 73.
+value	PersonalEventBuilder::validation.Ejos.text.OrderMismatch	Номер наказу у колонці 71 (Б) не відповідає обраному наказу.
+value	PersonalEventBuilder::validation.Ejos.text.UnknownPerson	Особу не знайдено у ШПО за ПІБ і кодом посади.
+value	PersonalEventBuilder::validation.Ejos.text.HistoryMismatch	В EventsHistory для цієї особи й обраного наказу є інша дата або вид події.
+value	PersonalEventBuilder::validation.Ejos.text.InvalidDeparture	Некоректна або відсутня дата вибуття у колонці 70.
+value	PersonalEventBuilder::validation.Ejos.text.CancelledRecorded	Увага: скасований рядок має відповідну активну подію в EventsHistory.
+value	PersonalEventBuilder::validation.Ejos.text.MissingDestination	Не заповнено місце вибуття у колонці 69.
+value	PersonalEventBuilder::validation.Ejos.text.ReturnBeforeDeparture	Дата повернення у колонці 73 раніше дати вибуття у колонці 70.
+value	PersonalEventBuilder::validation.Ejos.kinds.1.status	AnnualVacation
+value	PersonalEventBuilder::validation.Ejos.kinds.1.aliases	Відпустка|Щорічна відпустка|Відпустка щорічна
+value	PersonalEventBuilder::validation.Ejos.kinds.2.status	MedicalLeave
+value	PersonalEventBuilder::validation.Ejos.kinds.2.aliases	Відпустка для лікування
+value	PersonalEventBuilder::validation.Ejos.kinds.3.status	FamilyVacation
+value	PersonalEventBuilder::validation.Ejos.kinds.3.aliases	Відпустка за сімейними обставинами|Відпустка за сімейними
+value	PersonalEventBuilder::validation.Ejos.kinds.4.status	MaternityLeave
+value	PersonalEventBuilder::validation.Ejos.kinds.4.aliases	Відпустка у зв'язку з вагітністю та пологами|Відпустка по вагітності та пологах
+value	PersonalEventBuilder::validation.Ejos.kinds.5.status	BusinessTrip
+value	PersonalEventBuilder::validation.Ejos.kinds.5.aliases	Відрядження
+value	PersonalEventBuilder::validation.Ejos.kinds.6.status	OutpatientVlk
+value	PersonalEventBuilder::validation.Ejos.kinds.6.aliases	Амбулаторне ВЛК|Амбулаторна ВЛК
+value	PersonalEventBuilder::validation.Ejos.kinds.7.status	ExternalVlk
+value	PersonalEventBuilder::validation.Ejos.kinds.7.aliases	ВЛК за межами частини
+value	PersonalEventBuilder::validation.Ejos.kinds.count	7
+value	PersonalEventBuilder::validation.Ejos.fields.code	67
+value	PersonalEventBuilder::validation.Ejos.fields.kind	68
+value	PersonalEventBuilder::validation.Ejos.fields.name	66
+value	PersonalEventBuilder::validation.Ejos.fields.rank	65
+value	PersonalEventBuilder::validation.Ejos.fields.return	73
+value	PersonalEventBuilder::validation.Ejos.fields.departure	70
+value	PersonalEventBuilder::validation.Ejos.fields.orderDate	71 (А)
+value	PersonalEventBuilder::validation.Ejos.fields.destination	69
+value	PersonalEventBuilder::validation.Ejos.fields.orderNumber	71 (Б)
+value	PersonalEventBuilder::validation.Ejos.columns	65|66|67|68|69|70|71 (А)|71 (Б)|72|73|74|75 (А)|75 (Б)|76|Стовпець1|Стовпець2
+value	PersonalEventBuilder::validation.Ejos.cancelledToken	СКАСОВАНО
   ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
 value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet

@@ -142,7 +142,7 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     If Not target.Parent Is m_bodyRange.Parent Then Exit Function
     If Application.Intersect(target, m_bodyRange) Is Nothing Then Exit Function
     rowIndex = target.Row - m_bodyRange.Row + 1
-    Set item = m_selectionSource.GetItemAt(rowIndex)
+    Set item = private_SelectionItem(rowIndex)
     If item Is Nothing Then Exit Function
     If VBA.Len(m_columnPath) > 0 Then
         If target.CountLarge <> 1 Then Exit Function
@@ -174,6 +174,37 @@ Private Function obj_IUiEventHandler_HandleEvent( _
         If Not m_selectCommand.ExecuteWithPayload(item) Then Exit Function
     End If
     obj_IUiEventHandler_HandleEvent = True
+End Function
+
+Private Function private_SelectionItem(ByVal rowIndex As Long) As Object
+    Dim keyColumn As String
+    Dim aliases As obj_IUiColumnAliases
+    Dim columnIndex As Long
+    Dim sourceRow As Long
+    Dim key As String
+    Dim candidate As String
+
+    keyColumn = private_ReadAttribute(m_uiControlBase.ControlNode, "selectionKeyColumn")
+    If VBA.Len(keyColumn) = 0 Then
+        Set private_SelectionItem = m_selectionSource.GetItemAt(rowIndex)
+        Exit Function
+    End If
+    Set aliases = m_table
+    For columnIndex = 1 To m_table.ColumnCount
+        If aliases.ColumnAliasAt(columnIndex) = keyColumn Then Exit For
+    Next columnIndex
+    If columnIndex > m_table.ColumnCount Then Err.Raise 5, , "Selection key column was not found: " & keyColumn
+    If VBA.IsError(m_bodyRange.Cells(rowIndex, columnIndex).Value2) Then Exit Function
+    key = VBA.CStr(m_bodyRange.Cells(rowIndex, columnIndex).Value2)
+    If VBA.Len(key) = 0 Then Exit Function
+    ' Resolve the displayed key against the source after Excel sorting or filtering.
+    For sourceRow = 1 To m_table.RowCount
+        candidate = VBA.CStr(m_table.ValueAt(sourceRow, columnIndex))
+        If candidate = key Then
+            If Not private_SelectionItem Is Nothing Then Err.Raise 5, , "Duplicate selection key: " & key
+            Set private_SelectionItem = m_selectionSource.GetItemAt(sourceRow)
+        End If
+    Next sourceRow
 End Function
 
 Private Sub obj_IUiTableTarget_SetTable(ByVal table As obj_UiRawTable)
@@ -327,6 +358,8 @@ Public Function TryRefreshValues( _
     On Error GoTo EH
     refreshed = False
     TryRefreshValues = True
+    ' Rebuild keyed tables instead of updating cells by their original positions.
+    If VBA.Len(private_ReadAttribute(m_uiControlBase.ControlNode, "selectionKeyColumn")) > 0 Then Exit Function
     If m_uiControlBase.ControlNode.SelectNodes("*[local-name()='table.cellTemplates']").Length > 0 Then Exit Function
     If m_targetRange Is Nothing Or m_sourceOverride Is Nothing Then Exit Function
     If Not IsArray(m_renderedValues) Then Exit Function
@@ -614,7 +647,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         If m_showHeaders And IsArray(rawTable.Headers) Then targetRow = targetRow + 1
         Set m_bodyRange = m_targetRange.Cells(targetRow, 1).Resize(rawTable.RowCount, rawTable.ColumnCount)
         If Not m_selectionSource Is Nothing Then
-            uiRenderContext.Router.RegisterSelection m_uiControlBase.ControlName, m_bodyRange, Me
+            If Not m_selectCommand Is Nothing Or VBA.Len(m_selectedSource) > 0 Or VBA.Len(m_columnPath) > 0 Then
+                uiRenderContext.Router.RegisterSelection m_uiControlBase.ControlName, m_bodyRange, Me
+            End If
         End If
     End If
     If Not m_source Is Nothing Then

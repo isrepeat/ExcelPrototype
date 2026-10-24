@@ -99,6 +99,7 @@ Public Function Initialize( _
     Optional ByVal rowTagField As String = "" _
 ) As Boolean
     Dim headers As Variant
+    Dim aliases As Variant
     Dim values As Variant
     Dim rowIndex As Long
     Dim columnIndex As Long
@@ -115,10 +116,12 @@ Public Function Initialize( _
     End If
     Set m_records = New Collection
     ReDim headers(0 To columns.Count - 1)
+    ReDim aliases(0 To columns.Count - 1)
     ReDim m_sourceAliases(1 To columns.Count)
     For columnIndex = 1 To columns.Count
         Set column = columns(columnIndex)
         headers(columnIndex - 1) = column("caption")
+        aliases(columnIndex - 1) = column("name")
         If column.Exists("sourceAlias") Then m_sourceAliases(columnIndex) = column("sourceAlias")
     Next columnIndex
     If records.Count > 0 Then ReDim values(1 To records.Count, 1 To columns.Count)
@@ -134,9 +137,9 @@ Public Function Initialize( _
     Next rowIndex
     Set m_table = New obj_UiRawTable
     If records.Count = 0 Then
-        If Not m_table.InitializeEmpty(headers) Then Exit Function
+        If Not m_table.InitializeEmpty(headers, aliases:=aliases) Then Exit Function
     Else
-        If Not m_table.Initialize(values, headers) Then Exit Function
+        If Not m_table.Initialize(values, headers, aliases:=aliases) Then Exit Function
     End If
     m_hasMore = hasMore
     m_rowTagField = rowTagField

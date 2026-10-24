@@ -30,6 +30,11 @@ Public Function fn_CreatePlan( _
     Dim tableName As String
     Dim headers As Object
     Dim column As Long
+    Dim aliases As obj_IUiColumnAliases
+    Dim keyColumn As String
+    Dim keys As Object
+    Dim row As Long
+    Dim key As String
     Dim header As Variant
     Dim conversionRange As Range
 
@@ -50,11 +55,27 @@ Public Function fn_CreatePlan( _
     If mode = "Smart" Then
         If VBA.Len(owner) > 200 Then private_Fail "Table owner exceeds 200 characters."
         If Not showHeaders Or Not VBA.IsArray(rawTable.Headers) Then private_Fail "Smart table requires visible headers: " & owner
-        If VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "onSelect")) > 0 Or _
-                VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "selectedItem")) > 0 Then
+        If (VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "onSelect")) > 0 Or _
+                VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "selectedItem")) > 0) And _
+                VBA.Len(ex_UiElementFactory.fn_Attribute(definition, "selectionKeyColumn")) = 0 Then
             private_Fail "Smart table does not support positional selection bindings: " & owner
         End If
         Set headers = VBA.CreateObject("Scripting.Dictionary")
+        keyColumn = ex_UiElementFactory.fn_Attribute(definition, "selectionKeyColumn")
+        If VBA.Len(keyColumn) > 0 Then
+            Set aliases = rawTable
+            For column = 1 To rawTable.ColumnCount
+                If aliases.ColumnAliasAt(column) = keyColumn Then Exit For
+            Next column
+            If column > rawTable.ColumnCount Then private_Fail "Selection key column was not found: " & keyColumn
+            Set keys = VBA.CreateObject("Scripting.Dictionary")
+            For row = 1 To rawTable.RowCount
+                key = VBA.CStr(rawTable.ValueAt(row, column))
+                If VBA.Len(key) = 0 Then private_Fail "Empty selection key: " & owner
+                If keys.Exists(key) Then private_Fail "Duplicate selection key: " & key
+                keys.Add key, True
+            Next row
+        End If
         headers.CompareMode = VBA.vbTextCompare
         For column = 1 To rawTable.ColumnCount
             header = rawTable.HeaderAt(column)

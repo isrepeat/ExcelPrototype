@@ -10,12 +10,12 @@ Settings live under `PersonalEventBuilder::validation.MedicalReports` in both co
 - `windowDays`: inclusive daily search radius, default 3.
 - `source.sheet` / `source.range`: sheet and range with its header row, default `Аркуш1` / `A3:Q20000`, including the tax ID in column Q.
 - `fields` / `headers`: source projection and external headers. The projection must include `PersonName`, `PersonId` and `Dates`.
-- `display` / `text.Columns`: result fields and independently configurable captions. `Sources` contains report paths.
+- `display` / `text.Columns`: result fields and independently configurable captions. `Sources` contains report filenames with extensions, one per line; full paths remain available in file-read diagnostics.
 - `text`: controls, completion messages and diagnostics.
 
 Only the first date in the hospitalization/transfer cell is relevant. A later matching transfer date cannot include a row. Text must start with a valid `dd.mm.yyyy` date after whitespace; native Excel date values and serial numbers are also accepted. Original date lists, institutions and document fields remain visible.
 
-Identical business values are merged across files, retaining source paths. Changed units, ranks, date lists, institutions or document values remain separate rows. EJOS validation is not performed.
+Identical business values are merged across files, retaining source filenames. Changed units, ranks, date lists, institutions or document values remain separate rows. The companion EJOS validation runs independently and displays its table before these medical report results; see `PersonalEventBuilder-EjosValidation.md`.
 
 Active root hospital events in live EventsHistory are matched by tax ID, event date and the accepted order number/date. Native Movement event plans identify hospital departures and transitions; arrival events, other event types, child rows and cancelled records cannot mark a row as recorded. Recorded rows are green unless an identity warning already requires orange review. The Notes column still confirms the recorded event in either case.
 
