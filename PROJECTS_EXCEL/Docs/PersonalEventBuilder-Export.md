@@ -183,3 +183,13 @@ Parsed snapshots are cached by source path, modification time and size; saving t
 `Scripts/PowerShell/Test-PEBWordTemplates.ps1` без Office проверяет TSV-конфиг, namespace/версию, имена, единственность тела, ссылки/циклы include, вложенность DSL, разрешённые функции #let и объявленные поля всех текстовых блоков. Для полной грамматики группировки и контрактов поставщиков контекста используйте также Python-валидаторы.
 
 Статические проверки не подтверждают runtime-поведение. Импорт исходников в рабочую книгу, компиляция VBA, автоматизация Word, поиски ADO и запись Movement этой проверкой не выполняются.
+
+## History source for Word
+
+Word generation requires EventsHistory to be open in the current Excel instance. It reads the live ListObject with DataBodyRange.Value2, including unsaved changes, and retains export journaling and history refresh. There is no closed-file reader for EventsHistory.
+
+## Conditional Word block cleanup
+
+History export supports optional `{\block:<Anchor>_Begin}` / `{\block:<Anchor>_End}` markers around the matching export anchor pair and its heading. Each block marker must occupy its own paragraph. Blocks must be unique, paired and non-nested, and cannot enclose other export sections. Keep the separator blank paragraph inside the block, before its heading.
+
+At final cleanup, a section containing only whitespace between its export anchors is empty: the entire enclosing block, including its heading, separator and boundary paragraphs, is removed. For a populated block, cleanup removes all four markers; standalone marker paragraphs are removed with their paragraph marks, while markers sharing a paragraph with inserted text are removed as text only. This preserves the separator and data formatting. Export anchors without enclosing block markers retain the legacy text-only marker cleanup. Sources must be imported through the normal explicit workbook update before this behavior is available in Excel; source edits alone do not update the workbook.

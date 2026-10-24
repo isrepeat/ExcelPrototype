@@ -1,5 +1,23 @@
 Option Explicit
 
+#If VBA7 Then
+Private Declare PtrSafe Function private_GetCursor Lib "user32" Alias "GetCursor" () As LongPtr
+Private Declare PtrSafe Function private_LoadCursor Lib "user32" Alias "LoadCursorW" ( _
+    ByVal instance As LongPtr, _
+    ByVal cursorName As LongPtr _
+) As LongPtr
+Private Declare PtrSafe Function private_SetCursor Lib "user32" Alias "SetCursor" (ByVal cursor As LongPtr) As LongPtr
+Private m_previousNativeCursor As LongPtr
+#Else
+Private Declare Function private_GetCursor Lib "user32" Alias "GetCursor" () As Long
+Private Declare Function private_LoadCursor Lib "user32" Alias "LoadCursorW" ( _
+    ByVal instance As Long, _
+    ByVal cursorName As Long _
+) As Long
+Private Declare Function private_SetCursor Lib "user32" Alias "SetCursor" (ByVal cursor As Long) As Long
+Private m_previousNativeCursor As Long
+#End If
+
 Private m_depth As Long
 Private m_previousCursor As XlMousePointer
 Private m_previousCursorCaptured As Boolean
@@ -21,6 +39,7 @@ End Sub
 Public Function fn_Begin(Optional ByVal statusText As String = VBA.vbNullString) As Boolean
     On Error Resume Next
     If m_depth = 0 Then
+        m_previousNativeCursor = private_GetCursor()
         m_previousCursorCaptured = False
         m_statusBarShown = False
         Err.Clear
@@ -58,6 +77,8 @@ Public Sub fn_Refresh()
     ' Message pumping and external automation can replace the displayed cursor.
     On Error Resume Next
     Application.Cursor = xlWait
+    ' Update the visible cursor without pumping messages or allowing command reentry.
+    private_SetCursor private_LoadCursor(0, 32514)
     Err.Clear
     On Error GoTo 0
 End Sub
@@ -76,6 +97,10 @@ End Sub
 Private Sub private_Restore()
     On Error Resume Next
     If m_previousCursorCaptured Then Application.Cursor = m_previousCursor
+    If m_previousNativeCursor <> 0 Then
+        private_SetCursor m_previousNativeCursor
+    End If
+    m_previousNativeCursor = 0
     m_previousCursorCaptured = False
     If m_statusBarShown Then ex_Core.fn_StatusBar_Clear
     m_statusBarShown = False

@@ -1342,6 +1342,7 @@ Public Function ExportWordHandler() As Boolean
     Dim totalStartedAt As Double
     Dim startedAt As Double
     Dim succeeded As Boolean
+    Dim busyEntered As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -1371,6 +1372,7 @@ Public Function ExportWordHandler() As Boolean
     If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then
         orderDate = VBA.CDate(orderDate)
     End If
+    busyEntered = ex_UiBusy.fn_Begin()
     startedAt = VBA.Timer
     succeeded = ex_PEB_History.fn_ReadOrder(orderNumber, orderDate, events, diagnostic)
     ex_Core.fn_Diagnostic_WritePerf "Word.Export.ReadEvents", startedAt
@@ -1421,6 +1423,9 @@ EH:
 FailedHistoryWord:
     private_SetActionStatus diagnostic, True
 CleanupHistoryWord:
+    If busyEntered Then
+        ex_UiBusy.fn_End
+    End If
     If Not exporter Is Nothing Then exporter.Dispose
     If totalStartedAt > 0 Then
         ex_Core.fn_Diagnostic_WritePerf "Word.Export.TotalIncludingJournalAndRefresh", totalStartedAt

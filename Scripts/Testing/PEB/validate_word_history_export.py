@@ -9,13 +9,36 @@ def main():
     folder = ROOT / 'PROJECTS_EXCEL/vba/PersonalEventBuilder'
     sources = {name: (folder / name).read_text(encoding='utf-8-sig') for name in (
         'obj_PEB_ExptrWord.cls.vba', 'obj_PEB_ExportService.cls.vba',
-        'obj_PEB_PgMainController.cls.vba')}
+        'obj_PEB_PgMainController.cls.vba', 'obj_PEB_WordAnchors.cls.vba')}
     for source in sources.values():
         check_declarations(source)
         check_blocks(source)
     prepare = procedure(sources['obj_PEB_ExportService.cls.vba'], 'TryPrepareHistory')
     generate = procedure(sources['obj_PEB_ExptrWord.cls.vba'], 'TryGenerateHistory')
     command = procedure(sources['obj_PEB_PgMainController.cls.vba'], 'ExportWordHandler')
+    assert command.index('busyEntered = ex_UiBusy.fn_Begin()') < command.index('ex_PEB_History.fn_ReadOrder(')
+    assert 'CleanupHistoryWord:\n    If busyEntered Then\n        ex_UiBusy.fn_End' in command
+    assert 'fn_ReadOrder(orderNumber, orderDate, events, diagnostic)' in command
+    assert 'usedSavedFile' not in command
+    history = (folder / 'ex_PEB_History.vba').read_text(encoding='utf-8-sig')
+    assert 'savedTable' not in history and 'allowSavedFile' not in history
+    assert 'data = table.DataBodyRange.Value2' in history
+    assert not (folder / 'ex_PEB_HistorySaved.vba').exists()
+    anchors = sources['obj_PEB_WordAnchors.cls.vba']
+    index_blocks = procedure(anchors, 'private_IndexBlocks')
+    cleanup = procedure(anchors, 'private_ApplyCleanup')
+    plan_cleanup = procedure(anchors, 'private_PlanCleanup')
+    assert 'whitespace.Pattern = "[\\s"' in plan_cleanup
+    assert 'whitespace.Pattern = "[\\\\s"' not in plan_cleanup
+    assert 'private_MarkerRange(' not in index_blocks, 'Block indexing must not search Word for every boundary'
+    assert generate.count('anchors.Initialize(document, diagnostic)') == 1
+    assert generate.index('anchors.Initialize(document, diagnostic)') < generate.index('For Each eventId In rendered.Keys')
+    assert 'private_FindMarker(' not in plan_cleanup, 'Cleanup planning must not search Word'
+    assert 'For index = ranges.Count To 1 Step -1' in cleanup
+    assert cleanup.index('ranges.Add target') < cleanup.index('target.Delete')
+    assert 'VBA.StrComp(target.Text, removed, VBA.vbBinaryCompare)' in cleanup
+    assert 'private_DeleteRange' not in anchors
+    assert 'WORD_CLEANUP_MISMATCH' in anchors
     assert 'TryRender(template, values, body' not in prepare
     assert 'service.TryPrepareHistory(item, diagnostic, first, templates)' in generate
     assert 'If Not documentContext Is Nothing Then' in prepare
