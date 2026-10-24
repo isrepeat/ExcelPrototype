@@ -189,6 +189,7 @@ Private Function private_ToggleDropdown() As Boolean
 
     If m_items.Count = 0 Then
         private_ToggleDropdown = True
+        If Not m_uiFieldControl Is Nothing Then private_ToggleDropdown = m_uiFieldControl.HandleEmptyDropdown()
         Exit Function
     End If
 

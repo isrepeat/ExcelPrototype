@@ -559,6 +559,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim selectedValue As Variant
     Dim selectedIsObject As Boolean
     Dim rowTags As String
+    Dim rowTagSource As obj_IUiRowTags
     Dim columnMetadata As obj_IUiColumnMetadata
     Dim sourceAlias As String
     Dim columnSpan As Long
@@ -667,9 +668,13 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         End If
         If Not m_bodyRange Is Nothing Then
             uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange, "rows"
+            If Not m_source Is Nothing Then
+                If TypeOf m_source Is obj_IUiRowTags Then Set rowTagSource = m_source
+            End If
             For rowIndex = 1 To rawTable.RowCount
                 rowTags = "tableRow odd"
                 If rowIndex Mod 2 = 0 Then rowTags = "tableRow even"
+                If Not rowTagSource Is Nothing Then rowTags = rowTags & " " & rowTagSource.RowTagsAt(rowIndex)
                 uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, m_bodyRange.Rows(rowIndex), "row", tags:=rowTags
                 If m_detailedPartStylesEnabled Then
                     If rowIndex Mod 2 = 0 Then

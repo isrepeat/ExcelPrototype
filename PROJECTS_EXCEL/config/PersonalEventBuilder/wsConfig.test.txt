@@ -1997,6 +1997,60 @@ value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
 value	PersonalEventBuilder::validation.Movement.source.range	B6:AZ20000
 value	PersonalEventBuilder::validation.Movement.enabled	true
+value	PersonalEventBuilder::validation.MedicalReports.root	C:\WORK\Windows\Строевые приказы\Documents\PersonnelMedicalReports
+value	PersonalEventBuilder::validation.MedicalReports.text.State.Until	 Планове повернення: {date}.
+value	PersonalEventBuilder::validation.MedicalReports.text.State.Hospital	Уже на стаціонарному лікуванні з {from}.
+value	PersonalEventBuilder::validation.MedicalReports.text.State.Recorded	Внесено в EventsHistory: наказ №{number} від {date}.
+value	PersonalEventBuilder::validation.MedicalReports.text.State.MedicalLeave	У відпустці для лікування з {from}.
+value	PersonalEventBuilder::validation.MedicalReports.text.Loaded	Госпіталізація {date}: записів — {rows}, перевірено файлів — {files}, потребують перевірки — {warnings}.
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.Rank	Звання
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.Unit	Підрозділ
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.Dates	Дата госпіталізації / переведення
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.Notes	Примітка
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.Sources	Файли стройових записок
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.Hospital	Повна назва лікувального закладу
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.PersonId	ІПН зі стройової
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.PersonName	ПІБ
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DocumentDate	Дата документа
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DocumentName	Документ-оснування
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.ReferenceName	ПІБ за ІПН у ШПО
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DocumentNumber	№ документа
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.IdentityStatus	Перевірка особи
+value	PersonalEventBuilder::validation.MedicalReports.text.NoFiles	Стройових записок для обраного пошуку не знайдено. Дата госпіталізації: {date}.
+value	PersonalEventBuilder::validation.MedicalReports.text.Identity.Matched	ІПН і ПІБ відповідають ШПО
+value	PersonalEventBuilder::validation.MedicalReports.text.Identity.InvalidId	⚠ Некоректний ІПН — перевірте особу
+value	PersonalEventBuilder::validation.MedicalReports.text.Identity.MissingId	⚠ ІПН відсутній — перевірте особу
+value	PersonalEventBuilder::validation.MedicalReports.text.Identity.UnknownId	⚠ ІПН не знайдено у ШПО
+value	PersonalEventBuilder::validation.MedicalReports.text.Identity.AmbiguousId	⚠ Один ІПН має різні ПІБ у ШПО
+value	PersonalEventBuilder::validation.MedicalReports.text.Identity.NameMismatch	⚠ ПІБ не відповідає ІПН — переперевірте
+value	PersonalEventBuilder::validation.MedicalReports.text.Validate	Валідація
+value	PersonalEventBuilder::validation.MedicalReports.text.InitFailed	Не вдалося підготувати перевірку стройових записок: {value}.
+value	PersonalEventBuilder::validation.MedicalReports.text.ReadFailed	Не вдалося прочитати стройову записку {path}: {error}
+value	PersonalEventBuilder::validation.MedicalReports.text.InvalidCell	Некоректне значення у стройовій записці (поле / рядок): {value}.
+value	PersonalEventBuilder::validation.MedicalReports.text.EmptyPattern	Порожній шаблон імені файлу: {value}.
+value	PersonalEventBuilder::validation.MedicalReports.text.UnknownToken	Невідомий параметр шаблону: {value}.
+value	PersonalEventBuilder::validation.MedicalReports.text.MissingFolder	Папку стройових записок не знайдено: {path}
+value	PersonalEventBuilder::validation.MedicalReports.text.MissingHeader	Не знайдено заголовок у стройовій записці: {value}.
+value	PersonalEventBuilder::validation.MedicalReports.text.AmbiguousHeader	Неоднозначний заголовок у стройовій записці: {value}.
+value	PersonalEventBuilder::validation.MedicalReports.text.MissingDateToken	Шаблон імені має містити {dd.mm.yyyy} або {yyyymmdd}: {value}.
+value	PersonalEventBuilder::validation.MedicalReports.fields	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::validation.MedicalReports.folder	{yyyy}\{yyyy.mm}
+value	PersonalEventBuilder::validation.MedicalReports.source.range	A3:Q20000
+value	PersonalEventBuilder::validation.MedicalReports.source.sheet	Аркуш1
+value	PersonalEventBuilder::validation.MedicalReports.display	Notes|IdentityStatus|PersonId|PersonName|ReferenceName|Unit|Rank|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber|Sources
+value	PersonalEventBuilder::validation.MedicalReports.headers.Rank	Військове звання
+value	PersonalEventBuilder::validation.MedicalReports.headers.Unit	Підрозділ
+value	PersonalEventBuilder::validation.MedicalReports.headers.Dates	Дата госпіталізації / переведення
+value	PersonalEventBuilder::validation.MedicalReports.headers.Hospital	Повна назва лікувального закладу
+value	PersonalEventBuilder::validation.MedicalReports.headers.PersonId	ІПН
+value	PersonalEventBuilder::validation.MedicalReports.headers.PersonName	П.І.Б.
+value	PersonalEventBuilder::validation.MedicalReports.headers.DocumentDate	На підставі чого госпіталізований (дата, документу)
+value	PersonalEventBuilder::validation.MedicalReports.headers.DocumentName	На підставі чого госпіталізований (Назва документу)
+value	PersonalEventBuilder::validation.MedicalReports.headers.DocumentNumber	На підставі чого госпіталізований (№ документу)
+value	PersonalEventBuilder::validation.MedicalReports.history.targetStatus	HospitalTreatment
+value	PersonalEventBuilder::validation.MedicalReports.movement.plannedHeader	Прибуття.План
+value	PersonalEventBuilder::validation.MedicalReports.patterns	Стройова записка*{dd.mm.yyyy}*.xlsx|Шпиталь *{yyyymmdd}*.xlsx
+value	PersonalEventBuilder::validation.MedicalReports.windowDays	3
 value	PersonalEventBuilder::environment.name	TEST
 value	PersonalEventBuilder::environment.config.PROD	../../config/PersonalEventBuilder/wsConfig.txt
 value	PersonalEventBuilder::environment.config.TEST	../../config/PersonalEventBuilder/wsConfig.test.txt
