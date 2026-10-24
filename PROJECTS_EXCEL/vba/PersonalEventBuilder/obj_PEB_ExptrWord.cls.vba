@@ -176,28 +176,24 @@ Public Function TryGenerateHistory( _
     Set document = wordApp.Documents.Add(m_templatePath, False, 0, False)
     private_HistoryStage "ReplaceDocumentFields", stage, startedAt
     private_ReplaceDocumentFields document, first
+    private_HistoryStage "Section.IndexAnchors", stage, startedAt
+    Set anchors = New obj_PEB_WordAnchors
+    If Not anchors.Initialize(document, diagnostic) Then GoTo CleanupHistory
     ' Each document starts from the empty template; populate only rendered sections.
     For Each eventId In rendered.Keys
         If VBA.Len(rendered(eventId)) > 0 Then
             sectionStartedAt = VBA.Timer
-            private_HistoryStage "Section.IndexAnchors", stage, startedAt
             Set context = VBA.CreateObject("Scripting.Dictionary")
             context.Add "EventId", eventId
             context.Add "WordText", rendered(eventId)
-            Set anchors = New obj_PEB_WordAnchors
-            If Not anchors.Initialize(document, diagnostic) Then GoTo CleanupHistory
             private_HistoryStage "Section.Insert", stage, startedAt
             If Not anchors.TryInsert(document, context, diagnostic) Then GoTo CleanupHistory
             private_HistoryStage "Section.Verify", stage, startedAt
             If Not anchors.TryVerify(document, context, diagnostic) Then GoTo CleanupHistory
-            anchors.Dispose
-            Set anchors = Nothing
             ex_Core.fn_Diagnostic_WritePerf "Word.Export.Section." & VBA.CStr(eventId), sectionStartedAt
         End If
     Next eventId
     private_HistoryStage "RemoveMarkers", stage, startedAt
-    Set anchors = New obj_PEB_WordAnchors
-    If Not anchors.Initialize(document, diagnostic) Then GoTo CleanupHistory
     If Not anchors.TryRemoveMarkers(document, diagnostic) Then GoTo CleanupHistory
     anchors.Dispose
     Set anchors = Nothing
@@ -474,6 +470,7 @@ Private Sub private_HistoryStage( _
     ByRef stage As String, _
     ByRef startedAt As Double _
 )
+    ex_UiBusy.fn_Refresh
     If VBA.Len(stage) > 0 Then
         ex_Core.fn_Diagnostic_WritePerf "Word.Export." & stage, startedAt
     End If
