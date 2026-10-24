@@ -7,6 +7,7 @@ Private m_values As Object
 Private m_events As Object
 Private m_statuses As Object
 Private m_formFields As String
+Private m_destinationRegex As Object
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -15,6 +16,7 @@ Public Sub fn_Module_Dispose()
     Set m_values = Nothing
     Set m_events = Nothing
     Set m_statuses = Nothing
+    Set m_destinationRegex = Nothing
     m_formFields = VBA.vbNullString
 End Sub
 ' --------------------------------------
@@ -87,7 +89,7 @@ Public Function fn_WriteValue( _
     If values.Exists("MovementColumnTexts") Then
         Set texts = values("MovementColumnTexts")
         If texts.Exists(header) Then
-            fn_WriteValue = private_ExportValue(texts(header))
+            fn_WriteValue = private_ExportValue(texts(header), header)
             Exit Function
         End If
     End If
@@ -107,7 +109,61 @@ Public Function fn_WriteValue( _
             Exit Function
     End Select
 #End If
-    fn_WriteValue = private_ExportValue(ex_PEB_Export.fn_Required(values, field))
+    fn_WriteValue = private_ExportValue(ex_PEB_Export.fn_Required(values, field), header)
+End Function
+
+Public Function fn_Destination(ByVal value As Variant) As String
+    Dim text As String
+    Dim pattern As String
+    Dim sections As Variant
+    Dim section As String
+    Dim matches As Object
+    Dim match As Object
+    Dim codes As Object
+    Dim keys As Variant
+    Dim code As String
+    Dim index As Long
+    Dim changed As Boolean
+
+    text = ex_PEB_Export.fn_Text(value)
+    fn_Destination = text
+    If VBA.Len(text) = 0 Then Exit Function
+    pattern = ex_PEB_Export.fn_Config("export.Movement.destination.unitPattern")
+    If m_destinationRegex Is Nothing Then
+        Set m_destinationRegex = VBA.CreateObject("VBScript.RegExp")
+        m_destinationRegex.Global = True
+        m_destinationRegex.IgnoreCase = True
+    End If
+    If m_destinationRegex.Pattern <> pattern Then m_destinationRegex.Pattern = pattern
+    sections = VBA.Split(text, ";")
+    For index = LBound(sections) To UBound(sections)
+        section = VBA.Replace$(VBA.CStr(sections(index)), VBA.ChrW(160), " ")
+        Set matches = m_destinationRegex.Execute(section)
+        If matches.Count > 0 Then
+            Set codes = VBA.CreateObject("Scripting.Dictionary")
+            codes.CompareMode = VBA.vbTextCompare
+            For Each match In matches
+                code = VBA.CStr(match.SubMatches(1))
+                code = VBA.Replace$(code, " ", "")
+                code = VBA.Replace$(code, VBA.vbTab, "")
+                code = VBA.Replace$(code, VBA.vbCr, "")
+                code = VBA.Replace$(code, VBA.vbLf, "")
+                codes(VBA.UCase$(code)) = True
+            Next match
+            ' Do not guess which unit is intended when a section contains different codes.
+            If codes.Count = 1 Then
+                keys = codes.Keys
+                changed = True
+                sections(index) = keys(0)
+            End If
+        End If
+    Next index
+    If changed Then
+        For index = LBound(sections) To UBound(sections)
+            sections(index) = VBA.Trim$(VBA.CStr(sections(index)))
+        Next index
+        fn_Destination = VBA.Join(sections, "; ")
+    End If
 End Function
 
 #If TVO_DEPRECATED Then
@@ -958,7 +1014,10 @@ Private Function private_TvoValue( _
 End Function
 #End If
 
-Private Function private_ExportValue(ByVal value As Variant) As Variant
+Private Function private_ExportValue( _
+    ByVal value As Variant, _
+    Optional ByVal header As String = "" _
+) As Variant
     private_ExportValue = VBA.vbNullString
     If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit Function
     Select Case VBA.VarType(value)
@@ -973,6 +1032,11 @@ Private Function private_ExportValue(ByVal value As Variant) As Variant
             If value = 0 Then Exit Function
     End Select
     private_ExportValue = value
+    If VBA.Len(header) > 0 Then
+        If header = ex_PEB_Export.fn_Config("export.Movement.headers.Destination") Then
+            private_ExportValue = fn_Destination(value)
+        End If
+    End If
 End Function
 
 Private Sub private_AddMappings( _

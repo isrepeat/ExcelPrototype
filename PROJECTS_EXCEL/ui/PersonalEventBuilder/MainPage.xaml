@@ -436,6 +436,13 @@
                              detailedPartStylesEnabled="true"
                              selectedStyle="candidateSelected"
                              showHeaders="true"/>
+        <controls:table name="EjosResults"
+                        itemsSource="{Binding Path=Data.EjosResults}"
+                        style="candidateTable"
+                        visibility="{Binding Path=Form.EjosVisibility}"
+                        closeCommand="{Binding Path=Commands.CloseEjos}"
+                        closeCaption="{Binding Path=Text.CloseTable}"
+                        showHeaders="true"/>
         <controls:table name="MedicalReports"
                         itemsSource="{Binding Path=Data.MedicalReports}"
                         style="candidateTable"
@@ -446,6 +453,10 @@
         <controls:table name="HistoryEvents"
                         itemsSource="{Binding Path=Data.HistoryEvents}"
                         style="candidateTable"
+                        representation="Smart"
+                        excelTableName="tbPebHistoryEvents"
+                        showAutoFilter="true"
+                        selectionKeyColumn="RowId"
                         visibility="{Binding Path=Form.HistoryVisibility}"
                         closeCommand="{Binding Path=Commands.CloseHistory}"
                         closeCaption="{Binding Path=Text.CloseTable}"
@@ -1069,6 +1080,44 @@
                 fontBold:true;
                 horizontal:center;
                 vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;name=EjosResults;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;name=MedicalReports;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+                horizontal:center;
+                vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=ejosRecorded"
+              styles="{
+                backColor:#225C35;
+                fontColor:#FFFFFF;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=ejosReview"
+              styles="{
+                backColor:#7F3B12;
+                fontColor:#FFF0B3;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=ejosCancelled"
+              styles="{
+                backColor:#8B2525;
+                fontColor:#FFFFFF;
+                fontBold:true;
               }"/>
         <rule target="controlPart"
               selector="type=table;part=row;tags=medicalRecorded"

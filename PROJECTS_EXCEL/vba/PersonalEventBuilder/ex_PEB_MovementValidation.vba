@@ -78,7 +78,8 @@ Public Function fn_Apply( _
                 actual = actual & private_Text(period("EventName")) & " (" & private_Text(period("DepartureDate")) & "); "
                 matches = (private_Text(period("EventName")) = expected)
                 If VBA.Len(plan("sourceDestination")) > 0 Then
-                    matches = matches And (private_Text(period("Destination")) = plan("sourceDestination"))
+                    matches = matches And (ex_PEB_MovementRegistry.fn_Destination(period("Destination")) = _
+                        ex_PEB_MovementRegistry.fn_Destination(plan("sourceDestination")))
                 End If
                 If matches And private_Date(period("DepartureDate")) <= eventDate Then
                     count = count + 1

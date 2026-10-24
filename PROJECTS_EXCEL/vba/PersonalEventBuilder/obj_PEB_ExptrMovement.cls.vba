@@ -348,7 +348,12 @@ Private Function private_Matches( _
     For Each key In mappings.Keys
         actual = row.Range.Cells(1, columns(key)).Value2
         expected = mappings(key)
-        If VBA.VarType(expected) = VBA.vbDate Then
+        If VBA.CStr(key) = ex_PEB_Export.fn_Config("export.Movement.headers.Destination") Then
+            If VBA.StrComp( _
+                    ex_PEB_MovementRegistry.fn_Destination(actual), _
+                    ex_PEB_MovementRegistry.fn_Destination(expected), _
+                    VBA.vbTextCompare) <> 0 Then Exit Function
+        ElseIf VBA.VarType(expected) = VBA.vbDate Then
             If Not VBA.IsNumeric(actual) Then
                 Exit Function
             End If
