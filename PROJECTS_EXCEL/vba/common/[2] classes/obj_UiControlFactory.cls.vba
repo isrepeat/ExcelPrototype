@@ -151,6 +151,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "itemsSource", "string", False, "", True, 0
             If m_type = "tablelist" Then schema.AddAttribute "gapRows", "nonnegative", False, "", False, 0
             schema.AddAttribute "showHeaders", "boolean", False, "", False, 0
+            schema.AddAttribute "titleColumnSpan", "positive", False, "", False, 0
             schema.AddAttribute "showAutoFilter", "boolean", False, "", False, 0
             schema.AddAttribute "representation", "enum", False, "Raw|Smart", False, 0
             schema.AddAttribute "selectionKeyColumn", "string", False, "", False, 0

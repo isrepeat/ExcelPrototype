@@ -131,6 +131,127 @@ EH:
     Set result = Nothing
     Resume Cleanup
 End Function
+
+Public Function fn_TrySearch( _
+    ByVal dateFrom As Date, _
+    ByVal dateTo As Date, _
+    ByVal personName As String, _
+    ByVal eventDate As Date, _
+    ByRef result As obj_UiRawTableList, _
+    ByRef status As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim fileSystem As Object
+    Dim files As Object
+    Dim rows As Object
+    Dim patterns As Variant
+    Dim pattern As Variant
+    Dim reportFields As Variant
+    Dim displayFields As Variant
+    Dim root As String
+    Dim folder As String
+    Dim day As Date
+    Dim path As Variant
+    Dim key As Variant
+    Dim fields As Object
+    Dim queryService As obj_TableQueryService
+    Dim dateRx As Object
+    Dim table As obj_UiRawTable
+    Dim headers As Variant
+    Dim values As Variant
+    Dim row As Long
+    Dim column As Long
+    Dim found As Long
+    Dim startedAt As Double
+    Dim stageAt As Double
+    Dim configSnapshotActive As Boolean
+
+    On Error GoTo EH
+    startedAt = VBA.Timer
+    Set result = Nothing
+    diagnostic = VBA.vbNullString
+    ex_PEB_Export.fn_BeginConfigSnapshot
+    configSnapshotActive = True
+    dateFrom = VBA.DateValue(dateFrom)
+    dateTo = VBA.DateValue(dateTo)
+    If dateTo < dateFrom Then Err.Raise 5, , private_Config("search.text.InvalidRange")
+    If VBA.DateDiff("d", dateFrom, dateTo) > ex_PEB_Export.fn_Count("validation.MedicalReports.search.maxDays", 3660) Then
+        Err.Raise 5, , private_Config("search.text.RangeTooWide")
+    End If
+    root = ex_PEB_Export.fn_Path(private_Config("root"))
+    patterns = VBA.Split(private_Config("patterns"), "|")
+    For Each pattern In patterns
+        If VBA.InStr(VBA.CStr(pattern), "{dd.mm.yyyy}") = 0 And VBA.InStr(VBA.CStr(pattern), "{yyyymmdd}") = 0 Then
+            private_Fail "MissingDateToken", VBA.CStr(pattern)
+        End If
+    Next pattern
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    If Not fileSystem.FolderExists(root) Then Err.Raise 5, , VBA.Replace$(private_Text("MissingFolder"), "{path}", root)
+    Set files = VBA.CreateObject("Scripting.Dictionary")
+    files.CompareMode = VBA.vbTextCompare
+    stageAt = VBA.Timer
+    day = dateFrom
+    Do
+        folder = fileSystem.BuildPath(root, private_Expand(private_Config("folder"), day))
+        If fileSystem.FolderExists(folder) Then private_CollectFiles fileSystem.GetFolder(folder), patterns, files, day
+        If day = dateTo Then Exit Do
+        day = VBA.DateAdd("d", 1, day)
+    Loop
+    ex_Core.fn_Diagnostic_WritePerf "MedicalSearch.Discover | Files=" & VBA.CStr(files.Count), stageAt
+    Set queryService = New obj_TableQueryService
+    If Not queryService.Initialize() Then private_Fail "InitFailed", "obj_TableQueryService"
+    queryService.Backend = QueryAdo
+    reportFields = VBA.Split(private_Config("fields"), "|")
+    displayFields = VBA.Split(private_Config("search.display"), "|")
+    ReDim headers(0 To UBound(displayFields))
+    For column = 0 To UBound(displayFields)
+        headers(column) = private_Text("Columns." & displayFields(column))
+    Next column
+    Set dateRx = VBA.CreateObject("VBScript.RegExp")
+    If eventDate <> 0 Then
+        dateRx.Pattern = "(^|[^0-9])" & VBA.Replace$(VBA.Format$(eventDate, "dd.mm.yyyy"), ".", "\.") & "([^0-9]|$)"
+    End If
+    Set result = New obj_UiRawTableList
+    If Not result.Initialize() Then private_Fail "InitFailed", "obj_UiRawTableList"
+    stageAt = VBA.Timer
+    For Each path In files.Keys
+        Set rows = VBA.CreateObject("Scripting.Dictionary")
+        rows.CompareMode = VBA.vbTextCompare
+        If Not private_ReadFile(VBA.CStr(path), eventDate, reportFields, rows, queryService, dateRx, diagnostic, True, personName) Then
+            Err.Raise 5, , diagnostic
+        End If
+        If rows.Count > 0 Then
+            ReDim values(1 To rows.Count, 1 To UBound(displayFields) + 1)
+            row = 0
+            For Each key In rows.Keys
+                Set fields = rows(key)
+                row = row + 1
+                For column = 0 To UBound(displayFields)
+                    values(row, column + 1) = fields(displayFields(column))
+                Next column
+            Next key
+            Set table = New obj_UiRawTable
+            If Not table.Initialize(values, headers, VBA.Mid$(VBA.CStr(path), VBA.InStrRev(VBA.CStr(path), "\") + 1)) Then
+                private_Fail "InitFailed", "obj_UiRawTable"
+            End If
+            If Not result.Add(table) Then private_Fail "InitFailed", "obj_UiRawTableList.Add"
+            found = found + rows.Count
+        End If
+    Next path
+    ex_Core.fn_Diagnostic_WritePerf "MedicalSearch.Read | Rows=" & VBA.CStr(found), stageAt
+    status = VBA.Replace$(private_Config("search.text.Loaded"), "{files}", VBA.CStr(files.Count))
+    status = VBA.Replace$(status, "{rows}", VBA.CStr(found))
+    fn_TrySearch = True
+Cleanup:
+    If Not queryService Is Nothing Then queryService.Dispose
+    If configSnapshotActive Then ex_PEB_Export.fn_EndConfigSnapshot
+    ex_Core.fn_Diagnostic_WritePerf "MedicalSearch.Total | Success=" & VBA.CStr(fn_TrySearch), startedAt
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    Set result = Nothing
+    Resume Cleanup
+End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
@@ -184,7 +305,9 @@ Private Function private_ReadFile( _
     ByVal rows As Object, _
     ByVal queryService As obj_TableQueryService, _
     ByVal dateRx As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal searchMode As Boolean = False, _
+    Optional ByVal personName As String = "" _
 ) As Boolean
     Dim source As obj_TableSource
     Dim query As obj_TableQuery
@@ -200,6 +323,7 @@ Private Function private_ReadFile( _
     Dim fileName As String
     Dim startedAt As Double
     Dim stageAt As Double
+    Dim matches As Boolean
 
     On Error GoTo EH
     startedAt = VBA.Timer
@@ -211,6 +335,7 @@ Private Function private_ReadFile( _
     source.WorkbookPath = path
     source.SheetName = private_Config("source.sheet")
     source.RangeAddress = private_Config("source.range")
+    ' Read provider headers before normalized matching: ADO rewrites punctuation and line breaks.
     ' Reports are selected and read afresh on validation; they are not session dependencies.
     If Not queryService.TryExecute(source, query, data, diagnostic, False) Then Err.Raise 5, , diagnostic
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Query | File=" & VBA.Mid$(path, VBA.InStrRev(path, "\") + 1) & " | Rows=" & VBA.CStr(data.RowCount), stageAt
@@ -221,7 +346,19 @@ Private Function private_ReadFile( _
     Next field
     For row = 1 To data.RowCount
         value = data.ValueAt(row, indexes("Dates"))
-        If private_FirstDateMatches(value, orderDate, dateRx) Then
+        If searchMode Then
+            matches = private_SearchDateMatches(value, orderDate, dateRx)
+            If matches Then
+                value = data.ValueAt(row, indexes("PersonName"))
+                If VBA.IsError(value) Then private_Fail "InvalidCell", "PersonName / " & VBA.CStr(row)
+                If VBA.IsNull(value) Or VBA.IsEmpty(value) Then value = VBA.vbNullString
+                matches = VBA.Len(private_Normalize(VBA.CStr(value))) > 0 And _
+                    VBA.InStr(1, private_Normalize(VBA.CStr(value)), private_Normalize(personName), VBA.vbTextCompare) > 0
+            End If
+        Else
+            matches = private_FirstDateMatches(value, orderDate, dateRx)
+        End If
+        If matches Then
             Set fields = VBA.CreateObject("Scripting.Dictionary")
             key = VBA.vbNullString
             For Each field In reportFields
@@ -389,6 +526,23 @@ Private Function private_Name(ByVal value As String) As String
     value = VBA.Replace$(value, VBA.ChrW(&H2018), "'")
     value = VBA.Replace$(value, VBA.ChrW(&H2BC), "'")
     private_Name = private_Normalize(value)
+End Function
+
+Private Function private_SearchDateMatches( _
+    ByVal value As Variant, _
+    ByVal eventDate As Date, _
+    ByVal dateRx As Object _
+) As Boolean
+    If VBA.IsError(value) Then private_Fail "InvalidCell", "Dates"
+    If eventDate = 0 Then
+        private_SearchDateMatches = True
+    ElseIf Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then
+        If VBA.VarType(value) = VBA.vbDate Or VBA.IsNumeric(value) Then
+            private_SearchDateMatches = (VBA.Fix(VBA.CDbl(value)) = VBA.CDbl(eventDate))
+        Else
+            private_SearchDateMatches = dateRx.Test(VBA.CStr(value))
+        End If
+    End If
 End Function
 
 Private Function private_FirstDateMatches( _

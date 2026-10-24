@@ -1,0 +1,9 @@
+# Medical report search
+
+The search button is below New event in the top toolbar. The workspace ends with its collapsible form and a per-file table list. Opening the form initializes an inclusive report-date range from the computer date minus `validation.MedicalReports.search.defaultDays` (10) through today. It also clears previous criteria and results. New event clears and hides the panel.
+
+The required range selects report dates through the existing filename patterns and year/month folder expansion, including month and year boundaries. The optional name is a normalized, case-insensitive substring. The optional date matches any complete hospitalization or transfer date in the row, whereas validation continues to match only the first date. Empty name/date filters search all named rows within the report range. `search.maxDays` limits the difference between endpoints to 366 days.
+
+Search reads files afresh through the existing ADO reader without requiring an accepted order, EventsHistory, or loaded personnel dependencies. Matching rows are grouped by source file, empty groups are omitted, and the title is the filename. Identical business rows within a file are merged by the existing reader. `search.display` controls columns. Results are local worksheet output and are replaced by the next search.
+
+Failures appear in action status and hide previous results. Timing stages are `MedicalSearch.Discover`, `MedicalSearch.Read`, and `MedicalSearch.Total`; the shared reader also emits per-file timings. Run `WorkbookUpdater/Test-PEBReportSearchSources.ps1` and `WorkbookUpdater/Test-PEBMedicalSources.ps1` for static checks. Excel layout, ADO behavior and VBA execution require separate runtime verification.

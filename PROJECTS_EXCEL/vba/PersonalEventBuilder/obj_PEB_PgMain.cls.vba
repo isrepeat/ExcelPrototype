@@ -196,6 +196,16 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Form", "ConflictsVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "MedicalVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "EjosVisibility", "Collapsed") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ReportSearchVisible", "Collapsed") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ReportResultsVisible", "Collapsed") Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ReportSearchFrom", VBA.vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ReportSearchTo", VBA.vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ReportSearchName", VBA.vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "ReportSearchDate", VBA.vbNullString) Then Exit Function
+    For Each textKey In VBA.Array("Open", "Run", "From", "To", "Name", "Date", "Close")
+        If Not uiBindingContext.SetValue("Text", "ReportSearch" & VBA.CStr(textKey), _
+                ex_PEB_Export.fn_Config("validation.MedicalReports.search.text." & VBA.CStr(textKey))) Then Exit Function
+    Next textKey
     If Not uiBindingContext.SetValue("Form", "ConflictColumn", 0) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "OrderQuery", vbNullString) Then Exit Function
@@ -330,6 +340,7 @@ Private Function private_TryRegisterCommands() As Boolean
             "LoadTest", "NextTest", "ResetForm", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", _
             "ValidateMedical", "CloseMedical", "CloseEjos", "EmptyOrders", _
+            "OpenReportSearch", "RunReportSearch", "CloseReportSearch", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand

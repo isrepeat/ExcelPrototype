@@ -354,15 +354,22 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ResetForm}"
                      command="{Binding Path=Commands.ResetForm}"/>
-    <controls:button name="ScrollFormLeft"
+    <controls:button name="OpenReportSearch"
                      row="2"
+                     column="17"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ReportSearchOpen}"
+                     command="{Binding Path=Commands.OpenReportSearch}"/>
+    <controls:button name="ScrollFormLeft"
+                     row="3"
                      column="17"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ScrollFormLeft}"
                      command="{Binding Path=Commands.ScrollFormLeft}"
                      visibility="{Binding Path=Settings.FormScrollVisibility}"/>
     <controls:button name="ScrollFormRight"
-                     row="2"
+                     row="3"
                      column="18"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ScrollFormRight}"
@@ -474,6 +481,61 @@
                         onSelect="{Binding Path=Commands.SelectConflict}"
                         selectedStyle="candidateSelected"
                         showHeaders="true"/>
+        <stackPanel name="ReportSearchPanel"
+                    orientation="vertical">
+          <stackPanel orientation="horizontal">
+            <controls:form name="ReportSearchForm"
+                           dataContext="{Binding Path=Form}"
+                           columnSpan="8"
+                           orientation="horizontal"
+                           style="candidateTable"
+                           visibility="{Binding Path=Form.ReportSearchVisible}"
+                           closeCommand="{Binding Path=Commands.CloseReportSearch}"
+                           closeCaption="{Binding Path=Text.CloseTable}"
+                           labelPosition="top"
+                           labelStyle="formLabel"
+                           fieldStyle="formField">
+              <field name="ReportSearchFrom"
+                     type="text"
+                     columnSpan="2"
+                     value="{Binding Path=ReportSearchFrom}"
+                     label="{Binding Path=Text.ReportSearchFrom}"
+                     numberFormat="@"/>
+              <field name="ReportSearchTo"
+                     type="text"
+                     columnSpan="2"
+                     value="{Binding Path=ReportSearchTo}"
+                     label="{Binding Path=Text.ReportSearchTo}"
+                     numberFormat="@"/>
+              <field name="ReportSearchName"
+                     type="text"
+                     columnSpan="2"
+                     value="{Binding Path=ReportSearchName}"
+                     label="{Binding Path=Text.ReportSearchName}"
+                     numberFormat="@"/>
+              <field name="ReportSearchDate"
+                     type="text"
+                     columnSpan="2"
+                     value="{Binding Path=ReportSearchDate}"
+                     label="{Binding Path=Text.ReportSearchDate}"
+                     numberFormat="@"/>
+            </controls:form>
+            <controls:button name="RunReportSearch"
+                             rowSpan="2"
+                             columnSpan="2"
+                             style="secondaryButton"
+                             caption="{Binding Path=Text.ReportSearchRun}"
+                             command="{Binding Path=Commands.RunReportSearch}"
+                             visibility="{Binding Path=Form.ReportSearchVisible}"/>
+          </stackPanel>
+          <controls:tableList name="ReportSearchResults"
+                              itemsSource="{Binding Path=Data.ReportSearchResults}"
+                              style="candidateTable"
+                              visibility="{Binding Path=Form.ReportResultsVisible}"
+                              gapRows="1"
+                              titleColumnSpan="3"
+                              showHeaders="true"/>
+        </stackPanel>
       </stackPanel>
 
     </stackPanel>
@@ -1032,14 +1094,14 @@
         <rule target="column"
               selector="address=U:U"
               styles="{
-                width:12.714286;
+                width:8.714286;
               }"/>
         <rule target="column"
               selector="address=V:V"
               styles="{width:2.285714;}"/>
         <rule target="column"
               selector="address=W:W"
-              styles="{width:12.714286;}"/>
+              styles="{width:16.714286;}"/>
       </layer>
       <layer name="table-parts">
         <rule target="usedRange"
@@ -1098,6 +1160,20 @@
                 fontBold:true;
                 horizontal:center;
                 vertical:center;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=header"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=tablelist;part=section"
+              styles="{
+                backColor:#111111;
+                fontColor:#FFFFFF;
+                fontBold:true;
               }"/>
         <rule target="controlPart"
               selector="type=table;part=row;tags=ejosRecorded"

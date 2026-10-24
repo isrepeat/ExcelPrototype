@@ -1840,6 +1840,22 @@ value	PersonalEventBuilder::validation.MedicalReports.text.AmbiguousHeader	Не�
 value	PersonalEventBuilder::validation.MedicalReports.text.MissingDateToken	Шаблон імені має містити {dd.mm.yyyy} або {yyyymmdd}: {value}.
 value	PersonalEventBuilder::validation.MedicalReports.fields	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::validation.MedicalReports.folder	{yyyy}\{yyyy.mm}
+value	PersonalEventBuilder::validation.MedicalReports.search.text.To	Записки до (включно)
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Run	Знайти
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Date	Дата госпіталізації / переведення (необов’язково)
+value	PersonalEventBuilder::validation.MedicalReports.search.text.From	Записки від (включно)
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Name	ПІБ або частина імені (необов’язково)
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Open	Пошук у стройових записках
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Close	Закрити пошук
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Loaded	Пошук у стройових записках: перевірено файлів — {files}, знайдено рядків — {rows}.
+value	PersonalEventBuilder::validation.MedicalReports.search.text.Opened	Форму пошуку відкрито внизу робочої області, після інших таблиць.
+value	PersonalEventBuilder::validation.MedicalReports.search.text.OpenFailed	Не вдалося відкрити форму пошуку у стройових записках.
+value	PersonalEventBuilder::validation.MedicalReports.search.text.InvalidDate	Вкажіть коректні дати у форматі дд.мм.рррр. Межі діапазону обов’язкові.
+value	PersonalEventBuilder::validation.MedicalReports.search.text.InvalidRange	Початок діапазону не може бути пізніше його кінця.
+value	PersonalEventBuilder::validation.MedicalReports.search.text.RangeTooWide	Діапазон пошуку перевищує налаштований ліміт search.maxDays.
+value	PersonalEventBuilder::validation.MedicalReports.search.display	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::validation.MedicalReports.search.maxDays	366
+value	PersonalEventBuilder::validation.MedicalReports.search.defaultDays	10
 value	PersonalEventBuilder::validation.MedicalReports.source.range	A3:Q20000
 value	PersonalEventBuilder::validation.MedicalReports.source.sheet	Аркуш1
 value	PersonalEventBuilder::validation.MedicalReports.display	Notes|IdentityStatus|PersonId|PersonName|ReferenceName|Unit|Rank|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber|Sources
