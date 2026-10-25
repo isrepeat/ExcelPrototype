@@ -136,6 +136,15 @@
       <movement template="ToVacationForCuring"/>
       <word template="ToVacationForCuring"/>
     </event>
+    <event label="У відпустку для лікування в медроті А7383"
+           caption="У відпустку для лікування в медроті А7383"
+           id="ToMedicalCompanyVacationForCuring"
+           direction="Departure"
+           form="Leave"
+           visible="false">
+      <movement template="ToMedicalCompanyVacationForCuring"/>
+      <word template="ToMedicalCompanyVacationForCuring"/>
+    </event>
     <event label="На амбулаторне ВЛК"
            caption="На амбулаторне ВЛК"
            id="ToOutpatientExaminationOrVlk"

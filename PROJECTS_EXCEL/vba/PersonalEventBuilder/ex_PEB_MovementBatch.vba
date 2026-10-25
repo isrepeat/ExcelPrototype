@@ -18,7 +18,8 @@ Public Function fn_ExportOrder( _
     ByVal orderDate As Variant, _
     ByRef diagnostic As String, _
     Optional ByVal choices As Collection = Nothing, _
-    Optional ByRef fieldConflicts As Collection _
+    Optional ByRef fieldConflicts As Collection, _
+    Optional ByRef exportDiff As Object _
 ) As Boolean
     Dim target As ListObject
     Dim plan As Object
@@ -36,6 +37,7 @@ Public Function fn_ExportOrder( _
     On Error GoTo EH
     totalStartedAt = VBA.Timer
     diagnostic = VBA.vbNullString
+    Set exportDiff = Nothing
     ex_PEB_Export.fn_BeginConfigSnapshot
     snapshotStarted = True
     private_Stage "Export.ResolveTarget", stage, startedAt
@@ -59,9 +61,12 @@ Public Function fn_ExportOrder( _
         GoTo Cleanup
     End If
     private_Stage "Export.Apply", stage, startedAt
-    If Not ex_PEB_MovementWriter.fn_Apply(plan, target, diagnostic) Then
+    If Not ex_PEB_MovementWriter.fn_Apply(plan, target, diagnostic, exportDiff) Then
         GoTo Cleanup
     End If
+    exportDiff("Summary") = VBA.Replace$(exportDiff("Summary"), "{order}", orderNumber)
+    exportDiff("Summary") = VBA.Replace$(exportDiff("Summary"), "{date}", _
+        VBA.Format$(ex_PEB_History.fn_Date(orderDate), ex_PEB_Export.fn_Config("export.Movement.dateFormat")))
     warning = diagnostic
     For Each action In plan("Actions")
         If action("Status") = "AlreadyApplied" Then

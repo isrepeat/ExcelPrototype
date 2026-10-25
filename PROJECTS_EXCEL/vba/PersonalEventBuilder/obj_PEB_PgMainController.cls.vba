@@ -54,6 +54,7 @@ Private m_editHistoryAutoFill As Variant
 Private m_historyOrderNumber As String
 Private m_historyOrderDate As String
 Private m_conflicts As Collection
+Private m_movementDiff As Object
 Private m_extensions As obj_PEB_FormExtensions
 
 ' //
@@ -153,6 +154,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     If Not private_PublishConflicts(False) Then Exit Function
+    If Not private_InitializeMovementDiff() Then Exit Function
     Initialize = True
     m_isInitialized = Initialize
     private_SetActionStatus VBA.vbNullString, False
@@ -206,6 +208,7 @@ Public Sub Dispose()
     m_editHistoryStamp = VBA.vbNullString
     Set m_pageBase = Nothing
     Set m_conflicts = Nothing
+    Set m_movementDiff = Nothing
 End Sub
 
 Public Function ReportNameChangedHandler() As Boolean
@@ -339,6 +342,7 @@ Public Function ResetFormHandler() As Boolean
     m_historyOrderNumber = VBA.vbNullString
     m_historyOrderDate = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then GoTo Cleanup
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then GoTo Cleanup
     If Not m_extensions.Reset(diagnostic) Then GoTo Failed
     If Not private_ResetReportSearch(diagnostic) Then GoTo Failed
@@ -1017,6 +1021,7 @@ Public Function ShowHistoryHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If ex_PEB_Testing.fn_IsRunning() Then Exit Function
     If Not private_RefreshHistory(VBA.vbNullString, diagnostic) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Visible") Then Exit Function
     If Not m_editHistoryRow Is Nothing Then
         For Each record In m_historyResult.Records
@@ -1445,11 +1450,13 @@ Public Function ExportMovementHandler() As Boolean
     Dim orderDate As Variant
     Dim conflicts As Collection
     Dim exported As Boolean
+    Dim exportDiff As Object
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
     On Error GoTo EH
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
     enabled = ex_PEB_Export.fn_Config("export.Movement.enabled")
     If enabled = "false" Then
         ExportMovementHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.ExportMovementUnavailable"), True)
@@ -1471,10 +1478,14 @@ Public Function ExportMovementHandler() As Boolean
     End If
     orderDate = scalar
     If VBA.IsNumeric(orderDate) And VBA.VarType(orderDate) <> VBA.vbString Then orderDate = VBA.CDate(orderDate)
-    exported = ex_PEB_MovementBatch.fn_ExportOrder(orderNumber, orderDate, diagnostic, m_conflicts, conflicts)
+    exported = ex_PEB_MovementBatch.fn_ExportOrder(orderNumber, orderDate, diagnostic, m_conflicts, conflicts, exportDiff)
     Set m_conflicts = conflicts
     If exported Then
         Set m_conflicts = Nothing
+        Set m_movementDiff = exportDiff
+        If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAvailableVisibility", "Visible") Then
+            Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("movementDiff.failed"), "{details}", "Cannot publish diff availability.")
+        End If
     End If
     If Not private_PublishConflicts() Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ConflictUiError")
@@ -1483,8 +1494,12 @@ Public Function ExportMovementHandler() As Boolean
         GoTo FailedMovement
     End If
     If Not private_RefreshExportHistory(diagnostic) Then
+        ShowMovementDiffHandler
         ExportMovementHandler = private_SetActionStatus(VBA.Replace$( _
             ex_PEB_Export.fn_Config("text.HistoryRefreshAfterExport"), "{details}", diagnostic), True)
+        Exit Function
+    End If
+    If Not ShowMovementDiffHandler() Then
         Exit Function
     End If
     ExportMovementHandler = private_SetActionStatus(diagnostic, False)
@@ -1493,6 +1508,35 @@ EH:
     diagnostic = VBA.Err.Description
 FailedMovement:
     private_SetActionStatus diagnostic, True
+End Function
+
+Public Function ShowMovementDiffHandler() As Boolean
+    Dim result As obj_LookupResult
+    Dim diagnostic As String
+    Dim panel As Variant
+
+    On Error GoTo EH_DIFF
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_movementDiff Is Nothing Then Exit Function
+    If Not ex_PEB_MovementDiff.fn_Result(m_movementDiff, result, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "MovementDiff", result) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffSummary", m_movementDiff("Summary")) Then Exit Function
+    For Each panel In VBA.Array("CandidatesVisibility", "EjosVisibility", "MedicalVisibility", "HistoryVisibility", "ConflictsVisibility")
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(panel), "Collapsed") Then Exit Function
+    Next panel
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Visible") Then Exit Function
+    ShowMovementDiffHandler = m_pageBase.FlushUpdates()
+    Exit Function
+EH_DIFF:
+    private_SetActionStatus VBA.Replace$(ex_PEB_Export.fn_Config("movementDiff.failed"), "{details}", VBA.Err.Description), True
+End Function
+
+Public Function CloseMovementDiffHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
+    CloseMovementDiffHandler = m_pageBase.FlushUpdates()
 End Function
 
 Public Function FromAnnualMainVacationHandler() As Boolean
@@ -1796,6 +1840,7 @@ Private Function private_SearchPersonnel(ByVal showCandidates As Boolean) As Boo
     If Not private_PublishCandidates(result) Then Exit Function
     ex_Core.fn_Diagnostic_WritePerf "Lookup.PublishCandidates | Rows=" & VBA.CStr(result.RowCount), startedAt
     If showCandidates Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
             Exit Function
         End If
@@ -1926,6 +1971,7 @@ Private Function private_SearchSecondary( _
     End If
     ex_Core.fn_Diagnostic_WritePerf "Candidates.Secondary.ProjectAndPublish | Group=" & group, stageStartedAt
     If showCandidates Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
             Exit Function
         End If
@@ -2160,6 +2206,23 @@ Private Function private_RefreshHistory( _
     m_historyOrderNumber = VBA.CStr(orderNumber)
     m_historyOrderDate = VBA.Format$(ex_PEB_History.fn_Date(orderDate), "dd.mm.yyyy")
     private_RefreshHistory = True
+End Function
+
+Private Function private_InitializeMovementDiff() As Boolean
+    Dim report As Object
+    Dim rows As New Collection
+    Dim result As obj_LookupResult
+    Dim diagnostic As String
+
+    Set report = VBA.CreateObject("Scripting.Dictionary")
+    report.Add "Rows", rows
+    If Not ex_PEB_MovementDiff.fn_Result(report, result, diagnostic) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "MovementDiff", result) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Text", "ShowMovementDiff", ex_PEB_Export.fn_Config("movementDiff.show")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffSummary", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAvailableVisibility", "Collapsed") Then Exit Function
+    private_InitializeMovementDiff = True
 End Function
 
 Private Function private_PublishConflicts(Optional ByVal flush As Boolean = True) As Boolean

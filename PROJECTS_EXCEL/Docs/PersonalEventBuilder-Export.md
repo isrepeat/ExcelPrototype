@@ -188,7 +188,15 @@ Parsed snapshots are cached by source path, modification time and size; saving t
 
 Word generation requires EventsHistory to be open in the current Excel instance. It reads the live ListObject with DataBodyRange.Value2, including unsaved changes, and retains export journaling and history refresh. There is no closed-file reader for EventsHistory.
 
-## Conditional Word block cleanup
+## Movement export diff
+
+After a successful Movement batch, the workspace displays the latest export diff instead of the candidate list. The summary counts added events, updated events and events with no visible field changes. Each report row contains the person, event, action, physical worksheet row, field, actual value captured from the open Movement cell before writing, and the verified replacement. New target rows show their written fields; unchanged values and internal PEB linkage/hash columns are omitted. Empty values are explicit, and existing numeric date cells use a readable date format.
+
+The writer builds the report from the same capture entries used for rollback, before mutation, and returns it only after successful value verification and journal recording. Failed exports or rollback do not replace the controller's previous successful report. The `ShowMovementDiff` command reopens it and `CloseMovementDiff` only closes the report table. The report is retained in the current controller session, including form resets, and is cleared when the page controller is disposed/reinitialized. It is not a persisted audit log or an undo command. All captions and report columns are configured under `movementDiff.*` in PROD and TEST.
+
+Deploy the changed planner, writer, batch, controller/page classes, `ex_PEB_MovementDiff`, MainPage.xaml and the selected configuration together. `Scripts/Testing/PEB/validate_movement_diff.py` checks source wiring, success-only publication and UI/config contracts without Office. `Test/ex_PEB_MovementDiffTests.vba` provides manually invoked capture/report cases; do not run VBA automatically.
+
+## Conditional Word block processing
 
 History export supports optional `{\block:<Anchor>_Begin}` / `{\block:<Anchor>_End}` markers around the matching export anchor pair and its heading. Each block marker must occupy its own paragraph. Blocks must be unique, paired and non-nested, and cannot enclose other export sections. Keep the separator blank paragraph inside the block, before its heading.
 

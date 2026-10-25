@@ -111,6 +111,10 @@ Public Function fn_Apply( _
             values("SourceEventName") = m_statuses(statusId)
         End If
         values("SourceDestination") = fn_Value(eventId, "movement.sourceDestination")
+        destination = fn_Value(eventId, "movement.destinationValue")
+        If VBA.Len(destination) > 0 Then
+            values("Destination") = destination
+        End If
     Else
         values("SourceStatus") = VBA.vbNullString
         values("TargetStatus") = VBA.vbNullString
