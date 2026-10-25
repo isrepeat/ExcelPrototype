@@ -69,6 +69,7 @@ Public Function TryGenerateHistory( _
     Dim sections As Object
     Dim sectionTemplates As Object
     Dim rendered As Object
+    Dim sectionEvents As Object
     Dim fileSystem As Object
     Dim wordApp As Object
     Dim document As Object
@@ -78,6 +79,7 @@ Public Function TryGenerateHistory( _
     Dim definition As Object
     Dim group As Collection
     Dim eventId As Variant
+    Dim anchorId As Variant
     Dim text As String
     Dim body As String
     Dim temporary As String
@@ -108,6 +110,7 @@ Public Function TryGenerateHistory( _
     Set sections = VBA.CreateObject("Scripting.Dictionary")
     Set sectionTemplates = VBA.CreateObject("Scripting.Dictionary")
     Set rendered = VBA.CreateObject("Scripting.Dictionary")
+    Set sectionEvents = VBA.CreateObject("Scripting.Dictionary")
     private_HistoryStage "Prepare.Events", stage, startedAt
     For Each item In events
         If Not service.TryPrepareHistory(item, diagnostic, first, templates) Then
@@ -156,7 +159,18 @@ Public Function TryGenerateHistory( _
             End If
         End If
         body = ex_PEB_WordGroups.fn_NormalizeSection(body)
-        rendered.Add eventId, body
+        ' Different event types can share one anchor; accumulate before replacing its content.
+        anchorId = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(eventId))
+        If Not rendered.Exists(anchorId) Then
+            rendered.Add anchorId, body
+            sectionEvents.Add anchorId, eventId
+        ElseIf VBA.Len(body) > 0 Then
+            If VBA.Len(rendered(anchorId)) > 0 Then
+                rendered(anchorId) = rendered(anchorId) & VBA.vbCrLf & VBA.vbCrLf & body
+            Else
+                rendered(anchorId) = body
+            End If
+        End If
         totalCharacters = totalCharacters + VBA.Len(body)
     Next eventId
     ex_Core.fn_Diagnostic_WriteLog "WORD_EXPORT_CONTENT | Characters=" & VBA.CStr(totalCharacters)
@@ -180,19 +194,19 @@ Public Function TryGenerateHistory( _
     Set anchors = New obj_PEB_WordAnchors
     If Not anchors.Initialize(document, diagnostic) Then GoTo CleanupHistory
     ' Each document starts from the empty template; populate only rendered sections.
-    For Each eventId In rendered.Keys
-        If VBA.Len(rendered(eventId)) > 0 Then
+    For Each anchorId In rendered.Keys
+        If VBA.Len(rendered(anchorId)) > 0 Then
             sectionStartedAt = VBA.Timer
             Set context = VBA.CreateObject("Scripting.Dictionary")
-            context.Add "EventId", eventId
-            context.Add "WordText", rendered(eventId)
+            context.Add "EventId", sectionEvents(anchorId)
+            context.Add "WordText", rendered(anchorId)
             private_HistoryStage "Section.Insert", stage, startedAt
             If Not anchors.TryInsert(document, context, diagnostic) Then GoTo CleanupHistory
             private_HistoryStage "Section.Verify", stage, startedAt
             If Not anchors.TryVerify(document, context, diagnostic) Then GoTo CleanupHistory
-            ex_Core.fn_Diagnostic_WritePerf "Word.Export.Section." & VBA.CStr(eventId), sectionStartedAt
+            ex_Core.fn_Diagnostic_WritePerf "Word.Export.Section." & VBA.CStr(anchorId), sectionStartedAt
         End If
-    Next eventId
+    Next anchorId
     private_HistoryStage "RemoveMarkers", stage, startedAt
     If Not anchors.TryRemoveMarkers(document, diagnostic) Then GoTo CleanupHistory
     anchors.Dispose
