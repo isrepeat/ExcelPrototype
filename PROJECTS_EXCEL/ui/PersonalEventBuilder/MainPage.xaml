@@ -622,6 +622,13 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.DeleteEvent}"
                      command="{Binding Path=Commands.DeleteEvent}"/>
+    <controls:button name="DeleteLastEvent"
+                     row="24"
+                     column="20"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.DeleteLastEvent}"
+                     command="{Binding Path=Commands.DeleteLastEvent}"/>
     <controls:button name="ShowMovementDiff"
                      row="13"
                      column="20"
