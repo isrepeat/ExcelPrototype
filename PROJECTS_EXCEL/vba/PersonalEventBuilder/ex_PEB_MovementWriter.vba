@@ -16,7 +16,8 @@ End Sub
 Public Function fn_Apply( _
     ByVal plan As Object, _
     ByVal target As ListObject, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByRef exportDiff As Object _
 ) As Boolean
     Dim entries As Collection
     Dim links As Object
@@ -45,10 +46,12 @@ Public Function fn_Apply( _
     Dim extension As Range
     Dim extensionSnapshot As Object
     Dim addedRows As Long
+    Dim pendingDiff As Object
 
     On Error GoTo EH
     totalStartedAt = VBA.Timer
     diagnostic = VBA.vbNullString
+    Set exportDiff = Nothing
     Set entries = New Collection
     private_Stage "Write.Validate", stage, startedAt
     If plan Is Nothing Then
@@ -93,35 +96,36 @@ Public Function fn_Apply( _
         If action("Status") = "Planned" And action.Exists("PlaceholderWrites") Then
             Set fields = action("PlaceholderWrites")
             For Each key In fields.Keys
-                private_Capture target, action("PlaceholderIndex"), VBA.CStr(key), fields(key), entries, actual
+                private_Capture target, action("PlaceholderIndex"), VBA.CStr(key), fields(key), entries, actual, action
             Next key
         End If
         If action("Status") = "Planned" And action("IsUpdate") Then
             For Each update In action("UpdateCells")
                 private_Capture target, update("RowIndex"), update("Header"), update("After"), _
-                    entries, actual, True, update("Before")
+                    entries, actual, action, True, update("Before")
             Next update
         ElseIf action("Status") = "Planned" Then
             If action("Operation") <> "append" Then
                 Set fields = action("ClosingWrites")
                 For Each key In fields.Keys
-                    private_Capture target, action("ClosingIndex"), VBA.CStr(key), fields(key), entries, actual
+                    private_Capture target, action("ClosingIndex"), VBA.CStr(key), fields(key), entries, actual, action
                 Next key
-                private_Capture target, action("ClosingIndex"), links("ClosingId"), action("RowId"), entries, actual
-                private_Capture target, action("ClosingIndex"), links("ClosingHash"), action("ClosingHash"), entries, actual
+                private_Capture target, action("ClosingIndex"), links("ClosingId"), action("RowId"), entries, actual, action
+                private_Capture target, action("ClosingIndex"), links("ClosingHash"), action("ClosingHash"), entries, actual, action
             End If
             If action("Operation") <> "close" Then
                 Set fields = action("Writes")
                 For Each key In fields.Keys
-                    private_Capture target, action("TargetIndex"), VBA.CStr(key), fields(key), entries, actual
+                    private_Capture target, action("TargetIndex"), VBA.CStr(key), fields(key), entries, actual, action
                 Next key
-                private_Capture target, action("TargetIndex"), links("OpeningId"), action("RowId"), entries, actual
-                private_Capture target, action("TargetIndex"), links("OpeningHash"), action("OpeningHash"), entries, actual
+                private_Capture target, action("TargetIndex"), links("OpeningId"), action("RowId"), entries, actual, action
+                private_Capture target, action("TargetIndex"), links("OpeningHash"), action("OpeningHash"), entries, actual, action
             End If
         ElseIf action("Status") <> "AlreadyApplied" Then
             ex_PEB_MovementLinks.fn_Fail "InvalidMovementPlan", action("RowId")
         End If
     Next action
+    Set pendingDiff = ex_PEB_MovementDiff.fn_Build(plan, target, entries)
     If entries.Count = 0 Then
         If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
             GoTo Cleanup
@@ -189,6 +193,9 @@ Cleanup:
     If VBA.Len(failure) > 0 Then
         diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$(settingsTemplate, "{error}", failure)
     End If
+    If fn_Apply Then
+        Set exportDiff = pendingDiff
+    End If
     private_Stage VBA.vbNullString, stage, startedAt
     ex_Core.fn_Diagnostic_WritePerf "Movement.Write.TotalIncludingCalculation", totalStartedAt
     Exit Function
@@ -251,6 +258,7 @@ Private Sub private_Capture( _
     ByVal expected As Variant, _
     ByVal entries As Collection, _
     ByVal seen As Object, _
+    ByVal action As Object, _
     Optional ByVal replacing As Boolean = False, _
     Optional ByVal original As Variant _
 )
@@ -268,6 +276,7 @@ Private Sub private_Capture( _
             ex_PEB_MovementLinks.fn_Fail "ConflictingPlannedWrite", cell.Address
         End If
         entry("Expected") = expected
+        Set entry("Action") = action
         Exit Sub
     End If
     If cell.HasFormula Then
@@ -291,6 +300,9 @@ Private Sub private_Capture( _
         entry("WriteFormat") = target.ListRows(target.ListRows.Count).Range.Cells(1, target.ListColumns(header).Index).NumberFormat
     End If
     entry.Add "Expected", expected
+    entry.Add "Header", header
+    entry.Add "TableRow", rowIndex
+    entry.Add "Action", action
     entries.Add entry
     seen.Add cell.Address, entry
 End Sub

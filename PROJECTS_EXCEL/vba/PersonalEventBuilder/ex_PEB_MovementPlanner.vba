@@ -150,6 +150,8 @@ Public Function fn_Build( _
         action.Add "Revision", stored("Revision")
         action.Add "EventStatus", stored("Status")
         action.Add "PersonId", stored("PersonId")
+        action.Add "PersonName", stored("PersonName")
+        action.Add "EventName", stored("EventLabel")
         action.Add "EventDate", ex_PEB_History.fn_Date(stored("EventDate"))
         action.Add "RowOrder", VBA.CLng(stored("RowOrder"))
         action.Add "HistoryStamp", ex_PEB_MovementLinks.fn_EventStamp(stored)

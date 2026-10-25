@@ -61,6 +61,20 @@
 #_        {#endfor}#^
       ]]></text>
     </sharedTemplate>
+    <sharedTemplate id="block.OptionalDepartureBasisDocuments">
+      <text><![CDATA[#^
+#_        {#for item in BasisDocuments orderBy:"BasisDocuments"}#^
+#_          #let __IsVacationTicket = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$");#^
+#_          {#if __IsVacationTicket}{#else}#^
+#_            {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
+#_              ; #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
+#_              {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
+#_              {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
+#_            {#endif}#^
+#_          {#endif}#^
+#_        {#endfor}#^
+      ]]></text>
+    </sharedTemplate>
     <sharedTemplate id="block.OptionalVacationTicket">
       <text><![CDATA[#^
 #_        #let __TicketInDocument = $ex_Helpers.m_RegexIsMatch("{[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$");#^
@@ -181,7 +195,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -192,7 +206,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -203,7 +217,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -234,7 +248,18 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="ToMedicalCompanyVacationForCuring">
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -245,7 +270,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -256,7 +281,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -276,7 +301,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -296,7 +321,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -316,7 +341,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -336,7 +361,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -356,7 +381,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -376,7 +401,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -396,7 +421,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -416,7 +441,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -436,7 +461,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -456,7 +481,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -476,7 +501,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -496,7 +521,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -516,7 +541,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -536,7 +561,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -556,7 +581,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -576,7 +601,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -596,7 +621,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -616,7 +641,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -636,7 +661,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -656,7 +681,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -676,7 +701,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -696,7 +721,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -716,7 +741,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -736,7 +761,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        {#include block.OptionalBusinessTripCertificate}#^
 #_        .#^
         ]]>
@@ -757,7 +782,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.VlkBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -777,7 +802,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>
@@ -797,7 +822,7 @@
       <text>
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
-#_        {#include block.OptionalBasisDocuments}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
 #_        .#^
         ]]>
       </text>

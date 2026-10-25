@@ -544,6 +544,21 @@
       ]]>
     </text>
   </template>
+  <template name="ToMedicalCompanyVacationForCuring"
+            hash="0x27">
+    <text>
+      <![CDATA[#^
+#_      {#include block.PersonLineUpper}#^
+#_      ,{#include block.VacationDestinationPeriod}#^
+#_      {#include block.DepartureAdministration}#^
+#_      {#newline}{#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.VlkBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 
 <template name="ToMedicalCompanyForTreatment"
             hash="0x0F">

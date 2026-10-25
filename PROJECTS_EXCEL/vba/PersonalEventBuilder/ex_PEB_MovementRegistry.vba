@@ -124,11 +124,13 @@ Public Function fn_Destination(ByVal value As Variant) As String
     Dim code As String
     Dim index As Long
     Dim changed As Boolean
+    Dim medicalCompany As String
 
     text = ex_PEB_Export.fn_Text(value)
     fn_Destination = text
     If VBA.Len(text) = 0 Then Exit Function
     pattern = ex_PEB_Export.fn_Config("export.Movement.destination.unitPattern")
+    medicalCompany = ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany")
     If m_destinationRegex Is Nothing Then
         Set m_destinationRegex = VBA.CreateObject("VBScript.RegExp")
         m_destinationRegex.Global = True
@@ -138,6 +140,10 @@ Public Function fn_Destination(ByVal value As Variant) As String
     sections = VBA.Split(text, ";")
     For index = LBound(sections) To UBound(sections)
         section = VBA.Replace$(VBA.CStr(sections(index)), VBA.ChrW(160), " ")
+        ' Preserve the destination used by the Movement border-crossing formula.
+        If VBA.StrComp(VBA.Trim$(section), medicalCompany, VBA.vbTextCompare) = 0 Then
+            section = VBA.vbNullString
+        End If
         Set matches = m_destinationRegex.Execute(section)
         If matches.Count > 0 Then
             Set codes = VBA.CreateObject("Scripting.Dictionary")
@@ -647,6 +653,16 @@ Private Sub private_BuildEvents()
         "MedicalLeave", _
         "Destination", _
         "", _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+    private_AddEvent _
+        "ToMedicalCompanyVacationForCuring", _
+        "Departure", _
+        "Departure", _
+        "", _
+        "MedicalLeave", _
+        "Destination", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "", _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _

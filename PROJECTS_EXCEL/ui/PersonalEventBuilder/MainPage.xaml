@@ -423,6 +423,21 @@
                   row="1"
                   column="1"
                   orientation="vertical">
+        <controls:label name="MovementDiffSummary"
+                        columnSpan="18"
+                        style="statusHeading"
+                        visibility="{Binding Path=Form.MovementDiffVisibility}"
+                        text="{Binding Path=Form.MovementDiffSummary}"/>
+        <controls:table name="MovementDiff"
+                        itemsSource="{Binding Path=Data.MovementDiff}"
+                        style="candidateTable"
+                        representation="Smart"
+                        excelTableName="tbPebMovementDiff"
+                        showAutoFilter="true"
+                        visibility="{Binding Path=Form.MovementDiffVisibility}"
+                        closeCommand="{Binding Path=Commands.CloseMovementDiff}"
+                        closeCaption="{Binding Path=Text.CloseTable}"
+                        showHeaders="true"/>
         <controls:candidates name="Candidates"
                              itemsSource="{Binding Path=Data.PersonnelCandidates}"
                              detailsSource="{Binding Path=Data.PersonnelCandidateDetails}"
@@ -607,6 +622,14 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.DeleteEvent}"
                      command="{Binding Path=Commands.DeleteEvent}"/>
+    <controls:button name="ShowMovementDiff"
+                     row="13"
+                     column="20"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ShowMovementDiff}"
+                     command="{Binding Path=Commands.ShowMovementDiff}"
+                     visibility="{Binding Path=Form.MovementDiffAvailableVisibility}"/>
     <controls:label name="SourceLegendTitle"
                     row="14"
                     column="20"

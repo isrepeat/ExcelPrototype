@@ -15,7 +15,7 @@ file	__cfgDependencies.fileMovementExport	../../tests/PersonalEventBuilder/Depen
 file	__cfgDependencies.fileMovementHistory	../../tests/PersonalEventBuilder/Dependencies/test_РУХ.xlsx
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgTests
-value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|ToMaternityLeave||MoveFromHospitalToExternalVlk||MoveFromMedicalCompanyForTreatmentToHospital|MoveFromMedicalCompanyVacationForCuringToHospital|MoveFromMedicalCompanyVacationForCuringToVacationForCuring||MoveFromAnnualVacationToHospital|MoveFromAnnualVacationToFamilyVacation|MoveFromAnnualVacationToVlk||MoveFromFamilyVacationToHospital|MoveFromFamilyVacationToAnnualVacation|MoveFromFamilyVacationToVlk||MoveFromVacationForCuringToVlk||MoveFromExternalVlkToHospital|MoveFromExternalVlkToVacationForCuring|MoveFromExternalVlkToAnnualVacation||MoveFromOutpatientVlkToHospital|MoveFromOutpatientVlkToVacationForCuring|MoveFromOutpatientVlkToAnnualVacation
+value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|ToMaternityLeave|ToMedicalCompanyVacationForCuring||MoveFromHospitalToExternalVlk||MoveFromMedicalCompanyForTreatmentToHospital|MoveFromMedicalCompanyVacationForCuringToHospital|MoveFromMedicalCompanyVacationForCuringToVacationForCuring||MoveFromAnnualVacationToHospital|MoveFromAnnualVacationToFamilyVacation|MoveFromAnnualVacationToVlk||MoveFromFamilyVacationToHospital|MoveFromFamilyVacationToAnnualVacation|MoveFromFamilyVacationToVlk||MoveFromVacationForCuringToVlk||MoveFromExternalVlkToHospital|MoveFromExternalVlkToVacationForCuring|MoveFromExternalVlkToAnnualVacation||MoveFromOutpatientVlkToHospital|MoveFromOutpatientVlkToVacationForCuring|MoveFromOutpatientVlkToAnnualVacation
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
 value	PersonalEventBuilder::test.ui.maxScenarios	200
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|WordCreateMs|WordInsertMs|WordVerifyMs|WordAppendMs|WordDocumentPath
@@ -695,6 +695,7 @@ value	PersonalEventBuilder::forms.columns.ranges.Left	1|3
 value	PersonalEventBuilder::forms.columns.ranges.Right	17|18
 value	PersonalEventBuilder::forms.columns.scrollStep	1
 value	PersonalEventBuilder::forms.columns.disabledStyle	disabledField
+value	PersonalEventBuilder::forms.readOnly.modes.ToMedicalCompanyVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromExternalVlkToAnnualVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.MoveFromOutpatientVlkToAnnualVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.fields	Destination|PersonRank|PersonName|PersonId|PositionCode|PersonPosition|ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate|EventDate|Hospital|HospitalShortName|Document|DocumentDate|DocumentNumber
@@ -1035,6 +1036,7 @@ value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCur
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromVlkToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromAnnualVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromFamilyVacationToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
+value	PersonalEventBuilder::export.Word.context.templates.ToMedicalCompanyVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromExternalVlkToAnnualVacation.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromHospitalToVacationForCuring.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort|HospitalDative|Destination
 value	PersonalEventBuilder::export.Word.context.templates.MoveFromVacationForCuringToHospital.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|OrderDateShort|DateFromShort
@@ -1120,6 +1122,7 @@ value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVlkToVacationForCuri
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromOutpatientVlkToHospital	ToHospital
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAnnualVacationToHospital	MoveFromAnnualVacationToHospital
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromFamilyVacationToHospital	MoveFromFamilyVacationToHospital
+value	PersonalEventBuilder::export.Word.textAnchors.ToMedicalCompanyVacationForCuring	ToMedicalCompanyVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromExternalVlkToAnnualVacation	ToAnnualMainVacation
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromHospitalToVacationForCuring	MoveFromHospitalToVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.MoveFromVacationForCuringToHospital	MoveFromVacationForCuringToHospital
@@ -1286,6 +1289,9 @@ value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.lookups.count	1
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromFamilyVacationToHospital.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.ToMedicalCompanyVacationForCuring.lookups.count	0
+value	PersonalEventBuilder::export.Word.ToMedicalCompanyVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.ToMedicalCompanyVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToAnnualVacation.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Word.MoveFromExternalVlkToAnnualVacation.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
@@ -1808,8 +1814,9 @@ value	PersonalEventBuilder::history.fieldState.table	tbExportFieldState
 value	PersonalEventBuilder::history.fieldState.fields	EventRowId|Exporter|Target|Side|Field|Revision|GeneratedValue|AppliedValue
 value	PersonalEventBuilder::history.identityFields	AcceptedOrderNumber|AcceptedOrderDate|PersonId|EventId|EventDate
 value	PersonalEventBuilder::history.selfReportPattern	^\s*$|^\s*[Сс][Аа][Мм]\s*$
-value	PersonalEventBuilder::document.fixed.modes	ToVacationForCuring|MoveFromHospitalToVacationForCuring
+value	PersonalEventBuilder::document.fixed.modes	ToVacationForCuring|MoveFromHospitalToVacationForCuring|ToMedicalCompanyVacationForCuring
 value	PersonalEventBuilder::document.fixed.ToVacationForCuring	В/к
+value	PersonalEventBuilder::document.fixed.ToMedicalCompanyVacationForCuring	В/к
 value	PersonalEventBuilder::document.fixed.MoveFromHospitalToVacationForCuring	В/к
 value	PersonalEventBuilder::document.fields.1.record	Document.Name
 value	PersonalEventBuilder::document.fields.1.formField	Document
@@ -1873,6 +1880,10 @@ value	PersonalEventBuilder::extensions.mode.ToVacationForCuring.default.1.role	V
 value	PersonalEventBuilder::extensions.mode.ToVacationForCuring.default.1.removable	false
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.count	2
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.1.type	Document
+value	PersonalEventBuilder::extensions.mode.ToMedicalCompanyVacationForCuring.default.1.role	Vlk
+value	PersonalEventBuilder::extensions.mode.ToMedicalCompanyVacationForCuring.default.1.type	Document
+value	PersonalEventBuilder::extensions.mode.ToMedicalCompanyVacationForCuring.default.1.removable	false
+value	PersonalEventBuilder::extensions.mode.ToMedicalCompanyVacationForCuring.default.count	1
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.1.role	Vlk
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.1.removable	false
 value	PersonalEventBuilder::extensions.mode.MoveFromHospitalToVacationForCuring.default.2.type	Document
@@ -1971,7 +1982,7 @@ value	PersonalEventBuilder::extensions.type.Document.defaults	-
 value	PersonalEventBuilder::extensions.type.Document.readOnly	-
 value	PersonalEventBuilder::extensions.type.Document.required	Document
 value	PersonalEventBuilder::extensions.limit	20
-value	PersonalEventBuilder::extensions.modes	ToVacationForCuring|MoveFromHospitalToVacationForCuring|MoveFromVacationForCuringToVacationForCuring
+value	PersonalEventBuilder::extensions.modes	ToVacationForCuring|MoveFromHospitalToVacationForCuring|MoveFromVacationForCuringToVacationForCuring|ToMedicalCompanyVacationForCuring
 value	PersonalEventBuilder::extensions.types	TVO|Report|Document
 value	PersonalEventBuilder::extensions.invalid	Заповніть обов’язкові поля розширення: {field}
 value	PersonalEventBuilder::extensions.addCaption	+
@@ -2121,6 +2132,21 @@ value	PersonalEventBuilder::environment.name	TEST
 value	PersonalEventBuilder::environment.config.PROD	../../config/PersonalEventBuilder/wsConfig.txt
 value	PersonalEventBuilder::environment.config.TEST	../../config/PersonalEventBuilder/wsConfig.test.txt
 value	PersonalEventBuilder::eventContext.ToBusinessTrip.targetStatus	BusinessTrip
+value	PersonalEventBuilder::movementDiff.show	Останній експорт РУХ
+value	PersonalEventBuilder::movementDiff.added	Додано
+value	PersonalEventBuilder::movementDiff.empty	(порожньо)
+value	PersonalEventBuilder::movementDiff.error	(помилка Excel)
+value	PersonalEventBuilder::movementDiff.failed	РУХ експортовано, але звіт змін не показано: {details}
+value	PersonalEventBuilder::movementDiff.fields	PersonName|EventName|Action|TargetRow|Field|Before|After
+value	PersonalEventBuilder::movementDiff.columns.After	Стало
+value	PersonalEventBuilder::movementDiff.columns.Field	Поле
+value	PersonalEventBuilder::movementDiff.columns.Action	Дія
+value	PersonalEventBuilder::movementDiff.columns.Before	Було
+value	PersonalEventBuilder::movementDiff.columns.EventName	Подія
+value	PersonalEventBuilder::movementDiff.columns.TargetRow	Рядок РУХ
+value	PersonalEventBuilder::movementDiff.columns.PersonName	ПІБ
+value	PersonalEventBuilder::movementDiff.summary	{time} — РУХ, наказ №{order} від {date}: додано {added}, оновлено {updated}, без змін {unchanged}.
+value	PersonalEventBuilder::movementDiff.updated	Змінено
 value	PersonalEventBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonalEventBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	PersonalEventBuilder::lookup.ReturnTickets.document	В/к
