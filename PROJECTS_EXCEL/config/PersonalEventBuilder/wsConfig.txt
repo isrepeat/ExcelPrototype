@@ -1299,6 +1299,7 @@ value	PersonalEventBuilder::export.Movement.destination.unitPattern	(^|[^0-9A-Za
 value	PersonalEventBuilder::export.Movement.foodSupport.minimumOrderOffsetDays	1
 value	PersonalEventBuilder::export.Movement.destinations.MedicalCompany	Медична рота А7383
 value	PersonalEventBuilder::export.Movement.manualChanges.policy	Overwrite
+value	PersonalEventBuilder::export.Movement.positionCodes	A1A=РОЗП|A1B=СПИС|A1C=ТП
 value	PersonalEventBuilder::export.dateFields	AcceptedOrderDate|IncomingDate|EventDate|DocumentDate
 value	PersonalEventBuilder::legend.Absence.entryTemplate	{source} ({modified})
 value	PersonalEventBuilder::legend.sources	Personnel|Absence|ReturnTickets|Hospital|Document
