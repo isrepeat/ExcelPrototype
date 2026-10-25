@@ -1035,8 +1035,32 @@ Private Function private_ExportValue( _
     If VBA.Len(header) > 0 Then
         If header = ex_PEB_Export.fn_Config("export.Movement.headers.Destination") Then
             private_ExportValue = fn_Destination(value)
+        ElseIf header = ex_PEB_Export.fn_Config("export.Movement.headers.PositionCode") Then
+            private_ExportValue = private_PositionCode(value)
         End If
     End If
+End Function
+
+Private Function private_PositionCode(ByVal value As Variant) As Variant
+    Dim text As String
+    Dim rule As Variant
+    Dim mapping As Variant
+
+    private_PositionCode = value
+    text = ex_PEB_Export.fn_Text(value)
+    For Each rule In VBA.Split(ex_PEB_Export.fn_Config("export.Movement.positionCodes"), "|")
+        mapping = VBA.Split(VBA.CStr(rule), "=")
+        If UBound(mapping) <> 1 Then
+            Err.Raise 5, , "Invalid Movement position code mapping: " & VBA.CStr(rule)
+        End If
+        If VBA.Len(mapping(0)) = 0 Or VBA.Len(mapping(1)) = 0 Then
+            Err.Raise 5, , "Empty Movement position code mapping: " & VBA.CStr(rule)
+        End If
+        If VBA.StrComp(VBA.Left$(text, VBA.Len(mapping(0))), mapping(0), VBA.vbTextCompare) = 0 Then
+            private_PositionCode = mapping(1)
+            Exit Function
+        End If
+    Next rule
 End Function
 
 Private Sub private_AddMappings( _
