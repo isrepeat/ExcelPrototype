@@ -468,12 +468,34 @@ All 17 Word templates for departure or transition into vacation include `block.O
 
 Word rejection skips only the matching event: preparation sets `WordPolicy=Omit`, retains `WordRejectionReason`, and succeeds. Batch generation continues with other events and journals rejected items as `RejectedOmitted`, never `Generated`. If all events are omitted, generation succeeds without opening Word or creating a document. Word preview preparation also omits rejected events; pure template rendering does not enforce export policy. Invalid configuration and missing rule fields remain errors. Movement rejection still stops its current operation. Existing documents are not modified merely by adding a rule.
 
+## Root sections in the DOCX template
+
+The optional third marker level groups a main numbered heading and its child blocks:
+
+```text
+{\root:Returns_Begin}
+3. Main heading
+{\block:FromBusinessTrip_Begin}
+3.1. Child heading
+{\export:FromBusinessTrip_Begin}
+{\export:FromBusinessTrip_End}
+{\block:FromBusinessTrip_End}
+{\root:Returns_End}
+```
+
+Each root boundary must occupy a separate paragraph. Roots cannot nest, overlap or cut across a child block/export pair. Root identifiers are independent of export identifiers. Existing two-level templates remain supported.
+
+Cleanup examines export bodies rather than heading text. If all export bodies inside a root are empty or whitespace-only, the entire root is removed, including its main heading and empty children. Roots without export bodies are also removed. Otherwise the main heading and populated children remain; empty child blocks and all marker paragraphs are removed. Native Word numbering remains intact.
+
+`Scripts/Testing/PEB/add_word_root_blocks.py` adds root boundaries around the six top-level numbered headings in the configured source template and keeps a backup in `.backup/root-blocks`. Section six ends immediately after `ToMedicalCompanyVacationForCuring` (item 6.2). All subsequent `MoveFrom...` status transitions are independent top-level blocks outside these roots; their existing block/export markers already remove each empty transition. The migration preserves existing paragraphs and all other ZIP parts and corrects a previously overextended section-six boundary. Already-generated documents are not migrated.
+
 ## 15. Проверка и тестирование
 
 Команды запускаются из корня репозитория:
 
 ```text
 python Scripts/Testing/PEB/validate_word_grammar.py
+python Scripts/Testing/PEB/validate_word_root_blocks.py
 python Scripts/Testing/PEB/validate_export_rejections.py
 python Scripts/Testing/PEB/validate_word_routes.py
 python Scripts/Testing/PEB/validate_movement_templates.py
