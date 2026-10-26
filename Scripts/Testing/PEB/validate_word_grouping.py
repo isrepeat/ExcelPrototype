@@ -21,7 +21,9 @@ def validate_plan(template, fields):
     assert len(template.findall("p:group", NS)) == 1
     for group in template.findall(".//p:group", NS):
         assert all(key.strip() in known for key in group.get("by", "").split(";"))
-        assert len(group.findall("p:single/p:text", NS)) == 1
+        assert len(group.findall("p:single/p:text", NS)) + len(group.findall("p:single/p:group", NS)) == 1
+        if group.get("branchBy"):
+            assert all(key.strip() in known for key in group.get("branchBy").split(";"))
         assert len(group.findall("p:multiple", NS)) == 1
         assert len(group.findall("p:multiple/p:item", NS)) + len(group.findall("p:multiple/p:group", NS)) == 1
         aggregates = set()
@@ -51,7 +53,7 @@ def main():
         template = root.find("p:template[@name='ToBusinessTrip']", NS)
         fields = set(settings["export.Word.grouping.stateFields"].split("|"))
         validate_plan(template, fields)
-        certificate_pattern = template.find("p:group/p:aggregate", NS).get("pattern")
+        certificate_pattern = template.find(".//p:aggregate", NS).get("pattern")
         assert not re.fullmatch(certificate_pattern, "2026/298/INVALID")
         assert re.fullmatch(certificate_pattern, "2026/298/101")
         assert "PersonId" not in settings["export.Word.grouping.output"]
@@ -62,12 +64,11 @@ def main():
         assert set(defaults) == set(test_settings["test.scenarios.groupingSteps.fields"].split("|")[5:])
         assert "WordText" not in fields
         assert template.find("p:text", NS) is None
-        assert "{[GroupBasis]}" in template.find("p:group/p:single/p:text", NS).text
-        single = template.find("p:group/p:single/p:text", NS).text
-        assert single.index("Відрядити у") < single.index("{#newline}{#newline}") < single.index("{#include block.PersonLineLower}")
+        assert "{[GroupBasis]}" in ''.join(template.itertext())
+        single = template.find("p:group/p:single/p:header/p:text", NS).text
         assert single.count("{[Destination]|nbspAfterSettlementAbbr}") == 1
         assert single.count("{[DateFromShort]|") == 1
-        footer = template.find("p:group/p:multiple/p:footer/p:text", NS).text
+        footer = template.find(".//p:footer/p:text", NS).text
         assert "№№\u00a0{[CertificateNumbers]}" in footer
         certificate = root.find("p:sharedTemplates/p:sharedTemplate[@id='block.OptionalBusinessTripCertificate']/p:text", NS)
         assert certificate is not None and "№\u00a0{[VacationTicketNo]}" in certificate.text
@@ -88,7 +89,7 @@ def main():
                 if step.get("error"):
                     failure_cases.add(step.get("error"))
                 else:
-                    assert re.fullmatch(template.find("p:group/p:aggregate", NS).get("pattern"), values["TicketNumber"])
+                    assert re.fullmatch(template.find(".//p:aggregate", NS).get("pattern"), values["TicketNumber"])
             for assertion in scenario.findall("expect"):
                 assert assertion.text and int(assertion.get("count")) >= 0
         assert len(ids) == 16

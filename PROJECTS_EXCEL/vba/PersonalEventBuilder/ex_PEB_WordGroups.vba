@@ -262,7 +262,16 @@ Private Function private_RenderGroup( _
             End If
             context.Add field, private_NumberRanges(members, aggregate)
         Next aggregate
-        If members.Count = 1 Then
+        Set branch = Nothing
+        If Not group.Attributes.getNamedItem("branchBy") Is Nothing Then
+            Set branch = group.selectSingleNode("p:single")
+            For Each item In members
+                If fn_Key(item, private_Attribute(group, "branchBy")) <> fn_Key(members(1), private_Attribute(group, "branchBy")) Then
+                    Set branch = group.selectSingleNode("p:multiple")
+                    Exit For
+                End If
+            Next item
+        ElseIf members.Count = 1 Then
             Set branch = group.selectSingleNode("p:single")
         Else
             Set branch = group.selectSingleNode("p:multiple")
@@ -303,13 +312,20 @@ Private Sub private_ValidateGroup(ByVal group As Object)
     Dim value As String
     Dim names As Object
 
-    private_CheckAttributes group, "by"
+    private_CheckAttributes group, "by|branchBy"
     value = private_Attribute(group, "by")
+    If Not group.Attributes.getNamedItem("branchBy") Is Nothing Then
+        value = private_Attribute(group, "branchBy")
+    End If
     If group.selectNodes("p:single").Length <> 1 Or group.selectNodes("p:multiple").Length <> 1 Then
         Err.Raise 5, , "Word group requires exactly one single and multiple branch."
     End If
     private_CheckAttributes group.selectSingleNode("p:single"), VBA.vbNullString
-    private_ValidateTextBlock group.selectSingleNode("p:single")
+    If group.selectSingleNode("p:single").selectNodes("p:text").Length > 0 Then
+        private_ValidateTextBlock group.selectSingleNode("p:single")
+    Else
+        private_ValidateGroupBranch group.selectSingleNode("p:single")
+    End If
     Set names = VBA.CreateObject("Scripting.Dictionary")
     For Each node In group.selectNodes("p:aggregate")
         private_CheckAttributes node, "name|field|operation|pattern|separator|rangeSeparator"
@@ -337,6 +353,13 @@ Private Sub private_ValidateGroup(ByVal group As Object)
         End If
     Next node
     Set branch = group.selectSingleNode("p:multiple")
+    private_ValidateGroupBranch branch
+End Sub
+
+Private Sub private_ValidateGroupBranch(ByVal branch As Object)
+    Dim node As Object
+    Dim value As String
+
     private_CheckAttributes branch, VBA.vbNullString
     If branch.selectNodes("p:item | p:group").Length <> 1 Then
         Err.Raise 5, , "Word multiple branch requires one item or nested group."
