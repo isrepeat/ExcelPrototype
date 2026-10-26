@@ -1,9 +1,11 @@
 """Check the TVO table migration and legacy read compatibility without Office/VBA."""
 
-from event_routes import ROOT, parse_config
+from event_routes import ROOT, parse_config, load_registry, NS
 from movement_plans import load_native_plans
 from validate_movement_batch import check_blocks, check_module_sections
 from validate_movement_planner import check_declarations, procedure
+from copy import deepcopy
+from xml.etree import ElementTree as ET
 
 
 def preprocess(source, enabled):
@@ -74,6 +76,62 @@ def main():
     predicate = procedure(table, 'fn_IsStarted')
     assert predicate.index('fn_Text(startOrder)') < predicate.index('fn_ParseDate(startDate')
     assert 'private_AdmissionOnly(model, item, eventDate)' in procedure(table, 'fn_Prepare')
+    normalize = procedure(table, 'private_HistoryDuties')
+    assert 'If item.Exists("DutyPositionCode") Then' in normalize
+    assert 'fn_Required(item, "DutyPositionCode")' in normalize
+    assert 'Set row = CreateObject("Scripting.Dictionary")' in normalize
+    history = (folder / 'ex_PEB_History.vba').read_text(encoding='utf-8-sig')
+    children = procedure(history, 'private_Tvo')
+    assert 'row("DutyPositionCode") = parent("PositionCode")' in children
+    assert 'row("DutyPersonName") = parent("PersonName")' in children
+    assert 'private_Tvo rows, row, result' in children
+    prepare_tvo = procedure(table, 'fn_Prepare')
+    assert prepare_tvo.index('Set requested = private_HistoryDuties') < prepare_tvo.index('private_Matches(chain, requested')
+    assert 'Set chain = requested' in prepare_tvo
+    assert 'private_RenderTexts row, values, replacedPerson' in prepare_tvo
+    render_tvo = procedure(table, 'private_RenderTexts')
+    assert 'fn_Texts(CStr(values("MovementTemplateId")), "TVO")' in render_tvo
+    assert 'renderer.TryRender(' in render_tvo
+    assert 'returnTvo.table.values.' not in table
+    assert 'returnTvo.reasons.' not in table
+    fields = procedure(table, 'private_Fields')
+    assert '|Duration|Information' in fields
+    for filename in ('wsConfig.txt', 'wsConfig.test.txt'):
+        settings = parse_config(ROOT / 'PROJECTS_EXCEL/config/PersonalEventBuilder' / filename)
+        assert settings['returnTvo.table.headers.Duration'] == 'Термін'
+        assert settings['returnTvo.table.headers.Information'] == 'Додаткова інформація'
+        assert not any(key.startswith(('returnTvo.table.values.', 'returnTvo.reasons.')) for key in settings)
+        registry = load_registry(settings)
+        movement = registry['movement']
+        for mutation in ('unknown_target', 'duplicate_tvo', 'unknown_field'):
+            altered = deepcopy(movement['root'])
+            template = altered.find("p:template[@name='ToAnnualMainVacation']", NS)
+            column = template.find("p:column[@target='TVO']", NS)
+            if mutation == 'unknown_target':
+                column.set('target', 'UnknownTable')
+            elif mutation == 'duplicate_tvo':
+                template.append(deepcopy(column))
+            else:
+                column.find('p:text', NS).text = '{[UnknownTvoField]}'
+            try:
+                load_registry(settings, movement_text=ET.tostring(altered, encoding='unicode'))
+            except ValueError:
+                pass
+            else:
+                raise AssertionError('Invalid TVO column accepted: ' + mutation)
+        reasons = movement['root'].find("p:resources/p:dictionary[@name='TvoDepartureReasons']", NS)
+        reason_keys = {entry.get('key') for entry in reasons.findall('p:entry', NS)}
+        assert reasons.find("p:entry[@key='AnnualVacation']/p:variant", NS).get('value') == 'у щорічну відпустку'
+        native = load_native_plans(settings)
+        for name, event in movement['events'].items():
+            texts = movement['tvo_columns'][name]
+            if event['operation'] != 'Arrival':
+                assert event['targetStatus'] in reason_keys
+                assert set(texts) == {'Термін', 'Додаткова інформація'}
+                assert texts['Термін'] == 'Інше'
+                assert texts['Додаткова інформація'] == '{#include block.TvoInformation}'
+            else:
+                assert not texts
     reporter = (folder / 'ex_PEB_Export.vba').read_text(encoding='utf-8-sig')
     assert 'fn_Config("returnTvo.table.headers.StartOrder")' in procedure(reporter, 'fn_TryReporterTvoPositions')
     assert 'ex_PEB_MovementTvo.fn_IsStarted(' in procedure(reporter, 'fn_TryReporterTvoPositions')

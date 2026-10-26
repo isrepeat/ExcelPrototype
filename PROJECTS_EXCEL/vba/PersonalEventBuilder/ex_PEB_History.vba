@@ -989,6 +989,8 @@ Private Sub private_Tvo( _
     Next row
     For Each row In children
         row("DutyPositionGenitive") = VBA.vbNullString
+        row("DutyPositionCode") = parent("PositionCode")
+        row("DutyPersonName") = parent("PersonName")
         For Each field In VBA.Array("RankGenitive", "FIOAccusative", "PositionGenitive", "RankDative", "FIODative")
             If VBA.Len(row(field)) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError025"), "{value}", VBA.CStr(field))
         Next field

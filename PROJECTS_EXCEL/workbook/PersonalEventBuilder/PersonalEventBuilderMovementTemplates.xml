@@ -31,6 +31,41 @@
       <item key="в/к"
             aliases="відпускний квиток"/>
     </itemOrder>
+    <dictionary name="TvoDepartureReasons"
+                ignoreCase="false"
+                normalize="trim"
+                onMissing="error">
+      <entry key="Awol">
+        <variant value="через самовільне залишення частини"/>
+      </entry>
+      <entry key="ExternalVlk">
+        <variant value="на стаціонарне ВЛК"/>
+      </entry>
+      <entry key="BusinessTrip">
+        <variant value="у відрядження"/>
+      </entry>
+      <entry key="MedicalLeave">
+        <variant value="у відпустку для лікування"/>
+      </entry>
+      <entry key="OutpatientVlk">
+        <variant value="на амбулаторне ВЛК"/>
+      </entry>
+      <entry key="AnnualVacation">
+        <variant value="у щорічну відпустку"/>
+      </entry>
+      <entry key="FamilyVacation">
+        <variant value="у відпустку за сімейними обставинами"/>
+      </entry>
+      <entry key="MaternityLeave">
+        <variant value="у відпустку у зв'язку з вагітністю та пологами"/>
+      </entry>
+      <entry key="HospitalTreatment">
+        <variant value="на лікування до лікарні"/>
+      </entry>
+      <entry key="ReturnToOtherUnit">
+        <variant value="до іншої частини"/>
+      </entry>
+    </dictionary>
   </resources>
   <sharedTemplates>
     <sharedTemplate id="block.IncomingBasis">
@@ -104,6 +139,12 @@
     <sharedTemplate id="block.VlkBasisDocuments">
       <text><![CDATA[#^
 #_        {#include block.OptionalBasisDocuments}#^
+      ]]></text>
+    </sharedTemplate>
+    <sharedTemplate id="block.TvoInformation">
+      <text><![CDATA[#^
+#_        {#if [TvoIsChain]}Заміщує {[TvoReplacedPersonName]} у ланцюжку заміщення {[PersonName]}, який вибув{#else}Заміщує {[TvoReplacedPersonName]}, тому що він вибув{#endif}#^
+#_        {#space}{[TargetStatus]|lookup:"TvoDepartureReasons"}.#^
       ]]></text>
     </sharedTemplate>
   </sharedTemplates>
@@ -193,6 +234,14 @@
     </column>
   </template>
   <template name="ToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -204,6 +253,14 @@
     </column>
   </template>
   <template name="ToBusinessTrip">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -215,6 +272,14 @@
     </column>
   </template>
   <template name="ToAnnualMainVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -226,6 +291,14 @@
     </column>
   </template>
   <template name="ToVacationForFamily">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -236,6 +309,14 @@
     </column>
   </template>
   <template name="ToMaternityLeave">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -246,6 +327,14 @@
     </column>
   </template>
   <template name="ToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -257,6 +346,14 @@
     </column>
   </template>
   <template name="ToMedicalCompanyVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -268,6 +365,14 @@
     </column>
   </template>
   <template name="ToOutpatientExaminationOrVlk">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -279,6 +384,14 @@
     </column>
   </template>
   <template name="ToMedicalCompanyForTreatment">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.DepartureBasis">
       <text>
         <![CDATA[#^
@@ -290,6 +403,14 @@
     </column>
   </template>
   <template name="MoveFromHospitalToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -310,6 +431,14 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -330,6 +459,14 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -350,6 +487,14 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -370,6 +515,14 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToVlk">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -390,6 +543,14 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToVlk">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -410,6 +571,14 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToVlk">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -430,6 +599,14 @@
     </column>
   </template>
   <template name="MoveFromVlkToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -450,6 +627,14 @@
     </column>
   </template>
   <template name="MoveFromVlkToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -470,6 +655,14 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyForTreatmentToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -490,6 +683,14 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyForTreatmentToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -510,6 +711,14 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyVacationForCuringToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -530,6 +739,14 @@
     </column>
   </template>
   <template name="MoveFromMedicalCompanyVacationForCuringToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -550,6 +767,14 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToFamilyVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -570,6 +795,14 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToAnnualVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -590,6 +823,14 @@
     </column>
   </template>
   <template name="MoveFromHospitalToExternalVlk">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -610,6 +851,14 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -630,6 +879,14 @@
     </column>
   </template>
   <template name="MoveFromExternalVlkToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -650,6 +907,14 @@
     </column>
   </template>
   <template name="MoveFromExternalVlkToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -670,6 +935,14 @@
     </column>
   </template>
   <template name="MoveFromOutpatientVlkToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -690,6 +963,14 @@
     </column>
   </template>
   <template name="MoveFromOutpatientVlkToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -710,6 +991,14 @@
     </column>
   </template>
   <template name="MoveFromAnnualVacationToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -730,6 +1019,14 @@
     </column>
   </template>
   <template name="MoveFromFamilyVacationToVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -750,6 +1047,14 @@
     </column>
   </template>
   <template name="MoveFromAwolToBusinessTrip">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -770,6 +1075,14 @@
     </column>
   </template>
   <template name="MoveFromVacationForCuringToAnnualVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -790,6 +1103,14 @@
     </column>
   </template>
   <template name="MoveFromExternalVlkToAnnualVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^
@@ -810,6 +1131,14 @@
     </column>
   </template>
   <template name="MoveFromOutpatientVlkToAnnualVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
     <column configKey="export.Movement.headers.ArrivalBasis">
       <text>
         <![CDATA[#^

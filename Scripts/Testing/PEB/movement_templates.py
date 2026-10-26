@@ -25,7 +25,7 @@ def load_movement(settings, workbook, xml_text=None):
     require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("resources", "sharedTemplates", "template")} for child in root), "Unknown result element")
     known = set(settings["export.fields"].split("|")) | set(settings["export.shared.inputs.scalars"].split("|")) | {
         "EventName", "SourceEventName", "SourceDestination", "TicketDocument", "FoodSupportDate",
-        "SourceStatus", "TargetStatus", "Operation",
+        "SourceStatus", "TargetStatus", "Operation", "TvoReplacedPersonName", "TvoIsChain",
     }
     for section, key in (("lookups", "output"), ("aliases", "name"), ("constants", "name")):
         for number in range(1, int(settings[f"export.shared.{section}.count"]) + 1):
@@ -36,6 +36,7 @@ def load_movement(settings, workbook, xml_text=None):
     shared, templates = {}, {}
     load_resources(root, known)
     column_texts = {}
+    tvo_texts = {}
     for node in root.findall("p:sharedTemplates/p:sharedTemplate", NS):
         attributes(node, {"id"}, {"id"})
         name = node.get("id")
@@ -50,19 +51,26 @@ def load_movement(settings, workbook, xml_text=None):
         validate_rejections(node, settings, known | {"VacationAdditionalDays"})
         require(node.findall("p:column", NS) and all(child.tag in {f"{{{NS['p']}}}column", f"{{{NS['p']}}}reject"} for child in node), "Expected result columns: " + name)
         texts, names = {}, set()
+        duty_texts, duty_names = {}, set()
         for column in node.findall("p:column", NS):
-            attributes(column, {"configKey"}, {"configKey"})
+            attributes(column, {"configKey", "target"}, {"configKey"})
+            target = column.get("target", "Absence")
+            require(target in {"Absence", "TVO"}, "Unknown result text target: " + target)
+            selected_texts = duty_texts if target == "TVO" else texts
+            selected_names = duty_names if target == "TVO" else names
             config_key = column.get("configKey").strip()
             require(config_key in settings and settings[config_key].strip(), "Missing configuration key: " + config_key)
             column_name = settings[config_key]
-            require(column_name.casefold() not in names, "Duplicate result column: " + column_name)
-            names.add(column_name.casefold())
+            require(column_name.casefold() not in selected_names, "Duplicate result column: " + column_name)
+            selected_names.add(column_name.casefold())
             require([child.tag for child in column] == [f"{{{NS['p']}}}text"], "Expected one column text: " + column_name)
             text = column.find("p:text", NS).text or ""
             require(text.strip(), "Empty result column text: " + column_name)
-            texts[column_name] = text
+            selected_texts[column_name] = text
+        require(texts, "Expected absence columns: " + name)
         templates[name] = node
         column_texts[name] = texts
+        tvo_texts[name] = duty_texts
     def validate_text(text, trail=()):
         require(len(trail) <= int(settings["export.dsl.maxDepth"]), "Include-depth limit exceeded")
         for name in re.findall(r"\{#include\s+([^}]+)\}", text):
@@ -76,5 +84,8 @@ def load_movement(settings, workbook, xml_text=None):
     for texts in column_texts.values():
         for body in texts.values():
             validate_text(body)
+    for texts in tvo_texts.values():
+        for body in texts.values():
+            validate_text(body)
     require(templates, "No text templates")
-    return {"root": root, "templates": templates, "shared": shared, "columns": column_texts}
+    return {"root": root, "templates": templates, "shared": shared, "columns": column_texts, "tvo_columns": tvo_texts}

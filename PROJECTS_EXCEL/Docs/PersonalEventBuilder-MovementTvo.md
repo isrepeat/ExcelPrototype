@@ -1,5 +1,22 @@
 # Movement TVO table
 
+History TVO children retain their actor's own `PositionCode`. During history loading, `DutyPositionCode` and `DutyPersonName` come from the immediate parent, including nested replacements. The Movement planner copies these rows and uses `DutyPositionCode` as the replaced post without altering the stored child or its Word context. Existing registry and return rows already contain the replaced post. Assignment comparison uses the same normalized metadata as insertion.
+
+New departure and transition segments render their text columns from `PersonalEventBuilderMovementTemplates.xml`. A `column` without `target`, or with `target="Absence"`, belongs to the absence table. A `column target="TVO"` belongs to the TVO table and is rendered once per assignment before planning the cell changes. `configKey` resolves the destination header through wsConfig; text content, conditions and reasons live in XML. Missing or invalid TVO templates stop the operation before writes. These fields participate in previews, conflict stamps, verification and rollback. Previously exported rows are not automatically repaired.
+
+```xml
+<column configKey="returnTvo.table.headers.Duration"
+        target="TVO">
+  <text>Інше</text>
+</column>
+<column configKey="returnTvo.table.headers.Information"
+        target="TVO">
+  <text>{#include block.TvoInformation}</text>
+</column>
+```
+
+Each departure/transition template declares both columns. The shared `block.TvoInformation` uses `TvoReplacedPersonName` for the immediate replaced person, `PersonName` for the original absent person, and `TvoIsChain` to select the chain wording. The `TvoDepartureReasons` XML dictionary supplies the reason by `TargetStatus`. All other prepared Movement fields remain available. wsConfig retains only header mappings; `returnTvo.table.values` and `returnTvo.reasons` are no longer used.
+
 An admission (`Доступ.Наказ`) is distinct from acceptance of duties. A row without `Прийняття.Наказ` is not an executing assignment, even when it has an admission order or a provisional date. Such a registry row restores no duties and suppresses legacy fallback for that represented position. Departure/transition metadata must not promote that admitted person into a new accepted segment or fill acceptance/handover fields. Accepted segments may still continue through transitions, and accepted assignments with a missing acceptance date remain errors. `MOVEMENT_TVO_EVENT`, `MOVEMENT_TVO_NOT_STARTED` and `MOVEMENT_TVO_ADMISSION_RETAINED` log the event context and admission decisions.
 
 Movement export plans changes to both the configured absence ListObject and the `ТВО` ListObject in the same open target workbook. `returnTvo.table.name` and `returnTvo.table.headers` configure the TVO destination in PROD and TEST. The worksheet is shared with `reporter.tvo.source.sheet`. No source workbook is saved, opened or closed by the writer.
