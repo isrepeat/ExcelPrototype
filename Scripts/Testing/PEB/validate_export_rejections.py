@@ -72,12 +72,26 @@ def main():
     assert 'values("VacationAdditionalDays") = 0' in service
     assert 'values("VacationAdditionalDays") = values("VacationAdditionalDays") + additional' in service
     history = service.split("Public Function TryPrepareHistory(", 1)[1].split("End Function", 1)[0]
-    assert history.index("fn_CheckRejections") < history.index('values("WordOutput") =')
+    assert history.index("fn_ApplyWordRejection") < history.index('values("WordOutput") =')
+    assert 'TryPrepareHistory = True\n        Exit Function' in history
     movement = service.split("Private Sub private_PrepareMovementTexts(", 1)[1].split("End Sub", 1)[0]
     assert movement.index("fn_CheckRejections") < movement.index("For Each column")
     renderer = (source / "obj_PEB_WordTemplates.cls.vba").read_text(encoding="utf-8-sig")
     render = renderer.split("Public Function TryRender(", 1)[1]
-    assert render.index("fn_CheckRejections") < render.index("ex_PEB_WordGroups.fn_Render")
+    assert "fn_CheckRejections" not in render
+    export = (source / "ex_PEB_Export.vba").read_text(encoding="utf-8-sig")
+    skip = export.split("Public Function fn_ApplyWordRejection(", 1)[1].split("End Function", 1)[0]
+    assert 'values("WordPolicy") = "Omit"' in skip
+    assert 'values("WordRejectionReason") = reason' in skip
+    assert "Err.Raise" not in skip
+    reason = export.split("Public Function fn_RejectionReason(", 1)[1].split("End Function", 1)[0]
+    assert "Err.Raise" not in reason
+    batch = (source / "obj_PEB_ExptrWord.cls.vba").read_text(encoding="utf-8-sig")
+    generate = batch.split("Public Function TryGenerateHistory(", 1)[1].split("End Function", 1)[0]
+    assert 'If item("WordPolicy") <> "Omit" Then' in generate
+    assert 'If first Is Nothing Then\n        output = vbNullString\n        TryGenerateHistory = True' in generate
+    controller = (source / "obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
+    assert 'exportItem("Status") = "RejectedOmitted"' in controller
     print("PASS: PROD/TEST annual Word rule, default allow, independent Movement rules, invalid definitions and preparation guards. Office/VBA not executed.")
 
 

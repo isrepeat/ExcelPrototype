@@ -133,7 +133,11 @@ Public Function TryGenerateHistory( _
             sections(eventId).Add item
         End If
     Next item
-    If first Is Nothing Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryNoWordEvents")
+    If first Is Nothing Then
+        output = vbNullString
+        TryGenerateHistory = True
+        GoTo CleanupHistory
+    End If
     ex_Core.fn_Diagnostic_WriteLog "WORD_EXPORT_BATCH | Events=" & VBA.CStr(events.Count) & _
         " | Sections=" & VBA.CStr(sections.Count)
     private_HistoryStage "Prepare.RenderSections", stage, startedAt
@@ -347,16 +351,23 @@ Private Function private_Export( _
     If operation <> "DELETE" Then
         If ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "WordPolicy")) = "Omit" Then
             If operation <> "INSERT" Then
-                Err.Raise 5, , "Word update requires an exported event route."
+                If Not values.Exists("WordRejectionReason") Then
+                    Err.Raise 5, , "Word update requires an exported event route."
+                End If
             End If
             values("WordExportAction") = "SKIP"
             private_Export = True
             Exit Function
         End If
         Set templates = ex_PEB_Export.fn_WordTemplates()
-        ex_PEB_Export.fn_CheckRejections _
+        If ex_PEB_Export.fn_ApplyWordRejection( _
             templates.Definition(CStr(ex_PEB_Export.fn_Required(values, "TemplateName"))), _
-            values
+            values _
+        ) Then
+            values("WordExportAction") = "SKIP"
+            private_Export = True
+            Exit Function
+        End If
     End If
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
     If existingTest Then

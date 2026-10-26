@@ -466,7 +466,7 @@ The rule detects a potential foreign-vacation marker in `Destination`: a parenth
 
 All 17 Word templates for departure or transition into vacation include `block.OptionalForeignVacationPermission` before the basis. It uses the same `Destination` pattern and conditionally adds a separate line, `Дозволено виїзд за кордон.`. Domestic destinations add neither the sentence nor its line break. This includes annual, family, maternity and medical leave, as well as transitions into these vacations. The annual-main-vacation rejection rule remains in effect independently: a matching rejected event still cannot be exported to Word.
 
-Rejection stops the current operation before writing to Word or Movement; a batch containing a rejected event is not partially exported. Preview preparation reports the same Word rejection. Existing documents are not modified by adding a rule.
+Word rejection skips only the matching event: preparation sets `WordPolicy=Omit`, retains `WordRejectionReason`, and succeeds. Batch generation continues with other events and journals rejected items as `RejectedOmitted`, never `Generated`. If all events are omitted, generation succeeds without opening Word or creating a document. Word preview preparation also omits rejected events; pure template rendering does not enforce export policy. Invalid configuration and missing rule fields remain errors. Movement rejection still stops its current operation. Existing documents are not modified merely by adding a rule.
 
 ## 15. Проверка и тестирование
 

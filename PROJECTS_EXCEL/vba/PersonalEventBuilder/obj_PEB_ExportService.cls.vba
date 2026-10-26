@@ -368,6 +368,10 @@ Public Function TryPrepare( _
             End If
         End If
         values("TemplateName") = templateName
+        If ex_PEB_Export.fn_ApplyWordRejection(m_pebWordTemplates.Definition(templateName), values) Then
+            TryPrepare = True
+            GoTo CleanupPrepare
+        End If
         Set groupTemplate = m_pebWordTemplates.GroupTemplate(templateName)
         values("WordGrouped") = Not groupTemplate Is Nothing
         For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & templateName & ".requiredKeys"), "|")
@@ -624,7 +628,10 @@ Public Function TryPrepareHistory( _
             m_ownsWordTemplates = False
         End If
     End If
-    ex_PEB_Export.fn_CheckRejections m_pebWordTemplates.Definition(template), values
+    If ex_PEB_Export.fn_ApplyWordRejection(m_pebWordTemplates.Definition(template), values) Then
+        TryPrepareHistory = True
+        Exit Function
+    End If
     If m_pebDslRenderer Is Nothing Then
         Set m_pebDslRenderer = New obj_PEB_DslRenderer
         If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
