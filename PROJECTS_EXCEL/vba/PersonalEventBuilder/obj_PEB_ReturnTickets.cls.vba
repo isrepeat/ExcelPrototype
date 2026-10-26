@@ -231,6 +231,15 @@ EH_HOSPITAL:
     diagnostic = "Hospital return: " & Err.Description
 End Function
 
+Public Function TicketDate(ByVal orderNumber As Variant) As String
+    Dim key As String
+
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Movement provider is not initialized."
+    private_LoadOrders
+    key = private_OrderNumber(orderNumber)
+    If m_orderDates.Exists(key) Then TicketDate = Format$(m_orderDates(key), "dd.mm.yyyy")
+End Function
+
 ' //
 ' // Private
 ' //

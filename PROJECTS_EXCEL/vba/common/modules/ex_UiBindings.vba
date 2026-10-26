@@ -29,9 +29,9 @@ Public Function fn_HandleSelection( _
     previousEvents = Application.EnableEvents
     On Error GoTo EH
     previousScreenUpdating = Application.ScreenUpdating
+    ex_Core.fn_Diagnostic_BeginBatch
+    diagnosticBatchEntered = True
     If kind = "confirmSelection" Then
-        ex_Core.fn_Diagnostic_BeginBatch
-        diagnosticBatchEntered = True
         busyEntered = ex_UiBusy.fn_Begin()
         Application.ScreenUpdating = False
     End If

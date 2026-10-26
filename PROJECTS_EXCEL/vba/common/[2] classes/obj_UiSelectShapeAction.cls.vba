@@ -18,6 +18,7 @@ Private m_isDisposed As Boolean
 Private m_controlId As Long
 Private m_worksheet As Worksheet
 Private m_targetCell As Range
+Private m_dropdownRange As Range
 Private m_headerShapeName As String
 Private m_panelShapeName As String
 Private m_itemShapeNames As Collection
@@ -85,7 +86,8 @@ Public Function Initialize( _
     ByVal uiCellBinding As obj_UiCellBinding, _
     Optional ByVal editable As Boolean = False, _
     Optional ByVal uiFieldControl As obj_UiFieldControl = Nothing, _
-    Optional ByVal placeholder As String = "" _
+    Optional ByVal placeholder As String = "", _
+    Optional ByVal dropdownRange As Range = Nothing _
 ) As Boolean
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -104,6 +106,7 @@ Public Function Initialize( _
     m_controlId = controlId
     Set m_worksheet = targetCell.Parent
     Set m_targetCell = targetCell.Cells(1, 1)
+    Set m_dropdownRange = dropdownRange
     m_headerShapeName = headerShapeName
     m_panelShapeName = panelShapeName
     Set m_itemShapeNames = itemShapeNames
@@ -134,6 +137,7 @@ Public Sub Dispose()
     Set m_shapeNames = Nothing
     Set m_itemShapeNames = Nothing
     Set m_targetCell = Nothing
+    Set m_dropdownRange = Nothing
     Set m_worksheet = Nothing
     m_headerShapeName = VBA.vbNullString
     m_panelShapeName = VBA.vbNullString
@@ -253,16 +257,36 @@ End Function
 
 Private Function private_ApplyVisibility() As Boolean
     Dim panelShape As Shape
+    Dim headerShape As Shape
     Dim itemShape As Shape
     Dim itemIndex As Long
+    Dim offsetLeft As Double
+    Dim offsetTop As Double
+    Dim dropdownWidth As Double
 
     If m_worksheet Is Nothing Then Exit Function
     On Error GoTo EH
     Set panelShape = m_worksheet.Shapes(m_panelShapeName)
+    If m_isExpanded Then
+        Set headerShape = m_worksheet.Shapes(m_headerShapeName)
+        offsetLeft = headerShape.Left - panelShape.Left
+        offsetTop = headerShape.Top + headerShape.Height - panelShape.Top
+        dropdownWidth = headerShape.Width
+        If Not m_dropdownRange Is Nothing Then
+            offsetLeft = m_dropdownRange.Left - panelShape.Left
+            offsetTop = m_dropdownRange.Top + m_dropdownRange.Height - panelShape.Top
+            dropdownWidth = m_dropdownRange.Width
+        End If
+    End If
     panelShape.Visible = VBA.IIf(m_isExpanded, msoTrue, msoFalse)
     If m_isExpanded Then panelShape.ZOrder msoBringToFront
     For itemIndex = 2 To m_shapeNames.Count
         Set itemShape = m_worksheet.Shapes(VBA.CStr(m_shapeNames(itemIndex)))
+        If m_isExpanded Then
+            itemShape.Left = itemShape.Left + offsetLeft
+            itemShape.Top = itemShape.Top + offsetTop
+            itemShape.Width = dropdownWidth
+        End If
         itemShape.Visible = VBA.IIf(m_isExpanded, msoTrue, msoFalse)
         If m_isExpanded Then itemShape.ZOrder msoBringToFront
     Next itemIndex

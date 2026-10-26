@@ -1130,4 +1130,21 @@
       ]]>
     </text>
   </template>
+  <template name="MoveFromHospitalToAnnualVacationContinuation">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який {#include block.StatusChangeResidenceVerb}на лікуванні у {[HospitalDative]|lowerFirstLetter|nbspAfterNumberSign}, вважати таким, що виписаний із лікувального закладу та вибув для продовження невикористаної частини щорічної основної відпустки#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
+#_      {#newline}{#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      {#include block.OptionalPreviousVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 </wordResultTemplates>

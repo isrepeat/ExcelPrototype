@@ -97,6 +97,9 @@ Public Function TryEnrich( _
     Dim detail As Variant
     Dim snapshot As obj_TableSnapshotSet
     Dim stageStartedAt As Double
+    Dim personId As Variant
+    Dim personName As Variant
+    Dim documents As Collection
 
     On Error GoTo EH
     stageStartedAt = VBA.Timer
@@ -207,7 +210,8 @@ Public Function TryEnrich( _
     End If
     ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.ReturnTickets | Enabled=" & VBA.CStr(returnMode), stageStartedAt
     stageStartedAt = VBA.Timer
-    If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Then
+    If InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.ReturnHospital.modes") & "|", "|" & modeId & "|", vbTextCompare) > 0 Or _
+            ex_PEB_AnnualContinuation.fn_Enabled(modeId) Then
         If Not snapshot Is Nothing Then
             Set m_returnTickets = snapshot.Prepared("ReturnTickets")
         End If
@@ -221,6 +225,36 @@ Public Function TryEnrich( _
         End If
     End If
     ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.ReturnHospital", stageStartedAt
+    stageStartedAt = VBA.Timer
+    If ex_PEB_AnnualContinuation.fn_Enabled(modeId) Then
+        For Each record In output
+            If Not record.TryGetValue("Personnel.TaxId", personId) Then Err.Raise 5, , "Annual continuation candidate is missing Personnel.TaxId."
+            If Not record.TryGetValue("Personnel.FullName", personName) Then Err.Raise 5, , "Annual continuation candidate is missing Personnel.FullName."
+            Set fields = ex_PEB_AnnualContinuation.fn_Fields(CStr(personId), CStr(personName), orderDate)
+            Set supplement = New obj_LookupRecord
+            If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize annual continuation fields."
+            If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot apply annual continuation fields."
+            Set fields = CreateObject("Scripting.Dictionary")
+            If Not record.TryGetValue("Continuation.TicketOrder", value) Then Err.Raise 5, , "Missing interrupted vacation order."
+            fields("Absence.TicketDate") = m_returnTickets.TicketDate(value)
+            Set supplement = New obj_LookupRecord
+            If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize original vacation ticket date."
+            If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot apply original vacation ticket date."
+            Set fields = CreateObject("Scripting.Dictionary")
+            fields("SourceAlias") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.sourceAlias")
+            fields("Document.Name") = ex_PEB_Export.fn_Config("extensions.role.MedicalCard.document")
+            If Not record.TryGetValue("Continuation.DocumentNumber", value) Then Err.Raise 5, , "Missing continuation medical card number field."
+            fields("DocumentNumber") = value
+            fields("DocumentDate") = Format$(parsedOrderDate, "dd.mm.yyyy")
+            fields("DocumentDateSourceAlias") = ex_PEB_Export.fn_Config("legend.orderDate.sourceAlias")
+            Set supplement = New obj_LookupRecord
+            If Not supplement.Initialize(record.Key & "|MedicalCard", fields) Then Err.Raise 5, , "Cannot initialize continuation medical card."
+            Set documents = New Collection
+            documents.Add supplement
+            If Not record.SetDetail("Document", documents) Then Err.Raise 5, , "Cannot attach continuation medical card."
+        Next record
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "Candidates.Enrich.AnnualContinuation", stageStartedAt
     TryEnrich = True
     Exit Function
 EH:

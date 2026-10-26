@@ -482,15 +482,41 @@ End Function
 Public Function TryLoad( _
     ByVal children As Collection, _
     ByRef diagnostic As String, _
-    Optional ByVal preserveDrafts As Boolean = False _
+    Optional ByVal preserveDrafts As Boolean = False, _
+    Optional ByRef structureChanged As Boolean = False _
 ) As Boolean
     Dim child As Object
     Dim row As Object
     Dim field As Variant
     Dim drafts As Collection
+    Dim reuseRows As Boolean
+    Dim index As Long
+    Dim role As String
 
     Set drafts = New Collection
-    If preserveDrafts Then
+    reuseRows = Not preserveDrafts And m_rows.Count = children.Count
+    If reuseRows Then
+        For index = 1 To children.Count
+            Set row = m_rows(index)
+            Set child = children(index)
+            role = vbNullString
+            If child.Exists("ExtensionRole") Then
+                role = CStr(child("ExtensionRole"))
+            End If
+            If row("Type") <> child("RowType") Or row("Role") <> role Then
+                reuseRows = False
+                Exit For
+            End If
+        Next index
+    End If
+    structureChanged = Not reuseRows
+    If reuseRows Then
+        ' Stable row IDs preserve the existing controls when only saved values change.
+        ex_PEB_ExtRefresh.fn_Cancel Me
+        If Not Me.HideCandidates() Then Exit Function
+        Set m_active = Nothing
+        m_defaultModes.RemoveAll
+    ElseIf preserveDrafts Then
         If Not Me.HideCandidates() Then Exit Function
         For Each row In m_rows
             If Not private_Active(row) Then
@@ -505,12 +531,23 @@ Public Function TryLoad( _
     Else
         If Not Me.Reset(diagnostic) Then Exit Function
     End If
+    index = 0
     For Each child In children
-        Set row = private_Add(child("RowType"))
+        index = index + 1
+        If reuseRows Then
+            Set row = m_rows(index)
+            row("Mode") = vbNullString
+            row("Role") = vbNullString
+        Else
+            Set row = private_Add(child("RowType"))
+        End If
         row("RowId") = child("RowId")
         row("ParentRowId") = child("ParentRowId")
         If child.Exists("ExtensionRole") Then row("Role") = child("ExtensionRole")
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
+            If reuseRows Then
+                If Not m_page.BindingContext.SetValue("Form", private_Path(row, CStr(field)) & "Style", m_defaultStyles(private_Path(row, CStr(field)))) Then Exit Function
+            End If
             If Not m_page.BindingContext.SetValue("Form", private_Path(row, CStr(field)), child(field)) Then Exit Function
             If Len(Trim$(CStr(child(field)))) > 0 Then
                 If InStr(1, private_Config(row("Type"), "map"), CStr(field) & "=", vbBinaryCompare) > 0 Then
@@ -523,6 +560,62 @@ Public Function TryLoad( _
         m_rows.Add row
     Next row
     TryLoad = True
+End Function
+
+Public Function TryApplyPersonnelDetails( _
+    ByVal record As obj_LookupRecord, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim row As Object
+    Dim details As Collection
+    Dim related As obj_LookupRecord
+    Dim updates As Object
+    Dim field As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim sourceField As String
+    Dim value As Variant
+    Dim documentName As Variant
+    Dim fixedDocument As String
+
+    On Error GoTo EH_DETAILS
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    Set updates = CreateObject("Scripting.Dictionary")
+    For Each row In m_rows
+        If private_Active(row) And Len(row("Role")) > 0 Then
+            fixedDocument = private_FixedDocument(row)
+            If Len(fixedDocument) > 0 Then
+                Set details = record.GetDetail(CStr(row("Type")))
+                For Each related In details
+                    If related.TryGetValue("Document.Name", documentName) Then
+                        If CStr(documentName) = fixedDocument Then
+                            For Each field In Split(private_Config(row("Type"), "fields"), "|")
+                                sourceField = CStr(field)
+                                For Each mapping In Split(private_Config(row("Type"), "map"), "|")
+                                    pair = Split(CStr(mapping), "=")
+                                    If UBound(pair) = 1 Then
+                                        If pair(0) = field Then sourceField = pair(1)
+                                    End If
+                                Next mapping
+                                If Not related.TryGetValue(sourceField, value) Then Err.Raise 5, , "Missing related document field: " & sourceField
+                                updates("Form." & private_Path(row, CStr(field))) = value
+                                If Len(Trim$(CStr(value))) > 0 Then
+                                    updates("Form." & private_Path(row, CStr(field)) & "Style") = private_Style(row("Type"), CStr(field), private_RelatedSource(related, CStr(field), private_Config(row("Type"), "profile")))
+                                Else
+                                    updates("Form." & private_Path(row, CStr(field)) & "Style") = private_Style(row("Type"), CStr(field), "default")
+                                End If
+                            Next field
+                            Exit For
+                        End If
+                    End If
+                Next related
+            End If
+        End If
+    Next row
+    TryApplyPersonnelDetails = m_page.BindingContext.TryApplyValues(updates, diagnostic)
+    Exit Function
+EH_DETAILS:
+    diagnostic = "Apply candidate document details: " & Err.Description
 End Function
 
 Public Function TryAcceptSaved( _
@@ -991,6 +1084,7 @@ Private Sub private_PublishCandidateDetails()
                 Next mapping
                 related.TryGetValue sourceField, fieldValue
                 If InStr(sourceField, ".") > 0 Then sourceAlias = Split(sourceField, ".")(0)
+                sourceAlias = private_RelatedSource(related, CStr(definition("field")), sourceAlias)
             End If
             If VarType(fieldValue) = vbDate Then fieldValue = Format$(CDate(fieldValue), "dd.mm.yyyy")
             values.Add fieldValue
@@ -1001,6 +1095,18 @@ Private Sub private_PublishCandidateDetails()
     Next definition
     If Not private_PublishDetails(cells) Then Err.Raise 5, , "Cannot publish candidate details."
 End Sub
+
+Private Function private_RelatedSource( _
+    ByVal record As obj_LookupRecord, _
+    ByVal field As String, _
+    ByVal defaultSource As String _
+) As String
+    Dim value As Variant
+
+    private_RelatedSource = defaultSource
+    If record.TryGetValue("SourceAlias", value) Then private_RelatedSource = CStr(value)
+    If record.TryGetValue(field & "SourceAlias", value) Then private_RelatedSource = CStr(value)
+End Function
 
 Private Function private_PublishDetails(ByVal cells As Collection) As Boolean
     Dim cell As Object

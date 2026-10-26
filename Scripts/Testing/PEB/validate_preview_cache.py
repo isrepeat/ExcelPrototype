@@ -76,7 +76,7 @@ def main():
     assert "snapshot.Prepared" in export
     assert "private_LookupTable" not in export and "private_TemplateStamp" not in export
     assert not any(token in movement for token in ("ADODB", "m_periods", "GetFile", "Application.Workbooks"))
-    assert "service.TryExecute(source, query, table, diagnostic, Not includeTvo)" in movement
+    assert "service.TryExecute(source, query, table, diagnostic, Not includeTvo Or useSnapshot)" in movement
     assert not any(token in tickets for token in ("GetFile", "CopyFile", "DeleteFile"))
     assert "m_loadingSnapshot.TryQuery" in tickets
     assert "ex_TableSnapshots" not in history
