@@ -1,13 +1,10 @@
 {
-  "ExcelWorkspaceA": [
-    "C:/Excel/WorkspaceA/Book1.xlsx",
-    "C:/Excel/WorkspaceA/Book2.xlsm"
+  "Excel WS PEB": [
+    "C:/Users/isrepeat/OneDrive/Рабочий стол/РУХ_last.xlsx",
+    "C:/WORK/Windows/Projects/ExcelPrototype/PROJECTS_EXCEL/workbook/PersonalEventBuilder/EventsHistory.xlsx",
+    "C:/WORK/Windows/Projects/ExcelPrototype/PROJECTS_EXCEL/workbook/PersonalEventBuilder/Personal event builder_prod — копия.xlsm"
   ],
-  "ExcelWorkspaceB": [
-    "Workbooks/Book1.xlsx",
-    "%USERPROFILE%/Documents/Book2.xlsx"
-  ],
-  "ExcelWorkspaceC": [
-    "C:\\Excel\\WorkspaceC\\Book1.xlsx"
+  "Excel WS PR": [
+    "c:/WORK/Windows/Projects/ExcelPrototype/PROJECTS_EXCEL/workbook/PeopleRegistry/PeopleRegistry.xlsx"
   ]
 }
