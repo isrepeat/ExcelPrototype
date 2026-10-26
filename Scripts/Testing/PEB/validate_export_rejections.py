@@ -34,7 +34,7 @@ def main():
                 assert body.index(include) < body.index("{#include block.IncomingBasis}"), template.get("name")
             else:
                 assert include not in body, template.get("name")
-        assert len(vacation_templates) == 17
+        assert len(vacation_templates) == 18
         assert {"ToAnnualMainVacation", "ToVacationForFamily", "ToMaternityLeave",
                 "ToVacationForCuring", "ToMedicalCompanyVacationForCuring",
                 "MoveFromAnnualVacationToFamilyVacation", "MoveFromFamilyVacationToAnnualVacation"} <= vacation_templates

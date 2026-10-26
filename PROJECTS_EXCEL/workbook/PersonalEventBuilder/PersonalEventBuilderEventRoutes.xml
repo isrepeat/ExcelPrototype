@@ -161,6 +161,15 @@
       <movement template="ToMedicalCompanyForTreatment"/>
       <word template="ToMedicalCompanyForTreatment"/>
     </event>
+    <event label="Лікування → продовження щорічної відпустки"
+           caption="Лікування → продовження щорічної відпустки"
+           id="MoveFromHospitalToAnnualVacationContinuation"
+           direction="StatusChange"
+           form="HospitalLeave"
+           visible="true">
+      <movement template="MoveFromHospitalToAnnualVacationContinuation"/>
+      <word template="MoveFromHospitalToAnnualVacationContinuation"/>
+    </event>
     <event label="Лікування → відпустка для лікування"
            caption="Лікування → відпустка для лікування"
            id="MoveFromHospitalToVacationForCuring"

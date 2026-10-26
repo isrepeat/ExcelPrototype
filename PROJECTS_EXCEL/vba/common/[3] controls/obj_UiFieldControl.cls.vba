@@ -399,7 +399,8 @@ Public Function CreateDropdownShapes( _
         m_targetRange.Width, items.Count * itemHeight + (items.Count - 1) * itemMargin + separators.Count * separatorHeight)
     panelShape.Name = panelShapeName
     shapeNames.Add panelShapeName
-    panelShape.Placement = xlMoveAndSize
+    ' Popup geometry must not follow worksheet row-height changes while hidden.
+    panelShape.Placement = xlFreeFloating
     private_ApplyDefaultShapeStyle panelShape
     uiRenderContext.Styles.ApplyControlPartStyle panelShape, _
         m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "panelStyle"
@@ -413,7 +414,7 @@ Public Function CreateDropdownShapes( _
                 msoShapeRectangle, panelShape.Left, nextTop, panelShape.Width, separatorHeight)
             separatorShape.Name = private_ShapeName(SELECT_SHAPE_PREFIX & "s_" & VBA.CStr(controlId) & "_" & VBA.CStr(itemIndex))
             shapeNames.Add separatorShape.Name
-            separatorShape.Placement = xlMoveAndSize
+            separatorShape.Placement = xlFreeFloating
             private_ApplyDefaultShapeStyle separatorShape
             uiRenderContext.Styles.ApplyControlPartStyle separatorShape, _
                 m_uiControlBase.ControlNode, uiRenderContext.BindingContext, "separatorStyle"
@@ -428,7 +429,7 @@ Public Function CreateDropdownShapes( _
             msoShapeRectangle, panelShape.Left, itemTop, panelShape.Width, itemHeight)
         itemShape.Name = itemShapeName
         shapeNames.Add itemShapeName
-        itemShape.Placement = xlMoveAndSize
+        itemShape.Placement = xlFreeFloating
         private_ApplyDefaultShapeStyle itemShape
         itemText = VBA.CStr(items(itemIndex))
         itemShape.TextFrame2.TextRange.Text = itemText
@@ -795,7 +796,7 @@ Private Function private_RenderSelectShapes( _
     Set uiSelectAction = New obj_UiSelectShapeAction
     If Not uiSelectAction.Initialize( _
             controlId, m_targetRange.Cells(1, 1), headerShapeName, panelShapeName, _
-            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable, Me, placeholder) Then Exit Function
+            itemShapeNames, shapeNames, items, selectedValue, uiCellBinding, m_editable, Me, placeholder, m_targetRange) Then Exit Function
     Set m_selectAction = uiSelectAction
     Dim routeName As Variant
 

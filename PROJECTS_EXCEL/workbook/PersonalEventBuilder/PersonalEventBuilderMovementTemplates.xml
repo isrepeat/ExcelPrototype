@@ -1158,4 +1158,20 @@
       </text>
     </column>
   </template>
+  <template name="MoveFromHospitalToAnnualVacationContinuation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>{#include block.IncomingBasis}{#include block.OptionalDepartureBasisDocuments}.</text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>{#include block.IncomingBasis}{#include block.OptionalDepartureBasisDocuments}.</text>
+    </column>
+  </template>
 </resultTemplates>

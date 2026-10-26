@@ -190,7 +190,10 @@ Public Sub fn_Prepare( _
         For Each table In sheet.ListObjects
             If Not Application.Intersect(area, table.Range) Is Nothing Then
                 If Not private_IsPlannedTable(table, smartPlans) Then
-                    private_Fail "Table range overlaps an unmanaged Excel table: " & table.Name
+                    ' Owned tables removed by this layout are released below before any expansion.
+                    If Not private_IsOwned(table, owned) Then
+                        private_Fail "Table range overlaps an unmanaged Excel table: " & table.Name
+                    End If
                 End If
             End If
         Next table
