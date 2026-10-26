@@ -18,8 +18,33 @@ exit /b 1
 // Copy this file under the desired workspace name beside ExcelWorkspaces.json.
 // Paths in the UTF-8 JSON may be absolute or relative to that JSON file.
 // Use --validate to check configuration without starting Excel.
+// Excel starts normally with /x, preserving XLSTART/PERSONAL startup behavior.
 var fso = new ActiveXObject("Scripting.FileSystemObject");
 var shell = new ActiveXObject("WScript.Shell");
+
+function findExcelExecutable() {
+    var keys = [
+        "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\excel.exe\\",
+        "HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\excel.exe\\",
+        "HKLM\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\excel.exe\\"
+    ];
+    for (var i = 0; i < keys.length; i++) {
+        var registeredPath;
+        try { registeredPath = shell.RegRead(keys[i]); }
+        catch (error) { continue; }
+        var path = shell.ExpandEnvironmentStrings(String(registeredPath)).replace(/^\s+|\s+$/g, "");
+        if (path.charAt(0) === '"' && path.charAt(path.length - 1) === '"') {
+            path = path.substring(1, path.length - 1);
+        }
+        if (fso.FileExists(path)) return path;
+    }
+    throw new Error("Excel executable was not found in the Windows App Paths registry.");
+}
+
+function quoteArgument(value) {
+    if (/["\r\n]/.test(value)) throw new Error("Invalid character in path: " + value);
+    return '"' + value + '"';
+}
 
 // Parse JSON without eval or dependencies on a browser's JSON implementation.
 function parseJson(text) {
@@ -137,16 +162,19 @@ try {
     if (WScript.Arguments.length > 1 || (WScript.Arguments.length === 1 && WScript.Arguments(0) !== "--validate")) {
         throw new Error("Only the optional --validate argument is supported.");
     }
+    // Pass every workbook to one normal Excel launch, so startup macros and UI
+    // follow the same path as an interactive launch instead of COM automation.
+    var command = quoteArgument(findExcelExecutable()) + " /x";
+    for (var j = 0; j < paths.length; j++) command += " " + quoteArgument(paths[j]);
+    if (command.length > 32766) throw new Error("Workspace exceeds the Windows command-line length limit.");
     if (WScript.Arguments.length === 1) {
         WScript.Echo("Validated " + workspace + ": " + paths.length + " workbook(s).");
+        WScript.Echo(command);
         WScript.Quit(0);
     }
 
-    // Keep already opened workbooks visible if a later workbook fails to open.
-    var excel = new ActiveXObject("Excel.Application");
-    excel.Visible = true;
-    excel.UserControl = true;
-    for (var j = 0; j < paths.length; j++) excel.Workbooks.Open(paths[j]);
+    // Run the executable directly without cmd.exe, preserving spaces and Unicode.
+    shell.Run(command, 1, false);
 } catch (error) {
     WScript.Echo("Cannot open Excel workspace: " + error.message);
     WScript.Quit(1);
