@@ -65,8 +65,16 @@ Public Function fn_SharedTemplates() As Object
     Set fn_SharedTemplates = m_shared
 End Function
 
-Public Function fn_Texts(ByVal name As String) As Object
+Public Function fn_Texts( _
+    ByVal name As String, _
+    Optional ByVal target As String = "Absence" _
+) As Object
     private_EnsureLoaded
+    If target = "TVO" Then
+        name = name & "|TVO"
+    ElseIf target <> "Absence" Then
+        Err.Raise 5, , "Unknown result text target: " & target
+    End If
     If Not m_columnTexts.Exists(name) Then
         Err.Raise 5, , "Result column texts not found: " & name
     End If
@@ -99,6 +107,9 @@ Private Sub private_EnsureLoaded()
     Dim propertyName As String
     Dim message As String
     Dim snapshot As obj_TableSnapshotSet
+    Dim absenceColumns As Object
+    Dim tvoColumns As Object
+    Dim target As String
 
     If Not m_staging Then
         ' Route validation must not start loading business dependencies.
@@ -138,6 +149,8 @@ Private Sub private_EnsureLoaded()
     Set m_shared = private_Dictionary()
     Set m_columnTexts = private_Dictionary()
     Set m_knownFields = private_Dictionary()
+    m_knownFields("TvoReplacedPersonName") = True
+    m_knownFields("TvoIsChain") = True
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.fields") & "|" & ex_PEB_Export.fn_Config("export.shared.inputs.scalars"), "|")
         m_knownFields(key) = True
     Next key
@@ -177,8 +190,10 @@ Private Sub private_EnsureLoaded()
         ex_PEB_Export.fn_ValidateRejections node, "|" & VBA.Join(m_knownFields.Keys, "|") & "|VacationAdditionalDays|"
         identifier = private_Attribute(node, "name")
         private_Add m_templates, identifier, node
-        Set columns = private_Dictionary()
-        columns.CompareMode = VBA.vbTextCompare
+        Set absenceColumns = private_Dictionary()
+        absenceColumns.CompareMode = VBA.vbTextCompare
+        Set tvoColumns = private_Dictionary()
+        tvoColumns.CompareMode = VBA.vbTextCompare
         For Each child In node.childNodes
             If child.nodeType = 1 Then
                 If child.namespaceURI <> "urn:excelprototype:profiles" Or _
@@ -188,8 +203,19 @@ Private Sub private_EnsureLoaded()
             End If
         Next child
         For Each columnNode In node.selectNodes("p:column")
-            private_CheckAttributes columnNode, "configKey"
+            private_CheckAttributes columnNode, "configKey|target"
             private_RequireChildren columnNode, "text"
+            target = "Absence"
+            If Not columnNode.getAttributeNode("target") Is Nothing Then
+                target = private_Attribute(columnNode, "target")
+            End If
+            If target = "TVO" Then
+                Set columns = tvoColumns
+            ElseIf target = "Absence" Then
+                Set columns = absenceColumns
+            Else
+                Err.Raise 5, , "Unknown result text target: " & target
+            End If
             columnName = ex_PEB_Export.fn_Config(private_Attribute(columnNode, "configKey"))
             If columns.Exists(columnName) Then
                 Err.Raise 5, , "Duplicate result column: " & identifier & "/" & columnName
@@ -201,10 +227,11 @@ Private Sub private_EnsureLoaded()
             private_ValidateText body, "|", 0
             columns.Add columnName, body
         Next columnNode
-        If columns.Count = 0 Then
+        If absenceColumns.Count = 0 Then
             Err.Raise 5, , "Result template requires at least one column: " & identifier
         End If
-        m_columnTexts.Add identifier, columns
+        m_columnTexts.Add identifier, absenceColumns
+        m_columnTexts.Add identifier & "|TVO", tvoColumns
     Next node
     If m_templates.Count = 0 Then
         Err.Raise 5, , "Result XML contains no text templates."

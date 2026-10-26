@@ -1632,6 +1632,7 @@ value	PersonalEventBuilder::returnTvo.rank.keyHeader	ІПН
 value	PersonalEventBuilder::returnTvo.rank.valueHeader	Військове звання фактично
 value	PersonalEventBuilder::returnTvo.table.name	ТВО
 value	PersonalEventBuilder::returnTvo.table.headers.EndDate	Здавання
+value	PersonalEventBuilder::returnTvo.table.headers.Duration	Термін
 value	PersonalEventBuilder::returnTvo.table.headers.EndBasis	Здавання.Підстава
 value	PersonalEventBuilder::returnTvo.table.headers.EndOrder	Здавання.Наказ
 value	PersonalEventBuilder::returnTvo.table.headers.PersonId	ІПН
@@ -1641,6 +1642,7 @@ value	PersonalEventBuilder::returnTvo.table.headers.PersonRank	Звання
 value	PersonalEventBuilder::returnTvo.table.headers.StartBasis	Прийняття.Підстава
 value	PersonalEventBuilder::returnTvo.table.headers.StartOrder	Прийняття.Наказ
 value	PersonalEventBuilder::returnTvo.table.headers.AccessOrder	Доступ.Наказ
+value	PersonalEventBuilder::returnTvo.table.headers.Information	Додаткова інформація
 value	PersonalEventBuilder::returnTvo.table.headers.PositionCode	Посада.Заміщує
 value	PersonalEventBuilder::returnTvo.table.headers.PlannedEndDate	Здавання.План
 value	PersonalEventBuilder::returnTvo.table.headers.OwnPositionCode	Посада.Своя

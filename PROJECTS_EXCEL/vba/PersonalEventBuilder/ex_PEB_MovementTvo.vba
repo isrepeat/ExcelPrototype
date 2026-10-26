@@ -58,7 +58,7 @@ Public Function fn_ReturnRows( _
     source.WorkbookPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("reporter.tvo.source.path"))
     source.SheetName = ex_PEB_Export.fn_Config("reporter.tvo.source.sheet")
     source.RangeAddress = ex_PEB_Export.fn_Config("reporter.tvo.source.range")
-    fields = private_Fields()
+    fields = private_Fields(False)
     For Each field In fields
         query.AddColumn private_Header(CStr(field))
     Next field
@@ -131,6 +131,8 @@ Public Sub fn_Prepare( _
     Dim existing As Object
     Dim lowerDate As Double
     Dim existingStartDate As Double
+    Dim requested As Collection
+    Dim replacedPerson As String
 
     Set table = private_Target(target.Parent.Parent)
     If table.Parent.ProtectContents Or Not table.ShowHeaders Then
@@ -160,6 +162,7 @@ Public Sub fn_Prepare( _
         If action("Status") = "AlreadyApplied" Then
             GoTo NextAction
         End If
+        Set requested = private_HistoryDuties(values("MetaTvoTables"))
         operation = action("Operation")
         eventDate = ex_PEB_History.fn_Date(values("EventDate"))
         lowerDate = 0
@@ -185,7 +188,7 @@ Public Sub fn_Prepare( _
             ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
         End If
         If operation = "append" And chain.Count > 0 Then
-            If Not private_Matches(chain, values("MetaTvoTables"), model, eventDate) Then
+            If Not private_Matches(chain, requested, model, eventDate) Then
                 ex_PEB_MovementLinks.fn_Fail "TvoAssignmentAlreadyOpen", action("RowId")
             End If
             GoTo NextAction
@@ -204,7 +207,7 @@ Public Sub fn_Prepare( _
         End If
         If operation = "append" Or operation = "transition" Then
             If chain.Count = 0 Then
-                Set chain = values("MetaTvoTables")
+                Set chain = requested
             End If
             If operation = "transition" And chain.Count = 0 And Not found Then
                 Set chain = ex_PEB_ReturnTvo.fn_LegacyRows(private_LegacyPeriod(target, action), CStr(values("PersonId")))
@@ -212,7 +215,11 @@ Public Sub fn_Prepare( _
             basis = private_Basis(action, "Writes", "DepartureBasis")
             Set actors = CreateObject("Scripting.Dictionary")
             actors.CompareMode = vbTextCompare
+            replacedPerson = CStr(values("PersonName"))
             For Each item In chain
+                If item.Exists("DutyPersonName") Then
+                    replacedPerson = CStr(item("DutyPersonName"))
+                End If
                 If private_AdmissionOnly(model, item, eventDate) Then
                     ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_TVO_ADMISSION_RETAINED | RowId=" & CStr(action("RowId")) & _
                         " | PersonId=" & CStr(item("PersonId")) & " | Position=" & CStr(item("PositionCode"))
@@ -245,8 +252,10 @@ Public Sub fn_Prepare( _
                 If values.Exists("DateToShort") Then
                     row("PlannedEndDate") = values("DateToShort")
                 End If
+                private_RenderTexts row, values, replacedPerson
                 Set row("Action") = action
 NextDuty:
+                replacedPerson = CStr(item("PersonName"))
             Next item
         End If
 NextAction:
@@ -472,9 +481,96 @@ End Sub
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
-Private Function private_Fields() As Variant
-    private_Fields = Split("PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|EndDate|StartOrder|EndOrder|StartBasis|EndBasis|PlannedEndDate|AccessOrder", "|")
+Private Function private_Fields(Optional ByVal includeDetails As Boolean = True) As Variant
+    Dim fields As String
+
+    fields = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|EndDate|StartOrder|EndOrder|StartBasis|EndBasis|PlannedEndDate|AccessOrder"
+    If includeDetails Then
+        fields = fields & "|Duration|Information"
+    End If
+    private_Fields = Split(fields, "|")
 End Function
+
+Private Function private_HistoryDuties(ByVal source As Collection) As Collection
+    Dim result As New Collection
+    Dim item As Object
+    Dim row As Object
+    Dim field As Variant
+
+    For Each item In source
+        Set row = CreateObject("Scripting.Dictionary")
+        For Each field In item.Keys
+            If IsObject(item(field)) Then
+                Set row(field) = item(field)
+            Else
+                row(field) = item(field)
+            End If
+        Next field
+        ' History children describe their own post; registry and return rows already describe the replaced post.
+        If item.Exists("DutyPositionCode") Then
+            row("PositionCode") = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(item, "DutyPositionCode"))
+            If Len(row("PositionCode")) = 0 Then
+                ex_PEB_MovementLinks.fn_Fail "InvalidTvoChain", CStr(item("PersonId"))
+            End If
+        End If
+        result.Add row
+    Next item
+    Set private_HistoryDuties = result
+End Function
+
+Private Sub private_RenderTexts( _
+    ByVal row As Object, _
+    ByVal values As Object, _
+    ByVal replacedPerson As String _
+)
+    Dim renderer As obj_PEB_DslRenderer
+    Dim texts As Object
+    Dim context As Object
+    Dim key As Variant
+    Dim field As Variant
+    Dim matched As Boolean
+    Dim text As String
+    Dim diagnostic As String
+
+    Set texts = ex_PEB_MovementTemplates.fn_Texts(CStr(values("MovementTemplateId")), "TVO")
+    If texts.Count = 0 Then
+        Err.Raise 5, , "Missing TVO column templates: " & CStr(values("MovementTemplateId"))
+    End If
+    Set context = CreateObject("Scripting.Dictionary")
+    For Each key In values.Keys
+        If IsObject(values(key)) Then
+            Set context(key) = values(key)
+        Else
+            context(key) = values(key)
+        End If
+    Next key
+    context("TvoReplacedPersonName") = replacedPerson
+    context("TvoIsChain") = (StrComp(replacedPerson, CStr(values("PersonName")), vbTextCompare) <> 0)
+    Set renderer = New obj_PEB_DslRenderer
+    If Not renderer.Initialize(ex_PEB_MovementTemplates.fn_SharedTemplates(), ex_PEB_MovementTemplates.fn_Resources()) Then
+        Err.Raise 5, , "Cannot initialize TVO DSL renderer."
+    End If
+    For Each key In texts.Keys
+        matched = False
+        For Each field In private_Fields()
+            If StrComp(CStr(key), private_Header(CStr(field)), vbTextCompare) = 0 Then
+                If Not renderer.TryRender(CStr(texts(key)), context, text, diagnostic) Then
+                    Err.Raise 5, , diagnostic
+                End If
+                If Len(Trim$(text)) = 0 Then
+                    Err.Raise 5, , "Empty TVO column text: " & CStr(key)
+                End If
+                row(field) = text
+                matched = True
+                Exit For
+            End If
+        Next field
+        If Not matched Then
+            Err.Raise 5, , "Unsupported TVO text column: " & CStr(key)
+        End If
+    Next key
+    renderer.Dispose
+End Sub
 
 Private Function private_Target(ByVal book As Workbook) As ListObject
     Dim sheet As Worksheet
