@@ -15,7 +15,8 @@ End Sub
 ' --------------------------------------
 Public Function fn_ReadLatest( _
     ByVal personId As String, _
-    Optional ByVal includeTvo As Boolean = False _
+    Optional ByVal includeTvo As Boolean = False, _
+    Optional ByVal useSnapshot As Boolean = False _
 ) As Object
     Dim result As Object
     Dim fields As Object
@@ -62,7 +63,7 @@ Public Function fn_ReadLatest( _
         query.AddColumn fields(field)
     Next field
     query.AddCondition ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), QueryEquals, personId, QueryText, True
-    If Not service.TryExecute(source, query, table, diagnostic, Not includeTvo) Then
+    If Not service.TryExecute(source, query, table, diagnostic, Not includeTvo Or useSnapshot) Then
         Err.Raise 5, , diagnostic
     End If
     ' Preserve the latest-period ordering and all subsequent business validation.
