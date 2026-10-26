@@ -220,7 +220,6 @@ Public Function TryRender( _
     If Not m_templates.Exists(name) Then
         Err.Raise 5, , "Word DSL template not found: " & name
     End If
-    ex_PEB_Export.fn_CheckRejections m_templates(name), values
     Set events = New Collection
     events.Add values
     rendered = ex_PEB_WordGroups.fn_Render(m_templates(name), events, m_sharedTemplates, m_resources)

@@ -127,6 +127,35 @@ Public Sub fn_CheckRejections( _
     ByVal template As Object, _
     ByVal values As Object _
 )
+    Dim reason As String
+
+    reason = fn_RejectionReason(template, values)
+    If Len(reason) > 0 Then
+        Err.Raise 5, , reason
+    End If
+End Sub
+
+Public Function fn_ApplyWordRejection( _
+    ByVal template As Object, _
+    ByVal values As Object _
+) As Boolean
+    Dim reason As String
+
+    reason = fn_RejectionReason(template, values)
+    If Len(reason) = 0 Then
+        Exit Function
+    End If
+    values("WordPolicy") = "Omit"
+    values("WordOutcome") = "Rejected"
+    values("WordRejectionReason") = reason
+    values("WordText") = vbNullString
+    fn_ApplyWordRejection = True
+End Function
+
+Public Function fn_RejectionReason( _
+    ByVal template As Object, _
+    ByVal values As Object _
+) As String
     Dim rule As Object
     Dim actual As String
     Dim expected As String
@@ -148,10 +177,11 @@ Public Sub fn_CheckRejections( _
             End If
         End If
         If matches Then
-            Err.Raise 5, , fn_Config(CStr(rule.getAttribute("messageKey")))
+            fn_RejectionReason = fn_Config(CStr(rule.getAttribute("messageKey")))
+            Exit Function
         End If
     Next rule
-End Sub
+End Function
 
 Public Function fn_Config(ByVal key As String) As String
     Dim value As String

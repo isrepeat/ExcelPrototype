@@ -1439,6 +1439,19 @@ Public Function ExportWordHandler() As Boolean
     Set exporter = New obj_PEB_ExptrWord
     If Not exporter.Initialize() Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError048")
     If Not exporter.TryGenerateHistory(events, output, diagnostic) Then GoTo FailedHistoryWord
+    For Each historyItem In events
+        If historyItem("WordPolicy") = "Omit" Then
+            For Each exportItem In journal
+                If exportItem("RowId") = historyItem("RowId") Then
+                    exportItem("Status") = "Omitted"
+                    If historyItem.Exists("WordRejectionReason") Then
+                        exportItem("Status") = "RejectedOmitted"
+                    End If
+                    Exit For
+                End If
+            Next exportItem
+        End If
+    Next historyItem
     startedAt = VBA.Timer
     succeeded = ex_PEB_HistoryRevisions.fn_RecordExport(journal, output, "Word", journalDiagnostic)
     ex_Core.fn_Diagnostic_WritePerf "Word.Export.RecordJournal", startedAt
@@ -1455,7 +1468,11 @@ Public Function ExportWordHandler() As Boolean
             ex_PEB_Export.fn_Config("text.HistoryRefreshAfterExport"), "{details}", journalDiagnostic), True)
         GoTo CleanupHistoryWord
     End If
-    ExportWordHandler = private_SetActionStatus(VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryWordSuccess"), "{path}", output), False)
+    If Len(output) = 0 Then
+        ExportWordHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.ExportWordOmitted"), False)
+    Else
+        ExportWordHandler = private_SetActionStatus(VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryWordSuccess"), "{path}", output), False)
+    End If
     GoTo CleanupHistoryWord
 EH:
     diagnostic = VBA.Err.Description
