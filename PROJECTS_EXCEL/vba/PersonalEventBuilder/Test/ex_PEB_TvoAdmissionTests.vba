@@ -51,6 +51,21 @@ Public Function fn_Run(ByRef diagnostic As String) As Boolean
     If startDate <> CDbl(DateSerial(2026, 10, 21)) Then
         Err.Raise 5, , "Incorrect acceptance date."
     End If
+    If Not ex_PEB_MovementTvo.fn_IsStarted("303", "46316", startDate, "Fixture") Then
+        Err.Raise 5, , "An ADO text serial must start duties."
+    End If
+    If startDate <> CDbl(DateSerial(2026, 10, 20)) Then
+        Err.Raise 5, , "Incorrect ADO text serial date."
+    End If
+    If ex_PEB_Export.fn_ParseDate("21", "Fixture") <> DateSerial(Year(Date), Month(Date), 21) Then
+        Err.Raise 5, , "Day shorthand must remain supported."
+    End If
+    If ex_PEB_Export.fn_ParseDate("21.10", "Fixture") <> DateSerial(Year(Date), 10, 21) Then
+        Err.Raise 5, , "Day and month shorthand must remain supported."
+    End If
+    If ex_PEB_Export.fn_ParseDate("21.10.2026", "Fixture") <> DateSerial(2026, 10, 21) Then
+        Err.Raise 5, , "Full calendar dates must remain supported."
+    End If
     On Error Resume Next
     Err.Clear
     started = ex_PEB_MovementTvo.fn_IsStarted("304", Empty, startDate, "Fixture")
