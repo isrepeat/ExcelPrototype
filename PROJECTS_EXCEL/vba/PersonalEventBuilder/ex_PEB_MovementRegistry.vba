@@ -96,19 +96,6 @@ Public Function fn_WriteValue( _
     If field = "MovementBasis" Then
         Err.Raise 5, , "Missing Movement column text: " & header
     End If
-#If TVO_DEPRECATED Then
-    Select Case field
-        Case "TvoName"
-            fn_WriteValue = private_TvoValue(values, "PersonName")
-            Exit Function
-        Case "TvoPersonId"
-            fn_WriteValue = private_TvoValue(values, "PersonId")
-            Exit Function
-        Case "TvoPositionCode"
-            fn_WriteValue = private_TvoValue(values, "PositionCode")
-            Exit Function
-    End Select
-#End If
     fn_WriteValue = private_ExportValue(ex_PEB_Export.fn_Required(values, field), header)
 End Function
 
@@ -338,9 +325,6 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
         )
     private_AddMappings "profiles.Departure.fields", fields, headers
-#If TVO_DEPRECATED Then
-    private_AddTvoMappings "profiles.Departure.fields"
-#End If
     private_AddMappings "profiles.Departure.identity", _
         VBA.Array( _
             "PersonId", _
@@ -399,9 +383,6 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
         )
     private_AddMappings "profiles.Transition.fields", fields, headers
-#If TVO_DEPRECATED Then
-    private_AddTvoMappings "profiles.Transition.fields"
-#End If
     private_AddMappings "profiles.Transition.identity", _
         VBA.Array( _
             "PersonId", _
@@ -496,9 +477,6 @@ Private Sub private_BuildProfiles()
             ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport") _
         )
     private_AddMappings "profiles.TransitionMedicalCompany.fields", fields, headers
-#If TVO_DEPRECATED Then
-    private_AddTvoMappings "profiles.TransitionMedicalCompany.fields"
-#End If
     private_AddMappings "profiles.TransitionMedicalCompany.identity", _
         VBA.Array( _
             "PersonId", _
@@ -982,53 +960,6 @@ Private Sub private_AddProfile( _
         m_values.Add prefix & "departureDateHeader", departureDateHeader
     End If
 End Sub
-
-#If TVO_DEPRECATED Then
-Private Sub private_AddTvoMappings(ByVal prefix As String)
-    Dim fields As Variant
-    Dim index As Long
-    Dim count As Long
-
-    fields = VBA.Array("TvoName", "TvoPersonId", "TvoPositionCode")
-    count = VBA.CLng(m_values(prefix & ".count"))
-    For index = 0 To UBound(fields)
-        m_values.Add prefix & "." & (count + index + 1) & ".field", fields(index)
-        m_values.Add prefix & "." & (count + index + 1) & ".header", ex_PEB_Export.fn_Config("returnTvo.headers." & fields(index))
-    Next index
-    m_values(prefix & ".count") = VBA.CStr(count + UBound(fields) + 1)
-End Sub
-
-Private Function private_TvoValue( _
-    ByVal values As Object, _
-    ByVal field As String _
-) As String
-    Dim row As Object
-    Dim seen As Object
-    Dim key As Variant
-    Dim text As String
-    Dim value As String
-
-    Set seen = VBA.CreateObject("Scripting.Dictionary")
-    For Each row In values("MetaTvoTables")
-        For Each key In VBA.Array("PersonName", "PersonId", "PositionCode")
-            value = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(row, VBA.CStr(key)))
-            If VBA.Len(VBA.Trim$(value)) = 0 Or VBA.InStr(value, VBA.vbCr) > 0 Or VBA.InStr(value, VBA.vbLf) > 0 Then
-                Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoInvalidChain")
-            End If
-        Next key
-        value = ex_PEB_Export.fn_Text(row("PersonId"))
-        If seen.Exists(value) Then
-            Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoInvalidChain")
-        End If
-        seen.Add value, True
-        If VBA.Len(text) > 0 Then
-            text = text & VBA.vbLf
-        End If
-        text = text & ex_PEB_Export.fn_Text(row(field))
-    Next row
-    private_TvoValue = text
-End Function
-#End If
 
 Private Function private_ExportValue( _
     ByVal value As Variant, _

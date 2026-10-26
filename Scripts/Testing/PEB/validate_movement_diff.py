@@ -57,7 +57,7 @@ def main():
     assert '"CandidatesVisibility", "EjosVisibility", "MedicalVisibility", "HistoryVisibility", "ConflictsVisibility"' in show
     assert '"MovementDiffVisibility", "Collapsed"' in close
     assert '"CandidatesVisibility"' not in close
-    for command in ['ShowMovementDiff', 'CloseMovementDiff']:
+    for command in ['ShowMovementDiff', 'CloseMovementDiff', 'MovementDiffAbsence', 'MovementDiffTvo']:
         assert '"' + command + '"' in sources['obj_PEB_PgMain.cls.vba']
 
     ui = ET.parse(ROOT / 'PROJECTS_EXCEL/ui/PersonalEventBuilder/MainPage.xaml').getroot()
@@ -66,6 +66,13 @@ def main():
     assert nodes['MovementDiff'].get('closeCommand') == '{Binding Path=Commands.CloseMovementDiff}'
     assert nodes['MovementDiff'].get('closeCaption') == '{Binding Path=Text.CloseTable}'
     assert nodes['ShowMovementDiff'].get('visibility') == '{Binding Path=Form.MovementDiffAvailableVisibility}'
+    for name in ('MovementDiffAbsence', 'MovementDiffTvo'):
+        assert nodes[name].get('command') == '{Binding Path=Commands.' + name + '}'
+        assert nodes[name].get('caption') == '{Binding Path=Form.' + name + 'Name}'
+        assert nodes[name].get('visibility') is None
+        assert len('btn_' + name) <= 31
+    assert nodes['MovementDiffTabs'].get('visibility') == '{Binding Path=Form.MovementDiffVisibility}'
+    assert 'row("Worksheet") <> worksheetName' in procedure(sources['ex_PEB_MovementDiff.vba'], 'fn_Result')
     for name in ['MovementDiff', 'MovementDiffSummary', 'ShowMovementDiff']:
         assert len('btn_' + name) <= 31
 

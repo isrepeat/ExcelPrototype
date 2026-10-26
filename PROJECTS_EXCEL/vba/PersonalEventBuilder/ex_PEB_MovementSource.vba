@@ -43,6 +43,7 @@ Public Function fn_ReadLatest( _
         fields.Add field, ex_PEB_Export.fn_Config("export.Movement.headers." & field)
     Next field
     If includeTvo Then
+        fields.Add "PositionCode", ex_PEB_Export.fn_Config("export.Movement.headers.PositionCode")
         fields.Add "ArrivalOrder", ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder")
         For Each field In VBA.Array("TvoName", "TvoPersonId", "TvoPositionCode")
             fields.Add field, ex_PEB_Export.fn_Config("returnTvo.headers." & field)
@@ -61,7 +62,7 @@ Public Function fn_ReadLatest( _
         query.AddColumn fields(field)
     Next field
     query.AddCondition ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), QueryEquals, personId, QueryText, True
-    If Not service.TryExecute(source, query, table, diagnostic) Then
+    If Not service.TryExecute(source, query, table, diagnostic, Not includeTvo) Then
         Err.Raise 5, , diagnostic
     End If
     ' Preserve the latest-period ordering and all subsequent business validation.

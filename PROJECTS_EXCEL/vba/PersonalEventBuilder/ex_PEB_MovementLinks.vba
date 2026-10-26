@@ -251,7 +251,7 @@ Public Function fn_PlanStamp(ByVal plan As Object) As String
             Next update
         End If
     Next action
-    fn_PlanStamp = stamp
+    fn_PlanStamp = stamp & ex_PEB_MovementTvo.fn_Stamp(plan)
 End Function
 
 Public Sub fn_Fail( _

@@ -166,6 +166,8 @@ Public Function fn_Build( _
             blocked.Add personId, stored("RowId")
         ElseIf Not private_Apply(rows, headers, values, action, nextTargetIndex, message) Then
             blocked.Add personId, stored("RowId")
+        Else
+            action.Add "TvoValues", values
         End If
         If VBA.Len(message) > 0 Then
             action("Diagnostic") = message
@@ -205,6 +207,7 @@ Public Function fn_Build( _
     plan.Add "ConflictCount", conflicts
     plan.Add "IsReady", (conflicts = 0)
     plan.Add "TargetStamp", targetStamp
+    ex_PEB_MovementTvo.fn_Prepare plan, target
     plan.Add "PlanStamp", ex_PEB_MovementLinks.fn_PlanStamp(plan)
     ex_Core.fn_Diagnostic_WritePerf "Movement.Preview.Events", startedAt
     startedAt = VBA.Timer

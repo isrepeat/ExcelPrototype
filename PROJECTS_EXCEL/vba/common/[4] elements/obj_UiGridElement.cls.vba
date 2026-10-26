@@ -15,6 +15,10 @@ Implements obj_IUiContainer
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_visibility As obj_UiPanelVisibility
+Private m_collapsed As Boolean
+Private m_childrenSuspended As Boolean
+
 Private m_axisRows As obj_UiGridAxis
 Private m_axisColumns As obj_UiGridAxis
 Private m_slots As Collection
@@ -64,6 +68,17 @@ Private Function obj_IUiElement_Measure( _
     ByRef columns As Long, _
     ByRef diagnostic As String _
 ) As Boolean
+    If Not private_UpdateVisibility(diagnostic) Then
+        Exit Function
+    End If
+    If m_collapsed Then
+        rows = 0
+        columns = 0
+        m_rows = 0
+        m_columns = 0
+        obj_IUiElement_Measure = True
+        Exit Function
+    End If
     obj_IUiElement_Measure = private_MeasurePanel(rows, columns, diagnostic)
     rows = rows + m_row - 1
     columns = columns + m_column - 1
@@ -75,11 +90,19 @@ Private Function obj_IUiElement_Arrange( _
     ByRef diagnostic As String _
 ) As Boolean
     row = row + m_row - 1
+    If m_collapsed Then
+        obj_IUiElement_Arrange = True
+        Exit Function
+    End If
     column = column + m_column - 1
     obj_IUiElement_Arrange = private_ArrangePanel(row, column, diagnostic)
 End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    If m_collapsed Then
+        obj_IUiElement_Render = True
+        Exit Function
+    End If
     obj_IUiElement_Render = private_RenderPanel(diagnostic)
 End Function
 
@@ -129,12 +152,30 @@ Private Function private_ConfigurePanel( _
 ) As Boolean
     Dim node As Object
     Dim child As obj_IUiElement
+    Dim childDefinition As Object
+    Dim slotRow As Long
+    Dim slotColumn As Long
+    Dim slotRows As Long
+    Dim slotColumns As Long
 
     Set m_definition = definition
     m_row = ex_UiElementFactory.fn_Long(definition, "row", 1)
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     Set m_context = context
     m_source = source
+    If m_visibility Is Nothing Then
+        Set m_visibility = New obj_UiPanelVisibility
+        If Not m_visibility.Initialize(definition, context, source, diagnostic) Then
+            Exit Function
+        End If
+    End If
+    Set m_slots = New Collection
+    If Not m_axisRows Is Nothing Then
+        m_axisRows.Dispose
+    End If
+    If Not m_axisColumns Is Nothing Then
+        m_axisColumns.Dispose
+    End If
     Set m_axisRows = New obj_UiGridAxis
     Set m_axisColumns = New obj_UiGridAxis
     If Not m_axisRows.Initialize(definition, "grid.rowDefinitions", "rowDefinition", "rowSpan", diagnostic) Then Exit Function
@@ -148,8 +189,6 @@ Private Function private_ConfigurePanel( _
                      VBA.LCase$(VBA.CStr(node.baseName)) = "formlayouts" Or _
                      VBA.LCase$(VBA.CStr(node.baseName)) = "grid.rowdefinitions" Or _
                      VBA.LCase$(VBA.CStr(node.baseName)) = "grid.columndefinitions")) Then
-                Dim childDefinition As Object
-                Dim slotRow As Long, slotColumn As Long, slotRows As Long, slotColumns As Long
                 Set childDefinition = node.cloneNode(True)
                 slotRow = ex_UiElementFactory.fn_Long(node, "row", 1)
                 slotColumn = ex_UiElementFactory.fn_Long(node, "column", 1)
@@ -185,7 +224,8 @@ Private Function private_MeasurePanel( _
     Dim width As Long
 
     If m_trackLayout Then
-        Dim index As Long, pass As Long
+        Dim index As Long
+        Dim pass As Long
         Dim slot As Variant
         m_axisRows.Reset
         m_axisColumns.Reset
@@ -280,7 +320,27 @@ Private Function private_ValidatePanel(ByVal errors As Collection) As Boolean
     Next child
 End Function
 
-Private Sub private_DisposePanel()
+Private Function private_UpdateVisibility(ByRef diagnostic As String) As Boolean
+    Dim definition As Object
+
+    If Not m_visibility.TryMeasure(m_collapsed, diagnostic) Then
+        Exit Function
+    End If
+    If m_collapsed Then
+        private_ClearChildren
+        m_childrenSuspended = True
+    ElseIf m_childrenSuspended Then
+        private_ClearChildren
+        Set definition = m_definition.cloneNode(True)
+        If Not private_ConfigurePanel(definition, m_context, m_source, diagnostic) Then
+            Exit Function
+        End If
+        m_childrenSuspended = False
+    End If
+    private_UpdateVisibility = True
+End Function
+
+Private Sub private_ClearChildren()
     Dim child As obj_IUiElement
 
     If Not m_children Is Nothing Then
@@ -288,6 +348,18 @@ Private Sub private_DisposePanel()
             child.Dispose
         Next child
     End If
+    Set m_children = New Collection
+End Sub
+
+Private Sub private_DisposePanel()
+    private_ClearChildren
+    If Not m_visibility Is Nothing Then
+        m_visibility.Dispose
+    End If
+    If Not m_context Is Nothing Then
+        m_context.UnregisterElement ex_UiElementFactory.fn_Attribute(m_definition, "name"), Me
+    End If
+    Set m_visibility = Nothing
     Set m_children = Nothing
     Set m_slots = Nothing
     If Not m_axisRows Is Nothing Then m_axisRows.Dispose

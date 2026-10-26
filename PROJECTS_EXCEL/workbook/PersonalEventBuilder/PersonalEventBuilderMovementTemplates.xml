@@ -53,10 +53,13 @@
     <sharedTemplate id="block.OptionalBasisDocuments">
       <text><![CDATA[#^
 #_        {#for item in BasisDocuments orderBy:"BasisDocuments"}#^
+#_          #let __IsSupportingDocument = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток|[Пп]освідчення\s+про\s+відрядження)\s*$");#^
+#_          {#if __IsSupportingDocument}{#else}#^
 #_          {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
 #_            ; #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
 #_            {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
 #_            {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
+#_          {#endif}#^
 #_          {#endif}#^
 #_        {#endfor}#^
       ]]></text>
@@ -64,7 +67,7 @@
     <sharedTemplate id="block.OptionalDepartureBasisDocuments">
       <text><![CDATA[#^
 #_        {#for item in BasisDocuments orderBy:"BasisDocuments"}#^
-#_          #let __IsVacationTicket = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток)\s*$");#^
+#_          #let __IsVacationTicket = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток|[Пп]освідчення\s+про\s+відрядження)\s*$");#^
 #_          {#if __IsVacationTicket}{#else}#^
 #_            {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
 #_              ; #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
@@ -110,7 +113,6 @@
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
 #_        {#include block.OptionalBasisDocuments}#^
-#_        {#include block.OptionalBusinessTripCertificate}#^
 #_        .#^
         ]]>
       </text>
@@ -762,7 +764,6 @@
         <![CDATA[#^
 #_        {#include block.IncomingBasis}#^
 #_        {#include block.OptionalDepartureBasisDocuments}#^
-#_        {#include block.OptionalBusinessTripCertificate}#^
 #_        .#^
         ]]>
       </text>

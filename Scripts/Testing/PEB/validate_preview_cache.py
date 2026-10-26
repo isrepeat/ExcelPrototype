@@ -48,7 +48,7 @@ def main():
     assert "rows.Add row" in index and "index.CompareMode = VBA.vbTextCompare" in index
     assert "m_indexes.Add identity, index" in index
     assert "m_generation = m_generation + 1" in refresh
-    for key in ("WordTemplates", "MovementTemplates", "Tvo.ReporterPositions", "Tvo.Chains", "ReturnTickets"):
+    for key in ("WordTemplates", "MovementTemplates", "Tvo.Chains", "ReturnTickets"):
         assert '"' + key + '"' in loader
     assert "candidates.PrepareSnapshot(snapshot" in loader
     assert "orders.PrepareSnapshot(snapshot" in loader
@@ -62,6 +62,9 @@ def main():
     assert 'snapshot.Prepared.Add "Tvo.ChainErrors", errors' in tvo
     assert 'text.ReturnTvoInvalidChain' not in tvo
     helpers = read("PersonalEventBuilder/ex_PEB_Export.vba")
+    assert '"Tvo.ReporterPositions"' not in helpers
+    reporter = procedure(helpers, "fn_TryReporterTvoPositions")
+    assert 'ex_TableDataRuntime.fn_TryQueryLoaded(source, query' in reporter
     chain_read = procedure(helpers, "fn_TvoChain")
     assert chain_read.index('errors.Exists(positionCode)') < chain_read.index('chains.Exists(positionCode)')
     assert 'Err.Raise 5, , errors(positionCode)' in chain_read
@@ -73,7 +76,7 @@ def main():
     assert "snapshot.Prepared" in export
     assert "private_LookupTable" not in export and "private_TemplateStamp" not in export
     assert not any(token in movement for token in ("ADODB", "m_periods", "GetFile", "Application.Workbooks"))
-    assert "service.TryExecute(source, query, table, diagnostic)" in movement
+    assert "service.TryExecute(source, query, table, diagnostic, Not includeTvo)" in movement
     assert not any(token in tickets for token in ("GetFile", "CopyFile", "DeleteFile"))
     assert "m_loadingSnapshot.TryQuery" in tickets
     assert "ex_TableSnapshots" not in history
@@ -96,6 +99,8 @@ def main():
         for mapping in get("snapshots.indexes").split("|"):
             source, header = mapping.split("=")
             assert source in sources and get(header)
+        assert "reporter.tvo.source" in sources
+        assert get("reporter.tvo.source.path") == get("validation.Movement.source.path")
         assert get("text.DependenciesReady") and get("text.DependenciesLoading")
         assert get("text.DependenciesRequired")
         for stage in re.findall(r'private_Progress progressStep, progressTotal, "([^"]+)"', loader):

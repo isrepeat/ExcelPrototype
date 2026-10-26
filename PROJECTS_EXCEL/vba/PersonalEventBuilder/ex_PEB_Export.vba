@@ -168,6 +168,7 @@ End Function
 
 Public Function fn_TryApplyReporterPositions( _
     ByVal records As Collection, _
+    ByVal incomingDate As Variant, _
     ByRef diagnostic As String _
 ) As Boolean
     Dim record As obj_LookupRecord
@@ -177,23 +178,29 @@ Public Function fn_TryApplyReporterPositions( _
     Dim fields As Object
     Dim name As Variant
     Dim key As String
+    Dim staffCode As Variant
 
     On Error GoTo EH
     For Each record In records
         If Not record.TryGetValue("Personnel.FullName", name) Then Err.Raise 5, , "Reporter name not found."
         names.Add VBA.CStr(name)
     Next record
-    If Not fn_TryReporterTvoPositions(names, positions, diagnostic) Then Exit Function
+    If Not fn_TryReporterTvoPositions(names, incomingDate, positions, diagnostic) Then Exit Function
     For Each record In records
         If Not record.TryGetValue("Personnel.FullName", name) Then Err.Raise 5, , "Reporter name not found."
         key = ex_TableQuery.fn_NormalizeText(VBA.CStr(name))
-        If positions.Exists(key) Then
-            Set fields = VBA.CreateObject("Scripting.Dictionary")
-            fields("Personnel.PositionCode") = positions(key)
-            Set supplement = New obj_LookupRecord
-            If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize reporter TVO position."
-            If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot merge reporter TVO position."
+        If Not record.TryGetValue("Personnel.StaffPositionCode", staffCode) Then
+            If Not record.TryGetValue("Personnel.PositionCode", staffCode) Then Err.Raise 5, , "Reporter staff position not found."
         End If
+        Set fields = VBA.CreateObject("Scripting.Dictionary")
+        fields("Personnel.StaffPositionCode") = staffCode
+        fields("Personnel.PositionCode") = staffCode
+        If positions.Exists(key) Then
+            fields("Personnel.PositionCode") = positions(key)
+        End If
+        Set supplement = New obj_LookupRecord
+        If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize reporter TVO position."
+        If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot merge reporter TVO position."
     Next record
     fn_TryApplyReporterPositions = True
     Exit Function
@@ -203,23 +210,69 @@ End Function
 
 Public Function fn_TryReporterTvoPosition( _
     ByVal reporterName As String, _
+    ByVal incomingDate As Variant, _
     ByRef positionCode As String, _
+    ByRef isTvo As Boolean, _
     ByRef diagnostic As String _
 ) As Boolean
     Dim names As New Collection
     Dim positions As Object
     Dim key As String
+    Dim source As obj_TableSource
+    Dim query As obj_TableQuery
+    Dim service As obj_TableQueryService
+    Dim result As obj_DataTable
+    Dim available As Boolean
+    Dim codeHeader As String
 
+    On Error GoTo EH_POSITION
     positionCode = VBA.vbNullString
+    isTvo = False
     names.Add reporterName
-    If Not fn_TryReporterTvoPositions(names, positions, diagnostic) Then Exit Function
+    If Not fn_TryReporterTvoPositions(names, incomingDate, positions, diagnostic) Then Exit Function
     key = ex_TableQuery.fn_NormalizeText(reporterName)
-    If positions.Exists(key) Then positionCode = positions(key)
+    If positions.Exists(key) Then
+        positionCode = positions(key)
+        isTvo = True
+    Else
+        ' Resolve the staff code afresh when the report date leaves an acting interval.
+        Set source = New obj_TableSource
+        Set query = New obj_TableQuery
+        Set service = New obj_TableQueryService
+        If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then
+            Err.Raise 5, , "Cannot initialize reporter staff position query."
+        End If
+        source.WorkbookPath = fn_Path(fn_Config("lookup.Personnel.source.path"))
+        source.SheetName = fn_Config("lookup.Personnel.source.sheet")
+        source.RangeAddress = fn_Config("lookup.Personnel.source.range")
+        codeHeader = fn_Config("lookup.Personnel.columns.6.header")
+        query.AddColumn codeHeader
+        query.AddCondition fn_Config("lookup.Personnel.columns.1.header"), QueryEquals, reporterName, QueryText, True
+        query.Limit = 2
+        If Not ex_TableDataRuntime.fn_TryQueryLoaded(source, query, available, result, diagnostic) Then GoTo CleanupPosition
+        If Not available Then
+            service.Backend = QueryAuto
+            If Not service.TryExecute(source, query, result, diagnostic) Then GoTo CleanupPosition
+        End If
+        If result.RowCount <> 1 Then Err.Raise 5, , Replace$(fn_Config("reporter.tvo.missingStaff"), "{name}", reporterName)
+        positionCode = fn_Text(result.ValueAt(1, ex_TableQuery.fn_HeaderIndex(result.Headers, codeHeader)))
+        If Len(positionCode) = 0 Then Err.Raise 5, , Replace$(fn_Config("reporter.tvo.missingStaff"), "{name}", reporterName)
+    End If
     fn_TryReporterTvoPosition = True
+CleanupPosition:
+    If Not result Is Nothing Then result.Dispose
+    If Not service Is Nothing Then service.Dispose
+    If Not query Is Nothing Then query.Dispose
+    If Not source Is Nothing Then source.Dispose
+    Exit Function
+EH_POSITION:
+    diagnostic = Err.Description
+    Resume CleanupPosition
 End Function
 
 Public Function fn_TryReporterTvoPositions( _
     ByVal reporterNames As Collection, _
+    ByVal incomingDate As Variant, _
     ByRef positions As Object, _
     ByRef diagnostic As String _
 ) As Boolean
@@ -235,52 +288,42 @@ Public Function fn_TryReporterTvoPositions( _
     Dim row As Long
     Dim key As String
     Dim positionCode As String
-    Dim snapshot As obj_TableSnapshotSet
-    Dim prepared As Object
-    Dim matches As Collection
+    Dim startHeader As String
+    Dim startOrderHeader As String
+    Dim endHeader As String
+    Dim reportDate As Date
+    Dim startDate As Double
+    Dim endValue As Variant
 
     On Error GoTo EH
     Set positions = VBA.CreateObject("Scripting.Dictionary")
     positions.CompareMode = VBA.vbTextCompare
     Set requested = VBA.CreateObject("Scripting.Dictionary")
     requested.CompareMode = VBA.vbTextCompare
-    If reporterNames.Count = 0 Then
+    If reporterNames.Count = 0 Or Len(fn_Text(incomingDate)) = 0 Then
         fn_TryReporterTvoPositions = True
         Exit Function
     End If
-    Set snapshot = ex_TableSnapshots.fn_Current()
-    If Not snapshot Is Nothing Then
-        Set prepared = snapshot.Prepared("Tvo.ReporterPositions")
-        For Each reporterName In reporterNames
-            key = ex_TableQuery.fn_NormalizeText(VBA.CStr(reporterName))
-            If prepared.Exists(key) Then
-                Set matches = prepared(key)
-                If matches.Count <> 1 Then
-                    Err.Raise 5, , VBA.Replace$(fn_Config("reporter.tvo.ambiguous"), "{name}", VBA.CStr(reporterName))
-                End If
-                positionCode = matches(1)
-                If VBA.Len(positionCode) = 0 Then
-                    Err.Raise 5, , VBA.Replace$(fn_Config("reporter.tvo.missingCode"), "{name}", VBA.CStr(reporterName))
-                End If
-                positions(key) = positionCode
-            End If
-        Next reporterName
-        fn_TryReporterTvoPositions = True
-        Exit Function
-    End If
+    reportDate = fn_ParseDate(incomingDate, "IncomingDate")
     Set source = New obj_TableSource
     Set query = New obj_TableQuery
     Set service = New obj_TableQueryService
     If Not source.Initialize() Or Not query.Initialize() Or Not service.Initialize() Then
         Err.Raise 5, , "Cannot initialize reporter TVO query."
     End If
-    source.WorkbookPath = fn_Path(fn_Config("lookup.Personnel.source.path"))
-    source.SheetName = fn_Config("lookup.Personnel.source.sheet")
-    source.RangeAddress = fn_Config("lookup.Personnel.source.range")
+    source.WorkbookPath = fn_Path(fn_Config("reporter.tvo.source.path"))
+    source.SheetName = fn_Config("reporter.tvo.source.sheet")
+    source.RangeAddress = fn_Config("reporter.tvo.source.range")
     nameHeader = fn_Config("reporter.tvo.nameHeader")
     codeHeader = fn_Config("reporter.tvo.codeHeader")
     query.AddColumn nameHeader
     query.AddColumn codeHeader
+    startHeader = fn_Config("reporter.tvo.startHeader")
+    endHeader = fn_Config("reporter.tvo.endHeader")
+    query.AddColumn startHeader
+    query.AddColumn endHeader
+    startOrderHeader = fn_Config("returnTvo.table.headers.StartOrder")
+    query.AddColumn startOrderHeader
     For Each reporterName In reporterNames
         requested(ex_TableQuery.fn_NormalizeText(VBA.CStr(reporterName))) = True
     Next reporterName
@@ -294,6 +337,19 @@ Public Function fn_TryReporterTvoPositions( _
         reporterName = fn_Text(result.ValueAt(row, ex_TableQuery.fn_HeaderIndex(result.Headers, nameHeader)))
         key = ex_TableQuery.fn_NormalizeText(VBA.CStr(reporterName))
         If requested.Exists(key) Then
+            ' An assignment starts inclusively and ends on the actual handover date.
+            If Not ex_PEB_MovementTvo.fn_IsStarted( _
+                    result.ValueAt(row, ex_TableQuery.fn_HeaderIndex(result.Headers, startOrderHeader)), _
+                    result.ValueAt(row, ex_TableQuery.fn_HeaderIndex(result.Headers, startHeader)), _
+                    startDate, _
+                    VBA.CStr(reporterName)) Then
+                GoTo NextReporterAssignment
+            End If
+            If startDate > CDbl(reportDate) Then GoTo NextReporterAssignment
+            endValue = result.ValueAt(row, ex_TableQuery.fn_HeaderIndex(result.Headers, endHeader))
+            If Len(fn_Text(endValue)) > 0 Then
+                If fn_ParseDate(endValue, endHeader) <= reportDate Then GoTo NextReporterAssignment
+            End If
             If positions.Exists(key) Then
                 Err.Raise 5, , VBA.Replace$(fn_Config("reporter.tvo.ambiguous"), "{name}", VBA.CStr(reporterName))
             End If
@@ -303,6 +359,7 @@ Public Function fn_TryReporterTvoPositions( _
             End If
             positions.Add key, positionCode
         End If
+NextReporterAssignment:
     Next row
     fn_TryReporterTvoPositions = True
 Cleanup:

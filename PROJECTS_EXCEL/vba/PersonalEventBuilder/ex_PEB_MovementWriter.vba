@@ -47,6 +47,7 @@ Public Function fn_Apply( _
     Dim extensionSnapshot As Object
     Dim addedRows As Long
     Dim pendingDiff As Object
+    Dim tvoRollbackError As String
 
     On Error GoTo EH
     totalStartedAt = VBA.Timer
@@ -126,7 +127,8 @@ Public Function fn_Apply( _
         End If
     Next action
     Set pendingDiff = ex_PEB_MovementDiff.fn_Build(plan, target, entries)
-    If entries.Count = 0 Then
+    ex_PEB_MovementTvo.fn_AddDiff pendingDiff, plan
+    If entries.Count = 0 And ex_PEB_MovementTvo.fn_ChangeCount(plan) = 0 Then
         If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
             GoTo Cleanup
         End If
@@ -159,6 +161,7 @@ Public Function fn_Apply( _
     For Each entry In entries
         private_Verify target, entry, False
     Next entry
+    ex_PEB_MovementTvo.fn_Apply plan
     private_Stage "Write.Journal", stage, startedAt
     If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
         Err.Raise 5, , diagnostic
@@ -204,10 +207,15 @@ EH:
     ex_Core.fn_Diagnostic_WriteError "Movement." & stage, VBA.Err.Number, VBA.Err.Source, diagnostic
     If changed Then
         private_Stage "Write.Rollback", stage, startedAt
+        tvoRollbackError = ex_PEB_MovementTvo.fn_Restore(plan)
         If private_Restore(target, entries, originalAddress, extensionSnapshot, rollbackError) Then
-            diagnostic = diagnostic & VBA.vbCrLf & restoredText
+            If Len(tvoRollbackError) = 0 Then
+                diagnostic = diagnostic & VBA.vbCrLf & restoredText
+            Else
+                diagnostic = diagnostic & VBA.vbCrLf & Replace$(rollbackTemplate, "{error}", tvoRollbackError)
+            End If
         Else
-            diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$(rollbackTemplate, "{error}", rollbackError)
+            diagnostic = diagnostic & VBA.vbCrLf & VBA.Replace$(rollbackTemplate, "{error}", rollbackError & tvoRollbackError)
         End If
     End If
     Resume Cleanup
@@ -296,9 +304,6 @@ Private Sub private_Capture( _
     entry.Add "Value", cell.Value2
     entry.Add "Format", cell.NumberFormat
     entry.Add "WriteFormat", cell.NumberFormat
-    If rowIndex > target.ListRows.Count And target.ListRows.Count > 0 Then
-        entry("WriteFormat") = target.ListRows(target.ListRows.Count).Range.Cells(1, target.ListColumns(header).Index).NumberFormat
-    End If
     entry.Add "Expected", expected
     entry.Add "Header", header
     entry.Add "TableRow", rowIndex
@@ -381,8 +386,21 @@ Private Sub private_FormatEntries( _
     Dim format As String
     Dim addresses As String
     Dim key As Variant
+    Dim cell As Range
 
+    If Not textOnly Then
+        ' Restore each cell's captured format instead of applying formats to disjoint areas.
+        For Each entry In entries
+            Set cell = target.Parent.Range(entry("Address"))
+            cell.NumberFormat = entry("WriteFormat")
+        Next entry
+        Exit Sub
+    End If
     Set groups = VBA.CreateObject("Scripting.Dictionary")
+    For Each entry In entries
+        Set cell = target.Parent.Range(entry("Address"))
+        entry("WriteFormat") = cell.NumberFormat
+    Next entry
     For Each entry In entries
         If Not textOnly Or VBA.VarType(entry("Expected")) = VBA.vbString Then
             format = entry("WriteFormat")
@@ -413,22 +431,42 @@ Private Sub private_Verify( _
 
     Set cell = target.Parent.Range(entry("Address"))
     If cell.HasFormula Then
+        private_VerificationLog target, entry, restored, "Formula", False, cell.Formula
         ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address
     End If
     If restored Then
         expected = entry("Value")
-        If cell.NumberFormat <> entry("Format") Then
-            ex_PEB_MovementLinks.fn_Fail "RollbackVerificationFailed", cell.Address
-        End If
     Else
         expected = entry("Expected")
-        If cell.NumberFormat <> entry("WriteFormat") Then
-            ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address
-        End If
     End If
     If ex_PEB_MovementLinks.fn_ValueToken(expected) <> ex_PEB_MovementLinks.fn_ValueToken(cell.Value2) Then
+        private_VerificationLog target, entry, restored, "Value", expected, cell.Value2
         ex_PEB_MovementLinks.fn_Fail "WrittenPlanVerificationFailed", cell.Address
     End If
+End Sub
+
+Private Sub private_VerificationLog( _
+    ByVal target As ListObject, _
+    ByVal entry As Object, _
+    ByVal restored As Boolean, _
+    ByVal kind As String, _
+    ByVal expected As Variant, _
+    ByVal actual As Variant _
+)
+    Dim action As Object
+    Dim expectedText As String
+    Dim actualText As String
+
+    Set action = entry("Action")
+    expectedText = Replace$(Replace$(CStr(expected), vbCr, "\r"), vbLf, "\n")
+    actualText = Replace$(Replace$(CStr(actual), vbCr, "\r"), vbLf, "\n")
+    ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_VERIFY_MISMATCH | Kind=" & kind & _
+        " | Restored=" & CStr(restored) & " | Sheet=" & target.Parent.Name & _
+        " | Cell=" & CStr(entry("Address")) & " | Header=" & CStr(entry("Header")) & _
+        " | RowId=" & CStr(action("RowId")) & " | Person=" & CStr(action("PersonName")) & _
+        " | ExpectedType=" & CStr(VarType(expected)) & " | ActualType=" & CStr(VarType(actual)) & _
+        " | ExpectedLength=" & CStr(Len(CStr(expected))) & " | ActualLength=" & CStr(Len(CStr(actual))) & _
+        " | Expected=" & expectedText & " | Actual=" & actualText
 End Sub
 
 Private Function private_Restore( _

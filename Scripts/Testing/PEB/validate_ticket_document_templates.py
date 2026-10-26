@@ -30,7 +30,10 @@ def main():
         assert ticket_pattern in ticket
         documents = shared["block.OptionalBasisDocuments"]
         assert '{#for item in BasisDocuments orderBy:"BasisDocuments"}' in documents
-        assert 'm_RegexIsMatch' not in documents
+        if root is word:
+            assert 'm_RegexIsMatch' not in documents
+        else:
+            assert '__IsSupportingDocument' in documents
         for value in ('В/к', ' В / К ', 'відпускний квиток', 'Відпускний квиток'):
             assert re.fullmatch(ticket_pattern, value)
         assert not re.fullmatch(ticket_pattern, 'довідка військово-лікарської комісії')
@@ -45,6 +48,24 @@ def main():
     assert re.sub(pattern, "відпускний квиток", "довідка ВЛК") == "довідка ВЛК"
     assert '; відпускний квиток' not in movement_path.read_text(encoding="utf-8-sig")
     assert '; відпускний квиток №' not in word_path.read_text(encoding="utf-8-sig")
+    supporting_pattern = r"^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток|[Пп]освідчення\s+про\s+відрядження)\s*$"
+    movement_shared = {node.get("id"): "".join(node.itertext()) for node in movement.findall("{*}sharedTemplates/{*}sharedTemplate")}
+    for name in ("block.OptionalBasisDocuments", "block.OptionalDepartureBasisDocuments"):
+        assert supporting_pattern in movement_shared[name]
+    for node in movement.findall("{*}template"):
+        text = "".join(node.itertext())
+        assert "{#include block.OptionalBusinessTripCertificate}" not in text
+        assert "{#include block.OptionalVacationTicket}" not in text
+        assert "{#include block.OptionalPreviousVacationTicket}" not in text
+    word_shared = {node.get("id"): "".join(node.itertext()) for node in word.findall("{*}sharedTemplates/{*}sharedTemplate")}
+    assert supporting_pattern in word_shared["block.BusinessTripBasisDocuments"]
+    assert '[VacationTicketNo]' in word_shared["block.BusinessTripBasisDocuments"]
+    for value in ('В/к', ' В / К ', 'відпускний квиток', 'Посвідчення про відрядження'):
+        assert re.fullmatch(supporting_pattern, value)
+    assert not re.fullmatch(supporting_pattern, 'м/к')
+    for name in ('ToBusinessTrip', 'FromBusinessTrip'):
+        node = next(node for node in word.findall('{*}template') if node.get('name') == name)
+        assert '{#include block.BusinessTripBasisDocuments}' in ''.join(node.itertext())
     print("PASS: Word ticket expansion, Movement abbreviation and duplicate-suppression contracts. VBA was not executed.")
 
 

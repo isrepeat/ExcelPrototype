@@ -219,7 +219,6 @@ Private Function private_PrepareTvo( _
     Dim query As obj_TableQuery
     Dim table As obj_DataTable
     Dim names As Object
-    Dim reporters As Object
     Dim chains As Object
     Dim errors As Object
     Dim chainDiagnostic As String
@@ -253,8 +252,6 @@ Private Function private_PrepareTvo( _
     actorColumn = 4
     Set names = VBA.CreateObject("Scripting.Dictionary")
     names.CompareMode = VBA.vbTextCompare
-    Set reporters = VBA.CreateObject("Scripting.Dictionary")
-    reporters.CompareMode = VBA.vbTextCompare
     Set chains = VBA.CreateObject("Scripting.Dictionary")
     chains.CompareMode = VBA.vbTextCompare
     Set errors = VBA.CreateObject("Scripting.Dictionary")
@@ -268,15 +265,6 @@ Private Function private_PrepareTvo( _
             End If
             Set matches = names(name)
             matches.Add row
-        End If
-        actor = private_Text(table.ValueAt(row, actorColumn))
-        If VBA.Len(actor) > 0 Then
-            If Not reporters.Exists(actor) Then
-                Set matches = New Collection
-                reporters.Add actor, matches
-            End If
-            Set matches = reporters(actor)
-            matches.Add private_Text(table.ValueAt(row, codeColumn))
         End If
     Next row
     For row = 1 To table.RowCount
@@ -300,7 +288,6 @@ Private Function private_PrepareTvo( _
             End If
         End If
     Next row
-    snapshot.Prepared.Add "Tvo.ReporterPositions", reporters
     snapshot.Prepared.Add "Tvo.Chains", chains
     snapshot.Prepared.Add "Tvo.ChainErrors", errors
     For Each key In errors.Keys

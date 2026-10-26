@@ -15,6 +15,10 @@ Implements obj_IUiContainer
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
+Private m_visibility As obj_UiPanelVisibility
+Private m_collapsed As Boolean
+Private m_childrenSuspended As Boolean
+
 Private m_children As Collection
 Private m_definition As Object
 Private m_sourceDefinition As Object
@@ -71,6 +75,17 @@ Private Function obj_IUiElement_Measure( _
     ByRef columns As Long, _
     ByRef diagnostic As String _
 ) As Boolean
+    If Not private_UpdateVisibility(diagnostic) Then
+        Exit Function
+    End If
+    If m_collapsed Then
+        rows = 0
+        columns = 0
+        m_rows = 0
+        m_columns = 0
+        obj_IUiElement_Measure = True
+        Exit Function
+    End If
     obj_IUiElement_Measure = private_MeasurePanel(rows, columns, diagnostic)
     rows = rows + m_row - 1
     columns = columns + m_column - 1
@@ -82,11 +97,19 @@ Private Function obj_IUiElement_Arrange( _
     ByRef diagnostic As String _
 ) As Boolean
     row = row + m_row - 1
+    If m_collapsed Then
+        obj_IUiElement_Arrange = True
+        Exit Function
+    End If
     column = column + m_column - 1
     obj_IUiElement_Arrange = private_ArrangePanel(row, column, diagnostic)
 End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    If m_collapsed Then
+        obj_IUiElement_Render = True
+        Exit Function
+    End If
     obj_IUiElement_Render = private_RenderPanel(diagnostic)
 End Function
 
@@ -120,6 +143,9 @@ Public Function RebuildContent(ByRef diagnostic As String) As Boolean
     Next child
     Set m_children = New Collection
     RebuildContent = private_ConfigurePanel(definition, m_context, m_source, diagnostic)
+    If RebuildContent Then
+        m_childrenSuspended = False
+    End If
 End Function
 
 Public Sub ReplaceChildren(ByVal children As Collection)
@@ -189,6 +215,14 @@ Private Function private_ConfigurePanel( _
     m_column = ex_UiElementFactory.fn_Long(definition, "column", 1)
     Set m_context = context
     m_source = source
+    If m_visibility Is Nothing Then
+        Set m_visibility = New obj_UiPanelVisibility
+        If Not m_visibility.Initialize(definition, context, source, diagnostic) Then
+            Exit Function
+        End If
+    End If
+    m_stretchColumns = 0
+    m_minRows = 0
     m_mode = VBA.LCase$(ex_UiElementFactory.fn_Attribute(definition, "orientation"))
     If m_mode <> "horizontal" And m_mode <> "vertical" Then
         diagnostic = "A stack container requires orientation=horizontal or vertical."
@@ -306,7 +340,27 @@ Private Function private_ValidatePanel(ByVal errors As Collection) As Boolean
     Next child
 End Function
 
-Private Sub private_DisposePanel()
+Private Function private_UpdateVisibility(ByRef diagnostic As String) As Boolean
+    Dim definition As Object
+
+    If Not m_visibility.TryMeasure(m_collapsed, diagnostic) Then
+        Exit Function
+    End If
+    If m_collapsed Then
+        private_ClearChildren
+        m_childrenSuspended = True
+    ElseIf m_childrenSuspended Then
+        private_ClearChildren
+        Set definition = m_sourceDefinition.cloneNode(True)
+        If Not private_ConfigurePanel(definition, m_context, m_source, diagnostic) Then
+            Exit Function
+        End If
+        m_childrenSuspended = False
+    End If
+    private_UpdateVisibility = True
+End Function
+
+Private Sub private_ClearChildren()
     Dim child As obj_IUiElement
 
     If Not m_children Is Nothing Then
@@ -314,6 +368,18 @@ Private Sub private_DisposePanel()
             child.Dispose
         Next child
     End If
+    Set m_children = New Collection
+End Sub
+
+Private Sub private_DisposePanel()
+    private_ClearChildren
+    If Not m_visibility Is Nothing Then
+        m_visibility.Dispose
+    End If
+    If Not m_context Is Nothing Then
+        m_context.UnregisterElement ex_UiElementFactory.fn_Attribute(m_definition, "name"), Me
+    End If
+    Set m_visibility = Nothing
     Set m_children = Nothing
     Set m_definition = Nothing
     Set m_sourceDefinition = Nothing
