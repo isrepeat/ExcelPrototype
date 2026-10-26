@@ -481,6 +481,7 @@ Public Function fn_ParseDate( _
     Dim dateDay As Long
     Dim dateMonth As Long
     Dim dateYear As Long
+    Dim serial As Double
 
     If VBA.VarType(value) = VBA.vbDate Then
         fn_ParseDate = VBA.DateValue(value)
@@ -497,6 +498,20 @@ Public Function fn_ParseDate( _
     End If
     text = ex_PEB_Export.fn_Text(value)
     Set rx = VBA.CreateObject("VBScript.RegExp")
+    ' ADO can return an Excel day serial as text in a mixed-type column.
+    ' Keep one- and two-digit input available for the existing day shorthand.
+    rx.Pattern = "^[0-9]{3,}$"
+    If rx.Test(text) Then
+        If Len(text) > 7 Then
+            Err.Raise 5, , "Invalid Excel date: " & key
+        End If
+        serial = VBA.CDbl(text)
+        If serial < 61 Or serial > 2958465 Then
+            Err.Raise 5, , "Invalid Excel date: " & key
+        End If
+        fn_ParseDate = VBA.DateValue(VBA.CDate(serial))
+        Exit Function
+    End If
     rx.Pattern = "^\d{1,2}(\.\d{1,2}(\.\d{4})?)?$"
     If Not rx.Test(text) Then
         Err.Raise 5, , "Date D, D.M or D.M.YYYY required: " & key
