@@ -324,6 +324,13 @@ Private Function private_ReadFile( _
     Dim startedAt As Double
     Dim stageAt As Double
     Dim matches As Boolean
+    Dim sourceColumns As Variant
+    Dim columnIndex As Long
+    Dim dataRows As Long
+    Dim matchedRows() As Boolean
+    Dim matchedCount As Long
+    Dim resultStartedAt As Double
+    Dim orderDateText As String
 
     On Error GoTo EH
     startedAt = VBA.Timer
@@ -335,16 +342,41 @@ Private Function private_ReadFile( _
     source.WorkbookPath = path
     source.SheetName = private_Config("source.sheet")
     source.RangeAddress = private_Config("source.range")
-    ' Read provider headers before normalized matching: ADO rewrites punctuation and line breaks.
     ' Reports are selected and read afresh on validation; they are not session dependencies.
     If Not queryService.TryExecute(source, query, data, diagnostic, False) Then Err.Raise 5, , diagnostic
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Query | File=" & VBA.Mid$(path, VBA.InStrRev(path, "\") + 1) & " | Rows=" & VBA.CStr(data.RowCount), stageAt
     stageAt = VBA.Timer
     Set indexes = VBA.CreateObject("Scripting.Dictionary")
+    sourceColumns = VBA.Split(private_Config("source.columns"), "|")
+    If data.ColumnCount <> UBound(sourceColumns) + 1 Then
+        private_Fail "MissingHeader", "validation.MedicalReports.source.columns / " & fileName
+    End If
+    For columnIndex = LBound(sourceColumns) To UBound(sourceColumns)
+        indexes.Add VBA.CStr(sourceColumns(columnIndex)), columnIndex + 1
+    Next columnIndex
     For Each field In reportFields
-        indexes.Add VBA.CStr(field), private_HeaderIndex(data.Headers, private_Config("headers." & VBA.CStr(field)))
+        If Not indexes.Exists(VBA.CStr(field)) Then
+            private_Fail "MissingHeader", "validation.MedicalReports.source.columns / " & VBA.CStr(field)
+        End If
     Next field
+    If Not indexes.Exists("RowNumber") Then
+        private_Fail "MissingHeader", "validation.MedicalReports.source.columns / RowNumber"
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Columns | File=" & fileName, stageAt
+    stageAt = VBA.Timer
+    ' The first empty number cell separates the current patients from discharged people.
     For row = 1 To data.RowCount
+        value = data.ValueAt(row, indexes("RowNumber"))
+        If VBA.IsError(value) Then private_Fail "InvalidCell", "RowNumber / " & VBA.CStr(row)
+        If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit For
+        If VBA.Len(private_Normalize(VBA.CStr(value))) = 0 Then Exit For
+        dataRows = row
+    Next row
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Bounds | File=" & fileName & " | Rows=" & VBA.CStr(dataRows), stageAt
+    stageAt = VBA.Timer
+    ReDim matchedRows(0 To dataRows)
+    orderDateText = VBA.Format$(orderDate, "dd.mm.yyyy")
+    For row = 1 To dataRows
         value = data.ValueAt(row, indexes("Dates"))
         If searchMode Then
             matches = private_SearchDateMatches(value, orderDate, dateRx)
@@ -356,9 +388,19 @@ Private Function private_ReadFile( _
                     VBA.InStr(1, private_Normalize(VBA.CStr(value)), private_Normalize(personName), VBA.vbTextCompare) > 0
             End If
         Else
-            matches = private_FirstDateMatches(value, orderDate, dateRx)
+            matches = private_FirstDateMatches(value, orderDate, orderDateText)
         End If
+        matchedRows(row) = matches
         If matches Then
+            matchedCount = matchedCount + 1
+        End If
+    Next row
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.DateFilter | File=" & fileName & _
+        " | Rows=" & VBA.CStr(dataRows) & " | Matches=" & VBA.CStr(matchedCount) & _
+        " | Search=" & VBA.CStr(searchMode), stageAt
+    resultStartedAt = VBA.Timer
+    For row = 1 To dataRows
+        If matchedRows(row) Then
             Set fields = VBA.CreateObject("Scripting.Dictionary")
             key = VBA.vbNullString
             For Each field In reportFields
@@ -378,6 +420,8 @@ Private Function private_ReadFile( _
             End If
         End If
     Next row
+    ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.BuildResults | File=" & fileName & _
+        " | Matches=" & VBA.CStr(matchedCount), resultStartedAt
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Filter | File=" & VBA.Mid$(path, VBA.InStrRev(path, "\") + 1), stageAt
     private_ReadFile = True
 Cleanup:
@@ -548,14 +592,11 @@ End Function
 Private Function private_FirstDateMatches( _
     ByVal value As Variant, _
     ByVal orderDate As Date, _
-    ByVal dateRx As Object _
+    ByVal orderDateText As String _
 ) As Boolean
     Dim text As String
-    Dim matches As Object
-    Dim firstDate As Date
-    Dim day As Long
-    Dim month As Long
-    Dim year As Long
+    Dim index As Long
+    Dim character As Long
 
     If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit Function
     If VBA.IsError(value) Then private_Fail "InvalidCell", "Dates"
@@ -567,16 +608,22 @@ Private Function private_FirstDateMatches( _
         private_FirstDateMatches = (VBA.Fix(VBA.CDbl(value)) = VBA.CDbl(orderDate))
         Exit Function
     End If
-    text = VBA.Trim$(VBA.Replace$(VBA.CStr(value), VBA.ChrW(160), " "))
-    Set matches = dateRx.Execute(text)
-    If matches.Count = 0 Then Exit Function
-    day = VBA.CLng(matches(0).SubMatches(0))
-    month = VBA.CLng(matches(0).SubMatches(1))
-    year = VBA.CLng(matches(0).SubMatches(2))
-    If day < 1 Or day > 31 Or month < 1 Or month > 12 Or year < 1900 Or year > 9999 Then Exit Function
-    firstDate = VBA.DateSerial(year, month, day)
-    If VBA.Day(firstDate) <> day Or VBA.Month(firstDate) <> month Then Exit Function
-    private_FirstDateMatches = (firstDate = orderDate)
+    text = VBA.CStr(value)
+    index = 1
+    ' Match only the first date, preserving whitespace and digit-boundary rules.
+    Do While index <= VBA.Len(text)
+        character = VBA.AscW(VBA.Mid$(text, index, 1))
+        If character <> 32 And character <> 160 And (character < 9 Or character > 13) Then
+            Exit Do
+        End If
+        index = index + 1
+    Loop
+    If VBA.Mid$(text, index, 10) <> orderDateText Then Exit Function
+    If VBA.Len(text) >= index + 10 Then
+        character = VBA.AscW(VBA.Mid$(text, index + 10, 1))
+        If character >= 48 And character <= 57 Then Exit Function
+    End If
+    private_FirstDateMatches = True
 End Function
 
 Private Function private_HeaderIndex( _

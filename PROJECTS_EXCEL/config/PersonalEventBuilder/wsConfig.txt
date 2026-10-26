@@ -1888,8 +1888,9 @@ value	PersonalEventBuilder::validation.MedicalReports.search.text.RangeTooWide	�
 value	PersonalEventBuilder::validation.MedicalReports.search.display	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber
 value	PersonalEventBuilder::validation.MedicalReports.search.maxDays	366
 value	PersonalEventBuilder::validation.MedicalReports.search.defaultDays	10
-value	PersonalEventBuilder::validation.MedicalReports.source.range	A3:Q20000
+value	PersonalEventBuilder::validation.MedicalReports.source.range	A3:S20000
 value	PersonalEventBuilder::validation.MedicalReports.source.sheet	Аркуш1
+value	PersonalEventBuilder::validation.MedicalReports.source.columns	RowNumber|Unit|Rank|PersonName|Dates|DocumentName|DocumentDate|DocumentNumber|CombatWound|Hospital|Diagnosis|TreatmentStatus|DischargeDocumentName|DischargeDocumentDate|DischargeDocumentNumber|Phone|PersonId|BirthDate|Certificates
 value	PersonalEventBuilder::validation.MedicalReports.display	Notes|IdentityStatus|PersonId|PersonName|ReferenceName|Unit|Rank|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber|Sources
 value	PersonalEventBuilder::validation.MedicalReports.headers.Rank	Військове звання
 value	PersonalEventBuilder::validation.MedicalReports.headers.Unit	Підрозділ
