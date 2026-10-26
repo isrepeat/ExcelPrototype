@@ -14,6 +14,7 @@ Private m_isDisposed As Boolean
 
 Private m_anchors As Object
 Private m_blocks As Object
+Private m_roots As Object
 Private m_sourceText As String
 Private m_expectedText As String
 Private m_insertDocument As Object
@@ -82,6 +83,7 @@ Public Function Initialize( _
     If VBA.Len(pending) > 0 Then Err.Raise 5, , "Unpaired Word anchor begin: " & pending
     If m_anchors.Count = 0 Then Err.Raise 5, , "Word template has no Begin/End export anchors."
     private_IndexBlocks document
+    private_IndexRoots
     m_isInitialized = True
     Initialize = True
     Exit Function
@@ -96,6 +98,7 @@ Public Sub Dispose()
     m_isInitialized = False
     Set m_anchors = Nothing
     Set m_blocks = Nothing
+    Set m_roots = Nothing
     m_sourceText = VBA.vbNullString
     m_expectedText = VBA.vbNullString
     Set m_insertDocument = Nothing
@@ -365,6 +368,69 @@ Private Sub private_IndexBlocks(ByVal document As Object)
     If VBA.Len(pending) > 0 Then Err.Raise 5, , "Unpaired Word block begin: " & pending
 End Sub
 
+Private Sub private_IndexRoots()
+    Dim expression As Object
+    Dim whitespace As Object
+    Dim match As Object
+    Dim opening As Object
+    Dim marker As String
+    Dim identifier As String
+    Dim pending As String
+    Dim key As Variant
+    Dim positions As Variant
+    Dim markers As Variant
+    Dim first As Long
+    Dim last As Long
+
+    Set m_roots = VBA.CreateObject("Scripting.Dictionary")
+    Set expression = VBA.CreateObject("VBScript.RegExp")
+    expression.Global = True
+    expression.Pattern = "\{\s*\\\s*root\s*:[^{}]*\}"
+    Set whitespace = VBA.CreateObject("VBScript.RegExp")
+    whitespace.Global = True
+    whitespace.Pattern = "[\s" & VBA.ChrW(160) & "]+"
+    For Each match In expression.Execute(m_sourceText)
+        private_ValidateBlockParagraph match, whitespace
+        marker = whitespace.Replace(match.Value, VBA.vbNullString)
+        marker = VBA.Mid$(marker, 8, VBA.Len(marker) - 8)
+        If VBA.Right$(marker, 6) = "_Begin" Then
+            identifier = VBA.Left$(marker, VBA.Len(marker) - 6)
+            If Len(pending) > 0 Or Len(identifier) = 0 Or m_roots.Exists(identifier) Then
+                Err.Raise 5, , "Duplicate or nested Word root: " & identifier
+            End If
+            pending = identifier
+            Set opening = match
+        ElseIf VBA.Right$(marker, 4) = "_End" Then
+            identifier = VBA.Left$(marker, VBA.Len(marker) - 4)
+            If Len(pending) = 0 Or identifier <> pending Then
+                Err.Raise 5, , "Unpaired Word root end: " & identifier
+            End If
+            For Each key In m_anchors.Keys
+                positions = m_anchors(key)
+                first = positions(2) - Len(positions(0))
+                last = positions(3) + Len(positions(1))
+                If m_blocks.Exists(key) Then
+                    markers = m_blocks(key)
+                    first = InStr(1, m_sourceText, markers(0), vbBinaryCompare) - 1
+                    last = InStr(1, m_sourceText, markers(1), vbBinaryCompare) - 1 + Len(markers(1))
+                End If
+                If first < match.FirstIndex + match.Length And last > opening.FirstIndex Then
+                    If first < opening.FirstIndex + opening.Length Or last > match.FirstIndex Then
+                        Err.Raise 5, , "Word root intersects a child section: " & identifier & "/" & key
+                    End If
+                End If
+            Next key
+            m_roots.Add identifier, VBA.Array(opening.Value, match.Value)
+            pending = vbNullString
+        Else
+            Err.Raise 5, , "Invalid Word root marker: " & match.Value
+        End If
+    Next match
+    If Len(pending) > 0 Then
+        Err.Raise 5, , "Unpaired Word root begin: " & pending
+    End If
+End Sub
+
 Private Sub private_ValidateBlockParagraph( _
     ByVal match As Object, _
     ByVal whitespace As Object _
@@ -494,11 +560,52 @@ Private Function private_PlanCleanup(ByVal snapshot As String) As Collection
     Dim whitespace As Object
     Dim blockText As String
     Dim entry As Variant
+    Dim root As Variant
+    Dim rootMarkers As Variant
+    Dim rootFirst As Variant
+    Dim rootLast As Variant
+    Dim children As Collection
+    Dim skipped As Object
+    Dim populated As Boolean
 
     Set whitespace = VBA.CreateObject("VBScript.RegExp")
     whitespace.Global = True
     whitespace.Pattern = "[\s" & VBA.ChrW(160) & "]+"
+    Set skipped = VBA.CreateObject("Scripting.Dictionary")
+    ' Root headings count as metadata; only exported child content keeps a root alive.
+    For Each root In m_roots.Keys
+        rootMarkers = m_roots(root)
+        rootFirst = private_TextRemoval(snapshot, CStr(rootMarkers(0)), True, True)
+        rootLast = private_TextRemoval(snapshot, CStr(rootMarkers(1)), True, True)
+        Set children = New Collection
+        populated = False
+        For Each identifier In m_anchors.Keys
+            positions = m_anchors(identifier)
+            opening = private_TextRemoval(snapshot, CStr(positions(0)), False, False)
+            closing = private_TextRemoval(snapshot, CStr(positions(1)), False, False)
+            If opening(0) >= rootFirst(1) And closing(1) <= rootLast(0) Then
+                children.Add identifier
+                blockText = Mid$(snapshot, opening(1), closing(0) - opening(1))
+                If Len(whitespace.Replace(blockText, vbNullString)) > 0 Then
+                    populated = True
+                End If
+            End If
+        Next identifier
+        If populated Then
+            private_AddRemoval removals, rootFirst
+            private_AddRemoval removals, rootLast
+        Else
+            entry = VBA.Array(rootFirst(0), rootLast(1), rootFirst(2), rootFirst(3), rootLast(4), rootLast(5))
+            private_AddRemoval removals, entry
+            For Each identifier In children
+                skipped(identifier) = True
+            Next identifier
+        End If
+    Next root
     For Each identifier In m_anchors.Keys
+        If skipped.Exists(identifier) Then
+            GoTo NextCleanupAnchor
+        End If
         positions = m_anchors(identifier)
         opening = private_TextRemoval(snapshot, VBA.CStr(positions(0)), False, False)
         closing = private_TextRemoval(snapshot, VBA.CStr(positions(1)), False, False)
@@ -529,6 +636,7 @@ Private Function private_PlanCleanup(ByVal snapshot As String) As Collection
             private_AddRemoval removals, opening
             private_AddRemoval removals, closing
         End If
+NextCleanupAnchor:
     Next identifier
     Set private_PlanCleanup = removals
 End Function
