@@ -97,6 +97,9 @@ Public Function TryExport( _
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Movement exporter is not initialized."
     End If
+    ex_PEB_Export.fn_CheckRejections _
+        ex_PEB_MovementTemplates.fn_Template(CStr(ex_PEB_Export.fn_Required(values, "MovementTemplateId"))), _
+        values
     prefix = "profiles." & ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "MovementPlanId"))
     operation = ex_PEB_MovementRegistry.fn_Value(prefix & ".operation")
     If operation <> "append" And operation <> "close" And operation <> "transition" Then

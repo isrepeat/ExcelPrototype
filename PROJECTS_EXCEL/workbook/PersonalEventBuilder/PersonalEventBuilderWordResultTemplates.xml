@@ -607,6 +607,9 @@
 
   <template name="ToAnnualMainVacation"
             hash="0x0A">
+    <reject field="Destination"
+            matches="\(\s*[A-Za-zÀ-ÖØ-öø-ÿĀ-ž][A-Za-zÀ-ÖØ-öø-ÿĀ-ž0-9\s,.'’/-]*\)"
+            messageKey="text.ExportRejected"/>
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
@@ -735,7 +738,7 @@
     </text>
   </template>
 
-  <template name="MoveFromVacationForCuringToHospital" 
+  <template name="MoveFromVacationForCuringToHospital"
             hash="0x12">
     <text>
       <![CDATA[#^

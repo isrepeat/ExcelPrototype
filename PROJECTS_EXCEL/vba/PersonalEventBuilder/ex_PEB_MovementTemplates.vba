@@ -174,13 +174,15 @@ Private Sub private_EnsureLoaded()
     Next key
     For Each node In root.selectNodes("p:template")
         private_CheckAttributes node, "name"
+        ex_PEB_Export.fn_ValidateRejections node, "|" & VBA.Join(m_knownFields.Keys, "|") & "|VacationAdditionalDays|"
         identifier = private_Attribute(node, "name")
         private_Add m_templates, identifier, node
         Set columns = private_Dictionary()
         columns.CompareMode = VBA.vbTextCompare
         For Each child In node.childNodes
             If child.nodeType = 1 Then
-                If child.namespaceURI <> "urn:excelprototype:profiles" Or child.baseName <> "column" Then
+                If child.namespaceURI <> "urn:excelprototype:profiles" Or _
+                        (child.baseName <> "column" And child.baseName <> "reject") Then
                     Err.Raise 5, , "Expected column in result template: " & identifier
                 End If
             End If

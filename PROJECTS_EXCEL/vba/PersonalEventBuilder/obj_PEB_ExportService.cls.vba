@@ -624,6 +624,7 @@ Public Function TryPrepareHistory( _
             m_ownsWordTemplates = False
         End If
     End If
+    ex_PEB_Export.fn_CheckRejections m_pebWordTemplates.Definition(template), values
     If m_pebDslRenderer Is Nothing Then
         Set m_pebDslRenderer = New obj_PEB_DslRenderer
         If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")
@@ -946,6 +947,7 @@ Private Sub private_PrepareVacationDuration(ByVal values As Object)
     Dim ending As Date
     Dim starting As Date
 
+    values("VacationAdditionalDays") = 0
     text = ex_PEB_Export.fn_Text(values("DurationDays"))
     If VBA.Len(text) = 0 Then Exit Sub
     Set rx = VBA.CreateObject("VBScript.RegExp")
@@ -1011,6 +1013,7 @@ Private Sub private_PrepareVacationDuration(ByVal values As Object)
             values("MovementDurationDays") = values("MovementDurationDays") + additional
         End If
         total = total + additional
+        values("VacationAdditionalDays") = values("VacationAdditionalDays") + additional
     Next operand
     If VBA.Len(extras) > 0 Then extras = extras & ","
     values("AdditionalDurationPhrases") = extras
@@ -1092,6 +1095,7 @@ Private Sub private_PrepareMovementTexts( _
         End If
     End If
     templateId = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "MovementTemplateId"))
+    ex_PEB_Export.fn_CheckRejections ex_PEB_MovementTemplates.fn_Template(templateId), values
     Set templates = ex_PEB_MovementTemplates.fn_Texts(templateId)
     Set results = VBA.CreateObject("Scripting.Dictionary")
     results.CompareMode = VBA.vbTextCompare

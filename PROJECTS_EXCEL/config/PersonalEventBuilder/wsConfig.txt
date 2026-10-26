@@ -80,6 +80,7 @@ value	PersonalEventBuilder::text.EventDateLabel	Дата події
 value	PersonalEventBuilder::text.EventNoteLabel	Примітка
 value	PersonalEventBuilder::text.ExportMovement	Експорт РУХ
 value	PersonalEventBuilder::text.ExportNotSaved	Зміни не збережено.
+value	PersonalEventBuilder::text.ExportRejected	Експорт у WORD відхилено: у місці проведення щорічної основної відпустки виявлено можливу ознаку відпустки за кордоном — текст латиницею в дужках.
 value	PersonalEventBuilder::text.FullNameHeader	ПІБ
 value	PersonalEventBuilder::text.HistoryEditing	Редагування: {id}
 value	PersonalEventBuilder::text.OrderDateLabel	Дата наказу

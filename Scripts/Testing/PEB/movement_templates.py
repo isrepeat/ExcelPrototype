@@ -4,6 +4,7 @@ from pathlib import Path
 from xml.etree import ElementTree as ET
 import re
 from dsl_resources import load_resources
+from template_rejections import validate_rejections
 
 NS = {"p": "urn:excelprototype:profiles"}
 
@@ -46,9 +47,10 @@ def load_movement(settings, workbook, xml_text=None):
         name = node.get("name")
         require(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name), "Invalid template name")
         require(name not in templates, "Duplicate template: " + name)
-        require(len(node) > 0 and all(child.tag == f"{{{NS['p']}}}column" for child in node), "Expected result columns: " + name)
+        validate_rejections(node, settings, known | {"VacationAdditionalDays"})
+        require(node.findall("p:column", NS) and all(child.tag in {f"{{{NS['p']}}}column", f"{{{NS['p']}}}reject"} for child in node), "Expected result columns: " + name)
         texts, names = {}, set()
-        for column in node:
+        for column in node.findall("p:column", NS):
             attributes(column, {"configKey"}, {"configKey"})
             config_key = column.get("configKey").strip()
             require(config_key in settings and settings[config_key].strip(), "Missing configuration key: " + config_key)

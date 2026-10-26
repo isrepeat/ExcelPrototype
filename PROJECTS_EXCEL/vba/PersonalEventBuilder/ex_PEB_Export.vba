@@ -73,6 +73,86 @@ Public Sub fn_TicketDocumentValues(ByVal values As Object, Optional ByVal stored
     values("TicketDate") = values("DocumentDate")
 End Sub
 
+Public Sub fn_ValidateRejections( _
+    ByVal template As Object, _
+    Optional ByVal knownFields As String = vbNullString _
+)
+    Dim rule As Object
+    Dim xmlAttribute As Object
+    Dim key As Variant
+    Dim message As String
+    Dim expression As Object
+    Dim patternMatches As Boolean
+
+    For Each rule In template.selectNodes("p:reject")
+        For Each xmlAttribute In rule.Attributes
+            If InStr(1, "|field|equals|matches|messageKey|", "|" & xmlAttribute.nodeName & "|", vbBinaryCompare) = 0 Then
+                Err.Raise 5, , "Unknown rejection attribute: " & xmlAttribute.nodeName
+            End If
+        Next xmlAttribute
+        For Each key In VBA.Array("field", "messageKey")
+            If rule.getAttributeNode(key) Is Nothing Then
+                Err.Raise 5, , "Missing rejection attribute: " & key
+            End If
+            If Len(Trim$(CStr(rule.getAttribute(key)))) = 0 Then
+                Err.Raise 5, , "Empty rejection attribute: " & key
+            End If
+        Next key
+        If (rule.getAttributeNode("equals") Is Nothing) = (rule.getAttributeNode("matches") Is Nothing) Then
+            Err.Raise 5, , "Rejection requires exactly one of equals or matches."
+        End If
+        key = "equals"
+        If Not rule.getAttributeNode("matches") Is Nothing Then key = "matches"
+        If Len(Trim$(CStr(rule.getAttribute(key)))) = 0 Then
+            Err.Raise 5, , "Empty rejection attribute: " & key
+        End If
+        If key = "matches" Then
+            Set expression = VBA.CreateObject("VBScript.RegExp")
+            expression.Pattern = CStr(rule.getAttribute(key))
+            patternMatches = expression.Test(vbNullString)
+        End If
+        If rule.hasChildNodes Then
+            Err.Raise 5, , "Rejection rules must be empty elements."
+        End If
+        If Len(knownFields) > 0 Then
+            If InStr(1, knownFields, "|" & CStr(rule.getAttribute("field")) & "|", vbBinaryCompare) = 0 Then
+                Err.Raise 5, , "Unknown rejection field: " & CStr(rule.getAttribute("field"))
+            End If
+        End If
+        message = fn_Config(CStr(rule.getAttribute("messageKey")))
+    Next rule
+End Sub
+
+Public Sub fn_CheckRejections( _
+    ByVal template As Object, _
+    ByVal values As Object _
+)
+    Dim rule As Object
+    Dim actual As String
+    Dim expected As String
+    Dim matches As Boolean
+    Dim expression As Object
+
+    For Each rule In template.selectNodes("p:reject")
+        actual = fn_Text(fn_Required(values, CStr(rule.getAttribute("field"))))
+        If Not rule.getAttributeNode("matches") Is Nothing Then
+            Set expression = VBA.CreateObject("VBScript.RegExp")
+            expression.Pattern = CStr(rule.getAttribute("matches"))
+            matches = expression.Test(actual)
+        Else
+            expected = CStr(rule.getAttribute("equals"))
+            If IsNumeric(actual) And IsNumeric(expected) Then
+                matches = (CDec(actual) = CDec(expected))
+            Else
+                matches = (StrComp(actual, expected, vbBinaryCompare) = 0)
+            End If
+        End If
+        If matches Then
+            Err.Raise 5, , fn_Config(CStr(rule.getAttribute("messageKey")))
+        End If
+    Next rule
+End Sub
+
 Public Function fn_Config(ByVal key As String) As String
     Dim value As String
 

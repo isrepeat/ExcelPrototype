@@ -8,6 +8,7 @@ from movement_templates import load_movement
 from movement_plans import load_native_plans
 from config_dependencies import load_config
 from dsl_resources import load_resources
+from template_rejections import validate_rejections
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKBOOK = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
@@ -66,11 +67,14 @@ def validate_word_template(template):
                 attributes(child, common, common)
                 text_block(child)
     attributes(template, ("name", "hash", "identityBy", "orderBy"), ("name",))
+    validate_rejections(template)
     bodies = template.findall("p:text", NS) + template.findall("p:group", NS)
     require(len(bodies) == 1, "Expected exactly one text or group body")
     body_seen = False
     for child in template:
-        if child.tag == f"{{{NS['p']}}}derived":
+        if child.tag == f"{{{NS['p']}}}reject":
+            require(not body_seen, "Rejection rules must precede the body")
+        elif child.tag == f"{{{NS['p']}}}derived":
             require(not body_seen, "Derived fields must precede the body")
             attributes(child, ("name",), ("name",))
             text_block(child)
@@ -139,6 +143,8 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
         templates = index(word_root.findall("p:template", NS), "name")
         for template in templates.values():
             validate_word_template(template)
+            validate_rejections(template, settings,
+                                set(settings["export.Word.context.xmlKeys"].split("|")) | {"VacationAdditionalDays"})
     for identifier, event in events.items():
         attributes(event, "id|caption|label|direction|form|visible", "id|caption|label|direction|form|visible")
         require(event.get("direction") in ("Arrival", "Departure", "StatusChange"), f"Invalid direction: {identifier}")
