@@ -13,7 +13,10 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_Read(ByVal values As Object) As Collection
+Public Function fn_Read( _
+    ByVal values As Object, _
+    Optional ByVal useSnapshot As Boolean = False _
+) As Collection
     Dim result As New Collection
     Dim period As Object
     Dim plan As Object
@@ -26,7 +29,7 @@ Public Function fn_Read(ByVal values As Object) As Collection
     If ex_PEB_EventRoutes.fn_Value(values("EventId"), "direction") <> "Arrival" Then Exit Function
     Set plan = ex_PEB_MovementRegistry.fn_Event(values("EventId"))
     If plan("operation") <> "Arrival" Then Exit Function
-    Set period = ex_PEB_MovementSource.fn_ReadLatest(values("PersonId"), True)
+    Set period = ex_PEB_MovementSource.fn_ReadLatest(values("PersonId"), True, useSnapshot)
     If period Is Nothing Then Exit Function
     Set statuses = ex_PEB_MovementRegistry.fn_Statuses()
     If VBA.StrComp(ex_PEB_Export.fn_Text(period("EventName")), statuses(plan("sourceStatus")), VBA.vbTextCompare) <> 0 Then
@@ -44,7 +47,7 @@ Public Function fn_Read(ByVal values As Object) As Collection
             Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoPeriodMismatch")
         End If
     End If
-    Set result = ex_PEB_MovementTvo.fn_ReturnRows(values, period, found)
+    Set result = ex_PEB_MovementTvo.fn_ReturnRows(values, period, found, useSnapshot)
     If found Then
         Set fn_Read = result
     Else

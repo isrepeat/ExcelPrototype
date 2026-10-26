@@ -19,12 +19,15 @@ def main():
     latest = procedure(source, "fn_ReadLatest")
     assert 'Optional ByVal includeTvo As Boolean = False' in latest
     assert 'If includeTvo Then' in latest
-    assert 'service.TryExecute(source, query, table, diagnostic, Not includeTvo)' in latest
+    assert 'service.TryExecute(source, query, table, diagnostic, Not includeTvo Or useSnapshot)' in latest
+    assert 'Optional ByVal useSnapshot As Boolean = False' in latest
     assert 'table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))' in latest
     capture = procedure(restore, "fn_Read")
     assert capture.index('"direction") <> "Arrival"') < capture.index('fn_ReadLatest(')
     assert 'plan("operation") <> "Arrival"' in capture
-    assert 'fn_ReadLatest(values("PersonId"), True)' in capture
+    assert 'fn_ReadLatest(values("PersonId"), True, useSnapshot)' in capture
+    assert 'Optional ByVal useSnapshot As Boolean = False' in capture
+    assert 'fn_ReturnRows(values, period, found, useSnapshot)' in capture
     assert 'statuses(plan("sourceStatus"))' in capture
     assert 'If arrivalDate <> eventDate Or _' in capture
     assert 'period("ArrivalOrder")' in capture and 'values("AcceptedOrderNumber")' in capture
@@ -52,6 +55,17 @@ def main():
     assert 'If row("MetaTvoTables").Count = 0 Then' in order
     assert 'fn_ReadLatest' not in order
     prepare = procedure(service, "TryPrepare")
+    assert 'Me.TryCaptureReturnTvo(values, diagnostic, Not prepareOutput)' in prepare
+    capture_service = procedure(service, "TryCaptureReturnTvo")
+    assert 'Optional ByVal useSnapshot As Boolean = False' in capture_service
+    assert 'ex_PEB_ReturnTvo.fn_Read(values, useSnapshot)' in capture_service
+    tvo_read = procedure(read("ex_PEB_MovementTvo.vba"), "fn_ReturnRows")
+    assert 'service.TryExecute(source, query, table, diagnostic, useSnapshot)' in tvo_read
+    assert 'data = table.Values' in tvo_read
+    row_loop = tvo_read.split('For index = 1 To table.RowCount', 1)[1]
+    assert 'fn_HeaderIndex' not in row_loop and 'private_Header' not in row_loop
+    assert 'row(field) = data(index, columns(CStr(field)))' in row_loop
+    assert 'TryCaptureReturnTvo(values, diagnostic)' in save
     assert 'If Not history And values("ModeDirection") = "Arrival" Then' in prepare
     assert 'If values("MetaTvoTables").Count = 0 Then' in prepare
     assert 'fn_ReadLatest' not in procedure(service, "TryPrepareHistory")

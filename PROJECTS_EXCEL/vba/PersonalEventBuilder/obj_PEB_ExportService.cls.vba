@@ -160,7 +160,8 @@ End Function
 
 Public Function TryCaptureReturnTvo( _
     ByVal values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal useSnapshot As Boolean = False _
 ) As Boolean
     Dim rows As Collection
     Dim row As Object
@@ -172,7 +173,7 @@ Public Function TryCaptureReturnTvo( _
     On Error GoTo EH_RETURN_TVO
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Export service is not initialized."
     stageStartedAt = VBA.Timer
-    Set rows = ex_PEB_ReturnTvo.fn_Read(values)
+    Set rows = ex_PEB_ReturnTvo.fn_Read(values, useSnapshot)
     ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Read | Rows=" & VBA.CStr(rows.Count), stageStartedAt
     stageStartedAt = VBA.Timer
     For Each row In rows
@@ -329,7 +330,7 @@ Public Function TryPrepare( _
         detailStartedAt = VBA.Timer
         If Not history And values("ModeDirection") = "Arrival" Then
             If values("MetaTvoTables").Count = 0 Then
-                If Not Me.TryCaptureReturnTvo(values, diagnostic) Then GoTo Failed
+                If Not Me.TryCaptureReturnTvo(values, diagnostic, Not prepareOutput) Then GoTo Failed
                 Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)
             End If
         End If

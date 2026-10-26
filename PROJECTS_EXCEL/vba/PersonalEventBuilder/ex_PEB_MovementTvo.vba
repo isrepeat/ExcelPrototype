@@ -34,13 +34,17 @@ End Function
 Public Function fn_ReturnRows( _
     ByVal values As Object, _
     ByVal period As Object, _
-    ByRef found As Boolean _
+    ByRef found As Boolean, _
+    Optional ByVal useSnapshot As Boolean = False _
 ) As Collection
     Dim source As obj_TableSource
     Dim query As obj_TableQuery
     Dim service As obj_TableQueryService
     Dim table As obj_DataTable
     Dim model As New Collection
+    Dim headers As Variant
+    Dim data As Variant
+    Dim columns As Object
     Dim fields As Variant
     Dim field As Variant
     Dim row As Object
@@ -62,15 +66,21 @@ Public Function fn_ReturnRows( _
     For Each field In fields
         query.AddColumn private_Header(CStr(field))
     Next field
-    ' Return restoration reads live source data, independently of reporter snapshot dates.
+    ' Preview may reuse prepared data; persistence defaults to a fresh source read.
     service.Backend = QueryAuto
-    If Not service.TryExecute(source, query, table, diagnostic, False) Then
+    If Not service.TryExecute(source, query, table, diagnostic, useSnapshot) Then
         Err.Raise 5, , diagnostic
     End If
+    headers = table.Headers
+    data = table.Values
+    Set columns = CreateObject("Scripting.Dictionary")
+    For Each field In fields
+        columns.Add CStr(field), ex_TableQuery.fn_HeaderIndex(headers, private_Header(CStr(field)))
+    Next field
     For index = 1 To table.RowCount
         Set row = CreateObject("Scripting.Dictionary")
         For Each field In fields
-            row(field) = table.ValueAt(index, ex_TableQuery.fn_HeaderIndex(table.Headers, private_Header(CStr(field))))
+            row(field) = data(index, columns(CStr(field)))
         Next field
         row("Index") = index
         model.Add row

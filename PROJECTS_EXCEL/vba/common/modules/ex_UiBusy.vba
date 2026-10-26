@@ -96,6 +96,13 @@ End Sub
 ' --------------------------------------
 Private Sub private_Restore()
     On Error Resume Next
+    ' Do not restore a transient Excel wait cursor after completing our own busy scope.
+    If m_previousCursorCaptured And m_previousCursor = xlDefault Then
+        If m_previousNativeCursor = private_LoadCursor(0, 32514) Or _
+                m_previousNativeCursor = private_LoadCursor(0, 32650) Then
+            m_previousNativeCursor = private_LoadCursor(0, 32512)
+        End If
+    End If
     If m_previousCursorCaptured Then Application.Cursor = m_previousCursor
     If m_previousNativeCursor <> 0 Then
         private_SetCursor m_previousNativeCursor

@@ -63,6 +63,7 @@ Public Sub fn_PreviewWord()
     Dim busyEntered As Boolean
     Dim errorNumber As Long
     Dim errorDescription As String
+    Dim diagnosticBatchEntered As Boolean
 
     If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
     If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Sub
@@ -74,6 +75,8 @@ Public Sub fn_PreviewWord()
             "{Binding Path=Commands.PreviewWord}", uiRenderContext.BindingContext, uiCommand) Then
         GoTo CleanPreview
     End If
+    ex_Core.fn_Diagnostic_BeginBatch
+    diagnosticBatchEntered = True
     busyEntered = ex_UiBusy.fn_Begin()
     Application.ScreenUpdating = False
     uiCommand.Execute
@@ -85,6 +88,9 @@ Public Sub fn_PreviewWord()
     End If
 CleanPreview:
     Application.ScreenUpdating = previousScreenUpdating
+    If diagnosticBatchEntered Then
+        ex_Core.fn_Diagnostic_EndBatch
+    End If
     If busyEntered Then ex_UiBusy.fn_End
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
@@ -92,6 +98,9 @@ EH_PREVIEW:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     Application.ScreenUpdating = previousScreenUpdating
+    If diagnosticBatchEntered Then
+        ex_Core.fn_Diagnostic_EndBatch
+    End If
     If busyEntered Then ex_UiBusy.fn_End
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     VBA.Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_PreviewWord", errorDescription
