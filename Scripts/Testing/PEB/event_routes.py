@@ -33,15 +33,28 @@ def validate_word_template(template):
         require(len(node) == 1 and node[0].tag == f"{{{NS['p']}}}text", "Expected one text element")
         text(node[0])
     def group(node):
-        attributes(node, ("by",), ("by",))
+        attributes(node, ("by", "branchBy"), ("by",))
         require(all(key.strip() for key in node.get("by").split(";")), "Empty grouping key")
         require(all(child.tag in {f"{{{NS['p']}}}{tag}" for tag in ("aggregate", "single", "multiple")} for child in node), "Unknown group element")
         require(len(node.findall("p:single", NS)) == len(node.findall("p:multiple", NS)) == 1, "Expected single and multiple")
         single = node.find("p:single", NS)
         attributes(single, ())
-        text_block(single)
+        if single.find("p:text", NS) is not None:
+            text_block(single)
+        else:
+            branch(single)
         multiple = node.find("p:multiple", NS)
         attributes(multiple, ())
+        branch(multiple)
+        names = set()
+        for aggregate in node.findall("p:aggregate", NS):
+            keys = ("name", "field", "operation", "pattern", "separator", "rangeSeparator")
+            attributes(aggregate, keys, keys)
+            require(not list(aggregate), "Aggregate cannot contain elements")
+            require(aggregate.get("name") not in names, "Duplicate aggregate")
+            names.add(aggregate.get("name"))
+            require(aggregate.get("operation") == "numberRanges", "Unknown aggregate operation")
+    def branch(multiple):
         require(len(multiple.findall("p:item", NS)) + len(multiple.findall("p:group", NS)) == 1, "Expected one item or nested group")
         for child in multiple:
             if child.tag == f"{{{NS['p']}}}group":
@@ -52,14 +65,6 @@ def validate_word_template(template):
                 common = ("common",) if child.tag.endswith(("}header", "}footer")) else ()
                 attributes(child, common, common)
                 text_block(child)
-        names = set()
-        for aggregate in node.findall("p:aggregate", NS):
-            keys = ("name", "field", "operation", "pattern", "separator", "rangeSeparator")
-            attributes(aggregate, keys, keys)
-            require(not list(aggregate), "Aggregate cannot contain elements")
-            require(aggregate.get("name") not in names, "Duplicate aggregate")
-            names.add(aggregate.get("name"))
-            require(aggregate.get("operation") == "numberRanges", "Unknown aggregate operation")
     attributes(template, ("name", "hash", "identityBy", "orderBy"), ("name",))
     bodies = template.findall("p:text", NS) + template.findall("p:group", NS)
     require(len(bodies) == 1, "Expected exactly one text or group body")

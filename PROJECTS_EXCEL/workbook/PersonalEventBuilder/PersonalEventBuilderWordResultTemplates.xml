@@ -268,41 +268,113 @@
     </sharedTemplate>
   </sharedTemplates>
 
-  <template name="ToBusinessTrip"
+<template name="ToBusinessTrip"
             identityBy="PersonId; DateFromShort; EventId"
-            orderBy="AcceptedOrderNumber; OrderDateShort">
+            orderBy="Destination; DateFromShort; PersonId">
     <derived name="GroupBasis">
-      <text>{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}</text>
+      <text>
+        {#include block.IncomingBasis}{#include block.OptionalBasisDocuments}
+      </text>
     </derived>
     <derived name="BusinessTripPeriod">
-      <text>{#include block.BusinessTripPeriod}</text>
+      <text>
+        {#include block.BusinessTripPeriod}
+      </text>
     </derived>
-    <group by="DateFromShort; Destination; GroupBasis; VacationTicketDateShort; BusinessTripPeriod">
-      <aggregate name="CertificateNumbers"
-                 field="VacationTicketNo"
-                 operation="numberRanges"
-                 pattern="^([0-9]{4}/[^/]+/)([0-9]+)(.*)$"
-                 separator=", "
-                 rangeSeparator="–"/>
+    <derived name="BusinessTripDetails">
+      <text>
+        <![CDATA[{#if [VacationDurationPhrase]}{[VacationDurationPhrase]}{[AdditionalDurationPhrases]}{#endif}{#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#if #not [VacationDurationPhrase]}{#space}до окремого розпорядження{#endif}]]>
+      </text>
+    </derived>
+    <group by="Destination"
+           branchBy="DateFromShort">
       <single>
-        <text><![CDATA[#^
-#_      Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {[BusinessTripPeriod]}:#^
-#_      {#newline}{#newline}#^
-#_      {#include block.PersonLineLower}.#^
-#_      {#include block.DepartureAdministration}#^
-        {#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.
-    ]]></text>
+        <header common="Destination; DateFromShort">
+          <text>
+            <![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, з {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:]]>
+          </text>
+        </header>
+        <group by="GroupBasis; VacationTicketDateShort; BusinessTripPeriod">
+          <aggregate name="CertificateNumbers"
+                     field="VacationTicketNo"
+                     operation="numberRanges"
+                     pattern="^([0-9]{4}/[^/]+/)([0-9]+)(.*)$"
+                     separator=", "
+                     rangeSeparator="–"/>
+          <single>
+            <text>
+              <![CDATA[{[BusinessTripDetails]}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.]]>
+            </text>
+          </single>
+          <multiple>
+            <header common="BusinessTripDetails">
+              <text>
+                <![CDATA[{[BusinessTripDetails]}:]]>
+              </text>
+            </header>
+            <item>
+              <text>
+                <![CDATA[{#include block.PersonLineLower}.{#include block.DepartureAdministration}]]>
+              </text>
+            </item>
+            <footer common="GroupBasis; VacationTicketDateShort">
+              <text>
+                <![CDATA[{[GroupBasis]}; посвідчення про відрядження №№ {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]>
+              </text>
+            </footer>
+          </multiple>
+        </group>
       </single>
       <multiple>
-        <header common="DateFromShort; Destination; BusinessTripPeriod">
-          <text><![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}, {[BusinessTripPeriod]}:]]></text>
+        <header common="Destination">
+          <text>
+            <![CDATA[Відрядити у {[Destination]|nbspAfterSettlementAbbr}:]]>
+          </text>
         </header>
-        <item>
-          <text>{#include block.PersonLineLower}.{#include block.DepartureAdministration}</text>
-        </item>
-        <footer common="GroupBasis; VacationTicketDateShort">
-          <text><![CDATA[{[GroupBasis]}; посвідчення про відрядження №№ {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]></text>
-        </footer>
+        <group by="DateFromShort">
+          <single>
+            <text>
+              <![CDATA[З {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}{[BusinessTripDetails]}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.]]>
+            </text>
+          </single>
+          <multiple>
+            <header common="DateFromShort">
+              <text>
+                <![CDATA[З {[DateFromShort]|dateformat:"\dd \month \yyyy року"}:]]>
+              </text>
+            </header>
+            <group by="GroupBasis; VacationTicketDateShort; BusinessTripPeriod">
+              <aggregate name="CertificateNumbers"
+                         field="VacationTicketNo"
+                         operation="numberRanges"
+                         pattern="^([0-9]{4}/[^/]+/)([0-9]+)(.*)$"
+                         separator=", "
+                         rangeSeparator="–"/>
+              <single>
+                <text>
+                  <![CDATA[{[BusinessTripDetails]}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#newline}{#newline}{[GroupBasis]}{#include block.OptionalBusinessTripCertificate}.]]>
+                </text>
+              </single>
+              <multiple>
+                <header common="BusinessTripDetails">
+                  <text>
+                    <![CDATA[{[BusinessTripDetails]}:]]>
+                  </text>
+                </header>
+                <item>
+                  <text>
+                    <![CDATA[{#include block.PersonLineLower}.{#include block.DepartureAdministration}]]>
+                  </text>
+                </item>
+                <footer common="GroupBasis; VacationTicketDateShort">
+                  <text>
+                    <![CDATA[{[GroupBasis]}; посвідчення про відрядження №№ {[CertificateNumbers]} від {[VacationTicketDateShort]}.]]>
+                  </text>
+                </footer>
+              </multiple>
+            </group>
+          </multiple>
+        </group>
       </multiple>
     </group>
   </template>
@@ -465,18 +537,55 @@
 <template name="ToHospital"
             hash="0x09"
             identityBy="PersonId; EffectiveReturnDateShort; EventId"
-            orderBy="EffectiveReturnDateShort; HospitalAccusative; PersonId">
-    <group by="HospitalAccusative; EffectiveReturnDateShort">
+            orderBy="HospitalAccusative; EffectiveReturnDateShort; PersonId">
+    <group by="HospitalAccusative"
+           branchBy="EffectiveReturnDateShort">
       <single>
-        <text><![CDATA[У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]></text>
+        <header common="HospitalAccusative; EffectiveReturnDateShort">
+          <text>
+            <![CDATA[У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:]]>
+          </text>
+        </header>
+        <group by="EffectiveReturnDateShort">
+          <single>
+            <text>
+              <![CDATA[{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]>
+            </text>
+          </single>
+          <multiple>
+            <item>
+              <text>
+                <![CDATA[{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]>
+              </text>
+            </item>
+          </multiple>
+        </group>
       </single>
       <multiple>
-        <header common="HospitalAccusative; EffectiveReturnDateShort">
-          <text><![CDATA[У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}, з {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:]]></text>
+        <header common="HospitalAccusative">
+          <text>
+            <![CDATA[У {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}:]]>
+          </text>
         </header>
-        <item>
-          <text>{#include block.PersonLineUpper}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.</text>
-        </item>
+        <group by="EffectiveReturnDateShort">
+          <single>
+            <text>
+              <![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:{#newline}{#newline}{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]>
+            </text>
+          </single>
+          <multiple>
+            <header common="EffectiveReturnDateShort">
+              <text>
+                <![CDATA[З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:]]>
+              </text>
+            </header>
+            <item>
+              <text>
+                <![CDATA[{#include block.PersonLineLower}.{#include block.DepartureAdministration}{#include block.OptionalFoodCertificate}{#newline}{#newline}{#include block.IncomingBasis}{#include block.OptionalBasisDocuments}.]]>
+              </text>
+            </item>
+          </multiple>
+        </group>
       </multiple>
     </group>
   </template>
