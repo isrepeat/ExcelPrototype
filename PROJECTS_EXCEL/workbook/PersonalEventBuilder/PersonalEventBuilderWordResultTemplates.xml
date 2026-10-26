@@ -198,6 +198,15 @@
       </text>
     </sharedTemplate>
 
+    <sharedTemplate id="block.OptionalForeignVacationPermission">
+      <text>
+        <![CDATA[#^
+#_        #let __ForeignVacation = $ex_Helpers.m_RegexIsMatch("{[Destination]}", "\(\s*[A-Za-zÀ-ÖØ-öø-ÿĀ-ž][A-Za-zÀ-ÖØ-öø-ÿĀ-ž0-9\s,.'’/-]*\)");#^
+#_        {#if __ForeignVacation}{#newline}Дозволено виїзд за кордон.{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
     <sharedTemplate id="block.OptionalFoodCertificate">
       <text>
         <![CDATA[#^
@@ -615,6 +624,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -631,6 +641,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -647,6 +658,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -663,6 +675,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -678,6 +691,7 @@
 #_      {#include block.PersonLineUpper}#^
 #_      ,{#include block.VacationDestinationPeriod}#^
 #_      {#include block.DepartureAdministration}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -711,6 +725,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}на лікуванні у {[HospitalDative]|lowerFirstLetter|nbspAfterNumberSign}, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -728,6 +743,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у відпустці для лікування, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -836,6 +852,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}на медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -887,6 +904,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}на лікуванні в медичній роті, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -922,6 +940,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у відпустці для лікування у медичній роті, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -940,6 +959,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у щорічній основній відпустці, вважати таким, що вибув у відпустку за сімейними обставинами#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -958,6 +978,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у відпустці за сімейними обставинами, вважати таким, що вибув у щорічну основну відпустку#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -1011,6 +1032,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -1044,6 +1066,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у щорічній основній відпустці, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -1062,6 +1085,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у відпустці за сімейними обставинами, вважати таким, що вибув у відпустку для лікування#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -1079,6 +1103,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}у відпустці для лікування, вважати таким, що вибув у щорічну основну відпустку#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -1096,6 +1121,7 @@
 #_      який {#include block.StatusChangeResidenceVerb}на стаціонарному медичному огляді військово-лікарської комісії, вважати таким, що вибув у щорічну основну відпустку#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^

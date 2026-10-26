@@ -250,7 +250,14 @@ Public Sub fn_Prepare( _
                 row("AccessOrder") = CStr(values("AcceptedOrderNumber"))
                 row("StartBasis") = basis
                 If values.Exists("DateToShort") Then
-                    row("PlannedEndDate") = values("DateToShort")
+                    If Len(ex_PEB_Export.fn_Text(values("DateToShort"))) > 0 Then
+                        ' Vacation ends inclusively; handover is planned for the return day.
+                        row("PlannedEndDate") = DateAdd( _
+                            "d", _
+                            1, _
+                            ex_PEB_Export.fn_ParseDate(values("DateToShort"), "DateToShort") _
+                        )
+                    End If
                 End If
                 private_RenderTexts row, values, replacedPerson
                 Set row("Action") = action
@@ -343,6 +350,7 @@ Public Sub fn_Apply(ByVal plan As Object)
     Dim cell As Range
     Dim expected As Variant
     Dim currentFormat As Variant
+    Dim addedRow As ListRow
 
     Set state = plan("TvoPlan")
     Set table = state("Table")
@@ -354,7 +362,19 @@ Public Sub fn_Apply(ByVal plan As Object)
     End If
     state("Changed") = True
     If state("FinalCount") > state("OriginalCount") Then
-        table.Resize table.Range.Resize(state("FinalCount") + 1)
+        ' Inherit formatting directly without using Excel's clipboard operations.
+        Do While table.ListRows.Count < state("FinalCount")
+            private_TraceFocus "BeforeAddRow"
+            Set addedRow = table.ListRows.Add(AlwaysInsert:=False)
+            private_TraceFocus "AfterAddRow"
+            If addedRow.Index > 1 Then
+                private_TraceFocus "BeforeRowFormats"
+                private_InheritRowFormats _
+                    table.ListRows(addedRow.Index - 1).Range, _
+                    addedRow.Range
+                private_TraceFocus "AfterRowFormats"
+            End If
+        Loop
     End If
     For Each entry In state("Entries")
         Set cell = entry("Cell")
@@ -738,6 +758,78 @@ Private Function private_Matches( _
     Next index
     private_Matches = True
 End Function
+
+Private Sub private_InheritRowFormats( _
+    ByVal sourceRow As Range, _
+    ByVal targetRow As Range _
+)
+    Dim sourceCell As Range
+    Dim targetCell As Range
+    Dim column As Long
+    Dim edge As Variant
+
+    ' Preserve column-specific appearance without copying values, formulas or selection.
+    For column = 1 To sourceRow.Columns.Count
+        Set sourceCell = sourceRow.Cells(1, column)
+        Set targetCell = targetRow.Cells(1, column)
+        With targetCell
+            .Style = sourceCell.Style
+            .NumberFormat = sourceCell.NumberFormat
+            .HorizontalAlignment = sourceCell.HorizontalAlignment
+            .VerticalAlignment = sourceCell.VerticalAlignment
+            .WrapText = sourceCell.WrapText
+            .ShrinkToFit = sourceCell.ShrinkToFit
+            .Orientation = sourceCell.Orientation
+            .IndentLevel = sourceCell.IndentLevel
+            .ReadingOrder = sourceCell.ReadingOrder
+            .Locked = sourceCell.Locked
+            .FormulaHidden = sourceCell.FormulaHidden
+            .Font.Name = sourceCell.Font.Name
+            .Font.Size = sourceCell.Font.Size
+            .Font.Bold = sourceCell.Font.Bold
+            .Font.Italic = sourceCell.Font.Italic
+            .Font.Underline = sourceCell.Font.Underline
+            .Font.Strikethrough = sourceCell.Font.Strikethrough
+            .Font.Subscript = sourceCell.Font.Subscript
+            .Font.Superscript = sourceCell.Font.Superscript
+            .Font.Color = sourceCell.Font.Color
+            .Interior.Color = sourceCell.Interior.Color
+            .Interior.PatternColor = sourceCell.Interior.PatternColor
+            .Interior.Pattern = sourceCell.Interior.Pattern
+        End With
+        For Each edge In Array(xlDiagonalDown, xlDiagonalUp, xlEdgeLeft, xlEdgeTop, xlEdgeBottom, xlEdgeRight)
+            With targetCell.Borders(edge)
+                .LineStyle = sourceCell.Borders(edge).LineStyle
+                If .LineStyle <> xlLineStyleNone Then
+                    .Weight = sourceCell.Borders(edge).Weight
+                    .Color = sourceCell.Borders(edge).Color
+                End If
+            End With
+        Next edge
+    Next column
+End Sub
+
+Private Sub private_TraceFocus(ByVal stage As String)
+    Dim window As Window
+    Dim book As Workbook
+    Dim sheet As Object
+    Dim detail As String
+
+    Set window = Application.ActiveWindow
+    Set book = Application.ActiveWorkbook
+    Set sheet = Application.ActiveSheet
+    If Not window Is Nothing Then
+        detail = detail & " | Window=" & window.Caption & " | Hwnd=" & CStr(window.Hwnd)
+    End If
+    If Not book Is Nothing Then
+        detail = detail & " | Book=" & book.Name
+    End If
+    If Not sheet Is Nothing Then
+        detail = detail & " | Sheet=" & sheet.Name
+    End If
+    ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_TVO_FOCUS | Stage=" & stage & detail & _
+        " | ScreenUpdating=" & CStr(Application.ScreenUpdating) & " | Events=" & CStr(Application.EnableEvents)
+End Sub
 
 Private Function private_NewRow( _
     ByVal model As Collection, _

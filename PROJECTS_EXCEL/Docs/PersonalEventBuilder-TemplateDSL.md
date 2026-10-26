@@ -464,6 +464,8 @@ The rule detects a potential foreign-vacation marker in `Destination`: a parenth
 
 `VacationAdditionalDays` remains available as the sum of all additional duration operands, including road days, for independent rules using `equals`.
 
+All 17 Word templates for departure or transition into vacation include `block.OptionalForeignVacationPermission` before the basis. It uses the same `Destination` pattern and conditionally adds a separate line, `Дозволено виїзд за кордон.`. Domestic destinations add neither the sentence nor its line break. This includes annual, family, maternity and medical leave, as well as transitions into these vacations. The annual-main-vacation rejection rule remains in effect independently: a matching rejected event still cannot be exported to Word.
+
 Rejection stops the current operation before writing to Word or Movement; a batch containing a rejected event is not partially exported. Preview preparation reports the same Word rejection. Existing documents are not modified by adding a rule.
 
 ## 15. Проверка и тестирование

@@ -27,6 +27,14 @@ def main():
     writer = sources['ex_PEB_MovementWriter.vba']
     apply = procedure(writer, 'fn_Apply')
     capture = procedure(writer, 'private_Capture')
+    assert 'entry.Add "RowHeight", cell.EntireRow.RowHeight' in capture
+    assert apply.index('private_AutoFitRows target, entries') > apply.index('private_FormatEntries target, entries, False')
+    assert apply.index('private_AutoFitRows target, entries') < apply.rindex('fn_RecordExport')
+    assert 'target.Parent.Rows(CLng(key)).AutoFit' in procedure(writer, 'private_AutoFitRows')
+    assert 'cell.EntireRow.RowHeight = entry("RowHeight")' in procedure(writer, 'private_Restore')
+    assert apply.index('Set previousWindow = Application.ActiveWindow') < apply.index('Application.ScreenUpdating = False')
+    assert apply.index('previousWindow.Activate') < apply.index('Application.EnableEvents = previousEvents')
+    assert apply.index('previousSheet.Activate') < apply.index('Application.ScreenUpdating = previousScreen')
     assert 'entry.Add "Value", cell.Value2' in capture
     assert 'entry.Add "Expected", expected' in capture
     assert 'entry.Add "Action", action' in capture

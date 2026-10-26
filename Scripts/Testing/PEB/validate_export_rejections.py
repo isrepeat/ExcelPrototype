@@ -20,6 +20,24 @@ def main():
         assert rule.get("field") == "Destination" and rule.get("messageKey") == "text.ExportRejected"
         assert "equals" not in rule.attrib
         pattern = re.compile(rule.get("matches"))
+        permission = word.find("p:sharedTemplates/p:sharedTemplate[@id='block.OptionalForeignVacationPermission']/p:text", NS).text
+        permission_pattern = re.search(r'm_RegexIsMatch\("\{\[Destination\]\}", "([^"]+)"\)', permission)
+        assert permission_pattern and permission_pattern.group(1) == rule.get("matches")
+        assert "{#if __ForeignVacation}{#newline}Дозволено виїзд за кордон.{#endif}" in permission
+        vacation_templates = set()
+        for template in word.findall("p:template", NS):
+            body = "".join(template.itertext())
+            include = "{#include block.OptionalForeignVacationPermission}"
+            if "{#include block.VacationDestinationPeriod}" in body:
+                vacation_templates.add(template.get("name"))
+                assert body.count(include) == 1, template.get("name")
+                assert body.index(include) < body.index("{#include block.IncomingBasis}"), template.get("name")
+            else:
+                assert include not in body, template.get("name")
+        assert len(vacation_templates) == 17
+        assert {"ToAnnualMainVacation", "ToVacationForFamily", "ToMaternityLeave",
+                "ToVacationForCuring", "ToMedicalCompanyVacationForCuring",
+                "MoveFromAnnualVacationToFamilyVacation", "MoveFromFamilyVacationToAnnualVacation"} <= vacation_templates
         for destination in (
             "Сіпоо, Фінляндська Республіка (Sipoo, Republic of Finland)",
             "м. Цюрих, Швейцарія (Zurich, Switzerland)",
