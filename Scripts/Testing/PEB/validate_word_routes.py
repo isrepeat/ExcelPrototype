@@ -12,11 +12,12 @@ def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(folder / filename)
         registry = load_registry(settings)
-        assert len(registry["events"]) == 43
+        assert len(registry["events"]) == 44
         assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 40
         assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is not None
         movement_only = {name for name, event in registry["events"].items() if event.find("p:word", NS) is None}
-        assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "MoveFromAwolToBusinessTrip"}
+        assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "MoveFromAwolToBusinessTrip", "ToBusinessTrip"}
+        assert registry["events"]["ToBusinessTrip"].get("caption") == "У відрядження"
         for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
                          "MoveFromVacationForCuringToAnnualVacation"):
             event = registry["events"][event_id]
@@ -94,7 +95,7 @@ def main():
         rejected += 1
     else:
         raise AssertionError("Retired omittedTemplates section accepted")
-    print(f"PASS: TEST/PROD, 40 Word routes and 3 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
+    print(f"PASS: TEST/PROD, 40 Word routes and 4 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":

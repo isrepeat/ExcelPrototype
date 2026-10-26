@@ -82,14 +82,13 @@
            visible="true">
       <movement template="MoveFromAwolToBusinessTrip"/>
     </event>
-    <event label="Вибуття у відрядження"
-           caption="Вибуття у відрядження"
+    <event label="У відрядження"
+           caption="У відрядження"
            id="ToBusinessTrip"
            direction="Departure"
            form="Leave"
            visible="true">
       <movement template="ToBusinessTrip"/>
-      <word template="ToBusinessTrip"/>
     </event>
     <event label="На лікування"
            caption="На лікування"
