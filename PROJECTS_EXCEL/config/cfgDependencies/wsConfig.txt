@@ -31,7 +31,7 @@ value	source.Orders.sheet	Накази
 value	source.Orders.dateHeader	Дата
 value	source.Orders.numberHeader	Номер наказа
 value	source.Orders.signatoryHeader	Підписант
-value	source.Absence.range	A5:Q2561
+value	source.Absence.range	A5:Q20000
 value	source.Absence.sheet	5. Тимчасово відсутні
 value	source.Personnel.range	A1:CG10556
 value	source.Personnel.sheet	ОС

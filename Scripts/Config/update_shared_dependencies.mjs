@@ -39,7 +39,7 @@ if (process.argv.includes('--preview')) {
   table.resize(`B2:D${rows.length + 2}`);
   sheet.getRange(`B3:D${rows.length + 2}`).values = rows;
   workbook.recalculate();
-  const preview = await workbook.render({ sheetName: 'wsConfig', range: `B${existing + 3}:D${rows.length + 2}`, scale: 1.5 });
+  const preview = await workbook.render({ sheetName: 'wsConfig', range: `B2:D${Math.min(rows.length + 2, 40)}`, scale: 1.5 });
   await fs.writeFile(path.join(output, 'after.png'), new Uint8Array(await preview.arrayBuffer()));
   const backup = path.join(output, `cfgDependencies-${Date.now()}.xlsx`);
   await fs.copyFile(target, backup);
