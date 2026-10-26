@@ -86,6 +86,21 @@ def main():
     assert 'row("DutyPersonName") = parent("PersonName")' in children
     assert 'private_Tvo rows, row, result' in children
     prepare_tvo = procedure(table, 'fn_Prepare')
+    assert 'row("PlannedEndDate") = values("DateToShort")' not in prepare_tvo
+    assert 'row("PlannedEndDate") = DateAdd(' in prepare_tvo
+    assert 'ex_PEB_Export.fn_ParseDate(values("DateToShort"), "DateToShort")' in prepare_tvo
+    apply_tvo = procedure(table, 'fn_Apply')
+    assert 'table.ListRows.Add(AlwaysInsert:=False)' in apply_tvo
+    assert 'private_InheritRowFormats _' in apply_tvo
+    assert 'PasteSpecial' not in table and '.Range.Copy' not in table
+    assert apply_tvo.index('private_InheritRowFormats') < apply_tvo.index('cell.Value2 = expected')
+    inherit = procedure(table, 'private_InheritRowFormats')
+    assert '.Font.Name = sourceCell.Font.Name' in inherit
+    assert '.Font.Size = sourceCell.Font.Size' in inherit
+    assert '.NumberFormat = sourceCell.NumberFormat' in inherit
+    assert 'table.Resize' not in apply_tvo
+    assert apply_tvo.index('table.ListRows.Add') < apply_tvo.index('currentFormat = cell.NumberFormat')
+    assert 'cell.NumberFormat = currentFormat' in apply_tvo
     assert prepare_tvo.index('Set requested = private_HistoryDuties') < prepare_tvo.index('private_Matches(chain, requested')
     assert 'Set chain = requested' in prepare_tvo
     assert 'private_RenderTexts row, values, replacedPerson' in prepare_tvo

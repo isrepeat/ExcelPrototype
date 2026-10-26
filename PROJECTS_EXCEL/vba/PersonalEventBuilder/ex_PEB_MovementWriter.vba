@@ -1,6 +1,9 @@
 Attribute VB_Name = "ex_PEB_MovementWriter"
 Option Explicit
 
+' Keep the temporary switch for checking row sizing independently of export formatting.
+#Const MOVEMENT_AUTOFIT_ENABLED = True
+
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
@@ -30,6 +33,8 @@ Public Function fn_Apply( _
     Dim actual As Object
     Dim previousEvents As Boolean
     Dim previousScreen As Boolean
+    Dim previousWindow As Window
+    Dim previousSheet As Object
     Dim previousAutoFill As Boolean
     Dim previousCalculation As XlCalculation
     Dim settingsCaptured As Boolean
@@ -138,6 +143,8 @@ Public Function fn_Apply( _
 
     previousEvents = Application.EnableEvents
     previousScreen = Application.ScreenUpdating
+    Set previousWindow = Application.ActiveWindow
+    Set previousSheet = Application.ActiveSheet
     previousAutoFill = Application.AutoCorrect.AutoFillFormulasInLists
     previousCalculation = Application.Calculation
     settingsCaptured = True
@@ -162,6 +169,10 @@ Public Function fn_Apply( _
         private_Verify target, entry, False
     Next entry
     ex_PEB_MovementTvo.fn_Apply plan
+#If MOVEMENT_AUTOFIT_ENABLED Then
+    private_Stage "Write.AutoFitRows", stage, startedAt
+    private_AutoFitRows target, entries
+#End If
     private_Stage "Write.Journal", stage, startedAt
     If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
         Err.Raise 5, , diagnostic
@@ -180,6 +191,21 @@ Cleanup:
         Application.Calculation = previousCalculation
         If VBA.Err.Number <> 0 Then
             failure = failure & " Calculation: " & VBA.Err.Description
+        End If
+        VBA.Err.Clear
+        ' Restore focus while events and screen updates are still suspended.
+        If Not previousWindow Is Nothing Then
+            If Not Application.ActiveWindow Is previousWindow Then
+                previousWindow.Activate
+            End If
+        End If
+        If Not previousSheet Is Nothing Then
+            If Not Application.ActiveSheet Is previousSheet Then
+                previousSheet.Activate
+            End If
+        End If
+        If VBA.Err.Number <> 0 Then
+            failure = failure & " Focus: " & VBA.Err.Description
         End If
         VBA.Err.Clear
         Application.EnableEvents = previousEvents
@@ -304,6 +330,9 @@ Private Sub private_Capture( _
     entry.Add "Value", cell.Value2
     entry.Add "Format", cell.NumberFormat
     entry.Add "WriteFormat", cell.NumberFormat
+#If MOVEMENT_AUTOFIT_ENABLED Then
+    entry.Add "RowHeight", cell.EntireRow.RowHeight
+#End If
     entry.Add "Expected", expected
     entry.Add "Header", header
     entry.Add "TableRow", rowIndex
@@ -375,6 +404,28 @@ Private Sub private_WriteValues( _
     Next column
     ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_VALUE_BATCH | Cells=" & CStr(entries.Count) & " | Writes=" & CStr(writeCount)
 End Sub
+
+#If MOVEMENT_AUTOFIT_ENABLED Then
+Private Sub private_AutoFitRows( _
+    ByVal target As ListObject, _
+    ByVal entries As Collection _
+)
+    Dim rows As Object
+    Dim entry As Object
+    Dim cell As Range
+    Dim key As Variant
+
+    ' Fit only changed rows after restoring their final number formats.
+    Set rows = VBA.CreateObject("Scripting.Dictionary")
+    For Each entry In entries
+        Set cell = target.Parent.Range(entry("Address"))
+        rows(CStr(cell.Row)) = True
+    Next entry
+    For Each key In rows.Keys
+        target.Parent.Rows(CLng(key)).AutoFit
+    Next key
+End Sub
+#End If
 
 Private Sub private_FormatEntries( _
     ByVal target As ListObject, _
@@ -495,6 +546,9 @@ Private Function private_Restore( _
         cell.NumberFormat = "@"
         cell.Value2 = entry("Value")
         cell.NumberFormat = entry("Format")
+#If MOVEMENT_AUTOFIT_ENABLED Then
+        cell.EntireRow.RowHeight = entry("RowHeight")
+#End If
         If VBA.Err.Number <> 0 Then
             diagnostic = diagnostic & " " & entry("Address") & ": " & VBA.Err.Description
         End If

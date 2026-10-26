@@ -386,8 +386,15 @@ Cleanup:
         Loop
     End If
     If Not previousBook Is Nothing Then
-        previousBook.Activate
-        previousSheet.Activate
+        ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_JOURNAL_FOCUS | Stage=BeforeRestore | Target=" & previousBook.Name & _
+            " | Active=" & Application.ActiveWorkbook.Name & " | ScreenUpdating=" & CStr(Application.ScreenUpdating)
+        If Not Application.ActiveWorkbook Is previousBook Then
+            previousBook.Activate
+        End If
+        If Not Application.ActiveSheet Is previousSheet Then
+            previousSheet.Activate
+        End If
+        ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_JOURNAL_FOCUS | Stage=AfterRestore | Active=" & Application.ActiveWorkbook.Name
     End If
     On Error GoTo 0
     Exit Function
