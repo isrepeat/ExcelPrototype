@@ -10,6 +10,8 @@
 
 ## PersonalEventBuilder
 
+- [TVO table contract](PersonalEventBuilder-MovementTvo.md) — column meanings, admission versus accepted duties, assignment intervals, replacement chains and the `Інше` category for absence-related replacements.
+- [Reporter acting assignments](PersonalEventBuilder-ReporterTvo.md) — interpreting the TVO table when resolving a reporter's position on a report date.
 - [DSL шаблонов Word и Movement](PersonalEventBuilder-TemplateDSL.md) — синтаксис, примеры, `derived`, группировка и PersonalEventBuilderEventRoutes.xml.
 - [Подготовка и экспорт](PersonalEventBuilder-Export.md) — конфигурация, устройство экспортёров и хранение событий DOCX.
 - [Тестовые сценарии](../tests/PersonalEventBuilder/README.md) — книга сценариев, базовые тесты, группировка и диагностика.

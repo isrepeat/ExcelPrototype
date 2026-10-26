@@ -22,6 +22,10 @@ When the user requests an upload of changes, create one or more logical local co
 
 Write every created commit message in English.
 
+## Working with the TVO registry
+
+Before interpreting, editing, migrating or exporting the Movement workbook's `ТВО` table, read `PROJECTS_EXCEL/Docs/PersonalEventBuilder-MovementTvo.md`. It defines the column contract, admission versus accepted duties, own versus replaced positions, date boundaries, replacement chains and `Термін = Інше` for absence-related replacement, including hospital and vacation. For reporter-position lookup, also read `PROJECTS_EXCEL/Docs/PersonalEventBuilder-ReporterTvo.md`. Do not infer these rules from the visible worksheet layout alone.
+
 ## End of file
 
 - The final byte of every text source, configuration and documentation file must belong to the last meaningful line. Do not leave a trailing newline, empty line or trailing whitespace.
