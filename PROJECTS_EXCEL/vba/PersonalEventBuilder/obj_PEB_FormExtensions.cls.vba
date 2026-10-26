@@ -1247,7 +1247,8 @@ Private Function private_Search( _
     If Not m_page.BindingContext.TryGetValue("Form", private_Path(row, private_Config(row("Type"), "key")), scalar, ignored, isObject) Then Exit Function
     If Not service.TrySearch(CStr(scalar), result, diagnostic) Then Exit Function
     If row("Type") = "Report" Then
-        If Not ex_PEB_Export.fn_TryApplyReporterPositions(result.Records, diagnostic) Then Exit Function
+        If Not m_page.BindingContext.TryGetValue("Form", private_Path(row, "IncomingDate"), scalar, ignored, isObject) Then Exit Function
+        If Not ex_PEB_Export.fn_TryApplyReporterPositions(result.Records, scalar, diagnostic) Then Exit Function
     End If
     If Not private_PublishCandidates(row, result, diagnostic) Then Exit Function
     If Not Me.HideCandidates() Then Exit Function

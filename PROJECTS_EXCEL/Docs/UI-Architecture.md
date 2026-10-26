@@ -834,6 +834,24 @@ controls:form выбирает группу через layoutSource, вариа�
 
 Form.AutoFillPersonnel получает personnel.autoFill.default и сохраняется между режимами. Зависимые поля каталога привязывают readOnly к этому Boolean. Включённое автозаполнение применяет кандидата и запрещает ручной ввод через binding; выключенное сохраняет значения, допускает редактирование и пропускает применение кандидата. Повторное включение применяет выбранную запись. Чекбокс может вызвать onChange после изменения; PEB перестраивает страницу для прав редакторов без повторного поиска. Универсальные input/form readOnly принимают Boolean-привязки и литералы.
 
+## Container visibility
+
+`grid` and `stackPanel` support `visibility="Visible"`, `visibility="Collapsed"` and scalar bindings resolving to those exact values. Omitting the attribute means `Visible`; other values are errors. `page` does not accept this attribute. Bindings follow the container's inherited or explicit `dataContext`, and containers do not need a name for visibility updates.
+
+```xml
+<stackPanel name="MovementDiffTabs"
+            orientation="horizontal"
+            visibility="{Binding Path=Form.MovementDiffVisibility}">
+  <!-- Child controls share the container's lifetime and visibility. -->
+</stackPanel>
+```
+
+A collapsed container returns zero rows and columns before applying its local offsets, explicit tracks or stretch minimums. Its descendants are disposed, releasing shapes, event routes, binding listeners, forms and registered element names. Binding data remains in the context. Expanding recreates descendants from the original definition and current data, including the latest `contentSource`. Explicit fixed tracks belonging to a visible parent grid retain their own sizes.
+
+`obj_UiPanelVisibility` normalizes scoped bindings and subscribes to relevant value/source changes. A visibility transition invalidates measurement through the existing full layout pipeline; it does not rebuild the tree inside the binding notification. `FlushUpdates` also honors pending measurement invalidation. The rendering pipeline retains its existing ScreenUpdating/event guards.
+
+`Scripts/Testing/PEB/validate_container_visibility.py` checks container attributes against the real factory schemas and validates the VBA fixture source without executing Office. `Test/ex_UiPanelVisibilityTests.vba` provides optional runtime checks for inherited bindings, zero collapsed extents despite offsets/fixed tracks, repeated collapse/expand with named descendants and changing content while hidden. Runtime execution requires separate authorization.
+
 ## 34. Шаблоны ячеек таблицы
 
 controls:table допускает одну обёртку controls:table.cellTemplates с controls:cellTemplate. Каждому нужен columnAlias; mode — replace по умолчанию либо overlay; внутри ровно один обычный контрол. Цель — существующий алиас/заголовок, новая колонка не создаётся. Повторная, отсутствующая или неоднозначная цель останавливает рендер.

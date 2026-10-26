@@ -19,7 +19,7 @@ def main():
     latest = procedure(source, "fn_ReadLatest")
     assert 'Optional ByVal includeTvo As Boolean = False' in latest
     assert 'If includeTvo Then' in latest
-    assert 'service.TryExecute(source, query, table, diagnostic)' in latest
+    assert 'service.TryExecute(source, query, table, diagnostic, Not includeTvo)' in latest
     assert 'table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))' in latest
     capture = procedure(restore, "fn_Read")
     assert capture.index('"direction") <> "Arrival"') < capture.index('fn_ReadLatest(')
@@ -28,9 +28,12 @@ def main():
     assert 'statuses(plan("sourceStatus"))' in capture
     assert 'If arrivalDate <> eventDate Or _' in capture
     assert 'period("ArrivalOrder")' in capture and 'values("AcceptedOrderNumber")' in capture
-    assert 'names.Count <> people.Count Or names.Count <> positions.Count' in capture
-    assert 'seen.Exists(people(index))' in capture
-    assert 'row("PositionCode") = positions(index)' in capture
+    assert capture.index('MovementTvo.fn_ReturnRows') < capture.index('fn_LegacyRows(')
+    assert 'If found Then' in capture
+    legacy = procedure(restore, "fn_LegacyRows")
+    assert 'names.Count <> people.Count Or names.Count <> positions.Count' in legacy
+    assert 'seen.Exists(people(index))' in legacy
+    assert 'row("PositionCode") = positions(index)' in legacy
     decode = procedure(restore, "fn_Decode")
     assert 'root.getAttribute("person") <> values("PersonId")' in decode
     assert 'root.getAttribute("event") <> values("EventId")' in decode

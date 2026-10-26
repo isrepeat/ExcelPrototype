@@ -91,6 +91,21 @@
       ]]></text>
     </sharedTemplate>
 
+    <sharedTemplate id="block.BusinessTripBasisDocuments">
+      <text><![CDATA[#^
+#_        {#for item in BasisDocuments orderBy:"BasisDocuments"}#^
+#_          #let __IsSupportingDocument = $ex_Helpers.m_RegexIsMatch("{item.[DocumentNote]}", "^\s*(?:[Вв]\s*/\s*[Кк]|[Вв]ідпускний\s+квиток|[Пп]освідчення\s+про\s+відрядження)\s*$");#^
+#_          {#if __IsSupportingDocument #and [VacationTicketNo] #or __IsSupportingDocument #and [VacationTicketDateShort]}{#else}#^
+#_            {#if item.[DocumentNote] #and item.[DocNo] #or item.[DocumentNote] #and item.[DocDateShort]}#^
+#_              ; #let __DocumentName = "{item.[DocumentNote]}";{#include block.DocumentName}#^
+#_              {#if item.[DocNo]}{#space}№ {item.[DocNo]}{#endif}#^
+#_              {#if item.[DocDateShort]}{#space}від {item.[DocDateShort]}{#endif}#^
+#_            {#endif}#^
+#_          {#endif}#^
+#_        {#endfor}#^
+      ]]></text>
+    </sharedTemplate>
+
     <sharedTemplate id="block.MetaRowsInline">
       <text>
         <![CDATA[#^
@@ -273,7 +288,7 @@
             orderBy="Destination; DateFromShort; PersonId">
     <derived name="GroupBasis">
       <text>
-        {#include block.IncomingBasis}{#include block.OptionalBasisDocuments}
+        {#include block.IncomingBasis}{#include block.BusinessTripBasisDocuments}
       </text>
     </derived>
     <derived name="BusinessTripPeriod">
@@ -392,7 +407,7 @@
 #_      {#include block.ReturnToDuty}#^
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.BusinessTripBasisDocuments}#^
 #_      {#include block.OptionalBusinessTripCertificate}#^
 #_      .{#newline}{#newline}#^
       ]]></text>

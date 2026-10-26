@@ -50,6 +50,7 @@ Public Function fn_Build( _
                 row("PersonName") = action("PersonName")
                 row("EventRowId") = action("RowId")
                 row("EventName") = action("EventName")
+                row("Worksheet") = target.Parent.Name
                 row("TargetRow") = VBA.CStr(entry("Row"))
                 row("Field") = entry("Header")
                 row("Before") = private_Text(entry("Value"), VBA.CStr(entry("Format")))
@@ -82,6 +83,8 @@ Public Function fn_Build( _
     report.Add "Updated", updated
     report.Add "Unchanged", unchanged
     report.Add "Target", target.Parent.Parent.FullName & " / " & target.Parent.Name & " / " & target.Name
+    report.Add "AbsenceSheet", target.Parent.Name
+    report.Add "TvoSheet", ex_PEB_Export.fn_Config("reporter.tvo.source.sheet")
     report.Add "Rows", rows
     Set fn_Build = report
 End Function
@@ -89,7 +92,8 @@ End Function
 Public Function fn_Result( _
     ByVal report As Object, _
     ByRef result As obj_LookupResult, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal worksheetName As String = "" _
 ) As Boolean
     Dim records As New Collection
     Dim columns As New Collection
@@ -100,12 +104,18 @@ Public Function fn_Result( _
     Dim index As Long
 
     For Each row In report("Rows")
+        If Len(worksheetName) > 0 Then
+            If row("Worksheet") <> worksheetName Then
+                GoTo NextDiffRow
+            End If
+        End If
         index = index + 1
         Set record = New obj_LookupRecord
         If Not record.Initialize(VBA.CStr(index), row) Then
             Exit Function
         End If
         records.Add record
+NextDiffRow:
     Next row
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("movementDiff.fields"), "|")
         Set column = VBA.CreateObject("Scripting.Dictionary")

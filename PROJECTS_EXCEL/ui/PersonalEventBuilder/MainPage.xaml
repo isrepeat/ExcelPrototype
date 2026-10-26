@@ -92,6 +92,7 @@
            value="{Binding Path=IncomingDate}"
            label="{Binding Path=Text.ModeIncomingDateLabel}"
            numberFormat="@"
+           onChange="{Binding Path=Commands.IncomingDateChanged}"
            fieldStyle="{Binding Path=Form.IncomingDateStyle}"
            readOnly="{Binding Path=Form.IncomingDateReadOnly}"
            partStylesEnabled="false"/>
@@ -428,6 +429,20 @@
                         style="statusHeading"
                         visibility="{Binding Path=Form.MovementDiffVisibility}"
                         text="{Binding Path=Form.MovementDiffSummary}"/>
+        <stackPanel name="MovementDiffTabs"
+                    orientation="horizontal"
+                    visibility="{Binding Path=Form.MovementDiffVisibility}">
+          <controls:button name="MovementDiffAbsence"
+                           columnSpan="3"
+                           style="{Binding Path=Form.MovementDiffAbsenceStyle}"
+                           caption="{Binding Path=Form.MovementDiffAbsenceName}"
+                           command="{Binding Path=Commands.MovementDiffAbsence}"/>
+          <controls:button name="MovementDiffTvo"
+                           columnSpan="3"
+                           style="{Binding Path=Form.MovementDiffTvoStyle}"
+                           caption="{Binding Path=Form.MovementDiffTvoName}"
+                           command="{Binding Path=Commands.MovementDiffTvo}"/>
+        </stackPanel>
         <controls:table name="MovementDiff"
                         itemsSource="{Binding Path=Data.MovementDiff}"
                         style="candidateTable"

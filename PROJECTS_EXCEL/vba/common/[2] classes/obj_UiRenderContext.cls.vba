@@ -523,6 +523,10 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
         FlushUpdates = True
         Exit Function
     End If
+    If m_needsMeasure Then
+        FlushUpdates = Me.FlushLayout(diagnostic)
+        Exit Function
+    End If
     If m_dirty.Count = 0 Then
         FlushUpdates = True
         Exit Function

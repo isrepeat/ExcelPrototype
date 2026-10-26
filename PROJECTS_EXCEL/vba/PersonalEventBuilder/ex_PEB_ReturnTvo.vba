@@ -18,14 +18,9 @@ Public Function fn_Read(ByVal values As Object) As Collection
     Dim period As Object
     Dim plan As Object
     Dim statuses As Object
-    Dim names As Collection
-    Dim people As Collection
-    Dim positions As Collection
-    Dim seen As Object
-    Dim row As Object
-    Dim index As Long
     Dim arrivalDate As Double
     Dim eventDate As Double
+    Dim found As Boolean
 
     Set fn_Read = result
     If ex_PEB_EventRoutes.fn_Value(values("EventId"), "direction") <> "Arrival" Then Exit Function
@@ -49,6 +44,28 @@ Public Function fn_Read(ByVal values As Object) As Collection
             Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoPeriodMismatch")
         End If
     End If
+    Set result = ex_PEB_MovementTvo.fn_ReturnRows(values, period, found)
+    If found Then
+        Set fn_Read = result
+    Else
+        Set fn_Read = fn_LegacyRows(period, CStr(values("PersonId")))
+    End If
+End Function
+
+Public Function fn_LegacyRows( _
+    ByVal period As Object, _
+    ByVal ownerId As String _
+) As Collection
+    Dim result As New Collection
+    Dim names As Collection
+    Dim people As Collection
+    Dim positions As Collection
+    Dim seen As Object
+    Dim row As Object
+    Dim index As Long
+
+    Set fn_LegacyRows = result
+    If period Is Nothing Then Exit Function
     Set names = private_Lines(period("TvoName"))
     Set people = private_Lines(period("TvoPersonId"))
     Set positions = private_Lines(period("TvoPositionCode"))
@@ -57,7 +74,7 @@ Public Function fn_Read(ByVal values As Object) As Collection
     End If
     Set seen = VBA.CreateObject("Scripting.Dictionary")
     seen.CompareMode = VBA.vbTextCompare
-    seen.Add VBA.Trim$(VBA.CStr(values("PersonId"))), True
+    seen.Add VBA.Trim$(ownerId), True
     For index = 1 To people.Count
         If seen.Exists(people(index)) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoInvalidChain")
         seen.Add people(index), True

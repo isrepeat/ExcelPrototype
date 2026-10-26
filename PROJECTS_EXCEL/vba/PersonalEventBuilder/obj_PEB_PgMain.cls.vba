@@ -340,7 +340,8 @@ Private Function private_TryRegisterCommands() As Boolean
             "LoadTest", "NextTest", "ResetForm", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", "DeleteLastEvent", _
             "ValidateMedical", "CloseMedical", "CloseEjos", "EmptyOrders", "ShowMovementDiff", "CloseMovementDiff", _
-            "OpenReportSearch", "RunReportSearch", "CloseReportSearch", _
+            "OpenReportSearch", "RunReportSearch", "CloseReportSearch", "IncomingDateChanged", _
+            "MovementDiffAbsence", "MovementDiffTvo", _
             "DummyMode11", "DummyMode12", "DummyMode13", "DummyMode14", _
             "DummyMode21", "DummyMode22", "DummyMode23", "DummyMode24")
         Set lookupCommand = New obj_UiCommand

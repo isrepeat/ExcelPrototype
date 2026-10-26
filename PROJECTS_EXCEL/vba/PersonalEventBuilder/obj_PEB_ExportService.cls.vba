@@ -499,9 +499,7 @@ Public Function TryPrepareHistoryMovement( _
         documents.Add copy
     Next document
     Set values("MetaDocumentTables") = documents
-#If TVO_DEPRECATED Then
     Set values("MetaTvoTables") = stored("MetaTvoTables")
-#End If
     mode = ex_PEB_EventRoutes.fn_Apply(values, "Movement")
     ex_PEB_Export.fn_TicketDocumentValues values, True
     For Each key In VBA.Split(ex_PEB_EventRoutes.fn_Value(mode, "movement.required"), "|")
@@ -1235,6 +1233,7 @@ Private Sub private_Enrich( _
     Dim pair As Variant
     Dim loadedAvailable As Boolean
     Dim tvoPositionCode As String
+    Dim reporterIsTvo As Boolean
     Dim startedAt As Double
     Dim stageStartedAt As Double
 
@@ -1264,7 +1263,12 @@ Private Sub private_Enrich( _
     If outputField = "ReportPositionGenitive" Then
         ex_Core.fn_Diagnostic_WritePerf "Lookup.Configure | Lookup=" & prefix, stageStartedAt
         stageStartedAt = VBA.Timer
-        If Not ex_PEB_Export.fn_TryReporterTvoPosition(ex_PEB_Export.fn_Text(values("ReportName")), tvoPositionCode, diagnostic) Then
+        If Not ex_PEB_Export.fn_TryReporterTvoPosition( _
+                ex_PEB_Export.fn_Text(values("ReportName")), _
+                values("IncomingDate"), _
+                tvoPositionCode, _
+                reporterIsTvo, _
+                diagnostic) Then
             Err.Raise 5, , diagnostic
         End If
         ex_Core.fn_Diagnostic_WritePerf "Lookup.ReporterTvo | Lookup=" & prefix, stageStartedAt
@@ -1339,7 +1343,7 @@ ReadValue:
     End If
 
 DecorateReporter:
-    If VBA.Len(tvoPositionCode) > 0 Then
+    If reporterIsTvo Then
         values(outputField) = ex_PEB_Export.fn_Config("reporter.tvo.prefix") & " " & values(outputField)
     End If
 Cleanup:

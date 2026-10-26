@@ -117,6 +117,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddChild "formLayouts", private_FormLayoutsSchema(), 0, -1
         Case "grid"
             schema.AddAttribute "name", "string", False, "", False, 0
+            schema.AddAttribute "visibility", "enum", False, "Visible|Collapsed", True, 0
             schema.AddAttribute "dataContext", "context", False, "", True, 0
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
@@ -128,6 +129,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AllowVisualChildren
         Case "stackpanel"
             schema.AddAttribute "contentSource", "string", False, "", False, 0
+            schema.AddAttribute "visibility", "enum", False, "Visible|Collapsed", True, 0
             schema.AddAttribute "horizontalAlignment", "enum", False, "start|stretch", False, 0
             schema.AddAttribute "name", "string", False, "", False, 0
             schema.AddAttribute "dataContext", "context", False, "", True, 0

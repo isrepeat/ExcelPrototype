@@ -1591,10 +1591,16 @@ value	PersonalEventBuilder::hospital.fields.2.sourceAlias	Hospital
 value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.lookup.key	Hospital
 value	PersonalEventBuilder::reporter.tvo.prefix	тимчасово виконуючого обов'язки
-value	PersonalEventBuilder::reporter.tvo.ambiguous	Для рапортуючого {name} знайдено декілька посад ТВО в ШПО. Уточніть дані джерела.
-  ref	PersonalEventBuilder::reporter.tvo.codeHeader	PersonalEventBuilder::lookup.Personnel.columns.6.header
-  ref	PersonalEventBuilder::reporter.tvo.nameHeader	PersonalEventBuilder::lookup.Personnel.columns.7.header
-value	PersonalEventBuilder::reporter.tvo.missingCode	Для рапортуючого {name} у рядку ТВО в ШПО не заповнено код посади.
+  ref	PersonalEventBuilder::reporter.tvo.source.path	__cfgDependencies.fileMovementHistory
+value	PersonalEventBuilder::reporter.tvo.source.range	B2:P10000
+value	PersonalEventBuilder::reporter.tvo.source.sheet	ТВО
+value	PersonalEventBuilder::reporter.tvo.ambiguous	Для рапортуючого {name} знайдено декілька чинних призначень ТВО. Уточніть дані джерела.
+value	PersonalEventBuilder::reporter.tvo.endHeader	Здавання
+value	PersonalEventBuilder::reporter.tvo.codeHeader	Посада.Заміщує
+value	PersonalEventBuilder::reporter.tvo.nameHeader	ПІБ
+value	PersonalEventBuilder::reporter.tvo.missingCode	Для рапортуючого {name} у чинному призначенні ТВО не заповнено код заміщуваної посади.
+value	PersonalEventBuilder::reporter.tvo.startHeader	Прийняття
+value	PersonalEventBuilder::reporter.tvo.missingStaff	Не вдалося однозначно визначити штатну посаду рапортуючого {name} у ШПО.
 value	PersonalEventBuilder::reporter.fields.1.record	Personnel.Rank
 value	PersonalEventBuilder::reporter.fields.1.formField	ReportRank
 value	PersonalEventBuilder::reporter.fields.1.captionKey	PersonalEventBuilder::text.ModeReportRankLabel
@@ -1623,6 +1629,20 @@ value	PersonalEventBuilder::returnTvo.rank.input	PersonId
 value	PersonalEventBuilder::returnTvo.rank.output	PersonRank
 value	PersonalEventBuilder::returnTvo.rank.keyHeader	ІПН
 value	PersonalEventBuilder::returnTvo.rank.valueHeader	Військове звання фактично
+value	PersonalEventBuilder::returnTvo.table.name	ТВО
+value	PersonalEventBuilder::returnTvo.table.headers.EndDate	Здавання
+value	PersonalEventBuilder::returnTvo.table.headers.EndBasis	Здавання.Підстава
+value	PersonalEventBuilder::returnTvo.table.headers.EndOrder	Здавання.Наказ
+value	PersonalEventBuilder::returnTvo.table.headers.PersonId	ІПН
+value	PersonalEventBuilder::returnTvo.table.headers.StartDate	Прийняття
+value	PersonalEventBuilder::returnTvo.table.headers.PersonName	ПІБ
+value	PersonalEventBuilder::returnTvo.table.headers.PersonRank	Звання
+value	PersonalEventBuilder::returnTvo.table.headers.StartBasis	Прийняття.Підстава
+value	PersonalEventBuilder::returnTvo.table.headers.StartOrder	Прийняття.Наказ
+value	PersonalEventBuilder::returnTvo.table.headers.AccessOrder	Доступ.Наказ
+value	PersonalEventBuilder::returnTvo.table.headers.PositionCode	Посада.Заміщує
+value	PersonalEventBuilder::returnTvo.table.headers.PlannedEndDate	Здавання.План
+value	PersonalEventBuilder::returnTvo.table.headers.OwnPositionCode	Посада.Своя
 value	PersonalEventBuilder::returnTvo.headers.TvoName	ТВО.ПІБ
 value	PersonalEventBuilder::returnTvo.headers.TvoPersonId	ТВО.ІПН
 value	PersonalEventBuilder::returnTvo.headers.TvoPositionCode	ТВО.Посада
@@ -1749,8 +1769,8 @@ value	PersonalEventBuilder::extensions.limitReached	Досягнуто лімі�
 value	PersonalEventBuilder::extensions.removeCaption	×
 value	PersonalEventBuilder::extensions.noServiceSpace	Немає вільних колонок для назви та кнопки розширення.
 value	PersonalEventBuilder::extensions.requiredCaption	Обов’язково
-value	PersonalEventBuilder::snapshots.indexes	lookup.Personnel.source=lookup.Personnel.columns.1.header|lookup.Personnel.source=lookup.Personnel.columns.2.header|lookup.Personnel.source=reporter.tvo.nameHeader|orders.source=orders.numberHeader|validation.Movement.source=export.Movement.headers.PersonId|export.shared.lookups.1=export.shared.lookups.1.keyHeader|export.shared.lookups.2=export.shared.lookups.2.keyHeader|export.shared.lookups.3=export.shared.lookups.3.keyHeader
-value	PersonalEventBuilder::snapshots.sources	lookup.Personnel.source|lookup.Absence.source|lookup.Hospital.source|lookup.Document.source|orders.source|lookup.ReturnTickets.source|validation.Movement.source|export.shared.lookups.1|export.shared.lookups.2|export.shared.lookups.3
+value	PersonalEventBuilder::snapshots.indexes	lookup.Personnel.source=lookup.Personnel.columns.1.header|lookup.Personnel.source=lookup.Personnel.columns.2.header|reporter.tvo.source=reporter.tvo.nameHeader|orders.source=orders.numberHeader|validation.Movement.source=export.Movement.headers.PersonId|export.shared.lookups.1=export.shared.lookups.1.keyHeader|export.shared.lookups.2=export.shared.lookups.2.keyHeader|export.shared.lookups.3=export.shared.lookups.3.keyHeader
+value	PersonalEventBuilder::snapshots.sources	lookup.Personnel.source|lookup.Absence.source|lookup.Hospital.source|lookup.Document.source|orders.source|lookup.ReturnTickets.source|validation.Movement.source|export.shared.lookups.1|export.shared.lookups.2|export.shared.lookups.3|reporter.tvo.source
 value	PersonalEventBuilder::snapshots.profiles	lookup.Personnel|lookup.Hospital|lookup.Document
 value	PersonalEventBuilder::snapshots.progress.Tvo	Підготовка ланцюжків ТВО
 value	PersonalEventBuilder::snapshots.progress.Word	Підготовка шаблонів WORD

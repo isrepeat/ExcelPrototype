@@ -55,6 +55,7 @@ Private m_historyOrderNumber As String
 Private m_historyOrderDate As String
 Private m_conflicts As Collection
 Private m_movementDiff As Object
+Private m_movementDiffSheet As String
 Private m_extensions As obj_PEB_FormExtensions
 
 ' //
@@ -224,6 +225,39 @@ Public Function ReportNameChangedHandler() As Boolean
         Exit Function
     End If
     ReportNameChangedHandler = private_SearchSecondary(True)
+End Function
+
+Public Function IncomingDateChangedHandler() As Boolean
+    Dim name As Variant
+    Dim incomingDate As Variant
+    Dim autoFill As Variant
+    Dim positionCode As String
+    Dim isTvo As Boolean
+    Dim diagnostic As String
+    Dim pattern As Object
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", vbNullString) Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    IncomingDateChangedHandler = True
+    If Not CBool(autoFill) Then Exit Function
+    If Not private_TryReadFormValue("ReportName", name) Then Exit Function
+    If Not private_TryReadFormValue("IncomingDate", incomingDate) Then Exit Function
+    Set pattern = CreateObject("VBScript.RegExp")
+    pattern.Pattern = ex_PEB_Export.fn_Config("export.shared.lookups.7.when.pattern")
+    pattern.IgnoreCase = True
+    If Not pattern.Test(CStr(name)) Then Exit Function
+    If Not ex_PEB_Export.fn_TryReporterTvoPosition( _
+            CStr(name), _
+            incomingDate, _
+            positionCode, _
+            isTvo, _
+            diagnostic) Then
+        IncomingDateChangedHandler = False
+        ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "PersonalEventBuilder"
+        Exit Function
+    End If
+    IncomingDateChangedHandler = m_pageBase.BindingContext.SetValue("Form", "ReportPositionCode", positionCode)
 End Function
 
 Public Function HospitalChangedHandler() As Boolean
@@ -1483,6 +1517,7 @@ Public Function ExportMovementHandler() As Boolean
     If exported Then
         Set m_conflicts = Nothing
         Set m_movementDiff = exportDiff
+        m_movementDiffSheet = exportDiff("AbsenceSheet")
         If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAvailableVisibility", "Visible") Then
             Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("movementDiff.failed"), "{details}", "Cannot publish diff availability.")
         End If
@@ -1518,11 +1553,21 @@ Public Function ShowMovementDiffHandler() As Boolean
     On Error GoTo EH_DIFF
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If m_movementDiff Is Nothing Then Exit Function
-    If Not ex_PEB_MovementDiff.fn_Result(m_movementDiff, result, diagnostic) Then
+    If Len(m_movementDiffSheet) = 0 Then m_movementDiffSheet = m_movementDiff("AbsenceSheet")
+    If Not ex_PEB_MovementDiff.fn_Result(m_movementDiff, result, diagnostic, m_movementDiffSheet) Then
         Err.Raise 5, , diagnostic
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "MovementDiff", result) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffSummary", m_movementDiff("Summary")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAbsenceName", m_movementDiff("AbsenceSheet")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffTvoName", m_movementDiff("TvoSheet")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAbsenceStyle", "secondaryButton") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffTvoStyle", "secondaryButton") Then Exit Function
+    If m_movementDiffSheet = m_movementDiff("AbsenceSheet") Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAbsenceStyle", "activeModeButton") Then Exit Function
+    Else
+        If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffTvoStyle", "activeModeButton") Then Exit Function
+    End If
     For Each panel In VBA.Array("CandidatesVisibility", "EjosVisibility", "MedicalVisibility", "HistoryVisibility", "ConflictsVisibility")
         If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(panel), "Collapsed") Then Exit Function
     Next panel
@@ -1531,6 +1576,18 @@ Public Function ShowMovementDiffHandler() As Boolean
     Exit Function
 EH_DIFF:
     private_SetActionStatus VBA.Replace$(ex_PEB_Export.fn_Config("movementDiff.failed"), "{details}", VBA.Err.Description), True
+End Function
+
+Public Function MovementDiffAbsenceHandler() As Boolean
+    If m_movementDiff Is Nothing Then Exit Function
+    m_movementDiffSheet = m_movementDiff("AbsenceSheet")
+    MovementDiffAbsenceHandler = Me.ShowMovementDiffHandler()
+End Function
+
+Public Function MovementDiffTvoHandler() As Boolean
+    If m_movementDiff Is Nothing Then Exit Function
+    m_movementDiffSheet = m_movementDiff("TvoSheet")
+    MovementDiffTvoHandler = Me.ShowMovementDiffHandler()
 End Function
 
 Public Function CloseMovementDiffHandler() As Boolean
@@ -2020,14 +2077,19 @@ Private Function private_EnrichReporters( _
     Dim supplement As obj_LookupRecord
     Dim values As Object
     Dim dateText As String
+    Dim incomingDate As Variant
 
     On Error GoTo EH_REPORT_DATE
-    If VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.IncomingDate.orderDateModes") & "|", "|" & m_modeId & "|", VBA.vbTextCompare) > 0 Then
+    If Not private_TryReadFormValue("IncomingDate", incomingDate) Then Exit Function
+    If Len(ex_PEB_Export.fn_Text(incomingDate)) > 0 Then
+        dateText = Format$(ex_PEB_Export.fn_ParseDate(incomingDate, "IncomingDate"), "dd.mm.yyyy")
+    ElseIf VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("lookup.IncomingDate.orderDateModes") & "|", "|" & m_modeId & "|", VBA.vbTextCompare) > 0 Then
         If VBA.Len(ex_PEB_Export.fn_Text(m_acceptedOrderDate)) > 0 Then
             dateText = VBA.Format$(ex_PEB_History.fn_Date(m_acceptedOrderDate), "dd.mm.yyyy")
         End If
     End If
-    If Not ex_PEB_Export.fn_TryApplyReporterPositions(records, diagnostic) Then Exit Function
+    If Len(dateText) > 0 Then incomingDate = dateText
+    If Not ex_PEB_Export.fn_TryApplyReporterPositions(records, incomingDate, diagnostic) Then Exit Function
     For Each record In records
         Set values = VBA.CreateObject("Scripting.Dictionary")
         values("Event.IncomingDate") = dateText
@@ -2220,6 +2282,10 @@ Private Function private_InitializeMovementDiff() As Boolean
     If Not m_pageBase.BindingContext.SetObject("Data", "MovementDiff", result) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Text", "ShowMovementDiff", ex_PEB_Export.fn_Config("movementDiff.show")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffSummary", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAbsenceName", ex_PEB_Export.fn_Config("export.Movement.sheet")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffTvoName", ex_PEB_Export.fn_Config("reporter.tvo.source.sheet")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAbsenceStyle", "activeModeButton") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffTvoStyle", "secondaryButton") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Collapsed") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAvailableVisibility", "Collapsed") Then Exit Function
     private_InitializeMovementDiff = True

@@ -1,4 +1,4 @@
-"""Check deprecated TVO export mappings and upgrade guards without Office/VBA."""
+"""Check the TVO table migration and legacy read compatibility without Office/VBA."""
 
 from event_routes import ROOT, parse_config
 from movement_plans import load_native_plans
@@ -39,13 +39,8 @@ def main():
         assert 'private_TvoValue(' not in disabled
         assert 'private_AddTvoMappings ' not in disabled
     registry = sources[names[0]]
-    writer = procedure(registry, 'private_TvoValue')
-    assert 'For Each row In values("MetaTvoTables")' in writer
-    assert 'VBA.Array("PersonName", "PersonId", "PositionCode")' in writer
-    for guard in ('VBA.vbCr', 'VBA.vbLf', 'seen.Exists(value)', 'text.ReturnTvoInvalidChain'):
-        assert guard in writer
-    assert 'text = text & VBA.vbLf' in writer
-    assert 'text = text & ex_PEB_Export.fn_Text(row(field))' in writer
+    assert 'private_TvoValue' not in registry
+    assert 'private_AddTvoMappings' not in registry
     prepare = procedure(sources[names[1]], 'TryPrepareHistoryMovement')
     assert 'Set values("MetaTvoTables") = stored("MetaTvoTables")' in prepare
     resolve = procedure(sources[names[2]], 'fn_Resolve')
@@ -67,12 +62,33 @@ def main():
                 mapping = {plans['values'][f'{prefix}.{i}.field']: plans['values'][f'{prefix}.{i}.header']
                            for i in range(1, int(plans['values'][prefix + '.count']) + 1)}
                 for field in ('TvoName', 'TvoPersonId', 'TvoPositionCode'):
-                    if enabled and plans['profiles'][profile]['operation'] != 'close':
-                        assert mapping[field] == settings['returnTvo.headers.' + field]
-                    else:
-                        assert field not in mapping
-    print('PASS: TVO mappings in PROD/TEST, chain guards, legacy empty-column migration, '
-          'manual-change guards and both TVO_DEPRECATED branches. Office/VBA not executed.')
+                    assert field not in mapping
+        assert settings['returnTvo.table.name'] == 'ТВО'
+        assert settings['returnTvo.table.headers.PositionCode'] == settings['reporter.tvo.codeHeader']
+        assert settings['returnTvo.table.headers.StartDate'] == settings['reporter.tvo.startHeader']
+        assert settings['returnTvo.table.headers.EndDate'] == settings['reporter.tvo.endHeader']
+    table = (folder / 'ex_PEB_MovementTvo.vba').read_text(encoding='utf-8-sig')
+    check_declarations(table)
+    check_blocks(table)
+    check_module_sections(table)
+    predicate = procedure(table, 'fn_IsStarted')
+    assert predicate.index('fn_Text(startOrder)') < predicate.index('fn_ParseDate(startDate')
+    assert 'private_AdmissionOnly(model, item, eventDate)' in procedure(table, 'fn_Prepare')
+    reporter = (folder / 'ex_PEB_Export.vba').read_text(encoding='utf-8-sig')
+    assert 'fn_Config("returnTvo.table.headers.StartOrder")' in procedure(reporter, 'fn_TryReporterTvoPositions')
+    assert 'ex_PEB_MovementTvo.fn_IsStarted(' in procedure(reporter, 'fn_TryReporterTvoPositions')
+    fixture = (folder / 'Test/ex_PEB_TvoAdmissionTests.vba').read_text(encoding='utf-8-sig')
+    check_declarations(fixture)
+    check_blocks(fixture)
+    check_module_sections(fixture)
+    batch = (folder / 'ex_PEB_MovementWriter.vba').read_text(encoding='utf-8-sig')
+    apply = procedure(batch, 'fn_Apply')
+    assert apply.index('MovementTvo.fn_AddDiff') < apply.index('changed = True')
+    assert apply.index('MovementTvo.fn_Apply plan') < apply.index('private_Stage "Write.Journal"')
+    assert 'MovementTvo.fn_Restore(plan)' in apply
+    assert 'TvoTargetChangedSincePreview' in procedure(table, 'fn_Apply')
+    print('PASS: new exports omit legacy TVO columns; dedicated table headers, rollback, '
+          'pre-write diff and target revalidation are wired. Office/VBA not executed.')
 
 
 if __name__ == '__main__':
