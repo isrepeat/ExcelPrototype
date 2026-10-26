@@ -12,6 +12,7 @@ Public Sub fn_Validate(ByVal template As Object)
     Dim bodySeen As Boolean
 
     private_CheckAttributes template, "name|hash|identityBy|orderBy"
+    ex_PEB_Export.fn_ValidateRejections template
     fields = private_Attribute(template, "name")
     bodyCount = template.selectNodes("p:text | p:group").Length
     If bodyCount <> 1 Then
@@ -23,6 +24,10 @@ Public Sub fn_Validate(ByVal template As Object)
                 Err.Raise 5, , "Unknown Word template namespace."
             End If
             Select Case node.baseName
+                Case "reject"
+                    If bodySeen Then
+                        Err.Raise 5, , "Rejection rules must precede the template body."
+                    End If
                 Case "derived"
                     If bodySeen Then
                         Err.Raise 5, , "Derived Word fields must precede the template body."

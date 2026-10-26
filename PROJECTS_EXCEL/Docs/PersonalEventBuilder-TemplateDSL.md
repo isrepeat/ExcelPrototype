@@ -448,12 +448,31 @@ XML определяет текст колонок. Поиск строк, до�
 
 Новый EventId в XML сам по себе не реализует новую операцию Movement, новые источники данных или место вставки Word.
 
+## Export rejection rules
+
+Word and Movement templates accept optional `reject` elements before their body or columns. Without rules, export remains allowed. Each rule checks one prepared input field with exactly one of `equals` or `matches`; any matching rule rejects the current export with the configured `messageKey`. For `equals`, numeric values compare numerically; other values compare as case-sensitive text. `matches` searches the field using a VBScript regular expression; invalid patterns are configuration errors. Missing fields or messages are errors. Rules use prepared inputs, not template-local `derived` fields.
+
+The Word template `ToAnnualMainVacation` now includes:
+
+```xml
+<reject field="Destination"
+        matches="\(\s*[A-Za-zÀ-ÖØ-öø-ÿĀ-ž][A-Za-zÀ-ÖØ-öø-ÿĀ-ž0-9\s,.'’/-]*\)"
+        messageKey="text.ExportRejected"/>
+```
+
+The rule detects a potential foreign-vacation marker in `Destination`: a parenthesized phrase written in Latin letters, such as `(Zurich, Switzerland)` or `(Zurich, Schweiz)`. Accented Latin letters, spaces, line breaks, digits and common place-name punctuation are supported. Parenthesized Cyrillic text, digits alone and Latin text without parentheses do not match. The number of additional days no longer affects this rule. The rule applies to the annual-main-vacation Word template; Movement remains allowed unless its own template contains a matching rule. Store each rejection message in both PROD and TEST wsConfig files. Rules apply to history exports too.
+
+`VacationAdditionalDays` remains available as the sum of all additional duration operands, including road days, for independent rules using `equals`.
+
+Rejection stops the current operation before writing to Word or Movement; a batch containing a rejected event is not partially exported. Preview preparation reports the same Word rejection. Existing documents are not modified by adding a rule.
+
 ## 15. Проверка и тестирование
 
 Команды запускаются из корня репозитория:
 
 ```text
 python Scripts/Testing/PEB/validate_word_grammar.py
+python Scripts/Testing/PEB/validate_export_rejections.py
 python Scripts/Testing/PEB/validate_word_routes.py
 python Scripts/Testing/PEB/validate_movement_templates.py
 python Scripts/Testing/PEB/validate_word_grouping.py

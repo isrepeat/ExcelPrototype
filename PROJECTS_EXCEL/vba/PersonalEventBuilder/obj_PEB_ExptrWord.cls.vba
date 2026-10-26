@@ -336,6 +336,7 @@ Private Function private_Export( _
     Dim identifier As String
     Dim originalStamp As String
     Dim resultCode As String
+    Dim templates As obj_PEB_WordTemplates
 
     On Error GoTo EH
     diagnostic = VBA.vbNullString
@@ -352,6 +353,10 @@ Private Function private_Export( _
             private_Export = True
             Exit Function
         End If
+        Set templates = ex_PEB_Export.fn_WordTemplates()
+        ex_PEB_Export.fn_CheckRejections _
+            templates.Definition(CStr(ex_PEB_Export.fn_Required(values, "TemplateName"))), _
+            values
     End If
     enabled = ex_PEB_Export.fn_Config("export.Word.enabled")
     If existingTest Then

@@ -147,6 +147,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
             Err.Raise 5, , "Empty or duplicate template name: " & name
         End If
         ex_PEB_WordGroups.fn_Validate node
+        ex_PEB_Export.fn_ValidateRejections node, knownKeys & "VacationAdditionalDays|"
         m_templates.Add name, node
     Next node
     If m_templates.Count = 0 Then
@@ -219,6 +220,7 @@ Public Function TryRender( _
     If Not m_templates.Exists(name) Then
         Err.Raise 5, , "Word DSL template not found: " & name
     End If
+    ex_PEB_Export.fn_CheckRejections m_templates(name), values
     Set events = New Collection
     events.Add values
     rendered = ex_PEB_WordGroups.fn_Render(m_templates(name), events, m_sharedTemplates, m_resources)
