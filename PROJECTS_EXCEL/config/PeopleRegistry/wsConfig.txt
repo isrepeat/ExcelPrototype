@@ -1,146 +1,32 @@
 value	ThisWorkbook::id	PeopleRegistry
-value	ThisWorkbook::config.source	..\..\config\PeopleRegistry\wsConfig.txt
-value	ThisWorkbook::uiPath	..\..\ui
-value	ThisWorkbook::vbaPath	..\..\vba
-value	ThisWorkbook::initializer	ex_PeopleRegistry.fn_Initialize
-value	PeopleRegistry::Form.Cells	D5|D7|J5
-value	PeopleRegistry::Form.Labels	B5|B7|H5
-value	PeopleRegistry::Form.Headers	ПІБ|Звідки|Результат
-value	PeopleRegistry::Form.InfoCells	D2|D3|J2|J3|D10|D11
-value	PeopleRegistry::Form.ReplaceCells	D13|D15
-value	PeopleRegistry::Form.ReplaceLabels	B13|B15
-value	PeopleRegistry::Form.ReplaceHeaders	Попередній ІД|Новий ІД
-value	PeopleRegistry::Form.ResultTemplate	{id}{newline}{status}{newline}{message}
-value	PeopleRegistry::Help.Extra	Перевіряється збережений файл РУХ. Спочатку збережіть зміни у РУХ. Нові ID потрібно переносити до нього вручну.
-value	PeopleRegistry::Help.Input	Заповніть ПІБ та Звідки й натисніть Зареєструвати. ІД буде перевірено та збережено в історії.
-value	PeopleRegistry::Help.Result	Тут з’явиться збережений ІД або повідомлення про помилку. РУХ не змінюється.
-value	PeopleRegistry::Help.Aliases	Словник змінює лише нові автоматичні ID. Додайте повну назву та коротке позначення; збережені ID автоматично не перейменовуються.
-value	PeopleRegistry::Help.History	Попередній ІД — виданий ідентифікатор; ІД — його поточне значення. Для чинного ідентифікатора обидва значення однакові.
-value	PeopleRegistry::Help.Replace	Вкажіть попередній та новий ІД. Після перевірки підтвердьте заміну. Результат з’явиться праворуч.
-value	PeopleRegistry::Limit.IDLength	80
-value	PeopleRegistry::Limit.Candidates	5
-value	PeopleRegistry::Limit.AliasLength	24
-value	PeopleRegistry::Sheet.Input	Генератор
-value	PeopleRegistry::Sheet.Aliases	Скорочення
-value	PeopleRegistry::Sheet.History	Історія ID
-value	PeopleRegistry::Table.Aliases	tbOriginAliases
-value	PeopleRegistry::Table.History	tbIDHistory
-value	PeopleRegistry::Theme.Muted	#A0A0A0
-value	PeopleRegistry::Theme.Accent	#FFA45C
-value	PeopleRegistry::Theme.Border	#000000
-value	PeopleRegistry::Theme.Header	#333333
-value	PeopleRegistry::Theme.FontName	Calibri
-value	PeopleRegistry::Theme.FontSize	11
-value	PeopleRegistry::Theme.Alternate	#3A3A3A
-value	PeopleRegistry::Theme.Background	#262626
-value	PeopleRegistry::Theme.Foreground	#F2F2F2
-value	PeopleRegistry::Theme.TitleFontSize	16
-value	PeopleRegistry::Theme.ButtonFontSize	11
-value	PeopleRegistry::Title.Input	Генератор ID
-value	PeopleRegistry::Title.Result	Результат перевірки
-value	PeopleRegistry::Title.Aliases	Словник скорочень для ID
-value	PeopleRegistry::Title.History	Історія ID
-value	PeopleRegistry::Title.Replace	Заміна ІД
-value	PeopleRegistry::Value.Separator	_
-value	PeopleRegistry::Value.RemovedCharacters	 _.,;:/\|[](){}<>!?"'`
-value	PeopleRegistry::Value.InvalidIDCharacters	  ,;:/\|[](){}<>!?"'`
-value	PeopleRegistry::Button.Save	Зареєструвати
-value	PeopleRegistry::Button.Replace	Замінити ІД
-value	PeopleRegistry::Button.LockHistory	Заблокувати історію
-value	PeopleRegistry::Button.UnlockHistory	Розблокувати історію
-value	PeopleRegistry::Format.Timestamp	yyyy-mm-dd hh:nn:ss
-value	PeopleRegistry::Header.Aliases	Повна назва|Скорочення
-value	PeopleRegistry::Header.History	Попередній ІД|ІД|ПІБ|Звідки|Дата видачі
-value	PeopleRegistry::Layout.Zoom	100
-value	PeopleRegistry::Layout.Input.PaperSize	9
-value	PeopleRegistry::Layout.Input.PrintArea	B2:J17
-value	PeopleRegistry::Layout.Input.ViewRange	B2:J17
-value	PeopleRegistry::Layout.Input.ActiveCell	D5
-value	PeopleRegistry::Layout.Input.RowHeights	2=28|3=50|6=8|8=4|9=4|10=28|11=50|12=8|14=8|16=8|17=60
-value	PeopleRegistry::Layout.Input.ScrollCell	A1
-value	PeopleRegistry::Layout.Input.Orientation	2
-value	PeopleRegistry::Layout.Input.ColumnWidths	A=3|B=22|C=2|D=60|E=3|F=24|G=3|H=22|I=2|J=55
-value	PeopleRegistry::Layout.Input.LabelAlignment	-4152
-value	PeopleRegistry::Layout.Input.ContentAlignment	-4131
-value	PeopleRegistry::Layout.Input.DefaultRowHeight	16
-value	PeopleRegistry::Layout.Config.AutoFitRows	True
-value	PeopleRegistry::Layout.Config.ColumnWidths	A=12|B=58|C=90|D=8.43|E=75|F=24|G=8.43|H=8.57|I=13.29
-value	PeopleRegistry::Layout.Config.DefaultRowHeight	15
-value	PeopleRegistry::Layout.Aliases.AutoFitRows	True
-value	PeopleRegistry::Layout.Aliases.ColumnWidths	A=75|B=24
-value	PeopleRegistry::Layout.Aliases.DefaultRowHeight	15
-value	PeopleRegistry::Layout.History.ColumnWidths	A=35|B=35|C=45|D=30|E=23
-value	PeopleRegistry::Layout.History.DefaultRowHeight	15
-value	PeopleRegistry::Layout.AliasesCell	A3
-value	PeopleRegistry::Layout.ButtonCells	F5|F13
-value	PeopleRegistry::Layout.ButtonWidth	120
-value	PeopleRegistry::Layout.FieldHeight	45
-value	PeopleRegistry::Layout.HistoryCell	A3
-value	PeopleRegistry::Layout.ResultRange	J5:J7
-value	PeopleRegistry::Layout.BackupFolder	..\.backup
-value	PeopleRegistry::Layout.ButtonHeight	45
-value	PeopleRegistry::Layout.HistoryButtonCell	G1
-value	PeopleRegistry::Layout.DefaultColumnWidth	8.43
-value	PeopleRegistry::Layout.HistoryButtonWidth	180
-value	PeopleRegistry::Layout.HistoryButtonHeight	34
-value	PeopleRegistry::Layout.HistoryButtonOffsetX	0
-value	PeopleRegistry::Layout.HistoryButtonOffsetY	12
-value	PeopleRegistry::Source.List.Range	B5:C20000
-value	PeopleRegistry::Source.List.Sheet	Список
-value	PeopleRegistry::Source.List.IDColumn	ІПН
-value	PeopleRegistry::Source.List.NameColumn	ПІБ
-value	PeopleRegistry::Source.Path	C:\Users\isrepeat\OneDrive\Рабочий стол\РУХ_last.xlsx
-value	PeopleRegistry::Source.Caption	Джерело перевірки — лише читання
-value	PeopleRegistry::Source.Arrivals.Range	C5:G20000
-value	PeopleRegistry::Source.Arrivals.Sheet	Прибулі
-value	PeopleRegistry::Source.Arrivals.IDColumn	ІН
-value	PeopleRegistry::Source.Arrivals.NameColumn	ПІБ
-value	PeopleRegistry::Source.Arrivals.OriginColumn	Звідки
-value	PeopleRegistry::Source.FetchSize	4096
-value	PeopleRegistry::Status.Error	Помилка
-value	PeopleRegistry::Status.Saved	Збережено локально
-value	PeopleRegistry::Status.Source	Є в РУХ
-value	PeopleRegistry::Status.Preview	Попередній перегляд
-value	PeopleRegistry::Status.Cancelled	Скасовано
-value	PeopleRegistry::Message.Found	Використано наявний ID з історії. РУХ не змінено.
-value	PeopleRegistry::Message.SameID	Це вже поточний ІД особи. Заміна не потрібна.
-value	PeopleRegistry::Message.Created	ID збережено в історії генератора. Перенесіть його до РУХ вручну.
-value	PeopleRegistry::Message.IDInUse	Новий ІД уже використовується в РУХ або історії. Оберіть інший ідентифікатор.
-value	PeopleRegistry::Message.Migrated	ID замінено. Зв’язок між наявним і новим ID збережено в історії; РУХ не змінено.
-value	PeopleRegistry::Message.ReadOnly	Книга має бути збережена на диску та доступна для запису.
-value	PeopleRegistry::Message.Cancelled	Створення окремої особи скасовано. Для наявної особи заповніть Попередній ІД.
-value	PeopleRegistry::Message.CellError	Вхідні дані містять помилку Excel. Виправте клітинку.
-value	PeopleRegistry::Message.InvalidID	Поле ІД має містити від 1 до {max} символів без керувальних символів і заборонених розділових знаків. Пробіли та символи . _ і - дозволені.
-value	PeopleRegistry::Message.UnknownID	ID не знайдено в РУХ або історії генератора. Перевірте значення.
-value	PeopleRegistry::Message.EmptyToken	ПІБ або місце прибуття не містить символів для створення ID.
-value	PeopleRegistry::Message.IDConflict	Ідентифікатори належать різним особам. Автоматичне об’єднання заборонено.
-value	PeopleRegistry::Message.SaveFailed	Не вдалося зберегти історію ID. Нові ID не підтверджено; перевірте стан книги перед їх використанням. Помилка: {error}
-value	PeopleRegistry::Message.RuntimeBusy	Виконання ще не завершено. Дочекайтеся завершення поточної операції.
-value	PeopleRegistry::Message.SourceEmpty	У книзі РУХ немає записів із ПІБ. Перевірку зупинено.
-value	PeopleRegistry::Message.SourceFound	ID знайдено в РУХ; створювати новий не потрібно.
-value	PeopleRegistry::Message.AliasInvalid	Перевірте рядок {row} словника скорочень: потрібні назва та коротке позначення без пробілів; одна назва не може мати різні скорочення.
-value	PeopleRegistry::Message.InvalidColor	Колір {key} має бути заданий у форматі #RRGGBB.
-value	PeopleRegistry::Message.InvalidPhase	Неприпустимий етап ініціалізації.
-value	PeopleRegistry::Message.NameRequired	Заповніть ПІБ.
-value	PeopleRegistry::Message.SourceFailed	Не вдалося перевірити книгу РУХ: {error}
-value	PeopleRegistry::Message.SchemaInvalid	Неправильна структура таблиць реєстру. Перевірте кількість і порядок стовпців.
-value	PeopleRegistry::Message.SourceMissing	Не знайдено книгу РУХ: {path}
-value	PeopleRegistry::Message.MissingContext	Відсутній контекст виконання.
-value	PeopleRegistry::Message.OriginRequired	Для автоматичного створення ID заповніть Звідки.
-value	PeopleRegistry::Message.PasswordPrompt	Введіть пароль для розблокування історії ІД. Скасувати — залишити захист увімкненим.
-value	PeopleRegistry::Message.PreviewCreated	Запропоновано новий ID. Щоб зарезервувати його в історії, натисніть Зберегти ID.
-value	PeopleRegistry::Message.SourceMismatch	ID {id} належить іншому ПІБ. Перевірте особу та ідентифікатор.
-value	PeopleRegistry::Message.PasswordInvalid	Неправильний пароль. Історія ІД залишається заблокованою.
-value	PeopleRegistry::Message.PreviewMigrated	Запропоновано заміну на новий ID. Після збереження наявний ID залишиться в історії. РУХ не змінюється.
-value	PeopleRegistry::Message.RegistryInvalid	Порушено цілісність історії ID: перевірте унікальність ID, наявність поточного ID та відповідність ПІБ.
-value	PeopleRegistry::Message.ReplaceRequired	Заповніть Попередній ІД та Новий ІД у формі заміни.
-value	PeopleRegistry::Message.SourceAmbiguous	ID {id} у РУХ належить кільком ПІБ або має неповні дані. Перевірте джерело.
-value	PeopleRegistry::Message.SourceCellError	Книга РУХ містить помилку Excel у ПІБ, ID або місці прибуття. Виправте джерело перед генерацією.
-value	PeopleRegistry::Message.UnbalancedCalls	Порушено баланс викликів процедур.
-value	PeopleRegistry::Message.ConfirmNewPerson	У РУХ або історії вже є особи з таким ПІБ: {candidates} Створити окрему особу? Якщо це та сама особа, виберіть Ні та заповніть Попередній ІД.
-value	PeopleRegistry::Message.InitializeFailed	Не вдалося ініціалізувати PeopleRegistry.
-value	PeopleRegistry::Message.ProtectionFailed	Не вдалося відновити захист історії ІД: {error}
-value	PeopleRegistry::Message.ReplaceCancelled	Заміну ІД скасовано. Історію не змінено.
-value	PeopleRegistry::Message.ConfirmReplacement	{name}{newline}Поточний ІД: {old}{newline}Новий ІД: {new}{newline}{newline}Замінити ІД та зберегти історію? РУХ не змінюється.
+value	ThisWorkbook::ui.pageMappings	MainPage=MainPage.xaml
+value	ThisWorkbook::config.source	../../config/PeopleRegistry/wsConfig.txt
+value	ThisWorkbook::uiPath	../../ui
+value	ThisWorkbook::logMode	Immediate
+value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PeopleRegistry
+value	ThisWorkbook::vbaPath	../../vba
+value	ThisWorkbook::initializer	ex_PRM.fn_Initialize
+value	ThisWorkbook::pageFactory	ex_PRM.fn_CreatePage
+value	PeopleRegistry::ui.folder	PeopleRegistry
+value	PeopleRegistry::ui.pageClass	obj_PRM_PgMain
+value	PeopleRegistry::text.NewId	Новий ІД
+value	PeopleRegistry::text.Origin	Звідки
+value	PeopleRegistry::text.Register	Зареєструвати
+value	PeopleRegistry::text.InputHelp	Заповніть ПІБ та Звідки для реєстрації нового ІД.
+value	PeopleRegistry::text.ReplaceId	Замінити ІД
+value	PeopleRegistry::text.InputTitle	Генератор ID
+value	PeopleRegistry::text.PersonName	ПІБ
+value	PeopleRegistry::text.PreviousId	Попередній ІД
+value	PeopleRegistry::text.ResultHelp	Тут з’явиться результат реєстрації або заміни ІД. РУХ не змінюється.
+value	PeopleRegistry::text.LayoutReady	Форму підготовлено. Реєстрацію та заміну ІД у зовнішньому реєстрі ще не підключено.
+value	PeopleRegistry::text.ReplaceHelp	Вкажіть попередній та новий ІД. Після перевірки потрібно буде підтвердити заміну.
+value	PeopleRegistry::text.ResultTitle	Результат перевірки
+value	PeopleRegistry::text.RegistryPath	Реєстр даних: {path}
+value	PeopleRegistry::text.ReplaceTitle	Заміна ІД
+value	PeopleRegistry::registry.path	PeopleRegistryBase.xlsx
+value	PeopleRegistry::registry.aliases.sheet	Скорочення
+value	PeopleRegistry::registry.aliases.table	tbOriginAliases
+value	PeopleRegistry::registry.history.sheet	Історія ID
+value	PeopleRegistry::registry.history.table	tbIDHistory
 value	PeopleRegistry::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PeopleRegistry::configRefresh.text.Success	Конфігурацію оновлено: {path}
