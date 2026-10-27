@@ -12,7 +12,10 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_WrapCaption(ByVal shape As Object)
+Public Sub fn_WrapCaption( _
+    ByVal shape As Object, _
+    Optional ByVal preservePadding As Boolean = False _
+)
     Dim textFrame As Object
     Dim errorNumber As Long
     Dim errorDescription As String
@@ -20,9 +23,10 @@ Public Sub fn_WrapCaption(ByVal shape As Object)
     On Error GoTo EH
     Set textFrame = shape.TextFrame2
     textFrame.AutoSize = msoAutoSizeNone
-    ' Reserve the full button height for wrapped text without changing the font size.
-    textFrame.MarginTop = 0
-    textFrame.MarginBottom = 0
+    If Not preservePadding Then
+        textFrame.MarginTop = 0
+        textFrame.MarginBottom = 0
+    End If
     textFrame.WordWrap = msoTrue
     Exit Sub
 EH:

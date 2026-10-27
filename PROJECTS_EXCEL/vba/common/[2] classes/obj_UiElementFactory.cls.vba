@@ -228,9 +228,14 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     schema.AddAttribute "borderScope", "string", False, "", False, 0
     schema.AddAttribute "horizontal", "string", False, "", False, 0
     schema.AddAttribute "vertical", "string", False, "", False, 0
-    schema.AddAttribute "indent", "nonnegative", False, "", False, 0
     schema.AddAttribute "paddingLeft", "number", False, "", False, 0
     schema.AddAttribute "paddingRight", "number", False, "", False, 0
+    schema.AddAttribute "marginLeft", "number", False, "", False, 0
+    schema.AddAttribute "marginTop", "number", False, "", False, 0
+    schema.AddAttribute "marginRight", "number", False, "", False, 0
+    schema.AddAttribute "marginBottom", "number", False, "", False, 0
+    schema.AddAttribute "paddingTop", "number", False, "", False, 0
+    schema.AddAttribute "paddingBottom", "number", False, "", False, 0
     schema.AddAttribute "shadow", "boolean", False, "", False, 0
     schema.AddAttribute "shadowColor", "string", False, "", False, 0
     schema.AddAttribute "shadowBlur", "number", False, "", False, 0

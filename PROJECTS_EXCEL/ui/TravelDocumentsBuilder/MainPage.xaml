@@ -466,7 +466,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="searchLabel"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -478,7 +477,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="pageTitle"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#262626"
@@ -491,7 +489,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="toolbarLabel"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#262626"
@@ -504,7 +501,6 @@
                   horizontal="right"
                   vertical="center"/>
     <controlStyle name="sectionTitle"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -517,7 +513,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="formLabel"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -530,7 +525,6 @@
                   horizontal="right"
                   vertical="center"/>
     <controlStyle name="formField"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -543,7 +537,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="statusHeading"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -556,7 +549,6 @@
                   horizontal="right"
                   vertical="center"/>
     <controlStyle name="statusText"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#262626"
@@ -569,7 +561,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="personnelCheckbox"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#262626"
@@ -582,7 +573,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="candidateTable"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -595,7 +585,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="candidateSelected"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#375D7A"
@@ -608,7 +597,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="secondaryButton"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#3B3B3B"
@@ -621,7 +609,8 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="generationError"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#FFD966"
                   fontName="Calibri"
@@ -629,7 +618,8 @@
                   horizontal="left"
                   vertical="top"/>
     <controlStyle name="generationSuccess"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#909090"
                   fontName="Calibri"
@@ -659,7 +649,6 @@
                   shadowTransparency="0.55"
                   shadowOffsetX="3"
                   shadowOffsetY="3"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#383838"
@@ -673,7 +662,6 @@
                   vertical="center"/>
     <controlStyle name="formSelectItem"
                   shadow="false"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#383838"
@@ -741,7 +729,7 @@
               styles="{cellType:text;}"/>
         <rule target="control"
               selector="name=CandidateCount"
-              styles="{horizontal:right;indent:1;}"/>
+              styles="{horizontal:right;paddingLeft:10;paddingRight:10;}"/>
         <rule target="controlPart"
               selector="type=table;part=header"
               styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>

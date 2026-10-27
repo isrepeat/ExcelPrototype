@@ -37,6 +37,7 @@ value	PeriodsGeneration::text.Cancel	Скасувати
 value	PeriodsGeneration::text.RefreshPage	Оновити сторінку
 value	PeriodsGeneration::text.StartDateLabel	Початкова дата
 value	PeriodsGeneration::text.EndDateLabel	Кінцева дата
+value	PeriodsGeneration::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	PeriodsGeneration::text.Title	Генерація періодів
 value	PeriodsGeneration::message.AlreadyRunning	Period calculation is already running. Wait for it to complete.
 value	PeriodsGeneration::message.SourceMissing	Source workbook was not found. Open the RUKH workbook and try again.

@@ -146,7 +146,8 @@
   </grid>
   <styles>
     <controlStyle name="testStatus"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="testDocument"
@@ -187,7 +188,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="sectionTitle"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -200,7 +200,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="testStopButton"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#B03535"
@@ -213,7 +212,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="secondaryButton"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#3B3B3B"

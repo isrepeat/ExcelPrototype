@@ -562,7 +562,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 #End If
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
-    If m_targetRange.Cells.CountLarge > 1 Then m_targetRange.Merge
+    ex_UiTables.fn_MergeRange m_targetRange, m_uiControlBase.ControlName
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RANGE_PREPARE_COMPLETED | Name=" & m_uiControlBase.ControlName
 #End If

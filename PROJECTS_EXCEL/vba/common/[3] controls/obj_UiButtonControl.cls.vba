@@ -179,6 +179,8 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Set m_buttonShape = uiRenderContext.TargetWorksheet.Shapes.AddShape( _
         msoShapeRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
+    m_buttonShape.TextFrame2.MarginTop = 0
+    m_buttonShape.TextFrame2.MarginBottom = 0
     uiRenderContext.RegisterShapeLayout m_buttonShape, targetRange, m_uiControlBase.ControlNode, wrapCaption:=True
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
@@ -190,7 +192,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 End Function
 
 Private Sub private_ConfigureTextLayout()
-    ex_UiInlineText.fn_WrapCaption m_buttonShape
+    ex_UiInlineText.fn_WrapCaption m_buttonShape, preservePadding:=True
 End Sub
 
 Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) As Range

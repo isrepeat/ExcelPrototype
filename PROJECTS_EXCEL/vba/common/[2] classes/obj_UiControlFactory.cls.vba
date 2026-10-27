@@ -117,6 +117,10 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddAttribute "style", "string", False, "", True, 0
+    schema.AddAttribute "paddingLeft", "number", False, "", False, 0
+    schema.AddAttribute "paddingTop", "number", False, "", False, 0
+    schema.AddAttribute "paddingRight", "number", False, "", False, 0
+    schema.AddAttribute "paddingBottom", "number", False, "", False, 0
     schema.AddAttribute "visibility", "enum", False, "Visible|Collapsed", True, 0
     schema.AddAttribute "closeCommand", "string", False, "", True, 0
     schema.AddAttribute "closeCaption", "string", False, "", True, 0
@@ -138,6 +142,10 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             End If
             If m_type = "button" Then
                 private_AddShapeLayoutSchema schema
+                schema.AddAttribute "marginLeft", "number", False, "", False, 0
+                schema.AddAttribute "marginTop", "number", False, "", False, 0
+                schema.AddAttribute "marginRight", "number", False, "", False, 0
+                schema.AddAttribute "marginBottom", "number", False, "", False, 0
                 schema.AddAttribute "command", "string", False, "", True
                 schema.AddAttribute "enabled", "boolean", False, "", True
             End If
