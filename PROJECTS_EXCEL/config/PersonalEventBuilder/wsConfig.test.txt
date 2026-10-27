@@ -167,7 +167,7 @@ value	PersonalEventBuilder::text.TestOnly	Завантаження сценар�
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
 value	PersonalEventBuilder::text.DummyMode	Недоступно
 value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
-value	PersonalEventBuilder::text.ResetForm	Нова подія
+value	PersonalEventBuilder::text.ResetForm	↺{lineBreak}Нова подія
 value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	PersonalEventBuilder::text.TestPhase.Commit	Дані розраховано, знімок перед експортом отримано.
 value	PersonalEventBuilder::text.TestPhase.Export	Виконання тестової дії завершено.

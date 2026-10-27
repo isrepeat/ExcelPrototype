@@ -47,6 +47,14 @@ Private Sub Class_Terminate()
 End Sub
 
 ' //
+' // Properties
+' //
+Public Property Get RenderArea() As Range
+    If m_context Is Nothing Or m_rows < 1 Or m_columns < 1 Then Exit Property
+    Set RenderArea = m_context.TargetWorksheet.Cells(m_arrangedRow, m_arrangedColumn).Resize(m_rows, m_columns)
+End Property
+
+' //
 ' // Interface
 ' //
 Private Function obj_IUiElement_Configure( _
@@ -308,6 +316,7 @@ Private Function private_RenderPanel(ByRef diagnostic As String) As Boolean
     For Each child In m_children
         If Not child.Render(diagnostic) Then Exit Function
     Next child
+    m_context.RegisterButtonContainer m_definition, Me.RenderArea
     private_RenderPanel = True
 End Function
 

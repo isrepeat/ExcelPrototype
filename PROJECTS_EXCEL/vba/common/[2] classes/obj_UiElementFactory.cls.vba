@@ -122,12 +122,17 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "row", "positive", False, "", False, 0
             schema.AddAttribute "column", "positive", False, "", False, 0
             schema.AddAttribute "anchorCell", "string", False, "", False, 0
+            schema.AddAttribute "columnSpacing", "number", False, "", False, 0
+            schema.AddAttribute "rowSpacing", "number", False, "", False, 0
+            private_AddContainerPaddingSchema schema
             schema.AddChild "grid.rowDefinitions", private_TrackSchema("rowDefinition"), 0, 1
             schema.AddChild "grid.columnDefinitions", private_TrackSchema("columnDefinition"), 0, 1
             schema.AddAttribute "rowSpan", "positive", False, "", False, 0
             schema.AddAttribute "columnSpan", "positive", False, "", False, 0
             schema.AllowVisualChildren
         Case "stackpanel"
+            schema.AddAttribute "spacing", "number", False, "", False, 0
+            private_AddContainerPaddingSchema schema
             schema.AddAttribute "contentSource", "string", False, "", False, 0
             schema.AddAttribute "visibility", "enum", False, "Visible|Collapsed", True, 0
             schema.AddAttribute "horizontalAlignment", "enum", False, "start|stretch", False, 0
@@ -144,6 +149,13 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     End Select
     Set private_CreateSchema = schema
 End Function
+
+Private Sub private_AddContainerPaddingSchema(ByVal schema As obj_UiMarkupSchema)
+    schema.AddAttribute "paddingLeft", "number", False, "", False, 0
+    schema.AddAttribute "paddingTop", "number", False, "", False, 0
+    schema.AddAttribute "paddingRight", "number", False, "", False, 0
+    schema.AddAttribute "paddingBottom", "number", False, "", False, 0
+End Sub
 
 Private Function private_TrackSchema(ByVal itemName As String) As obj_UiMarkupSchema
     Dim schema As New obj_UiMarkupSchema
