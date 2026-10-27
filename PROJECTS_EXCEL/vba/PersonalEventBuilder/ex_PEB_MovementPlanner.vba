@@ -430,6 +430,10 @@ Private Function private_Apply( _
     departureHeader = ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     eventDate = ex_PEB_History.fn_Date(values("EventDate"))
     Set links = ex_PEB_MovementLinks.fn_Headers()
+    If values("EventId") = "MoveFromAwolToBusinessTrip" Then
+        ' Keep the AWOL closing food-support date aligned with the return placeholder.
+        closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport")) = eventDate
+    End If
     action.Add "Operation", operation
     action.Add "Writes", writes
     action.Add "ClosingWrites", closingWrites
@@ -610,6 +614,7 @@ Private Sub private_PlanReturnPlaceholder( _
     For Each key In closingWrites.Keys
         writes(key) = closingWrites(key)
     Next key
+    writes(ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument")) = VBA.vbNullString
     For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")
         writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")
     Next key
