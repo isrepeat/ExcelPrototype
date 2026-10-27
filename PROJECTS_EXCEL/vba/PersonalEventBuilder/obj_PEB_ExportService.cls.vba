@@ -86,6 +86,7 @@ Public Function TryPrepareExtensions( _
     Dim fieldPrefix As String
     Dim fieldType As String
     Dim index As Long
+    Dim parent As Object
 
     On Error GoTo EH_EXTENSIONS
     If extensionRows Is Nothing Then
@@ -138,7 +139,6 @@ Public Function TryPrepareExtensions( _
                 item("DocDateShort") = row("DocumentDate")
                 documents.Add item
             Case "TVO"
-                row("DutyPositionGenitive") = vbNullString
                 duties.Add row
             Case "Report"
                 row("ReportPerson") = row("ReportName")
@@ -148,6 +148,14 @@ Public Function TryPrepareExtensions( _
                 reports.Add row
         End Select
     Next source
+    ' Each subsequent duty row replaces the preceding person in visual order.
+    Set parent = values
+    For Each row In duties
+        row("DutyPositionGenitive") = ex_PEB_Export.fn_Required(parent, "PositionGenitive")
+        row("DutyPositionCode") = ex_PEB_Export.fn_Required(parent, "PositionCode")
+        row("DutyPersonName") = ex_PEB_Export.fn_Required(parent, "PersonName")
+        Set parent = row
+    Next row
     Set values("FormExtensionRows") = children
     Set values("MetaDocumentTables") = documents
     Set values("MetaTvoTables") = duties

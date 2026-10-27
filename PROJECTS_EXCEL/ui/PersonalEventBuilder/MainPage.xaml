@@ -390,13 +390,6 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ReinitializePage}"
                      command="{Binding Path=Commands.ReinitializePage}"/>
-    <controls:button name="EnvironmentSwitch"
-                     row="1"
-                     column="22"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.EnvironmentSwitch}"
-                     command="{Binding Path=Commands.EnvironmentSwitch}"
-                     shapePlacement="moveAndSize"/>
     <controls:label name="WordPreview"
                     row="3"
                     column="12"
@@ -580,7 +573,7 @@
     <controls:label name="ActionsSection"
                     row="1"
                     column="20"
-                    columnSpan="2"
+                    columnSpan="3"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
     <controls:button name="RefreshPersonnel"

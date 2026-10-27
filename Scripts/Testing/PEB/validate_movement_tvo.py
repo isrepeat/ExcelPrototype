@@ -83,6 +83,16 @@ def main():
     history = (folder / 'ex_PEB_History.vba').read_text(encoding='utf-8-sig')
     children = procedure(history, 'private_Tvo')
     assert 'row("DutyPositionCode") = parent("PositionCode")' in children
+    assert 'row("DutyPositionGenitive") = parent("PositionGenitive")' in children
+    assert 'If result.Count > 0 Then Set parent = result(result.Count)' in children
+    service = (folder / 'obj_PEB_ExportService.cls.vba').read_text(encoding='utf-8-sig')
+    extensions = procedure(service, 'TryPrepareExtensions')
+    assert 'Set parent = values' in extensions
+    assert 'Set parent = row' in extensions
+    assert 'row("DutyPositionCode") = ex_PEB_Export.fn_Required(parent, "PositionCode")' in extensions
+    form_children = (folder / 'ex_PEB_FormChildren.vba').read_text(encoding='utf-8-sig')
+    assert 'fields("ParentRowId") = tvoParentId' in form_children
+    assert 'tvoParentId = identifier' in form_children
     assert 'row("DutyPersonName") = parent("PersonName")' in children
     assert 'private_Tvo rows, row, result' in children
     prepare_tvo = procedure(table, 'fn_Prepare')

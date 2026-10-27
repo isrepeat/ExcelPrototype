@@ -988,7 +988,8 @@ Private Sub private_Tvo( _
         If row("RowType") = "TVO" And row("ParentRowId") = parent("RowId") Then private_AddSorted children, row
     Next row
     For Each row In children
-        row("DutyPositionGenitive") = VBA.vbNullString
+        If result.Count > 0 Then Set parent = result(result.Count)
+        row("DutyPositionGenitive") = parent("PositionGenitive")
         row("DutyPositionCode") = parent("PositionCode")
         row("DutyPersonName") = parent("PersonName")
         For Each field In VBA.Array("RankGenitive", "FIOAccusative", "PositionGenitive", "RankDative", "FIODative")
