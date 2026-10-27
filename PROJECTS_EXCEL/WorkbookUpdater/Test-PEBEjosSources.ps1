@@ -30,6 +30,13 @@ foreach ($name in @('wsConfig.txt', 'wsConfig.test.txt')) {
         }
     }
     $configs += ,$config
+    $absenceHeaders = @{}
+    for ($index = 1; $index -le [int]$config['PersonalEventBuilder::lookup.Absence.columns.count']; $index++) {
+        $absenceHeaders[$config["PersonalEventBuilder::lookup.Absence.columns.$index.name"]] = $config["PersonalEventBuilder::lookup.Absence.columns.$index.header"]
+    }
+    if ($absenceHeaders['Absence.DepartureDate'] -ne '70' -or $absenceHeaders['Absence.OrderDate'] -ne '71 (А)') {
+        throw 'Candidate enrichment must use column 70 for departure and column 71 (А) for order-date matching.'
+    }
 }
 foreach ($key in $configs[0].Keys) {
     if ($key.StartsWith($prefix) -and $configs[0][$key] -ne $configs[1][$key]) { throw "EJOS PROD/TEST settings differ: $key" }

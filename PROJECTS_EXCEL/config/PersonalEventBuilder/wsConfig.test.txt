@@ -1637,7 +1637,9 @@ value	PersonalEventBuilder::lookup.Absence.columns.5.header	Стовпець1
 value	PersonalEventBuilder::lookup.Absence.columns.6.name	Absence.DurationDays
 value	PersonalEventBuilder::lookup.Absence.columns.6.header	72
 value	PersonalEventBuilder::lookup.Absence.columns.6.captionKey	PersonalEventBuilder::text.ModeDurationDaysLabel
-value	PersonalEventBuilder::lookup.Absence.columns.count	6
+value	PersonalEventBuilder::lookup.Absence.columns.7.name	Absence.OrderDate
+value	PersonalEventBuilder::lookup.Absence.columns.7.header	71 (А)
+value	PersonalEventBuilder::lookup.Absence.columns.count	7
 value	PersonalEventBuilder::lookup.Absence.display.count	0
 value	PersonalEventBuilder::lookup.Absence.minChars	1
 value	PersonalEventBuilder::lookup.Absence.maxResults	1000
