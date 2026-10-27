@@ -69,6 +69,7 @@ Public Function fn_Plan( _
     Dim c As Long
     Dim people As Object
     Dim uniformFormat As Variant
+    Dim tvoParentId As String
     Dim rebound As Object
 
     Set plan = CreateObject("Scripting.Dictionary")
@@ -94,6 +95,7 @@ Public Function fn_Plan( _
     If Not ids.Exists(root("RowId")) Then pending.Add root
     Set rebound = CreateObject("Scripting.Dictionary")
     If rebindFormExtensions Then Set rebound = private_Rebind(children, root, ids, removed)
+    tvoParentId = root("RowId")
     For Each child In children
         serial = serial + 1
         identifier = child("RowId")
@@ -120,6 +122,10 @@ Public Function fn_Plan( _
         child("RowId") = identifier
         fields("RowOrder") = CStr(serial)
         fields("ParentRowId") = child("ParentRowId")
+        If fields("RowType") = "TVO" Then
+            fields("ParentRowId") = tvoParentId
+            tvoParentId = identifier
+        End If
         If Len(fields("ParentRowId")) = 0 Then fields("ParentRowId") = root("RowId")
         child("ParentRowId") = fields("ParentRowId")
         fields("AcceptedOrderNumber") = root("AcceptedOrderNumber")
