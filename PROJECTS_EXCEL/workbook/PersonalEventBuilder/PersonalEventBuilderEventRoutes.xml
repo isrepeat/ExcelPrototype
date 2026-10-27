@@ -69,7 +69,7 @@
            caption="З медичної роти"
            id="FromMedicalCompanyForTreatment"
            direction="Arrival"
-           form="Treatment"
+           form="MedicalCompany"
            visible="true">
       <movement template="FromMedicalCompanyForTreatment"/>
       <word template="FromMedicalCompanyForTreatment"/>
@@ -156,7 +156,7 @@
            caption="В медичну роту"
            id="ToMedicalCompanyForTreatment"
            direction="Departure"
-           form="Treatment"
+           form="MedicalCompany"
            visible="true">
       <movement template="ToMedicalCompanyForTreatment"/>
       <word template="ToMedicalCompanyForTreatment"/>
