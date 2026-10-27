@@ -15,6 +15,7 @@ Private m_isDisposed As Boolean
 Private Const SHEET_SCOPE_MIN_COLUMN As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private m_inlineCaptions As Object
+Private m_shapeMargins As Object
 Private m_stylesByName As Object
 Private m_pageDocument As Object
 Private m_targetWorksheet As Worksheet
@@ -55,6 +56,7 @@ Public Sub Dispose()
     Set m_pipeline = Nothing
     Set m_overlays = Nothing
     Set m_inlineCaptions = Nothing
+    Set m_shapeMargins = Nothing
     Set m_partialScope = Nothing
 End Sub
 
@@ -94,6 +96,10 @@ Public Sub ApplyControlStyle( _
 
     startedAt = VBA.Timer
     If m_stylesByName Is Nothing Then Exit Sub
+    If Not targetShape Is Nothing Then
+        If m_shapeMargins Is Nothing Then Set m_shapeMargins = VBA.CreateObject("Scripting.Dictionary")
+        m_shapeMargins(targetShape.Name) = VBA.Array(0#, 0#, 0#, 0#)
+    End If
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
             private_ReadAttribute(controlNode, "style"), uiBindingContext, styleName) Then Exit Sub
     If VBA.Len(styleName) > 0 Then
@@ -239,6 +245,9 @@ Public Sub ForgetControl(ByVal name As String)
 End Sub
 
 Public Sub ForgetShape(ByVal name As String)
+    If Not m_shapeMargins Is Nothing Then
+        If m_shapeMargins.Exists(name) Then m_shapeMargins.Remove name
+    End If
     If m_inlineCaptions Is Nothing Then Exit Sub
     If m_inlineCaptions.Exists(name) Then m_inlineCaptions.Remove name
 End Sub
@@ -275,6 +284,7 @@ Public Sub BeginRender( _
     If m_pipeline Is Nothing Then Exit Sub
     m_pipeline.BeginRender
     Set m_inlineCaptions = VBA.CreateObject("Scripting.Dictionary")
+    Set m_shapeMargins = VBA.CreateObject("Scripting.Dictionary")
     Set m_overlays = VBA.CreateObject("Scripting.Dictionary")
     m_overlays.CompareMode = VBA.vbTextCompare
     Set pageScope = private_GetSheetScope(m_targetWorksheet)
@@ -309,6 +319,12 @@ Public Sub ApplyButtonCaption( _
     m_inlineCaptions(shape.Name) = entry
     ex_UiInlineText.fn_ApplyCaption shape, caption, VBA.CLng(entry(2))
 End Sub
+
+Public Function GetShapeMargins(ByVal shapeName As String) As Variant
+    GetShapeMargins = VBA.Array(0#, 0#, 0#, 0#)
+    If m_shapeMargins Is Nothing Then Exit Function
+    If m_shapeMargins.Exists(shapeName) Then GetShapeMargins = m_shapeMargins(shapeName)
+End Function
 
 Public Sub ApplyOverlay( _
     ByVal area As Range, _
@@ -470,7 +486,7 @@ Private Sub private_ApplyRegions( _
     For Each key In properties.Keys
         Select Case CStr(key)
             Case "backcolor", "textcolor", "fontcolor", "fontbold", "fontitalic", "fontsize", "fontname", _
-                    "horizontal", "vertical", "indent", "format", "numberformat", "wraptext"
+                    "horizontal", "vertical", "format", "numberformat", "wraptext"
             Case Else
                 uniformProperties = False
                 Exit For
@@ -653,7 +669,9 @@ Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
         Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
                  "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontsize", _
-                 "fontname", "horizontal", "vertical", "indent", "paddingleft", "paddingright", "columnwidth", "width", "rowheight", _
+                 "marginleft", "margintop", "marginright", "marginbottom", _
+                 "fontname", "horizontal", "vertical", "paddingleft", "paddingright", _
+                 "paddingtop", "paddingbottom", "columnwidth", "width", "rowheight", _
                  "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype", _
                  "shadow", "shadowcolor", "shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety"
                 result(propertyName) = VBA.CStr(attributeNode.Text)
@@ -701,7 +719,9 @@ Private Function private_IsVisualProperty(ByVal propertyName As String) As Boole
     Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
              "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontsize", _
-                 "fontname", "horizontal", "vertical", "indent", "paddingleft", "paddingright", "columnwidth", "width", "rowheight", _
+                 "marginleft", "margintop", "marginright", "marginbottom", _
+                 "fontname", "horizontal", "vertical", "paddingleft", "paddingright", _
+                 "paddingtop", "paddingbottom", "columnwidth", "width", "rowheight", _
                   "overflow", "zoom", "gridlines", "minwidth", "maxwidth", "autofitcolumns", "celltype", _
                   "shadow", "shadowcolor", "shadowblur", "shadowtransparency", "shadowoffsetx", "shadowoffsety"
             private_IsVisualProperty = True
@@ -721,7 +741,6 @@ Private Sub private_ApplyProperties( _
     ByVal properties As Object _
 )
     Dim colorValue As Long
-    Dim indentLevel As Double
     Dim fillTransparency As Double
 
     If properties Is Nothing Then Exit Sub
@@ -792,30 +811,22 @@ Private Sub private_ApplyProperties( _
         targetRange, targetShape, properties("horizontal")
     If properties.Exists("vertical") Then private_ApplyVerticalAlignment _
         targetRange, targetShape, properties("vertical")
-    If properties.Exists("indent") Then
-        If Not VBA.IsNumeric(properties("indent")) Then
-            ex_UiStyleDiagnostics.fn_Raise "Property", "indent=" & properties("indent")
-        End If
-        indentLevel = VBA.CDbl(properties("indent"))
-        If indentLevel < 0 Or indentLevel > 15 Or indentLevel <> VBA.Fix(indentLevel) Then
-            ex_UiStyleDiagnostics.fn_Raise "Property", "indent=" & properties("indent")
-        End If
-        If Not targetShape Is Nothing Then
-            ' One indent level approximates three characters in the current font.
-            ' Symmetric margins preserve padding for left and right alignment.
-            targetShape.TextFrame2.MarginLeft = indentLevel * targetShape.TextFrame2.TextRange.Font.Size * 1.5
-            targetShape.TextFrame2.MarginRight = indentLevel * targetShape.TextFrame2.TextRange.Font.Size * 1.5
-        ElseIf Not targetRange Is Nothing Then
-            targetRange.IndentLevel = VBA.CLng(indentLevel)
-        End If
-    End If
     If Not targetShape Is Nothing Then
+        private_ApplyShapeMargins targetShape, properties
         If properties.Exists("paddingleft") Then
             targetShape.TextFrame2.MarginLeft = private_ReadPadding(properties("paddingleft"))
         End If
         If properties.Exists("paddingright") Then
             targetShape.TextFrame2.MarginRight = private_ReadPadding(properties("paddingright"))
         End If
+        If properties.Exists("paddingtop") Then
+            targetShape.TextFrame2.MarginTop = private_ReadPadding(properties("paddingtop"))
+        End If
+        If properties.Exists("paddingbottom") Then
+            targetShape.TextFrame2.MarginBottom = private_ReadPadding(properties("paddingbottom"))
+        End If
+    ElseIf Not targetRange Is Nothing Then
+        private_ApplyCellPadding targetRange, properties
     End If
     If properties.Exists("columnwidth") Then
         If Not targetRange Is Nothing Then _
@@ -902,6 +913,56 @@ Private Sub private_ApplyShadow( _
         targetShape.Shadow.Visible = VBA.IIf(private_ReadBoolean(properties("shadow")), msoTrue, msoFalse)
         If private_ReadBoolean(properties("shadow")) Then targetShape.Shadow.Style = msoShadowStyleOuterShadow
     End If
+End Sub
+
+Private Sub private_ApplyShapeMargins( _
+    ByVal shape As Object, _
+    ByVal properties As Object _
+)
+    Dim margins As Variant
+    Dim sides As Variant
+    Dim index As Long
+
+    margins = Me.GetShapeMargins(shape.Name)
+    sides = VBA.Array("marginleft", "margintop", "marginright", "marginbottom")
+    For index = 0 To 3
+        If properties.Exists(sides(index)) Then margins(index) = private_ReadPadding(properties(sides(index)))
+    Next index
+    If m_shapeMargins Is Nothing Then Set m_shapeMargins = VBA.CreateObject("Scripting.Dictionary")
+    m_shapeMargins(shape.Name) = margins
+End Sub
+
+Private Sub private_ApplyCellPadding( _
+    ByVal area As Range, _
+    ByVal properties As Object _
+)
+    Dim alignment As Variant
+    Dim propertyName As String
+    Dim cell As Range
+    Dim spacing As Double
+    Dim indentLevel As Double
+    Dim side As Variant
+
+    For Each side In VBA.Array("paddingleft", "paddingright", "paddingtop", "paddingbottom")
+        If properties.Exists(side) Then spacing = private_ReadPadding(properties(side))
+    Next side
+    If Not properties.Exists("paddingleft") And Not properties.Exists("paddingright") Then Exit Sub
+    alignment = area.HorizontalAlignment
+    If VBA.IsNull(alignment) Then
+        For Each cell In area.Cells
+            private_ApplyCellPadding cell, properties
+        Next cell
+        Exit Sub
+    End If
+    propertyName = "paddingleft"
+    If alignment = xlHAlignRight Then propertyName = "paddingright"
+    If Not properties.Exists(propertyName) Then Exit Sub
+    spacing = private_ReadPadding(properties(propertyName))
+    ' Native cells use discrete indentation; ten points map to one level.
+    indentLevel = VBA.Int(spacing / 10# + 0.5)
+    If indentLevel > 15 Then indentLevel = 15
+    area.IndentLevel = VBA.CLng(indentLevel)
+    area.HorizontalAlignment = alignment
 End Sub
 
 Private Function private_ReadPadding(ByVal value As String) As Double

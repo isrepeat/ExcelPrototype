@@ -209,7 +209,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Set targetRange = m_targetRange
     If targetRange Is Nothing Then Set targetRange = private_Measure(uiRenderContext)
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
-    If targetRange.Cells.CountLarge > 1 Then targetRange.Merge
+    ex_UiTables.fn_MergeRange targetRange, m_uiControlBase.ControlName
     targetRange.Value2 = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     If ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "readOnly") = "true" Then

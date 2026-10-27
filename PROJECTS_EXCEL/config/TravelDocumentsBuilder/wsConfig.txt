@@ -15,6 +15,7 @@ value	TravelDocumentsBuilder::text.PersonnelError	Помилка пошуку. �
 value	TravelDocumentsBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
 value	TravelDocumentsBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
 value	TravelDocumentsBuilder::text.PersonnelCount	Оберіть рядок кандидата — дані буде підставлено у форму.
+value	TravelDocumentsBuilder::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	TravelDocumentsBuilder::text.CandidateCountTemplate	Кандидатів: {count}
 value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
 value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.

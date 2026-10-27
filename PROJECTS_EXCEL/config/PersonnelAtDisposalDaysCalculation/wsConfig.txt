@@ -8,6 +8,7 @@ value	ThisWorkbook::logMode	Immediate
 value	PersonnelAtDisposalDaysCalculation::text.Calculate	Розрахувати періоди
 value	PersonnelAtDisposalDaysCalculation::text.Cancel	Скасувати
 value	PersonnelAtDisposalDaysCalculation::text.RefreshPage	Оновити сторінку
+value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
 value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
 value	PersonnelAtDisposalDaysCalculation::text.Title	Розрахунок днів у розпорядженні

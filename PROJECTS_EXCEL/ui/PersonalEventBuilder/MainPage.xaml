@@ -163,10 +163,13 @@
                 column="1"
                 orientation="horizontal">
       <stackPanel name="ArrivalModes"
-                  rowSpan="7"
-                  columnSpan="2"
+                  rowSpan="8"
+                  columnSpan="3"
                   orientation="vertical"
                   horizontalAlignment="stretch">
+        <controls:label name="ArrivalHeading"
+                        style="sectionTitle"
+                        text="{Binding Path=Text.ArrivalType}"/>
         <controls:button name="FromTreatment"
                          style="{Binding Path=Settings.FromHospitalStyle}"
                          caption="{Binding Path=Text.FromHospital}"
@@ -187,20 +190,19 @@
                          style="{Binding Path=Settings.FromOutpatientExaminationOrVlkStyle}"
                          caption="{Binding Path=Text.FromOutpatientExaminationOrVlk}"
                          command="{Binding Path=Commands.FromOutpatient}"/>
-        <controls:button name="FromMedicalCompany"
-                         style="{Binding Path=Settings.FromMedicalCompanyForTreatmentStyle}"
-                         caption="{Binding Path=Text.FromMedicalCompanyForTreatment}"
-                         command="{Binding Path=Commands.FromMedicalCompany}"/>
         <controls:button name="FromBusinessTrip"
                          style="{Binding Path=Settings.FromBusinessTripStyle}"
                          caption="{Binding Path=Text.FromBusinessTrip}"
                          command="{Binding Path=Commands.FromBusinessTrip}"/>
       </stackPanel>
       <stackPanel name="DepartureModes"
-                  rowSpan="7"
-                  columnSpan="2"
+                  rowSpan="8"
+                  columnSpan="3"
                   orientation="vertical"
                   horizontalAlignment="stretch">
+        <controls:label name="DepartureHeading"
+                        style="sectionTitle"
+                        text="{Binding Path=Text.DepartureType}"/>
         <controls:button name="ToTreatment"
                          style="{Binding Path=Settings.ToHospitalStyle}"
                          caption="{Binding Path=Text.ToHospital}"
@@ -221,64 +223,57 @@
                          style="{Binding Path=Settings.ToOutpatientExaminationOrVlkStyle}"
                          caption="{Binding Path=Text.ToOutpatientExaminationOrVlk}"
                          command="{Binding Path=Commands.ToOutpatient}"/>
-        <controls:button name="ToMedicalCompany"
-                         style="{Binding Path=Settings.ToMedicalCompanyForTreatmentStyle}"
-                         caption="{Binding Path=Text.ToMedicalCompanyForTreatment}"
-                         command="{Binding Path=Commands.ToMedicalCompany}"/>
         <controls:button name="ToBusinessTrip"
                          style="{Binding Path=Settings.ToBusinessTripStyle}"
                          caption="{Binding Path=Text.ToBusinessTrip}"
                          command="{Binding Path=Commands.ToBusinessTrip}"/>
       </stackPanel>
-      <stackPanel name="StatusModes"
-                  rowSpan="7"
-                  columnSpan="2"
-                  orientation="vertical"
-                  horizontalAlignment="stretch">
+      <grid name="StatusModes"
+            rowSpan="8"
+            columnSpan="4">
+        <controls:label name="StatusModesHeading"
+                        row="1"
+                        column="1"
+                        columnSpan="4"
+                        style="sectionTitle"
+                        text="{Binding Path=Text.StatusModes}"/>
         <controls:button name="HospitalToLeave"
+                         row="2"
+                         column="3"
+                         rowSpan="2"
+                         columnSpan="2"
                          style="{Binding Path=Settings.MoveFromHospitalToVacationForCuringStyle}"
                          caption="{Binding Path=Text.MoveFromHospitalToVacationForCuring}"
                          command="{Binding Path=Commands.HospitalToLeave}"/>
-        <controls:button name="AnnualToMedicalLeave"
-                         style="{Binding Path=Settings.MoveFromAnnualVacationToVacationForCuringStyle}"
-                         caption="{Binding Path=Text.MoveFromAnnualVacationToVacationForCuring}"
-                         command="{Binding Path=Commands.AnnualToMedicalLeave}"/>
         <controls:button name="MedicalLeaveExtend"
+                         row="2"
+                         column="1"
+                         rowSpan="2"
+                         columnSpan="2"
                          style="{Binding Path=Settings.MoveFromVacationForCuringToVacationForCuringStyle}"
                          caption="{Binding Path=Text.MoveFromVacationForCuringToVacationForCuring}"
                          command="{Binding Path=Commands.MedicalLeaveExtend}"/>
-        <controls:button name="FamilyToMedicalLeave"
-                         style="{Binding Path=Settings.MoveFromFamilyVacationToVacationForCuringStyle}"
-                         caption="{Binding Path=Text.MoveFromFamilyVacationToVacationForCuring}"
-                         command="{Binding Path=Commands.FamilyToMedicalLeave}"/>
-        <controls:button name="OutpatientToMedicalLeave"
-                         style="{Binding Path=Settings.MoveFromOutpatientVlkToVacationForCuringStyle}"
-                         caption="{Binding Path=Text.MoveFromOutpatientVlkToVacationForCuring}"
-                         command="{Binding Path=Commands.OutpatientToMedicalLeave}"/>
-        <controls:button name="MedCompanyToMedicalLeave"
-                         style="{Binding Path=Settings.MoveFromMedicalCompanyForTreatmentToVacationForCuringStyle}"
-                         caption="{Binding Path=Text.MoveFromMedicalCompanyForTreatmentToVacationForCuring}"
-                         command="{Binding Path=Commands.MedCompanyToMedicalLeave}"/>
         <controls:button name="ToBusinessTripAwol"
+                         row="4"
+                         column="3"
+                         rowSpan="2"
+                         columnSpan="2"
                          style="{Binding Path=Settings.MoveFromAwolToBusinessTripStyle}"
                          caption="{Binding Path=Text.MoveFromAwolToBusinessTrip}"
                          command="{Binding Path=Commands.ToBusinessTripAwol}"/>
-      </stackPanel>
-      <stackPanel name="DummyModes2"
-                  rowSpan="7"
-                  columnSpan="2"
-                  orientation="vertical"
-                  horizontalAlignment="stretch">
         <controls:button name="MedicalLeaveToHospital"
+                         row="4"
+                         column="1"
+                         rowSpan="2"
+                         columnSpan="2"
                          style="{Binding Path=Settings.MoveFromVacationForCuringToHospitalStyle}"
                          caption="{Binding Path=Text.MoveFromVacationForCuringToHospital}"
                          command="{Binding Path=Commands.MedicalLeaveToHospital}"/>
-        <controls:button name="MedicalLeaveToAnnual"
-                         style="{Binding Path=Settings.MoveFromVacationForCuringToAnnualVacationStyle}"
-                         caption="{Binding Path=Text.MoveFromVacationForCuringToAnnualVacation}"
-                         command="{Binding Path=Commands.MedicalLeaveToAnnual}"/>
         <controls:select name="ExtendedModes"
                          itemsSource="{Binding Path=Data.ExtendedModes}"
+                         row="6"
+                         column="1"
+                         columnSpan="4"
                          style="{Binding Path=Settings.ExtendedModeStyle}"
                          value="{Binding Path=Form.ExtendedMode}"
                          placeholder="{Binding Path=Text.ExtendedModes}"
@@ -291,18 +286,18 @@
                          separatorStyle="formSelectSeparator"
                          separatorHeight="2"
                          onChange="{Binding Path=Commands.ExtendedModeChanged}"/>
-      </stackPanel>
+      </grid>
     </stackPanel>
     <controls:label name="OrderQueryLabel"
                     row="1"
-                    column="9"
+                    column="12"
                     columnSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
                      row="2"
-                     column="9"
+                     column="12"
                      columnSpan="2"
                      style="lookupKeyField"
                      panelStyle="formSelectPanel"
@@ -320,14 +315,14 @@
                      onChange="{Binding Path=Commands.OrderQueryChanged}"/>
     <controls:label name="OrderYearLabel"
                     row="1"
-                    column="11"
-                    columnSpan="2"
+                    column="14"
+                    columnSpan="1"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:input name="OrderYear"
                     row="2"
-                    column="11"
-                    columnSpan="2"
+                    column="14"
+                    columnSpan="1"
                     style="lookupKeyField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
@@ -350,13 +345,13 @@
                      command="{Binding Path=Commands.ValidateMedical}"/>
     <controls:button name="ResetForm"
                      row="1"
-                     column="17"
-                     columnSpan="2"
+                     column="11"
+                     rowSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ResetForm}"
                      command="{Binding Path=Commands.ResetForm}"/>
     <controls:button name="OpenReportSearch"
-                     row="2"
+                     row="1"
                      column="17"
                      columnSpan="2"
                      style="secondaryButton"
@@ -392,9 +387,9 @@
                      shapePlacement="moveAndSize"/>
     <controls:label name="WordPreview"
                     row="3"
-                    column="9"
+                    column="12"
                     rowSpan="6"
-                    columnSpan="8"
+                    columnSpan="7"
                     style="wordPreview"
                     text="{Binding Path=Form.WordPreviewText}"/>
 
@@ -753,7 +748,6 @@
   <styles>
     <controlStyle name="currentOrderField"
                   cellType="text"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -786,7 +780,8 @@
     <controlStyle name="currentOrderSource"
                   fontColor="#87CEFA"/>
     <controlStyle name="wordPreview"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#FFFFFF"
                   fontName="Calibri"
@@ -845,8 +840,16 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="activeModeButton"
-                  backColor="#375D7A"
-                  textColor="#FFFFFF"
+                  marginTop="2"
+                  marginBottom="2"
+                  marginLeft="5"
+                  marginRight="5"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  paddingTop="2"
+                  paddingBottom="2"
+                  backColor="#2b2c2c"
+                  textColor="#969494"
                   fontName="Calibri"
                   fontSize="11"
                   fontBold="true"
@@ -856,8 +859,19 @@
                   vertical="center"/>
     <controlStyle name="currentOrderItem"
                   backColor="#375D7A"/>
+    <controlStyle name="statusModeTile"
+                  marginLeft="5"
+                  marginRight="5"
+                  marginTop="2"
+                  marginBottom="2"
+                  paddingLeft="4"
+                  paddingRight="4"
+                  paddingTop="0"
+                  paddingBottom="0"
+                  overflow="wrap"/>
     <controlStyle name="statusHeading"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#2D2D2D"
                   textColor="#999999"
                   fontName="Calibri"
@@ -865,7 +879,8 @@
                   horizontal="right"
                   vertical="center"/>
     <controlStyle name="actionSuccess"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#909090"
                   fontName="Calibri"
@@ -873,7 +888,8 @@
                   horizontal="left"
                   vertical="top"/>
     <controlStyle name="actionError"
-                  indent="1"
+                  paddingLeft="10"
+                  paddingRight="10"
                   backColor="#262626"
                   textColor="#FFD966"
                   fontName="Calibri"
@@ -888,7 +904,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="sectionTitle"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -901,7 +916,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="searchLabel"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -913,7 +927,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="formLabel"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#333333"
@@ -937,7 +950,6 @@
                   vertical="center"/>
     <controlStyle name="formField"
                   cellType="text"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -951,7 +963,6 @@
                   vertical="center"/>
     <controlStyle name="personnelFormField"
                   cellType="text"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -965,7 +976,6 @@
                   vertical="center"/>
     <controlStyle name="absenceFormField"
                   cellType="text"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -979,7 +989,6 @@
                   vertical="center"/>
     <controlStyle name="movementTicketField"
                   cellType="text"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -992,7 +1001,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="statusText"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#262626"
@@ -1005,7 +1013,6 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="candidateTable"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
@@ -1020,7 +1027,6 @@
     <controlStyle name="candidateTextWarning"
                   backColor="#C00000"/>
     <controlStyle name="candidateSelected"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#505050"
@@ -1033,7 +1039,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="requiredMarker"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#3B3B3B"
@@ -1046,7 +1051,6 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="extensionRemove"
-                  indent="0"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#292929"
@@ -1059,9 +1063,14 @@
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="secondaryButton"
-                  indent="0"
+                  marginTop="0"
+                  marginBottom="0"
+                  marginLeft="0"
+                  marginRight="0"
                   paddingLeft="10"
                   paddingRight="10"
+                  paddingTop="2"
+                  paddingBottom="2"
                   backColor="#3B3B3B"
                   textColor="#F4A46B"
                   fontName="Calibri"
@@ -1078,7 +1087,6 @@
                   shadowTransparency="0.55"
                   shadowOffsetX="3"
                   shadowOffsetY="3"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#383838"
@@ -1092,7 +1100,6 @@
                   vertical="center"/>
     <controlStyle name="formSelectItem"
                   shadow="false"
-                  indent="1"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#383838"
@@ -1149,6 +1156,18 @@
               styles="{width:16.714286;}"/>
       </layer>
       <layer name="table-parts">
+        <rule target="control"
+              selector="name=HospitalToLeave"
+              style="statusModeTile"/>
+        <rule target="control"
+              selector="name=MedicalLeaveExtend"
+              style="statusModeTile"/>
+        <rule target="control"
+              selector="name=MedicalLeaveToHospital"
+              style="statusModeTile"/>
+        <rule target="control"
+              selector="name=ToBusinessTripAwol"
+              style="statusModeTile"/>
         <rule target="usedRange"
               selector="row=1"
               styles="{

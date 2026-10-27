@@ -23,6 +23,7 @@ value	PeopleRegistry::text.ResultHelp	Результат реєстрації а
 value	PeopleRegistry::text.ReplaceHelp	Вкажіть попередній та новий ІД. Після підтвердження зв’язки буде оновлено. Збережіть базу самостійно.
 value	PeopleRegistry::text.ResultTitle	Результат перевірки
 value	PeopleRegistry::text.RegistryPath	Реєстр даних: {path}
+value	PeopleRegistry::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	PeopleRegistry::text.ReplaceTitle	Заміна ІД
 value	PeopleRegistry::Limit.IDLength	80
 value	PeopleRegistry::Limit.Candidates	5

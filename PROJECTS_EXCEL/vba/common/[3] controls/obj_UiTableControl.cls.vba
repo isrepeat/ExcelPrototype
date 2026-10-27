@@ -673,8 +673,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         If private_ReadLong(m_uiControlBase.ControlNode, "titleColumnSpan", 1) > rawTable.ColumnCount Then
             Err.Raise 5, , "Table titleColumnSpan exceeds table width"
         End If
-        m_targetRange.Cells(1, 1).Resize(1, _
-            private_ReadLong(m_uiControlBase.ControlNode, "titleColumnSpan", 1)).Merge
+        ex_UiTables.fn_MergeRange _
+            m_targetRange.Cells(1, 1).Resize(1, private_ReadLong(m_uiControlBase.ControlNode, "titleColumnSpan", 1)), _
+            m_uiControlBase.ControlName
     End If
     If Not columnLayout Is Nothing Then
         targetRow = 1
@@ -684,7 +685,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             If columnSpan > 1 Then
                 If columnIndex + columnSpan - 1 > rawTable.ColumnCount Then Err.Raise 5, , "Table columnSpan exceeds table width"
                 For rowIndex = targetRow To m_targetRange.Rows.Count
-                    m_targetRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan).Merge
+                    ex_UiTables.fn_MergeRange _
+                        m_targetRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan), _
+                        m_uiControlBase.ControlName
                 Next rowIndex
             End If
         Next columnIndex

@@ -15,6 +15,40 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Sub fn_MergeRange( _
+    ByVal area As Range, _
+    ByVal controlName As String _
+)
+    Dim cell As Range
+    Dim mergedArea As Range
+    Dim mergedState As Variant
+    Dim detail As String
+
+    If area Is Nothing Then private_Fail "Merge range is not specified: " & controlName
+    If area.Areas.Count <> 1 Then private_Fail "Merge requires a rectangular range: " & controlName
+    mergedState = area.MergeCells
+    If VBA.IsNull(mergedState) Then
+        mergedState = True
+    End If
+    If mergedState Then
+        If area.Cells(1, 1).MergeCells Then
+            If area.Cells(1, 1).MergeArea.Address = area.Address Then Exit Sub
+        End If
+        ' Validate every existing merge before changing the worksheet.
+        For Each cell In area.Cells
+            If cell.MergeCells Then
+                Set mergedArea = cell.MergeArea
+                If mergedArea.Address <> area.Address Then
+                    detail = controlName & ": '" & area.Worksheet.Name & "'!" & _
+                        area.Address(False, False) & " / " & mergedArea.Address(False, False)
+                    ex_UiStyleDiagnostics.fn_Raise "MergeOverlap", detail
+                End If
+            End If
+        Next cell
+    End If
+    If area.Cells.CountLarge > 1 Then area.Merge
+End Sub
+
 Public Function fn_CreatePlan( _
     ByVal definition As Object, _
     ByVal target As Range, _

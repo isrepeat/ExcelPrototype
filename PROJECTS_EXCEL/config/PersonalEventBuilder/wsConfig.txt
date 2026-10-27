@@ -11,7 +11,7 @@ value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgMain
-value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|ToMaternityLeave|ToMedicalCompanyVacationForCuring||MoveFromHospitalToExternalVlk||MoveFromMedicalCompanyForTreatmentToHospital|MoveFromMedicalCompanyVacationForCuringToHospital|MoveFromMedicalCompanyVacationForCuringToVacationForCuring||MoveFromAnnualVacationToHospital|MoveFromAnnualVacationToFamilyVacation|MoveFromAnnualVacationToVlk||MoveFromFamilyVacationToHospital|MoveFromFamilyVacationToAnnualVacation|MoveFromFamilyVacationToVlk||MoveFromVacationForCuringToVlk||MoveFromExternalVlkToHospital|MoveFromExternalVlkToVacationForCuring|MoveFromExternalVlkToAnnualVacation||MoveFromOutpatientVlkToHospital|MoveFromOutpatientVlkToVacationForCuring|MoveFromOutpatientVlkToAnnualVacation|MoveFromHospitalToAnnualVacationContinuation
+value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|FromMedicalCompanyForTreatment|ToMaternityLeave|ToMedicalCompanyForTreatment|ToMedicalCompanyVacationForCuring||MoveFromHospitalToExternalVlk||MoveFromMedicalCompanyForTreatmentToHospital|MoveFromMedicalCompanyForTreatmentToVacationForCuring|MoveFromMedicalCompanyVacationForCuringToHospital|MoveFromMedicalCompanyVacationForCuringToVacationForCuring||MoveFromAnnualVacationToHospital|MoveFromAnnualVacationToFamilyVacation|MoveFromAnnualVacationToVlk|MoveFromAnnualVacationToVacationForCuring||MoveFromFamilyVacationToHospital|MoveFromFamilyVacationToAnnualVacation|MoveFromFamilyVacationToVlk|MoveFromFamilyVacationToVacationForCuring||MoveFromVacationForCuringToVlk|MoveFromVacationForCuringToAnnualVacation||MoveFromExternalVlkToHospital|MoveFromExternalVlkToVacationForCuring|MoveFromExternalVlkToAnnualVacation||MoveFromOutpatientVlkToHospital|MoveFromOutpatientVlkToVacationForCuring|MoveFromOutpatientVlkToAnnualVacation|MoveFromHospitalToAnnualVacationContinuation
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
 value	PersonalEventBuilder::text.NextTest	Наступний крок
 value	PersonalEventBuilder::text.TestOnly	Завантаження сценаріїв доступне лише в TEST.
@@ -42,6 +42,7 @@ value	PersonalEventBuilder::text.ExportTitle	Експорт події
 value	PersonalEventBuilder::text.PreviewWord	Показати прев’ю
 value	PersonalEventBuilder::text.SaveHistory	Додати / оновити подію
 value	PersonalEventBuilder::text.ShowHistory	Редагування подій поточного наказу
+value	PersonalEventBuilder::text.StatusModes	Зміна статусу
 value	PersonalEventBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	PersonalEventBuilder::text.TaxIdHeader	ІПН
 value	PersonalEventBuilder::text.EventDeleted	Вибрану подію, дочірні записи, усі ревізії та зв’язки експорту видалено. РУХ і Word не змінено. Збережіть книгу історії вручну (Ctrl+S).
@@ -209,6 +210,7 @@ value	PersonalEventBuilder::text.PositionCodeLabel	Код посади
 value	PersonalEventBuilder::text.SourceLegendEntry	{source} ({modified})
 value	PersonalEventBuilder::text.SourceLegendTitle	ДЖЕРЕЛА ДАНИХ
 value	PersonalEventBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
+value	PersonalEventBuilder::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	PersonalEventBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
 value	PersonalEventBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
 value	PersonalEventBuilder::text.TestPhase.Archive	Звіт та тестові книги збережено.

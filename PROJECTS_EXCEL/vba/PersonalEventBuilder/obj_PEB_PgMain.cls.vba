@@ -246,6 +246,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
             "DummyMode", "ExtendedModes", "EnvironmentSwitch", "ReinitializePage", _
+            "ArrivalType", "DepartureType", "StatusModes", _
             "LoadTest", "NextTest", _
             "PreviewWord", "SaveHistory", "ShowHistory", "HistoryEditMode", "CloseTable", "ExportWord", "ExportMovement", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", "DeleteLastEvent")

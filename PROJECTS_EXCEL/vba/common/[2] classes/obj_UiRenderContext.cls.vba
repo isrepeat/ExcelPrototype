@@ -400,6 +400,8 @@ Public Sub RegisterShapeLayout( _
     entry.Add private_ShapeAlignment(node, "shapeVerticalAlignment", "top", "top|center|bottom")
     entry.Add wrapCaption
     entry.Add private_ShapeAlignment(node, "shapePlacement", "moveAndSize", "freeFloating|move|moveAndSize")
+    entry.Add (VBA.LCase$(VBA.CStr(node.baseName)) = "button" Or _
+        ex_UiElementFactory.fn_Attribute(node, "type") = "button")
     Set m_shapeLayouts(shape.Name) = entry
     private_ArrangeShape entry
 End Sub
@@ -739,7 +741,7 @@ NextOldArea:
         End If
     Next key
     If Not scope Is Nothing Then m_styles.CompletePartialRender
-    If needsLayout Then private_ArrangeShapes
+    private_ArrangeShapes
     FlushUpdates = True
     ex_Core.fn_Diagnostic_WritePerf "Page.FlushDirty | Sheet=" & m_targetWorksheet.Name & " | Count=" & VBA.CStr(pending.Count), startedAt
 CleanExit:
@@ -865,9 +867,19 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     Dim area As Range
     Dim horizontalOffset As Double
     Dim verticalOffset As Double
+    Dim availableWidth As Double
+    Dim availableHeight As Double
+    Dim margins As Variant
 
     Set shape = entry(1)
     Set area = entry(2)
+    margins = VBA.Array(0#, 0#, 0#, 0#)
+    If entry(9) Then margins = m_styles.GetShapeMargins(shape.Name)
+    availableWidth = area.Width - margins(0) - margins(2)
+    availableHeight = area.Height - margins(1) - margins(3)
+    If availableWidth <= 0 Or availableHeight <= 0 Then
+        VBA.Err.Raise 5, "ShapeLayout", "Margins leave no drawable area for shape: " & shape.Name
+    End If
     shape.LockAspectRatio = msoFalse
     Select Case entry(8)
         Case "freeFloating"
@@ -877,23 +889,23 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
         Case "moveAndSize"
             shape.Placement = xlMoveAndSize
     End Select
-    shape.Width = area.Width * entry(3)
-    shape.Height = area.Height * entry(4)
+    shape.Width = availableWidth * entry(3)
+    shape.Height = availableHeight * entry(4)
     Select Case entry(5)
         Case "center"
-            horizontalOffset = (area.Width - shape.Width) / 2
+            horizontalOffset = (availableWidth - shape.Width) / 2
         Case "right"
-            horizontalOffset = area.Width - shape.Width
+            horizontalOffset = availableWidth - shape.Width
     End Select
     Select Case entry(6)
         Case "center"
-            verticalOffset = (area.Height - shape.Height) / 2
+            verticalOffset = (availableHeight - shape.Height) / 2
         Case "bottom"
-            verticalOffset = area.Height - shape.Height
+            verticalOffset = availableHeight - shape.Height
     End Select
-    shape.Left = area.Left + horizontalOffset
-    shape.Top = area.Top + verticalOffset
-    If entry(7) Then ex_UiInlineText.fn_WrapCaption shape
+    shape.Left = area.Left + margins(0) + horizontalOffset
+    shape.Top = area.Top + margins(1) + verticalOffset
+    If entry(7) Then ex_UiInlineText.fn_WrapCaption shape, preservePadding:=True
 End Sub
 
 Private Function private_ShapeFraction( _
