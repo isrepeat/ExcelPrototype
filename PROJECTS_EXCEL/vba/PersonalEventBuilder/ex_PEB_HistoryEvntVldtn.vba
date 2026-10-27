@@ -31,6 +31,7 @@ Public Function fn_Validate( _
     Dim boundaryDate As Double
     Dim boundaryOrder As Double
     Dim eventDate As Double
+    Dim sourceDate As Double
     Dim startedAt As Double
     Dim stageAt As Double
 
@@ -51,15 +52,31 @@ Public Function fn_Validate( _
     End If
     personId = current("PersonId")
     Set statuses = ex_PEB_MovementRegistry.fn_Statuses()
+    Set eventPlan = ex_PEB_MovementRegistry.fn_Event(current("EventId"))
     Set state = VBA.CreateObject("Scripting.Dictionary")
     state("IsOpen") = False
     state("Type") = VBA.vbNullString
+    eventDate = ex_PEB_MovementSource.fn_OrderDate(current("EventDate"))
+    sourceDate = eventDate
+    If Not previous Is Nothing Then
+        If ex_PEB_MovementSource.fn_OrderDate(previous("EventDate")) > sourceDate Then
+            sourceDate = ex_PEB_MovementSource.fn_OrderDate(previous("EventDate"))
+        End If
+    End If
     stageAt = VBA.Timer
-    Set snapshot = ex_PEB_MovementSource.fn_ReadLatest(personId)
+    Set snapshot = ex_PEB_MovementSource.fn_ReadLatest(personId, False, False, sourceDate)
     If Not snapshot Is Nothing Then
         state("Type") = ex_PEB_Export.fn_Text(snapshot("EventName"))
         boundaryDate = ex_PEB_MovementSource.fn_OrderDate(snapshot("ArrivalDate"))
         state("IsOpen") = (VBA.Len(ex_PEB_Export.fn_Text(snapshot("ArrivalDate"))) = 0)
+        ' Treat the version being edited as the pending closure of the source period.
+        If Not state("IsOpen") And Not previous Is Nothing Then
+            If eventPlan("operation") = "Arrival" And previous("EventId") = current("EventId") And _
+                    ex_PEB_MovementSource.fn_OrderDate(previous("EventDate")) = boundaryDate And _
+                    VBA.StrComp(state("Type"), statuses(eventPlan("sourceStatus")), VBA.vbTextCompare) = 0 Then
+                state("IsOpen") = True
+            End If
+        End If
         If state("IsOpen") Then
             boundaryDate = ex_PEB_MovementSource.fn_OrderDate(snapshot("DepartureDate"))
         End If

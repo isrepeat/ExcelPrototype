@@ -35,7 +35,11 @@ def main():
     validate = procedure(validator, "fn_Validate")
     assert 'personId = current("PersonId")' in validate
     assert 'previous("PersonId")' not in validate
-    assert 'fn_ReadLatest(personId)' in validate
+    assert 'eventDate = ex_PEB_MovementSource.fn_OrderDate(current("EventDate"))' in validate
+    assert 'If ex_PEB_MovementSource.fn_OrderDate(previous("EventDate")) > sourceDate Then' in validate
+    assert 'fn_ReadLatest(personId, False, False, sourceDate)' in validate
+    assert 'previous("EventId") = current("EventId")' in validate
+    assert 'state("IsOpen") = True' in validate
     assert 'stored("RowId") <> current("RowId")' in validate
     assert 'stored("Status") <> "Cancelled"' in validate
     assert 'current("Status") = "Cancelled"' in validate
@@ -65,8 +69,9 @@ def main():
         assert forbidden not in source
     assert 'VBA.Array("EventName", "DepartureDate", "ArrivalDate")' in query
     assert 'query.AddCondition ex_PEB_Export.fn_Config("export.Movement.headers.PersonId"), QueryEquals' in query
-    assert 'service.TryExecute(source, query, table, diagnostic)' in query
+    assert 'service.TryExecute(source, query, table, diagnostic, Not includeTvo Or useSnapshot)' in query
     assert 'dateKey > latestKey' in query and 'arrivalKey <= latestArrivalKey' in query
+    assert 'latestDepartureDate = 0 Or dateKey <= latestDepartureDate' in query
     cleanup = query.split("Cleanup:", 1)[1].split("EH:", 1)[0]
     assert cleanup.index("On Error GoTo 0") < cleanup.index("Err.Raise 5, , failure")
     groups = procedure(registry, "fn_EventsByOperation")

@@ -29,21 +29,20 @@ Public Function fn_Read( _
     If ex_PEB_EventRoutes.fn_Value(values("EventId"), "direction") <> "Arrival" Then Exit Function
     Set plan = ex_PEB_MovementRegistry.fn_Event(values("EventId"))
     If plan("operation") <> "Arrival" Then Exit Function
-    Set period = ex_PEB_MovementSource.fn_ReadLatest(values("PersonId"), True, useSnapshot)
+    eventDate = ex_PEB_MovementSource.fn_OrderDate(values("EventDate"))
+    Set period = ex_PEB_MovementSource.fn_ReadLatest(values("PersonId"), True, useSnapshot, eventDate)
     If period Is Nothing Then Exit Function
     Set statuses = ex_PEB_MovementRegistry.fn_Statuses()
     If VBA.StrComp(ex_PEB_Export.fn_Text(period("EventName")), statuses(plan("sourceStatus")), VBA.vbTextCompare) <> 0 Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoPeriodMismatch")
     End If
-    eventDate = ex_PEB_MovementSource.fn_OrderDate(values("EventDate"))
     arrivalDate = ex_PEB_MovementSource.fn_OrderDate(period("ArrivalDate"))
     If ex_PEB_MovementSource.fn_OrderDate(period("DepartureDate")) > eventDate Then
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoPeriodMismatch")
     End If
     ' A previously exported arrival may already have closed this exact period.
     If arrivalDate <> 0 Then
-        If arrivalDate <> eventDate Or _
-                ex_PEB_Export.fn_Text(period("ArrivalOrder")) <> ex_PEB_Export.fn_Text(values("AcceptedOrderNumber")) Then
+        If ex_PEB_Export.fn_Text(period("ArrivalOrder")) <> ex_PEB_Export.fn_Text(values("AcceptedOrderNumber")) Then
             Err.Raise 5, , ex_PEB_Export.fn_Config("text.ReturnTvoPeriodMismatch")
         End If
     End If
