@@ -308,6 +308,7 @@ value	PersonalEventBuilder::text.StyleRuleStyleMissing	Іменований ст
 value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
 value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків ТВ або записані поля не відповідають операції.
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
+value	PersonalEventBuilder::text.BusinessTripWordOmitted	Експорт у WORD для подій «З відрядження» та «У відрядження» вимкнено правилами шаблону.
 value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
 value	PersonalEventBuilder::text.DependenciesTvoMissing	Особу ТВО не знайдено у ШПО:
 value	PersonalEventBuilder::text.DependenciesTvoPosition	ШПО: порожній або повторний код посади «{code}» у ланцюжку ТВО, рядок даних {row}.
@@ -854,6 +855,7 @@ value	PersonalEventBuilder::export.Word.context.removeDirection	Departure
 value	PersonalEventBuilder::export.Word.context.collectionInputs	MetaDocumentTables|MetaTvoTables|MetaTables
 value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
 value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.required	DocumentNote
+value	PersonalEventBuilder::export.Word.context.uninflectedNameColor	#FFFF00
 value	PersonalEventBuilder::export.Word.enabled	true
 value	PersonalEventBuilder::export.Word.duration.road.one	, необхідної для проїзду до місця проведення відпустки та у зворотному напрямку
 value	PersonalEventBuilder::export.Word.duration.road.many	, необхідних для проїзду до місця проведення відпустки та у зворотному напрямку
@@ -1275,6 +1277,9 @@ value	PersonalEventBuilder::export.shared.lookups.7.output	ReportPositionGenitiv
 value	PersonalEventBuilder::export.shared.lookups.7.keyHeader	Код
 value	PersonalEventBuilder::export.shared.lookups.7.valueHeader	Родовий
 value	PersonalEventBuilder::export.shared.lookups.count	7
+value	PersonalEventBuilder::export.shared.positions.tp.code	ТП
+value	PersonalEventBuilder::export.shared.positions.tp.text	який зарахований до тимчасово прибулого особового складу військової частини А7383
+value	PersonalEventBuilder::export.shared.positions.tp.prefix	A1C
 value	PersonalEventBuilder::export.shared.positions.rozp.code	РОЗП
 value	PersonalEventBuilder::export.shared.positions.rozp.text	який перебуває у розпорядженні командира військової частини {unit}
   ref	PersonalEventBuilder::export.shared.positions.rozp.prefix	__cfgDependencies.common::position.rozp.prefix
@@ -1283,7 +1288,7 @@ value	PersonalEventBuilder::export.shared.positions.rozp.text	який пере�
   ref	PersonalEventBuilder::export.shared.positions.spis.code	__cfgDependencies.common::position.spis.short
   ref	PersonalEventBuilder::export.shared.positions.spis.prefix	__cfgDependencies.common::position.spis.prefix
 value	PersonalEventBuilder::export.shared.positions.inputs	PositionCode=PersonRank|ReportPositionCode=ReportRank
-value	PersonalEventBuilder::export.shared.positions.characters	А=A|В=B
+value	PersonalEventBuilder::export.shared.positions.characters	А=A|В=B|С=C
 value	PersonalEventBuilder::export.shared.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)
 value	PersonalEventBuilder::export.shared.incomingNumber.marker	№
 value	PersonalEventBuilder::export.shared.incomingNumber.pattern	^[0-9]{1,5}$

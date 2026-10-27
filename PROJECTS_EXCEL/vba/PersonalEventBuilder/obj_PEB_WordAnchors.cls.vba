@@ -126,6 +126,9 @@ Public Function TryInsert( _
     Dim failureText As String
     Dim characterIndex As Long
     Dim character As String
+    Dim colorRuns As Collection
+    Dim colorRun As Variant
+    Dim colorRange As Object
 
     On Error GoTo EH
     stage = "ResolveAnchor"
@@ -148,6 +151,9 @@ Public Function TryInsert( _
     stage = "NormalizeText"
     rendered = VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbCr)
     rendered = VBA.Replace$(rendered, VBA.vbLf, VBA.vbCr)
+    ex_UiInlineText.fn_ParseColors rendered, currentText, colorRuns
+    rendered = currentText
+    currentText = private_DocumentText(document)
     ' Anchor sections continue the preceding heading, which ends with a colon.
     For characterIndex = 1 To VBA.Len(rendered)
         character = VBA.Mid$(rendered, characterIndex, 1)
@@ -178,6 +184,10 @@ Public Function TryInsert( _
     target.Font.Hidden = False
     stage = "ApplyParagraphFormat"
     target.ParagraphFormat = paragraphFormat
+    For Each colorRun In colorRuns
+        Set colorRange = document.Range(target.Start + VBA.CLng(colorRun(0)) - 1, target.Start + VBA.CLng(colorRun(0)) - 1 + VBA.CLng(colorRun(1)))
+        colorRange.HighlightColorIndex = 7 ' wdYellow
+    Next colorRun
     Set m_insertDocument = document
     TryInsert = True
     Exit Function
