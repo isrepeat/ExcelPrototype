@@ -4,6 +4,7 @@ Option Explicit
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    ex_PR_Registry.fn_Module_Dispose
     ex_AppHotkeys.fn_Module_Dispose
     ex_UiPageManager.fn_Module_Dispose
 End Sub
@@ -18,7 +19,7 @@ Public Function fn_Config(ByVal suffix As String) As String
     Dim key As String
 
     key = "PeopleRegistry::" & suffix
-    If Not ex_Core.fn_TryGetWorkbookConfigValue(key, fn_Config) Then
+    If Not ex_Core.fn_TryGetWorkbookConfigValue(key, fn_Config) Or Len(fn_Config) = 0 Then
         Err.Raise 5, "ex_PRM.fn_Config", "Required configuration key not found: " & key
     End If
 End Function
@@ -48,9 +49,6 @@ Public Function fn_Initialize() As Boolean
     fn_Initialize = True
 End Function
 
-Public Sub ShowLayoutStatus()
-    ex_WindowsUi.fn_ShowMessage fn_Config("text.LayoutReady"), vbInformation
-End Sub
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

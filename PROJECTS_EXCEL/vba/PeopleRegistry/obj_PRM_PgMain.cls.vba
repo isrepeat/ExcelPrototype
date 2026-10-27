@@ -46,9 +46,9 @@ Public Function Initialize(ByVal profileId As String) As Boolean
     ' Load captions independently of the layout and field values.
     For Each key In Array("NewId", "Origin", "Register", "InputHelp", "PersonName", _
             "ReplaceId", "InputTitle", "PreviousId", "ResultHelp", "ReplaceHelp", _
-            "ResultTitle", "RegistryPath", "ReplaceTitle", "LayoutReady")
+            "ResultTitle", "RegistryPath", "ReplaceTitle", "Ready")
         text = ex_PRM.fn_Config("text." & CStr(key))
-        If CStr(key) = "RegistryPath" Then
+        If CStr(key) = "RegistryPath" Or CStr(key) = "Ready" Then
             text = Replace(text, "{path}", ex_PRM.fn_Config("registry.path"))
         End If
         If Not bindings.SetValue("Text", CStr(key), text) Then GoTo Failed
@@ -56,12 +56,12 @@ Public Function Initialize(ByVal profileId As String) As Boolean
     For Each key In Array("PersonName", "Origin", "PreviousId", "NewId")
         If Not bindings.SetValue("Form", CStr(key), vbNullString) Then GoTo Failed
     Next key
-    If Not bindings.SetValue("Form", "Result", ex_PRM.fn_Config("text.LayoutReady")) Then GoTo Failed
+    If Not bindings.SetValue("Form", "Result", ex_PRM.fn_Config("text.Ready")) Then GoTo Failed
 
-    ' Expose explicit commands without calling the legacy in-workbook registry.
+    ' Route commands through bindings; persistence belongs to the external registry service.
     For Each key In Array("Register", "ReplaceId")
         Set uiCommand = New obj_UiCommand
-        If Not uiCommand.Initialize(Me, "ShowLayoutStatus") Then GoTo Failed
+        If Not uiCommand.Initialize(Me, CStr(key) & "Handler") Then GoTo Failed
         m_commands.Add uiCommand
         If Not bindings.SetObject("Commands", CStr(key), uiCommand) Then GoTo Failed
     Next key
@@ -87,10 +87,14 @@ Public Sub Dispose()
     Set m_pageBase = Nothing
 End Sub
 
-Public Function ShowLayoutStatus() As Boolean
+Public Function RegisterHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
-    ex_WindowsUi.fn_ShowMessage ex_PRM.fn_Config("text.LayoutReady"), vbInformation
-    ShowLayoutStatus = True
+    RegisterHandler = ex_PR_Registry.fn_Register(m_pageBase.BindingContext)
+End Function
+
+Public Function ReplaceIdHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    ReplaceIdHandler = ex_PR_Registry.fn_ReplaceId(m_pageBase.BindingContext)
 End Function
 
 ' //

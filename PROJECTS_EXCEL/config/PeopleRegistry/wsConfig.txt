@@ -9,20 +9,65 @@ value	ThisWorkbook::initializer	ex_PRM.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PRM.fn_CreatePage
 value	PeopleRegistry::ui.folder	PeopleRegistry
 value	PeopleRegistry::ui.pageClass	obj_PRM_PgMain
+value	PeopleRegistry::Form.ResultTemplate	{id}{newline}{status}{newline}{message}
 value	PeopleRegistry::text.NewId	Новий ІД
+value	PeopleRegistry::text.Ready	Відкрийте {path} у цьому Excel. Заповніть форму та оберіть дію.
 value	PeopleRegistry::text.Origin	Звідки
 value	PeopleRegistry::text.Register	Зареєструвати
-value	PeopleRegistry::text.InputHelp	Заповніть ПІБ та Звідки для реєстрації нового ІД.
+value	PeopleRegistry::text.InputHelp	Заповніть ПІБ та Звідки. ІД буде додано до відкритої бази. Збережіть книгу самостійно.
 value	PeopleRegistry::text.ReplaceId	Замінити ІД
 value	PeopleRegistry::text.InputTitle	Генератор ID
 value	PeopleRegistry::text.PersonName	ПІБ
 value	PeopleRegistry::text.PreviousId	Попередній ІД
-value	PeopleRegistry::text.ResultHelp	Тут з’явиться результат реєстрації або заміни ІД. РУХ не змінюється.
-value	PeopleRegistry::text.LayoutReady	Форму підготовлено. Реєстрацію та заміну ІД у зовнішньому реєстрі ще не підключено.
-value	PeopleRegistry::text.ReplaceHelp	Вкажіть попередній та новий ІД. Після перевірки потрібно буде підтвердити заміну.
+value	PeopleRegistry::text.ResultHelp	Результат реєстрації або заміни ІД. Зміни залишаються у відкритій базі до ручного збереження.
+value	PeopleRegistry::text.ReplaceHelp	Вкажіть попередній та новий ІД. Після підтвердження зв’язки буде оновлено. Збережіть базу самостійно.
 value	PeopleRegistry::text.ResultTitle	Результат перевірки
 value	PeopleRegistry::text.RegistryPath	Реєстр даних: {path}
 value	PeopleRegistry::text.ReplaceTitle	Заміна ІД
+value	PeopleRegistry::Limit.IDLength	80
+value	PeopleRegistry::Limit.Candidates	5
+value	PeopleRegistry::Limit.AliasLength	24
+value	PeopleRegistry::Title.Input	Генератор ID
+value	PeopleRegistry::Title.Replace	Заміна ІД
+value	PeopleRegistry::Value.Separator	_
+value	PeopleRegistry::Value.RemovedCharacters	 _.,;:/\|[](){}<>!?"'`
+value	PeopleRegistry::Value.InvalidIDCharacters	  ,;:/\|[](){}<>!?"'`
+value	PeopleRegistry::Format.Timestamp	yyyy-mm-dd hh:nn:ss
+value	PeopleRegistry::Header.Aliases	Повна назва|Скорочення
+value	PeopleRegistry::Header.History	Попередній ІД|ІД|ПІБ|Звідки|Дата видачі
+value	PeopleRegistry::Status.Error	Помилка
+value	PeopleRegistry::Status.Applied	Змінено у відкритій базі
+value	PeopleRegistry::Status.Existing	Наявний ІД у базі
+value	PeopleRegistry::Status.Cancelled	Скасовано
+value	PeopleRegistry::Message.Found	Використано наявний ІД із бази реєстру.
+value	PeopleRegistry::Message.SameID	Це вже поточний ІД особи. Заміна не потрібна.
+value	PeopleRegistry::Message.Created	ІД додано до відкритої бази. Збережіть PeopleRegistryBase.xlsx самостійно.
+value	PeopleRegistry::Message.IDInUse	Новий ІД уже використовується в базі реєстру. Оберіть інший ідентифікатор.
+value	PeopleRegistry::Message.Migrated	ІД замінено у відкритій базі. Зв’язки старих ІД оновлено. Збережіть книгу самостійно.
+value	PeopleRegistry::Message.Cancelled	Створення окремої особи скасовано. Для наявної особи заповніть Попередній ІД.
+value	PeopleRegistry::Message.CellError	Вхідні дані містять помилку Excel. Виправте клітинку.
+value	PeopleRegistry::Message.InvalidID	Поле ІД має містити від 1 до {max} символів без керувальних символів і заборонених розділових знаків. Пробіли та символи . _ і - дозволені.
+value	PeopleRegistry::Message.UnknownID	ІД не знайдено в базі реєстру. Перевірте значення.
+value	PeopleRegistry::Message.EmptyToken	ПІБ або місце прибуття не містить символів для створення ID.
+value	PeopleRegistry::Message.IDConflict	Ідентифікатори належать різним особам. Автоматичне об’єднання заборонено.
+value	PeopleRegistry::Message.IDMismatch	ID {id} належить іншому ПІБ. Перевірте особу та ідентифікатор.
+value	PeopleRegistry::Message.BaseNoSpace	Під таблицею історії є дані. Звільніть місце для нових рядків.
+value	PeopleRegistry::Message.RuntimeBusy	Виконання ще не завершено. Дочекайтеся завершення поточної операції.
+value	PeopleRegistry::Message.WriteFailed	Не вдалося змінити відкриту базу реєстру. Новий ІД не підтверджено: {error}
+value	PeopleRegistry::Message.AliasInvalid	Перевірте рядок {row} словника скорочень: потрібні назва та коротке позначення без пробілів; одна назва не може мати різні скорочення.
+value	PeopleRegistry::Message.BaseReadOnly	Базу відкрито лише для читання. Відкрийте її для запису: {path}
+value	PeopleRegistry::Message.NameRequired	Заповніть ПІБ.
+value	PeopleRegistry::Message.BaseProtected	Лист історії бази захищено. Зніміть захист перед записом.
+value	PeopleRegistry::Message.SchemaInvalid	Неправильна структура таблиць реєстру. Перевірте кількість і порядок стовпців.
+value	PeopleRegistry::Message.OriginRequired	Для автоматичного створення ID заповніть Звідки.
+value	PeopleRegistry::Message.RegistryInvalid	Порушено цілісність історії ID: перевірте унікальність ID, наявність поточного ID та відповідність ПІБ.
+value	PeopleRegistry::Message.ReplaceRequired	Заповніть Попередній ІД та Новий ІД у формі заміни.
+value	PeopleRegistry::Message.BaseOpenRequired	Спочатку відкрийте базу в цьому самому екземплярі Excel: {path}
+value	PeopleRegistry::Message.ConfirmNewPerson	У базі вже є особи з таким ПІБ: {candidates} Створити окрему особу? Якщо це та сама особа, виберіть Ні та заповніть Попередній ІД.
+value	PeopleRegistry::Message.InitializeFailed	Не вдалося ініціалізувати PeopleRegistry.
+value	PeopleRegistry::Message.ReplaceCancelled	Заміну ІД скасовано. Історію не змінено.
+value	PeopleRegistry::Message.BindingUnavailable	Недоступне поле інтерфейсу: {name}. Оновіть сторінку.
+value	PeopleRegistry::Message.ConfirmReplacement	{name}{newline}Поточний ІД: {old}{newline}Новий ІД: {new}{newline}{newline}Замінити ІД у відкритій базі? Файл потрібно буде зберегти самостійно.
 value	PeopleRegistry::registry.path	PeopleRegistryBase.xlsx
 value	PeopleRegistry::registry.aliases.sheet	Скорочення
 value	PeopleRegistry::registry.aliases.table	tbOriginAliases

@@ -7,6 +7,7 @@
     "common/[[]3] controls/*.cls.vba",
     "common/[[]4] elements/*.cls.vba",
     "PeopleRegistry/ex_PRM.vba",
+    "PeopleRegistry/ex_PR_Registry.vba",
     "PeopleRegistry/obj_PRM_PgMain.cls.vba",
     "PeopleRegistry/ThisWorkbook.vba"
   ],
