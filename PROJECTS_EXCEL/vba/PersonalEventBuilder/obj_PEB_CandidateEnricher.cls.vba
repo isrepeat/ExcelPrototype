@@ -100,6 +100,8 @@ Public Function TryEnrich( _
     Dim personId As Variant
     Dim personName As Variant
     Dim documents As Collection
+    Dim column As Object
+    Dim absenceKey As String
 
     On Error GoTo EH
     stageStartedAt = VBA.Timer
@@ -140,8 +142,18 @@ Public Function TryEnrich( _
             Next detail
             If Not record.TryGetValue("Personnel.FullName", value) Then Err.Raise 5, , "Candidate name not found."
             name = ex_TableQuery.fn_NormalizeText(private_Text(value))
-            If VBA.Len(name) > 0 And m_latestByName.Exists(name) Then
-                If Not copy.TryMerge(private_AbsenceRecord(name), False) Then Err.Raise 5, , "Cannot merge absence fields."
+            Set fields = VBA.CreateObject("Scripting.Dictionary")
+            For Each column In m_absenceProfile.Columns
+                If column("name") <> "Personnel.FullName" Then fields(column("name")) = VBA.vbNullString
+            Next column
+            Set supplement = New obj_LookupRecord
+            If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize empty absence fields."
+            If Not copy.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot clear previous absence fields."
+            If VBA.Len(name) > 0 And hasOrderDate Then
+                absenceKey = private_AbsenceKey(name, parsedOrderDate)
+                If m_latestByName.Exists(absenceKey) Then
+                    If Not copy.TryMerge(private_AbsenceRecord(absenceKey), True) Then Err.Raise 5, , "Cannot merge absence fields."
+                End If
             End If
             output.Add copy
         Next record
@@ -280,6 +292,8 @@ Private Function private_LoadLatest( _
     Dim departureDate As Date
     Dim rowIndex As Long
     Dim prepared As Object
+    Dim sourceOrderDate As Date
+    Dim absenceKey As String
 
     On Error GoTo EH
     If snapshot Is Nothing Then
@@ -318,17 +332,22 @@ Private Function private_LoadLatest( _
         name = ex_TableQuery.fn_NormalizeText(private_Text(dataTable.ValueAt(rowIndex, _
             ex_TableQuery.fn_HeaderIndex(dataTable.Headers, m_absenceProfile.HeaderFor("Personnel.FullName")))))
         If VBA.Len(name) > 0 Then
+            value = dataTable.ValueAt(rowIndex, ex_TableQuery.fn_HeaderIndex(dataTable.Headers, m_absenceProfile.HeaderFor("Absence.OrderDate")))
+            If VBA.Len(private_Text(value)) = 0 Then GoTo NextAbsenceRow
+            If Not private_TryDate(value, sourceOrderDate) Then Err.Raise 5, , "Invalid order date in extension row: " & VBA.CStr(rowIndex)
+            absenceKey = private_AbsenceKey(name, sourceOrderDate)
             value = dataTable.ValueAt(rowIndex, ex_TableQuery.fn_HeaderIndex(dataTable.Headers, m_absenceProfile.HeaderFor("Absence.DepartureDate")))
             If Not private_TryDate(value, departureDate) Then Err.Raise 5, , "Invalid departure date in extension row: " & VBA.CStr(rowIndex)
             ' Equal dates use the last physical row in the source table.
-            If Not byName.Exists(name) Then
-                byName(name) = Array(rowIndex, departureDate)
-                datesByName(name) = VBA.CDbl(departureDate)
-            ElseIf VBA.CDbl(departureDate) >= datesByName(name) Then
-                byName(name) = Array(rowIndex, departureDate)
-                datesByName(name) = VBA.CDbl(departureDate)
+            If Not byName.Exists(absenceKey) Then
+                byName(absenceKey) = Array(rowIndex, departureDate)
+                datesByName(absenceKey) = VBA.CDbl(departureDate)
+            ElseIf VBA.CDbl(departureDate) >= datesByName(absenceKey) Then
+                byName(absenceKey) = Array(rowIndex, departureDate)
+                datesByName(absenceKey) = VBA.CDbl(departureDate)
             End If
         End If
+NextAbsenceRow:
     Next rowIndex
     Set m_latestByName = byName
     Set m_absenceTable = dataTable
@@ -353,6 +372,13 @@ EH:
     Resume Cleanup
 End Function
 
+Private Function private_AbsenceKey( _
+    ByVal name As String, _
+    ByVal orderDate As Date _
+) As String
+    private_AbsenceKey = name & VBA.ChrW(31) & VBA.Format$(orderDate, "yyyymmdd")
+End Function
+
 Private Function private_AbsenceRecord(ByVal name As String) As obj_LookupRecord
     Dim fields As Object
     Dim column As Object
@@ -370,7 +396,7 @@ Private Function private_AbsenceRecord(ByVal name As String) As obj_LookupRecord
         value = m_absenceTable.ValueAt(location(0), ex_TableQuery.fn_HeaderIndex(m_absenceTable.Headers, column("header")))
         If IsError(value) Then Err.Raise 5, , "Excel error in candidate extension column: " & column("header")
         If IsNull(value) Or IsEmpty(value) Then value = vbNullString
-        fields(column("name")) = value
+        If column("name") <> "Personnel.FullName" Then fields(column("name")) = value
     Next column
     fields("Absence.DepartureDate") = Format$(location(1), "dd.mm.yyyy")
     Set record = New obj_LookupRecord
