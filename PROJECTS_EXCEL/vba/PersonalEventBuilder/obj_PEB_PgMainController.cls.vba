@@ -1273,6 +1273,12 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Dim startedAt As Double
     Dim reusePageLayout As Boolean
     Dim extensionStructureChanged As Boolean
+    Dim totalStartedAt As Double
+    Dim stageStartedAt As Double
+    Dim previousMode As String
+    Dim fixedDocument As String
+    Dim ticketDocumentMode As Boolean
+    Dim ticketDocument As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     previousScreenUpdating = Application.ScreenUpdating
@@ -1282,7 +1288,9 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Set record = selected
     If m_historyRows Is Nothing Then Exit Function
     If Not m_historyRows.Exists(record.Key) Then Exit Function
+    totalStartedAt = VBA.Timer
     startedAt = VBA.Timer
+    stageStartedAt = startedAt
     If Not private_TryReadFormValue("AcceptedOrderNumber", scalar) Then Exit Function
     If VBA.CStr(scalar) <> m_historyOrderNumber Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
     If Not private_TryReadFormValue("AcceptedOrderDate", scalar) Then Exit Function
@@ -1291,7 +1299,11 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryListStale")
     End If
     Set row = m_historyRows(record.Key)
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.ValidateRecord", stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not private_EndHistoryEdit() Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.EndPreviousEdit", stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not private_TryReadFormValue("AutoFillPersonnel", scalar) Then Exit Function
     m_editHistoryAutoFill = scalar
     Application.ScreenUpdating = False
@@ -1301,14 +1313,19 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     documentActive = m_documentActive
     Set m_lookupResult = Nothing
     mode = row("EventId")
+    previousMode = m_modeId
     If Len(m_modeId) > 0 Then
         reusePageLayout = ex_PEB_EventRoutes.fn_Value(m_modeId, "form") = ex_PEB_EventRoutes.fn_Value(mode, "form") And _
             m_modeDirection = ex_PEB_EventRoutes.fn_Value(mode, "direction") And _
             Not (reporterActive Or hospitalActive Or documentActive)
     End If
-    If Not private_LoadMode(mode, diagnostic) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.PrepareModeSwitch", stageStartedAt
+    stageStartedAt = VBA.Timer
+    If Not private_LoadMode(mode, diagnostic, True) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.LoadMode", stageStartedAt
     ex_Core.fn_Diagnostic_WritePerf "History.Select.Mode", startedAt
     startedAt = VBA.Timer
+    stageStartedAt = VBA.Timer
     Set m_lookupResult = candidates
     m_reporterActive = False
     m_hospitalActive = False
@@ -1318,32 +1335,40 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
             If Not private_PublishCandidates(candidates) Then GoTo Failed
         End If
     End If
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.PublishCandidates", stageStartedAt
+    stageStartedAt = VBA.Timer
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.fields"), "|")
         If row.Exists(field) Then updates("Form." & VBA.CStr(field)) = row(field)
     Next field
-    If ex_PEB_Export.fn_IsTicketDocumentMode(CStr(row("EventId"))) Then
-        If CStr(row("Document")) <> ex_PEB_Export.fn_Config("lookup.ReturnTickets.document") Then
+    fixedDocument = ex_PEB_Export.fn_FixedDocument(mode)
+    ticketDocument = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+    ticketDocumentMode = (fixedDocument = ticketDocument)
+    If ticketDocumentMode Then
+        If CStr(row("Document")) <> ticketDocument Then
             updates("Form.DocumentNumber") = vbNullString
             updates("Form.DocumentDate") = vbNullString
             If row.Exists("TicketNumber") Then updates("Form.DocumentNumber") = row("TicketNumber")
             If row.Exists("TicketDate") Then updates("Form.DocumentDate") = row("TicketDate")
         End If
-        updates("Form.Document") = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
+        updates("Form.Document") = ticketDocument
     End If
-    If Len(ex_PEB_Export.fn_FixedDocument(CStr(row("EventId")))) > 0 Then
-        If Not ex_PEB_Export.fn_IsTicketDocumentMode(CStr(row("EventId"))) And _
-                CStr(row("Document")) <> ex_PEB_Export.fn_FixedDocument(CStr(row("EventId"))) Then
+    If Len(fixedDocument) > 0 Then
+        If Not ticketDocumentMode And CStr(row("Document")) <> fixedDocument Then
             updates("Form.DocumentNumber") = vbNullString
             updates("Form.DocumentDate") = vbNullString
         End If
-        updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(CStr(row("EventId")))
+        updates("Form.Document") = fixedDocument
     End If
     updates("Form.AutoFillPersonnel") = False
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Text.SaveHistory") = ex_PEB_Export.fn_Config("text.UpdateHistory")
     updates("Text.HistoryEditMode") = VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryEditing"), "{id}", record.Key)
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.PrepareValues", stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.ApplyValues", stageStartedAt
+    stageStartedAt = VBA.Timer
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
     For Each field In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.scalarInputs"), "|")
         If field <> "DurationDays" And row.Exists(field) Then wordContext(field) = row(field)
@@ -1361,19 +1386,31 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then GoTo Failed
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then GoTo Failed
     If Not m_pageBase.BindingContext.SetObject("Data", "SelectedHistory", record) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.WordContext", stageStartedAt
+    stageStartedAt = VBA.Timer
     m_acceptedOrderNumber = row("AcceptedOrderNumber")
     m_acceptedOrderDate = ex_PEB_History.fn_Date(row("AcceptedOrderDate"))
     Set m_editHistoryRow = row
     m_editHistoryStamp = ex_PEB_History.fn_Stamp(row)
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.Stamp", stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_extensions.TryLoad(row("FormExtensionRows"), diagnostic, False, extensionStructureChanged) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.Extensions.Load", stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_extensions.Build(ex_PEB_EventRoutes.fn_Value(m_modeId, "form"), diagnostic) Then GoTo Failed
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.Extensions.Build", stageStartedAt
     ex_Core.fn_Diagnostic_WritePerf "History.Select.Values", startedAt
     startedAt = VBA.Timer
-    If reusePageLayout And Not extensionStructureChanged Then
-        If Not m_pageBase.FlushUpdates() Then GoTo Failed
-    Else
-        If Not m_pageBase.UpdatePage() Then GoTo Failed
+    ex_Core.fn_Diagnostic_WriteLog "HISTORY_SELECT_LAYOUT | PreviousMode=" & previousMode & _
+        " | Mode=" & mode & " | ReuseForm=" & VBA.CStr(reusePageLayout) & _
+        " | SecondaryCandidates=" & VBA.CStr(reporterActive Or hospitalActive Or documentActive) & _
+        " | ExtensionStructureChanged=" & VBA.CStr(extensionStructureChanged) & " | Strategy=Retained"
+    If extensionStructureChanged Or Not reusePageLayout Then
+        ' Rebuild changed extension owners in the retained tree; form bindings update their own structure.
+        If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
+        If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
     End If
+    If Not m_pageBase.FlushUpdates() Then GoTo Failed
     ex_Core.fn_Diagnostic_WritePerf "History.Select.Flush", startedAt
     SelectHistoryHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.HistoryEditHint"), False)
     GoTo CleanupHistorySelection
@@ -1384,6 +1421,7 @@ Failed:
     private_SetActionStatus diagnostic, True
 CleanupHistorySelection:
     Application.ScreenUpdating = previousScreenUpdating
+    ex_Core.fn_Diagnostic_WritePerf "History.Select.Total | Success=" & VBA.CStr(SelectHistoryHandler), totalStartedAt
 End Function
 
 Public Function ExportWordHandler() As Boolean
@@ -2725,7 +2763,8 @@ End Function
 
 Private Function private_LoadMode( _
     ByVal modeId As String, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal deferHistoryWork As Boolean = False _
 ) As Boolean
     Dim direction As String
     Dim formKind As String
@@ -2752,8 +2791,12 @@ Private Function private_LoadMode( _
     Dim modes As Variant
     Dim currentForm As Variant
     Dim secondaryCandidates As Boolean
+    Dim totalStartedAt As Double
+    Dim stageStartedAt As Double
 
     On Error GoTo EH
+    totalStartedAt = VBA.Timer
+    stageStartedAt = totalStartedAt
     secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
     currentForm = vbNullString
     If Len(m_modeId) > 0 Then currentForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
@@ -2772,16 +2815,25 @@ Private Function private_LoadMode( _
     If direction <> "Arrival" And direction <> "Departure" And direction <> "StatusChange" Then
         Err.Raise 5, , "Invalid mode direction: " & modeId
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Config | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not private_UpdateReadOnly(modeId, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.ReadOnly | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     If VBA.Len(m_modeId) > 0 And Not m_reporterActive And Not m_hospitalActive And Not m_documentActive Then
         If Not private_TryReadFormValue("ModeForm", currentForm) Then Exit Function
         If VBA.CStr(currentForm) = formKind And m_modeDirection = direction Then
+            ex_Core.fn_Diagnostic_WriteLog "MODE_LOAD_BRANCH | PreviousMode=" & m_modeId & _
+                " | Mode=" & modeId & " | Form=" & formKind & " | Direction=" & direction & _
+                " | HistoryDeferred=" & VBA.CStr(deferHistoryWork) & " | Branch=Fast"
             ' These modes share the same projection and derived event fields.
             If Not m_pageBase.BindingContext.SetValue("Settings", m_modeId & "Style", "secondaryButton") Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Settings", modeId & "Style", "activeModeButton") Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
             m_modeId = modeId
+            ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Fast.Bindings | Mode=" & modeId, stageStartedAt
+            stageStartedAt = VBA.Timer
             If Not m_lookupResult Is Nothing Then
                 Set projectedResult = m_lookupResult
                 If projectedResult.RowCount > 0 Then
@@ -2790,11 +2842,21 @@ Private Function private_LoadMode( _
                     Set m_lookupResult = projectedResult
                 End If
             End If
-            If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
+            ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Fast.Candidates | Mode=" & modeId, stageStartedAt
+            stageStartedAt = VBA.Timer
+            If Not deferHistoryWork Then
+                If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
+                ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Extensions.Build | Mode=" & modeId, stageStartedAt
+            End If
             private_LoadMode = True
+            ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Total | Mode=" & modeId & " | Branch=Fast", totalStartedAt
             Exit Function
         End If
     End If
+    ex_Core.fn_Diagnostic_WriteLog "MODE_LOAD_BRANCH | PreviousMode=" & m_modeId & _
+        " | Mode=" & modeId & " | Form=" & formKind & " | Direction=" & direction & _
+        " | SecondaryCandidates=" & VBA.CStr(secondaryCandidates) & _
+        " | HistoryDeferred=" & VBA.CStr(deferHistoryWork) & " | Branch=Full"
     If Not private_ReadModeConfig("forms." & formKind & ".fields.count", countText, diagnostic) Then Exit Function
     If Not VBA.IsNumeric(countText) Then Err.Raise 5, , "Invalid mode field count: " & formKind
     If VBA.CDbl(countText) < 1 Or VBA.CDbl(countText) > 16384 Or VBA.CDbl(countText) <> VBA.Fix(VBA.CDbl(countText)) Then
@@ -2828,7 +2890,11 @@ Private Function private_LoadMode( _
         column("sourceAlias") = sourceAlias
         columns.Add column
     Next index
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Fields | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not private_PlaceFields(columns, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.PlaceFields | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     For Each field In VBA.Array("EventType", _
             "Destination", _
             "PersonRank", _
@@ -2854,6 +2920,8 @@ Private Function private_LoadMode( _
         If Not m_pageBase.BindingContext.SetValue("Text", "Mode" & VBA.CStr(field) & "Label", text) Then Exit Function
     Next field
     If Not m_pageBase.BindingContext.SetValue("Text", "ModeEventDateLabel", eventDateLabel) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Captions | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     For Each mode In modes
         If Not private_ReadModeConfig("modes." & VBA.CStr(mode) & ".caption", text, diagnostic) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(mode), text) Then Exit Function
@@ -2861,6 +2929,8 @@ Private Function private_LoadMode( _
         If VBA.CStr(mode) = modeId Then text = "activeModeButton"
         If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", text) Then Exit Function
     Next mode
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.ButtonStyles | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
     ' Secondary candidates must never be projected or reapplied as primary personnel.
     If secondaryCandidates Then
@@ -2883,6 +2953,19 @@ Private Function private_LoadMode( _
     End If
     m_modeDirection = direction
     m_eventType = eventType
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.StateAndViewport | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
+    If deferHistoryWork Then
+        ' History supplies saved values directly; keep search mappings but do not publish an empty projection.
+        If Not private_SetCandidateSources(columns, modeId, diagnostic) Then Exit Function
+        Set m_modeFields = columns
+        m_modeId = modeId
+        If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
+        ex_Core.fn_Diagnostic_WritePerf "Mode.Load.History.PrepareSources | Mode=" & modeId, stageStartedAt
+        private_LoadMode = True
+        ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Total | Mode=" & modeId & " | Branch=Full | HistoryDeferred=True", totalStartedAt
+        Exit Function
+    End If
     If records.Count > 0 Then
         If Not m_candidateEnricher.TryEnrich( _
             m_lookupService, _
@@ -2895,6 +2978,8 @@ Private Function private_LoadMode( _
         ) Then Exit Function
         Set records = enrichedRecords
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Enrich | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
     Set projectedResult = New obj_LookupResult
     If Not private_SetCandidateSources(columns, modeId, diagnostic) Then Exit Function
@@ -2903,8 +2988,12 @@ Private Function private_LoadMode( _
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
     m_modeId = modeId
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.ProjectAndPublishCandidates | Mode=" & modeId, stageStartedAt
+    stageStartedAt = VBA.Timer
     If Not m_extensions.Build(formKind, diagnostic) Then Exit Function
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Extensions.Build | Mode=" & modeId, stageStartedAt
     private_LoadMode = True
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Total | Mode=" & modeId & " | Branch=Full", totalStartedAt
     Exit Function
 EH:
     diagnostic = "Mode configuration: " & VBA.Err.Description
@@ -3429,6 +3518,7 @@ Private Function private_SetCandidateSources( _
     Dim hospitalModes As String
     Dim isHospitalMode As Boolean
     Dim isTicketDocumentMode As Boolean
+    Dim annualContinuationEnabled As Boolean
     Dim mapping As Variant
     Dim pair As Variant
 
@@ -3449,6 +3539,7 @@ Private Function private_SetCandidateSources( _
         hospitalSourceAlias = ex_PEB_Export.fn_Config("lookup.ReturnHospital.sourceAlias")
     End If
     isTicketDocumentMode = ex_PEB_Export.fn_IsTicketDocumentMode(modeId)
+    annualContinuationEnabled = ex_PEB_AnnualContinuation.fn_Enabled(modeId)
     For Each column In columns
         If Left$(column("name"), 9) = "Movement." Or _
             ((column("formField") = hospitalDateField Or column("formField") = "DocumentNumber") And _
@@ -3473,7 +3564,7 @@ Private Function private_SetCandidateSources( _
             column("sourceAlias") = sourceAlias
         End If
         If column("name") = orderDateField Then column("sourceAlias") = orderDateAlias
-        If ex_PEB_AnnualContinuation.fn_Enabled(modeId) Then
+        If annualContinuationEnabled Then
             For Each mapping In Split(ex_PEB_Export.fn_Config("lookup.AnnualContinuation.fields"), "|")
                 pair = Split(CStr(mapping), "=")
                 If UBound(pair) <> 1 Then Err.Raise 5, , "Invalid annual continuation field mapping."

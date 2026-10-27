@@ -388,6 +388,7 @@ Public Sub RegisterShapeLayout( _
 )
     Dim entry As Collection
     Dim buttonContainer As Collection
+    Dim layoutVisibility As Object
 
     If m_shapeLayouts Is Nothing Then
         Set m_shapeLayouts = VBA.CreateObject("Scripting.Dictionary")
@@ -395,6 +396,12 @@ Public Sub RegisterShapeLayout( _
     If m_shapeLayouts.Exists(shape.Name) Then
         Set entry = m_shapeLayouts(shape.Name)
         Set buttonContainer = entry(10)
+        Set layoutVisibility = entry(11)
+    End If
+    If layoutVisibility Is Nothing Then
+        Set layoutVisibility = VBA.CreateObject("Scripting.Dictionary")
+        layoutVisibility.Add "hidden", False
+        layoutVisibility.Add "visible", shape.Visible
     End If
     Set entry = New Collection
     entry.Add shape
@@ -410,6 +417,7 @@ Public Sub RegisterShapeLayout( _
         (VBA.LCase$(VBA.CStr(node.baseName)) = "select" And _
         ex_UiElementFactory.fn_Attribute(node, "editable") <> "true"))
     entry.Add buttonContainer
+    entry.Add layoutVisibility
     Set m_shapeLayouts(shape.Name) = entry
     private_ArrangeShape entry
 End Sub
@@ -449,7 +457,7 @@ Public Sub RegisterButtonContainer( _
                 If m_shapeLayouts.Exists(shapeName) Then
                     Set entry = m_shapeLayouts(shapeName)
                     entry.Remove 10
-                    entry.Add buttonContainer
+                    entry.Add buttonContainer, Before:=10
                 End If
             End If
         End If
@@ -920,9 +928,20 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     Dim availableWidth As Double
     Dim availableHeight As Double
     Dim margins As Variant
+    Dim layoutVisibility As Object
 
     Set shape = entry(1)
     Set area = entry(2)
+    Set layoutVisibility = entry(11)
+    ' Filtering may collapse the allocated rows or columns without changing layout bounds.
+    If area.Width <= 0 Or area.Height <= 0 Then
+        If Not layoutVisibility("hidden") Then
+            layoutVisibility("visible") = shape.Visible
+            layoutVisibility("hidden") = True
+        End If
+        shape.Visible = msoFalse
+        Exit Sub
+    End If
     margins = VBA.Array(0#, 0#, 0#, 0#)
     If entry(9) Then margins = m_styles.GetShapeMargins(shape.Name)
     If entry(9) Then private_ApplyContainerInsets entry, margins
@@ -957,6 +976,10 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     shape.Left = area.Left + margins(0) + horizontalOffset
     shape.Top = area.Top + margins(1) + verticalOffset
     If entry(7) Then ex_UiInlineText.fn_WrapCaption shape, preservePadding:=True
+    If layoutVisibility("hidden") Then
+        shape.Visible = layoutVisibility("visible")
+        layoutVisibility("hidden") = False
+    End If
 End Sub
 
 Private Sub private_ApplyContainerInsets( _
