@@ -689,7 +689,11 @@
     <text>
       <![CDATA[#^
 #_      {#include block.PersonLineUpper}#^
-#_      ,{#include block.VacationDestinationPeriod}#^
+#_      ,{#if [VacationDurationPhrase]}{#space}{[VacationDurationPhrase]}#^
+#_      {[AdditionalDurationPhrases]}#^
+#_      {#endif}#^
+#_      {#if [DateFromShort]}{#space}з {#if [VacationDatesSameMonth]}{[DateFromShort]|dateformat:"\dd"}{#else}{#if [VacationDatesSameYear]}{[DateFromShort]|dateformat:"\dd \month"}{#else}{[DateFromShort]|dateformat:"\dd \month \yyyy року"}{#endif}{#endif}{#endif}#^
+#_      {#if [DateToShort]}{#space}по {[DateToShort]|dateformat:"\dd \month \yyyy року"}{#endif}.#^
 #_      {#include block.DepartureAdministration}#^
 #_      {#include block.OptionalForeignVacationPermission}#^
 #_      {#newline}{#newline}#^
