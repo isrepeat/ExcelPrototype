@@ -430,6 +430,9 @@ Private Function private_Apply( _
     departureHeader = ex_PEB_Export.fn_Config("export.Movement.headers.DepartureDate")
     eventDate = ex_PEB_History.fn_Date(values("EventDate"))
     Set links = ex_PEB_MovementLinks.fn_Headers()
+    If operation = "close" Then
+        private_PreserveArrivalFoodSupport rows, values("RowId"), closingWrites, links
+    End If
     If values("EventId") = "MoveFromAwolToBusinessTrip" Then
         ' Keep the AWOL closing food-support date aligned with the return placeholder.
         closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport")) = eventDate
@@ -574,6 +577,29 @@ EH:
     diagnostic = VBA.Err.Description
     ex_Core.fn_Diagnostic_WriteError "Movement.Preview.Event", VBA.Err.Number, VBA.Err.Source, diagnostic
 End Function
+
+Private Sub private_PreserveArrivalFoodSupport( _
+    ByVal rows As Collection, _
+    ByVal rowId As String, _
+    ByVal closingWrites As Object, _
+    ByVal links As Object _
+)
+    Dim row As Object
+    Dim cells As Object
+    Dim foodSupportHeader As String
+
+    foodSupportHeader = ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")
+    For Each row In rows
+        Set cells = row("Cells")
+        If VBA.StrComp(ex_PEB_Export.fn_Text(cells(links("ClosingId"))), rowId, VBA.vbTextCompare) = 0 Then
+            If VBA.Len(ex_PEB_Export.fn_Text(cells(foodSupportHeader))) > 0 Then
+                ' Keep the approved food-support boundary when only the arrival date is corrected.
+                closingWrites(foodSupportHeader) = cells(foodSupportHeader)
+            End If
+            Exit Sub
+        End If
+    Next row
+End Sub
 
 Private Sub private_PlanReturnPlaceholder( _
     ByVal rows As Collection, _

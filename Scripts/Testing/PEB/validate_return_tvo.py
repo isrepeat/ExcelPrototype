@@ -19,6 +19,8 @@ def main():
     latest = procedure(source, "fn_ReadLatest")
     assert 'Optional ByVal includeTvo As Boolean = False' in latest
     assert 'If includeTvo Then' in latest
+    assert 'Optional ByVal latestDepartureDate As Double = 0' in latest
+    assert 'If latestDepartureDate = 0 Or dateKey <= latestDepartureDate Then' in latest
     assert 'service.TryExecute(source, query, table, diagnostic, Not includeTvo Or useSnapshot)' in latest
     assert 'Optional ByVal useSnapshot As Boolean = False' in latest
     assert 'table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))' in latest
@@ -68,6 +70,13 @@ def main():
     assert 'TryCaptureReturnTvo(values, diagnostic)' in save
     assert 'If Not history And values("ModeDirection") = "Arrival" Then' in prepare
     assert 'If values("MetaTvoTables").Count = 0 Then' in prepare
+    return_read = procedure(restore, "fn_Read")
+    assert 'fn_ReadLatest(values("PersonId"), True, useSnapshot, eventDate)' in return_read
+    assert 'arrivalDate <> eventDate Or' not in return_read
+    planner = read("ex_PEB_MovementPlanner.vba")
+    preserve_food = procedure(planner, "private_PreserveArrivalFoodSupport")
+    assert 'cells(links("ClosingId"))' in preserve_food
+    assert 'closingWrites(foodSupportHeader) = cells(foodSupportHeader)' in preserve_food
     assert 'fn_ReadLatest' not in procedure(service, "TryPrepareHistory")
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)

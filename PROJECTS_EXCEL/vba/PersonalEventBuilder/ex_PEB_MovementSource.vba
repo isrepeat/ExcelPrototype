@@ -16,7 +16,8 @@ End Sub
 Public Function fn_ReadLatest( _
     ByVal personId As String, _
     Optional ByVal includeTvo As Boolean = False, _
-    Optional ByVal useSnapshot As Boolean = False _
+    Optional ByVal useSnapshot As Boolean = False, _
+    Optional ByVal latestDepartureDate As Double = 0 _
 ) As Object
     Dim result As Object
     Dim fields As Object
@@ -66,17 +67,19 @@ Public Function fn_ReadLatest( _
     If Not service.TryExecute(source, query, table, diagnostic, Not includeTvo Or useSnapshot) Then
         Err.Raise 5, , diagnostic
     End If
-    ' Preserve the latest-period ordering and all subsequent business validation.
+    ' Preserve the latest-period ordering within the requested event-date boundary.
     For row = 1 To table.RowCount
         dateKey = fn_OrderDate(table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields("DepartureDate"))))
         arrivalKey = fn_OrderDate(table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields("ArrivalDate"))))
-        If result Is Nothing Or dateKey > latestKey Or (dateKey = latestKey And arrivalKey <= latestArrivalKey) Then
-            latestKey = dateKey
-            latestArrivalKey = arrivalKey
-            Set result = VBA.CreateObject("Scripting.Dictionary")
-            For Each field In fields.Keys
-                result(field) = table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))
-            Next field
+        If latestDepartureDate = 0 Or dateKey <= latestDepartureDate Then
+            If result Is Nothing Or dateKey > latestKey Or (dateKey = latestKey And arrivalKey <= latestArrivalKey) Then
+                latestKey = dateKey
+                latestArrivalKey = arrivalKey
+                Set result = VBA.CreateObject("Scripting.Dictionary")
+                For Each field In fields.Keys
+                    result(field) = table.ValueAt(row, ex_TableQuery.fn_HeaderIndex(table.Headers, fields(field)))
+                Next field
+            End If
         End If
     Next row
     Set fn_ReadLatest = result
