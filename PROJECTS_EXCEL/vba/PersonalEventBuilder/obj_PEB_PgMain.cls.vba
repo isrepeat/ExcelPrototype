@@ -254,6 +254,9 @@ Private Function private_TryRegisterBindings() As Boolean
             ex_WindowsUi.fn_ShowMessage "Required configuration text not found: PersonalEventBuilder::text." & textKey, vbExclamation, "Configuration"
             Exit Function
         End If
+        If VBA.CStr(textKey) = "ResetForm" Then
+            configuredText = VBA.Replace$(configuredText, "{lineBreak}", VBA.vbLf)
+        End If
         If Not uiBindingContext.SetValue("Text", VBA.CStr(textKey), configuredText) Then Exit Function
     Next textKey
     If Not uiBindingContext.SetValue("Text", "ValidateMedical", ex_PEB_Export.fn_Config("validation.MedicalReports.text.Validate")) Then Exit Function

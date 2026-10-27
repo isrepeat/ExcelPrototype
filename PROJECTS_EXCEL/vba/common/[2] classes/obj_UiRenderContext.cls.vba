@@ -387,9 +387,14 @@ Public Sub RegisterShapeLayout( _
     Optional ByVal wrapCaption As Boolean = False _
 )
     Dim entry As Collection
+    Dim buttonContainer As Collection
 
     If m_shapeLayouts Is Nothing Then
         Set m_shapeLayouts = VBA.CreateObject("Scripting.Dictionary")
+    End If
+    If m_shapeLayouts.Exists(shape.Name) Then
+        Set entry = m_shapeLayouts(shape.Name)
+        Set buttonContainer = entry(10)
     End If
     Set entry = New Collection
     entry.Add shape
@@ -401,9 +406,54 @@ Public Sub RegisterShapeLayout( _
     entry.Add wrapCaption
     entry.Add private_ShapeAlignment(node, "shapePlacement", "moveAndSize", "freeFloating|move|moveAndSize")
     entry.Add (VBA.LCase$(VBA.CStr(node.baseName)) = "button" Or _
-        ex_UiElementFactory.fn_Attribute(node, "type") = "button")
+        ex_UiElementFactory.fn_Attribute(node, "type") = "button" Or _
+        (VBA.LCase$(VBA.CStr(node.baseName)) = "select" And _
+        ex_UiElementFactory.fn_Attribute(node, "editable") <> "true"))
+    entry.Add buttonContainer
     Set m_shapeLayouts(shape.Name) = entry
     private_ArrangeShape entry
+End Sub
+
+Public Sub RegisterButtonContainer( _
+    ByVal definition As Object, _
+    ByVal area As Range _
+)
+    Dim buttonContainer As New Collection
+    Dim node As Object
+    Dim entry As Collection
+    Dim shapeName As String
+    Dim columnSpacing As Double
+    Dim rowSpacing As Double
+
+    If m_shapeLayouts Is Nothing Or area Is Nothing Then Exit Sub
+    If VBA.LCase$(VBA.CStr(definition.baseName)) = "grid" Then
+        columnSpacing = private_ContainerDistance(definition, "columnSpacing")
+        rowSpacing = private_ContainerDistance(definition, "rowSpacing")
+    ElseIf ex_UiElementFactory.fn_Attribute(definition, "orientation") = "horizontal" Then
+        columnSpacing = private_ContainerDistance(definition, "spacing")
+    Else
+        rowSpacing = private_ContainerDistance(definition, "spacing")
+    End If
+    buttonContainer.Add area
+    buttonContainer.Add private_ContainerDistance(definition, "paddingLeft")
+    buttonContainer.Add private_ContainerDistance(definition, "paddingTop")
+    buttonContainer.Add private_ContainerDistance(definition, "paddingRight")
+    buttonContainer.Add private_ContainerDistance(definition, "paddingBottom")
+    buttonContainer.Add columnSpacing
+    buttonContainer.Add rowSpacing
+    For Each node In definition.ChildNodes
+        If node.NodeType = 1 Then
+            If VBA.CStr(node.namespaceURI) = "urn:excelprototype:controls" And _
+                    VBA.LCase$(VBA.CStr(node.baseName)) = "button" Then
+                shapeName = "btn_" & ex_UiElementFactory.fn_Attribute(node, "name")
+                If m_shapeLayouts.Exists(shapeName) Then
+                    Set entry = m_shapeLayouts(shapeName)
+                    entry.Remove 10
+                    entry.Add buttonContainer
+                End If
+            End If
+        End If
+    Next node
 End Sub
 
 Public Function TryEnsureSmart( _
@@ -875,6 +925,7 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     Set area = entry(2)
     margins = VBA.Array(0#, 0#, 0#, 0#)
     If entry(9) Then margins = m_styles.GetShapeMargins(shape.Name)
+    If entry(9) Then private_ApplyContainerInsets entry, margins
     availableWidth = area.Width - margins(0) - margins(2)
     availableHeight = area.Height - margins(1) - margins(3)
     If availableWidth <= 0 Or availableHeight <= 0 Then
@@ -907,6 +958,55 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
     shape.Top = area.Top + margins(1) + verticalOffset
     If entry(7) Then ex_UiInlineText.fn_WrapCaption shape, preservePadding:=True
 End Sub
+
+Private Sub private_ApplyContainerInsets( _
+    ByVal entry As Collection, _
+    ByRef margins As Variant _
+)
+    Dim buttonContainer As Collection
+    Dim area As Range
+    Dim containerArea As Range
+
+    Set buttonContainer = entry(10)
+    If buttonContainer Is Nothing Then Exit Sub
+    Set area = entry(2)
+    Set containerArea = buttonContainer(1)
+    ' Each interior edge contributes half of the shared gap; spans have no internal gap.
+    If area.Column = containerArea.Column Then
+        margins(0) = margins(0) + buttonContainer(2)
+    Else
+        margins(0) = margins(0) + buttonContainer(6) / 2
+    End If
+    If area.Row = containerArea.Row Then
+        margins(1) = margins(1) + buttonContainer(3)
+    Else
+        margins(1) = margins(1) + buttonContainer(7) / 2
+    End If
+    If area.Column + area.Columns.Count = containerArea.Column + containerArea.Columns.Count Then
+        margins(2) = margins(2) + buttonContainer(4)
+    Else
+        margins(2) = margins(2) + buttonContainer(6) / 2
+    End If
+    If area.Row + area.Rows.Count = containerArea.Row + containerArea.Rows.Count Then
+        margins(3) = margins(3) + buttonContainer(5)
+    Else
+        margins(3) = margins(3) + buttonContainer(7) / 2
+    End If
+End Sub
+
+Private Function private_ContainerDistance( _
+    ByVal definition As Object, _
+    ByVal attributeName As String _
+) As Double
+    Dim raw As String
+
+    If definition.getAttributeNode(attributeName) Is Nothing Then Exit Function
+    raw = ex_UiElementFactory.fn_Attribute(definition, attributeName)
+    If Not ex_Helpers.fn_TryParseInvariantNumber(raw, private_ContainerDistance) Then
+        ex_UiStyleDiagnostics.fn_Raise "Property", attributeName & "=" & raw
+    End If
+    If private_ContainerDistance < 0 Then ex_UiStyleDiagnostics.fn_Raise "Property", attributeName & "=" & raw
+End Function
 
 Private Function private_ShapeFraction( _
     ByVal node As Object, _

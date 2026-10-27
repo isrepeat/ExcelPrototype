@@ -328,6 +328,7 @@ Private Function private_RenderPanel(ByRef diagnostic As String) As Boolean
     For Each child In m_children
         If Not child.Render(diagnostic) Then Exit Function
     Next child
+    m_context.RegisterButtonContainer m_definition, Me.RenderArea
     private_RenderPanel = True
 End Function
 

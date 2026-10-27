@@ -18,7 +18,7 @@ value	PersonalEventBuilder::text.TestOnly	Завантаження сценар�
 value	PersonalEventBuilder::text.TestsRun	Запустити обрані
 value	PersonalEventBuilder::text.DummyMode	Недоступно
 value	PersonalEventBuilder::text.OpenTests	Тестування РУХ / WORD
-value	PersonalEventBuilder::text.ResetForm	Нова подія
+value	PersonalEventBuilder::text.ResetForm	↺{lineBreak}Нова подія
 value	PersonalEventBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	PersonalEventBuilder::text.TestTitle	Тестові сценарії
 value	PersonalEventBuilder::text.TestsBusy	Тести виконуються. Зупиніть запуск перед зміною середовища, ручним завантаженням або експортом.
