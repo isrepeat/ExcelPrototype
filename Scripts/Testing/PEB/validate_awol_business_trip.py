@@ -24,10 +24,12 @@ def main():
     assert 'identifier = action("RowId") & "/Return"' in placeholder
     assert placeholder.index('Exit Sub') < placeholder.index('Set writes = private_CopyFields')
     assert 'cells(personHeader) <> action("PersonId") Or cells(eventHeader) <> statusName' in placeholder
+    assert 'writes(ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument")) = VBA.vbNullString' in placeholder
     assert 'For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")' in placeholder
     assert 'writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")' in placeholder
     assert 'rows.Add row' in placeholder and 'action.Add "PlaceholderWrites", writes' in placeholder
     apply = procedure(sources['Planner'], 'private_Apply')
+    assert 'closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport")) = eventDate' in apply
     assert apply.index('private_PlanReturnPlaceholder rows') < apply.index('private_Existing(rows')
     assert 'values("EventId") = "MoveFromAwolToBusinessTrip"' in apply
     assert 'action.Exists("PlaceholderWrites") And action("Status") = "AlreadyApplied"' in apply
