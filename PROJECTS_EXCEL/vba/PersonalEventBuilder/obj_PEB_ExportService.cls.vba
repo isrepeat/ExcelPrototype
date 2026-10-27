@@ -1295,6 +1295,10 @@ Private Sub private_Enrich( _
         If inputField = pair(0) Then
             rankField = pair(1)
             lookupInput = private_PositionKey(lookupInput)
+            If lookupInput = ex_PEB_Export.fn_Config("export.shared.positions.tp.code") Then
+                values.Add outputField, ex_PEB_Export.fn_Config("export.shared.positions.tp.text")
+                GoTo Cleanup
+            End If
             If lookupInput = ex_PEB_Export.fn_Config("export.shared.positions.rozp.code") Then
                 rx.Pattern = ex_PEB_Export.fn_Config("export.shared.positions.officerPattern")
                 If rx.Test(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, rankField))) Then
@@ -1346,6 +1350,10 @@ Private Sub private_Enrich( _
     End If
     ex_Core.fn_Diagnostic_WritePerf "Lookup.Table | Lookup=" & prefix, stageStartedAt
 ReadValue:
+    If dataTable.RowCount = 0 And (outputField = "PersonAccusative" Or outputField = "FIOInitialsGenitive") Then
+        values.Add outputField, ex_PEB_Export.fn_Required(values, "PersonName")
+        GoTo Cleanup
+    End If
     If dataTable.RowCount <> 1 Then
         Err.Raise 5, , "Export lookup must return exactly one row: " & prefix
     End If
@@ -1400,7 +1408,7 @@ Private Function private_PositionKey(ByVal value As String) As String
         pair = Split(mapping, "=")
         normalized = Replace$(normalized, pair(0), pair(1))
     Next mapping
-    For Each kind In Array("rozp", "spis")
+    For Each kind In Array("tp", "rozp", "spis")
         prefix = ex_PEB_Export.fn_Config("export.shared.positions." & kind & ".prefix")
         code = ex_PEB_Export.fn_Config("export.shared.positions." & kind & ".code")
         If private_PositionKey = code Or Left$(normalized, Len(prefix)) = prefix Then

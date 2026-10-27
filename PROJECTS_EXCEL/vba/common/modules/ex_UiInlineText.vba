@@ -35,23 +35,21 @@ EH:
     VBA.Err.Raise errorNumber, "Caption.Wrap", "Shape '" & shape.Name & "': " & errorDescription
 End Sub
 
-Public Sub fn_ApplyCaption( _
-    ByVal shape As Object, _
+Public Sub fn_ParseColors( _
     ByVal rawText As String, _
-    ByVal baseColor As Long _
+    ByRef plain As String, _
+    ByRef runs As Collection _
 )
-    Dim plain As String
     Dim remaining As String
     Dim opening As Long
     Dim closing As Long
     Dim ending As Long
     Dim colorText As String
     Dim segment As String
-    Dim runs As Collection
-    Dim run As Variant
     Dim color As Long
 
     Set runs = New Collection
+    plain = VBA.vbNullString
     remaining = rawText
     Do
         opening = VBA.InStr(remaining, "[[color=")
@@ -76,11 +74,40 @@ Public Sub fn_ApplyCaption( _
         remaining = VBA.Mid$(remaining, ending + 10)
     Loop
     If VBA.InStr(plain, "[[/color]]") > 0 Then VBA.Err.Raise 5, , "Unmatched inline color marker."
+End Sub
+
+Public Sub fn_ApplyCaption( _
+    ByVal shape As Object, _
+    ByVal rawText As String, _
+    ByVal baseColor As Long _
+)
+    Dim plain As String
+    Dim runs As Collection
+    Dim run As Variant
+
+    fn_ParseColors rawText, plain, runs
     shape.TextFrame2.TextRange.Text = plain
     ' Replacing rich text can inherit the first character color; reset the entire caption first.
     shape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = baseColor
     For Each run In runs
         shape.TextFrame2.TextRange.Characters(VBA.CLng(run(0)), VBA.CLng(run(1))).Font.Fill.ForeColor.RGB = VBA.CLng(run(2))
+    Next run
+End Sub
+
+Public Sub fn_ApplyCellCaption( _
+    ByVal target As Range, _
+    ByVal rawText As String, _
+    ByVal baseColor As Long _
+)
+    Dim plain As String
+    Dim runs As Collection
+    Dim run As Variant
+
+    fn_ParseColors rawText, plain, runs
+    target.Cells(1, 1).Value2 = plain
+    target.Font.Color = baseColor
+    For Each run In runs
+        target.Cells(1, 1).Characters(VBA.CLng(run(0)), VBA.CLng(run(1))).Font.Color = VBA.CLng(run(2))
     Next run
 End Sub
 ' --------------------------------------

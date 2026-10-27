@@ -295,6 +295,9 @@
 <template name="ToBusinessTrip"
             identityBy="PersonId; DateFromShort; EventId"
             orderBy="Destination; DateFromShort; PersonId">
+    <reject field="PersonId"
+            matches="^"
+            messageKey="text.BusinessTripWordOmitted"/>
     <derived name="GroupBasis">
       <text>
         {#include block.IncomingBasis}{#include block.BusinessTripBasisDocuments}
@@ -405,6 +408,9 @@
 
 <template name="FromBusinessTrip"
             hash="0x01">
+    <reject field="PersonId"
+            matches="^"
+            messageKey="text.BusinessTripWordOmitted"/>
     <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^

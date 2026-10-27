@@ -70,6 +70,8 @@ Public Function fn_Render( _
     Dim group As Object
     Dim result As String
     Dim errorText As String
+    Dim warningNames As Object
+    Dim warningName As String
 
     On Error GoTo EH
     Set renderer = New obj_PEB_DslRenderer
@@ -106,7 +108,21 @@ Public Function fn_Render( _
         result = private_RenderGroup(group, items, renderer)
     End If
     renderer.Dispose
-    fn_Render = private_ParagraphCase(result)
+    result = private_ParagraphCase(result)
+    Set warningNames = VBA.CreateObject("Scripting.Dictionary")
+    warningNames.CompareMode = VBA.vbTextCompare
+    For Each item In events
+        If item.Exists("PersonName") And item.Exists("FIOAccusative") Then
+            warningName = ex_PEB_Export.fn_Text(item("PersonName"))
+            If VBA.Len(warningName) > 0 And VBA.StrComp(warningName, ex_PEB_Export.fn_Text(item("FIOAccusative")), VBA.vbTextCompare) = 0 Then
+                If Not warningNames.Exists(warningName) Then
+                    warningNames.Add warningName, True
+                    result = VBA.Replace$(result, warningName, "[[color=" & ex_PEB_Export.fn_Config("export.Word.context.uninflectedNameColor") & "]]" & warningName & "[[/color]]", 1, -1, VBA.vbTextCompare)
+                End If
+            End If
+        End If
+    Next item
+    fn_Render = result
     Exit Function
 EH:
     errorText = VBA.Err.Description
@@ -625,6 +641,12 @@ Private Function private_ParagraphCase(ByVal text As String) As String
         paragraph = VBA.CStr(paragraphs(index))
         If VBA.Len(VBA.Trim$(paragraph)) > 0 Then
             For position = 1 To VBA.Len(paragraph)
+                If VBA.Mid$(paragraph, position, 2) = "[[" Then
+                    position = VBA.InStr(position + 2, paragraph, "]]")
+                    If position = 0 Then Err.Raise 5, , "Unclosed inline color marker."
+                    position = position + 1
+                    GoTo NextParagraphCharacter
+                End If
                 character = VBA.Mid$(paragraph, position, 1)
                 If VBA.LCase$(character) <> VBA.UCase$(character) Then
                     If afterColon Then
@@ -635,6 +657,7 @@ Private Function private_ParagraphCase(ByVal text As String) As String
                     Mid$(paragraph, position, 1) = character
                     Exit For
                 End If
+NextParagraphCharacter:
             Next position
             afterColon = (VBA.Right$(VBA.RTrim$(paragraph), 1) = ":")
             paragraphs(index) = paragraph

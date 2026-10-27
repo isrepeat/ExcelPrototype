@@ -71,6 +71,18 @@ foreach ($templateName in $templates.Keys) {
     $fields = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($field in (Read-Config 'export.Word.context.xmlKeys').Split('|')) { Add-Declared $fields $field }
     $node = $templates[$templateName]
+    foreach ($rule in $node.SelectNodes('p:reject', $namespaceManager)) {
+        $field = $rule.GetAttribute('field')
+        if (-not $fields.Contains($field) -and $field -ne 'VacationAdditionalDays') {
+            throw "Unknown rejection field in ${templateName}: $field"
+        }
+        $messageKey = $rule.GetAttribute('messageKey')
+        Read-Config $messageKey | Out-Null
+        if ($rule.HasAttribute('equals') -eq $rule.HasAttribute('matches')) {
+            throw "Rejection requires exactly one of equals or matches: $templateName"
+        }
+        if ($rule.HasAttribute('matches')) { [void][regex]::new($rule.GetAttribute('matches')) }
+    }
     foreach ($computed in $node.SelectNodes('.//p:derived | .//p:aggregate', $namespaceManager)) {
         [void]$fields.Add($computed.GetAttribute('name'))
     }
