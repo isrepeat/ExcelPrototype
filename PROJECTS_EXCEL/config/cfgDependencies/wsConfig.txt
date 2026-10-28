@@ -47,7 +47,7 @@ value	source.MovementHistory.range	B6:Y20000
 value	source.MovementHistory.sheet	Відсутні
 value	source.PersonnelPositions.range	A1:E12000
 value	source.PersonnelPositions.sheet	Посади
-file	fileEjos	C:\Users\isrepeat\OneDrive\Рабочий стол\ЕЖОС_last.xlsx
+file	fileEjos	C:\Users\isrepeat\Desktop\ЕЖОС_last.xlsx
 table	tbTickets	tbTickets
 value	tbTickets::event.donation	Відпочинок за донацію крові
 column	tbTickets::column.fio	ПІБ
@@ -82,6 +82,6 @@ range	rangePersonnelAlf	[АЛФ$A1:J12000]
 column	rangePersonnelAlf::column.fio	ПІБ
 column	rangePersonnelAlf::column.ipn	ІПН
 file	fileMovementExport	Dependencies/РУХ.xlsx
-file	fileMovementHistory	C:\Users\isrepeat\OneDrive\Рабочий стол\РУХ_last.xlsx
+file	fileMovementHistory	C:\Users\isrepeat\Desktop\РУХ_last.xlsx
 range	rangePersonnelRanks	[Звання$A1:E12000]
 range	rangePersonnelPositions	[Посади$A1:E12000]
