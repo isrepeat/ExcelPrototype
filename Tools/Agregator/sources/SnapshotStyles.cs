@@ -348,7 +348,10 @@ internal static class SnapshotStyles
                     foreach (var workbook in source.Elements("workbook"))
                     {
                         var path = Path.GetFullPath(Path.Combine(directory, (string)source.Attribute("dir"), (string)workbook.Attribute("file")));
-                        using (var input = ZipFile.OpenRead(path))
+                        // Excel may keep the source open with write access. Read the saved
+                        // package without requesting exclusive access or modifying the source.
+                        using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                        using (var input = new ZipArchive(stream, ZipArchiveMode.Read))
                         {
                             var map = MergeStyles(input, styles.Root, ++sourceNumber, ref outputDigitWidth);
                             foreach (var sheet in workbook.Elements("sheet"))
@@ -363,7 +366,9 @@ internal static class SnapshotStyles
                 styles.Root.ReplaceNodes(styles.Root.Elements().OrderBy(e => Array.IndexOf(order, e.Name.LocalName)).ToList());
                 Write(output, "xl/styles.xml", styles);
             }
-            File.Replace(temporary, outputPath, null);
+            // This is a private intermediate snapshot, not the user's previous result.
+            // Copying avoids File.Replace, which some SMB servers do not implement.
+            File.Copy(temporary, outputPath, true);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }

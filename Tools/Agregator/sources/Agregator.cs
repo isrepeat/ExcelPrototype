@@ -36,11 +36,12 @@ internal static class Agregator
         return System.IO.Path.GetFullPath(System.IO.Path.Combine(directory, path));
     }
 
-    private static Configuration ReadConfig(string outputOverride)
+    private static Configuration ReadConfig(string configFile, string outputOverride)
     {
         var directory = AppDomain.CurrentDomain.BaseDirectory;
         var config = new Configuration();
-        config.Path = System.IO.Path.Combine(directory, "Agregator.xml");
+        config.Path = Resolve(directory, configFile ?? "Agregator.xml");
+        directory = System.IO.Path.GetDirectoryName(config.Path);
         var document = XDocument.Load(config.Path);
         var root = document.Root;
         if (root == null || root.Name != "aggregator")
@@ -263,12 +264,31 @@ internal static class Agregator
                 SnapshotStyles.Apply(config.Path, temporary);
                 Console.WriteLine("XML formatting applied in {0:F3} s", watch.Elapsed.TotalSeconds);
             }
-            // Publish atomically only after success, keeping the old result on failure.
-            if (File.Exists(config.Output)) File.Replace(temporary, config.Output, null);
-            else File.Move(temporary, config.Output);
+            Console.WriteLine("Publishing output: " + config.Output);
+            Publish(temporary, config.Output);
             Console.WriteLine("Created: {0} (worksheets: {1})", config.Output, count);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    private static void Publish(string temporary, string output)
+    {
+        if (!File.Exists(output)) { File.Move(temporary, output); return; }
+        // Use same-directory renames rather than the optional SMB ReplaceFile operation.
+        var backup = output + ".previous-" + Guid.NewGuid().ToString("N") + ".tmp";
+        File.Move(output, backup);
+        try { File.Move(temporary, output); }
+        catch (Exception publishError)
+        {
+            try { File.Move(backup, output); }
+            catch (Exception restoreError)
+            {
+                throw new AggregateException("Cannot restore previous output. Recovery file: " + backup, publishError, restoreError);
+            }
+            throw;
+        }
+        try { File.Delete(backup); }
+        catch (Exception error) { Console.Error.WriteLine("Warning: output published; previous copy retained at " + backup + ": " + error.Message); }
     }
 
     [STAThread]
@@ -277,24 +297,38 @@ internal static class Agregator
         // Use UTF-8 for console output and redirected logs, including Ukrainian names.
         Console.OutputEncoding = new UTF8Encoding(false);
         var watch = Stopwatch.StartNew();
+        var success = false;
         try
         {
             var validate = false;
             string output = null;
-            foreach (var argument in args)
+            string configFile = null;
+            for (var i = 0; i < args.Length; i++)
             {
+                var argument = args[i];
                 if (argument == "--help")
                 {
-                    Console.WriteLine("Agregator.cmd [--validate] [output.xlsx]");
-                    Console.WriteLine("Paths are relative to Agregator.xml beside the executable. Existing output is replaced after success.");
+                    Console.WriteLine("Agregator.exe [--config file.xml] [--validate] [--no-pause] [output.xlsx]");
+                    Console.WriteLine("Config paths are relative to the executable; source/output paths are relative to the selected config.");
+                    Console.WriteLine("Existing output is replaced after success.");
+                    success = true;
                     return 0;
                 }
                 if (argument == "--validate") validate = true;
+                else if (argument == "--no-pause") { }
+                else if (argument == "--config")
+                {
+                    if (configFile != null) throw new ArgumentException("Specify --config only once.");
+                    if (++i >= args.Length || String.IsNullOrWhiteSpace(args[i]) || args[i].StartsWith("--", StringComparison.Ordinal))
+                        throw new ArgumentException("Specify an XML file after --config.");
+                    configFile = args[i];
+                }
                 else if (argument.StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException("Unknown option: " + argument);
                 else if (output != null) throw new ArgumentException("Specify only one optional output path.");
                 else output = argument;
             }
-            var config = ReadConfig(output);
+            var config = ReadConfig(configFile, output);
+            Console.WriteLine("Configuration: " + config.Path);
             Console.WriteLine("Copy mode: " + config.Mode);
             if (validate)
             {
@@ -302,16 +336,36 @@ internal static class Agregator
                 Console.WriteLine("Output: " + config.Output);
             }
             else Aggregate(config);
+            success = true;
             return 0;
         }
         catch (Exception error)
         {
+            try
+            {
+                var log = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Agregator.log");
+                File.AppendAllText(log, DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + Environment.NewLine + error + Environment.NewLine, new UTF8Encoding(false));
+                Console.Error.WriteLine("Error details saved to: " + log);
+            }
+            catch (Exception logError) { Console.Error.WriteLine("Cannot write error log: " + logError.Message); }
             var aggregate = error as AggregateException;
             if (aggregate != null)
+            {
+                Console.Error.WriteLine("Error: " + aggregate.Message);
                 foreach (var cause in aggregate.Flatten().InnerExceptions) Console.Error.WriteLine("Error: " + cause.Message);
+            }
             else Console.Error.WriteLine("Error: " + error.Message);
             return 1;
         }
-        finally { Console.WriteLine("Total elapsed: {0:F3} s", watch.Elapsed.TotalSeconds); }
+        finally
+        {
+            Console.WriteLine("Status: " + (success ? "SUCCESS" : "FAILED"));
+            Console.WriteLine("Total elapsed: {0:F3} s", watch.Elapsed.TotalSeconds);
+            if (!args.Contains("--no-pause") && !Console.IsInputRedirected)
+            {
+                Console.WriteLine("Press any key to close...");
+                Console.ReadKey(true);
+            }
+        }
     }
 }

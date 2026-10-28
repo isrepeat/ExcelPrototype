@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<aggregator output="Aggregated.xlsx"
+            copyMode="xmlStyles">
+    <sources>
+        <source dir="../..">
+            <workbook file="ШПО.xlsx">
+                <sheet name="ОС" />
+            </workbook>
+            <workbook file="Виплати.xlsx">
+                <sheet name="Виплати" />
+            </workbook>
+            <workbook file="Порушення.xlsx">
+                <sheet name="Порушення" />
+            </workbook>
+        </source>
+    </sources>
+</aggregator>
