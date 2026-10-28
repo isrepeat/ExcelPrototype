@@ -8,8 +8,8 @@ using System.Windows.Forms;
 using System.Collections.Generic;
 using System.Globalization;
 
-// Merge ordinary Open XML formatting into COM-generated value snapshots.
-public static class SnapshotStyles
+// Merge ordinary Open XML formatting into COM-generated value snapshots in-process.
+internal static class SnapshotStyles
 {
     private static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
     private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
