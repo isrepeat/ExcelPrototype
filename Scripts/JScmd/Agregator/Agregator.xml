@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<aggregator sourceFolder="../../../PROJECTS_EXCEL/workbook/Dependencies"
+            output="Aggregated.xlsx">
+    <excludedSheets>
+        <sheet name="Переліки" />
+        <sheet name="Перелики" />
+    </excludedSheets>
+    <sources>
+        <workbook file="Накази.xlsx">
+            <sheet name="Накази" />
+        </workbook>
+        <workbook file="Установи.xlsx">
+            <sheet name="Військові установи" />
+            <sheet name="Лікувальні Заклади" />
+        </workbook>
+    </sources>
+</aggregator>
