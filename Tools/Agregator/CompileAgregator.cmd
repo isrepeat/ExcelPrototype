@@ -24,7 +24,7 @@ if errorlevel 1 (
     goto finish
 )
 
-rem Replace the executable only after a successful build; never run a stale build.
+rem Replace the executable only after a successful build.
 move /y "%~dp0Agregator.build.exe" "%~dp0Agregator.exe" >nul
 if errorlevel 1 (
     echo Error: cannot replace Agregator.exe. Close any running instance.
@@ -32,10 +32,10 @@ if errorlevel 1 (
     goto finish
 )
 
-"%~dp0Agregator.exe" %*
-set "agregatorExitCode=%errorlevel%"
+echo Build succeeded: "%~dp0Agregator.exe"
+set "agregatorExitCode=0"
 
 :finish
-rem Preserve the build/application status across the interactive pause.
+rem Preserve the build status across the interactive pause; do not run the program.
 pause
 exit /b %agregatorExitCode%

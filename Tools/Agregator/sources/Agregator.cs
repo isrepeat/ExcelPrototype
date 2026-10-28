@@ -73,8 +73,8 @@ internal static class Agregator
         }
         if (!String.Equals(System.IO.Path.GetExtension(config.Output), ".xlsx", StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Output must have the .xlsx extension: " + config.Output);
-        if (File.Exists(config.Output) || Directory.Exists(config.Output))
-            throw new IOException("Output already exists: " + config.Output);
+        if (Directory.Exists(config.Output))
+            throw new IOException("Output path is a directory: " + config.Output);
         if (!Directory.Exists(System.IO.Path.GetDirectoryName(config.Output)))
             throw new DirectoryNotFoundException("Output directory does not exist: " + config.Output);
         return config;
@@ -113,7 +113,22 @@ internal static class Agregator
         }
     }
 
-    private static void CopySheet(dynamic excel, dynamic source, dynamic result, dynamic placeholder, string sheetName, string mode, int number, string sourcePath)
+    private static string AllocateSheetName(string sheetName, string sourcePath, HashSet<string> names)
+    {
+        if (names.Add(sheetName)) return sheetName;
+        var prefix = System.IO.Path.GetFileNameWithoutExtension(sourcePath);
+        foreach (var character in "\\/?*[]:'") prefix = prefix.Replace(character, '_');
+        var basis = prefix + "_" + sheetName;
+        var candidate = basis.Substring(0, Math.Min(31, basis.Length));
+        for (var suffix = 2; !names.Add(candidate); suffix++)
+        {
+            var ending = "_" + suffix;
+            candidate = basis.Substring(0, Math.Min(31 - ending.Length, basis.Length)) + ending;
+        }
+        return candidate;
+    }
+
+    private static void CopySheet(dynamic excel, dynamic source, dynamic result, dynamic placeholder, string sheetName, string mode, string targetName, string sourcePath)
     {
         var watch = Stopwatch.StartNew();
         Console.WriteLine("Copying worksheet: " + sheetName);
@@ -159,9 +174,7 @@ internal static class Agregator
             CopyTables(original, target);
         }
         target.Visible = -1; // xlSheetVisible.
-        var name = number + "_" + System.IO.Path.GetFileNameWithoutExtension(sourcePath) + "_" + sheetName;
-        foreach (var character in "\\/?*[]:'") name = name.Replace(character, '_');
-        target.Name = name.Substring(0, Math.Min(31, name.Length));
+        target.Name = targetName;
         Console.WriteLine("Copied in {0:F3} s", watch.Elapsed.TotalSeconds);
     }
 
@@ -180,6 +193,13 @@ internal static class Agregator
         // Build beside the destination, publishing only after COM and XML processing succeed.
         var temporary = config.Output + "." + Guid.NewGuid().ToString("N") + ".tmp.xlsx";
         var count = 0;
+        // Plan names before creating sheets so the temporary placeholder cannot conflict.
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var plannedNames = new List<string>();
+        foreach (var item in config.Sources)
+            foreach (var sheet in item.Sheets) plannedNames.Add(AllocateSheetName(sheet, item.Path, names));
+        var placeholderName = "_snapshot";
+        for (var suffix = 2; names.Contains(placeholderName); suffix++) placeholderName = "_snapshot_" + suffix;
         try
         {
             try
@@ -197,6 +217,7 @@ internal static class Agregator
                 excel.Calculation = -4135; // xlCalculationManual.
                 excel.CalculateBeforeSave = false;
                 dynamic placeholder = result.Worksheets.Item(1);
+                placeholder.Name = placeholderName;
                 foreach (var item in config.Sources)
                 {
                     var watch = Stopwatch.StartNew();
@@ -204,7 +225,10 @@ internal static class Agregator
                     source = workbooks.Open(item.Path, 0, true);
                     Console.WriteLine("Opened in {0:F3} s", watch.Elapsed.TotalSeconds);
                     foreach (var sheet in item.Sheets)
-                        CopySheet(excel, source, result, placeholder, sheet, config.Mode, ++count, item.Path);
+                    {
+                        CopySheet(excel, source, result, placeholder, sheet, config.Mode, plannedNames[count], item.Path);
+                        count++;
+                    }
                     source.Close(false);
                     Release((object)source);
                     source = null;
@@ -239,7 +263,9 @@ internal static class Agregator
                 SnapshotStyles.Apply(config.Path, temporary);
                 Console.WriteLine("XML formatting applied in {0:F3} s", watch.Elapsed.TotalSeconds);
             }
-            File.Move(temporary, config.Output); // Refuse to overwrite a concurrently created output.
+            // Publish atomically only after success, keeping the old result on failure.
+            if (File.Exists(config.Output)) File.Replace(temporary, config.Output, null);
+            else File.Move(temporary, config.Output);
             Console.WriteLine("Created: {0} (worksheets: {1})", config.Output, count);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
@@ -260,7 +286,7 @@ internal static class Agregator
                 if (argument == "--help")
                 {
                     Console.WriteLine("Agregator.cmd [--validate] [output.xlsx]");
-                    Console.WriteLine("Paths are relative to Agregator.xml beside the executable. Output is never overwritten.");
+                    Console.WriteLine("Paths are relative to Agregator.xml beside the executable. Existing output is replaced after success.");
                     return 0;
                 }
                 if (argument == "--validate") validate = true;
