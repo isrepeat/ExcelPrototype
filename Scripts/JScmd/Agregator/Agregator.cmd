@@ -6,8 +6,7 @@ rem JScript: @if uses conditional compilation; the false branch ends at @end.
 rem The following /* opens a JScript comment containing this Batch launcher.
 rem CScript runs this file as JScript; %~f0 is this file and %* forwards arguments.
 cscript.exe //nologo //E:JScript "%~f0" %*
-rem Preserve the failure code and keep errors visible when launched by double-click.
-if not errorlevel 1 exit /b 0
+rem Preserve the exit code and keep both success and error output visible.
 set "agregatorExitCode=%errorlevel%"
 pause
 rem Exit before Batch reaches the JScript section.
@@ -33,25 +32,29 @@ function readConfig() {
     var root = xml.documentElement;
     if (root.nodeName !== "aggregator") throw new Error("Expected aggregator configuration root.");
     var config = {
-        sourceFolder: requiredAttribute(root, "sourceFolder"),
         output: requiredAttribute(root, "output"),
-        sources: [],
-        excludedSheets: []
+        copyMode: requiredAttribute(root, "copyMode"),
+        sources: []
     };
-    var excluded = root.selectNodes("excludedSheets/sheet");
-    for (var e = 0; e < excluded.length; e++) {
-        config.excludedSheets.push(requiredAttribute(excluded.item(e), "name").toLowerCase());
+    if (config.copyMode !== "values" && config.copyMode !== "sheet" && config.copyMode !== "xmlStyles") {
+        throw new Error("Invalid copyMode: " + config.copyMode + ". Expected values, sheet or xmlStyles.");
     }
-    var workbooks = root.selectNodes("sources/workbook");
-    if (workbooks.length === 0) throw new Error("No source workbooks configured.");
-    for (var w = 0; w < workbooks.length; w++) {
-        var workbook = workbooks.item(w);
-        var entry = { file: requiredAttribute(workbook, "file"), sheets: [] };
-        var sheets = workbook.selectNodes("sheet");
-        for (var s = 0; s < sheets.length; s++) {
-            entry.sheets.push(requiredAttribute(sheets.item(s), "name"));
+    var directories = root.selectNodes("sources/source");
+    if (directories.length === 0) throw new Error("No source directories configured.");
+    for (var d = 0; d < directories.length; d++) {
+        var directory = directories.item(d);
+        var dir = requiredAttribute(directory, "dir");
+        var workbooks = directory.selectNodes("workbook");
+        if (workbooks.length === 0) throw new Error("No source workbooks configured: " + dir);
+        for (var w = 0; w < workbooks.length; w++) {
+            var workbook = workbooks.item(w);
+            var entry = { dir: dir, file: requiredAttribute(workbook, "file"), sheets: [] };
+            var sheets = workbook.selectNodes("sheet");
+            for (var s = 0; s < sheets.length; s++) {
+                entry.sheets.push(requiredAttribute(sheets.item(s), "name"));
+            }
+            config.sources.push(entry);
         }
-        config.sources.push(entry);
     }
     return config;
 }
@@ -70,6 +73,27 @@ function resolvePath(path) {
         path = fso.BuildPath(folder, path);
     }
     return fso.GetAbsolutePathName(path);
+}
+
+// Recreate table structure after the bulk value transfer, without source styles.
+function copyTables(sourceSheet, targetSheet) {
+    for (var t = 1; t <= sourceSheet.ListObjects.Count; t++) {
+        var original = sourceSheet.ListObjects.Item(t);
+        var address = original.Range.Address;
+        // Exclude the totals row when defining the table body.
+        var bodyRows = original.Range.Rows.Count - (original.ShowTotals ? 1 : 0);
+        var tableRange = targetSheet.Range(address).Resize(bodyRows, original.Range.Columns.Count);
+        var table = targetSheet.ListObjects.Add(1, tableRange, false, 1);
+        table.TableStyle = "";
+        table.ShowTotals = original.ShowTotals;
+        table.ShowAutoFilter = original.ShowAutoFilter;
+        // Enabling totals may insert aggregate formulas; restore their snapshot values.
+        if (original.ShowTotals) {
+            table.TotalsRowRange.NumberFormat = "@";
+            table.TotalsRowRange.Value2 = original.TotalsRowRange.Value2;
+            table.TotalsRowRange.NumberFormat = "General";
+        }
+    }
 }
 
 function main() {
@@ -95,6 +119,13 @@ function main() {
 
     var config = readConfig();
     var sources = config.sources;
+    if (config.copyMode === "xmlStyles") {
+        for (var h = 0; h < 2; h++) {
+            var helper = fso.BuildPath(folder, h === 0 ? "ApplyStyles.ps1" : "SnapshotStyles.cs");
+            if (!fso.FileExists(helper)) throw new Error("Formatting helper not found: " + helper);
+        }
+    }
+    WScript.Echo("Copy mode: " + config.copyMode);
     // Reject existing output and missing inputs before creating an Excel instance.
     var output = resolvePath(paths.length === 0 ? config.output : paths[0]);
     if (fso.GetExtensionName(output).toLowerCase() !== "xlsx") {
@@ -108,7 +139,7 @@ function main() {
     }
     var inputs = [];
     for (var p = 0; p < sources.length; p++) {
-        var input = resolvePath(fso.BuildPath(resolvePath(config.sourceFolder), sources[p].file));
+        var input = resolvePath(fso.BuildPath(resolvePath(sources[p].dir), sources[p].file));
         if (!fso.FileExists(input)) {
             throw new Error("Input workbook does not exist: " + input);
         }
@@ -117,14 +148,6 @@ function main() {
         }
         if (sources[p].sheets.length === 0) {
             throw new Error("No worksheets selected: " + input);
-        }
-        for (var s = 0; s < sources[p].sheets.length; s++) {
-            // Reject explicitly excluded names even if they appear in the allowlist.
-            for (var e = 0; e < config.excludedSheets.length; e++) {
-                if (sources[p].sheets[s].toLowerCase() === config.excludedSheets[e]) {
-                    throw new Error("Excluded worksheet must not be selected: " + sources[p].sheets[s]);
-                }
-            }
         }
         inputs.push(input);
     }
@@ -167,28 +190,37 @@ function main() {
                 } catch (sheetError) {
                     throw new Error("Selected worksheet not found: " + inputs[i] + " / " + sheetName);
                 }
-                // Copy the complete worksheet before the placeholder, preserving layout.
-                // Passing Before directly avoids undefined optional COM arguments in WSH.
-                sourceSheet.Copy(placeholder);
-                var targetSheet = result.Worksheets.Item(placeholder.Index - 1);
+                var targetSheet;
+                if (config.copyMode !== "sheet") {
+                    // Transfer the whole value array without clipboard or formatting rules.
+                    placeholder.Activate();
+                    targetSheet = result.Worksheets.Add();
+                    var sourceRange = sourceSheet.UsedRange;
+                    var destination = targetSheet.Range(sourceRange.Address);
+                    // Text format prevents strings beginning with '=' from becoming formulas.
+                    // Restore General afterwards; numeric variants retain their numeric type.
+                    destination.NumberFormat = "@";
+                    destination.Value2 = sourceRange.Value2;
+                    destination.NumberFormat = "General";
+                    copyTables(sourceSheet, targetSheet);
+                } else {
+                    // Passing Before directly avoids undefined optional COM arguments in WSH.
+                    sourceSheet.Copy(placeholder);
+                    targetSheet = result.Worksheets.Item(placeholder.Index - 1);
+                    // Preserve ListObjects and their styles while freezing cell results.
+                    var target = targetSheet.UsedRange;
+                    target.Copy();
+                    target.PasteSpecial(12); // xlPasteValuesAndNumberFormats.
+                    target.FormatConditions.Delete();
+                    target.Validation.Delete();
+                    excel.CutCopyMode = false;
+                }
                 targetSheet.Visible = -1; // xlSheetVisible.
                 count++;
                 // A numeric prefix preserves uniqueness after Excel's 31-character limit.
                 var name = count + "_" + fso.GetBaseName(inputs[i]) + "_" + sourceSheet.Name;
                 targetSheet.Name = name.replace(/[\\\/\?\*\[\]:']/g, "_").substr(0, 31);
 
-                // Convert tables to formatted ranges before freezing calculated columns.
-                while (targetSheet.ListObjects.Count > 0) {
-                    targetSheet.ListObjects.Item(1).Unlist();
-                }
-                // Freeze results in the copied sheet while retaining its cell formatting.
-                var target = targetSheet.UsedRange;
-                target.Copy();
-                target.PasteSpecial(12); // xlPasteValuesAndNumberFormats: no formulas.
-                // Remove rules that may accompany formatting; their appearance is not frozen.
-                target.FormatConditions.Delete();
-                target.Validation.Delete();
-                excel.CutCopyMode = false;
                 WScript.Echo("Copied in " + ((new Date().getTime() - sheetStarted) / 1000) + " s");
             }
             source.Close(false);
@@ -200,8 +232,8 @@ function main() {
         }
         // Remove the initial empty sheet and save a macro-free .xlsx workbook.
         placeholder.Delete();
+        WScript.Echo("Saving output...");
         result.SaveAs(output, 51); // xlOpenXMLWorkbook.
-        WScript.Echo("Created: " + output + " (worksheets: " + count + ")");
     } finally {
         // Attempt every cleanup step, even if an earlier close operation fails.
         var cleanupError = null;
@@ -218,14 +250,41 @@ function main() {
             throw new Error("Excel cleanup failed: " + cleanupError.message);
         }
     }
+    if (config.copyMode === "xmlStyles") {
+        WScript.Echo("Applying ordinary formatting from source XML...");
+        var shell = new ActiveXObject("WScript.Shell");
+        var powershell = shell.ExpandEnvironmentStrings("%SystemRoot%") + "\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+        var command = quoteArgument(powershell) + " -NoProfile -NonInteractive -ExecutionPolicy Bypass -File " +
+            quoteArgument(fso.BuildPath(folder, "ApplyStyles.ps1")) + " -ConfigPath " +
+            quoteArgument(fso.BuildPath(folder, "Agregator.xml")) + " -OutputPath " + quoteArgument(output);
+        // The helper runs only after Excel has closed and released the output package.
+        var process = shell.Exec(command);
+        while (!process.StdOut.AtEndOfStream) WScript.Echo(process.StdOut.ReadLine());
+        var details = process.StdErr.ReadAll();
+        while (process.Status === 0) WScript.Sleep(50);
+        if (process.ExitCode !== 0) {
+            // Never leave a value-only file presented as a successful formatted snapshot.
+            fso.DeleteFile(output);
+            throw new Error("XML formatting failed: " + details);
+        }
+    }
+    WScript.Echo("Created: " + output + " (worksheets: " + count + ")");
     return 0;
+}
+
+function quoteArgument(value) {
+    if (/["\r\n]/.test(value)) throw new Error("Invalid command argument.");
+    return '"' + value + '"';
 }
 
 // Report errors to CScript output and propagate failure to the Batch launcher.
 var exitCode = 1;
+var aggregationStarted = new Date().getTime();
 try {
     exitCode = main();
 } catch (error) {
     WScript.Echo("Error: " + error.message);
 }
+// Include startup, opening, copying, saving and cleanup; exclude the Batch pause.
+WScript.Echo("Total elapsed: " + ((new Date().getTime() - aggregationStarted) / 1000).toFixed(3) + " s");
 WScript.Quit(exitCode);
