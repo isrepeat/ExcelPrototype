@@ -2,7 +2,7 @@
 <aggregator output="Aggregated.xlsx"
             copyMode="xmlStyles">
     <sources>
-        <source dir="../../../PROJECTS_EXCEL/workbook/Dependencies">
+        <source dir="../../PROJECTS_EXCEL/workbook/Dependencies">
             <workbook file="Накази.xlsx">
                 <sheet name="Накази" />
             </workbook>

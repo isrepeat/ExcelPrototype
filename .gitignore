@@ -11,6 +11,9 @@ Codex/logs/
 Codex/sessions/
 
 Scripts/**/*.xlsx
+Tools/Agregator/*.exe
+Tools/Agregator/**/*.xlsx
+Tools/Agregator/**/*.tmp
 Scripts/Testing/PEB/node_modules/
 Scripts/Testing/PEB/__pycache__/
 
