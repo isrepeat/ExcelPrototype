@@ -9,6 +9,8 @@
 
 Codex/logs/
 Codex/sessions/
+
+Scripts/**/*.xlsx
 Scripts/Testing/PEB/node_modules/
 Scripts/Testing/PEB/__pycache__/
 
