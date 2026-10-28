@@ -177,7 +177,10 @@ internal static class SnapshotStyles
         foreach (var xf in original.Descendants(S + "xf"))
         {
             Offset(xf, "fontId", fonts);
-            Offset(xf, "fillId", fills);
+            // Fill IDs 0 (none) and 1 (gray125) are reserved. Duplicating "none"
+            // at another index can turn inherited/no-fill cells into explicit white fills.
+            var fillId = xf.Attribute("fillId");
+            if (fillId != null && (int)fillId > 1) Offset(xf, "fillId", fills);
             Offset(xf, "borderId", borders);
             Offset(xf, "xfId", baseOffset);
         }
