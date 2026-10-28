@@ -2,7 +2,7 @@
 
 Requires 64-bit Windows, desktop Microsoft Excel and .NET Framework 4.5 or later. The build script uses the Windows .NET Framework C# compiler; no .NET SDK, PowerShell, Python or Node.js is required.
 
-Run CompileAgregator.cmd in the parent directory. It only compiles sources/Agregator.cs and sources/SnapshotStyles.cs into Agregator.exe, reports the build result and pauses on success or failure. It never runs the program or aggregates workbooks. Source code and this documentation stay in sources; the build script, executable and runtime configuration Agregator.xml are top-level files. Run Agregator.exe separately after a successful build.
+Run CompileAgregator.cmd in the parent directory. It only compiles sources/Agregator.cs and sources/SnapshotStyles.cs into Agregator.exe, reports the build result and pauses on success or failure. It never runs the program or aggregates workbooks. Source code and this documentation stay in sources; the build script, executable and runtime configuration Agregator.xml are top-level files. Run Agregator.exe separately after a successful build. The executable reports SUCCESS or FAILED and pauses before closing when console input is interactive. Use --no-pause for unattended runs; redirected input also disables the pause. Errors and stack traces are appended to UTF-8 Agregator.log beside the executable. Failure to write the log is reported in the console.
 
 ```bat
 CompileAgregator.cmd
@@ -10,11 +10,18 @@ Agregator.exe
 Agregator.exe "C:\Reports\Snapshot.xlsx"
 Agregator.exe --validate
 Agregator.exe --help
+Agregator.exe --no-pause
+Agregator.exe --config Agregator.Network.xml
+Agregator.exe --config Agregator.Network.xml --validate
 ```
 
-The UTF-8 configuration is Agregator.xml beside the executable. The hierarchy is aggregator / sources / source / workbook / sheet. Each source has a dir attribute and contains explicitly selected workbooks and sheets. Source directories and the output path (including a command-line override) are resolved relative to the configuration directory, regardless of the caller's current directory. Workbook paths are resolved relative to their source directory. The default result is Aggregated.xlsx beside the executable. Multiple source directories are supported. Missing files, directories, selected sheets or required attributes cause an error. Existing output is replaced atomically after successful aggregation. If processing fails or the destination is locked, the previous result remains intact. Close the result workbook in Excel before replacing it. Input workbooks cannot be used as the output path.
+The UTF-8 configuration is Agregator.xml beside the executable. The hierarchy is aggregator / sources / source / workbook / sheet. Each source has a dir attribute and contains explicitly selected workbooks and sheets. Source directories and the output path (including a command-line override) are resolved relative to the configuration directory, regardless of the caller's current directory. Workbook paths are resolved relative to their source directory. The default result is Aggregated.xlsx beside the executable. Multiple source directories are supported. Missing files, directories, selected sheets or required attributes cause an error. Input workbooks cannot be used as the output path. Close the result workbook in Excel before replacing it.
+
+Publication uses same-directory renames compatible with SMB, without File.Replace. An existing result is first renamed to a unique previous-copy file; the completed snapshot is then renamed to the output name. A publication failure triggers restoration of the previous result. If restoration also fails, the recovery path is printed and recorded in the error log, and the previous copy is retained. This two-step replacement is not atomic: avoid concurrent runs or changing the destination during publication. XML formatting only overwrites a private intermediate snapshot. Failed processing never intentionally overwrites the prior user result.
 
 The current selection is Накази.xlsx (Накази), Установи.xlsx (Військові установи, Лікувальні Заклади), and ШПО.xlsx (ОС). Original worksheet names are preserved. If a name is already used (case-insensitive), the workbook name is prefixed; further conflicts get numeric suffixes. Generated names are limited to 31 characters. Selected hidden worksheets become visible in the result.
+
+Use --config to select another UTF-8 XML configuration; its path is relative to the executable, or absolute. Source directories and output paths are relative to the selected configuration directory. Without --config, Agregator.xml beside the executable is used. Agregator.Network.xml is prepared for deployment to \\athenaps\Облік\Tools\Agregator: its source dir ../.. resolves to \\athenaps\Облік. It selects ШПО.xlsx (ОС), Виплати.xlsx (Виплати) and Порушення.xlsx (Порушення), in that order. Its result is Aggregated.xlsx beside the network configuration. Keep the network configuration beside the deployed executable. Validate network access with --config Agregator.Network.xml --validate before aggregation; worksheet existence is checked during aggregation.
 
 The required copyMode attribute supports:
 
