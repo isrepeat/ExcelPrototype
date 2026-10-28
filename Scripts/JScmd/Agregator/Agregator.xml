@@ -1,17 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<aggregator sourceFolder="../../../PROJECTS_EXCEL/workbook/Dependencies"
-            output="Aggregated.xlsx">
-    <excludedSheets>
-        <sheet name="Переліки" />
-        <sheet name="Перелики" />
-    </excludedSheets>
+<aggregator output="Aggregated.xlsx"
+            copyMode="xmlStyles">
     <sources>
-        <workbook file="Накази.xlsx">
-            <sheet name="Накази" />
-        </workbook>
-        <workbook file="Установи.xlsx">
-            <sheet name="Військові установи" />
-            <sheet name="Лікувальні Заклади" />
-        </workbook>
+        <source dir="../../../PROJECTS_EXCEL/workbook/Dependencies">
+            <workbook file="Накази.xlsx">
+                <sheet name="Накази" />
+            </workbook>
+            <workbook file="Установи.xlsx">
+                <sheet name="Військові установи" />
+                <sheet name="Лікувальні Заклади" />
+            </workbook>
+            <workbook file="ШПО.xlsx">
+                <sheet name="ОС" />
+            </workbook>
+        </source>
     </sources>
 </aggregator>
