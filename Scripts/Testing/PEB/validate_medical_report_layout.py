@@ -22,7 +22,9 @@ def main():
     read_file = source.split("Private Function private_ReadFile(", 1)[1].split("Private Function private_CheckPeople(", 1)[0]
     assert 'private_HeaderIndex' not in read_file
     assert 'indexes("RowNumber")' in read_file
-    assert 'If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit For' in read_file
+    assert 'If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit For' not in read_file
+    assert 'If VBA.IsNumeric(value) Then' in read_file
+    assert 'If Not matchedRows(row) Then GoTo NextReportRow' in read_file
     assert 'For row = 1 To dataRows' in read_file
     for stage in ('Columns', 'Bounds', 'DateFilter', 'BuildResults', 'Filter'):
         assert 'MedicalValidation.File.' + stage in read_file
@@ -31,7 +33,7 @@ def main():
     assert 'VBA.Mid$(text, index, 10) <> orderDateText' in first_date
     assert 'character >= 48 And character <= 57' in first_date
     assert 'character <> 160' in first_date
-    print("PASS: PROD/TEST fixed A:S layout, numbered-block boundary and separate timing stages. VBA was not executed.")
+    print("PASS: PROD/TEST fixed A:S layout, numbered records across all sections and separate timing stages. VBA was not executed.")
 
 
 if __name__ == "__main__":

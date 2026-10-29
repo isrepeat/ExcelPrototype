@@ -1,6 +1,25 @@
 Attribute VB_Name = "ex_PEB_MedicalReports"
 Option Explicit
 
+Private m_fileCache As Object
+
+' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+    Dim entry As Variant
+
+    If Not m_fileCache Is Nothing Then
+        For Each entry In m_fileCache.Items
+            entry("Data").Dispose
+        Next entry
+    End If
+    Set m_fileCache = Nothing
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
@@ -36,6 +55,7 @@ Public Function fn_TryLoad( _
     Dim startedAt As Double
     Dim stageAt As Double
     Dim configSnapshotActive As Boolean
+    Dim readerApp As Object
 
     On Error GoTo EH
     startedAt = VBA.Timer
@@ -81,7 +101,7 @@ Public Function fn_TryLoad( _
     dateRx.Pattern = "^\s*([0-9]{2})\.([0-9]{2})\.([0-9]{4})([^0-9]|$)"
     stageAt = VBA.Timer
     For Each path In files.Keys
-        If Not private_ReadFile(VBA.CStr(path), orderDate, reportFields, rows, queryService, dateRx, diagnostic) Then
+        If Not private_ReadFile(VBA.CStr(path), orderDate, reportFields, rows, queryService, dateRx, readerApp, diagnostic) Then
             Err.Raise 5, , diagnostic
         End If
     Next path
@@ -122,6 +142,7 @@ Public Function fn_TryLoad( _
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Result | Rows=" & VBA.CStr(records.Count), stageAt
     fn_TryLoad = True
 Cleanup:
+    If Not readerApp Is Nothing Then readerApp.Quit
     If Not queryService Is Nothing Then queryService.Dispose
     If configSnapshotActive Then ex_PEB_Export.fn_EndConfigSnapshot
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.Load | Success=" & VBA.CStr(fn_TryLoad), startedAt
@@ -165,6 +186,7 @@ Public Function fn_TrySearch( _
     Dim startedAt As Double
     Dim stageAt As Double
     Dim configSnapshotActive As Boolean
+    Dim readerApp As Object
 
     On Error GoTo EH
     startedAt = VBA.Timer
@@ -217,7 +239,7 @@ Public Function fn_TrySearch( _
     For Each path In files.Keys
         Set rows = VBA.CreateObject("Scripting.Dictionary")
         rows.CompareMode = VBA.vbTextCompare
-        If Not private_ReadFile(VBA.CStr(path), eventDate, reportFields, rows, queryService, dateRx, diagnostic, True, personName) Then
+        If Not private_ReadFile(VBA.CStr(path), eventDate, reportFields, rows, queryService, dateRx, readerApp, diagnostic, True, personName) Then
             Err.Raise 5, , diagnostic
         End If
         If rows.Count > 0 Then
@@ -243,6 +265,7 @@ Public Function fn_TrySearch( _
     status = VBA.Replace$(status, "{rows}", VBA.CStr(found))
     fn_TrySearch = True
 Cleanup:
+    If Not readerApp Is Nothing Then readerApp.Quit
     If Not queryService Is Nothing Then queryService.Dispose
     If configSnapshotActive Then ex_PEB_Export.fn_EndConfigSnapshot
     ex_Core.fn_Diagnostic_WritePerf "MedicalSearch.Total | Success=" & VBA.CStr(fn_TrySearch), startedAt
@@ -305,12 +328,11 @@ Private Function private_ReadFile( _
     ByVal rows As Object, _
     ByVal queryService As obj_TableQueryService, _
     ByVal dateRx As Object, _
+    ByRef readerApp As Object, _
     ByRef diagnostic As String, _
     Optional ByVal searchMode As Boolean = False, _
     Optional ByVal personName As String = "" _
 ) As Boolean
-    Dim source As obj_TableSource
-    Dim query As obj_TableQuery
     Dim data As obj_DataTable
     Dim indexes As Object
     Dim fields As Object
@@ -331,19 +353,13 @@ Private Function private_ReadFile( _
     Dim matchedCount As Long
     Dim resultStartedAt As Double
     Dim orderDateText As String
+    Dim dateFields As Object
 
     On Error GoTo EH
     startedAt = VBA.Timer
     stageAt = VBA.Timer
     fileName = VBA.Mid$(path, VBA.InStrRev(path, "\") + 1)
-    Set source = New obj_TableSource
-    Set query = New obj_TableQuery
-    If Not source.Initialize() Or Not query.Initialize() Then private_Fail "InitFailed", "obj_TableSource / obj_TableQuery"
-    source.WorkbookPath = path
-    source.SheetName = private_Config("source.sheet")
-    source.RangeAddress = private_Config("source.range")
-    ' Reports are selected and read afresh on validation; they are not session dependencies.
-    If Not queryService.TryExecute(source, query, data, diagnostic, False) Then Err.Raise 5, , diagnostic
+    If Not private_ReadData(path, readerApp, data, diagnostic) Then Err.Raise 5, , diagnostic
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Query | File=" & VBA.Mid$(path, VBA.InStrRev(path, "\") + 1) & " | Rows=" & VBA.CStr(data.RowCount), stageAt
     stageAt = VBA.Timer
     Set indexes = VBA.CreateObject("Scripting.Dictionary")
@@ -364,19 +380,25 @@ Private Function private_ReadFile( _
     End If
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Columns | File=" & fileName, stageAt
     stageAt = VBA.Timer
-    ' The first empty number cell separates the current patients from discharged people.
+    ' Numbered records can resume after section titles and blank separators.
+    ReDim matchedRows(0 To data.RowCount)
     For row = 1 To data.RowCount
         value = data.ValueAt(row, indexes("RowNumber"))
         If VBA.IsError(value) Then private_Fail "InvalidCell", "RowNumber / " & VBA.CStr(row)
-        If VBA.IsNull(value) Or VBA.IsEmpty(value) Then Exit For
-        If VBA.Len(private_Normalize(VBA.CStr(value))) = 0 Then Exit For
-        dataRows = row
+        If Not VBA.IsNull(value) And Not VBA.IsEmpty(value) Then
+            If VBA.IsNumeric(value) Then
+                If VBA.CDbl(value) > 0 Then
+                    matchedRows(row) = True
+                    dataRows = row
+                End If
+            End If
+        End If
     Next row
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Bounds | File=" & fileName & " | Rows=" & VBA.CStr(dataRows), stageAt
     stageAt = VBA.Timer
-    ReDim matchedRows(0 To dataRows)
     orderDateText = VBA.Format$(orderDate, "dd.mm.yyyy")
     For row = 1 To dataRows
+        If Not matchedRows(row) Then GoTo NextReportRow
         value = data.ValueAt(row, indexes("Dates"))
         If searchMode Then
             matches = private_SearchDateMatches(value, orderDate, dateRx)
@@ -394,11 +416,16 @@ Private Function private_ReadFile( _
         If matches Then
             matchedCount = matchedCount + 1
         End If
+NextReportRow:
     Next row
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.DateFilter | File=" & fileName & _
         " | Rows=" & VBA.CStr(dataRows) & " | Matches=" & VBA.CStr(matchedCount) & _
         " | Search=" & VBA.CStr(searchMode), stageAt
     resultStartedAt = VBA.Timer
+    Set dateFields = VBA.CreateObject("Scripting.Dictionary")
+    For Each field In VBA.Split(private_Config("source.dateFields"), "|")
+        dateFields(field) = True
+    Next field
     For row = 1 To dataRows
         If matchedRows(row) Then
             Set fields = VBA.CreateObject("Scripting.Dictionary")
@@ -407,6 +434,11 @@ Private Function private_ReadFile( _
                 value = data.ValueAt(row, indexes(field))
                 If VBA.IsError(value) Then private_Fail "InvalidCell", VBA.CStr(field) & " / " & VBA.CStr(row)
                 If VBA.IsNull(value) Or VBA.IsEmpty(value) Then value = VBA.vbNullString
+                If dateFields.Exists(field) And VBA.Len(VBA.CStr(value)) > 0 Then
+                    If VBA.IsNumeric(value) Then
+                        value = VBA.Format$(VBA.CDate(VBA.CDbl(value)), "dd.mm.yyyy")
+                    End If
+                End If
                 If VBA.VarType(value) = VBA.vbDate Then value = VBA.Format$(value, "dd.mm.yyyy")
                 fields.Add VBA.CStr(field), VBA.CStr(value)
                 key = key & VBA.Len(private_Normalize(VBA.CStr(value))) & ":" & private_Normalize(VBA.CStr(value))
@@ -425,9 +457,8 @@ Private Function private_ReadFile( _
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Filter | File=" & VBA.Mid$(path, VBA.InStrRev(path, "\") + 1), stageAt
     private_ReadFile = True
 Cleanup:
-    If Not data Is Nothing Then data.Dispose
-    If Not query Is Nothing Then query.Dispose
-    If Not source Is Nothing Then source.Dispose
+    ' Raw tables are immutable and owned by the file cache.
+    Set data = Nothing
     ex_Core.fn_Diagnostic_WritePerf "MedicalValidation.File.Total | Success=" & VBA.CStr(private_ReadFile), startedAt
     Exit Function
 EH:
@@ -435,6 +466,98 @@ EH:
     diagnostic = VBA.Replace$(private_Text("ReadFailed"), "{path}", path)
     diagnostic = VBA.Replace$(diagnostic, "{error}", failure)
     Resume Cleanup
+End Function
+
+Private Function private_ReadData( _
+    ByVal path As String, _
+    ByRef readerApp As Object, _
+    ByRef data As obj_DataTable, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim fileSystem As Object
+    Dim file As Object
+    Dim stamp As String
+    Dim cacheKey As String
+    Dim entry As Object
+    Dim book As Workbook
+    Dim sheet As Worksheet
+    Dim area As Range
+    Dim last As Range
+    Dim body As Range
+    Dim values As Variant
+    Dim headers As Variant
+    Dim count As Long
+    Dim startedAt As Double
+
+    On Error GoTo EH
+    startedAt = VBA.Timer
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    Set file = fileSystem.GetFile(path)
+    stamp = VBA.CStr(file.Size) & "|" & VBA.CStr(file.DateLastModified)
+    cacheKey = file.Path & "|" & private_Config("source.sheet") & "|" & _
+        private_Config("source.range") & "|" & private_Config("source.columns")
+    If m_fileCache Is Nothing Then
+        Set m_fileCache = VBA.CreateObject("Scripting.Dictionary")
+        m_fileCache.CompareMode = VBA.vbTextCompare
+    End If
+    If m_fileCache.Exists(cacheKey) Then
+        Set entry = m_fileCache(cacheKey)
+        If entry("Stamp") = stamp Then
+            Set data = entry("Data")
+            ex_Core.fn_Diagnostic_WritePerf "MedicalReports.FileCache.Hit", startedAt
+            private_ReadData = True
+            Exit Function
+        End If
+    End If
+    If readerApp Is Nothing Then
+        Set readerApp = VBA.CreateObject("Excel.Application")
+        readerApp.Visible = False
+        readerApp.DisplayAlerts = False
+        readerApp.EnableEvents = False
+        readerApp.AutomationSecurity = 3
+        ex_Core.fn_Diagnostic_WritePerf "MedicalReports.Reader.CreateExcel", startedAt
+    End If
+    Set book = readerApp.Workbooks.Open(Filename:=path, UpdateLinks:=0, ReadOnly:=True, AddToMru:=False)
+    If book.Date1904 Then Err.Raise 5, , "Unsupported 1904 date system: " & path
+    Set sheet = book.Worksheets(private_Config("source.sheet"))
+    Set area = sheet.Range(private_Config("source.range"))
+    Set last = area.Find(What:="*", After:=area.Cells(1, 1), LookIn:=xlFormulas, _
+        LookAt:=xlPart, SearchOrder:=xlByRows, SearchDirection:=xlPrevious, MatchCase:=False, SearchFormat:=False)
+    If Not last Is Nothing Then count = last.Row - area.Row
+    If count > 0 Then
+        Set body = area.Offset(1, 0).Resize(count, area.Columns.Count)
+        values = body.Value2
+    End If
+    headers = VBA.Split(private_Config("source.columns"), "|")
+    Set data = New obj_DataTable
+    If Not data.Initialize(headers, values, count, diagnostic) Then Err.Raise 5, , diagnostic
+    Set body = Nothing
+    Set area = Nothing
+    Set last = Nothing
+    Set sheet = Nothing
+    book.Close SaveChanges:=False
+    Set book = Nothing
+    Set file = fileSystem.GetFile(path)
+    If stamp <> VBA.CStr(file.Size) & "|" & VBA.CStr(file.DateLastModified) Then
+        Err.Raise 5, , "Medical report changed during reading: " & path
+    End If
+    If m_fileCache.Exists(cacheKey) Then
+        m_fileCache(cacheKey)("Data").Dispose
+        m_fileCache.Remove cacheKey
+    End If
+    Set entry = VBA.CreateObject("Scripting.Dictionary")
+    entry.Add "Stamp", stamp
+    entry.Add "Data", data
+    m_fileCache.Add cacheKey, entry
+    ex_Core.fn_Diagnostic_WritePerf "MedicalReports.FileCache.Read | Rows=" & VBA.CStr(count), startedAt
+    private_ReadData = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    On Error Resume Next
+    If Not book Is Nothing Then book.Close SaveChanges:=False
+    If Not data Is Nothing Then data.Dispose
+    Set data = Nothing
 End Function
 
 Private Function private_CheckPeople( _
