@@ -480,18 +480,29 @@ Private Sub private_ApplyRegions( _
     Dim count As Long
     Dim uniformProperties As Boolean
     Dim key As Variant
+    Dim cellProperties As Object
+    Dim regionProperties As Object
 
-    ' Cell-local properties can be applied to a union without changing border or sizing semantics.
+    ' Batch cell properties even when the same rule also contains borders or geometry.
+    Set cellProperties = VBA.CreateObject("Scripting.Dictionary")
+    Set regionProperties = VBA.CreateObject("Scripting.Dictionary")
     uniformProperties = True
     For Each key In properties.Keys
         Select Case CStr(key)
             Case "backcolor", "textcolor", "fontcolor", "fontbold", "fontitalic", "fontsize", "fontname", _
                     "horizontal", "vertical", "format", "numberformat", "wraptext"
+                cellProperties.Add CStr(key), properties(key)
             Case Else
                 uniformProperties = False
-                Exit For
+                regionProperties.Add CStr(key), properties(key)
         End Select
     Next key
+    If cellProperties.Count > 0 And regionProperties.Count > 0 Then
+        ' Fonts and wrapping must be established before AutoFit and other geometry operations.
+        private_ApplyRegions regions, cellProperties
+        private_ApplyRegions regions, regionProperties
+        Exit Sub
+    End If
     For Each region In regions
         Set rowArea = region("area")
         Set shape = region("shape")
@@ -1004,6 +1015,7 @@ Private Sub private_ApplyBorders( _
     Dim lineWeight As Long
     Dim shapeLineWeight As Single
     Dim borderIndexes As Variant
+    Dim hasColor As Boolean
 
     If Not properties.Exists("bordercolor") And Not properties.Exists("borderweight") And _
        Not properties.Exists("borderlinestyle") And Not properties.Exists("borderscope") Then
@@ -1023,23 +1035,20 @@ Private Sub private_ApplyBorders( _
     lineStyle = private_ReadBorderLineStyle(properties)
     lineWeight = private_ReadBorderWeight(properties)
     shapeLineWeight = private_ReadShapeBorderWeight(properties)
+    If properties.Exists("bordercolor") Then hasColor = private_TryParseColor(properties("bordercolor"), colorValue)
     If targetShape Is Nothing Then
         For Each borderIndex In borderIndexes
-            targetRange.Borders(borderIndex).LineStyle = lineStyle
-            targetRange.Borders(borderIndex).Weight = lineWeight
-            If properties.Exists("bordercolor") Then
-                If private_TryParseColor(properties("bordercolor"), colorValue) Then _
-                    targetRange.Borders(borderIndex).Color = colorValue
-            End If
+            With targetRange.Borders(borderIndex)
+                .LineStyle = lineStyle
+                .Weight = lineWeight
+                If hasColor Then .Color = colorValue
+            End With
         Next borderIndex
     End If
     If Not targetShape Is Nothing Then
         targetShape.Line.Visible = -1
         targetShape.Line.Weight = shapeLineWeight
-        If properties.Exists("bordercolor") Then
-            If private_TryParseColor(properties("bordercolor"), colorValue) Then _
-                targetShape.Line.ForeColor.RGB = colorValue
-        End If
+        If hasColor Then targetShape.Line.ForeColor.RGB = colorValue
     End If
 End Sub
 

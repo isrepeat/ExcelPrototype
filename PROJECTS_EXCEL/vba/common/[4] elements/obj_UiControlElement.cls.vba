@@ -36,6 +36,7 @@ Private m_textDirty As Boolean
 Private m_candidateValuesDirty As Boolean
 Private m_candidateLayoutDirty As Boolean
 Private m_bindingDependencies As Collection
+Private m_presentationValues As Object
 Private m_collapsed As Boolean
 Private m_visibilityMeasured As Boolean
 Private m_closeControl As obj_IUiControl
@@ -159,6 +160,10 @@ Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
         obj_IUiElement_Render = m_closeControl.Render(diagnostic)
     End If
     If obj_IUiElement_Render Then
+        private_CapturePresentation
+        m_readOnlyDirty = False
+        m_visualDirty = False
+        m_textDirty = False
         m_candidateValuesDirty = False
         m_candidateLayoutDirty = False
         m_context.CompleteControlRender ex_UiElementFactory.fn_Attribute(m_definition, "name"), Me
@@ -241,6 +246,7 @@ Public Function Configure( _
     ex_Core.fn_Diagnostic_WriteLog "UI_CONTROL_BINDINGS_PARSE_STARTED | Name=" & controlName
 #End If
     Set m_bindingDependencies = New Collection
+    Set m_presentationValues = VBA.CreateObject("Scripting.Dictionary")
     For Each attributeNode In m_definition.Attributes
         If attributeNode.nodeName <> "dataContext" And VBA.StrComp(VBA.Left$(VBA.Trim$(VBA.CStr(attributeNode.Text)), 9), _
                 "{Binding ", VBA.vbTextCompare) = 0 Then
@@ -306,6 +312,7 @@ Public Sub Dispose()
     Set m_context = Nothing
     Set m_definition = Nothing
     Set m_bindingDependencies = Nothing
+    Set m_presentationValues = Nothing
     Set m_area = Nothing
 End Sub
 
@@ -332,6 +339,7 @@ Public Function RefreshVisual(ByRef diagnostic As String) As Boolean
     End If
     If Not RefreshVisual And VBA.Len(diagnostic) = 0 Then diagnostic = "Cannot refresh control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
     If RefreshVisual Then
+        private_CapturePresentation
         m_readOnlyDirty = False
         m_visualDirty = False
         m_textDirty = False
@@ -575,6 +583,25 @@ Private Sub obj_IUiBindingListener_OnValueChanged( _
     private_bindingContext_ValueChanged sourceName, bindingPath
 End Sub
 
+Private Sub private_CapturePresentation()
+    Dim dependency As Variant
+    Dim attributeName As String
+    Dim value As String
+
+    For Each dependency In m_bindingDependencies
+        attributeName = dependency(0)
+        Select Case attributeName
+            Case "style", "readOnly", "text", "caption"
+                ' An unresolved binding must never reuse an earlier presentation snapshot.
+                If m_presentationValues.Exists(attributeName) Then m_presentationValues.Remove attributeName
+                If ex_UiBindingRuntime.fn_TryResolveText( _
+                        ex_UiElementFactory.fn_Attribute(m_definition, attributeName), m_bindingContext, value) Then
+                    m_presentationValues(attributeName) = value
+                End If
+        End Select
+    Next dependency
+End Sub
+
 Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
     Dim dependency As Variant
     Dim attributeName As String
@@ -582,6 +609,7 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
     Dim path As String
     Dim collapsed As Boolean
     Dim diagnostic As String
+    Dim presentationValue As String
 
     If m_isDisposed Or m_control Is Nothing Then Exit Sub
     If m_bindingDependencies Is Nothing Then Exit Sub
@@ -592,6 +620,13 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
         If VBA.StrComp(source, sourceName, VBA.vbTextCompare) = 0 Then
             If VBA.StrComp(path, bindingPath, VBA.vbTextCompare) = 0 Or _
                     VBA.StrComp(VBA.Left$(path, VBA.Len(bindingPath) + 1), bindingPath & ".", VBA.vbTextCompare) = 0 Then
+                If m_presentationValues.Exists(attributeName) Then
+                    If ex_UiBindingRuntime.fn_TryResolveText( _
+                            ex_UiElementFactory.fn_Attribute(m_definition, attributeName), m_bindingContext, presentationValue) Then
+                        ' Root-source notifications do not imply that every bound attribute changed.
+                        If VBA.StrComp(m_presentationValues(attributeName), presentationValue, VBA.vbBinaryCompare) = 0 Then GoTo NextAttribute
+                    End If
+                End If
                 If attributeName = "visibility" Then
                     If Not private_TryVisibility(collapsed, diagnostic) Then Err.Raise 5, , diagnostic
                     If collapsed = m_collapsed Then GoTo NextAttribute
