@@ -52,6 +52,8 @@ def main():
     assert 'If Not reuseTvo Then' in save
     assert save.index('TryCaptureReturnTvo') < save.index('ex_PEB_HistoryRecovery.fn_Prepare')
     assert 'previous("TvoReturnSnapshot")' in save
+    assert 'Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)' in save
+    assert 'private_AddReturnTvoChildren' not in history
     order = procedure(history, "fn_ReadOrder")
     assert order.index('private_Tvo rows, row') < order.index('ex_PEB_ReturnTvo.fn_Decode(row)')
     assert 'If row("MetaTvoTables").Count = 0 Then' in order
