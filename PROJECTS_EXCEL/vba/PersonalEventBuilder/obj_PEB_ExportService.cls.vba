@@ -215,6 +215,38 @@ EH_RETURN_TVO:
     ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Capture | Success=False", startedAt
 End Function
 
+Public Function TryRefreshPreparedWordText( _
+    ByVal values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim rendered As String
+    Dim templateName As String
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Export service is not initialized."
+    TryRefreshPreparedWordText = True
+    If Not values.Exists("WordText") Then Exit Function
+    If values("WordPolicy") = "Omit" Then Exit Function
+    If VBA.Len(values("WordText")) = 0 Then Exit Function
+    TryRefreshPreparedWordText = False
+    If m_pebWordTemplates Is Nothing Then
+        Set m_pebWordTemplates = New obj_PEB_WordTemplates
+        m_ownsWordTemplates = True
+        If Not m_pebWordTemplates.Initialize(diagnostic) Then Exit Function
+    End If
+    templateName = VBA.CStr(ex_PEB_Export.fn_Required(values, "TemplateName"))
+    If Not m_pebWordTemplates.TryRender(templateName, values, rendered, diagnostic) Then Exit Function
+    If VBA.Len(rendered) = 0 Or VBA.Len(rendered) > 32767 Then
+        Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
+    End If
+    values("WordText") = rendered
+    TryRefreshPreparedWordText = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+    TryRefreshPreparedWordText = False
+End Function
+
 Public Function TryPrepare( _
     ByVal uiBindingContext As obj_UiBindingContext, _
     ByVal exporter As String, _

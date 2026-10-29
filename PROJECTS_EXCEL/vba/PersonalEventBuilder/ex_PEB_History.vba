@@ -174,6 +174,16 @@ Public Function fn_Save( _
                 End If
                 ' Automatic return duties remain frozen metadata, not editable form rows.
                 Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)
+                ' Render the final frozen duties before persisting or publishing the prepared text.
+                If exportService Is Nothing Then
+                    Set tvoService = New obj_PEB_ExportService
+                    If Not tvoService.Initialize() Then Err.Raise 5, , "Cannot initialize return TVO preview service."
+                    If Not tvoService.TryRefreshPreparedWordText(values, diagnostic) Then GoTo Cleanup
+                    tvoService.Dispose
+                    Set tvoService = Nothing
+                Else
+                    If Not exportService.TryRefreshPreparedWordText(values, diagnostic) Then GoTo Cleanup
+                End If
             End If
         End If
     End If

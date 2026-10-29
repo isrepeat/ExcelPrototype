@@ -312,6 +312,8 @@ Private Sub private_LoadMovement()
     Dim orderColumn As Long
     Dim destinationColumn As Long
     Dim arrivalColumn As Long
+    Dim actualArrivalColumn As Long
+    Dim arrivalOrderColumn As Long
     Dim arrivalValue As Variant
     Dim ipn As String
     Dim name As String
@@ -333,6 +335,14 @@ Private Sub private_LoadMovement()
         table.Headers, _
         VBA.Replace$(ex_PEB_Export.fn_Config(prefix & ".arrivalHeader"), ".", "#") _
     )
+    actualArrivalColumn = ex_TableQuery.fn_HeaderIndex( _
+        table.Headers, _
+        VBA.Replace$(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate"), ".", "#") _
+    )
+    arrivalOrderColumn = ex_TableQuery.fn_HeaderIndex( _
+        table.Headers, _
+        VBA.Replace$(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder"), ".", "#") _
+    )
     ' ACE exposes periods in Excel column headers as hash characters.
     orderColumn = ex_TableQuery.fn_HeaderIndex( _
         table.Headers, _
@@ -343,8 +353,10 @@ Private Sub private_LoadMovement()
     Set m_byName = VBA.CreateObject("Scripting.Dictionary")
     m_byName.CompareMode = VBA.vbTextCompare
 
-    ' Keep the destination and ticket values from the same last complete physical row.
+    ' Closed periods must not supply return documents or destinations to candidates.
     For row = table.RowCount To 1 Step -1
+        If VBA.Len(private_Text(table.ValueAt(row, actualArrivalColumn))) > 0 Or _
+                VBA.Len(private_Text(table.ValueAt(row, arrivalOrderColumn))) > 0 Then GoTo NextMovementRow
         ticket = private_Text(table.ValueAt(row, ticketColumn))
         orderNumber = private_Text(table.ValueAt(row, orderColumn))
         If VBA.Len(ticket) > 0 And VBA.Len(orderNumber) > 0 Then
@@ -359,6 +371,7 @@ Private Sub private_LoadMovement()
                 m_byName.Add name, VBA.Array(ticket, orderNumber, destination, arrivalValue)
             End If
         End If
+NextMovementRow:
     Next row
     table.Dispose
 End Sub

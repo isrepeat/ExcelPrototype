@@ -53,6 +53,12 @@ def main():
     assert save.index('TryCaptureReturnTvo') < save.index('ex_PEB_HistoryRecovery.fn_Prepare')
     assert 'previous("TvoReturnSnapshot")' in save
     assert 'Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)' in save
+    assert save.index('Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)') < save.index('TryRefreshPreparedWordText')
+    assert save.index('TryRefreshPreparedWordText') < save.index('ex_PEB_HistoryRecovery.fn_Prepare')
+    refresh_text = procedure(service, "TryRefreshPreparedWordText")
+    assert 'm_pebWordTemplates.TryRender(templateName, values, rendered, diagnostic)' in refresh_text
+    assert 'values("WordText") = rendered' in refresh_text
+    assert 'TryCaptureReturnTvo' not in refresh_text and 'fn_ReadLatest' not in refresh_text
     assert 'private_AddReturnTvoChildren' not in history
     order = procedure(history, "fn_ReadOrder")
     assert order.index('private_Tvo rows, row') < order.index('ex_PEB_ReturnTvo.fn_Decode(row)')

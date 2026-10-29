@@ -434,8 +434,8 @@ Private Function private_Apply( _
         private_PreserveArrivalFoodSupport rows, values("RowId"), closingWrites, links
     End If
     If values("EventId") = "MoveFromAwolToBusinessTrip" Then
-        ' Keep the AWOL closing food-support date aligned with the return placeholder.
-        closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport")) = eventDate
+        ' Enroll on return without overwriting the original AWOL removal date.
+        closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = eventDate
     End If
     action.Add "Operation", operation
     action.Add "Writes", writes

@@ -34,6 +34,10 @@ def main():
     service = (folder / "obj_PEB_ExportService.cls.vba").read_text(encoding="utf-8-sig")
     prepare = procedure(service, "TryPrepareHistoryMovement")
     check_declarations(preview)
+    apply_event = procedure(preview, "private_Apply")
+    awol_food = apply_event.split('If values("EventId") = "MoveFromAwolToBusinessTrip" Then', 1)[1].split('End If', 1)[0]
+    assert 'closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = eventDate' in awol_food
+    assert 'DepartureFoodSupport' not in awol_food
     check_declarations(prepare)
 
     # These are source-level guards, not evidence of VBA runtime correctness.
