@@ -61,6 +61,10 @@ def main():
     prepare = procedure(service, "TryPrepare")
     assert 'Me.TryCaptureReturnTvo(values, diagnostic, Not prepareOutput)' in prepare
     capture_service = procedure(service, "TryCaptureReturnTvo")
+    assert 'rankField = ex_PEB_Export.fn_Config("returnTvo.rank.output")' in capture_service
+    assert 'If row.Exists(rankField) Then' in capture_service
+    assert 'If VBA.Len(ex_PEB_Export.fn_Text(row(rankField))) = 0 Then' in capture_service
+    assert capture_service.index('row.Remove rankField') < capture_service.index('private_Enrich row, "returnTvo.rank"')
     assert 'Optional ByVal useSnapshot As Boolean = False' in capture_service
     assert 'ex_PEB_ReturnTvo.fn_Read(values, useSnapshot)' in capture_service
     tvo_read = procedure(read("ex_PEB_MovementTvo.vba"), "fn_ReturnRows")
