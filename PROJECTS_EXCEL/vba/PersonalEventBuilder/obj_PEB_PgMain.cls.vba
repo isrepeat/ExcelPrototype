@@ -341,7 +341,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not uiBindingContext.SetObject("Commands", "SelectConflict", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "DocumentChanged", "EnvironmentSwitch", _
-            "LoadTest", "NextTest", "ResetForm", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
+            "LoadTest", "NextTest", "ResetForm", "ClearPrimary", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", "DeleteLastEvent", _
             "ValidateMedical", "CloseMedical", "CloseEjos", "EmptyOrders", "ShowMovementDiff", "CloseMovementDiff", _
             "OpenReportSearch", "RunReportSearch", "CloseReportSearch", "IncomingDateChanged", _

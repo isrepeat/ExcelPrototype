@@ -1,9 +1,14 @@
 Option Explicit
 
+Private m_clearArmed As Boolean
+Private m_clearPressedAt As Double
+
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    m_clearArmed = False
+    m_clearPressedAt = 0
     ex_TableSnapshots.fn_Module_Dispose
     ex_PEB_Testing.fn_Module_Dispose
     ex_PEB_EventRoutes.fn_Module_Dispose
@@ -59,6 +64,57 @@ Public Sub fn_RegisterHotkeys()
             VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
         End If
     Next index
+    keySequence = ex_PEB_Export.fn_Config("hotkeys.clear.key")
+    If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_ClearForm") Then
+        VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
+    End If
+End Sub
+
+Public Sub fn_ClearForm()
+    Dim runtimeContext As Object
+    Dim context As obj_UiRenderContext
+    Dim command As obj_UiCommand
+    Dim commandName As String
+    Dim nowAt As Double
+    Dim elapsed As Double
+    Dim diagnostic As String
+    Dim previousUpdating As Boolean
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    previousUpdating = Application.ScreenUpdating
+    On Error GoTo EH_CLEAR
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then GoTo CleanupClear
+    nowAt = VBA.Timer
+    elapsed = nowAt - m_clearPressedAt
+    If elapsed < 0 Then elapsed = elapsed + 86400#
+    commandName = "ClearPrimary"
+    If m_clearArmed And elapsed <= VBA.CDbl(ex_PEB_Export.fn_Config("hotkeys.clear.repeatSeconds")) Then
+        commandName = "ResetForm"
+        m_clearArmed = False
+    Else
+        m_clearArmed = True
+        m_clearPressedAt = nowAt
+    End If
+    If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
+            "{Binding Path=Commands." & commandName & "}", context.BindingContext, command) Then
+        Err.Raise 5, , "Clear command unavailable: " & commandName
+    End If
+    Application.ScreenUpdating = False
+    command.Execute
+    If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
+CleanupClear:
+    If VBA.Len(commandName) > 0 Then
+        ex_Core.fn_Diagnostic_WritePerf "Form.ClearHotkey | Command=" & commandName, nowAt
+    End If
+    Application.ScreenUpdating = previousUpdating
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_CLEAR:
+    m_clearArmed = False
+    ex_Core.fn_StatusBar_Show VBA.Err.Description
+    Resume CleanupClear
 End Sub
 
 Public Sub fn_Focus0()
