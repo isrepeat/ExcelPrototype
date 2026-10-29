@@ -2,14 +2,100 @@ Option Explicit
 
 #Const CONFIG_QUERY_AVAILABLE = True
 
+Private m_values As Variant
+Private m_table As ListObject
+Private m_localValues As Variant
+Private m_generation As String
+
+' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+    Set m_table = Nothing
+    m_values = Empty
+    m_localValues = Empty
+    m_generation = VBA.vbNullString
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_ReadValues(ByVal table As ListObject) As Variant
+    Dim records As New Collection
+    Dim expanded As Collection
+    Dim data As Variant
+    Dim result As Variant
+    Dim record As Variant
+    Dim diagnostic As String
+    Dim kindColumn As Long
+    Dim keyColumn As Long
+    Dim row As Long
+    Dim column As Long
+    Dim unchanged As Boolean
+    Dim generation As String
+    Dim entry As Name
+
+    For Each entry In table.Parent.Parent.Names
+        If VBA.StrComp(entry.Name, "_ConfigGeneration", VBA.vbTextCompare) = 0 Then
+            generation = entry.RefersTo
+            Exit For
+        End If
+    Next entry
+    If table.DataBodyRange Is Nothing Then Err.Raise 5, , "Configuration table is empty: " & table.Name
+    data = table.DataBodyRange.Value2
+    If Not m_table Is Nothing Then
+        If m_table Is table Then
+            unchanged = (generation = m_generation And UBound(data, 1) = UBound(m_localValues, 1) And _
+                UBound(data, 2) = UBound(m_localValues, 2))
+            If unchanged Then
+                For row = 1 To UBound(data, 1)
+                    For column = 1 To UBound(data, 2)
+                        If VBA.CStr(data(row, column)) <> VBA.CStr(m_localValues(row, column)) Then
+                            unchanged = False
+                            Exit For
+                        End If
+                    Next column
+                    If Not unchanged Then Exit For
+                Next row
+            End If
+            If unchanged Then
+                fn_ReadValues = m_values
+                Exit Function
+            End If
+        End If
+    End If
+    kindColumn = table.ListColumns("Kind").Index
+    keyColumn = table.ListColumns("Key").Index
+    If keyColumn >= table.ListColumns.Count Then Err.Raise 5, , "Configuration values must follow Key."
+    For row = 1 To UBound(data, 1)
+        records.Add VBA.Array(data(row, kindColumn), data(row, keyColumn), data(row, keyColumn + 1))
+    Next row
+    If Not fn_TryExpand(records, table.Parent.Parent.Path, expanded, diagnostic, True) Then
+        Err.Raise 5, , diagnostic
+    End If
+    ReDim result(1 To expanded.Count, 1 To table.ListColumns.Count)
+    For row = 1 To expanded.Count
+        record = expanded(row)
+        result(row, kindColumn) = record(0)
+        result(row, keyColumn) = record(1)
+        result(row, keyColumn + 1) = record(2)
+    Next row
+    m_values = result
+    m_localValues = data
+    m_generation = generation
+    Set m_table = table
+    fn_ReadValues = result
+End Function
+
 Public Function fn_TryExpand( _
     ByVal records As Collection, _
     ByVal baseFolder As String, _
     ByRef output As Collection, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal useWorkbookReader As Boolean = False _
 ) As Boolean
     Dim entries As Object
     Dim resolved As Object
@@ -32,7 +118,11 @@ Public Function fn_TryExpand( _
     For Each row In records
         If VBA.StrComp(row(0), "importCfg", VBA.vbTextCompare) = 0 Then
             path = private_Path(baseFolder, VBA.CStr(row(2)))
-            private_LoadShared path, private_ImportVariable(VBA.CStr(row(1))), entries, imported
+            If useWorkbookReader Then
+                private_LoadSharedWorkbook path, private_ImportVariable(VBA.CStr(row(1))), entries, imported
+            Else
+                private_LoadShared path, private_ImportVariable(VBA.CStr(row(1))), entries, imported
+            End If
         End If
     Next row
     For Each row In records
@@ -153,7 +243,6 @@ EH:
 #End If
 End Sub
 
-#If Not CONFIG_QUERY_AVAILABLE Then
 Private Sub private_LoadSharedWorkbook( _
     ByVal path As String, _
     ByVal variableName As String, _
@@ -228,7 +317,6 @@ EH:
     errorText = VBA.Err.Description
     Resume Cleanup
 End Sub
-#End If
 
 Private Function private_ImportVariable(ByVal key As String) As String
     Dim prefix As String

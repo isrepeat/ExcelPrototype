@@ -30,6 +30,7 @@ Public Function fn_PrepareReload() As Boolean
     ex_RuntimePaths.fn_Module_Dispose
     ex_AppHotkeys.fn_Module_Dispose
     ex_Core.fn_Module_Dispose
+    ex_ConfigImports.fn_Module_Dispose
     context("Phase") = "Prepared"
     fn_PrepareReload = True
     Exit Function

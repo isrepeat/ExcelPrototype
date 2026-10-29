@@ -40,6 +40,7 @@ Public Function fn_TryUpdate( _
     End If
     fn_TryUpdate = VBA.CBool(Application.Run( _
         "'WorkbookUpdater.xlam'!ex_ConfigRefresh.fn_TryUpdateWorkbook", ThisWorkbook, diagnostic, sourcePath))
+    If fn_TryUpdate Then ex_ConfigImports.fn_Module_Dispose
     Exit Function
 EH:
     diagnostic = VBA.Err.Description

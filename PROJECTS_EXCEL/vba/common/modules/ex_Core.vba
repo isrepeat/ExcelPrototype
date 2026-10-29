@@ -242,8 +242,9 @@ Public Function fn_TryGetWorkbookConfigValue( _
     Const CONFIG_KEY_COLUMN_NAME As String = "Key"
     Dim targetWorksheet As Worksheet
     Dim configTable As ListObject
-    Dim configRow As ListRow
     Dim keyColumnIndex As Long
+    Dim configValues As Variant
+    Dim configIndex As Long
 
     outValue = VBA.vbNullString
     keyName = VBA.Trim$(keyName)
@@ -254,23 +255,27 @@ Public Function fn_TryGetWorkbookConfigValue( _
             If VBA.StrComp(configTable.Name, CONFIG_TABLE_NAME, VBA.vbTextCompare) = 0 Then
                 keyColumnIndex = configTable.ListColumns(CONFIG_KEY_COLUMN_NAME).Index
                 If keyColumnIndex = configTable.ListColumns.Count Then GoTo ContinueTable
-                For Each configRow In configTable.ListRows
+                configValues = ex_ConfigImports.fn_ReadValues(configTable)
+                For configIndex = 1 To UBound(configValues, 1)
                     If VBA.StrComp( _
-                            VBA.CStr(configRow.Range.Cells(1, keyColumnIndex).Value2), _
+                            VBA.CStr(configValues(configIndex, keyColumnIndex)), _
                             keyName, VBA.vbTextCompare) = 0 Then
                         outValue = VBA.Trim$(VBA.CStr( _
-                            configRow.Range.Cells(1, keyColumnIndex + 1).Value2))
+                            configValues(configIndex, keyColumnIndex + 1)))
                         If VBA.Len(outValue) > 0 Then
                             fn_TryGetWorkbookConfigValue = True
                             Exit Function
                         End If
                     End If
-                Next configRow
+                Next configIndex
             End If
 ContinueTable:
         Next configTable
     Next targetWorksheet
 CleanExit:
+    If VBA.Err.Number <> 0 Then
+        ex_WindowsUi.fn_ShowMessage "Configuration: " & VBA.Err.Description, VBA.vbExclamation
+    End If
 End Function
 Public Function fn_TrySetWorkbookConfigValue( _
     ByVal keyName As String, _
@@ -331,6 +336,7 @@ Public Function fn_TrySetWorkbookConfigValue( _
         Set matchedRow = addedRow
     End If
     matchedRow.Range.Cells(1, keyColumnIndex + 1).Value2 = newValue
+    ex_ConfigImports.fn_Module_Dispose
     Application.EnableEvents = previousEnableEvents
     eventsCaptured = False
     fn_TrySetWorkbookConfigValue = True
