@@ -257,16 +257,22 @@ NextKind:
             payload("Path") = key
             private_PublishMenu key, kinds, options, payload
             If cachedHeader Then GoTo NextHeader
-            Set node = private_Node(document, "controls:select")
+            If kinds.Count = 1 Then
+                Set node = private_Node(document, "controls:button")
+                node.setAttribute "caption", private_ReadConfig("extensions.addCaption")
+                node.setAttribute "command", "{Binding Path=Commands." & key & "}"
+            Else
+                Set node = private_Node(document, "controls:select")
+                node.setAttribute "itemsSource", "{Binding Path=Data." & key & "}"
+                node.setAttribute "value", "{Binding Path=Form." & key & "}"
+                node.setAttribute "placeholder", private_ReadConfig("extensions.addCaption")
+                node.setAttribute "panelStyle", "formSelectPanel"
+                node.setAttribute "itemStyle", "formSelectItem"
+                node.setAttribute "onChange", "{Binding Path=Commands." & key & "}"
+            End If
             node.setAttribute "name", key
-            node.setAttribute "itemsSource", "{Binding Path=Data." & key & "}"
             node.setAttribute "column", CStr(column)
             node.setAttribute "style", "secondaryButton"
-            node.setAttribute "value", "{Binding Path=Form." & key & "}"
-            node.setAttribute "placeholder", private_ReadConfig("extensions.addCaption")
-            node.setAttribute "panelStyle", "formSelectPanel"
-            node.setAttribute "itemStyle", "formSelectItem"
-            node.setAttribute "onChange", "{Binding Path=Commands." & key & "}"
             grid.appendChild node
         End If
 NextHeader:
@@ -342,7 +348,11 @@ Public Function HandleAction( _
             Exit Function
         Case "add"
             If m_rows.Count >= CLng(private_ReadConfig("extensions.limit")) Then Err.Raise 5, , private_ReadConfig("extensions.limitReached")
-            If Not m_page.BindingContext.TryGetValue("Form", payload("Path"), value, ignored, isObject) Then Exit Function
+            If payload("Types").Count = 1 Then
+                value = private_Config(CStr(payload("Types")(1)), "caption")
+            Else
+                If Not m_page.BindingContext.TryGetValue("Form", payload("Path"), value, ignored, isObject) Then Exit Function
+            End If
             For Each kind In payload("Types")
                 If private_Config(CStr(kind), "caption") = CStr(value) Then
                     If Not private_Visible(CStr(kind)) Then Err.Raise 5, , private_ReadConfig("extensions.unavailable")
