@@ -27,11 +27,11 @@ def main():
     capture = procedure(restore, "fn_Read")
     assert capture.index('"direction") <> "Arrival"') < capture.index('fn_ReadLatest(')
     assert 'plan("operation") <> "Arrival"' in capture
-    assert 'fn_ReadLatest(values("PersonId"), True, useSnapshot)' in capture
+    assert 'fn_ReadLatest(values("PersonId"), True, useSnapshot, eventDate)' in capture
     assert 'Optional ByVal useSnapshot As Boolean = False' in capture
     assert 'fn_ReturnRows(values, period, found, useSnapshot)' in capture
     assert 'statuses(plan("sourceStatus"))' in capture
-    assert 'If arrivalDate <> eventDate Or _' in capture
+    assert 'If arrivalDate <> 0 Then' in capture
     assert 'period("ArrivalOrder")' in capture and 'values("AcceptedOrderNumber")' in capture
     assert capture.index('MovementTvo.fn_ReturnRows') < capture.index('fn_LegacyRows(')
     assert 'If found Then' in capture
@@ -66,7 +66,13 @@ def main():
     assert 'data = table.Values' in tvo_read
     row_loop = tvo_read.split('For index = 1 To table.RowCount', 1)[1]
     assert 'fn_HeaderIndex' not in row_loop and 'private_Header' not in row_loop
-    assert 'row(field) = data(index, columns(CStr(field)))' in row_loop
+    assert 'row(field) = data(sourceIndex, columns(CStr(field)))' in row_loop
+    assert 'positions.CompareMode = vbTextCompare' in tvo_read
+    assert 'If Len(position) > 0 Then' in row_loop
+    assert tvo_read.index('positions(position).Add index') < tvo_read.index('Set row = CreateObject')
+    assert 'For Each sourceIndex In matches' in tvo_read
+    assert 'pending.Add position' in tvo_read
+    assert 'visited.Exists(position)' in tvo_read
     assert 'TryCaptureReturnTvo(values, diagnostic)' in save
     assert 'If Not history And values("ModeDirection") = "Arrival" Then' in prepare
     assert 'If values("MetaTvoTables").Count = 0 Then' in prepare

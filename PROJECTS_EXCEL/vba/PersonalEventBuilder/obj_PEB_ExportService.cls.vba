@@ -19,6 +19,8 @@ Private m_pebDslRenderer As obj_PEB_DslRenderer
 Private m_pebWordTemplates As obj_PEB_WordTemplates
 Private m_ownsWordTemplates As Boolean
 Private m_snapshotGeneration As Long
+Private m_enrichmentKey As String
+Private m_enrichedValues As Object
 
 ' //
 ' // Lifecycle
@@ -61,6 +63,8 @@ Public Sub Dispose()
     Set m_movementRenderer = Nothing
     Set m_pebDslRenderer = Nothing
     Set m_pebWordTemplates = Nothing
+    Set m_enrichedValues = Nothing
+    m_enrichmentKey = VBA.vbNullString
 End Sub
 
 Public Function TryPrepareExtensions( _
@@ -230,6 +234,10 @@ Public Function TryPrepare( _
     Dim additionalInputs As Object
     Dim groupTemplate As Object
     Dim history As Boolean
+    Dim enrichmentKey As String
+    Dim cachedValues As Object
+    Dim cacheSnapshot As obj_TableSnapshotSet
+    Dim sharedCache As Object
 
     startedAt = VBA.Timer
     On Error GoTo EH
@@ -305,9 +313,46 @@ Public Function TryPrepare( _
 
     ' Both exporters consume the shared data providers; each owns its output templates.
     stageStartedAt = VBA.Timer
-    For index = 1 To ex_PEB_Export.fn_Count("export.shared.lookups.count")
-        private_Enrich values, "export.shared.lookups." & VBA.CStr(index)
-    Next index
+    enrichmentKey = private_EnrichmentKey(values)
+    Set cacheSnapshot = ex_TableSnapshots.fn_Current()
+    If Not cacheSnapshot Is Nothing And Len(enrichmentKey) > 0 Then
+        If cacheSnapshot.Prepared.Exists("Export.SharedLookupCache") Then
+            Set sharedCache = cacheSnapshot.Prepared("Export.SharedLookupCache")
+            If sharedCache("Key") = enrichmentKey Then
+                m_enrichmentKey = enrichmentKey
+                Set m_enrichedValues = sharedCache("Values")
+            End If
+        End If
+    End If
+    If Len(enrichmentKey) > 0 And enrichmentKey = m_enrichmentKey And Not m_enrichedValues Is Nothing Then
+        For Each key In m_enrichedValues.Keys
+            values(key) = m_enrichedValues(key)
+        Next key
+        ex_Core.fn_Diagnostic_WritePerf "Preview.SharedLookups.Reused", stageStartedAt
+    Else
+        For index = 1 To ex_PEB_Export.fn_Count("export.shared.lookups.count")
+            private_Enrich values, "export.shared.lookups." & VBA.CStr(index)
+        Next index
+        If Len(enrichmentKey) > 0 Then
+            Set cachedValues = VBA.CreateObject("Scripting.Dictionary")
+            For index = 1 To ex_PEB_Export.fn_Count("export.shared.lookups.count")
+                key = ex_PEB_Export.fn_Config("export.shared.lookups." & VBA.CStr(index) & ".output")
+                cachedValues(key) = values(key)
+            Next index
+            ' Reporter lookup may resolve the actual replaced post as a side effect.
+            cachedValues("ReportPositionCode") = values("ReportPositionCode")
+            Set m_enrichedValues = cachedValues
+            m_enrichmentKey = enrichmentKey
+            Set sharedCache = VBA.CreateObject("Scripting.Dictionary")
+            sharedCache.Add "Key", enrichmentKey
+            sharedCache.Add "Values", cachedValues
+            If cacheSnapshot.Prepared.Exists("Export.SharedLookupCache") Then
+                cacheSnapshot.Prepared.Remove "Export.SharedLookupCache"
+            End If
+            cacheSnapshot.Prepared.Add "Export.SharedLookupCache", sharedCache
+        End If
+        ex_Core.fn_Diagnostic_WritePerf "Preview.SharedLookups.Computed", stageStartedAt
+    End If
     Set additionalInputs = wordInputs
     If additionalInputs Is Nothing Then
         If uiBindingContext.TryGetValue("Data", "WordContext", scalar, objectValue, isObject) Then
@@ -709,6 +754,8 @@ Private Sub private_SyncSnapshot()
     If m_snapshotGeneration = ex_TableSnapshots.fn_Generation() Then
         Exit Sub
     End If
+    Set m_enrichedValues = Nothing
+    m_enrichmentKey = VBA.vbNullString
     If Not m_pebDslRenderer Is Nothing Then
         m_pebDslRenderer.Dispose
     End If
@@ -726,6 +773,41 @@ Private Sub private_SyncSnapshot()
     m_ownsWordTemplates = False
     m_snapshotGeneration = ex_TableSnapshots.fn_Generation()
 End Sub
+
+Private Function private_EnrichmentKey(ByVal values As Object) As String
+    Dim key As Variant
+    Dim text As String
+    Dim result As String
+    Dim inputs As Object
+    Dim index As Long
+    Dim prefix As String
+    Dim mapping As Variant
+    Dim pair As Variant
+
+    If ex_TableSnapshots.fn_Current() Is Nothing Then Exit Function
+    result = VBA.CStr(m_snapshotGeneration) & "|" & VBA.Format$(VBA.Date, "yyyymmdd")
+    Set inputs = VBA.CreateObject("Scripting.Dictionary")
+    inputs.CompareMode = VBA.vbTextCompare
+    For index = 1 To ex_PEB_Export.fn_Count("export.shared.lookups.count")
+        prefix = "export.shared.lookups." & VBA.CStr(index)
+        inputs(ex_PEB_Export.fn_Config(prefix & ".input")) = True
+        inputs(ex_PEB_Export.fn_Config(prefix & ".when.field")) = True
+    Next index
+    For Each mapping In VBA.Split(ex_PEB_Export.fn_Config("export.shared.positions.inputs"), "|")
+        pair = VBA.Split(mapping, "=")
+        inputs(pair(0)) = True
+        inputs(pair(1)) = True
+    Next mapping
+    inputs("ReportName") = True
+    inputs("IncomingDate") = True
+    For Each key In inputs.Keys
+        If Not values.Exists(key) Then Exit Function
+        If VBA.IsObject(values(key)) Or VBA.IsError(values(key)) Or VBA.IsNull(values(key)) Then Exit Function
+        text = VBA.CStr(values(key))
+        result = result & "|" & VBA.Len(key) & ":" & key & ":" & VBA.VarType(values(key)) & ":" & VBA.Len(text) & ":" & text
+    Next key
+    private_EnrichmentKey = result
+End Function
 
 Private Sub private_PrepareOrderDocument(ByVal values As Object)
     Dim source As obj_TableSource

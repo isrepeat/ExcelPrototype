@@ -51,6 +51,15 @@ Public Function fn_ReturnRows( _
     Dim index As Long
     Dim diagnostic As String
     Dim failure As String
+    Dim positions As Object
+    Dim visited As Object
+    Dim matches As Collection
+    Dim pending As New Collection
+    Dim position As String
+    Dim positionColumn As Long
+    Dim pendingIndex As Long
+    Dim sourceIndex As Variant
+    Dim startedAt As Double
 
     On Error GoTo EH
     Set source = New obj_TableSource
@@ -77,14 +86,49 @@ Public Function fn_ReturnRows( _
     For Each field In fields
         columns.Add CStr(field), ex_TableQuery.fn_HeaderIndex(headers, private_Header(CStr(field)))
     Next field
+    startedAt = VBA.Timer
+    Set positions = CreateObject("Scripting.Dictionary")
+    positions.CompareMode = vbTextCompare
+    Set visited = CreateObject("Scripting.Dictionary")
+    visited.CompareMode = vbTextCompare
+    positionColumn = columns("PositionCode")
+    ' Index scalar row numbers before creating objects, including admission-only rows.
     For index = 1 To table.RowCount
-        Set row = CreateObject("Scripting.Dictionary")
-        For Each field In fields
-            row(field) = data(index, columns(CStr(field)))
-        Next field
-        row("Index") = index
-        model.Add row
+        position = ex_PEB_Export.fn_Text(data(index, positionColumn))
+        If Len(position) > 0 Then
+            If Not positions.Exists(position) Then
+                Set matches = New Collection
+                positions.Add position, matches
+            End If
+            positions(position).Add index
+        End If
     Next index
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Index", startedAt
+    startedAt = VBA.Timer
+    pending.Add ex_PEB_Export.fn_Text(period("PositionCode"))
+    pendingIndex = 1
+    ' Materialize every candidate segment only for posts reachable from this return.
+    Do While pendingIndex <= pending.Count
+        position = pending(pendingIndex)
+        pendingIndex = pendingIndex + 1
+        If Not visited.Exists(position) Then
+            visited.Add position, True
+            If positions.Exists(position) Then
+                Set matches = positions(position)
+                For Each sourceIndex In matches
+                    Set row = CreateObject("Scripting.Dictionary")
+                    For Each field In fields
+                        row(field) = data(sourceIndex, columns(CStr(field)))
+                    Next field
+                    row("Index") = sourceIndex
+                    model.Add row
+                    position = ex_PEB_Export.fn_Text(row("OwnPositionCode"))
+                    If Len(position) > 0 Then pending.Add position
+                Next sourceIndex
+            End If
+        End If
+    Loop
+    ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Model | Rows=" & CStr(model.Count), startedAt
     Set fn_ReturnRows = private_Chain(model, ex_PEB_Export.fn_Text(period("PositionCode")), _
         ex_PEB_History.fn_Date(values("EventDate")), ex_PEB_Export.fn_Text(values("AcceptedOrderNumber")), _
         ex_PEB_MovementSource.fn_OrderDate(period("DepartureDate")), found)
