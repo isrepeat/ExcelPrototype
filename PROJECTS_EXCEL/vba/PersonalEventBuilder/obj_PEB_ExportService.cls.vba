@@ -178,6 +178,7 @@ Public Function TryCaptureReturnTvo( _
     Dim rows As Collection
     Dim row As Object
     Dim index As Long
+    Dim rankField As String
     Dim startedAt As Double
     Dim stageStartedAt As Double
 
@@ -188,8 +189,16 @@ Public Function TryCaptureReturnTvo( _
     Set rows = ex_PEB_ReturnTvo.fn_Read(values, useSnapshot)
     ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Read | Rows=" & VBA.CStr(rows.Count), stageStartedAt
     stageStartedAt = VBA.Timer
+    rankField = ex_PEB_Export.fn_Config("returnTvo.rank.output")
     For Each row In rows
-        private_Enrich row, "returnTvo.rank"
+        If row.Exists(rankField) Then
+            If VBA.Len(ex_PEB_Export.fn_Text(row(rankField))) = 0 Then
+                row.Remove rankField
+                private_Enrich row, "returnTvo.rank"
+            End If
+        Else
+            private_Enrich row, "returnTvo.rank"
+        End If
         For index = 1 To ex_PEB_Export.fn_Count("export.Word.meta.lookups.count")
             private_Enrich row, "export.Word.meta.lookups." & VBA.CStr(index)
         Next index
