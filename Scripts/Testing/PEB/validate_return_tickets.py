@@ -26,10 +26,11 @@ def config(name):
 def resolve(rows, orders, ipn, fio, year):
     """Reference the legacy reverse physical-row and current-year order rules."""
     temporary = ipn.strip().casefold() == "тп-іпн"
-    pair = next((row[2:] for row in reversed(rows)
+    pair = next((row[2:4] for row in reversed(rows)
                  if (str(row[1]).strip().casefold() == fio.strip().casefold() if temporary
                      else str(row[0]).strip() == ipn.strip())
-                 and row[2] and row[3]), None)
+                 and row[2] and row[3]
+                 and not any(str(value).strip() for value in row[4:6] if value is not None)), None)
     if pair is None:
         return "", ""
     ticket, number = pair
@@ -72,6 +73,16 @@ def main():
     assert 'm_loadingSnapshot.TryQuery(source, query, table, diagnostic)' in provider
     assert 'CopyFile' not in provider and 'GetFile' not in provider
     assert "For row = table.RowCount To 1 Step -1" in provider
+    assert 'ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalDate")' in provider
+    assert 'ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalOrder")' in provider
+    assert 'VBA.Len(private_Text(table.ValueAt(row, actualArrivalColumn))) > 0' in provider
+    assert 'VBA.Len(private_Text(table.ValueAt(row, arrivalOrderColumn))) > 0 Then GoTo NextMovementRow' in provider
+    open_period = ("123", "PERSON A", "open ticket", "8", "", "")
+    closed_period = ("123", "PERSON A", "closed ticket", "8", "24.07.2026", "214")
+    return_orders = [(8, date(2026, 4, 5))]
+    assert resolve([open_period, closed_period], return_orders, "123", "PERSON A", 2026)[0] == "open ticket"
+    assert resolve([closed_period], return_orders, "123", "PERSON A", 2026) == ("", "")
+    assert resolve([(*closed_period[:4], "", "214")], return_orders, "123", "PERSON A", 2026) == ("", "")
     assert 'VBA.Len(ticket) > 0 And VBA.Len(orderNumber) > 0' in provider
     assert 'm_byIpn.Add ipn, VBA.Array(ticket, orderNumber, destination, arrivalValue)' in provider
     assert 'm_byName.Add name, VBA.Array(ticket, orderNumber, destination, arrivalValue)' in provider

@@ -168,6 +168,41 @@ Public Function Reset(ByRef diagnostic As String) As Boolean
     Reset = True
 End Function
 
+Public Function TryClearOptional(ByRef diagnostic As String) As Boolean
+    Dim retained As New Collection
+    Dim updates As Object
+    Dim row As Object
+    Dim field As Variant
+    Dim removed As Boolean
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    Set updates = CreateObject("Scripting.Dictionary")
+    For Each row In m_rows
+        If private_Required(row) Then
+            retained.Add row
+        Else
+            removed = True
+            For Each field In Split(private_Config(row("Type"), "fields"), "|")
+                updates("Form." & private_Path(row, CStr(field))) = vbNullString
+            Next field
+        End If
+    Next row
+    If Not removed Then
+        TryClearOptional = True
+        Exit Function
+    End If
+    ex_PEB_ExtRefresh.fn_Cancel Me
+    If Not Me.HideCandidates() Then Exit Function
+    If Not m_page.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
+    Set m_rows = retained
+    Set m_active = Nothing
+    TryClearOptional = Me.TryRefresh(diagnostic)
+    Exit Function
+EH:
+    diagnostic = Err.Description
+End Function
+
 Public Function Build( _
     ByVal formKind As String, _
     ByRef diagnostic As String, _

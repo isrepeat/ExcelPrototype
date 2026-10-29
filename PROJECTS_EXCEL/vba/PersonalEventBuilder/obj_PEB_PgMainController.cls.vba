@@ -337,7 +337,14 @@ Public Function ScrollFormRightHandler() As Boolean
 End Function
 
 Public Function ClearPrimaryHandler() As Boolean
-    ClearPrimaryHandler = private_ClearKeyFields("all")
+    Dim diagnostic As String
+
+    If Not private_ClearKeyFields("all") Then Exit Function
+    If Not m_extensions.TryClearOptional(diagnostic) Then
+        private_SetActionStatus diagnostic, True
+        Exit Function
+    End If
+    ClearPrimaryHandler = True
 End Function
 
 Public Function ResetFormHandler() As Boolean
