@@ -33,6 +33,7 @@ End Function
 
 Public Sub fn_RegisterHotkeys()
     Dim keySequence As String
+    Dim index As Long
 
     If Not ex_Core.fn_TryGetWorkbookConfigValue("PersonalEventBuilder::hotkeys.preview", keySequence) Then
         VBA.Err.Raise 5, , "Required configuration key not found: PersonalEventBuilder::hotkeys.preview"
@@ -52,6 +53,28 @@ Public Sub fn_RegisterHotkeys()
     If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_SaveHistory") Then
         VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
     End If
+    For index = 0 To 3
+        keySequence = ex_PEB_Export.fn_Config("hotkeys.focus." & VBA.CStr(index) & ".key")
+        If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_Focus" & VBA.CStr(index)) Then
+            VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
+        End If
+    Next index
+End Sub
+
+Public Sub fn_Focus0()
+    private_FocusField 0
+End Sub
+
+Public Sub fn_Focus1()
+    private_FocusField 1
+End Sub
+
+Public Sub fn_Focus2()
+    private_FocusField 2
+End Sub
+
+Public Sub fn_Focus3()
+    private_FocusField 3
 End Sub
 
 Public Sub fn_PreviewWord()
@@ -201,6 +224,46 @@ End Function
 ' } // namespace API
 ' --------------------------------------
 
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
+Private Sub private_FocusField(ByVal index As Long)
+    Dim runtimeContext As Object
+    Dim context As obj_UiRenderContext
+    Dim area As Range
+    Dim target As String
+    Dim updates As Object
+    Dim diagnostic As String
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    On Error GoTo EH
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then GoTo Cleanup
+    target = ex_PEB_Export.fn_Config("hotkeys.focus." & VBA.CStr(index) & ".target")
+    If Not context.TryGetElementArea(target, area) Then
+        Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.FocusTargetUnavailable"), "{field}", target)
+    End If
+    If area.EntireRow.Hidden Or area.EntireColumn.Hidden Then GoTo Cleanup
+    area.Cells(1, 1).Select
+Cleanup:
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH:
+    diagnostic = VBA.Err.Description
+    If Not context Is Nothing Then
+        Set updates = VBA.CreateObject("Scripting.Dictionary")
+        updates("Form.ActionStatus") = diagnostic
+        updates("Form.ActionStatusStyle") = "actionError"
+        If context.BindingContext.TryApplyValues(updates, diagnostic) Then
+            context.FlushLayout diagnostic
+        End If
+    Else
+        ex_Core.fn_StatusBar_Show diagnostic
+    End If
+    Resume Cleanup
+End Sub
+
 Private Function private_FormatElapsedMilliseconds(ByVal startedAt As Double) As String
     Dim elapsedSeconds As Double
 
@@ -208,3 +271,6 @@ Private Function private_FormatElapsedMilliseconds(ByVal startedAt As Double) As
     If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
     private_FormatElapsedMilliseconds = VBA.Format$(elapsedSeconds * 1000#, "0.0")
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

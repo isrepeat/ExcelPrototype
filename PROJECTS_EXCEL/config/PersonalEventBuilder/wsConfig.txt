@@ -322,6 +322,7 @@ value	PersonalEventBuilder::text.StyleSelectorDuplicate	Повторний кл�
 value	PersonalEventBuilder::text.TestPhase.OpenMovement	Відкриття тестової книги РУХ.
 value	PersonalEventBuilder::text.TestsGroupingDocuments	Формувати Word-звіт групування
 value	PersonalEventBuilder::text.WordStoreOrderMismatch	Документ належить іншій парі номера та дати наказу.
+value	PersonalEventBuilder::text.FocusTargetUnavailable	Поле недоступне в поточній формі: {field}.
 value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже є інша подія з такими людиною, типом і датою. Оновлення скасовано.
 value	PersonalEventBuilder::text.ModeDocumentNumberLabel	Документ.№
 value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
@@ -1583,6 +1584,14 @@ value	PersonalEventBuilder::orders.queryFormat.groupSeparator	none
 value	PersonalEventBuilder::orders.queryFormat.decimalSeparator	.
   ref	PersonalEventBuilder::orders.numberHeader	__cfgDependencies.source.Orders.numberHeader
   ref	PersonalEventBuilder::orders.signatoryHeader	__cfgDependencies.source.Orders.signatoryHeader
+value	PersonalEventBuilder::hotkeys.focus.0.key	^{96}
+value	PersonalEventBuilder::hotkeys.focus.0.target	Hospital_input
+value	PersonalEventBuilder::hotkeys.focus.1.key	^{97}
+value	PersonalEventBuilder::hotkeys.focus.1.target	PersonName_input
+value	PersonalEventBuilder::hotkeys.focus.2.key	^{98}
+value	PersonalEventBuilder::hotkeys.focus.2.target	ReportName_input
+value	PersonalEventBuilder::hotkeys.focus.3.key	^{99}
+value	PersonalEventBuilder::hotkeys.focus.3.target	Document_input
 value	PersonalEventBuilder::hotkeys.preview	^3
 value	PersonalEventBuilder::hotkeys.saveHistory	^e
 value	PersonalEventBuilder::history.path	./EventsHistory.xlsx

@@ -194,6 +194,23 @@ Public Function TryGetItemArea( _
     TryGetItemArea = element.TryGetItemArea(index, area)
 End Function
 
+Public Function TryGetElementArea( _
+    ByVal name As String, _
+    ByRef area As Range _
+) As Boolean
+    Dim registered As obj_IUiElement
+    Dim element As obj_UiControlElement
+
+    Set area = Nothing
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_elements.Exists(name) Then Exit Function
+    Set registered = m_elements(name)
+    If Not TypeOf registered Is obj_UiControlElement Then Exit Function
+    Set element = registered
+    Set area = element.RenderArea
+    TryGetElementArea = Not area Is Nothing
+End Function
+
 Public Sub UnregisterElement(ByVal name As String, ByVal element As obj_IUiElement)
     Dim registered As obj_IUiElement
 
