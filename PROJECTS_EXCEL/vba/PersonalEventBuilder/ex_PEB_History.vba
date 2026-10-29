@@ -172,7 +172,8 @@ Public Function fn_Save( _
                         If Not exportService.TryCaptureReturnTvo(values, diagnostic) Then GoTo Cleanup
                     End If
                 End If
-                private_AddReturnTvoChildren values, identifier
+                ' Automatic return duties remain frozen metadata, not editable form rows.
+                Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)
             End If
         End If
     End If
@@ -737,38 +738,6 @@ End Function
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
-Private Sub private_AddReturnTvoChildren( _
-    ByVal values As Object, _
-    ByVal parentId As String _
-)
-    Dim restored As Collection
-    Dim children As Collection
-    Dim source As Object
-    Dim child As Object
-    Dim field As Variant
-    Dim key As Variant
-    Dim mapping As Variant
-
-    Set restored = ex_PEB_ReturnTvo.fn_Decode(values)
-    If Not values.Exists("FormExtensionRows") Then Set values("FormExtensionRows") = New Collection
-    Set children = values("FormExtensionRows")
-    For Each source In restored
-        Set child = VBA.CreateObject("Scripting.Dictionary")
-        For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.fields"), "|")
-            mapping = VBA.Split(field, "=")
-            child(mapping(0)) = VBA.vbNullString
-        Next field
-        For Each key In source.Keys
-            child(key) = source(key)
-        Next key
-        child("RowType") = "TVO"
-        child("ParentRowId") = parentId
-        child("PersonPosition") = source("PositionGenitive")
-        children.Add child
-    Next source
-    Set values("MetaTvoTables") = restored
-End Sub
-
 Private Sub private_Open( _
     ByRef book As Workbook, _
     ByRef table As ListObject _
