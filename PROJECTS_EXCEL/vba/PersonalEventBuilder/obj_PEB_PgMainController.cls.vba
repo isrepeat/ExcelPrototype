@@ -2669,7 +2669,7 @@ Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolea
     If configTable.DataBodyRange Is Nothing Then Err.Raise 5, , "Configuration table tbConfig is empty."
     keyColumn = configTable.ListColumns("Key").Index
     If keyColumn >= configTable.ListColumns.Count Then Err.Raise 5, , "Configuration values must follow Key."
-    values = configTable.DataBodyRange.Value2
+    values = ex_ConfigImports.fn_ReadValues(configTable)
     Set m_modeConfig = VBA.CreateObject("Scripting.Dictionary")
     m_modeConfig.CompareMode = VBA.vbTextCompare
     ' Read the worksheet once; mode switches use the in-memory snapshot.

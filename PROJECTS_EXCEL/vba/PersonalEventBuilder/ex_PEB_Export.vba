@@ -503,7 +503,7 @@ Public Sub fn_BeginConfigSnapshot()
                 If table.DataBodyRange Is Nothing Or keyColumn >= table.ListColumns.Count Then
                     Err.Raise 5, , "Export configuration table is empty or invalid."
                 End If
-                data = table.DataBodyRange.Value2
+                data = ex_ConfigImports.fn_ReadValues(table)
                 Set snapshot = VBA.CreateObject("Scripting.Dictionary")
                 snapshot.CompareMode = VBA.vbTextCompare
                 For row = 1 To UBound(data, 1)

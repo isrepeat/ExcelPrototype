@@ -126,7 +126,7 @@ Public Function fn_TryUpdateWorkbook( _
         If Not ex_ConfigImports.fn_TryExpand(records, targetWorkbook.Path, expandedRecords, diagnostic) Then
             VBA.Err.Raise 5, , diagnostic
         End If
-        Set records = expandedRecords
+        ' Keep local directives in tbConfig; consumers resolve shared values in memory.
     End If
     For Each sheet In targetWorkbook.Worksheets
         For Each candidate In sheet.ListObjects
@@ -178,6 +178,8 @@ Public Function fn_TryUpdateWorkbook( _
         releasedRange.PasteSpecial xlPasteFormats
         Application.CutCopyMode = False
     End If
+    targetWorkbook.Names.Add Name:="_ConfigGeneration", _
+        RefersTo:="=""" & VBA.CStr(VBA.Now) & "|" & VBA.CStr(VBA.Timer) & """", Visible:=False
     changed = False
     Debug.Print "CONFIG_REFRESHED | Path=" & configPath & " | Rows=" & records.Count
     diagnostic = VBA.Replace$(successTemplate, "{path}", configPath)
