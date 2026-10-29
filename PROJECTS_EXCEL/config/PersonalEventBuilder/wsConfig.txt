@@ -1584,6 +1584,8 @@ value	PersonalEventBuilder::orders.queryFormat.groupSeparator	none
 value	PersonalEventBuilder::orders.queryFormat.decimalSeparator	.
   ref	PersonalEventBuilder::orders.numberHeader	__cfgDependencies.source.Orders.numberHeader
   ref	PersonalEventBuilder::orders.signatoryHeader	__cfgDependencies.source.Orders.signatoryHeader
+value	PersonalEventBuilder::hotkeys.clear.key	^{110}
+value	PersonalEventBuilder::hotkeys.clear.repeatSeconds	1
 value	PersonalEventBuilder::hotkeys.focus.0.key	^{96}
 value	PersonalEventBuilder::hotkeys.focus.0.target	Hospital_input
 value	PersonalEventBuilder::hotkeys.focus.1.key	^{97}

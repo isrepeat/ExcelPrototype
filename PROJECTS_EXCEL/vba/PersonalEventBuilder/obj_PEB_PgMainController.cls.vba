@@ -262,6 +262,7 @@ End Function
 
 Public Function HospitalChangedHandler() As Boolean
     Dim autoFill As Variant
+    Dim text As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
@@ -270,11 +271,17 @@ Public Function HospitalChangedHandler() As Boolean
         HospitalChangedHandler = True
         Exit Function
     End If
+    If Not private_TryReadFormValue("Hospital", text) Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.CStr(text))) = 0 Then
+        HospitalChangedHandler = private_ClearKeyFields("hospital")
+        Exit Function
+    End If
     HospitalChangedHandler = private_SearchSecondary(True, True)
 End Function
 
 Public Function DocumentChangedHandler() As Boolean
     Dim autoFill As Variant
+    Dim text As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
@@ -287,12 +294,18 @@ Public Function DocumentChangedHandler() As Boolean
         DocumentChangedHandler = True
         Exit Function
     End If
+    If Not private_TryReadFormValue("Document", text) Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.CStr(text))) = 0 Then
+        DocumentChangedHandler = private_ClearKeyFields("document")
+        Exit Function
+    End If
     DocumentChangedHandler = private_SearchSecondary(True, False, True, True)
 End Function
 
 Public Function PersonNameChangedHandler() As Boolean
     Dim diagnostic As String
     Dim autoFill As Variant
+    Dim text As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
@@ -300,6 +313,11 @@ Public Function PersonNameChangedHandler() As Boolean
     ' Manual entry must not trigger lookup, dependency clearing or candidate updates.
     If Not VBA.CBool(autoFill) Then
         PersonNameChangedHandler = True
+        Exit Function
+    End If
+    If Not private_TryReadFormValue("PersonName", text) Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.CStr(text))) = 0 Then
+        PersonNameChangedHandler = private_ClearKeyFields("personnel")
         Exit Function
     End If
     If Not private_ClearPersonnelGroup(False, VBA.vbNullString, diagnostic) Then
@@ -316,6 +334,10 @@ End Function
 
 Public Function ScrollFormRightHandler() As Boolean
     ScrollFormRightHandler = private_ScrollForm(1)
+End Function
+
+Public Function ClearPrimaryHandler() As Boolean
+    ClearPrimaryHandler = private_ClearKeyFields("all")
 End Function
 
 Public Function ResetFormHandler() As Boolean
@@ -3125,6 +3147,77 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
 Failed:
     private_SetActionStatus diagnostic, True
     ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Event mode"
+End Function
+
+Private Function private_ClearKeyFields(ByVal group As String) As Boolean
+    Dim updates As Object
+    Dim fields As Collection
+    Dim column As Object
+    Dim key As String
+    Dim dependents As String
+    Dim field As Variant
+    Dim form As Variant
+    Dim secondary As Variant
+    Dim records As New Collection
+    Dim result As obj_LookupResult
+    Dim wordContext As Object
+    Dim diagnostic As String
+    Dim previousUpdating As Boolean
+    Dim startedAt As Double
+
+    previousUpdating = Application.ScreenUpdating
+    On Error GoTo EH
+    startedAt = VBA.Timer
+    Application.ScreenUpdating = False
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    If group = "all" Or group = "personnel" Then
+        If Not private_TryReadFormValue("ModeForm", form) Then GoTo Cleanup
+        If Not private_ReadModeConfig("forms." & VBA.CStr(form) & ".lookup.key", key, diagnostic) Then GoTo Failed
+        If Not private_ReadModeConfig("forms." & VBA.CStr(form) & ".lookup.dependents", dependents, diagnostic) Then GoTo Failed
+        updates("Form." & key) = VBA.vbNullString
+        For Each field In VBA.Split(dependents, "|")
+            If VBA.Len(field) > 0 Then updates("Form." & field) = VBA.vbNullString
+        Next field
+    End If
+    For Each secondary In VBA.Array("hospital", "document", "reporter")
+        If group = secondary Or (group = "all" And secondary <> "reporter") Then
+            If Not private_SecondaryFields(VBA.CStr(secondary), fields, diagnostic) Then GoTo Failed
+            For Each column In fields
+                updates("Form." & column("formField")) = VBA.vbNullString
+            Next column
+        End If
+    Next secondary
+    updates("Form.WordPreviewText") = VBA.vbNullString
+    updates("Form.ActionStatus") = VBA.vbNullString
+    updates("Form.CandidatesVisibility") = "Collapsed"
+    If group = "all" Or group = "document" Then
+        If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
+            updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
+        End If
+    End If
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    Set wordContext = VBA.CreateObject("Scripting.Dictionary")
+    If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", VBA.vbNullString) Then GoTo Cleanup
+    If Not m_extensions.HideCandidates() Then GoTo Cleanup
+    m_reporterActive = False
+    m_hospitalActive = False
+    m_documentActive = False
+    Set result = New obj_LookupResult
+    If Not result.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
+    Set m_lookupResult = result
+    If Not private_PublishCandidates(result) Then GoTo Cleanup
+    private_ClearKeyFields = True
+Cleanup:
+    Application.ScreenUpdating = previousUpdating
+    ex_Core.fn_Diagnostic_WritePerf "Form.ClearKeys | Group=" & group, startedAt
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+Failed:
+    private_SetActionStatus diagnostic, True
+    GoTo Cleanup
 End Function
 
 Private Function private_ClearPersonnelGroup( _

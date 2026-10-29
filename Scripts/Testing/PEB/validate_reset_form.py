@@ -11,6 +11,23 @@ def main():
     controller = (folder / 'obj_PEB_PgMainController.cls.vba').read_text(encoding='utf-8-sig')
     extensions = (folder / 'obj_PEB_FormExtensions.cls.vba').read_text(encoding='utf-8-sig')
     reset = procedure(controller, 'ResetFormHandler')
+    clear = procedure(controller, 'private_ClearKeyFields')
+    assert 'TrySearch' not in clear
+    assert 'BindingContext.TryApplyValues(updates, diagnostic)' in clear
+    assert 'private_PublishCandidates(result)' in clear
+    assert 'm_extensions.Reset' not in clear
+    assert 'Application.ScreenUpdating = previousUpdating' in clear
+    for handler, group in (('PersonNameChangedHandler', 'personnel'),
+                           ('HospitalChangedHandler', 'hospital'),
+                           ('DocumentChangedHandler', 'document')):
+        change = procedure(controller, handler)
+        assert f'private_ClearKeyFields("{group}")' in change
+    hotkeys = (folder / 'ex_PersonalEventBuilder.vba').read_text(encoding='utf-8-sig')
+    shortcut = procedure(hotkeys, 'fn_ClearForm')
+    assert 'm_clearArmed And elapsed <=' in shortcut
+    assert 'elapsed = elapsed + 86400#' in shortcut
+    assert 'commandName = "ResetForm"' in shortcut
+    assert 'commandName = "ClearPrimary"' in shortcut
     for full_render in ('UpdatePage', 'RenderActivePage', 'RenderPages', 'm_extensions.Build'):
         assert full_render not in reset
     for cleared in ('Form.WordPreviewText', 'Form.ActionStatus',
