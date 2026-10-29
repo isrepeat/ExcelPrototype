@@ -18,8 +18,8 @@ Public Sub fn_ReadState( _
     ByVal rowIndex As Long, _
     ByVal row As Object, _
     Optional ByVal stateColumns As Object = Nothing, _
-    Optional ByVal data As Variant, _
-    Optional ByVal stateFields As Variant _
+    Optional ByRef data As Variant, _
+    Optional ByRef stateFields As Variant _
 )
     Dim key As Variant
     Dim column As ListColumn

@@ -59,8 +59,11 @@ Public Function fn_Save( _
     Dim childPlan As Object
     Dim revisionRows As Collection
     Dim tvoStartedAt As Double
+    Dim saveStartedAt As Double
+    Dim editedId As String
 
     On Error GoTo EH
+    saveStartedAt = VBA.Timer
     Set previousBook = Application.ActiveWorkbook
     Set previousSheet = Application.ActiveSheet
     ex_PEB_Export.fn_BeginConfigSnapshot
@@ -76,7 +79,8 @@ Public Function fn_Save( _
     Next collectionName
     Set columns = private_Columns(table, True)
     Set historyIndex = VBA.CreateObject("Scripting.Dictionary")
-    Set rows = private_Read(table, columns, historyIndex)
+    If values.Exists("RowId") Then editedId = VBA.CStr(values("RowId"))
+    Set rows = private_Read(table, columns, historyIndex, True, VBA.CStr(values("PersonId")), editedId)
     ex_PEB_FormChildren.fn_Attach rows
     key = private_Identity(values)
     For index = 1 To rows.Count
@@ -153,7 +157,7 @@ Public Function fn_Save( _
                         If reuseTvo Then values("TvoReturnSnapshot") = previous("TvoReturnSnapshot")
                         If reuseTvo Then
                             Set restoredTvo = ex_PEB_ReturnTvo.fn_Decode(values)
-                            reuseTvo = (restoredTvo.Count > 0)
+                            ' A validated empty snapshot is also a frozen return result.
                         End If
                     End If
                 End If
@@ -316,6 +320,7 @@ Cleanup:
     End If
     If Not tvoService Is Nothing Then tvoService.Dispose
     If snapshotStarted Then
+        ex_Core.fn_Diagnostic_WritePerf "History.Save.Total | Success=" & VBA.CStr(fn_Save), saveStartedAt
         ex_PEB_Export.fn_EndConfigSnapshot
     End If
     On Error GoTo 0
@@ -832,7 +837,9 @@ Private Function private_Read( _
     ByVal table As ListObject, _
     ByVal columns As Object, _
     Optional ByVal historyIndex As Object = Nothing, _
-    Optional ByVal readSync As Boolean = True _
+    Optional ByVal readSync As Boolean = True, _
+    Optional ByVal savePersonId As String = "", _
+    Optional ByVal editedId As String = "" _
 ) As Collection
     Dim result As New Collection
     Dim row As Object
@@ -848,11 +855,30 @@ Private Function private_Read( _
     Dim bucket As Collection
     Dim stateFields As Variant
     Dim fieldKeys As Variant
+    Dim fieldColumns() As Long
+    Dim fieldIndex As Long
     Dim startedAt As Double
+    Dim stageAt As Double
+    Dim requiredFields As Object
+    Dim complete As Boolean
+    Dim emptyRows As Long
+    Dim completeRows As Long
+    Dim identityRows As Long
 
     startedAt = VBA.Timer
     stateFields = VBA.Split(ex_PEB_Export.fn_Config("history.versions.stateFields"), "|")
     fieldKeys = columns.Keys
+    Set requiredFields = VBA.CreateObject("Scripting.Dictionary")
+    For Each field In VBA.Split("RowId|RowType|ParentRowId|RowOrder|PersonId|EventId|EventDate", "|")
+        requiredFields(field) = True
+    Next field
+    For Each field In VBA.Split(ex_PEB_Export.fn_Config("history.identityFields"), "|")
+        requiredFields(field) = True
+    Next field
+    ReDim fieldColumns(LBound(fieldKeys) To UBound(fieldKeys))
+    For fieldIndex = LBound(fieldKeys) To UBound(fieldKeys)
+        fieldColumns(fieldIndex) = columns(fieldKeys(fieldIndex))
+    Next fieldIndex
     If Not historyIndex Is Nothing Then
         Set byPerson = VBA.CreateObject("Scripting.Dictionary")
         byPerson.CompareMode = VBA.vbTextCompare
@@ -869,18 +895,49 @@ Private Function private_Read( _
         Next key
     Next column
     If Not table.DataBodyRange Is Nothing Then
+        stageAt = VBA.Timer
         data = table.DataBodyRange.Value2
+        ex_Core.fn_Diagnostic_WritePerf "History.Read.Array", stageAt
+        stageAt = VBA.Timer
         For index = 1 To UBound(data, 1)
-            Set row = VBA.CreateObject("Scripting.Dictionary")
             hasData = False
-            For Each field In fieldKeys
-                If columns(field) = 0 Then
+            For fieldIndex = LBound(fieldKeys) To UBound(fieldKeys)
+                If fieldColumns(fieldIndex) > 0 Then
+                    If VBA.Len(private_Text(data(index, fieldColumns(fieldIndex)))) > 0 Then
+                        hasData = True
+                        Exit For
+                    End If
+                End If
+            Next fieldIndex
+            If Not hasData Then
+                emptyRows = emptyRows + 1
+                GoTo NextHistoryRow
+            End If
+            ' Other people's events need identity and state checks, not their entire payload.
+            complete = (VBA.Len(savePersonId) = 0)
+            If Not complete Then
+                complete = (private_Text(data(index, columns("RowType"))) <> "Event" Or _
+                    private_Text(data(index, columns("PersonId"))) = savePersonId Or _
+                    private_Text(data(index, columns("RowId"))) = editedId)
+            End If
+            Set row = VBA.CreateObject("Scripting.Dictionary")
+            If complete Then
+                completeRows = completeRows + 1
+            Else
+                identityRows = identityRows + 1
+            End If
+            hasData = False
+            For fieldIndex = LBound(fieldKeys) To UBound(fieldKeys)
+                field = fieldKeys(fieldIndex)
+                If Not complete And Not requiredFields.Exists(field) Then GoTo NextReadField
+                If fieldColumns(fieldIndex) = 0 Then
                     row.Add field, VBA.vbNullString
                 Else
-                    row.Add field, private_Text(data(index, columns(field)))
+                    row.Add field, private_Text(data(index, fieldColumns(fieldIndex)))
                 End If
                 If VBA.Len(row(field)) > 0 Then hasData = True
-            Next field
+NextReadField:
+            Next fieldIndex
             row.Add "__tableIndex", index
             ex_PEB_HistoryRevisions.fn_ReadState table, index, row, stateColumns, data, stateFields
             If hasData Then
@@ -900,7 +957,10 @@ Private Function private_Read( _
                     End If
                 End If
             End If
+NextHistoryRow:
         Next index
+        ex_Core.fn_Diagnostic_WritePerf "History.Read.Materialize | Full=" & VBA.CStr(completeRows) & _
+            " | Identity=" & VBA.CStr(identityRows) & " | Empty=" & VBA.CStr(emptyRows), stageAt
     End If
     ex_Core.fn_Diagnostic_WritePerf "History.Read.RowsAndState", startedAt
     If readSync Then
