@@ -589,6 +589,8 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
     Dim covered As Range
     Dim retainedForms As Object
     Dim retainedFields As Boolean
+    Dim phaseStartedAt As Double
+    Dim diagnosticBatchEntered As Boolean
 
     diagnostic = VBA.vbNullString
     If Not m_isInitialized Or m_isDisposed Then
@@ -622,6 +624,8 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
         tableSettingsCaptured = True
     End If
     On Error GoTo Failed
+    ex_Core.fn_Diagnostic_BeginBatch
+    diagnosticBatchEntered = True
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     If needsLayout Then
@@ -629,6 +633,7 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
         Application.AutoCorrect.AutoFillFormulasInLists = False
     End If
     startedAt = VBA.Timer
+    phaseStartedAt = startedAt
     m_rendering = True
     Set pending = m_dirty
     Set m_pending = pending
@@ -654,6 +659,8 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
             End If
         Next layoutChanged
     End If
+    ex_Core.fn_Diagnostic_WritePerf "Page.DirtyValues", phaseStartedAt
+    phaseStartedAt = VBA.Timer
     If needsLayout Then
         Set retainedForms = VBA.CreateObject("Scripting.Dictionary")
         retainedForms.CompareMode = VBA.vbTextCompare
@@ -701,9 +708,13 @@ NextStructure:
         Next key
     End If
     If needsLayout Then
+        ex_Core.fn_Diagnostic_WritePerf "Page.DirtyStructure", phaseStartedAt
+        phaseStartedAt = VBA.Timer
         Set m_tablePlans = New Collection
         If Not m_root.Measure(rows, columns, diagnostic) Then GoTo CleanExit
         If Not m_root.Arrange(1, 1, diagnostic) Then GoTo CleanExit
+        ex_Core.fn_Diagnostic_WritePerf "Page.DirtyLayout", phaseStartedAt
+        phaseStartedAt = VBA.Timer
         ' Newly visible controls have no previous area and still require rendering.
         For Each key In m_elements.Keys
             Set registered = m_elements(key)
@@ -764,10 +775,12 @@ NextOldArea:
             For Each part In scope.Areas
                 ex_UiTables.fn_ClearRange part
             Next part
+            ex_Core.fn_Diagnostic_WritePerf "Page.DirtyClear", phaseStartedAt
             m_styles.BeginPartialRender scope
         End If
     End If
 
+    phaseStartedAt = VBA.Timer
     ' Render rebuilt content once; its nested controls are rendered by the owner.
     For Each key In pending.Keys
         If m_elements.Exists(key) Then
@@ -815,8 +828,11 @@ NextOldArea:
             End If
         End If
     Next key
+    ex_Core.fn_Diagnostic_WritePerf "Page.DirtyControls", phaseStartedAt
     If Not scope Is Nothing Then m_styles.CompletePartialRender
+    phaseStartedAt = VBA.Timer
     private_ArrangeShapes
+    ex_Core.fn_Diagnostic_WritePerf "Page.DirtyShapes", phaseStartedAt
     FlushUpdates = True
     ex_Core.fn_Diagnostic_WritePerf "Page.FlushDirty | Sheet=" & m_targetWorksheet.Name & " | Count=" & VBA.CStr(pending.Count), startedAt
 CleanExit:
@@ -842,6 +858,7 @@ CleanExit:
     End If
     Application.ScreenUpdating = previousScreen
     Application.EnableEvents = previousEvents
+    If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch
     Exit Function
 Failed:
     diagnostic = VBA.Err.Source & ": " & VBA.Err.Description
@@ -857,6 +874,7 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     Dim previousScreenUpdating As Boolean
     Dim previousExpand As Boolean
     Dim previousFill As Boolean
+    Dim diagnosticBatchEntered As Boolean
 
     If m_root Is Nothing Then Exit Function
     previousEvents = Application.EnableEvents
@@ -864,6 +882,8 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
     previousExpand = Application.AutoCorrect.AutoExpandListRange
     previousFill = Application.AutoCorrect.AutoFillFormulasInLists
     On Error GoTo EH_RENDER
+    ex_Core.fn_Diagnostic_BeginBatch
+    diagnosticBatchEntered = True
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     Application.AutoCorrect.AutoExpandListRange = False
@@ -907,6 +927,7 @@ CleanExit:
     Application.AutoCorrect.AutoFillFormulasInLists = previousFill
     Application.ScreenUpdating = previousScreenUpdating
     Application.EnableEvents = previousEvents
+    If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch
     Exit Function
 EH_RENDER:
     RenderTree = False

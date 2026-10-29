@@ -63,6 +63,7 @@ Public Function Initialize(ByVal document As Object) As Boolean
                         Set selector = private_ParseSelector(ex_UiElementFactory.fn_Attribute(node, "selector"))
                         private_ValidateSelector target, selector
                         Set rule = VBA.CreateObject("Scripting.Dictionary")
+                        rule.Add "matchkey", VBA.CStr(m_rules.Count + 1)
                         rule.Add "stage", stageName
                         rule.Add "target", target
                         rule.Add "enabled", private_Enabled(stage) And private_Enabled(layer) And private_Enabled(node)
@@ -129,6 +130,7 @@ Public Sub RegisterRegion( _
     region.Add "columnalias", columnAlias
     region.Add "sourcealias", sourceAlias
     region.Add "sourcealiastemplate", sourceAliasTemplate
+    Set region("matches") = VBA.CreateObject("Scripting.Dictionary")
     key = node.baseName & "|" & ex_UiElementFactory.fn_Attribute(node, "name") & "|" & part & "|" & columnAlias & "|" & sourceAlias & "|" & sourceAliasTemplate
     If Not area Is Nothing Then key = key & "|" & area.Address
     If Not shape Is Nothing Then key = key & "|" & shape.Name
@@ -153,6 +155,8 @@ Public Function ResolveRegions( _
     Dim colFirst As Long
     Dim colLast As Long
     Dim regionKey As Variant
+    Dim matches As Object
+    Dim matchKey As String
 
     Set selector = rule("selector")
     target = rule("target")
@@ -164,11 +168,16 @@ Public Function ResolveRegions( _
     End If
     Select Case target
         Case "control", "controlpart", "layoutcontainer", "layoutbound", "inlinepart"
+            matchKey = rule("matchkey")
             For Each regionKey In m_regions.Keys
                 Set region = m_regions(regionKey)
                 If selector.Exists("part") Then
                     If VBA.StrComp(region("part"), selector("part"), VBA.vbTextCompare) <> 0 Then GoTo NextRegisteredRegion
                 End If
+                ' Retained regions keep selector results; registration replaces the cache on any rebuild.
+                Set matches = region("matches")
+                If Not matches.Exists(matchKey) Then matches.Add matchKey, private_Matches(region, selector, target)
+                If Not matches(matchKey) Then GoTo NextRegisteredRegion
                 If Not pageScope Is Nothing Then
                     Set selectedArea = region("area")
                     If Not selectedArea Is Nothing Then
@@ -180,7 +189,7 @@ Public Function ResolveRegions( _
                         End If
                     End If
                 End If
-                If private_Matches(region, selector, target) Then result.Add region
+                result.Add region
 NextRegisteredRegion:
             Next regionKey
         Case Else
