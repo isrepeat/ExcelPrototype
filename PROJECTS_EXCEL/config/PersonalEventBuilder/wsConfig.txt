@@ -1920,6 +1920,9 @@ value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DocumentName	
 value	PersonalEventBuilder::validation.MedicalReports.text.Columns.ReferenceName	ПІБ за ІПН у ШПО
 value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DocumentNumber	№ документа
 value	PersonalEventBuilder::validation.MedicalReports.text.Columns.IdentityStatus	Перевірка особи
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.TreatmentStatus	Статус лікування
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DischargeDocumentDate	Дата документа виписки
+value	PersonalEventBuilder::validation.MedicalReports.text.Columns.DischargeDocumentNumber	№ документа виписки
 value	PersonalEventBuilder::validation.MedicalReports.text.NoFiles	Стройових записок для обраного пошуку не знайдено. Дата госпіталізації: {date}.
 value	PersonalEventBuilder::validation.MedicalReports.text.Identity.Matched	ІПН і ПІБ відповідають ШПО
 value	PersonalEventBuilder::validation.MedicalReports.text.Identity.InvalidId	⚠ Некоректний ІПН — перевірте особу
@@ -1937,7 +1940,7 @@ value	PersonalEventBuilder::validation.MedicalReports.text.MissingFolder	Пап�
 value	PersonalEventBuilder::validation.MedicalReports.text.MissingHeader	Не знайдено заголовок у стройовій записці: {value}.
 value	PersonalEventBuilder::validation.MedicalReports.text.AmbiguousHeader	Неоднозначний заголовок у стройовій записці: {value}.
 value	PersonalEventBuilder::validation.MedicalReports.text.MissingDateToken	Шаблон імені має містити {dd.mm.yyyy} або {yyyymmdd}: {value}.
-value	PersonalEventBuilder::validation.MedicalReports.fields	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::validation.MedicalReports.fields	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber|DischargeDocumentDate|DischargeDocumentNumber|TreatmentStatus
 value	PersonalEventBuilder::validation.MedicalReports.folder	{yyyy}\{yyyy.mm}
 value	PersonalEventBuilder::validation.MedicalReports.search.text.To	Записки до (включно)
 value	PersonalEventBuilder::validation.MedicalReports.search.text.Run	Знайти
@@ -1952,13 +1955,14 @@ value	PersonalEventBuilder::validation.MedicalReports.search.text.OpenFailed	Н�
 value	PersonalEventBuilder::validation.MedicalReports.search.text.InvalidDate	Вкажіть коректні дати у форматі дд.мм.рррр. Межі діапазону обов’язкові.
 value	PersonalEventBuilder::validation.MedicalReports.search.text.InvalidRange	Початок діапазону не може бути пізніше його кінця.
 value	PersonalEventBuilder::validation.MedicalReports.search.text.RangeTooWide	Діапазон пошуку перевищує налаштований ліміт search.maxDays.
-value	PersonalEventBuilder::validation.MedicalReports.search.display	Unit|Rank|PersonId|PersonName|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber
+value	PersonalEventBuilder::validation.MedicalReports.search.display	Unit|Rank|PersonId|PersonName|Dates|Hospital|TreatmentStatus|DocumentName|DocumentDate|DocumentNumber|DischargeDocumentDate|DischargeDocumentNumber
 value	PersonalEventBuilder::validation.MedicalReports.search.maxDays	366
 value	PersonalEventBuilder::validation.MedicalReports.search.defaultDays	10
 value	PersonalEventBuilder::validation.MedicalReports.source.range	A3:S20000
 value	PersonalEventBuilder::validation.MedicalReports.source.sheet	Аркуш1
 value	PersonalEventBuilder::validation.MedicalReports.source.columns	RowNumber|Unit|Rank|PersonName|Dates|DocumentName|DocumentDate|DocumentNumber|CombatWound|Hospital|Diagnosis|TreatmentStatus|DischargeDocumentName|DischargeDocumentDate|DischargeDocumentNumber|Phone|PersonId|BirthDate|Certificates
-value	PersonalEventBuilder::validation.MedicalReports.display	Notes|IdentityStatus|PersonId|PersonName|ReferenceName|Unit|Rank|Dates|Hospital|DocumentName|DocumentDate|DocumentNumber|Sources
+value	PersonalEventBuilder::validation.MedicalReports.source.dateFields	Dates|DocumentDate|DischargeDocumentDate
+value	PersonalEventBuilder::validation.MedicalReports.display	Notes|IdentityStatus|PersonId|PersonName|ReferenceName|Unit|Rank|Dates|Hospital|TreatmentStatus|DocumentName|DocumentDate|DocumentNumber|Sources
 value	PersonalEventBuilder::validation.MedicalReports.headers.Rank	Військове звання
 value	PersonalEventBuilder::validation.MedicalReports.headers.Unit	Підрозділ
 value	PersonalEventBuilder::validation.MedicalReports.headers.Dates	Дата госпіталізації / переведення
