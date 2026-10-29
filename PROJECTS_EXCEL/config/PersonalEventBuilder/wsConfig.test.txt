@@ -2143,7 +2143,7 @@ value	PersonalEventBuilder::validation.Ejos.cancelledToken	СКАСОВАНО
   ref	PersonalEventBuilder::validation.Movement.source.path	__cfgDependencies.fileMovementHistory
 value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
-value	PersonalEventBuilder::validation.Movement.source.range	B6:AZ20000
+value	PersonalEventBuilder::validation.Movement.source.range	B6:AD20000
 value	PersonalEventBuilder::validation.Movement.enabled	true
 value	PersonalEventBuilder::validation.MedicalReports.root	C:\WORK\Windows\Строевые приказы\Documents\PersonnelMedicalReports
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Until	 Планове повернення: {date}.
