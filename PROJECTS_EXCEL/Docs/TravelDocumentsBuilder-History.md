@@ -36,7 +36,11 @@ Each order has a dedicated folder `TDB_<yyyyMMdd>_<order number>` beneath the co
 
 All saved Tickets and TicketRevisions values are literal text with NumberFormat @, including dates, day counts and revision numbers. Dates use dd.mm.yyyy and are parsed explicitly without Windows locale assumptions. Legacy numeric date values remain readable and are converted to text when their event is saved. PlannedReturnDate is calculated in VBA as departure plus vacation, road and donation days, without an extra day; the form uses the same calculation and Word uses the saved date after checking it against the event durations. No worksheet formulas are created. Rollback captures values, original formats and actual formulas separately so literal text beginning with an equals sign is restored as text. Save TicketsHistory manually after saving events or exporting documents.
 
-## Worksheet protection
+## Word signatory
+
+Before rendering, ex_TDB_Signatory resolves the accepted order number/date pair against the already loaded Orders snapshot once per batch. `{SignatoryName}` and `{SignatoryRank}` come from the configured ПІБ and Звання columns. `{SignatoryPosition}` uses the configured acting title when Підписант starts with the standalone ТВО token, otherwise the configured commander title. Missing values or conflicting matching signatories stop export before publishing files. All three markers are required, including in footers; no history columns or template files are modified. Refresh dependencies after changing the saved Orders workbook.
+
+## Protected worksheets
 
 The first history access protects Tickets and TicketRevisions with the `SHEET_PASSWORD` constant in `obj_TDB_HistoryProtection` (`TDB.Password`). All worksheet cells are locked; selection, copying and existing filters remain available. This is worksheet editing protection, not encryption or access control. The password is stored only in code. Save TicketsHistory manually to persist the initial protection.
 

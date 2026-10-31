@@ -208,11 +208,12 @@ with zipfile.ZipFile(workbook_folder / cfg("history.path")) as archive:
 
 template = workbook_folder / cfg("generation.templates.VacationTicket").replace("\\", "/")
 with zipfile.ZipFile(template) as archive:
-    document = ET.fromstring(archive.read("word/document.xml"))
-    text = "".join(document.itertext())
+    parts = [name for name in archive.namelist() if name == "word/document.xml" or re.fullmatch(r"word/(header|footer)\d+\.xml", name)]
+    text = "".join("".join(ET.fromstring(archive.read(name)).itertext()) for name in parts)
     placeholders = re.search(r"    names = VBA.Array\((.*?)\)\n    values", generator, re.S)[1]
     markers = re.findall(r'"(\w+)"', placeholders)
-    assert len(markers) == 12
+    assert len(markers) == 15
+    assert {"SignatoryPosition", "SignatoryRank", "SignatoryName"} <= set(markers)
     for marker in markers:
         if marker != "FooterSpacer":
             assert "{" + marker + "}" in text, f"Template placeholder missing: {marker}"
@@ -259,7 +260,8 @@ for index in range(1, int(cfg("lookup.Personnel.columns.count")) + 1):
     header = cfg(f"lookup.Personnel.columns.{index}.header")
     assert personnel_headers.count(header) == 1, f"Missing or ambiguous personnel header: {header}"
 order_headers = source_headers("orders.source")
-for header in (cfg("orders.dateHeader"), cfg("orders.numberHeader")):
+for header in (cfg("orders.dateHeader"), cfg("orders.numberHeader"), cfg("orders.signatoryHeader"),
+               cfg("orders.signatoryNameHeader"), cfg("orders.signatoryRankHeader")):
     assert order_headers.count(header) == 1, f"Missing or ambiguous order header: {header}"
 
 # Guard the migration boundaries: prepared reads, explicit loading and live registry writes.
@@ -404,7 +406,21 @@ assert "For Each path In owned" in exporter and "If m_namePattern.Test(file.Name
 assert exporter.index('m_fileSystem.MoveFile m_fileSystem.BuildPath(stage, staged(path)), name') < exporter.index("published.Add name")
 assert 'staged.Add identifier, VBA.CStr(wanted.Count) & ".docx"' in exporter
 assert 'm_fileSystem.BuildPath(backupFolder, VBA.CStr(backups.Count + 1) & ".docx")' in exporter
-assert 'TryRender(root, group, frozenTemplate, activePath, diagnostic)' in exporter
+assert 'TryRender(root, group, frozenTemplate, activePath, signatory, diagnostic)' in exporter
+signatory = (sources / "ex_TDB_Signatory.vba").read_text(encoding="utf-8-sig")
+assert 'ex_TableSnapshots.fn_Active()' in signatory
+assert 'snapshot.TryQuery(source, query, table, diagnostic)' in signatory
+assert 'sourceDate = orderDate' in signatory
+assert 'VBA.CStr(VBA.CDec(number)) = orderNumber' in signatory
+assert 'private_Fail "SignatoryAmbiguous"' in signatory
+assert 'private_Fail "SignatoryRequired"' in signatory
+assert exporter.count('ex_TDB_Signatory.fn_Resolve(orderNumber, orderDate)') == 1
+assert exporter.index('ex_TDB_Signatory.fn_Resolve') < exporter.index('m_vacationGenerator.TryRender')
+for key in ('SignatorySource', 'SignatoryRequired', 'SignatoryAmbiguous'):
+    assert '{details}' in cfg('word.text.' + key)
+assert cfg('word.signatory.actingPrefix') == 'ТВО'
+assert cfg('word.signatory.position') == 'Командир військової частини А7383'
+assert cfg('word.signatory.actingPosition') == 'Тимчасово виконуючий обов’язки командира військової частини А7383'
 assert 'VBA.Len(frozenTemplate)' in exporter
 long_folder = PureWindowsPath("C:/" + "r" * 92) / "TDB_20261026_309"
 stage_folder = long_folder / "._TDB-stage-T-01234567-89AB-4CDE-8F01-23456789ABCD"
