@@ -95,6 +95,7 @@ Public Sub Dispose()
 
     m_isDisposed = True
     m_isInitialized = False
+    ex_TDB_WordSession.fn_Module_Dispose
     If Not m_lookupService Is Nothing Then m_lookupService.Dispose
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
     If Not m_lookupProfile Is Nothing Then m_lookupProfile.Dispose
