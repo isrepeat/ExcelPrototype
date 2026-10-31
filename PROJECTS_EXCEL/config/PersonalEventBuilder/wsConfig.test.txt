@@ -1839,6 +1839,7 @@ value	PersonalEventBuilder::hotkeys.focus.2.target	ReportName_input
 value	PersonalEventBuilder::hotkeys.focus.3.key	^{99}
 value	PersonalEventBuilder::hotkeys.focus.3.target	Document_input
 value	PersonalEventBuilder::hotkeys.preview	^3
+value	PersonalEventBuilder::hotkeys.diffUndo	^{DELETE}
 value	PersonalEventBuilder::hotkeys.saveHistory	^e
 value	PersonalEventBuilder::history.path	./EventsHistory.test.xlsx
 value	PersonalEventBuilder::history.list.columns.1.field	EventLabel
@@ -2236,15 +2237,23 @@ value	PersonalEventBuilder::environment.config.PROD	../../config/PersonalEventBu
 value	PersonalEventBuilder::environment.config.TEST	../../config/PersonalEventBuilder/wsConfig.test.txt
 value	PersonalEventBuilder::eventContext.ToBusinessTrip.targetStatus	BusinessTrip
 value	PersonalEventBuilder::movementDiff.show	Останній експорт РУХ
+value	PersonalEventBuilder::movementDiff.undo.hint	Ctrl+Del — позначити / зняти відкат поля. Наступний експорт може знову застосувати EventsHistory.
+value	PersonalEventBuilder::movementDiff.undo.apply	Застосувати ручні правки
+value	PersonalEventBuilder::movementDiff.undo.stale	РУХ змінено після експорту. Відкат не застосовано; потрібен актуальний звіт змін.
+value	PersonalEventBuilder::movementDiff.undo.failed	Ручні правки не застосовано: {details}
+value	PersonalEventBuilder::movementDiff.undo.applied	Відкочено
+value	PersonalEventBuilder::movementDiff.undo.success	Повернуто попередні значення полів: {count}. Події EventsHistory не змінено. Збережіть РУХ та журнал EventsHistory вручну.
+value	PersonalEventBuilder::movementDiff.undo.unavailable	Потрібні початкова відкрита книга РУХ і доступна для запису EventsHistory; перевірте захист, режим доступу та систему дат.
 value	PersonalEventBuilder::movementDiff.added	Додано
 value	PersonalEventBuilder::movementDiff.empty	(порожньо)
 value	PersonalEventBuilder::movementDiff.error	(помилка Excel)
 value	PersonalEventBuilder::movementDiff.failed	РУХ експортовано, але звіт змін не показано: {details}
-value	PersonalEventBuilder::movementDiff.fields	PersonName|EventName|Action|TargetRow|Field|Before|After
+value	PersonalEventBuilder::movementDiff.fields	DiffId|PersonName|EventName|Action|TargetRow|Field|Before|After
 value	PersonalEventBuilder::movementDiff.columns.After	Стало
 value	PersonalEventBuilder::movementDiff.columns.Field	Поле
 value	PersonalEventBuilder::movementDiff.columns.Action	Дія
 value	PersonalEventBuilder::movementDiff.columns.Before	Було
+value	PersonalEventBuilder::movementDiff.columns.DiffId	№ зміни
 value	PersonalEventBuilder::movementDiff.columns.EventName	Подія
 value	PersonalEventBuilder::movementDiff.columns.TargetRow	Рядок РУХ
 value	PersonalEventBuilder::movementDiff.columns.PersonName	ПІБ

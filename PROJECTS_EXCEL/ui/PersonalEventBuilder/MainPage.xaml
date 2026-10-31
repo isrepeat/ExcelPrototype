@@ -442,7 +442,18 @@
                            style="{Binding Path=Form.MovementDiffTvoStyle}"
                            caption="{Binding Path=Form.MovementDiffTvoName}"
                            command="{Binding Path=Commands.MovementDiffTvo}"/>
+          <controls:button name="ApplyDiffEdits"
+                           columnSpan="4"
+                           style="secondaryButton"
+                           caption="{Binding Path=Text.ApplyDiffEdits}"
+                           command="{Binding Path=Commands.ApplyDiffEdits}"
+                           visibility="{Binding Path=Form.DiffEditsVisibility}"/>
         </stackPanel>
+        <controls:label name="DiffEditsHint"
+                        columnSpan="18"
+                        style="statusHeading"
+                        visibility="{Binding Path=Form.MovementDiffVisibility}"
+                        text="{Binding Path=Text.DiffEditsHint}"/>
         <controls:table name="MovementDiff"
                         itemsSource="{Binding Path=Data.MovementDiff}"
                         style="candidateTable"
@@ -1304,6 +1315,19 @@
                 backColor:#7F3B12;
                 fontColor:#FFF0B3;
                 fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=diffUndoPending"
+              styles="{
+                backColor:#8B2525;
+                fontColor:#FFFFFF;
+                fontBold:true;
+              }"/>
+        <rule target="controlPart"
+              selector="type=table;part=row;tags=diffUndoApplied"
+              styles="{
+                backColor:#225C35;
+                fontColor:#FFFFFF;
               }"/>
         <rule target="controlPart"
               selector="type=candidates;part=row;tags=even"

@@ -8,6 +8,7 @@ Private m_states As Object
 Private m_choices As Collection
 Private m_items As Collection
 Private m_overwrite As Boolean
+Private m_diffReverts As Object
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -17,6 +18,7 @@ Public Sub fn_Module_Dispose()
     Set m_states = Nothing
     Set m_choices = Nothing
     Set m_items = Nothing
+    Set m_diffReverts = Nothing
     m_overwrite = False
 End Sub
 ' --------------------------------------
@@ -48,6 +50,7 @@ Public Sub fn_Begin( _
     Set m_choices = choices
     Set m_items = New Collection
     Set m_states = VBA.CreateObject("Scripting.Dictionary")
+    Set m_diffReverts = VBA.CreateObject("Scripting.Dictionary")
     If m_overwrite Then
         Exit Sub
     End If
@@ -63,6 +66,15 @@ Public Sub fn_Begin( _
         Next index
     End If
     Set table = fn_Table(book, "history.conflicts")
+    If Not table.DataBodyRange Is Nothing Then
+        data = table.DataBodyRange.Value2
+        For index = 1 To UBound(data, 1)
+            If data(index, 4) = "Movement" And data(index, 5) = target And data(index, 10) = "DiffRevert" Then
+                m_diffReverts(private_Key(data(index, 2), data(index, 6), data(index, 7))) = _
+                    VBA.Array(data(index, 3), data(index, 8), data(index, 9))
+            End If
+        Next index
+    End If
     Exit Sub
 EH:
     failure = VBA.Err.Description
@@ -153,6 +165,10 @@ Public Function fn_Resolve( _
         key = private_Key(action("RowId"), side, field)
         actual = ex_PEB_MovementLinks.fn_ValueToken(cells(field))
         generated = ex_PEB_MovementLinks.fn_ValueToken(fields(field))
+        ' Explicit diff reversals authorize the next normal export to restore generated values.
+        If fn_DiffReverted(action("RowId"), side, VBA.CStr(field), cells(field)) Then
+            GoTo NextResolvedField
+        End If
         manual = False
         If m_states.Exists(key) Then
             state = m_states(key)
@@ -204,8 +220,28 @@ Public Function fn_Resolve( _
                 fn_Resolve = False
             End If
         End If
+NextResolvedField:
     Next field
     fn_Resolve = True
+End Function
+
+Public Function fn_DiffReverted( _
+    ByVal identifier As String, _
+    ByVal side As String, _
+    ByVal field As String, _
+    ByVal actual As Variant _
+) As Boolean
+    Dim key As String
+    Dim revert As Variant
+    Dim state As Variant
+
+    If m_diffReverts Is Nothing Or m_states Is Nothing Then Exit Function
+    key = private_Key(identifier, side, field)
+    If Not m_diffReverts.Exists(key) Or Not m_states.Exists(key) Then Exit Function
+    revert = m_diffReverts(key)
+    state = m_states(key)
+    fn_DiffReverted = (VBA.CStr(revert(0)) = VBA.CStr(state(0)) And revert(1) = state(2) And _
+        revert(2) = ex_PEB_MovementLinks.fn_ValueToken(actual))
 End Function
 
 Public Function fn_Pending(ByVal identifier As String) As Boolean

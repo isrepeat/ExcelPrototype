@@ -134,6 +134,7 @@ Public Function fn_Apply( _
     Set pendingDiff = ex_PEB_MovementDiff.fn_Build(plan, target, entries)
     ex_PEB_MovementTvo.fn_AddDiff pendingDiff, plan
     If entries.Count = 0 And ex_PEB_MovementTvo.fn_ChangeCount(plan) = 0 Then
+        ex_PEB_MovementDiff.fn_Seal pendingDiff
         If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
             GoTo Cleanup
         End If
@@ -174,6 +175,7 @@ Public Function fn_Apply( _
     private_AutoFitRows target, entries
 #End If
     private_Stage "Write.Journal", stage, startedAt
+    ex_PEB_MovementDiff.fn_Seal pendingDiff
     If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
         Err.Raise 5, , diagnostic
     End If

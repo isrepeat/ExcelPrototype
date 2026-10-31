@@ -1680,6 +1680,10 @@ Public Function ShowMovementDiffHandler() As Boolean
         If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(panel), "Collapsed") Then Exit Function
     Next panel
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffVisibility", "Visible") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "DiffEditsVisibility", "Collapsed") Then Exit Function
+    If ex_PEB_MovementDiff.fn_SelectedCount(m_movementDiff) > 0 Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "DiffEditsVisibility", "Visible") Then Exit Function
+    End If
     ShowMovementDiffHandler = m_pageBase.FlushUpdates()
     Exit Function
 EH_DIFF:
@@ -1696,6 +1700,46 @@ Public Function MovementDiffTvoHandler() As Boolean
     If m_movementDiff Is Nothing Then Exit Function
     m_movementDiffSheet = m_movementDiff("TvoSheet")
     MovementDiffTvoHandler = Me.ShowMovementDiffHandler()
+End Function
+
+Public Function ToggleDiffHandler() As Boolean
+    Dim context As obj_UiRenderContext
+    Dim area As Range
+    Dim scalar As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+
+    On Error GoTo EH_TOGGLE
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_movementDiff Is Nothing Then Exit Function
+    If Not TypeOf Application.Selection Is Range Then Exit Function
+    If Not m_pageBase.BindingContext.TryGetValue("Form", "MovementDiffVisibility", scalar, objectValue, isObject) Then Exit Function
+    If isObject Or scalar <> "Visible" Then Exit Function
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then Exit Function
+    If Not context.TryGetElementArea("MovementDiff", area) Then Exit Function
+    If Not ex_PEB_MovementDiff.fn_Toggle(m_movementDiff, Application.Selection, area) Then Exit Function
+    ToggleDiffHandler = Me.ShowMovementDiffHandler()
+    Exit Function
+EH_TOGGLE:
+    private_SetActionStatus VBA.Replace$(ex_PEB_Export.fn_Config("movementDiff.undo.failed"), "{details}", VBA.Err.Description), True
+End Function
+
+Public Function ApplyDiffEditsHandler() As Boolean
+    Dim diagnostic As String
+    Dim applied As Boolean
+
+    On Error GoTo EH_EDITS
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_movementDiff Is Nothing Then Exit Function
+    If ex_PEB_Testing.fn_IsRunning() Then Exit Function
+    applied = ex_PEB_MovementDiff.fn_ApplyUndo(m_movementDiff, diagnostic)
+    If applied Then
+        If Not Me.ShowMovementDiffHandler() Then Exit Function
+    End If
+    ApplyDiffEditsHandler = private_SetActionStatus(diagnostic, Not applied)
+    Exit Function
+EH_EDITS:
+    private_SetActionStatus VBA.Replace$(ex_PEB_Export.fn_Config("movementDiff.undo.failed"), "{details}", VBA.Err.Description), True
 End Function
 
 Public Function CloseMovementDiffHandler() As Boolean
@@ -2389,6 +2433,9 @@ Private Function private_InitializeMovementDiff() As Boolean
     If Not ex_PEB_MovementDiff.fn_Result(report, result, diagnostic) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "MovementDiff", result) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Text", "ShowMovementDiff", ex_PEB_Export.fn_Config("movementDiff.show")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Text", "ApplyDiffEdits", ex_PEB_Export.fn_Config("movementDiff.undo.apply")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Text", "DiffEditsHint", ex_PEB_Export.fn_Config("movementDiff.undo.hint")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "DiffEditsVisibility", "Collapsed") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffSummary", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffAbsenceName", ex_PEB_Export.fn_Config("export.Movement.sheet")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "MovementDiffTvoName", ex_PEB_Export.fn_Config("reporter.tvo.source.sheet")) Then Exit Function

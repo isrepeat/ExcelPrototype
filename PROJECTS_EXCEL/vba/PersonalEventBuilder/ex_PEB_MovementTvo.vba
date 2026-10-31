@@ -213,9 +213,6 @@ Public Sub fn_Prepare( _
             GoTo NextAction
         End If
         Set values = action("TvoValues")
-        If action("Status") = "AlreadyApplied" Then
-            GoTo NextAction
-        End If
         Set requested = private_HistoryDuties(values("MetaTvoTables"))
         operation = action("Operation")
         eventDate = ex_PEB_History.fn_Date(values("EventDate"))
@@ -235,6 +232,16 @@ Public Sub fn_Prepare( _
             If chain.Count > 0 Then
                 ex_PEB_MovementLinks.fn_Fail "TvoCancellationRequiresReview", action("RowId")
             End If
+            GoTo NextAction
+        End If
+        ' Absence hashes do not include duty children; inspect existing departures separately.
+        If operation = "append" And action.Exists("TargetIndex") And chain.Count > 0 Then
+            If action("Status") = "AlreadyApplied" Or action("IsUpdate") Then
+                private_ReviseDeparture model, chain, requested, action, values, eventDate
+                GoTo NextAction
+            End If
+        End If
+        If action("Status") = "AlreadyApplied" Then
             GoTo NextAction
         End If
         ' A repeated export must not close a replacement segment opened by the same transition.
@@ -333,6 +340,10 @@ NextAction:
                 Set entry = CreateObject("Scripting.Dictionary")
                 Set entry("Cell") = cell
                 Set entry("Action") = row("Action")
+                If row("Action")("Status") = "AlreadyApplied" Then
+                    row("Action")("Status") = "Planned"
+                    row("Action")("IsUpdate") = True
+                End If
                 entry("Before") = cell.Value2
                 entry("After") = row(field)
                 entry("Format") = cell.NumberFormat
@@ -523,9 +534,24 @@ Public Sub fn_AddDiff( _
     Dim entry As Object
     Dim row As Object
     Dim action As Object
+    Dim changedEvents As Object
+    Dim summary As String
 
+    Set changedEvents = CreateObject("Scripting.Dictionary")
+    For Each row In report("Rows")
+        changedEvents(row("EventRowId")) = True
+    Next row
     For Each entry In plan("TvoPlan")("Entries")
         Set action = entry("Action")
+        If Not changedEvents.Exists(action("RowId")) Then
+            report("Unchanged") = report("Unchanged") - 1
+            If action("IsUpdate") Or action("Operation") = "close" Then
+                report("Updated") = report("Updated") + 1
+            Else
+                report("Added") = report("Added") + 1
+            End If
+            changedEvents(action("RowId")) = True
+        End If
         Set row = CreateObject("Scripting.Dictionary")
         row("PersonName") = action("PersonName")
         row("EventRowId") = action("RowId")
@@ -533,6 +559,9 @@ Public Sub fn_AddDiff( _
         row("Worksheet") = plan("TvoPlan")("Table").Parent.Name
         row("TargetRow") = CStr(entry("Cell").Row)
         row("Field") = entry("Header")
+        ex_PEB_MovementDiff.fn_CaptureUndo row, plan("TvoPlan")("Table"), _
+            entry("Cell").Row - plan("TvoPlan")("Table").HeaderRowRange.Row, _
+            entry("Before"), entry("After"), entry("Format"), action
         row("Before") = ex_PEB_Export.fn_Text(entry("Before"))
         row("After") = ex_PEB_Export.fn_Text(entry("After"))
         If Len(row("Before")) = 0 Then
@@ -547,6 +576,11 @@ Public Sub fn_AddDiff( _
         End If
         report("Rows").Add row
     Next entry
+    summary = ex_PEB_Export.fn_Config("movementDiff.summary")
+    summary = Replace$(summary, "{added}", CStr(report("Added")))
+    summary = Replace$(summary, "{updated}", CStr(report("Updated")))
+    summary = Replace$(summary, "{unchanged}", CStr(report("Unchanged")))
+    report("Summary") = Replace$(summary, "{time}", Format$(Now, "dd.mm.yyyy hh:nn:ss"))
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -779,6 +813,100 @@ Private Function private_AdmissionOnly( _
     Next row
     private_AdmissionOnly = admitted
 End Function
+
+Private Sub private_ReviseDeparture( _
+    ByVal model As Collection, _
+    ByVal chain As Collection, _
+    ByVal requested As Collection, _
+    ByVal action As Object, _
+    ByVal values As Object, _
+    ByVal eventDate As Date _
+)
+    Dim row As Object
+    Dim item As Object
+    Dim desired As Object
+    Dim existing As Object
+    Dim field As Variant
+    Dim changed As Boolean
+    Dim startDate As Double
+    Dim ownPosition As String
+
+    ' Only a single unclosed assignment can be corrected without persistent TVO event links.
+    If chain.Count <> 1 Or requested.Count <> 1 Then
+        If action("IsUpdate") Or Not private_Matches(chain, requested, model, eventDate) Then
+            ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+        End If
+        Exit Sub
+    End If
+    Set row = chain(1)
+    Set item = requested(1)
+    If private_AdmissionOnly(model, item, eventDate) Then
+        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+    End If
+    If CStr(item("PersonId")) = CStr(values("PersonId")) Or _
+            StrComp(CStr(item("PositionCode")), CStr(row("PositionCode")), vbTextCompare) <> 0 Then
+        ex_PEB_MovementLinks.fn_Fail "InvalidTvoChain", action("RowId")
+    End If
+    Set desired = CreateObject("Scripting.Dictionary")
+    For Each field In private_Fields()
+        desired(field) = row(field)
+    Next field
+    ownPosition = private_Staff(CStr(item("PersonId")), "lookup.Personnel.columns.6.header")
+    desired("PersonId") = item("PersonId")
+    desired("PersonName") = item("PersonName")
+    desired("OwnPositionCode") = ownPosition
+    desired("PersonRank") = private_Staff(CStr(item("PersonId")), "lookup.Personnel.columns.3.header")
+    desired("StartBasis") = private_Basis(action, "Writes", "DepartureBasis")
+    desired("PlannedEndDate") = Empty
+    If values.Exists("DateToShort") Then
+        If Len(ex_PEB_Export.fn_Text(values("DateToShort"))) > 0 Then
+            desired("PlannedEndDate") = DateAdd( _
+                "d", _
+                1, _
+                ex_PEB_Export.fn_ParseDate(values("DateToShort"), "DateToShort") _
+            )
+        End If
+    End If
+    private_RenderTexts desired, values, CStr(values("PersonName"))
+    For Each field In private_Fields()
+        If ex_PEB_MovementLinks.fn_ValueToken(desired(field)) <> ex_PEB_MovementLinks.fn_ValueToken(row(field)) Then
+            changed = True
+        End If
+    Next field
+    If Not changed Then
+        Exit Sub
+    End If
+    ' A basis note alone does not record handover; preserve its existing text.
+    ' Require the same acceptance boundary and no handover date or order before rewriting identity.
+    If ex_PEB_MovementSource.fn_OrderDate(row("StartDate")) <> CDbl(eventDate) Or _
+            ex_PEB_Export.fn_Text(row("StartOrder")) <> CStr(values("AcceptedOrderNumber")) Or _
+            Len(ex_PEB_Export.fn_Text(row("EndDate"))) > 0 Or _
+            Len(ex_PEB_Export.fn_Text(row("EndOrder"))) > 0 Then
+        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+    End If
+    If Len(ownPosition) = 0 Or StrComp(ownPosition, CStr(row("PositionCode")), vbTextCompare) = 0 Then
+        ex_PEB_MovementLinks.fn_Fail "InvalidTvoChain", action("RowId")
+    End If
+    ' Neither actor may attach another accepted segment, including later assignments.
+    For Each existing In model
+        If Not existing Is row Then
+            If StrComp(ex_PEB_Export.fn_Text(existing("PositionCode")), ownPosition, vbTextCompare) = 0 Or _
+                    StrComp(ex_PEB_Export.fn_Text(existing("PositionCode")), CStr(row("OwnPositionCode")), vbTextCompare) = 0 Or _
+                    StrComp(ex_PEB_Export.fn_Text(existing("PositionCode")), CStr(row("PositionCode")), vbTextCompare) = 0 Then
+                If fn_IsStarted(existing("StartOrder"), existing("StartDate"), startDate, ownPosition) Then
+                    If ex_PEB_MovementSource.fn_OrderDate(existing("EndDate")) = 0 Or _
+                            ex_PEB_MovementSource.fn_OrderDate(existing("EndDate")) > CDbl(eventDate) Then
+                        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                    End If
+                End If
+            End If
+        End If
+    Next existing
+    For Each field In private_Fields()
+        row(field) = desired(field)
+    Next field
+    Set row("Action") = action
+End Sub
 
 Private Function private_Matches( _
     ByVal actual As Collection, _
