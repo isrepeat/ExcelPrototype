@@ -1353,6 +1353,11 @@
       <layer name="candidate-sources"
              enabled="true">
         <rule target="controlPart"
+              selector="type=candidates;part=cell;columnAlias=ПІБ;tags=personNameCleaned"
+              styles="{
+                fontColor:#F4B6D2;
+              }"/>
+        <rule target="controlPart"
               selector="type=candidates;part=cell;tags=textTooLong"
               enabled="true"
               style="candidateTextWarning"/>

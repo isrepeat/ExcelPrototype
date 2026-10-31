@@ -1,6 +1,6 @@
 """Check local new-event reset contracts without executing Office/VBA."""
 
-from event_routes import ROOT
+from event_routes import ROOT, parse_config
 from validate_movement_planner import procedure, check_declarations
 from validate_movement_batch import check_blocks
 from validate_movement_tvo import preprocess
@@ -24,13 +24,20 @@ def main():
         assert f'private_ClearKeyFields("{group}")' in change
     hotkeys = (folder / 'ex_PersonalEventBuilder.vba').read_text(encoding='utf-8-sig')
     shortcut = procedure(hotkeys, 'fn_ClearForm')
-    assert 'm_clearArmed And elapsed <=' in shortcut
-    assert 'elapsed = elapsed + 86400#' in shortcut
-    assert 'commandName = "ResetForm"' in shortcut
+    assert 'repeatSeconds' not in shortcut
+    assert 'commandName = "ResetForm"' not in shortcut
     assert 'commandName = "ClearPrimary"' in shortcut
+    assert 'Me.ResetFormHandler(True)' in procedure(controller, 'ClearPrimaryHandler')
+    assert 'hotkeys.clear.preserveFields' in reset
+    assert 'If Not preserveContext And Len(ex_PEB_Export.fn_FixedDocument' in reset
+    for filename in ('wsConfig.txt', 'wsConfig.test.txt'):
+        settings = parse_config(ROOT / 'PROJECTS_EXCEL/config/PersonalEventBuilder' / filename)
+        assert settings['hotkeys.clear.key'] == '^{110}'
+        assert set(settings['hotkeys.clear.preserveFields'].split('|')) == {
+            'ReportRank', 'ReportName', 'ReportPositionCode', 'IncomingNumber', 'IncomingDate'}
     for full_render in ('UpdatePage', 'RenderActivePage', 'RenderPages', 'm_extensions.Build'):
         assert full_render not in reset
-    for cleared in ('Form.WordPreviewText', 'Form.ActionStatus',
+    for cleared in ('Form.WordPreviewText', 'Form.ActionStatus', 'Form.TicketNumber', 'Form.TicketDate',
                     'WordContext', 'SelectedPersonnel'):
         assert cleared in reset
     assert 'updates("Text.PersonnelStatus")' not in reset

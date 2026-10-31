@@ -278,6 +278,9 @@ Public Function fn_ApplyUndo( _
     Dim successText As String
     Dim journalRow As ListRow
     Dim column As Long
+    Dim filterTables As New Collection
+    Dim filterStates As Collection
+    Dim filterError As String
 
     On Error GoTo EH_UNDO
     diagnostic = VBA.vbNullString
@@ -308,10 +311,12 @@ Public Function fn_ApplyUndo( _
     private_CheckJournal journal, undoCount
     Set affected = VBA.CreateObject("Scripting.Dictionary")
     Set newStamps = VBA.CreateObject("Scripting.Dictionary")
+    filterTables.Add journal
     ' Validate and capture every selected field before the first mutation.
     For Each row In report("Rows")
         If row("UndoSelected") Then
             Set table = book.Worksheets(row("Worksheet")).ListObjects(row("UndoTable"))
+            filterTables.Add table
             If table.Parent.ProtectContents Or Not table.ShowHeaders Then
                 Err.Raise 5, , ex_PEB_Export.fn_Config("movementDiff.undo.unavailable")
             End If
@@ -344,6 +349,9 @@ Public Function fn_ApplyUndo( _
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     Application.AutoCorrect.AutoFillFormulasInLists = False
+    If Not ex_TableFilters.fn_Suspend(filterTables, filterStates, filterError) Then
+        Err.Raise 5, , filterError
+    End If
     changed = True
     For Each entry In entries
         Set row = entry("Row")
@@ -402,6 +410,11 @@ Public Function fn_ApplyUndo( _
     fn_ApplyUndo = True
     diagnostic = VBA.Replace$(successText, "{count}", VBA.CStr(entries.Count))
 CleanUndo:
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If Len(filterError) > 0 Then
+        diagnostic = diagnostic & vbCrLf & Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryFilterRestoreFailed"), "{details}", filterError)
+    End If
     If captured Then
         On Error Resume Next
         VBA.Err.Clear

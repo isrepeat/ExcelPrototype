@@ -780,6 +780,22 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
                             sourceAlias:=VBA.CStr(sourceKey), tags:="tableRow odd"
                     End If
                 Next sourceKey
+                ' Expose row metadata on individual cells for column-specific text styles.
+                If Not rowTagSource Is Nothing Then
+                    For rowIndex = 1 To rawTable.RowCount
+                        rowTags = rowTagSource.RowTagsAt(rowIndex)
+                        If VBA.Len(rowTags) > 0 Then
+                            For columnIndex = 1 To rawTable.ColumnCount
+                                columnSpan = private_ColumnSpanAt(columnIndex)
+                                If columnSpan > 0 Then
+                                    Set fieldRange = m_bodyRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan)
+                                    uiRenderContext.Styles.RegisterPart m_uiControlBase.ControlNode, fieldRange, _
+                                        "cell", rawTable.HeaderAt(columnIndex), tags:=rowTags
+                                End If
+                            Next columnIndex
+                        End If
+                    Next rowIndex
+                End If
             End If
         End If
     End If

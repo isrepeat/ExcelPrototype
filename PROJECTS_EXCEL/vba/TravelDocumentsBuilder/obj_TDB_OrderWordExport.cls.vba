@@ -109,6 +109,9 @@ Public Function TryExport( _
     Dim activePath As String
     Dim protection As obj_TDB_HistoryProtection
     Dim protectionDiagnostic As String
+    Dim filterTables As New Collection
+    Dim filterStates As Collection
+    Dim filterError As String
     Dim errorNumber As Long
     Dim errorSource As String
     Dim errorDescription As String
@@ -236,6 +239,9 @@ Public Function TryExport( _
     Set protection = New obj_TDB_HistoryProtection
     If Not protection.Initialize(tickets, revisions) Then ex_TDB_History.fn_Fail "ReadOnly"
     protection.PrepareMetadataWrite
+    filterTables.Add tickets
+    filterTables.Add revisions
+    If Not ex_TableFilters.fn_Suspend(filterTables, filterStates, filterError) Then VBA.Err.Raise 5, , filterError
     historyChanged = True
     For Each group In groups
         Set root = group(1)
@@ -287,6 +293,9 @@ Failed:
             If Not protection Is Nothing Then protection.PrepareMetadataWrite
             If VBA.Err.Number <> 0 Then rollback = rollback & VBA.Err.Description & VBA.vbLf
             VBA.Err.Clear
+            ex_TableFilters.fn_ClearCaptured filterStates
+            If VBA.Err.Number <> 0 Then rollback = rollback & VBA.Err.Description & VBA.vbLf
+            VBA.Err.Clear
             ex_TDB_History.fn_Rollback tickets, revisions, transaction
             If VBA.Err.Number <> 0 Then rollback = rollback & VBA.Err.Description & VBA.vbLf
         End If
@@ -296,6 +305,8 @@ Failed:
     If VBA.Len(rollback) > 0 Then diagnostic = diagnostic & VBA.vbLf & private_Config("text.Rollback") & VBA.vbLf & rollback & stage
 Cleanup:
     On Error Resume Next
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If Len(filterError) > 0 Then diagnostic = diagnostic & vbLf & filterError
     phaseStartedAt = VBA.Timer
     ex_TDB_WordSession.fn_EndExport
     If Not m_vacationGenerator Is Nothing Then m_vacationGenerator.Dispose
