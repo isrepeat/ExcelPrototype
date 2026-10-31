@@ -109,6 +109,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
         errorDescription = ex_TravelDocumentsBuilder.fn_Config("text.CloseFlushFailed")
         GoTo CancelClose
     End If
+    ex_TDB_WordSession.fn_Module_Dispose
     ex_AppCommands.fn_Module_Dispose
     On Error Resume Next
     Set updater = Application.Workbooks("WorkbookUpdater.xlam")

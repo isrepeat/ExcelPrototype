@@ -379,6 +379,9 @@ for key in ("ProtectionFailed", "ProtectionUnavailable", "ProtectionNotApplied")
 assert 'sheet.Cells.Locked = True' in protection
 assert 'UserInterfaceOnly:=False, AllowFiltering:=True' in protection
 assert 'sheet.EnableSelection = xlNoRestrictions' in protection
+assert 'If sheet.EnableSelection <> xlNoRestrictions Then' in protection
+assert 'If Not m_restoreRequired Then' in protection
+assert 'm_restoreRequired = False' in protection
 assert protection.count('For Each sheet In m_sheets') == 2
 assert 'failure = private_ProtectSheet(sheet)' in protection
 assert 'If Not Me.TryProtect(diagnostic) Then failures = failures & diagnostic' in protection
@@ -411,7 +414,14 @@ assert len(str(stage_folder / "backup" / "1.docx")) <= int(cfg("word.maxPath"))
 assert "If stageCreated And VBA.Len(rollback) = 0 Then" in exporter
 assert "GetParentFolderName(m_fileSystem.GetAbsolutePathName(stage))" in exporter
 assert "ex_TDB_History.fn_Rollback tickets, revisions, transaction" in exporter
-assert generator.count('VBA.CreateObject("Word.Application")') == 1
+word_session = (sources / "ex_TDB_WordSession.vba").read_text(encoding="utf-8-sig")
+assert word_session.count('VBA.CreateObject("Word.Application")') == 1
+assert 'VBA.CreateObject("Word.Application")' not in generator
+assert '.Quit' not in generator and '.Quit' not in exporter
+assert 'ex_TDB_WordSession.fn_Acquire()' in generator
+assert 'ex_TDB_WordSession.fn_Module_Dispose' in controller
+assert 'ex_TDB_WordSession.fn_Module_Dispose' in (sources / "ThisWorkbook.vba").read_text(encoding="utf-8-sig")
+assert 'documentCount = m_application.Documents.Count' in word_session
 assert 'If m_wordSession Is Nothing Then' in generator
 assert 'word.ScreenUpdating = False' in generator
 assert 'word.Documents.Open(' in generator
@@ -445,7 +455,7 @@ for stage in ('Document.Prepare', 'Session.Start', 'Document.Create', 'Document.
               'Document.Save', 'Document.Close', 'Document.Total', 'Document.FailedTotal',
               'Template.IndexMarkers', 'Template.SaveAnchors'):
     assert '"' + stage + '"' in generator, stage
-for stage in ('Prepare', 'RenderAll', 'Verify', 'PublishFiles', 'MetadataAndProtection', 'SessionClose', 'Cleanup', 'Total'):
+for stage in ('Prepare', 'RenderAll', 'Verify', 'PublishFiles', 'MetadataAndProtection', 'RendererCleanup', 'Cleanup', 'Total'):
     assert '"TDB.Word.Export.' + stage + '"' in exporter, stage
 assert 'ex_Core.fn_Diagnostic_BeginBatch' in exporter
 assert 'If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch' in exporter

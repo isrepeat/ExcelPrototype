@@ -5,6 +5,7 @@ Option Explicit
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     ex_UiPageManager.fn_Module_Dispose
+    ex_TDB_WordSession.fn_Module_Dispose
     ex_TableSnapshots.fn_Module_Dispose
 End Sub
 ' --------------------------------------

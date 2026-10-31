@@ -83,7 +83,6 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
-    If Not m_wordSession Is Nothing Then m_wordSession.Quit 0
     Set m_wordSession = Nothing
     Set m_wordAnchors = Nothing
     m_wordTemplatePath = VBA.vbNullString
@@ -804,10 +803,7 @@ Private Sub private_GenerateWord( _
     stage = "Session.Start"
     stageStartedAt = VBA.Timer
     If m_wordSession Is Nothing Then
-        Set m_wordSession = VBA.CreateObject("Word.Application")
-        m_wordSession.Visible = False
-        m_wordSession.DisplayAlerts = 0
-        m_wordSession.AutomationSecurity = 3
+        Set m_wordSession = ex_TDB_WordSession.fn_Acquire()
     End If
     Set word = m_wordSession
     word.ScreenUpdating = False
@@ -861,7 +857,6 @@ EH:
     private_Log "TDB_WORD_FAILED", "Stage=" & stage & " | Path=" & path & " | Number=" & VBA.CStr(errorNumber) & " | Error=" & errorDescription
     private_WordPerf stage & ".Failed", stageStartedAt
     If Not document Is Nothing Then document.Close False
-    If Not word Is Nothing Then word.Quit 0
     Set m_wordSession = Nothing
     Set m_wordAnchors = Nothing
     m_wordTemplatePath = VBA.vbNullString
