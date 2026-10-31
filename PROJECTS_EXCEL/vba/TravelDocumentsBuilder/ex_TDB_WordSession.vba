@@ -41,11 +41,21 @@ Public Function fn_Acquire() As Object
     End If
     If m_application Is Nothing Then Set m_application = VBA.CreateObject("Word.Application")
     m_application.Visible = False
-    m_application.ScreenUpdating = False
+    m_application.ScreenUpdating = True
     m_application.DisplayAlerts = 0
     m_application.AutomationSecurity = 3
     Set fn_Acquire = m_application
 End Function
+
+Public Sub fn_EndExport()
+    If m_application Is Nothing Then Exit Sub
+    On Error GoTo Failed
+    ' A retained Word process must return to normal rendering before users open output files.
+    m_application.ScreenUpdating = True
+    Exit Sub
+Failed:
+    ex_Core.fn_Diagnostic_WriteError "TDB.Word.RestoreDisplay", VBA.Err.Number, VBA.Err.Source, VBA.Err.Description
+End Sub
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------

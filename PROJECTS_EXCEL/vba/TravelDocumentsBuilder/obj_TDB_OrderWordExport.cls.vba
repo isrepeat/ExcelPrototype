@@ -295,6 +295,7 @@ Failed:
 Cleanup:
     On Error Resume Next
     phaseStartedAt = VBA.Timer
+    ex_TDB_WordSession.fn_EndExport
     If Not m_vacationGenerator Is Nothing Then m_vacationGenerator.Dispose
     ex_Core.fn_Diagnostic_WritePerf "TDB.Word.Export.RendererCleanup", phaseStartedAt
     phaseStartedAt = VBA.Timer
