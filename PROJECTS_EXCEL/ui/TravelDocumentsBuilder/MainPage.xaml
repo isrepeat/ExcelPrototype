@@ -450,6 +450,7 @@
                     column="4"
                     style="candidateTable"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
+                    selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
                     onSelect="{Binding Path=Commands.SelectPersonnel}"
                     selectedStyle="candidateSelected"
                     showHeaders="true"/>
@@ -578,7 +579,7 @@
                   backColor="#2D2D2D"
                   textColor="#FFFFFF"
                   fontName="Calibri"
-                  fontSize="11"
+                  fontSize="10"
                   fontBold="false"
                   borderColor="#000000"
                   borderWeight="thin"
@@ -587,13 +588,13 @@
     <controlStyle name="candidateSelected"
                   paddingLeft="10"
                   paddingRight="10"
-                  backColor="#375D7A"
-                  textColor="#FFFFFF"
+                  backColor="#505050"
                   fontName="Calibri"
-                  fontSize="11"
+                  fontSize="10"
                   fontBold="false"
-                  borderColor="#6A9EC4"
+                  borderColor="#808080"
                   borderWeight="thin"
+                  borderScope="outline"
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="secondaryButton"
@@ -732,7 +733,7 @@
               styles="{horizontal:right;paddingLeft:10;paddingRight:10;}"/>
         <rule target="controlPart"
               selector="type=table;part=header"
-              styles="{backColor:#355D8C;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
+              styles="{backColor:#3A3A3A;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>
         <rule target="controlPart"
               selector="type=table;part=row;tags=even"
               styles="{backColor:#383838;}"/>

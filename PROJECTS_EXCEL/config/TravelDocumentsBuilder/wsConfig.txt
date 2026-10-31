@@ -1,62 +1,162 @@
 value	ThisWorkbook::id	TravelDocumentsBuilder
-value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
-value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
-value	TravelDocumentsBuilder::dates.daysAhead	15
-value	TravelDocumentsBuilder::dates.daysBefore	3
-value	TravelDocumentsBuilder::text.InvalidDateRange	Параметри dates.daysAhead і dates.daysBefore мають бути цілими числами від 0 до 31.
+value	ThisWorkbook::ui.pageMappings	MainPage=MainPage.xaml
+value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
+value	ThisWorkbook::config.source	../../config/TravelDocumentsBuilder/wsConfig.txt
+value	ThisWorkbook::uiPath	..\..\ui
+value	ThisWorkbook::logMode	Immediate
+value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\TravelDocumentsBuilder
+value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_TravelDocumentsBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_TravelDocumentsBuilder.fn_CreatePage
-value	ThisWorkbook::vbaPath	..\..\vba
-value	ThisWorkbook::uiPath	..\..\ui
-value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\TravelDocumentsBuilder
-value	ThisWorkbook::logMode	Immediate
-value	TravelDocumentsBuilder::text.PersonnelPrompt	Введіть частину ПІБ або ІПН та натисніть Enter.
-value	TravelDocumentsBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
-value	TravelDocumentsBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
-value	TravelDocumentsBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
-value	TravelDocumentsBuilder::text.PersonnelCount	Оберіть рядок кандидата — дані буде підставлено у форму.
-value	TravelDocumentsBuilder::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
-value	TravelDocumentsBuilder::text.CandidateCountTemplate	Кандидатів: {count}
-value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
-value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
-value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
-value	TravelDocumentsBuilder::text.PersonNameLabel	ПІБ
+value	TravelDocumentsBuilder::ui.folder	TravelDocumentsBuilder
 value	TravelDocumentsBuilder::text.Title	Документи
-value	TravelDocumentsBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
-value	TravelDocumentsBuilder::text.DocumentSection	ДАНІ ДОКУМЕНТА
-value	TravelDocumentsBuilder::text.SearchSection	ПОШУК ВІЙСЬКОВОСЛУЖБОВЦЯ
-value	TravelDocumentsBuilder::text.SearchPersonnel	Знайти
-value	TravelDocumentsBuilder::text.SearchLabel	ПІБ / ІПН
-value	TravelDocumentsBuilder::text.PersonPositionCodeLabel	Код посади
-value	TravelDocumentsBuilder::text.UnknownDocumentType	Невідомий тип документа: {value}
-value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток
-value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
-value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
-value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (Шаблон).docx
-value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
-value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
-value	TravelDocumentsBuilder::text.CheckboxChecked	☑
-value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
-value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
-value	TravelDocumentsBuilder::text.PersonRankLabel	Звання
-value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
-value	TravelDocumentsBuilder::text.PersonUnitLabel	Підрозділ
-value	TravelDocumentsBuilder::text.RefreshPersonnel	Розірвати з’єднання
-value	TravelDocumentsBuilder::text.ConnectionsReset	Кеші даних скинуто. Повторіть пошук для завантаження актуальних даних.
-value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
-value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
+value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
+value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
+value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
+value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
+value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
+value	TravelDocumentsBuilder::text.ClearForm	Очистити форму
+value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
+value	TravelDocumentsBuilder::text.LastStatus	Останній статус
 value	TravelDocumentsBuilder::text.RankHeader	Звання
-value	TravelDocumentsBuilder::text.PositionHeader	Посада
-value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
+value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
+value	TravelDocumentsBuilder::text.SearchLabel	ПІБ / ІПН
+value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
+value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
+value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
+value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
+value	TravelDocumentsBuilder::text.LookupTarget.Tvo	Військовослужбовець / [[color=#F4A46B]]ТВО[[/color]]
+value	TravelDocumentsBuilder::text.LookupTarget.Personnel	[[color=#F4A46B]]Військовослужбовець[[/color]] / ТВО
+value	TravelDocumentsBuilder::text.StyleEnabled	Значення enabled має бути true або false.
+value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
+value	TravelDocumentsBuilder::text.VacationDays	Дні відпустки
+value	TravelDocumentsBuilder::text.VacationKind	Вид відпустки
+value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
+value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
+value	TravelDocumentsBuilder::text.SearchSection	ПОШУК ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	TravelDocumentsBuilder::text.StyleCellType	Непідтримуване значення cellType.
+value	TravelDocumentsBuilder::text.StyleProperty	Непідтримувана властивість стилю: {value}
+value	TravelDocumentsBuilder::text.StyleRangeKey	Селектор не підтримується для діапазону: {value}
+value	TravelDocumentsBuilder::text.StyleSelector	Некоректний селектор стилів: {value}
+value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
+value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
+value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
+value	TravelDocumentsBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте джерело наказів.
+value	TravelDocumentsBuilder::text.OrderReference	Номер / дата наказу
+value	TravelDocumentsBuilder::text.PersonnelCount	Оберіть рядок кандидата та натисніть Ctrl+Enter для підстановки даних.
+value	TravelDocumentsBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
+value	TravelDocumentsBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
+value	TravelDocumentsBuilder::text.PositionHeader	Посада
+value	TravelDocumentsBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
+value	TravelDocumentsBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
+value	TravelDocumentsBuilder::text.UpdateDocument	Оновити DOCX
+value	TravelDocumentsBuilder::text.VacationAbroad	Виїзд за кордон
+value	TravelDocumentsBuilder::text.VacationStatus	Статус
+value	TravelDocumentsBuilder::text.VacationTicket.PurposeLabel	Підстава
+value	TravelDocumentsBuilder::text.VacationTicket.ReturnDateLabel	Дата повернення
+value	TravelDocumentsBuilder::text.VacationTicket.DocumentFormTitle	Відпускний квиток
+value	TravelDocumentsBuilder::text.VacationTicket.DepartureDateLabel	Дата вибуття
+value	TravelDocumentsBuilder::text.VacationTicket.DocumentTargetLabel	Місце відпустки
+value	TravelDocumentsBuilder::text.CheckboxChecked	☑
+value	TravelDocumentsBuilder::text.DocumentSection	ДАНІ ДОКУМЕНТА
+value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
+value	TravelDocumentsBuilder::text.PersonNameLabel	ПІБ
+value	TravelDocumentsBuilder::text.PersonRankLabel	Звання
+value	TravelDocumentsBuilder::text.PersonUnitLabel	Підрозділ
+value	TravelDocumentsBuilder::text.PersonnelPrompt	Завантажте дані, введіть частину ПІБ або ІПН та натисніть Enter.
+value	TravelDocumentsBuilder::text.SearchPersonnel	Знайти
+value	TravelDocumentsBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
+value	TravelDocumentsBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
+value	TravelDocumentsBuilder::text.CloseFlushFailed	Не вдалося зберегти журнал діагностики. Книгу залишено відкритою.
+value	TravelDocumentsBuilder::text.InvalidDateRange	Параметри dates.daysAhead і dates.daysBefore мають бути цілими числами від 0 до 31.
+value	TravelDocumentsBuilder::text.OrderDataInvalid	Некоректна дата або номер у рядку джерела наказів: {row}.
+value	TravelDocumentsBuilder::text.OrderInvalidDate	Вказано неіснуючу дату наказу.
+value	TravelDocumentsBuilder::text.OrderInvalidYear	Рік наказу має містити чотири цифри від 1000 до 9999.
+value	TravelDocumentsBuilder::text.OrderSourceError	Не вдалося підготувати дані наказів.
+value	TravelDocumentsBuilder::text.OutputFolderPath	Папка документів
+value	TravelDocumentsBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
+value	TravelDocumentsBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	TravelDocumentsBuilder::text.RefreshPersonnel	Завантажити дані
+value	TravelDocumentsBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
+value	TravelDocumentsBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
+value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
+value	TravelDocumentsBuilder::text.DependenciesReady	Дані завантажено. Виконайте пошук військовослужбовця.
+value	TravelDocumentsBuilder::text.DocumentTypeLabel	Тип документа
+value	TravelDocumentsBuilder::text.OrderInvalidInput	Допустимі формати: номер, ДД.ММ, ДД.ММ.РРРР або номер / ДД.ММ.РРРР. Номер — лише цифри; день і місяць — по дві цифри.
+value	TravelDocumentsBuilder::text.OrderYearConflict	Рік у даті не збігається з полем «Рік наказу».
+value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
+value	TravelDocumentsBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
+value	TravelDocumentsBuilder::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
+value	TravelDocumentsBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
+value	TravelDocumentsBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
+value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
+value	TravelDocumentsBuilder::text.ReinitializeConfig	Застосувати конфіг
+value	TravelDocumentsBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
+value	TravelDocumentsBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
+value	TravelDocumentsBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
+value	TravelDocumentsBuilder::text.DependenciesLoading	Завантаження довідників і наказів...
+value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
+value	TravelDocumentsBuilder::text.StyleOverlayBinding	Не вдалося визначити стиль виділення.
+value	TravelDocumentsBuilder::text.StyleOverlayMissing	Стиль виділення не оголошено: {value}
+value	TravelDocumentsBuilder::text.StyleTargetSelector	Для селекторів row, col або address використовуйте ціль діапазону.
+value	TravelDocumentsBuilder::text.UnknownDocumentType	Невідомий тип документа: {value}
+value	TravelDocumentsBuilder::text.DependenciesProgress	Завантаження даних: {step}/{total} — {stage}
+value	TravelDocumentsBuilder::text.DependenciesRequired	Натисніть «Завантажити дані», щоб завантажити довідники і накази.
+value	TravelDocumentsBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
+value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
+value	TravelDocumentsBuilder::text.CandidateCountTemplate	Кандидатів: {count}
+value	TravelDocumentsBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
+value	TravelDocumentsBuilder::text.BusinessTripCertificate.PurposeLabel	Мета відрядження
+value	TravelDocumentsBuilder::text.BusinessTripCertificate.ReturnDateLabel	Дата повернення
+value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentFormTitle	Посвідчення про відрядження
+value	TravelDocumentsBuilder::text.BusinessTripCertificate.DepartureDateLabel	Дата вибуття
+value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentTargetLabel	Місце відрядження
+value	TravelDocumentsBuilder::text.PersonPositionCodeLabel	Код посади
+value	TravelDocumentsBuilder::text.DependenciesSourceChanged	Джерело змінилося під час завантаження: {path}. Повторіть завантаження.
+value	TravelDocumentsBuilder::dates.daysAhead	15
+value	TravelDocumentsBuilder::dates.daysBefore	3
+value	TravelDocumentsBuilder::lookup.Tvo.apply.1.field	Personnel.FullName
+value	TravelDocumentsBuilder::lookup.Tvo.apply.1.target	Form.TvoName
+value	TravelDocumentsBuilder::lookup.Tvo.apply.2.field	Personnel.TaxId
+value	TravelDocumentsBuilder::lookup.Tvo.apply.2.target	Form.TvoIpn
+value	TravelDocumentsBuilder::lookup.Tvo.apply.3.field	Personnel.PositionCode
+value	TravelDocumentsBuilder::lookup.Tvo.apply.3.target	Form.TvoPosition
+value	TravelDocumentsBuilder::lookup.Tvo.apply.count	3
 value	TravelDocumentsBuilder::lookup.Personnel.key	Personnel.TaxId
-value	TravelDocumentsBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
-value	TravelDocumentsBuilder::lookup.Personnel.minChars	2
-value	TravelDocumentsBuilder::lookup.Personnel.maxResults	50
+value	TravelDocumentsBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
+value	TravelDocumentsBuilder::lookup.Personnel.apply.1.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.1.target	Form.PersonName
+value	TravelDocumentsBuilder::lookup.Personnel.apply.1.required	True
+value	TravelDocumentsBuilder::lookup.Personnel.apply.2.field	Personnel.TaxId
+value	TravelDocumentsBuilder::lookup.Personnel.apply.2.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.2.target	Form.PersonId
+value	TravelDocumentsBuilder::lookup.Personnel.apply.2.required	True
+value	TravelDocumentsBuilder::lookup.Personnel.apply.3.field	Personnel.Rank
+value	TravelDocumentsBuilder::lookup.Personnel.apply.3.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.3.target	Form.PersonRank
+value	TravelDocumentsBuilder::lookup.Personnel.apply.3.required	True
+value	TravelDocumentsBuilder::lookup.Personnel.apply.4.field	Personnel.Position
+value	TravelDocumentsBuilder::lookup.Personnel.apply.4.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.4.target	Form.PersonPosition
+value	TravelDocumentsBuilder::lookup.Personnel.apply.4.required	True
+value	TravelDocumentsBuilder::lookup.Personnel.apply.5.field	Personnel.Unit
+value	TravelDocumentsBuilder::lookup.Personnel.apply.5.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.5.target	Form.PersonUnit
+value	TravelDocumentsBuilder::lookup.Personnel.apply.5.required	True
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.field	Personnel.PositionCode
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.policy	overwrite
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.target	Form.PersonPositionCode
+value	TravelDocumentsBuilder::lookup.Personnel.apply.6.required	False
+value	TravelDocumentsBuilder::lookup.Personnel.apply.count	6
+value	TravelDocumentsBuilder::lookup.Personnel.search.1.name	Personnel.FullName
+value	TravelDocumentsBuilder::lookup.Personnel.search.1.match	contains
+value	TravelDocumentsBuilder::lookup.Personnel.search.2.name	Personnel.TaxId
+value	TravelDocumentsBuilder::lookup.Personnel.search.2.match	contains
+value	TravelDocumentsBuilder::lookup.Personnel.search.count	2
 value	TravelDocumentsBuilder::lookup.Personnel.source.path	../Dependencies/ШПО.xlsx
+value	TravelDocumentsBuilder::lookup.Personnel.source.range	A1:CG10556
 value	TravelDocumentsBuilder::lookup.Personnel.source.sheet	ОС
-value	TravelDocumentsBuilder::lookup.Personnel.source.range	auto
-value	TravelDocumentsBuilder::lookup.Personnel.columns.count	6
 value	TravelDocumentsBuilder::lookup.Personnel.columns.1.name	Personnel.Rank
 value	TravelDocumentsBuilder::lookup.Personnel.columns.1.header	Військове звання фактично
 value	TravelDocumentsBuilder::lookup.Personnel.columns.1.captionKey	TravelDocumentsBuilder::text.RankHeader
@@ -74,185 +174,108 @@ value	TravelDocumentsBuilder::lookup.Personnel.columns.5.header	Посада
 value	TravelDocumentsBuilder::lookup.Personnel.columns.5.captionKey	TravelDocumentsBuilder::text.PositionHeader
 value	TravelDocumentsBuilder::lookup.Personnel.columns.6.name	Personnel.Unit
 value	TravelDocumentsBuilder::lookup.Personnel.columns.6.header	Підрозділ
+value	TravelDocumentsBuilder::lookup.Personnel.columns.count	6
 value	TravelDocumentsBuilder::lookup.Personnel.display.count	0
-value	TravelDocumentsBuilder::lookup.Personnel.search.count	2
-value	TravelDocumentsBuilder::lookup.Personnel.search.1.name	Personnel.FullName
-value	TravelDocumentsBuilder::lookup.Personnel.search.1.match	contains
-value	TravelDocumentsBuilder::lookup.Personnel.search.2.name	Personnel.TaxId
-value	TravelDocumentsBuilder::lookup.Personnel.search.2.match	contains
-value	TravelDocumentsBuilder::lookup.Personnel.apply.count	6
-value	TravelDocumentsBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
-value	TravelDocumentsBuilder::lookup.Personnel.apply.1.target	Form.PersonName
-value	TravelDocumentsBuilder::lookup.Personnel.apply.1.policy	overwrite
-value	TravelDocumentsBuilder::lookup.Personnel.apply.1.required	True
-value	TravelDocumentsBuilder::lookup.Personnel.apply.2.field	Personnel.TaxId
-value	TravelDocumentsBuilder::lookup.Personnel.apply.2.target	Form.PersonId
-value	TravelDocumentsBuilder::lookup.Personnel.apply.2.policy	overwrite
-value	TravelDocumentsBuilder::lookup.Personnel.apply.2.required	True
-value	TravelDocumentsBuilder::lookup.Personnel.apply.3.field	Personnel.Rank
-value	TravelDocumentsBuilder::lookup.Personnel.apply.3.target	Form.PersonRank
-value	TravelDocumentsBuilder::lookup.Personnel.apply.3.policy	overwrite
-value	TravelDocumentsBuilder::lookup.Personnel.apply.3.required	True
-value	TravelDocumentsBuilder::lookup.Personnel.apply.4.field	Personnel.Position
-value	TravelDocumentsBuilder::lookup.Personnel.apply.4.target	Form.PersonPosition
-value	TravelDocumentsBuilder::lookup.Personnel.apply.4.policy	overwrite
-value	TravelDocumentsBuilder::lookup.Personnel.apply.4.required	True
-value	TravelDocumentsBuilder::lookup.Personnel.apply.5.field	Personnel.Unit
-value	TravelDocumentsBuilder::lookup.Personnel.apply.5.target	Form.PersonUnit
-value	TravelDocumentsBuilder::lookup.Personnel.apply.5.policy	overwrite
-value	TravelDocumentsBuilder::lookup.Personnel.apply.5.required	True
-value	TravelDocumentsBuilder::lookup.Personnel.apply.6.field	Personnel.PositionCode
-value	TravelDocumentsBuilder::lookup.Personnel.apply.6.target	Form.PersonPositionCode
-value	TravelDocumentsBuilder::lookup.Personnel.apply.6.policy	overwrite
-value	TravelDocumentsBuilder::lookup.Personnel.apply.6.required	False
-value	TravelDocumentsBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
-value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
-value	TravelDocumentsBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
-value	TravelDocumentsBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
-value	TravelDocumentsBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
-value	TravelDocumentsBuilder::text.StyleRangeKey	Селектор не підтримується для діапазону: {value}
-value	TravelDocumentsBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
-value	TravelDocumentsBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
-value	TravelDocumentsBuilder::text.StyleSelector	Некоректний селектор стилів: {value}
-value	TravelDocumentsBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
-value	TravelDocumentsBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
-value	TravelDocumentsBuilder::text.StyleEnabled	Значення enabled має бути true або false.
-value	TravelDocumentsBuilder::text.StyleTargetSelector	Для селекторів row, col або address використовуйте ціль діапазону.
-value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
-value	TravelDocumentsBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
-value	TravelDocumentsBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
-value	TravelDocumentsBuilder::text.StyleOverlayBinding	Не вдалося визначити стиль виділення.
-value	TravelDocumentsBuilder::text.StyleOverlayMissing	Стиль виділення не оголошено: {value}
-value	TravelDocumentsBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
-value	TravelDocumentsBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
-value	TravelDocumentsBuilder::text.StyleProperty	Непідтримувана властивість стилю: {value}
-value	TravelDocumentsBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
-value	TravelDocumentsBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
-value	TravelDocumentsBuilder::text.StyleCellType	Непідтримуване значення cellType.
-value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
-value	TravelDocumentsBuilder::text.DocumentTypeLabel	Тип документа
-value	TravelDocumentsBuilder::text.VacationTicket.DocumentFormTitle	Відпускний квиток
-value	TravelDocumentsBuilder::text.VacationTicket.DocumentTargetLabel	Місце відпустки
-value	TravelDocumentsBuilder::text.VacationTicket.DepartureDateLabel	Дата вибуття
-value	TravelDocumentsBuilder::text.VacationTicket.ReturnDateLabel	Дата повернення
-value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
-value	TravelDocumentsBuilder::text.VacationTicket.PurposeLabel	Підстава
-value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentFormTitle	Посвідчення про відрядження
-value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentTargetLabel	Місце відрядження
-value	TravelDocumentsBuilder::text.BusinessTripCertificate.DepartureDateLabel	Дата вибуття
-value	TravelDocumentsBuilder::text.BusinessTripCertificate.ReturnDateLabel	Дата повернення
-value	TravelDocumentsBuilder::text.BusinessTripCertificate.PurposeLabel	Мета відрядження
-value	TravelDocumentsBuilder::text.VacationKind	Вид відпустки
-value	TravelDocumentsBuilder::text.OrderReference	Номер / дата наказу
-value	TravelDocumentsBuilder::text.VacationDays	Дні відпустки
-value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
-value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
-value	TravelDocumentsBuilder::text.VacationAbroad	Виїзд за кордон
-value	TravelDocumentsBuilder::text.VacationStatus	Статус
-value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
-value	TravelDocumentsBuilder::text.OutputFolderPath	Папка документів
-value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
-value	TravelDocumentsBuilder::text.UpdateDocument	Оновити DOCX
-value	TravelDocumentsBuilder::text.ClearForm	Очистити форму
-value	TravelDocumentsBuilder::text.ReinitializeConfig	Застосувати конфіг
-value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
-value	TravelDocumentsBuilder::text.LastStatus	Останній статус
-value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
+value	TravelDocumentsBuilder::lookup.Personnel.minChars	2
+value	TravelDocumentsBuilder::lookup.Personnel.maxResults	50
+value	TravelDocumentsBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
+value	TravelDocumentsBuilder::orders.source.path	../Dependencies/Накази.xlsx
+value	TravelDocumentsBuilder::orders.source.range	D2:H555
+value	TravelDocumentsBuilder::orders.source.sheet	Накази
+value	TravelDocumentsBuilder::orders.rowsAfter	5
+value	TravelDocumentsBuilder::orders.dateHeader	Дата
+value	TravelDocumentsBuilder::orders.rowsBefore	5
+value	TravelDocumentsBuilder::orders.numberHeader	Номер наказа
+value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source
+value	TravelDocumentsBuilder::snapshots.progress.Table	Читання таблиці: {source}
+value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
+value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
+value	TravelDocumentsBuilder::snapshots.progress.Profile	Підготовка пошуку: {source}
+value	TravelDocumentsBuilder::candidates.selectionMode	Confirm
+value	TravelDocumentsBuilder::generation.kind.ids	annual,family,treatment,maternity,childcare
+value	TravelDocumentsBuilder::generation.kind.annual.word	у частину щорічної основної відпустки
+value	TravelDocumentsBuilder::generation.kind.annual.event	Щорічна відпустка
+value	TravelDocumentsBuilder::generation.kind.annual.input	Щорічна відпустка
+value	TravelDocumentsBuilder::generation.kind.family.word	у відпустку за сімейними обставинами
+value	TravelDocumentsBuilder::generation.kind.family.event	Відпустка за сімейними обставинами
+value	TravelDocumentsBuilder::generation.kind.family.input	Відпустка за сімейними обставинами
+value	TravelDocumentsBuilder::generation.kind.childcare.word	у відпустку по догляду за дитиною
+value	TravelDocumentsBuilder::generation.kind.childcare.event	Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::generation.kind.childcare.input	Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::generation.kind.maternity.word	у відпустку у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.kind.maternity.event	Відпустка у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.kind.maternity.input	Відпустка у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
+value	TravelDocumentsBuilder::generation.kind.treatment.event	Відпустка для лікування
+value	TravelDocumentsBuilder::generation.kind.treatment.input	Відпустка для лікування після поранення (контузії, травми або каліцтва)
+value	TravelDocumentsBuilder::generation.name.active	В.к. {TicketNo} {FIO} ({IPN})
+value	TravelDocumentsBuilder::generation.name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})
+value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
+value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
+value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::generation.abroad.no	Ні
+value	TravelDocumentsBuilder::generation.abroad.yes	Так
+value	TravelDocumentsBuilder::generation.abroad.word	Дозволено виїзд за кордон
+value	TravelDocumentsBuilder::generation.limits.maxDays	100000
+value	TravelDocumentsBuilder::generation.months	січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня
+value	TravelDocumentsBuilder::generation.status.mark	СКАСОВАНО
+value	TravelDocumentsBuilder::generation.status.active	Активна
+value	TravelDocumentsBuilder::generation.status.cancelled	Скасовано
+value	TravelDocumentsBuilder::generation.message.Tvo	Дані ТВО неповні або не відповідають кадровому джерелу: {value}. Оберіть кандидата повторно.
+value	TravelDocumentsBuilder::generation.message.Path	Файл або папка недоступні чи шлях конфліктує з шаблоном: {value}.
+value	TravelDocumentsBuilder::generation.message.Order	Наказ не знайдено, номер некоректний або знайдено кілька наказів: {value}.
+value	TravelDocumentsBuilder::generation.message.Table	Не знайдено таблицю або аркуш захищено: {value}.
+value	TravelDocumentsBuilder::generation.message.Title	Відпускний квиток
+value	TravelDocumentsBuilder::generation.message.Column	У tbTickets немає колонки: {value}.
+value	TravelDocumentsBuilder::generation.message.Exists	Квиток або файл уже існує: {value}. Скористайтеся оновленням.
+value	TravelDocumentsBuilder::generation.message.Failed	Не вдалося згенерувати квиток: {value}
+value	TravelDocumentsBuilder::generation.message.Marker	У шаблоні відсутній плейсхолдер: {value}.
+value	TravelDocumentsBuilder::generation.message.Invalid	Некоректне значення: {value}. Дати вводьте у форматі дд.мм.рррр, дні — цілими невід'ємними числами.
+value	TravelDocumentsBuilder::generation.message.Replace	Замінити існуючий документ {value}?
+value	TravelDocumentsBuilder::generation.message.Restore	Запис {value} існує, але DOCX відсутній. Створити документ та оновити запис за поточною формою?
+value	TravelDocumentsBuilder::generation.message.Success	DOCX збережено, tbTickets оновлено: {value}.
+value	TravelDocumentsBuilder::generation.message.NotFound	Квиток для оновлення не знайдено: {value}.
+value	TravelDocumentsBuilder::generation.message.Required	Не заповнено обов'язкове поле: {value}.
+value	TravelDocumentsBuilder::generation.message.Rollback	Не вдалося повністю відновити дані або прибрати тимчасові файли: {value}
+value	TravelDocumentsBuilder::generation.message.Workbook	Відкрийте доступну для редагування книгу {value} в цьому Excel.
+value	TravelDocumentsBuilder::generation.message.Duplicate	Знайдено кілька відповідних записів або документів: {value}. Усуньте неоднозначність.
+value	TravelDocumentsBuilder::generation.message.Unsupported	Генерація для цього типу документа ще не реалізована: {value}.
+value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
+value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
+value	TravelDocumentsBuilder::generation.defaults.VacationDays	0
 value	TravelDocumentsBuilder::generation.defaults.VacationKind	Щорічна відпустка
 value	TravelDocumentsBuilder::generation.defaults.VacationAbroad	Ні
 value	TravelDocumentsBuilder::generation.defaults.VacationStatus	Активна
-value	TravelDocumentsBuilder::generation.defaults.VacationDays	0
-value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
-value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
 value	TravelDocumentsBuilder::generation.defaults.OutputFolderPath	.\Результати
-value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
-value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
-value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
-value	TravelDocumentsBuilder::generation.registry.workbook	Квитки.xlsx
+value	TravelDocumentsBuilder::generation.donation.event	Відпочинок за донацію крові
+value	TravelDocumentsBuilder::generation.donation.orderPrefix	(?)
+value	TravelDocumentsBuilder::generation.donation.orderMissing	NNN
+value	TravelDocumentsBuilder::generation.duration.road.few	доби
+value	TravelDocumentsBuilder::generation.duration.road.one	добу
+value	TravelDocumentsBuilder::generation.duration.road.many	діб
+value	TravelDocumentsBuilder::generation.duration.road.suffix	на дорогу
+value	TravelDocumentsBuilder::generation.duration.donation.few	додаткові дні
+value	TravelDocumentsBuilder::generation.duration.donation.one	додатковий день
+value	TravelDocumentsBuilder::generation.duration.donation.many	додаткових днів
+value	TravelDocumentsBuilder::generation.duration.donation.suffix	відпочинку за донацію донорської крові та/або компонентів крові
+value	TravelDocumentsBuilder::generation.duration.vacation.few	календарні дні
+value	TravelDocumentsBuilder::generation.duration.vacation.one	календарний день
+value	TravelDocumentsBuilder::generation.duration.vacation.many	календарних днів
+value	TravelDocumentsBuilder::generation.duration.connector	та
+value	TravelDocumentsBuilder::generation.position.removedText	СПИС
+value	TravelDocumentsBuilder::generation.position.reservedText	РОЗП
+value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
+value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
 value	TravelDocumentsBuilder::generation.registry.sheet	Квитки
 value	TravelDocumentsBuilder::generation.registry.table	tbTickets
 value	TravelDocumentsBuilder::generation.registry.columns	Звання|ПІБ|ІПН|Посада|Подія|Куди|Вибуття.Наказ|Вибуття.Продовольче|Вибуття|Вибуття.Термін|Вибуття.Дорога|Прибуття.План|Прибуття|Прибуття.Продовольче|Прибуття.Наказ|Супровідний документ|ТВО.ПІБ|ТВО.ІПН|ТВО.Посада|Статус|Підстава
+value	TravelDocumentsBuilder::generation.registry.workbook	Квитки.xlsx
 value	TravelDocumentsBuilder::generation.registry.arrivalFormula	=IF([@Вибуття]="","",[@Вибуття]+SUM([@[Вибуття.Термін]],[@[Вибуття.Дорога]])+1)
-value	TravelDocumentsBuilder::generation.orders.path	../Dependencies/Накази.xlsx
-value	TravelDocumentsBuilder::generation.orders.rangePrefix	generation.orders.year.
-value	TravelDocumentsBuilder::generation.orders.year.2025	[Накази$A2:B12000]
-value	TravelDocumentsBuilder::generation.orders.year.2026	[Накази$D2:E12000]
-value	TravelDocumentsBuilder::generation.orders.numberHeader	Номер наказу
-value	TravelDocumentsBuilder::generation.orders.dateHeader	Дата наказу
-value	TravelDocumentsBuilder::generation.kind.ids	annual,family,treatment,maternity,childcare
-value	TravelDocumentsBuilder::generation.abroad.yes	Так
-value	TravelDocumentsBuilder::generation.abroad.no	Ні
-value	TravelDocumentsBuilder::generation.abroad.word	Дозволено виїзд за кордон
-value	TravelDocumentsBuilder::generation.status.active	Активна
-value	TravelDocumentsBuilder::generation.status.cancelled	Скасовано
-value	TravelDocumentsBuilder::generation.status.mark	СКАСОВАНО
-value	TravelDocumentsBuilder::generation.donation.event	Відпочинок за донацію крові
-value	TravelDocumentsBuilder::generation.donation.orderMissing	NNN
-value	TravelDocumentsBuilder::generation.donation.orderPrefix	(?)
-value	TravelDocumentsBuilder::generation.months	січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня
+value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (Шаблон).docx
+value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
-value	TravelDocumentsBuilder::generation.name.active	В.к. {TicketNo} {FIO} ({IPN})
-value	TravelDocumentsBuilder::generation.name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})
-value	TravelDocumentsBuilder::generation.duration.connector	та
-value	TravelDocumentsBuilder::generation.duration.vacation.one	календарний день
-value	TravelDocumentsBuilder::generation.duration.vacation.few	календарні дні
-value	TravelDocumentsBuilder::generation.duration.vacation.many	календарних днів
-value	TravelDocumentsBuilder::generation.duration.donation.one	додатковий день
-value	TravelDocumentsBuilder::generation.duration.donation.few	додаткові дні
-value	TravelDocumentsBuilder::generation.duration.donation.many	додаткових днів
-value	TravelDocumentsBuilder::generation.duration.donation.suffix	відпочинку за донацію донорської крові та/або компонентів крові
-value	TravelDocumentsBuilder::generation.duration.road.one	добу
-value	TravelDocumentsBuilder::generation.duration.road.few	доби
-value	TravelDocumentsBuilder::generation.duration.road.many	діб
-value	TravelDocumentsBuilder::generation.duration.road.suffix	на дорогу
-value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
-value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
-value	TravelDocumentsBuilder::generation.position.reservedText	РОЗП
-value	TravelDocumentsBuilder::generation.position.removedText	СПИС
-value	TravelDocumentsBuilder::generation.message.Required	Не заповнено обов'язкове поле: {value}.
-value	TravelDocumentsBuilder::generation.message.Invalid	Некоректне значення: {value}. Дати вводьте у форматі дд.мм.рррр, дні — цілими невід'ємними числами.
-value	TravelDocumentsBuilder::generation.message.Workbook	Відкрийте доступну для редагування книгу {value} в цьому Excel.
-value	TravelDocumentsBuilder::generation.message.Table	Не знайдено таблицю або аркуш захищено: {value}.
-value	TravelDocumentsBuilder::generation.message.Column	У tbTickets немає колонки: {value}.
-value	TravelDocumentsBuilder::generation.message.Duplicate	Знайдено кілька відповідних записів або документів: {value}. Усуньте неоднозначність.
-value	TravelDocumentsBuilder::generation.message.NotFound	Квиток для оновлення не знайдено: {value}.
-value	TravelDocumentsBuilder::generation.message.Exists	Квиток або файл уже існує: {value}. Скористайтеся оновленням.
-value	TravelDocumentsBuilder::generation.message.Restore	Запис {value} існує, але DOCX відсутній. Створити документ та оновити запис за поточною формою?
-value	TravelDocumentsBuilder::generation.message.Replace	Замінити існуючий документ {value}?
-value	TravelDocumentsBuilder::generation.message.Path	Файл або папка недоступні чи шлях конфліктує з шаблоном: {value}.
-value	TravelDocumentsBuilder::generation.message.Marker	У шаблоні відсутній плейсхолдер: {value}.
-value	TravelDocumentsBuilder::generation.message.Order	Наказ не знайдено, номер некоректний або знайдено кілька наказів: {value}.
-value	TravelDocumentsBuilder::generation.message.Tvo	Дані ТВО неповні або не відповідають кадровому джерелу: {value}. Оберіть кандидата повторно.
-value	TravelDocumentsBuilder::generation.message.Unsupported	Генерація для цього типу документа ще не реалізована: {value}.
-value	TravelDocumentsBuilder::generation.message.Success	DOCX збережено, tbTickets оновлено: {value}.
-value	TravelDocumentsBuilder::generation.message.Failed	Не вдалося згенерувати квиток: {value}
-value	TravelDocumentsBuilder::generation.message.Rollback	Не вдалося повністю відновити дані або прибрати тимчасові файли: {value}
-value	TravelDocumentsBuilder::generation.message.Title	Відпускний квиток
-value	TravelDocumentsBuilder::generation.limits.maxDays	100000
-value	TravelDocumentsBuilder::generation.kind.annual.input	Щорічна відпустка
-value	TravelDocumentsBuilder::generation.kind.annual.word	у частину щорічної основної відпустки
-value	TravelDocumentsBuilder::generation.kind.annual.event	Щорічна відпустка
-value	TravelDocumentsBuilder::generation.kind.family.input	Відпустка за сімейними обставинами
-value	TravelDocumentsBuilder::generation.kind.family.word	у відпустку за сімейними обставинами
-value	TravelDocumentsBuilder::generation.kind.family.event	Відпустка за сімейними обставинами
-value	TravelDocumentsBuilder::generation.kind.treatment.input	Відпустка для лікування після поранення (контузії, травми або каліцтва)
-value	TravelDocumentsBuilder::generation.kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
-value	TravelDocumentsBuilder::generation.kind.treatment.event	Відпустка для лікування
-value	TravelDocumentsBuilder::generation.kind.maternity.input	Відпустка у зв'язку з вагітністю та пологами
-value	TravelDocumentsBuilder::generation.kind.maternity.word	у відпустку у зв'язку з вагітністю та пологами
-value	TravelDocumentsBuilder::generation.kind.maternity.event	Відпустка у зв'язку з вагітністю та пологами
-value	TravelDocumentsBuilder::generation.kind.childcare.input	Відпустка по догляду за дитиною
-value	TravelDocumentsBuilder::generation.kind.childcare.word	у відпустку по догляду за дитиною
-value	TravelDocumentsBuilder::generation.kind.childcare.event	Відпустка по догляду за дитиною
-value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
-value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
-value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
-value	TravelDocumentsBuilder::text.LookupTarget.Personnel	[[color=#F4A46B]]Військовослужбовець[[/color]] / ТВО
-value	TravelDocumentsBuilder::text.LookupTarget.Tvo	Військовослужбовець / [[color=#F4A46B]]ТВО[[/color]]
-value	TravelDocumentsBuilder::lookup.Tvo.apply.count	3
-value	TravelDocumentsBuilder::lookup.Tvo.apply.1.field	Personnel.FullName
-value	TravelDocumentsBuilder::lookup.Tvo.apply.1.target	Form.TvoName
-value	TravelDocumentsBuilder::lookup.Tvo.apply.2.field	Personnel.TaxId
-value	TravelDocumentsBuilder::lookup.Tvo.apply.2.target	Form.TvoIpn
-value	TravelDocumentsBuilder::lookup.Tvo.apply.3.field	Personnel.PositionCode
-value	TravelDocumentsBuilder::lookup.Tvo.apply.3.target	Form.TvoPosition
+value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
+value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
+value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
+value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
+value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток

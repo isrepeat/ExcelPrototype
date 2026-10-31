@@ -1,7 +1,5 @@
 Option Explicit
 
-#Const ENABLE_LOGGING_VERBOSE = False
-
 Private m_runtimeReleased As Boolean
 
 Private Sub Workbook_Open()
@@ -81,72 +79,45 @@ EH:
 End Sub
 
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
-    Dim previousEvents As Boolean
-    Dim stage As Variant
-    Dim stageName As String
-    Dim errorNumber As Long
-    Dim errorSource As String
+    Dim runtimeContext As Object
+    Dim updater As Workbook
     Dim errorDescription As String
-    Dim cleanupFailed As Boolean
 
     If Cancel Or m_runtimeReleased Then Exit Sub
-    previousEvents = Application.EnableEvents
-    On Error GoTo EH_CLOSE
-#If ENABLE_LOGGING_VERBOSE Then
-    ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_STARTED"
-#End If
+    On Error GoTo Failed
+    Set runtimeContext = ex_RuntimeLifecycle.fn_Context()
+    If runtimeContext("Phase") = "Requested" Then
+        Application.Run "'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_CancelPending", ThisWorkbook
+    End If
+
+    ' Preserve runtime state if closing is cancelled.
+    If Not ex_Core.fn_Diagnostic_Flush() Then
+        errorDescription = ex_TravelDocumentsBuilder.fn_Config("text.CloseFlushFailed")
+        GoTo CancelClose
+    End If
+    ex_AppHotkeys.fn_Deactivate
+    If Not ex_Core.fn_Diagnostic_Flush() Then
+        errorDescription = ex_TravelDocumentsBuilder.fn_Config("text.CloseFlushFailed")
+        GoTo CancelClose
+    End If
+    ex_AppCommands.fn_Module_Dispose
+    On Error Resume Next
+    Set updater = Application.Workbooks("WorkbookUpdater.xlam")
+    On Error GoTo Failed
+    If Not updater Is Nothing Then
+        Application.Run "'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_ForgetContext", ThisWorkbook
+    End If
     m_runtimeReleased = True
-    Application.EnableEvents = False
-    For Each stage In VBA.Array("Hotkeys", "Pages", "TableData", "Bindings", _
-            "ElementFactory", "ControlFactory", "Busy", "Paths", "Flush")
-        stageName = VBA.CStr(stage)
-#If ENABLE_LOGGING_VERBOSE Then
-        ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_STAGE_STARTED | Name=" & stageName
-#End If
-        Select Case stageName
-            Case "Hotkeys"
-                ex_AppHotkeys.fn_Module_Dispose
-            Case "Pages"
-                ex_TravelDocumentsBuilder.fn_Module_Dispose
-            Case "TableData"
-                ex_TableDataRuntime.fn_Module_Dispose
-            Case "Bindings"
-                ex_UiBindings.fn_Module_Dispose
-            Case "ElementFactory"
-                ex_UiElementFactory.fn_Module_Dispose
-            Case "ControlFactory"
-                ex_UiControlFactory.fn_Module_Dispose
-            Case "Busy"
-                ex_UiBusy.fn_Module_Dispose
-            Case "Paths"
-                ex_RuntimePaths.fn_Module_Dispose
-            Case "Flush"
-                If Not ex_Core.fn_Diagnostic_Flush() Then _
-                    VBA.Err.Raise VBA.vbObjectError + 2232, "Workbook_BeforeClose", "Diagnostic log flush failed."
-        End Select
-#If ENABLE_LOGGING_VERBOSE Then
-        ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_STAGE_COMPLETED | Name=" & stageName
-#End If
-NextStage:
-    Next stage
-    stageName = VBA.vbNullString
-#If ENABLE_LOGGING_VERBOSE Then
-    ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_COMPLETED | Success=" & VBA.CStr(Not cleanupFailed)
-#End If
-    If Not ex_Core.fn_Diagnostic_Flush() Then _
-        ex_Core.fn_Diagnostic_WriteLog "TDB_CLOSE_FINAL_FLUSH_FAILED"
-CleanClose:
-    Application.EnableEvents = previousEvents
     Exit Sub
-EH_CLOSE:
-    cleanupFailed = True
-    errorNumber = VBA.Err.Number
-    errorSource = VBA.Err.Source
+Failed:
     errorDescription = VBA.Err.Description
-    ex_Core.fn_Diagnostic_WriteError "Workbook_BeforeClose." & stageName, _
-        errorNumber, errorSource, errorDescription
-    If VBA.Len(stageName) > 0 Then Resume NextStage
-    Resume CleanClose
+CancelClose:
+    Cancel = True
+    On Error Resume Next
+    ex_AppCommands.fn_RegisterHotkeys
+    ex_AppHotkeys.fn_Activate
+    ex_WindowsUi.fn_ShowMessage errorDescription, VBA.vbExclamation
+    On Error GoTo 0
 End Sub
 
 Private Sub private_Initialize()

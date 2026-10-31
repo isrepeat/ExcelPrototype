@@ -5,6 +5,7 @@ Option Explicit
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     ex_UiPageManager.fn_Module_Dispose
+    ex_TableSnapshots.fn_Module_Dispose
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -45,6 +46,12 @@ Public Function fn_TryGetConfig( _
         Exit Function
     End If
     fn_TryGetConfig = True
+End Function
+
+Public Function fn_Config(ByVal keySuffix As String) As String
+    If Not fn_TryGetConfig(keySuffix, fn_Config) Then
+        VBA.Err.Raise 5, , "Required configuration key not found: TravelDocumentsBuilder::" & keySuffix
+    End If
 End Function
 
 Public Function fn_LogValue(ByVal value As Variant) As String

@@ -31,16 +31,7 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
-    If m_isDisposed Or m_isInitialized Then Exit Function
-
-    Set m_pageBase = New obj_PageBase
-    If Not m_pageBase.Initialize(profileId, VBA.Trim$(profileId)) Then Exit Function
-    If Not private_TryRegisterBindings() Then Exit Function
-    Set m_controller = New obj_TDB_PgMainController
-    If Not m_controller.Initialize(m_pageBase) Then Exit Function
-    If Not private_TryRegisterCommands() Then Exit Function
-    obj_IPage_Initialize = True
-    m_isInitialized = True
+    obj_IPage_Initialize = Me.Initialize(profileId)
 End Function
 
 Private Function obj_IPage_Render() As Boolean
@@ -57,6 +48,22 @@ Private Sub obj_IPage_Dispose()
     Me.Dispose
 End Sub
 
+' //
+' // API
+' //
+Public Function Initialize(ByVal profileId As String) As Boolean
+    If m_isDisposed Or m_isInitialized Then Exit Function
+
+    Set m_pageBase = New obj_PageBase
+    If Not m_pageBase.Initialize(profileId, ex_TravelDocumentsBuilder.fn_Config("ui.folder")) Then Exit Function
+    If Not private_TryRegisterBindings() Then Exit Function
+    Set m_controller = New obj_TDB_PgMainController
+    If Not m_controller.Initialize(m_pageBase) Then Exit Function
+    If Not private_TryRegisterCommands() Then Exit Function
+    Initialize = True
+    m_isInitialized = True
+End Function
+
 Public Sub Dispose()
     If m_isDisposed Then Exit Sub
 
@@ -68,6 +75,9 @@ Public Sub Dispose()
     Set m_pageBase = Nothing
 End Sub
 
+' //
+' // Private
+' //
 Private Function private_TryRegisterBindings() As Boolean
     Dim bindingContext As obj_UiBindingContext
     Dim key As Variant
@@ -82,6 +92,17 @@ Private Function private_TryRegisterBindings() As Boolean
     If m_pageBase Is Nothing Then Exit Function
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
+    valueText = ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")
+    If valueText <> "Focus" And valueText <> "Confirm" Then
+        VBA.Err.Raise 5, , "Invalid configuration key: TravelDocumentsBuilder::candidates.selectionMode"
+    End If
+    If valueText = "Confirm" Then
+        If Not ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::ui.confirmSelectionKey", valueText) Then
+            VBA.Err.Raise 5, , "Required configuration key not found: ThisWorkbook::ui.confirmSelectionKey"
+        End If
+        If VBA.Len(VBA.Trim$(valueText)) = 0 Then VBA.Err.Raise 5, , "Empty confirmation hotkey."
+    End If
+    If Not bindingContext.SetValue("Settings", "CandidateSelectionMode", ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
     If Not bindingContext.SetValue("Form", "LookupIsTvo", False) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.LookupTarget.Personnel", valueText) Then Exit Function
     If Not bindingContext.SetValue("Text", "LookupTargetCaption", valueText) Then Exit Function
