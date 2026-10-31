@@ -216,11 +216,6 @@ Public Function DocumentTypeChangedHandler() As Boolean
     DocumentTypeChangedHandler = True
 End Function
 
-Public Function ReinitializeConfigHandler() As Boolean
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
-    ReinitializeConfigHandler = ex_AppCommands.fn_RequestReinitialize()
-End Function
-
 Public Function ClearFormHandler() As Boolean
     Dim updates As Object
     Dim key As Variant

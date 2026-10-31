@@ -15,7 +15,7 @@ value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
 value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
-value	TravelDocumentsBuilder::text.ClearForm	Очистити форму
+value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
 value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	TravelDocumentsBuilder::text.LastStatus	Останній статус
 value	TravelDocumentsBuilder::text.RankHeader	Звання
@@ -50,7 +50,7 @@ value	TravelDocumentsBuilder::text.PersonnelError	Помилка пошуку. �
 value	TravelDocumentsBuilder::text.PositionHeader	Посада
 value	TravelDocumentsBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
 value	TravelDocumentsBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
-value	TravelDocumentsBuilder::text.UpdateDocument	Оновити DOCX
+value	TravelDocumentsBuilder::text.UpdateDocument	Оновити подію
 value	TravelDocumentsBuilder::text.VacationAbroad	Виїзд за кордон
 value	TravelDocumentsBuilder::text.VacationStatus	Статус
 value	TravelDocumentsBuilder::text.VacationTicket.PurposeLabel	Підстава
@@ -91,7 +91,6 @@ value	TravelDocumentsBuilder::text.StyleMergeOverlap	Конфлікт розмі
 value	TravelDocumentsBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
 value	TravelDocumentsBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
 value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
-value	TravelDocumentsBuilder::text.ReinitializeConfig	Застосувати конфіг
 value	TravelDocumentsBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
 value	TravelDocumentsBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
 value	TravelDocumentsBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
