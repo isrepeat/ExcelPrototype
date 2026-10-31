@@ -368,6 +368,30 @@ assert "private_CheckRevision revisions, group" in history
 assert "ex_TDB_History.fn_Commit" not in exporter and "ExportJournal" not in exporter
 assert exporter.index("m_vacationGenerator.TryRender") < exporter.index("m_fileSystem.MoveFile VBA.CStr(path), name")
 assert exporter.count("ex_TDB_History.fn_AssertCurrent") == 2
+
+# Every write path must re-protect both sheets, including partial unlock and rollback failures.
+protection = (sources / "obj_TDB_HistoryProtection.cls.vba").read_text(encoding="utf-8-sig")
+assert 'Private Const SHEET_PASSWORD As String = "TDB.Password"' in protection
+assert PREFIX + "history.protection.password" not in config
+assert 'Password:=SHEET_PASSWORD' in protection
+for key in ("ProtectionFailed", "ProtectionUnavailable", "ProtectionNotApplied"):
+    cfg("history.text." + key)
+assert 'sheet.Cells.Locked = True' in protection
+assert 'UserInterfaceOnly:=False, AllowFiltering:=True' in protection
+assert 'sheet.EnableSelection = xlNoRestrictions' in protection
+assert protection.count('For Each sheet In m_sheets') == 2
+assert 'failure = private_ProtectSheet(sheet)' in protection
+assert 'If Not Me.TryProtect(diagnostic) Then failures = failures & diagnostic' in protection
+assert 'tickets.Parent.ProtectContents Or revisions.Parent.ProtectContents' not in history
+assert 'protection.TryProtect(diagnostic)' in history
+save_body = re.search(r'Public Function TrySave\([\s\S]*?^End Function', generator, re.M)[0]
+save_success, save_failure = save_body.split('\nEH:', 1)
+assert save_success.index('protection.Unprotect') < save_success.index('    tableChanged = True')
+assert save_success.index('protection.TryProtect') < save_success.index('ex_TDB_HistoryRecovery.fn_Mark')
+assert save_failure.index('protection.Unprotect') < save_failure.index('ex_TDB_History.fn_Rollback') < save_failure.index('protection.TryProtect')
+assert exporter.index('protection.Unprotect') < exporter.index('    historyChanged = True')
+assert exporter.index('protection.TryProtect') < exporter.index('    committed = True')
+assert 'protection.TryProtect' in exporter[exporter.index('\nCleanup:'):]
 assert 'If root("Status") = "Active" Then' in exporter
 assert 'metadata.Add "DocumentPath", VBA.vbNullString' in exporter
 assert 'metadata.Add "DocumentRevision", root("Revision")' in exporter

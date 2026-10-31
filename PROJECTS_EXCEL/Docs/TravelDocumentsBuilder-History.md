@@ -1,6 +1,6 @@
 # TicketsHistory persistence
 
-TravelDocumentsBuilder stores events in the open `TicketsHistory.xlsx` next to the application workbook. `history.path`, `history.sheet`, `history.table` and `history.versions` configure the target. The writer requires the exact configured workbook path, writable and unprotected tables, and the configured column sets. It never opens, closes or saves the history workbook automatically. Deploy `ex_TDB_History`, the TDB generator, controller and page together with MainPage.xaml and wsConfig. The existing source profile includes the new module through `TravelDocumentsBuilder/*.vba`.
+TravelDocumentsBuilder stores events in the open `TicketsHistory.xlsx` next to the application workbook. `history.path`, `history.sheet`, `history.table` and `history.versions` configure the target. The writer requires the exact configured workbook path, a writable workbook, and the configured column sets. It never opens, closes or saves the history workbook automatically. Deploy `ex_TDB_History`, the TDB generator, controller and page together with MainPage.xaml and wsConfig. The existing source profile includes the new module through `TravelDocumentsBuilder/*.vba`.
 
 ## Editing workflow
 
@@ -35,6 +35,12 @@ Order export uses `obj_TDB_OrderWordExport`, deployed with the other TDB sources
 Each order has a dedicated folder `TDB_<yyyyMMdd>_<order number>` beneath the configured output root. Managed filenames are `TDB_<RowId>__<ticket number>_<person name>.docx`; the GUID-based RowId is stable when the readable label changes. Synchronization replaces all managed files in that selected folder, adds new Active events and removes obsolete files, including Cancelled events. An empty active set removes the previous managed set. Strict filename markers identify ownership; unmarked or legacy documents are reported and left untouched. Other order folders are never scanned or removed. If events are moved between orders outside this UI, export both scopes to reconcile both folders. Changing the output root does not clean the previous root automatically.
 
 All saved Tickets and TicketRevisions values are literal text with NumberFormat @, including dates, day counts and revision numbers. Dates use dd.mm.yyyy and are parsed explicitly without Windows locale assumptions. Legacy numeric date values remain readable and are converted to text when their event is saved. PlannedReturnDate is calculated in VBA as departure plus vacation, road and donation days, without an extra day; the form uses the same calculation and Word uses the saved date after checking it against the event durations. No worksheet formulas are created. Rollback captures values, original formats and actual formulas separately so literal text beginning with an equals sign is restored as text. Save TicketsHistory manually after saving events or exporting documents.
+
+## Worksheet protection
+
+The first history access protects Tickets and TicketRevisions with the `SHEET_PASSWORD` constant in `obj_TDB_HistoryProtection` (`TDB.Password`). All worksheet cells are locked; selection, copying and existing filters remain available. This is worksheet editing protection, not encryption or access control. The password is stored only in code. Save TicketsHistory manually to persist the initial protection.
+
+`obj_TDB_HistoryProtection` owns both sheet references and uses the same password constant for protection and unprotection. Saving and Word-export metadata updates temporarily unprotect the sheets while events are disabled. A save restores protection before writing the recovery COMMIT marker. Any failure attempts to unlock for rollback and then protects both sheets independently, even if unlocking, rollback or the first sheet's protection failed. Protection errors are surfaced and logged; Dispose makes an additional best-effort attempt. Excel termination or interruption with VBA End cannot execute cleanup and is outside these guarantees. No UserInterfaceOnly session exemption is used.
 
 ## Recovery log
 
