@@ -118,6 +118,7 @@ Public Function TryExport( _
     Dim renderedCount As Long
     Dim previousWindow As Window
     Dim previousSheet As Object
+    Dim signatory As Object
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     totalStartedAt = VBA.Timer
@@ -190,6 +191,7 @@ Public Function TryExport( _
     Next group
 
     ' Render a complete frozen set before replacing or removing any existing document.
+    If wanted.Count > 0 Then Set signatory = ex_TDB_Signatory.fn_Resolve(orderNumber, orderDate)
     ex_Core.fn_Diagnostic_WritePerf "TDB.Word.Export.Prepare", phaseStartedAt
     phaseStartedAt = VBA.Timer
     busyEntered = ex_UiBusy.fn_Begin(private_Config("text.Loading"))
@@ -201,7 +203,7 @@ Public Function TryExport( _
             text = VBA.Replace$(private_Config("text.Progress"), "{step}", VBA.CStr(progress))
             text = VBA.Replace$(text, "{total}", VBA.CStr(wanted.Count))
             ex_Core.fn_StatusBar_Show text
-            If Not m_vacationGenerator.TryRender(root, group, frozenTemplate, activePath, diagnostic) Then
+            If Not m_vacationGenerator.TryRender(root, group, frozenTemplate, activePath, signatory, diagnostic) Then
                 VBA.Err.Raise 5, , diagnostic
             End If
             renderedCount = renderedCount + 1

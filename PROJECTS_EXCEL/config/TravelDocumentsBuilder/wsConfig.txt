@@ -128,12 +128,18 @@ value	TravelDocumentsBuilder::word.text.Progress	WORD: підготовка кв
 value	TravelDocumentsBuilder::word.text.Rollback	Не вдалося повністю відновити попередній комплект. Резервні файли збережено:
 value	TravelDocumentsBuilder::word.text.Unmanaged	DOCX без службового RowId не змінено: {count}.
 value	TravelDocumentsBuilder::word.text.Initialize	Не вдалося підготувати експорт WORD.
+value	TravelDocumentsBuilder::word.text.SignatorySource	Не вдалося прочитати підписанта з довідника «Накази»: {details}.
+value	TravelDocumentsBuilder::word.text.SignatoryRequired	Для наказу {details} не заповнено підписанта, ПІБ або звання в довіднику «Накази».
+value	TravelDocumentsBuilder::word.text.SignatoryAmbiguous	Для наказу {details} знайдено різних підписантів. Виправте довідник «Накази».
 value	TravelDocumentsBuilder::word.folder	TDB_{date}_{number}
 value	TravelDocumentsBuilder::word.maxPath	240
 value	TravelDocumentsBuilder::word.filename.label	{TicketNo}_{FIO}
 value	TravelDocumentsBuilder::word.filename.pattern	^TDB_.+__(T-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})[.]docx$
 value	TravelDocumentsBuilder::word.filename.labelMaxChars	72
 value	TravelDocumentsBuilder::word.filename.legacyPattern	^TDB_(T-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})__.+[.]docx$
+value	TravelDocumentsBuilder::word.signatory.position	Командир військової частини А7383
+value	TravelDocumentsBuilder::word.signatory.actingPrefix	ТВО
+value	TravelDocumentsBuilder::word.signatory.actingPosition	Тимчасово виконуючий обов’язки командира військової частини А7383
 value	TravelDocumentsBuilder::dates.daysAhead	15
 value	TravelDocumentsBuilder::dates.daysBefore	3
 value	TravelDocumentsBuilder::forms.readOnly.fields	PersonRank|PersonId|PersonPositionCode|PersonPosition|PersonUnit|TvoIpn|TvoPosition
@@ -214,6 +220,9 @@ value	TravelDocumentsBuilder::orders.rowsAfter	5
 value	TravelDocumentsBuilder::orders.dateHeader	Дата
 value	TravelDocumentsBuilder::orders.rowsBefore	5
 value	TravelDocumentsBuilder::orders.numberHeader	Номер наказа
+value	TravelDocumentsBuilder::orders.signatoryHeader	Підписант
+value	TravelDocumentsBuilder::orders.signatoryNameHeader	ПІБ
+value	TravelDocumentsBuilder::orders.signatoryRankHeader	Звання
 value	TravelDocumentsBuilder::history.path	TicketsHistory.xlsx
 value	TravelDocumentsBuilder::history.text.Name	ПІБ
 value	TravelDocumentsBuilder::history.text.Count	Подій наказу: {count}

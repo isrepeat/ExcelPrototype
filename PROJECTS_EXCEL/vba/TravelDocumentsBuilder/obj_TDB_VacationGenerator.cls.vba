@@ -357,6 +357,7 @@ Public Function TryRender( _
     ByVal group As Collection, _
     ByVal templatePath As String, _
     ByVal outputPath As String, _
+    ByVal signatory As Object, _
     ByRef diagnostic As String _
 ) As Boolean
     Dim mapping As Variant
@@ -393,7 +394,7 @@ Public Function TryRender( _
         private_Fail "Invalid", private_FieldCaption("VacationAbroad")
     End If
     private_GenerateWord templatePath, outputPath, VBA.CStr(root(ex_TDB_History.fn_Config("ticketField"))), _
-        ex_TDB_History.fn_Date(root("OrderDate")), departure, finalReturn, vacationDays, roadDays, donationDays, kindWord
+        ex_TDB_History.fn_Date(root("OrderDate")), departure, finalReturn, vacationDays, roadDays, donationDays, kindWord, signatory
     TryRender = True
     Exit Function
 Failed:
@@ -757,7 +758,8 @@ Private Sub private_GenerateWord( _
     ByVal vacationDays As Long, _
     ByVal roadDays As Long, _
     ByVal donationDays As Long, _
-    ByVal kindWord As String _
+    ByVal kindWord As String, _
+    ByVal signatory As Object _
 )
     Dim word As Object
     Dim document As Object
@@ -792,10 +794,12 @@ Private Sub private_GenerateWord( _
     abroad = VBA.vbNullString
     If m_form("VacationAbroad") = m_config("abroad.yes") Then abroad = m_config("abroad.word")
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
-        "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer")
+        "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer", _
+        "SignatoryPosition", "SignatoryRank", "SignatoryName")
     values = VBA.Array(private_WordDate(orderDate), ticketNo, m_form("PersonRank") & " " & m_form("PersonName"), _
         kindWord, m_form("DocumentTarget"), duration, private_WordDate(departure), private_WordDate(finalReturn), _
-        initials, private_WordDate(VBA.DateAdd("d", 1, finalReturn)), abroad, VBA.vbNullString)
+        initials, private_WordDate(VBA.DateAdd("d", 1, finalReturn)), abroad, VBA.vbNullString, _
+        signatory("SignatoryPosition"), signatory("SignatoryRank"), signatory("SignatoryName"))
     For index = 0 To UBound(names)
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
     Next index
