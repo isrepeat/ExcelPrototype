@@ -1,6 +1,6 @@
 """Validate form, configuration, registry and DOCX contracts without running Excel or VBA."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 import xml.etree.ElementTree as ET
 import zipfile
@@ -395,13 +395,61 @@ assert 'protection.TryProtect' in exporter[exporter.index('\nCleanup:'):]
 assert 'If root("Status") = "Active" Then' in exporter
 assert 'metadata.Add "DocumentPath", VBA.vbNullString' in exporter
 assert 'metadata.Add "DocumentRevision", root("Revision")' in exporter
-assert "For Each path In owned" in exporter and "If m_namePattern.Test(file.Name) Then" in exporter
-assert exporter.index('m_fileSystem.MoveFile m_fileSystem.BuildPath(stage, wanted(path)), name') < exporter.index("published.Add name")
+assert "For Each path In owned" in exporter and "If m_namePattern.Test(file.Name) Or m_legacyNamePattern.Test(file.Name) Then" in exporter
+assert exporter.index('m_fileSystem.MoveFile m_fileSystem.BuildPath(stage, staged(path)), name') < exporter.index("published.Add name")
+assert 'staged.Add identifier, VBA.CStr(wanted.Count) & ".docx"' in exporter
+assert 'm_fileSystem.BuildPath(backupFolder, VBA.CStr(backups.Count + 1) & ".docx")' in exporter
+assert 'TryRender(root, group, frozenTemplate, activePath, diagnostic)' in exporter
+assert 'VBA.Len(frozenTemplate)' in exporter
+long_folder = PureWindowsPath("C:/" + "r" * 92) / "TDB_20261026_309"
+stage_folder = long_folder / "._TDB-stage-T-01234567-89AB-4CDE-8F01-23456789ABCD"
+long_name = "TDB_" + "x" * 72 + "__T-01234567-89AB-4CDE-8F01-23456789ABCD.docx"
+assert len(str(long_folder / long_name)) <= int(cfg("word.maxPath"))
+assert len(str(stage_folder / long_name)) > 255
+assert len(str(stage_folder / "1.docx")) <= int(cfg("word.maxPath"))
+assert len(str(stage_folder / "backup" / "1.docx")) <= int(cfg("word.maxPath"))
 assert "If stageCreated And VBA.Len(rollback) = 0 Then" in exporter
 assert "GetParentFolderName(m_fileSystem.GetAbsolutePathName(stage))" in exporter
 assert "ex_TDB_History.fn_Rollback tickets, revisions, transaction" in exporter
 assert generator.count('VBA.CreateObject("Word.Application")') == 1
 assert 'If m_wordSession Is Nothing Then' in generator
+assert 'word.ScreenUpdating = False' in generator
+assert 'word.Documents.Open(' in generator
+assert 'Visible:=False' in generator
+assert 'word.Documents.Add(templatePath' not in generator
+assert generator.count('For Each story In document.StoryRanges') == 1
+assert 'searchRange.Find.Execute(marker, True, False, False, False, False, True, 0, False)' in generator
+index_body = re.search(r'Private Sub private_IndexWordMarkers\([\s\S]*?^End Sub', generator, re.M)[0]
+render_word = re.search(r'Private Sub private_GenerateWord\([\s\S]*?^End Sub', generator, re.M)[0]
+assert '.Find.' not in render_word
+assert 'If m_wordAnchors Is Nothing Then' in render_word
+assert 'private_IndexWordMarkers document, names' in render_word
+assert 'document.SaveAs2 m_wordTemplatePath, 12' in render_word
+assert 'private_OpenWordDocument(word, m_wordTemplatePath)' in render_word
+assert 'document.Bookmarks(VBA.CStr(bookmarkName)).Range' in render_word
+assert 'document.Bookmarks.Add bookmarkName, searchRange' in index_body
+assert 'Do While searchStart < storyEnd' in index_body
+assert 'searchRange.SetRange searchStart, storyEnd' in index_body
+assert index_body.index('matchEnd = searchRange.End') < index_body.index('document.Bookmarks.Add')
+consume_at = index_body.index('searchRange.Text = VBA.Space$(matchEnd - matchStart)')
+assert consume_at < index_body.index('document.Bookmarks.Add') < index_body.index('searchStart = matchEnd')
+assert 'matchEnd <= searchStart' in index_body
+assert 'searchStart = matchEnd' in index_body
+assert 'remainingRange' not in index_body
+assert 'occurrences.Count = 0 And names(index) <> "FooterSpacer"' in index_body
+assert 'Set m_wordAnchors = Nothing' in generator
+assert exporter.index('Application.ScreenUpdating = False') < exporter.index('m_vacationGenerator.TryRender')
+assert exporter.index('previousWindow.Activate') < exporter.index('Application.ScreenUpdating = previousUpdating')
+assert exporter.index('previousSheet.Activate') < exporter.index('Application.ScreenUpdating = previousUpdating')
+for stage in ('Document.Prepare', 'Session.Start', 'Document.Create', 'Document.ReplaceMarkers',
+              'Document.Save', 'Document.Close', 'Document.Total', 'Document.FailedTotal',
+              'Template.IndexMarkers', 'Template.SaveAnchors'):
+    assert '"' + stage + '"' in generator, stage
+for stage in ('Prepare', 'RenderAll', 'Verify', 'PublishFiles', 'MetadataAndProtection', 'SessionClose', 'Cleanup', 'Total'):
+    assert '"TDB.Word.Export.' + stage + '"' in exporter, stage
+assert 'ex_Core.fn_Diagnostic_BeginBatch' in exporter
+assert 'If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch' in exporter
+assert exporter.index('m_vacationGenerator.Dispose', exporter.index('\nCleanup:')) < exporter.index('"TDB.Word.Export.Total"')
 assert 'orderRecord.TryGetValue("OrderNumber", value)' in controller
 assert "CreateDocumentHandler" not in controller and "UpdateDocumentHandler" not in controller
 for key in re.findall(r'private_Config\("([^"]+)"\)', exporter):
@@ -414,10 +462,12 @@ for key in "".join(re.findall(r'"([^"]*)"', preflight)).split(","):
 assert cfg("word.folder") == "TDB_{date}_{number}"
 assert "{TicketNo}" in cfg("word.filename.label") and "{FIO}" in cfg("word.filename.label")
 pattern = re.compile(cfg("word.filename.pattern"), re.I)
+legacy_pattern = re.compile(cfg("word.filename.legacyPattern"), re.I)
 identifier = "T-01234567-89AB-4CDE-8F01-23456789ABCD"
 for label in ("old_name", "new_name", "2026_121_1_ПІБ"):
-    match = pattern.fullmatch(f"TDB_{identifier}__{label}.docx")
+    match = pattern.fullmatch(f"TDB_{label}__{identifier}.docx")
     assert match and match[1] == identifier
+    assert legacy_pattern.fullmatch(f"TDB_{identifier}__{label}.docx")[1] == identifier
 for unmanaged in ("В.к. 2026_121_1.docx", "notes.docx", f"~$TDB_{identifier}__name.docx",
                   f"TDB_{identifier}__name.docx.bak", "TDB_bad-id__name.docx"):
     assert pattern.fullmatch(unmanaged) is None, unmanaged
