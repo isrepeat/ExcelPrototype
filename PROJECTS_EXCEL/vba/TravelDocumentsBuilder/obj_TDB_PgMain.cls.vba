@@ -88,10 +88,24 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim daysAhead As Double
     Dim daysBefore As Double
     Dim offset As Long
+    Dim chain As New Collection
+    Dim orderOptions As New Collection
 
     If m_pageBase Is Nothing Then Exit Function
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
+    If Not bindingContext.SetObject("Data", "TvoChain", chain) Then Exit Function
+    If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then Exit Function
+    If Not bindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
+    If Not bindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not bindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetObject("Data", "OrderOptions", orderOptions) Then Exit Function
+    If Not bindingContext.SetValue("Text", "HistoryEditMode", ex_TDB_History.fn_Config("text.NewMode")) Then Exit Function
+    For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.fields"), "|")
+        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "ReadOnly", False) Then Exit Function
+        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "Style", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then Exit Function
+        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "LabelStyle", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.label")) Then Exit Function
+    Next key
     valueText = ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")
     If valueText <> "Focus" And valueText <> "Confirm" Then
         VBA.Err.Raise 5, , "Invalid configuration key: TravelDocumentsBuilder::candidates.selectionMode"
@@ -104,8 +118,6 @@ Private Function private_TryRegisterBindings() As Boolean
     End If
     If Not bindingContext.SetValue("Settings", "CandidateSelectionMode", ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
     If Not bindingContext.SetValue("Form", "LookupIsTvo", False) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.LookupTarget.Personnel", valueText) Then Exit Function
-    If Not bindingContext.SetValue("Text", "LookupTargetCaption", valueText) Then Exit Function
     If Not bindingContext.SetValue("Form", "GenerationStatusStyle", "generationSuccess") Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysAhead", valueText) Then Exit Function
     If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysAhead) Then Exit Function
@@ -130,7 +142,8 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Data", "DocumentTypes", valueText) Then Exit Function
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
-            "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus")
+            "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus", _
+            "HistoryRowId", "HistoryStamp", "ChangeReason", "OrderQuery", "OrderYear", "AcceptedOrderNumber", "AcceptedOrderDate")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
     Next key
     For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
@@ -149,7 +162,8 @@ Private Function private_TryRegisterBindings() As Boolean
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", _
-            "CreateDocument", "UpdateDocument", "ClearForm", "ReportNo", "TicketNo", "LastStatus")
+            "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _
+            "LoadHistory", "AddTvo", "RemoveTvo", "ChangeReason", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
@@ -158,7 +172,7 @@ Private Function private_TryRegisterBindings() As Boolean
     For Each key In VBA.Array("DocumentTypeLabel", "PersonnelPrompt", "PersonNameLabel", _
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
             "RefreshPersonnel", "AutoFillPersonnelLabel", "Title", "PersonnelSection", _
-            "DocumentSection", "SearchSection", "SearchPersonnel", "SearchLabel", "PersonPositionCodeLabel", _
+            "DocumentSection", "SearchSection", "PersonPositionCodeLabel", _
             "CheckboxChecked", "CheckboxUnchecked", "ActionsSection")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
@@ -176,8 +190,6 @@ Private Function private_TryRegisterCommands() As Boolean
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
     If Not private_TryRegisterCommand( _
-            bindingContext, "SearchPersonnel", "SearchPersonnelHandler") Then Exit Function
-    If Not private_TryRegisterCommand( _
             bindingContext, "PersonNameChanged", "PersonNameChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "SelectPersonnel", "SelectPersonnelHandler") Then Exit Function
@@ -186,16 +198,21 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand( _
             bindingContext, "DocumentTypeChanged", "DocumentTypeChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
-            bindingContext, "CreateDocument", "CreateDocumentHandler") Then Exit Function
+            bindingContext, "SaveHistory", "SaveHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
-            bindingContext, "UpdateDocument", "UpdateDocumentHandler") Then Exit Function
+            bindingContext, "ExportWord", "ExportWordHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "ClearForm", "ClearFormHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "VacationDatesChanged", "VacationDatesChangedHandler") Then Exit Function
-    If Not private_TryRegisterCommand(bindingContext, "ToggleLookupTarget", "ToggleLookupTargetHandler") Then Exit Function
-    If Not private_TryRegisterCommand(bindingContext, "FocusTvo", "FocusTvoHandler") Then Exit Function
-    If Not private_TryRegisterCommand(bindingContext, "FocusPersonnel", "FocusPersonnelHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "LoadHistory", "LoadHistoryHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "SelectHistory", "SelectHistoryHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "AddTvo", "AddTvoHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "RemoveTvo", "RemoveTvoHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "SearchOrders", "SearchOrdersHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "AutoFillChanged", "AutoFillChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "CloseHistory", "CloseHistoryHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "TvoNameChanged", "TvoNameChangedHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function
 

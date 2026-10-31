@@ -21,73 +21,76 @@
     <controls:input name="PersonName"
                     row="3"
                     column="2"
-                    style="formField"
+                    style="lookupKeyField"
                     value="{Binding Path=Form.PersonName}"
-                    onFocus="{Binding Path=Commands.FocusPersonnel}"
                     onChange="{Binding Path=Commands.PersonNameChanged}"/>
 
     <controls:label name="PersonIdLabel"
                     row="4"
                     column="1"
-                    style="formLabel"
+                    style="{Binding Path=Form.PersonIdLabelStyle}"
                     text="{Binding Path=Text.PersonIdLabel}"/>
 
     <controls:input name="PersonId"
                     row="4"
                     column="2"
-                    style="formField"
+                    style="{Binding Path=Form.PersonIdStyle}"
                     value="{Binding Path=Form.PersonId}"
-                    onFocus="{Binding Path=Commands.FocusPersonnel}"/>
+                    readOnly="{Binding Path=Form.PersonIdReadOnly}"/>
 
     <controls:label name="PersonRankLabel"
                     row="2"
                     column="1"
-                    style="formLabel"
+                    style="{Binding Path=Form.PersonRankLabelStyle}"
                     text="{Binding Path=Text.PersonRankLabel}"/>
 
     <controls:input name="PersonRank"
                     row="2"
                     column="2"
-                    style="formField"
-                    value="{Binding Path=Form.PersonRank}"/>
+                    style="{Binding Path=Form.PersonRankStyle}"
+                    value="{Binding Path=Form.PersonRank}"
+                    readOnly="{Binding Path=Form.PersonRankReadOnly}"/>
 
     <controls:label name="PersonPositionCodeLabel"
                     row="5"
                     column="1"
-                    style="formLabel"
+                    style="{Binding Path=Form.PersonPositionCodeLabelStyle}"
                     text="{Binding Path=Text.PersonPositionCodeLabel}"/>
 
     <controls:input name="PersonPositionCode"
                     row="5"
                     column="2"
-                    style="formField"
-                    value="{Binding Path=Form.PersonPositionCode}"/>
+                    style="{Binding Path=Form.PersonPositionCodeStyle}"
+                    value="{Binding Path=Form.PersonPositionCode}"
+                    readOnly="{Binding Path=Form.PersonPositionCodeReadOnly}"/>
 
     <controls:label name="PersonPositionLabel"
                     row="6"
                     column="1"
                     rowSpan="2"
-                    style="formLabel"
+                    style="{Binding Path=Form.PersonPositionLabelStyle}"
                     text="{Binding Path=Text.PersonPositionLabel}"/>
 
     <controls:input name="PersonPosition"
                     row="6"
                     column="2"
                     rowSpan="2"
-                    style="formField"
-                    value="{Binding Path=Form.PersonPosition}"/>
+                    style="{Binding Path=Form.PersonPositionStyle}"
+                    value="{Binding Path=Form.PersonPosition}"
+                    readOnly="{Binding Path=Form.PersonPositionReadOnly}"/>
 
     <controls:label name="PersonUnitLabel"
                     row="8"
                     column="1"
-                    style="formLabel"
+                    style="{Binding Path=Form.PersonUnitLabelStyle}"
                     text="{Binding Path=Text.PersonUnitLabel}"/>
 
     <controls:input name="PersonUnit"
                     row="8"
                     column="2"
-                    style="formField"
-                    value="{Binding Path=Form.PersonUnit}"/>
+                    style="{Binding Path=Form.PersonUnitStyle}"
+                    value="{Binding Path=Form.PersonUnit}"
+                    readOnly="{Binding Path=Form.PersonUnitReadOnly}"/>
 
     <controls:label name="DocumentSection"
                     row="10"
@@ -138,27 +141,15 @@
                     style="formField"
                     value="{Binding Path=Form.DocumentTarget}"/>
 
-    <controls:label name="OrderReferenceLabel"
-                    row="14"
-                    column="1"
-                    style="formLabel"
-                    text="{Binding Path=Text.OrderReference}"/>
-
-    <controls:input name="OrderReference"
-                     row="14"
-                     column="2"
-                     style="formField"
-                     value="{Binding Path=Form.OrderReference}"/>
-
     <controls:label name="DepartureDateLabel"
-                    row="15"
+                    row="14"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.DepartureDateLabel}"/>
 
     <controls:select name="DepartureDate"
                     itemsSource="{Binding Path=Data.DepartureDates}"
-                    row="15"
+                    row="14"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.DepartureDate}"
@@ -171,53 +162,53 @@
                     onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="VacationDaysLabel"
-                    row="16"
+                    row="15"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.VacationDays}"/>
 
     <controls:input name="VacationDays"
-                     row="16"
+                     row="15"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.VacationDays}"
                      onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="RoadDaysLabel"
-                    row="17"
+                    row="16"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.RoadDays}"/>
 
     <controls:input name="RoadDays"
-                     row="17"
+                     row="16"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.RoadDays}"
                      onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="DonationDaysLabel"
-                    row="18"
+                    row="17"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.DonationDays}"/>
 
     <controls:input name="DonationDays"
-                     row="18"
+                     row="17"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.DonationDays}"
                      onChange="{Binding Path=Commands.VacationDatesChanged}"/>
 
     <controls:label name="VacationAbroadLabel"
-                    row="19"
+                    row="18"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.VacationAbroad}"/>
 
     <controls:select name="VacationAbroad"
                      itemsSource="{Binding Path=Data.AbroadOptions}"
-                     row="19"
+                     row="18"
                      column="2"
                      style="formField"
                      panelStyle="formSelectPanel"
@@ -225,94 +216,123 @@
                      value="{Binding Path=Form.VacationAbroad}"/>
 
     <controls:label name="TvoNameLabel"
-                    row="20"
+                    row="19"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.TvoName}"/>
 
     <controls:input name="TvoName"
-                    row="20"
+                    row="19"
                     column="2"
-                    style="formField"
+                    style="lookupKeyField"
                     value="{Binding Path=Form.TvoName}"
-                    onFocus="{Binding Path=Commands.FocusTvo}"/>
+                    onChange="{Binding Path=Commands.TvoNameChanged}"/>
 
     <controls:label name="TvoIpnLabel"
-                    row="21"
+                    row="20"
                     column="1"
-                    style="formLabel"
+                    style="{Binding Path=Form.TvoIpnLabelStyle}"
                     text="{Binding Path=Text.TvoIpn}"/>
 
     <controls:input name="TvoIpn"
-                    row="21"
+                    row="20"
                     column="2"
-                    style="formField"
+                    style="{Binding Path=Form.TvoIpnStyle}"
                     value="{Binding Path=Form.TvoIpn}"
-                    onFocus="{Binding Path=Commands.FocusTvo}"/>
+                    readOnly="{Binding Path=Form.TvoIpnReadOnly}"/>
 
     <controls:label name="TvoPositionLabel"
-                    row="22"
+                    row="21"
                     column="1"
-                    style="formLabel"
+                    style="{Binding Path=Form.TvoPositionLabelStyle}"
                     text="{Binding Path=Text.TvoPosition}"/>
 
     <controls:input name="TvoPosition"
-                    row="22"
+                    row="21"
                     column="2"
-                    style="formField"
+                    style="{Binding Path=Form.TvoPositionStyle}"
                     value="{Binding Path=Form.TvoPosition}"
-                    onFocus="{Binding Path=Commands.FocusTvo}"/>
+                    readOnly="{Binding Path=Form.TvoPositionReadOnly}"/>
 
     <controls:label name="ReportNoLabel"
-                    row="23"
+                    row="22"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.ReportNo}"/>
 
     <controls:input name="ReportNo"
-                    row="23"
+                    row="22"
                     column="2"
                     style="formField"
                     value="{Binding Path=Form.ReportNo}"/>
 
     <controls:label name="PurposeLabel"
-                    row="24"
+                    row="23"
                     column="1"
                     rowSpan="2"
                     style="formLabel"
                     text="{Binding Path=Text.PurposeLabel}"/>
 
     <controls:input name="Purpose"
-                    row="24"
+                    row="23"
                     column="2"
                     rowSpan="2"
                     style="formField"
                     value="{Binding Path=Form.Purpose}"/>
 
     <controls:label name="TemplatePathLabel"
-                    row="26"
+                    row="30"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.TemplatePath}"/>
 
     <controls:input name="TemplatePath"
-                     row="26"
+                     row="30"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.TemplatePath}"/>
 
     <controls:label name="OutputFolderPathLabel"
-                    row="27"
+                    row="31"
                     column="1"
                     style="formLabel"
                     text="{Binding Path=Text.OutputFolderPath}"/>
 
     <controls:input name="OutputFolderPath"
-                     row="27"
+                     row="31"
                      column="2"
                      style="formField"
                      value="{Binding Path=Form.OutputFolderPath}"/>
 
+    <controls:label name="ChangeReasonLabel"
+                    row="25"
+                    column="1"
+                    style="formLabel"
+                    text="{Binding Path=Text.ChangeReason}"/>
+    <controls:input name="ChangeReason"
+                    row="25"
+                    column="2"
+                    style="formField"
+                    value="{Binding Path=Form.ChangeReason}"/>
+    <controls:button name="AddTvo"
+                     row="26"
+                     column="1"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.AddTvo}"
+                     command="{Binding Path=Commands.AddTvo}"/>
+    <controls:button name="RemoveTvo"
+                     row="26"
+                     column="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.RemoveTvo}"
+                     command="{Binding Path=Commands.RemoveTvo}"/>
+    <controls:label name="TvoChainSummary"
+                    row="27"
+                    column="1"
+                    rowSpan="3"
+                    columnSpan="2"
+                    style="statusText"
+                    text="{Binding Path=Text.TvoChainSummary}"/>
     <controls:label name="DocumentTypeLabel"
                     row="9"
                     column="1"
@@ -329,39 +349,80 @@
                      value="{Binding Path=Form.DocumentType}"
                      onChange="{Binding Path=Commands.DocumentTypeChanged}"/>
 
-    <controls:button name="CreateDocument"
-                     row="3"
-                     column="10"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.CreateDocument}"
-                     command="{Binding Path=Commands.CreateDocument}"/>
-
-    <controls:button name="UpdateDocument"
+    <controls:button name="SaveHistory"
                      row="4"
-                     column="10"
+                     column="11"
                      columnSpan="2"
                      style="secondaryButton"
-                     caption="{Binding Path=Text.UpdateDocument}"
-                     command="{Binding Path=Commands.UpdateDocument}"/>
+                     caption="{Binding Path=Text.SaveHistory}"
+                     command="{Binding Path=Commands.SaveHistory}"/>
+
+    <controls:button name="ExportWord"
+                     row="5"
+                     column="11"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.ExportWord}"
+                     command="{Binding Path=Commands.ExportWord}"/>
 
     <controls:button name="ClearForm"
-                     row="3"
+                     row="2"
                      column="6"
+                     columnSpan="2"
                      style="resetFormButton"
                      caption="{Binding Path=Text.ClearForm}"
                      command="{Binding Path=Commands.ClearForm}"/>
 
+    <controls:label name="OrderQueryLabel"
+                    row="7"
+                    column="11"
+                    style="formLabel"
+                    text="{Binding Path=Text.OrderQueryLabel}"/>
+    <controls:label name="OrderYearLabel"
+                    row="7"
+                    column="12"
+                    style="formLabel"
+                    text="{Binding Path=Text.OrderYearLabel}"/>
+    <controls:select name="OrderQuery"
+                     itemsSource="{Binding Path=Data.OrderOptions}"
+                     row="8"
+                     column="11"
+                     style="lookupKeyField"
+                     value="{Binding Path=Form.OrderQuery}"
+                     editable="true"
+                     panelStyle="formSelectPanel"
+                     itemStyle="formSelectItem"
+                     onChange="{Binding Path=Commands.SearchOrders}"/>
+    <controls:input name="OrderYear"
+                    row="8"
+                    column="12"
+                    style="lookupKeyField"
+                    value="{Binding Path=Form.OrderYear}"
+                    onChange="{Binding Path=Commands.SearchOrders}"/>
+    <controls:label name="HistoryEditMode"
+                    row="15"
+                    column="11"
+                    rowSpan="2"
+                    columnSpan="2"
+                    style="statusHeading"
+                    text="{Binding Path=Text.HistoryEditMode}"/>
+    <controls:button name="LoadHistory"
+                     row="3"
+                     column="11"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.LoadHistory}"
+                     command="{Binding Path=Commands.LoadHistory}"/>
     <controls:label name="LastStatusLabel"
-                    row="6"
-                    column="10"
+                    row="10"
+                    column="11"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
 
     <controls:label name="GenerationStatus"
-                    row="7"
-                    column="10"
+                    row="11"
+                    column="11"
                     rowSpan="4"
                     columnSpan="2"
                     style="{Binding Path=Form.GenerationStatusStyle}"
@@ -370,84 +431,114 @@
     <controls:label name="SearchSection"
                     row="1"
                     column="4"
-                    columnSpan="5"
+                    columnSpan="6"
                     style="sectionTitle"
                     text="{Binding Path=Text.SearchSection}"/>
 
-    <controls:label name="SearchLabel"
-                    row="2"
-                    column="4"
-                    style="searchLabel"
-                    text="{Binding Path=Text.SearchLabel}"/>
-
-    <controls:input name="PersonnelQuery"
-                    row="2"
-                    column="5"
-                    columnSpan="4"
-                    style="formField"
-                    value="{Binding Path=Form.PersonnelQuery}"
-                    onChange="{Binding Path=Commands.SearchPersonnel}"/>
-
     <controls:checkbox name="AutoFillPersonnel"
-                       row="3"
+                       row="2"
                        column="4"
                        columnSpan="2"
                        style="personnelCheckbox"
                        value="{Binding Path=Form.AutoFillPersonnel}"
                          caption="{Binding Path=Text.AutoFillPersonnelLabel}"
                          checkedGlyph="{Binding Path=Text.CheckboxChecked}"
-                         uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"/>
+                         uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                         onChange="{Binding Path=Commands.AutoFillChanged}"/>
 
     <controls:label name="CandidateCount"
-                    row="5"
-                    column="7"
+                    row="4"
+                    column="8"
                     columnSpan="2"
                     style="statusText"
                     text="{Binding Path=Text.CandidateCount}"/>
 
     <controls:label name="ActionsSection"
                     row="1"
-                    column="10"
+                    column="11"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
 
     <controls:button name="RefreshPersonnel"
                      row="2"
-                     column="10"
+                     column="11"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
 
-    <controls:button name="LookupTarget"
-                     row="3"
-                     column="7"
-                     columnSpan="2"
-                     style="lookupToggle"
-                     caption="{Binding Path=Text.LookupTargetCaption}"
-                     command="{Binding Path=Commands.ToggleLookupTarget}"/>
-
     <controls:label name="LookupStatus"
-                    row="4"
+                    row="3"
                     column="4"
-                    columnSpan="5"
+                    columnSpan="6"
                     style="statusText"
                     text="{Binding Path=Text.PersonnelStatus}"/>
 
     <controls:table name="Candidates"
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
-                    row="6"
+                    row="5"
                     column="4"
                     style="candidateTable"
+                    visibility="{Binding Path=Form.CandidatesVisibility}"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
                     selectionMode="{Binding Path=Settings.CandidateSelectionMode}"
                     onSelect="{Binding Path=Commands.SelectPersonnel}"
                     selectedStyle="candidateSelected"
                     showHeaders="true"/>
+    <controls:table name="History"
+                    itemsSource="{Binding Path=Data.HistoryCandidates}"
+                    row="5"
+                    column="4"
+                    style="candidateTable"
+                    visibility="{Binding Path=Form.HistoryVisibility}"
+                    selectedItem="{Binding Path=Data.SelectedHistory}"
+                    selectionMode="Confirm"
+                    onSelect="{Binding Path=Commands.SelectHistory}"
+                    selectedStyle="candidateSelected"
+                    closeCommand="{Binding Path=Commands.CloseHistory}"
+                    closeCaption="{Binding Path=Text.CloseHistory}"
+                    showHeaders="true"/>
   </grid>
 
   <styles>
+    <controlStyle name="personnelFormField"
+                  cellType="text"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#2D2D2D"
+                  textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="currentOrderField"
+                  cellType="text"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#2D2D2D"
+                  textColor="#87CEFA"
+                  fontColor="#87CEFA"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
+    <controlStyle name="lookupKeyField"
+                  cellType="text"
+                  backColor="#3A3A3A"
+                  textColor="#F4A46B"
+                  fontName="Calibri"
+                  fontSize="11"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="center"
+                  vertical="center"/>
     <controlStyle name="selectShapeBase"
                   backColor="#FFFFFF"
                   textColor="#111827"
@@ -516,6 +607,18 @@
                   borderWeight="thin"
                   horizontal="right"
                   vertical="center"/>
+    <controlStyle name="readOnlyFormLabel"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#333333"
+                  textColor="#909090"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="right"
+                  vertical="center"/>
     <controlStyle name="formField"
                   paddingLeft="10"
                   paddingRight="10"
@@ -535,9 +638,6 @@
                   textColor="#999999"
                   fontName="Calibri"
                   fontSize="11"
-                  fontBold="false"
-                  borderColor="#000000"
-                  borderWeight="thin"
                   horizontal="right"
                   vertical="center"/>
     <controlStyle name="statusText"
@@ -687,6 +787,9 @@
       <layer name="sheet-base">
         <rule target="sheet"
               styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:30;overflow:wrap;gridLines:true;zoom:90%;}"/>
+        <rule target="row"
+              selector="address=1:1"
+              styles="{rowHeight:8;}"/>
         <rule target="column"
               selector="address=A:A"
               styles="{width:2;}"/>
@@ -701,35 +804,35 @@
               styles="{width:2;}"/>
         <rule target="column"
               selector="address=E:E"
-              styles="{width:19;}"/>
+              styles="{width:13;}"/>
         <rule target="column"
               selector="address=F:F"
-              styles="{width:37;}"/>
-        <rule target="column"
-              selector="address=G:G"
-              styles="{width:16;}"/>
-        <rule target="column"
-              selector="address=H:H"
-              styles="{width:16;}"/>
-        <rule target="column"
-              selector="address=I:I"
               styles="{width:32;}"/>
         <rule target="column"
+              selector="address=G:G"
+              styles="{width:13;}"/>
+        <rule target="column"
+              selector="address=H:H"
+              styles="{width:13;}"/>
+        <rule target="column"
+              selector="address=I:I"
+              styles="{width:29;}"/>
+        <rule target="column"
               selector="address=J:J"
-              styles="{width:2;}"/>
+              styles="{width:20;}"/>
         <rule target="column"
               selector="address=K:K"
-              styles="{width:25;}"/>
+              styles="{width:2;}"/>
         <rule target="column"
               selector="address=L:L"
+              styles="{width:25;}"/>
+        <rule target="column"
+              selector="address=M:M"
               styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">
         <rule target="control"
               selector="name=DepartureDate"
-              styles="{cellType:text;}"/>
-        <rule target="control"
-              selector="name=OrderReference"
               styles="{cellType:text;}"/>
         <rule target="control"
               selector="name=PersonId"
@@ -746,6 +849,18 @@
         <rule target="controlPart"
               selector="type=table;part=row;tags=even"
               styles="{backColor:#383838;}"/>
+      </layer>
+      <layer name="readonly-fields"
+             enabled="true">
+        <rule target="controlPart"
+              selector="type=input;part=editor;tags=readOnly personnelFormField"
+              styles="{fontColor:#B6B6B6;}"/>
+        <rule target="controlPart"
+              selector="type=input;part=editor;tags=readOnly currentOrderField"
+              styles="{fontColor:#6896B2;}"/>
+        <rule target="controlPart"
+              selector="type=input;part=editor;tags=readOnly formField"
+              styles="{fontColor:#AE7A55;}"/>
       </layer>
     </stylePipelineStage>
   </styles>

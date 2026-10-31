@@ -10,24 +10,28 @@ value	ThisWorkbook::initializer	ex_TravelDocumentsBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_TravelDocumentsBuilder.fn_CreatePage
 value	TravelDocumentsBuilder::ui.folder	TravelDocumentsBuilder
 value	TravelDocumentsBuilder::text.Title	Документи
+value	TravelDocumentsBuilder::text.AddTvo	Додати ТВО
 value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
 value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
 value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
 value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
+value	TravelDocumentsBuilder::text.RemoveTvo	Прибрати останнього ТВО
 value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
-value	TravelDocumentsBuilder::text.LastStatus	Останній статус
+value	TravelDocumentsBuilder::text.ExportWord	Експорт WORD — весь наказ
+value	TravelDocumentsBuilder::text.LastStatus	Статус останньої дії
 value	TravelDocumentsBuilder::text.RankHeader	Звання
 value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
-value	TravelDocumentsBuilder::text.SearchLabel	ПІБ / ІПН
+value	TravelDocumentsBuilder::text.LoadHistory	Редагувати історію
+value	TravelDocumentsBuilder::text.SaveHistory	Зберегти подію
 value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
 value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
+value	TravelDocumentsBuilder::text.ChangeReason	Причина зміни
+value	TravelDocumentsBuilder::text.CloseHistory	×
 value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
-value	TravelDocumentsBuilder::text.LookupTarget.Tvo	Військовослужбовець / [[color=#F4A46B]]ТВО[[/color]]
-value	TravelDocumentsBuilder::text.LookupTarget.Personnel	[[color=#F4A46B]]Військовослужбовець[[/color]] / ТВО
 value	TravelDocumentsBuilder::text.StyleEnabled	Значення enabled має бути true або false.
 value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
 value	TravelDocumentsBuilder::text.VacationDays	Дні відпустки
@@ -39,18 +43,18 @@ value	TravelDocumentsBuilder::text.StyleCellType	Непідтримуване з
 value	TravelDocumentsBuilder::text.StyleProperty	Непідтримувана властивість стилю: {value}
 value	TravelDocumentsBuilder::text.StyleRangeKey	Селектор не підтримується для діапазону: {value}
 value	TravelDocumentsBuilder::text.StyleSelector	Некоректний селектор стилів: {value}
+value	TravelDocumentsBuilder::text.UpdateHistory	Оновити подію
 value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
-value	TravelDocumentsBuilder::text.CreateDocument	Створити DOCX
 value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
 value	TravelDocumentsBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте джерело наказів.
 value	TravelDocumentsBuilder::text.OrderReference	Номер / дата наказу
+value	TravelDocumentsBuilder::text.OrderYearLabel	Рік наказу
 value	TravelDocumentsBuilder::text.PersonnelCount	Оберіть рядок кандидата та натисніть Ctrl+Enter для підстановки даних.
 value	TravelDocumentsBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
 value	TravelDocumentsBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
 value	TravelDocumentsBuilder::text.PositionHeader	Посада
 value	TravelDocumentsBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
 value	TravelDocumentsBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
-value	TravelDocumentsBuilder::text.UpdateDocument	Оновити подію
 value	TravelDocumentsBuilder::text.VacationAbroad	Виїзд за кордон
 value	TravelDocumentsBuilder::text.VacationStatus	Статус
 value	TravelDocumentsBuilder::text.VacationTicket.PurposeLabel	Підстава
@@ -61,11 +65,11 @@ value	TravelDocumentsBuilder::text.VacationTicket.DocumentTargetLabel	Місце
 value	TravelDocumentsBuilder::text.CheckboxChecked	☑
 value	TravelDocumentsBuilder::text.DocumentSection	ДАНІ ДОКУМЕНТА
 value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
+value	TravelDocumentsBuilder::text.OrderQueryLabel	№ наказу / дата наказу
 value	TravelDocumentsBuilder::text.PersonNameLabel	ПІБ
 value	TravelDocumentsBuilder::text.PersonRankLabel	Звання
 value	TravelDocumentsBuilder::text.PersonUnitLabel	Підрозділ
 value	TravelDocumentsBuilder::text.PersonnelPrompt	Завантажте дані, введіть частину ПІБ або ІПН та натисніть Enter.
-value	TravelDocumentsBuilder::text.SearchPersonnel	Знайти
 value	TravelDocumentsBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
 value	TravelDocumentsBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
 value	TravelDocumentsBuilder::text.CloseFlushFailed	Не вдалося зберегти журнал діагностики. Книгу залишено відкритою.
@@ -113,8 +117,30 @@ value	TravelDocumentsBuilder::text.BusinessTripCertificate.DepartureDateLabel	Д
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentTargetLabel	Місце відрядження
 value	TravelDocumentsBuilder::text.PersonPositionCodeLabel	Код посади
 value	TravelDocumentsBuilder::text.DependenciesSourceChanged	Джерело змінилося під час завантаження: {path}. Повторіть завантаження.
+value	TravelDocumentsBuilder::word.text.Path	Перевірте шлях до шаблону, папку результатів і довжину імен файлів.
+value	TravelDocumentsBuilder::word.text.Stale	Історія, шаблон або папка результатів змінилися під час підготовки. Повторіть експорт.
+value	TravelDocumentsBuilder::word.text.Failed	Експорт WORD перервано: {error}. Об’єкт: {path}.
+value	TravelDocumentsBuilder::word.text.Cleanup	Комплект оброблено, але тимчасову папку не вдалося прибрати:
+value	TravelDocumentsBuilder::word.text.Loading	Підготовка WORD для всього наказу...
+value	TravelDocumentsBuilder::word.text.Success	WORD сформовано: {count}. Попередніх файлів замінено або прибрано: {oldCount}. Папка: {folder}. Збережіть TicketsHistory вручну (Ctrl+S).
+value	TravelDocumentsBuilder::word.text.Identity	Не вдалося сформувати безпечне ім’я DOCX з RowId події.
+value	TravelDocumentsBuilder::word.text.Progress	WORD: підготовка квитка {step}/{total}.
+value	TravelDocumentsBuilder::word.text.Rollback	Не вдалося повністю відновити попередній комплект. Резервні файли збережено:
+value	TravelDocumentsBuilder::word.text.Unmanaged	DOCX без службового RowId не змінено: {count}.
+value	TravelDocumentsBuilder::word.text.Initialize	Не вдалося підготувати експорт WORD.
+value	TravelDocumentsBuilder::word.folder	TDB_{date}_{number}
+value	TravelDocumentsBuilder::word.maxPath	240
+value	TravelDocumentsBuilder::word.filename.label	{TicketNo}_{FIO}
+value	TravelDocumentsBuilder::word.filename.pattern	^TDB_(T-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})__.+[.]docx$
+value	TravelDocumentsBuilder::word.filename.labelMaxChars	72
 value	TravelDocumentsBuilder::dates.daysAhead	15
 value	TravelDocumentsBuilder::dates.daysBefore	3
+value	TravelDocumentsBuilder::forms.readOnly.fields	PersonRank|PersonId|PersonPositionCode|PersonPosition|PersonUnit|TvoIpn|TvoPosition
+value	TravelDocumentsBuilder::forms.readOnly.labelStyle	readOnlyFormLabel
+value	TravelDocumentsBuilder::forms.sourceStyles.label	formLabel
+value	TravelDocumentsBuilder::forms.sourceStyles.default	formField
+value	TravelDocumentsBuilder::forms.sourceStyles.Personnel	personnelFormField
+value	TravelDocumentsBuilder::forms.sourceStyles.CurrentOrder	currentOrderField
 value	TravelDocumentsBuilder::lookup.Tvo.apply.1.field	Personnel.FullName
 value	TravelDocumentsBuilder::lookup.Tvo.apply.1.target	Form.TvoName
 value	TravelDocumentsBuilder::lookup.Tvo.apply.2.field	Personnel.TaxId
@@ -173,6 +199,7 @@ value	TravelDocumentsBuilder::lookup.Personnel.columns.5.header	Посада
 value	TravelDocumentsBuilder::lookup.Personnel.columns.5.captionKey	TravelDocumentsBuilder::text.PositionHeader
 value	TravelDocumentsBuilder::lookup.Personnel.columns.6.name	Personnel.Unit
 value	TravelDocumentsBuilder::lookup.Personnel.columns.6.header	Підрозділ
+value	TravelDocumentsBuilder::lookup.Personnel.columns.6.captionKey	TravelDocumentsBuilder::text.UnitHeader
 value	TravelDocumentsBuilder::lookup.Personnel.columns.count	6
 value	TravelDocumentsBuilder::lookup.Personnel.display.count	0
 value	TravelDocumentsBuilder::lookup.Personnel.minChars	2
@@ -181,10 +208,65 @@ value	TravelDocumentsBuilder::lookup.Personnel.loadingText	Завантажен�
 value	TravelDocumentsBuilder::orders.source.path	../Dependencies/Накази.xlsx
 value	TravelDocumentsBuilder::orders.source.range	D2:H555
 value	TravelDocumentsBuilder::orders.source.sheet	Накази
+value	TravelDocumentsBuilder::orders.caption	{number} / {date}
 value	TravelDocumentsBuilder::orders.rowsAfter	5
 value	TravelDocumentsBuilder::orders.dateHeader	Дата
 value	TravelDocumentsBuilder::orders.rowsBefore	5
 value	TravelDocumentsBuilder::orders.numberHeader	Номер наказа
+value	TravelDocumentsBuilder::history.path	TicketsHistory.xlsx
+value	TravelDocumentsBuilder::history.text.Name	ПІБ
+value	TravelDocumentsBuilder::history.text.Count	Подій наказу: {count}
+value	TravelDocumentsBuilder::history.text.RowId	ID події
+value	TravelDocumentsBuilder::history.text.Stale	Подія або історія змінилася після завантаження. Оновіть список та повторно виберіть подію.
+value	TravelDocumentsBuilder::history.text.Loaded	Подію завантажено для редагування. Зміни зберігаються кнопкою «Оновити подію».
+value	TravelDocumentsBuilder::history.text.Schema	Невірна схема TicketsHistory.xlsx. Перевірте колонки таблиць tbTickets та tbTicketRevisions.
+value	TravelDocumentsBuilder::history.text.Ticket	Квиток
+value	TravelDocumentsBuilder::history.text.Editing	Редагування події: {id}
+value	TravelDocumentsBuilder::history.text.NewMode	Нова подія
+value	TravelDocumentsBuilder::history.text.NotFound	Подію з цим RowId не знайдено у TicketsHistory.
+value	TravelDocumentsBuilder::history.text.ReadOnly	TicketsHistory.xlsx або її таблиці недоступні для запису.
+value	TravelDocumentsBuilder::history.text.Revision	Ревізія
+value	TravelDocumentsBuilder::history.text.ChainItem	{index}. {name} — {position}
+value	TravelDocumentsBuilder::history.text.Departure	Дата вибуття
+value	TravelDocumentsBuilder::history.text.Duplicate	Подія з цим ІПН і наказом уже існує. Виберіть її з історії.
+value	TravelDocumentsBuilder::history.text.ChainEmpty	Ланцюг ТВО порожній.
+value	TravelDocumentsBuilder::history.text.EmptyOrder	У TicketsHistory немає подій вибраного наказу.
+value	TravelDocumentsBuilder::history.text.OrderEmpty	Наказів не знайдено. Перевірте номер, дату та рік.
+value	TravelDocumentsBuilder::history.text.OrderStale	Вибраний наказ змінився. Оновіть історію подій цього наказу та виберіть подію повторно.
+value	TravelDocumentsBuilder::history.text.PendingTvo	Додайте вибраного виконавця кнопкою «Додати ТВО» або очистіть поля ТВО перед збереженням.
+value	TravelDocumentsBuilder::history.text.SelectHint	Події вибраного наказу. Оберіть рядок та натисніть Ctrl+Enter для редагування.
+value	TravelDocumentsBuilder::history.text.ChooseOrder	Виберіть наказ зі списку або введіть номер / дату. Рік для номера можна вказати окремо.
+value	TravelDocumentsBuilder::history.text.InvalidDate	Некоректна дата в TicketsHistory: {value}. Очікується dd.mm.yyyy.
+value	TravelDocumentsBuilder::history.text.InvalidRows	Пошкоджена структура TicketsHistory: порожній або повторний RowId, невідомий тип рядка чи неправильні зв’язки.
+value	TravelDocumentsBuilder::history.text.NewRequired	Для нової події натисніть «Нова подія». Для зміни завантаженої події натисніть «Оновити подію».
+value	TravelDocumentsBuilder::history.text.InvalidChain	Невірний ланцюг ТВО: перевірте ІПН, власні посади, заміщення, дублікати та цикли.
+value	TravelDocumentsBuilder::history.text.OpenRequired	Відкрийте TicketsHistory.xlsx з папки TravelDocumentsBuilder перед виконанням операції.
+value	TravelDocumentsBuilder::history.text.ManualChanges	Дані події або дочірні рядки відрізняються від останньої ревізії. Відновіть їх за знімком перед редагуванням.
+value	TravelDocumentsBuilder::history.text.OrderAccepted	Вибрано наказ: {order}. Можна редагувати історію його подій.
+value	TravelDocumentsBuilder::history.text.OrderRequired	Спочатку знайдіть та виберіть наказ за номером і датою.
+value	TravelDocumentsBuilder::history.text.ReasonRequired	Для скасування або відновлення події вкажіть причину зміни.
+value	TravelDocumentsBuilder::history.text.RecoveryFailed	Не вдалося записати журнал відновлення TicketsHistory: {details}. Подію не підтверджено.
+value	TravelDocumentsBuilder::history.text.SelectRequired	Спочатку завантажте подію з історії та підтвердьте її вибір через Ctrl+Enter.
+value	TravelDocumentsBuilder::history.text.InvalidRevision	Пошкоджено ревізію TicketsHistory: перевірте Revision і повний знімок у TicketRevisions.
+value	TravelDocumentsBuilder::history.sheet	Tickets
+value	TravelDocumentsBuilder::history.table	tbTickets
+value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt
+value	TravelDocumentsBuilder::history.recovery.suffix	.recovery.xml.log
+value	TravelDocumentsBuilder::history.versions.sheet	TicketRevisions
+value	TravelDocumentsBuilder::history.versions.table	tbTicketRevisions
+value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt
+value	TravelDocumentsBuilder::history.dateFields	FoodDepartureDate|DepartureDate|PlannedReturnDate|OrderDate
+value	TravelDocumentsBuilder::history.formFields	PersonName=FullName|PersonRank=Rank|PersonId=TaxId|PersonPosition=PositionName|PersonPositionCode=PositionCode|PersonUnit=UnitName|DocumentTarget=Destination|VacationDays=VacationDays|RoadDays=RoadDays|VacationKind=VacationKind|VacationAbroad=VacationAbroad|ReportNo=ReportNumber|Purpose=Basis|TicketNo=TicketNumber|DocumentPath=DocumentPath
+value	TravelDocumentsBuilder::history.listFields	FullName=Name|TicketNumber=Ticket|DepartureDate=Departure|Revision=Revision|RowId=RowId
+value	TravelDocumentsBuilder::history.actorFields	Personnel.FullName=FullName|Personnel.TaxId=TaxId|Personnel.Rank=Rank|Personnel.Position=PositionName|Personnel.PositionCode=PositionCode|Personnel.Unit=UnitName
+value	TravelDocumentsBuilder::history.ticketField	TicketNumber
+value	TravelDocumentsBuilder::history.durationField	VacationDays
+value	TravelDocumentsBuilder::history.personIdField	TaxId
+value	TravelDocumentsBuilder::history.dateFormFields	DepartureDate=DepartureDate|ReturnDate=PlannedReturnDate
+value	TravelDocumentsBuilder::history.departureField	DepartureDate
+value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt
+value	TravelDocumentsBuilder::history.personNameField	FullName
+value	TravelDocumentsBuilder::history.orderNumberField	OrderNumber
 value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source
 value	TravelDocumentsBuilder::snapshots.progress.Table	Читання таблиці: {source}
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
@@ -207,8 +289,6 @@ value	TravelDocumentsBuilder::generation.kind.maternity.input	Відпустка
 value	TravelDocumentsBuilder::generation.kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
 value	TravelDocumentsBuilder::generation.kind.treatment.event	Відпустка для лікування
 value	TravelDocumentsBuilder::generation.kind.treatment.input	Відпустка для лікування після поранення (контузії, травми або каліцтва)
-value	TravelDocumentsBuilder::generation.name.active	В.к. {TicketNo} {FIO} ({IPN})
-value	TravelDocumentsBuilder::generation.name.cancelled	В.к. {TicketNo} (СКАСОВАНО) {FIO} ({IPN})
 value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
 value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
 value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
@@ -217,27 +297,16 @@ value	TravelDocumentsBuilder::generation.abroad.yes	Так
 value	TravelDocumentsBuilder::generation.abroad.word	Дозволено виїзд за кордон
 value	TravelDocumentsBuilder::generation.limits.maxDays	100000
 value	TravelDocumentsBuilder::generation.months	січня|лютого|березня|квітня|травня|червня|липня|серпня|вересня|жовтня|листопада|грудня
-value	TravelDocumentsBuilder::generation.status.mark	СКАСОВАНО
 value	TravelDocumentsBuilder::generation.status.active	Активна
 value	TravelDocumentsBuilder::generation.status.cancelled	Скасовано
-value	TravelDocumentsBuilder::generation.message.Tvo	Дані ТВО неповні або не відповідають кадровому джерелу: {value}. Оберіть кандидата повторно.
-value	TravelDocumentsBuilder::generation.message.Path	Файл або папка недоступні чи шлях конфліктує з шаблоном: {value}.
 value	TravelDocumentsBuilder::generation.message.Order	Наказ не знайдено, номер некоректний або знайдено кілька наказів: {value}.
-value	TravelDocumentsBuilder::generation.message.Table	Не знайдено таблицю або аркуш захищено: {value}.
-value	TravelDocumentsBuilder::generation.message.Title	Відпускний квиток
 value	TravelDocumentsBuilder::generation.message.Column	У tbTickets немає колонки: {value}.
-value	TravelDocumentsBuilder::generation.message.Exists	Квиток або файл уже існує: {value}. Скористайтеся оновленням.
-value	TravelDocumentsBuilder::generation.message.Failed	Не вдалося згенерувати квиток: {value}
+value	TravelDocumentsBuilder::generation.message.Failed	Не вдалося зберегти подію: {value}
 value	TravelDocumentsBuilder::generation.message.Marker	У шаблоні відсутній плейсхолдер: {value}.
 value	TravelDocumentsBuilder::generation.message.Invalid	Некоректне значення: {value}. Дати вводьте у форматі дд.мм.рррр, дні — цілими невід'ємними числами.
-value	TravelDocumentsBuilder::generation.message.Replace	Замінити існуючий документ {value}?
-value	TravelDocumentsBuilder::generation.message.Restore	Запис {value} існує, але DOCX відсутній. Створити документ та оновити запис за поточною формою?
-value	TravelDocumentsBuilder::generation.message.Success	DOCX збережено, tbTickets оновлено: {value}.
-value	TravelDocumentsBuilder::generation.message.NotFound	Квиток для оновлення не знайдено: {value}.
+value	TravelDocumentsBuilder::generation.message.Success	Подію збережено в TicketsHistory: {value}. Збережіть книгу вручну (Ctrl+S). WORD експортується окремо для всього наказу.
 value	TravelDocumentsBuilder::generation.message.Required	Не заповнено обов'язкове поле: {value}.
 value	TravelDocumentsBuilder::generation.message.Rollback	Не вдалося повністю відновити дані або прибрати тимчасові файли: {value}
-value	TravelDocumentsBuilder::generation.message.Workbook	Відкрийте доступну для редагування книгу {value} в цьому Excel.
-value	TravelDocumentsBuilder::generation.message.Duplicate	Знайдено кілька відповідних записів або документів: {value}. Усуньте неоднозначність.
 value	TravelDocumentsBuilder::generation.message.Unsupported	Генерація для цього типу документа ще не реалізована: {value}.
 value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
 value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
@@ -265,11 +334,7 @@ value	TravelDocumentsBuilder::generation.position.removedText	СПИС
 value	TravelDocumentsBuilder::generation.position.reservedText	РОЗП
 value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
 value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
-value	TravelDocumentsBuilder::generation.registry.sheet	Квитки
-value	TravelDocumentsBuilder::generation.registry.table	tbTickets
-value	TravelDocumentsBuilder::generation.registry.columns	Звання|ПІБ|ІПН|Посада|Подія|Куди|Вибуття.Наказ|Вибуття.Продовольче|Вибуття|Вибуття.Термін|Вибуття.Дорога|Прибуття.План|Прибуття|Прибуття.Продовольче|Прибуття.Наказ|Супровідний документ|ТВО.ПІБ|ТВО.ІПН|ТВО.Посада|Статус|Підстава
-value	TravelDocumentsBuilder::generation.registry.workbook	Квитки.xlsx
-value	TravelDocumentsBuilder::generation.registry.arrivalFormula	=IF([@Вибуття]="","",[@Вибуття]+SUM([@[Вибуття.Термін]],[@[Вибуття.Дорога]])+1)
+value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId|PositionName|VacationKind|Destination|OrderNumber|FoodDepartureDate|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|TicketNumber|PositionCode|DutyPositionCode|UnitName|Status|Basis|ReportNumber
 value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (Шаблон).docx
 value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.

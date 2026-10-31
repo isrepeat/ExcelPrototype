@@ -2,6 +2,9 @@ Option Explicit
 
 Private m_runtimeReleased As Boolean
 
+' --------------------------------------
+' namespace Private {
+' --------------------------------------
 Private Sub Workbook_Open()
     private_Initialize
 End Sub
@@ -20,7 +23,10 @@ Private Sub Workbook_Deactivate()
     ex_AppHotkeys.fn_Deactivate
 End Sub
 
-Private Sub Workbook_SheetChange(ByVal sheet As Object, ByVal target As Range)
+Private Sub Workbook_SheetChange( _
+    ByVal sheet As Object, _
+    ByVal target As Range _
+)
     Dim runtimeContext As Object
 
     If m_runtimeReleased Then
@@ -38,7 +44,10 @@ EH:
     Resume Cleanup
 End Sub
 
-Private Sub Workbook_SheetSelectionChange(ByVal sheet As Object, ByVal target As Range)
+Private Sub Workbook_SheetSelectionChange( _
+    ByVal sheet As Object, _
+    ByVal target As Range _
+)
     Dim runtimeContext As Object
 
     If m_runtimeReleased Then
@@ -150,3 +159,6 @@ Private Sub private_ReportError(ByVal stageName As String)
     ex_UiBusy.fn_Reset
     ex_WindowsUi.fn_ShowMessage errorDescription, VBA.vbExclamation, "TravelDocumentsBuilder"
 End Sub
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------
