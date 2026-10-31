@@ -346,30 +346,21 @@
                      command="{Binding Path=Commands.UpdateDocument}"/>
 
     <controls:button name="ClearForm"
-                     row="5"
-                     column="10"
-                     columnSpan="2"
-                     style="secondaryButton"
+                     row="3"
+                     column="6"
+                     style="resetFormButton"
                      caption="{Binding Path=Text.ClearForm}"
                      command="{Binding Path=Commands.ClearForm}"/>
 
-    <controls:button name="ReinitializeConfig"
-                     row="6"
-                     column="10"
-                     columnSpan="2"
-                     style="secondaryButton"
-                     caption="{Binding Path=Text.ReinitializeConfig}"
-                     command="{Binding Path=Commands.ReinitializeConfig}"/>
-
     <controls:label name="LastStatusLabel"
-                    row="9"
+                    row="6"
                     column="10"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
 
     <controls:label name="GenerationStatus"
-                    row="10"
+                    row="7"
                     column="10"
                     rowSpan="4"
                     columnSpan="2"
@@ -431,8 +422,8 @@
 
     <controls:button name="LookupTarget"
                      row="3"
-                     column="6"
-                     columnSpan="3"
+                     column="7"
+                     columnSpan="2"
                      style="lookupToggle"
                      caption="{Binding Path=Text.LookupTargetCaption}"
                      command="{Binding Path=Commands.ToggleLookupTarget}"/>
@@ -597,6 +588,24 @@
                   borderScope="outline"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="resetFormButton"
+                  marginLeft="3"
+                  marginRight="3"
+                  marginTop="3"
+                  marginBottom="3"
+                  paddingLeft="2"
+                  paddingRight="2"
+                  paddingTop="0"
+                  paddingBottom="0"
+                  backColor="#303030"
+                  textColor="#C3C3C3"
+                  fontName="Calibri"
+                  fontSize="12"
+                  fontBold="false"
+                  borderLineStyle="none"
+                  horizontal="center"
+                  vertical="center"
+                  overflow="wrap"/>
     <controlStyle name="secondaryButton"
                   paddingLeft="10"
                   paddingRight="10"
