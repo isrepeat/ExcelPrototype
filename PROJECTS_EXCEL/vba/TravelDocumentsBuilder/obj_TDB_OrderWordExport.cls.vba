@@ -233,7 +233,7 @@ Public Function TryExport( _
     ex_TDB_History.fn_AssertCurrent tickets, revisions, transaction
     Set protection = New obj_TDB_HistoryProtection
     If Not protection.Initialize(tickets, revisions) Then ex_TDB_History.fn_Fail "ReadOnly"
-    protection.Unprotect
+    protection.PrepareMetadataWrite
     historyChanged = True
     For Each group In groups
         Set root = group(1)
@@ -282,7 +282,7 @@ Failed:
         End If
         If historyChanged Then
             VBA.Err.Clear
-            If Not protection Is Nothing Then protection.Unprotect
+            If Not protection Is Nothing Then protection.PrepareMetadataWrite
             If VBA.Err.Number <> 0 Then rollback = rollback & VBA.Err.Description & VBA.vbLf
             VBA.Err.Clear
             ex_TDB_History.fn_Rollback tickets, revisions, transaction

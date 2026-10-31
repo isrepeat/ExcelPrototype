@@ -377,7 +377,8 @@ assert 'Password:=SHEET_PASSWORD' in protection
 for key in ("ProtectionFailed", "ProtectionUnavailable", "ProtectionNotApplied"):
     cfg("history.text." + key)
 assert 'sheet.Cells.Locked = True' in protection
-assert 'UserInterfaceOnly:=False, AllowFiltering:=True' in protection
+assert 'UserInterfaceOnly:=True, AllowFiltering:=True' in protection
+assert 'If Not sheet.ProtectContents Or Not sheet.ProtectionMode Then' in protection
 assert 'sheet.EnableSelection = xlNoRestrictions' in protection
 assert 'If sheet.EnableSelection <> xlNoRestrictions Then' in protection
 assert 'If Not m_restoreRequired Then' in protection
@@ -392,7 +393,8 @@ save_success, save_failure = save_body.split('\nEH:', 1)
 assert save_success.index('protection.Unprotect') < save_success.index('    tableChanged = True')
 assert save_success.index('protection.TryProtect') < save_success.index('ex_TDB_HistoryRecovery.fn_Mark')
 assert save_failure.index('protection.Unprotect') < save_failure.index('ex_TDB_History.fn_Rollback') < save_failure.index('protection.TryProtect')
-assert exporter.index('protection.Unprotect') < exporter.index('    historyChanged = True')
+assert 'protection.Unprotect' not in exporter
+assert exporter.index('protection.PrepareMetadataWrite') < exporter.index('    historyChanged = True')
 assert exporter.index('protection.TryProtect') < exporter.index('    committed = True')
 assert 'protection.TryProtect' in exporter[exporter.index('\nCleanup:'):]
 assert 'If root("Status") = "Active" Then' in exporter
