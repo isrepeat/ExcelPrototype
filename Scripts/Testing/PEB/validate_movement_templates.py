@@ -56,6 +56,12 @@ def main():
             assert plan["destinationField"] == "Destination"
             assert "Destination" in plan["required"].split("|")
         assert movement["statuses"]["Awol"] == "СЗЧ"
+        outpatient = movement["events"]["ToOutpatientExaminationOrVlk"]
+        assert outpatient["destinationField"] == "Destination"
+        assert "Destination" not in outpatient["required"].split("|")
+        assert "HospitalShortName" not in outpatient["required"].split("|")
+        assert "Hospital" not in outpatient["required"].split("|")
+        assert "HospitalShortName" in movement["events"]["ToHospital"]["required"].split("|")
         assert len(movement["profiles"]) == 5 and len(movement["values"]) == 167
         root = movement["root"]
         assert root.tag == f"{{{NS['p']}}}resultTemplates"

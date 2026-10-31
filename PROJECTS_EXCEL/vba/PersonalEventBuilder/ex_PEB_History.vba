@@ -61,6 +61,11 @@ Public Function fn_Save( _
     Dim tvoStartedAt As Double
     Dim saveStartedAt As Double
     Dim editedId As String
+    Dim filterTables As New Collection
+    Dim filterStates As Collection
+    Dim filterSheet As Worksheet
+    Dim filterTable As ListObject
+    Dim filterError As String
 
     On Error GoTo EH
     saveStartedAt = VBA.Timer
@@ -70,6 +75,21 @@ Public Function fn_Save( _
     snapshotStarted = True
     private_Open book, table
     originalColumns = table.ListColumns.Count
+    For Each filterSheet In book.Worksheets
+        For Each filterTable In filterSheet.ListObjects
+            filterTables.Add filterTable
+        Next filterTable
+    Next filterSheet
+    If Not ex_TableFilters.fn_Suspend(filterTables, filterStates, diagnostic) Then GoTo Cleanup
+    ex_PEB_Export.fn_NormalizeNames values
+    If Not values.Exists("RequestedStatus") Then
+        ex_PEB_Export.fn_ClearHiddenDestination values, CStr(values("EventId"))
+    End If
+    If values.Exists("FormExtensionRows") Then
+        For Each row In values("FormExtensionRows")
+            ex_PEB_Export.fn_NormalizeNames row
+        Next row
+    End If
     For Each collectionName In VBA.Array("MetaDocumentTables", "MetaTvoTables", "HistoryReports")
         If values.Exists(collectionName) Then
             If Not values.Exists("FormExtensionRows") Then
@@ -235,6 +255,10 @@ Public Function fn_Save( _
     If current.Exists("RequestedStatus") Then
         current("Status") = current("RequestedStatus")
     End If
+    ' Apply the same required-field contract as Movement before creating revisions or writing rows.
+    If current("Status") <> "Cancelled" Then
+        ex_PEB_Export.fn_CheckMovementRequired current
+    End If
     Set revisionRows = rows
     If values.Exists("FormExtensionRows") Then
         Set childPlan = ex_PEB_FormChildren.fn_Plan(table, rows, current, values("FormExtensionRows"), rebindFormExtensions)
@@ -330,6 +354,11 @@ Cleanup:
         previousSheet.Activate
     End If
     If Not tvoService Is Nothing Then tvoService.Dispose
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If Len(filterError) > 0 Then
+        diagnostic = diagnostic & vbCrLf & Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryFilterRestoreFailed"), "{details}", filterError)
+    End If
     If snapshotStarted Then
         ex_Core.fn_Diagnostic_WritePerf "History.Save.Total | Success=" & VBA.CStr(fn_Save), saveStartedAt
         ex_PEB_Export.fn_EndConfigSnapshot
@@ -633,6 +662,9 @@ Public Function fn_DeleteEvent( _
     Dim targets As New Collection
     Dim candidate As Variant
     Dim group As Variant
+    Dim filterStates As New Collection
+    Dim filterState As Object
+    Dim filterError As String
 
     On Error GoTo EH_DELETE
     private_Open book, table
@@ -683,11 +715,20 @@ Public Function fn_DeleteEvent( _
         If target.Parent.ProtectContents Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError017")
         If Not target Is table Then columnIndex = target.ListColumns("EventRowId").Index
     Next candidate
+    ' Capture all criteria before clearing any filter or deleting related rows.
+    For Each candidate In targets
+        Set filterState = ex_TableFilters.fn_Capture(candidate)
+        filterStates.Add filterState
+    Next candidate
     previousEvents = Application.EnableEvents
     previousScreen = Application.ScreenUpdating
     guarded = True
     Application.EnableEvents = False
     Application.ScreenUpdating = False
+    For Each filterState In filterStates
+        Set target = filterState("Table")
+        ex_TableFilters.fn_Clear target
+    Next filterState
     For pass = 1 To targets.Count
         Set target = targets(pass)
         If target Is table Then
@@ -715,6 +756,10 @@ Public Function fn_DeleteEvent( _
     fn_DeleteEvent = True
 CleanupDelete:
     If guarded Then
+        filterError = ex_TableFilters.fn_Restore(filterStates)
+        If Len(filterError) > 0 Then
+            diagnostic = diagnostic & " " & Replace$(ex_PEB_Export.fn_Config("text.HistoryFilterRestoreFailed"), "{details}", filterError)
+        End If
         Application.EnableEvents = previousEvents
         Application.ScreenUpdating = previousScreen
     End If

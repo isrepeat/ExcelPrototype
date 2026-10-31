@@ -102,6 +102,8 @@ Public Function TryEnrich( _
     Dim documents As Collection
     Dim column As Object
     Dim absenceKey As String
+    Dim originalName As String
+    Dim cleanedName As String
 
     On Error GoTo EH
     stageStartedAt = VBA.Timer
@@ -141,6 +143,8 @@ Public Function TryEnrich( _
                 End If
             Next detail
             If Not record.TryGetValue("Personnel.FullName", value) Then Err.Raise 5, , "Candidate name not found."
+            record.TryGetValue "Candidate.OriginalName", value
+            originalName = private_Text(value)
             name = ex_TableQuery.fn_NormalizeText(private_Text(value))
             Set fields = VBA.CreateObject("Scripting.Dictionary")
             For Each column In m_absenceProfile.Columns
@@ -155,6 +159,17 @@ Public Function TryEnrich( _
                     If Not copy.TryMerge(private_AbsenceRecord(absenceKey), True) Then Err.Raise 5, , "Cannot merge absence fields."
                 End If
             End If
+            cleanedName = ex_PEB_Export.fn_CleanPersonName(originalName)
+            Set fields = VBA.CreateObject("Scripting.Dictionary")
+            fields("Personnel.FullName") = cleanedName
+            fields("Candidate.OriginalName") = originalName
+            fields("Candidate.NameTag") = vbNullString
+            If cleanedName <> originalName Then
+                fields("Candidate.NameTag") = "personNameCleaned"
+            End If
+            Set supplement = New obj_LookupRecord
+            If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize normalized candidate name."
+            If Not copy.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot apply normalized candidate name."
             output.Add copy
         Next record
     Else

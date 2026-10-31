@@ -53,6 +53,8 @@ Public Function fn_Apply( _
     Dim addedRows As Long
     Dim pendingDiff As Object
     Dim tvoRollbackError As String
+    Dim filterStates As Collection
+    Dim filterError As String
 
     On Error GoTo EH
     totalStartedAt = VBA.Timer
@@ -133,15 +135,6 @@ Public Function fn_Apply( _
     Next action
     Set pendingDiff = ex_PEB_MovementDiff.fn_Build(plan, target, entries)
     ex_PEB_MovementTvo.fn_AddDiff pendingDiff, plan
-    If entries.Count = 0 And ex_PEB_MovementTvo.fn_ChangeCount(plan) = 0 Then
-        ex_PEB_MovementDiff.fn_Seal pendingDiff
-        If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
-            GoTo Cleanup
-        End If
-        fn_Apply = True
-        GoTo Cleanup
-    End If
-
     previousEvents = Application.EnableEvents
     previousScreen = Application.ScreenUpdating
     Set previousWindow = Application.ActiveWindow
@@ -153,6 +146,15 @@ Public Function fn_Apply( _
     Application.ScreenUpdating = False
     Application.Calculation = xlCalculationManual
     Application.AutoCorrect.AutoFillFormulasInLists = False
+    private_SuspendFilters plan, target, filterStates
+    If entries.Count = 0 And ex_PEB_MovementTvo.fn_ChangeCount(plan) = 0 Then
+        ex_PEB_MovementDiff.fn_Seal pendingDiff
+        If Not ex_PEB_HistoryRevisions.fn_RecordExport(plan("Actions"), target.Parent.Parent.FullName, "Movement", diagnostic) Then
+            GoTo Cleanup
+        End If
+        fn_Apply = True
+        GoTo Cleanup
+    End If
 
     private_Stage "Write.Write", stage, startedAt
     changed = True
@@ -182,6 +184,11 @@ Public Function fn_Apply( _
     fn_Apply = True
 Cleanup:
     private_Stage "Write.RestoreSettings", stage, startedAt
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If Len(filterError) > 0 Then
+        diagnostic = diagnostic & VBA.vbCrLf & Replace$( _
+            ex_PEB_Export.fn_Config("text.HistoryFilterRestoreFailed"), "{details}", filterError)
+    End If
     If settingsCaptured Then
         On Error Resume Next
         VBA.Err.Clear
@@ -255,6 +262,35 @@ End Function
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
+Private Sub private_SuspendFilters( _
+    ByVal plan As Object, _
+    ByVal target As ListObject, _
+    ByRef states As Collection _
+)
+    Dim tables As New Collection
+    Dim book As Workbook
+    Dim sheet As Worksheet
+    Dim table As ListObject
+    Dim diagnostic As String
+    Dim historyPath As String
+
+    tables.Add target
+    tables.Add plan("TvoPlan")("Table")
+    historyPath = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("history.path"))
+    For Each book In Application.Workbooks
+        If StrComp(book.FullName, historyPath, vbTextCompare) = 0 Then
+            For Each sheet In book.Worksheets
+                For Each table In sheet.ListObjects
+                    tables.Add table
+                Next table
+            Next sheet
+        End If
+    Next book
+    If Not ex_TableFilters.fn_Suspend(tables, states, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+End Sub
+
 Private Function private_Extension( _
     ByVal target As ListObject, _
     ByVal addedRows As Long _

@@ -337,17 +337,10 @@ Public Function ScrollFormRightHandler() As Boolean
 End Function
 
 Public Function ClearPrimaryHandler() As Boolean
-    Dim diagnostic As String
-
-    If Not private_ClearKeyFields("all") Then Exit Function
-    If Not m_extensions.TryClearOptional(diagnostic) Then
-        private_SetActionStatus diagnostic, True
-        Exit Function
-    End If
-    ClearPrimaryHandler = True
+    ClearPrimaryHandler = Me.ResetFormHandler(True)
 End Function
 
-Public Function ResetFormHandler() As Boolean
+Public Function ResetFormHandler(Optional ByVal preserveContext As Boolean = False) As Boolean
     Dim updates As Object
     Dim wordContext As Object
     Dim fields As String
@@ -358,6 +351,7 @@ Public Function ResetFormHandler() As Boolean
     Dim previousScreenUpdating As Boolean
     Dim settingsCaptured As Boolean
     Dim startedAt As Double
+    Dim preservedFields As String
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -366,21 +360,29 @@ Public Function ResetFormHandler() As Boolean
     settingsCaptured = True
     Application.ScreenUpdating = False
     If Not private_ReadModeConfig("forms.styledFields", fields, diagnostic) Then GoTo Failed
+    If preserveContext Then
+        If Not private_ReadModeConfig("hotkeys.clear.preserveFields", preservedFields, diagnostic) Then GoTo Failed
+    End If
+    preservedFields = "|" & preservedFields & "|"
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each fieldName In VBA.Split(fields, "|")
-        updates("Form." & VBA.CStr(fieldName)) = VBA.vbNullString
+        If InStr(1, preservedFields, "|" & CStr(fieldName) & "|", vbBinaryCompare) = 0 Then
+            updates("Form." & VBA.CStr(fieldName)) = VBA.vbNullString
+        End If
     Next fieldName
+    updates("Form.TicketNumber") = VBA.vbNullString
+    updates("Form.TicketDate") = VBA.vbNullString
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Form.ActionStatus") = VBA.vbNullString
     updates("Form.MedicalVisibility") = "Collapsed"
     updates("Form.EjosVisibility") = "Collapsed"
     updates("Form.ConflictColumn") = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", VBA.vbNullString) Then GoTo Cleanup
-    If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
+    If Not preserveContext And Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
     End If
     Set result = New obj_LookupResult
-    If Not result.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
+    If Not result.Initialize(records, m_modeFields, False, diagnostic, "Candidate.NameTag") Then GoTo Failed
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
     If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then
@@ -985,6 +987,7 @@ Public Function DeleteEventHandler() As Boolean
     End If
     If Not ex_PEB_History.fn_DeleteEvent(row, stamp, diagnostic) Then GoTo FailedDelete
     status = ex_PEB_Export.fn_Config("text.EventDeleted")
+    If Len(diagnostic) > 0 Then status = status & " " & diagnostic
     If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
     If Not private_RefreshHistory(vbNullString, diagnostic) Then
         If diagnostic <> ex_PEB_Export.fn_Config("text.HistoryEmptyOrder") Then status = status & " " & diagnostic
@@ -1032,6 +1035,7 @@ Public Function DeleteLastEventHandler() As Boolean
     End If
     If Not ex_PEB_History.fn_DeleteLast(current, stamp, diagnostic) Then GoTo FailedDelete
     status = ex_PEB_Export.fn_Config("text.LastEventDeleted")
+    If Len(diagnostic) > 0 Then status = status & " " & diagnostic
     If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
     If Not private_RefreshHistory(vbNullString, diagnostic) Then
         If diagnostic <> ex_PEB_Export.fn_Config("text.HistoryEmptyOrder") Then status = status & " " & diagnostic
@@ -3059,7 +3063,7 @@ Private Function private_LoadMode( _
     If Not private_PrepareModeRecords(records, diagnostic) Then Exit Function
     Set projectedResult = New obj_LookupResult
     If Not private_SetCandidateSources(columns, modeId, diagnostic) Then Exit Function
-    If Not projectedResult.Initialize(records, columns, hasMore, diagnostic) Then Exit Function
+    If Not projectedResult.Initialize(records, columns, hasMore, diagnostic, "Candidate.NameTag") Then Exit Function
     If Not private_PublishCandidates(projectedResult) Then Exit Function
     Set m_lookupResult = projectedResult
     Set m_modeFields = columns
@@ -3157,6 +3161,12 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
             If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
         End If
     End If
+    ' Clear inputs which the next form does not expose before reapplying its candidate.
+    If Not private_TryReadFormValue("Destination", selectedValue) Then Exit Function
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Destination") = selectedValue
+    ex_PEB_Export.fn_ClearHiddenDestination updates, modeId
+    If Not m_pageBase.BindingContext.SetValue("Form", "Destination", updates("Destination")) Then Exit Function
     If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
     If Not m_lookupResult Is Nothing Then
         If m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selectedObject, isObject) Then
@@ -3259,7 +3269,7 @@ Private Function private_ClearKeyFields(ByVal group As String) As Boolean
     m_hospitalActive = False
     m_documentActive = False
     Set result = New obj_LookupResult
-    If Not result.Initialize(records, m_modeFields, False, diagnostic) Then GoTo Failed
+    If Not result.Initialize(records, m_modeFields, False, diagnostic, "Candidate.NameTag") Then GoTo Failed
     Set m_lookupResult = result
     If Not private_PublishCandidates(result) Then GoTo Cleanup
     private_ClearKeyFields = True
@@ -3425,7 +3435,7 @@ Private Function private_TryEnrichResult( _
     If Not private_SetCandidateSources(m_modeFields, m_modeId, diagnostic) Then GoTo Cleanup
     ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.SetSources", stageStartedAt
     stageStartedAt = VBA.Timer
-    If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic) Then GoTo Cleanup
+    If Not enrichedResult.Initialize(records, m_modeFields, result.HasMore, diagnostic, "Candidate.NameTag") Then GoTo Cleanup
     Set result = enrichedResult
     ex_Core.fn_Diagnostic_WritePerf "Candidates.Primary.ProjectResult", stageStartedAt
     stageStartedAt = VBA.Timer

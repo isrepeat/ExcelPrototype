@@ -327,6 +327,7 @@ value	PersonalEventBuilder::text.HistoryIdentityConflict	У наказі вже 
 value	PersonalEventBuilder::text.ModeDocumentNumberLabel	Документ.№
 value	PersonalEventBuilder::text.ModeIncomingNumberLabel	Вх.№
 value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
+value	PersonalEventBuilder::text.MovementRequiredMissing	Подія «{event}»: не заповнено обов'язкове поле експорту РУХ — {field}. Заповніть його перед збереженням або експортом.
 value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
 value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата обрано. Автопідстановку вимкнено; дані можна редагувати вручну.
 value	PersonalEventBuilder::text.ReinitializePagePending	Перезавантаження конфігурації та XML. Дані форми буде очищено.
@@ -350,6 +351,8 @@ value	PersonalEventBuilder::text.HistoryRefreshAfterExport	Експорт вик
 value	PersonalEventBuilder::text.ModeStatusChangeDateLabel	Дата зміни статусу
 value	PersonalEventBuilder::text.SimpleArrivalTypeMismatch	Тип прибуття не відповідає вибуттю: обрано повернення з «{expected}», відкрито «{actual}».
 value	PersonalEventBuilder::text.WordMarkersRemovalInvalid	Не вдалося безпечно видалити службові якорі WORD: некоректний індекс або змінено інший текст документа.
+value	PersonalEventBuilder::text.HistoryFilterCaptureFailed	Не вдалося зберегти умови фільтра таблиці {value}. Видалення скасовано.
+value	PersonalEventBuilder::text.HistoryFilterRestoreFailed	Не вдалося відновити фільтри історії: {details}
 value	PersonalEventBuilder::text.ModeHospitalShortNameLabel	Лікарня.СкороченаНазва
 value	PersonalEventBuilder::text.MovementBatchRollbackError	Не вдалося повністю відновити дані в пам'яті: {error}. Перевірте цільову таблицю перед повторним експортом.
 value	PersonalEventBuilder::text.MovementBatchSettingsError	Не вдалося відновити налаштування Excel: {error}
@@ -1547,6 +1550,7 @@ value	PersonalEventBuilder::lookup.Personnel.display.count	10
 value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
+value	PersonalEventBuilder::lookup.Personnel.ipnSuffixPattern	\s*\(\s*[0-9]{10}\s*\)\s*$
 value	PersonalEventBuilder::lookup.IncomingDate.orderDateModes	ToHospital|FromHospital|FromExternalVlk|FromAnnualMainVacation|FromVacationForCuring|FromVacationForFamily|FromMedicalCompanyForTreatment|FromBusinessTrip|FromOutpatientExaminationOrVlk
 value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromBusinessTrip
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.path	__cfgDependencies.fileMovementHistory
@@ -1585,7 +1589,7 @@ value	PersonalEventBuilder::orders.queryFormat.decimalSeparator	.
   ref	PersonalEventBuilder::orders.numberHeader	__cfgDependencies.source.Orders.numberHeader
   ref	PersonalEventBuilder::orders.signatoryHeader	__cfgDependencies.source.Orders.signatoryHeader
 value	PersonalEventBuilder::hotkeys.clear.key	^{110}
-value	PersonalEventBuilder::hotkeys.clear.repeatSeconds	1
+value	PersonalEventBuilder::hotkeys.clear.preserveFields	ReportRank|ReportName|ReportPositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::hotkeys.focus.0.key	^{96}
 value	PersonalEventBuilder::hotkeys.focus.0.target	Hospital_input
 value	PersonalEventBuilder::hotkeys.focus.1.key	^{97}

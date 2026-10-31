@@ -14,6 +14,7 @@ Implements obj_IUiSelectionSource
 Implements obj_IUiColumnMetadata
 Implements obj_IUiColumnLayout
 Implements obj_IUiHeaderPresentation
+Implements obj_IUiRowTags
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -54,6 +55,17 @@ Private Function obj_IUiSelectionSource_GetItemAt(ByVal rowIndex As Long) As Obj
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If rowIndex < 1 Or rowIndex > m_table.RowCount Then Exit Function
     Set obj_IUiSelectionSource_GetItemAt = m_selectionSource.GetItemAt((rowIndex - 1) \ m_rowsPerItem + 1)
+End Function
+
+Private Function obj_IUiRowTags_RowTagsAt(ByVal rowIndex As Long) As String
+    Dim tags As obj_IUiRowTags
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If rowIndex < 1 Or rowIndex > m_table.RowCount Then Exit Function
+    If TypeOf m_selectionSource Is obj_IUiRowTags Then
+        Set tags = m_selectionSource
+        obj_IUiRowTags_RowTagsAt = tags.RowTagsAt((rowIndex - 1) \ m_rowsPerItem + 1)
+    End If
 End Function
 
 Private Function obj_IUiColumnMetadata_SourceAliasAt(ByVal columnIndex As Long) As String

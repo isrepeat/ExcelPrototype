@@ -108,6 +108,7 @@ Public Function TryPrepareExtensions( _
         For Each key In source.Keys
             row(key) = source(key)
         Next key
+        ex_PEB_Export.fn_NormalizeNames row
         row("ModeForm") = values("ModeForm")
         prefix = "extensions.type." & kind
         For Each field In Split(ex_PEB_Export.fn_Config(prefix & ".required"), "|")
@@ -313,7 +314,9 @@ Public Function TryPrepare( _
         End If
         values.Add VBA.CStr(key), scalar
     Next key
+    ex_PEB_Export.fn_NormalizeNames values
     ex_PEB_Export.fn_TicketDocumentValues values
+    ex_PEB_Export.fn_ClearHiddenDestination values, CStr(values("ModeId"))
     mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
     If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
         values("EventDate") = values("AcceptedOrderDate")
@@ -599,13 +602,10 @@ Public Function TryPrepareHistoryMovement( _
     Next document
     Set values("MetaDocumentTables") = documents
     Set values("MetaTvoTables") = stored("MetaTvoTables")
+    ex_PEB_Export.fn_ClearHiddenDestination values, CStr(values("ModeId"))
     mode = ex_PEB_EventRoutes.fn_Apply(values, "Movement")
     ex_PEB_Export.fn_TicketDocumentValues values, True
-    For Each key In VBA.Split(ex_PEB_EventRoutes.fn_Value(mode, "movement.required"), "|")
-        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then
-            Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
-        End If
-    Next key
+    ex_PEB_Export.fn_CheckMovementRequired values
     private_PrepareTicket values
     private_PrepareMovementTexts values, Nothing, True
     TryPrepareHistoryMovement = True

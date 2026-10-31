@@ -1,14 +1,9 @@
 Option Explicit
 
-Private m_clearArmed As Boolean
-Private m_clearPressedAt As Double
-
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
-    m_clearArmed = False
-    m_clearPressedAt = 0
     ex_TableSnapshots.fn_Module_Dispose
     ex_PEB_Testing.fn_Module_Dispose
     ex_PEB_EventRoutes.fn_Module_Dispose
@@ -115,8 +110,7 @@ Public Sub fn_ClearForm()
     Dim context As obj_UiRenderContext
     Dim command As obj_UiCommand
     Dim commandName As String
-    Dim nowAt As Double
-    Dim elapsed As Double
+    Dim startedAt As Double
     Dim diagnostic As String
     Dim previousUpdating As Boolean
 
@@ -126,17 +120,8 @@ Public Sub fn_ClearForm()
     previousUpdating = Application.ScreenUpdating
     On Error GoTo EH_CLEAR
     If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then GoTo CleanupClear
-    nowAt = VBA.Timer
-    elapsed = nowAt - m_clearPressedAt
-    If elapsed < 0 Then elapsed = elapsed + 86400#
+    startedAt = VBA.Timer
     commandName = "ClearPrimary"
-    If m_clearArmed And elapsed <= VBA.CDbl(ex_PEB_Export.fn_Config("hotkeys.clear.repeatSeconds")) Then
-        commandName = "ResetForm"
-        m_clearArmed = False
-    Else
-        m_clearArmed = True
-        m_clearPressedAt = nowAt
-    End If
     If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
             "{Binding Path=Commands." & commandName & "}", context.BindingContext, command) Then
         Err.Raise 5, , "Clear command unavailable: " & commandName
@@ -146,13 +131,12 @@ Public Sub fn_ClearForm()
     If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
 CleanupClear:
     If VBA.Len(commandName) > 0 Then
-        ex_Core.fn_Diagnostic_WritePerf "Form.ClearHotkey | Command=" & commandName, nowAt
+        ex_Core.fn_Diagnostic_WritePerf "Form.ClearHotkey | Command=" & commandName, startedAt
     End If
     Application.ScreenUpdating = previousUpdating
     ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub
 EH_CLEAR:
-    m_clearArmed = False
     ex_Core.fn_StatusBar_Show VBA.Err.Description
     Resume CleanupClear
 End Sub

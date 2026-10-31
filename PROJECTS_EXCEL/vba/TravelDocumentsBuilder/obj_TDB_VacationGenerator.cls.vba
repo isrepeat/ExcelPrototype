@@ -140,6 +140,9 @@ Public Function TrySave( _
     Dim failureNumber As Long
     Dim failureSource As String
     Dim failureDescription As String
+    Dim filterTables As New Collection
+    Dim filterStates As Collection
+    Dim filterError As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
@@ -236,6 +239,9 @@ Public Function TrySave( _
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     protection.Unprotect
+    filterTables.Add ticketsTable
+    filterTables.Add revisions
+    If Not ex_TableFilters.fn_Suspend(filterTables, filterStates, filterError) Then VBA.Err.Raise 5, , filterError
     tableChanged = True
     private_LogStage "WriteRegistry"
     If mainRow Is Nothing Then Set mainRow = private_AddRow(ticketsTable, donationRow)
@@ -305,6 +311,7 @@ Public Function TrySave( _
         private_LogStage "WriteHistoryRecovery"
         recoveryToken = ex_TDB_HistoryRecovery.fn_Prepare(ticketsTable, revisions, identifier, transaction)
     End If
+    filterError = ex_TableFilters.fn_Restore(filterStates)
     If Not protection.TryProtect(protectionDiagnostic) Then VBA.Err.Raise 5, , protectionDiagnostic
     If VBA.Len(recoveryToken) > 0 Then ex_TDB_HistoryRecovery.fn_Mark ticketsTable.Parent.Parent, recoveryToken, "COMMIT"
 
@@ -318,6 +325,9 @@ Public Function TrySave( _
     m_bindingContext.SetValue "Form", "TicketNo", ticketNo
     m_bindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
     m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", ticketNo)
+    If Len(filterError) > 0 Then
+        m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", ticketNo) & vbLf & filterError
+    End If
     private_Log "TDB_HISTORY_SAVED", "Ticket=" & ticketNo & " | RowId=" & identifier
     TrySave = True
     Exit Function
@@ -336,9 +346,14 @@ EH:
         protection.Unprotect
         If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
         VBA.Err.Clear
+        ex_TableFilters.fn_ClearCaptured filterStates
+        If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
+        VBA.Err.Clear
         ex_TDB_History.fn_Rollback ticketsTable, revisions, transaction
         If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
     End If
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If Len(filterError) > 0 Then rollbackError = rollbackError & filterError & vbCrLf
     If Not protection Is Nothing Then
         If Not protection.TryProtect(protectionDiagnostic) Then rollbackError = rollbackError & protectionDiagnostic & VBA.vbCrLf
         protection.Dispose

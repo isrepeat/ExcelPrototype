@@ -18,6 +18,75 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_CleanPersonName(ByVal name As String) As String
+    Dim pattern As Object
+
+    Set pattern = CreateObject("VBScript.RegExp")
+    pattern.Pattern = fn_Config("lookup.Personnel.ipnSuffixPattern")
+    pattern.Global = False
+    fn_CleanPersonName = pattern.Replace(name, vbNullString)
+End Function
+
+Public Sub fn_CheckMovementRequired(ByVal values As Object)
+    Dim eventId As String
+    Dim field As Variant
+    Dim value As String
+    Dim message As String
+
+    eventId = fn_Text(fn_Required(values, "EventId"))
+    If Not ex_PEB_EventRoutes.fn_HasRoute(eventId, "Movement") Then
+        Exit Sub
+    End If
+    For Each field In Split(ex_PEB_EventRoutes.fn_Value(eventId, "movement.required"), "|")
+        value = vbNullString
+        If values.Exists(field) Then
+            value = fn_Text(values(field))
+        End If
+        If Len(Trim$(value)) = 0 Then
+            message = Replace$(fn_Config("text.MovementRequiredMissing"), "{event}", ex_PEB_EventRoutes.fn_Value(eventId, "caption"))
+            Err.Raise 5, , Replace$(message, "{field}", CStr(field))
+        End If
+    Next field
+End Sub
+
+Public Sub fn_ClearHiddenDestination( _
+    ByVal values As Object, _
+    ByVal eventId As String _
+)
+    Dim form As String
+    Dim index As Long
+    Dim fixed As String
+
+    If Not values.Exists("Destination") Then
+        Exit Sub
+    End If
+    If ex_PEB_EventRoutes.fn_HasRoute(eventId, "Movement") Then
+        fixed = ex_PEB_EventRoutes.fn_Value(eventId, "movement.destinationValue")
+        If Len(fixed) > 0 Then
+            values("Destination") = fixed
+            Exit Sub
+        End If
+    End If
+    form = ex_PEB_EventRoutes.fn_Value(eventId, "form")
+    For index = 1 To fn_Count("forms." & form & ".fields.count")
+        If fn_Config("forms." & form & ".fields." & CStr(index) & ".name") = "Destination" Then
+            Exit Sub
+        End If
+    Next index
+    ' A hidden value from a previous form is not an input of the current event.
+    values("Destination") = vbNullString
+End Sub
+
+Public Sub fn_NormalizeNames(ByVal values As Object)
+    Dim field As Variant
+
+    For Each field In Array("PersonName", "ReportName")
+        If values.Exists(field) Then
+            values(field) = fn_CleanPersonName(fn_Text(values(field)))
+        End If
+    Next field
+End Sub
+
 Public Function fn_IsTicketDocumentForm(ByVal formKind As String) As Boolean
     fn_IsTicketDocumentForm = InStr(1, "|" & ex_PEB_Export.fn_Config("export.ticket.form") & "|", "|" & formKind & "|", vbBinaryCompare) > 0
 End Function

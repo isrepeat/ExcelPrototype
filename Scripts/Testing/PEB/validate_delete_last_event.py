@@ -54,13 +54,25 @@ def main():
     assert not re.search(r'\.(?:Save|SaveAs|Close)\b', physical)
     assert 'candidate("RowId") = expected("RowId")' in physical
     assert 'VBA.Array("exports", "conflicts", "fieldState")' in physical
+    assert physical.index('ex_TableFilters.fn_Capture(candidate)') < physical.index('Application.EnableEvents = False')
+    assert physical.index('ex_TableFilters.fn_Clear target') < physical.index('target.ListRows(rowIndex).Delete')
+    assert physical.index('ex_TableFilters.fn_Restore(filterStates)') < physical.index('Application.EnableEvents = previousEvents')
+    shared = (ROOT / 'PROJECTS_EXCEL/vba/common/modules/ex_TableFilters.vba').read_text(encoding='utf-8-sig')
+    restore_filters = procedure(shared, 'fn_Restore')
+    assert 'entry.Exists("Criteria1") And entry.Exists("Criteria2")' in restore_filters
+    assert 'ElseIf entry.Exists("Criteria2") Then' in restore_filters
+    assert 'Operator:=entry("Operator")' in restore_filters
+    assert 'Criteria1:=entry("Criteria1")' in restore_filters
+    assert 'Criteria2:=entry("Criteria2")' in restore_filters
     assert '"DeleteEvent"' in procedure(page, "private_TryRegisterCommands")
     root = ET.parse(ROOT / "PROJECTS_EXCEL/ui/PersonalEventBuilder/MainPage.xaml").getroot()
     button = next(node for node in root.iter() if node.get("name") == "DeleteEvent")
     assert button.get("command") == "{Binding Path=Commands.DeleteEvent}"
     assert (button.get("row"), button.get("column")) == ("23", "20")
-    assert not any(node.get("name") == "DeleteLastEvent" for node in root.iter())
-    keys = ("DeleteEvent", "DeleteEventConfirm", "EventDeleted", "LastEventChanged")
+    last_button = next(node for node in root.iter() if node.get("name") == "DeleteLastEvent")
+    assert last_button.get("command") == "{Binding Path=Commands.DeleteLastEvent}"
+    keys = ("DeleteEvent", "DeleteEventConfirm", "EventDeleted", "LastEventChanged",
+            "HistoryFilterCaptureFailed", "HistoryFilterRestoreFailed")
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         config = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         assert all(config["text." + key] for key in keys)
