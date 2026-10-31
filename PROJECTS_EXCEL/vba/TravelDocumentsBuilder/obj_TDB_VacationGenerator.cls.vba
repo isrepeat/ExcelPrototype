@@ -17,6 +17,9 @@ Private m_operationId As String
 Private m_stage As String
 Private m_chain As Collection
 Private m_wordSession As Object
+Private m_wordAnchors As Object
+Private m_wordTemplatePath As String
+Private m_wordSourcePath As String
 
 ' //
 ' // Lifecycle
@@ -82,6 +85,9 @@ Public Sub Dispose()
     On Error Resume Next
     If Not m_wordSession Is Nothing Then m_wordSession.Quit 0
     Set m_wordSession = Nothing
+    Set m_wordAnchors = Nothing
+    m_wordTemplatePath = VBA.vbNullString
+    m_wordSourcePath = VBA.vbNullString
     If Not m_orderResolver Is Nothing Then m_orderResolver.Dispose
     Set m_orderResolver = Nothing
     Set m_bindingContext = Nothing
@@ -756,8 +762,6 @@ Private Sub private_GenerateWord( _
 )
     Dim word As Object
     Dim document As Object
-    Dim story As Object
-    Dim storyRange As Object
     Dim names As Variant
     Dim values As Variant
     Dim parts As Variant
@@ -765,11 +769,18 @@ Private Sub private_GenerateWord( _
     Dim duration As String
     Dim abroad As String
     Dim index As Long
-    Dim found As Boolean
+    Dim bookmarkName As Variant
+    Dim target As Object
+    Dim documentStartedAt As Double
+    Dim stageStartedAt As Double
+    Dim stage As String
     Dim errorNumber As Long
     Dim errorDescription As String
 
     On Error GoTo EH
+    documentStartedAt = VBA.Timer
+    stage = "Document.Prepare"
+    stageStartedAt = documentStartedAt
     parts = VBA.Split(m_form("PersonName"), " ")
     If UBound(parts) < 2 Then private_Fail "Invalid", private_FieldCaption("PersonName")
     initials = m_form("PersonRank") & " " & parts(0) & VBA.ChrW$(160) & _
@@ -789,67 +800,164 @@ Private Sub private_GenerateWord( _
     For index = 0 To UBound(names)
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
     Next index
-    If m_wordSession Is Nothing Then Set m_wordSession = VBA.CreateObject("Word.Application")
+    private_WordPerf stage, stageStartedAt
+    stage = "Session.Start"
+    stageStartedAt = VBA.Timer
+    If m_wordSession Is Nothing Then
+        Set m_wordSession = VBA.CreateObject("Word.Application")
+        m_wordSession.Visible = False
+        m_wordSession.DisplayAlerts = 0
+        m_wordSession.AutomationSecurity = 3
+    End If
     Set word = m_wordSession
-    word.Visible = False
-    word.DisplayAlerts = 0
-    word.AutomationSecurity = 3
-    Set document = word.Documents.Open(templatePath, False, True, False)
+    word.ScreenUpdating = False
+    private_WordPerf stage, stageStartedAt
+    stage = "Document.Create"
+    stageStartedAt = VBA.Timer
+    If m_wordAnchors Is Nothing Then
+        Set document = private_OpenWordDocument(word, templatePath)
+        private_WordPerf stage, stageStartedAt
+        stage = "Template.IndexMarkers"
+        stageStartedAt = VBA.Timer
+        private_IndexWordMarkers document, names
+        private_WordPerf stage, stageStartedAt
+        stage = "Template.SaveAnchors"
+        stageStartedAt = VBA.Timer
+        m_wordTemplatePath = VBA.Left$(templatePath, VBA.InStrRev(templatePath, "\")) & "a.docx"
+        document.SaveAs2 m_wordTemplatePath, 12
+        m_wordSourcePath = templatePath
+        private_WordPerf stage, stageStartedAt
+    Else
+        If VBA.StrComp(templatePath, m_wordSourcePath, VBA.vbTextCompare) <> 0 Then private_Fail "Invalid", "TemplatePath"
+        Set document = private_OpenWordDocument(word, m_wordTemplatePath)
+        private_WordPerf stage, stageStartedAt
+    End If
+    stage = "Document.ReplaceMarkers"
+    stageStartedAt = VBA.Timer
+    ' Bookmarks retain their positions when earlier replacements change the text length.
     For index = 0 To UBound(names)
-        found = False
-        ' Search each story, including first-page headers and footers and later sections.
-        For Each story In document.StoryRanges
-            Set storyRange = story
-            Do
-                If private_ReplaceWordMarker(storyRange, "{" & names(index) & "}", VBA.CStr(values(index))) Then found = True
-                Set storyRange = storyRange.NextStoryRange
-            Loop Until storyRange Is Nothing
-        Next story
-        ' FooterSpacer is optional in templates with a positioned footer.
-        If Not found And names(index) <> "FooterSpacer" Then private_Fail "Marker", VBA.CStr(names(index))
+        For Each bookmarkName In m_wordAnchors(VBA.CStr(names(index)))
+            Set target = document.Bookmarks(VBA.CStr(bookmarkName)).Range
+            target.Text = VBA.CStr(values(index))
+        Next bookmarkName
     Next index
+    private_WordPerf stage, stageStartedAt
+    stage = "Document.Save"
+    stageStartedAt = VBA.Timer
+    private_Log "TDB_DOCX_SAVE", "PathLength=" & VBA.CStr(VBA.Len(path)) & " | Path=" & path
     document.SaveAs2 path, 12
+    private_WordPerf stage, stageStartedAt
+    stage = "Document.Close"
+    stageStartedAt = VBA.Timer
     document.Close False
+    Set document = Nothing
+    private_WordPerf stage, stageStartedAt
+    private_WordPerf "Document.Total", documentStartedAt
     Exit Sub
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     On Error Resume Next
+    private_Log "TDB_WORD_FAILED", "Stage=" & stage & " | Path=" & path & " | Number=" & VBA.CStr(errorNumber) & " | Error=" & errorDescription
+    private_WordPerf stage & ".Failed", stageStartedAt
     If Not document Is Nothing Then document.Close False
     If Not word Is Nothing Then word.Quit 0
     Set m_wordSession = Nothing
+    Set m_wordAnchors = Nothing
+    m_wordTemplatePath = VBA.vbNullString
+    m_wordSourcePath = VBA.vbNullString
+    private_WordPerf "Document.FailedTotal", documentStartedAt
     On Error GoTo 0
     VBA.Err.Raise errorNumber, "Word", errorDescription
 End Sub
 
-Private Function private_ReplaceWordMarker( _
-    ByVal storyRange As Object, _
-    ByVal marker As String, _
-    ByVal value As String _
-) As Boolean
-    Dim searchRange As Object
-    Dim remainingRange As Object
+Private Sub private_WordPerf( _
+    ByVal stage As String, _
+    ByVal startedAt As Double _
+)
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Word." & stage & " | Operation=" & m_operationId, startedAt
+End Sub
 
-    Set remainingRange = storyRange.Duplicate
-    Do
-        Set searchRange = remainingRange.Duplicate
-        With searchRange.Find
-            .ClearFormatting
-            .Text = marker
-            .Forward = True
-            .Wrap = 0
-            .MatchWildcards = False
-            .MatchCase = True
-            .MatchWholeWord = False
-            .MatchSoundsLike = False
-            .MatchAllWordForms = False
-            .Format = False
-        End With
-        If Not searchRange.Find.Execute Then Exit Do
-        private_ReplaceWordMarker = True
-        ' Range.Text inserts literal values and finds markers split across formatting runs.
-        searchRange.Text = value
-        remainingRange.Start = searchRange.End
-        If remainingRange.Start >= remainingRange.End Then Exit Do
-    Loop
+Private Function private_OpenWordDocument( _
+    ByVal word As Object, _
+    ByVal path As String _
+) As Object
+    Set private_OpenWordDocument = word.Documents.Open( _
+        FileName:=path, _
+        ConfirmConversions:=False, _
+        ReadOnly:=True, _
+        AddToRecentFiles:=False, _
+        Visible:=False _
+    )
 End Function
+
+Private Sub private_IndexWordMarkers( _
+    ByVal document As Object, _
+    ByVal names As Variant _
+)
+    Dim story As Object
+    Dim storyRange As Object
+    Dim searchRange As Object
+    Dim occurrences As Collection
+    Dim existing As Object
+    Dim prefix As String
+    Dim bookmarkName As String
+    Dim marker As String
+    Dim index As Long
+    Dim duplicate As Boolean
+    Dim searchStart As Long
+    Dim storyEnd As Long
+    Dim matchStart As Long
+    Dim matchEnd As Long
+
+    Set m_wordAnchors = VBA.CreateObject("Scripting.Dictionary")
+    prefix = "TDB_" & VBA.Mid$(ex_TDB_History.fn_NewId(), 3, 8) & "_"
+    For index = 0 To UBound(names)
+        Set occurrences = New Collection
+        m_wordAnchors.Add VBA.CStr(names(index)), occurrences
+    Next index
+    ' Index the frozen template once, including first-page and linked section stories.
+    For Each story In document.StoryRanges
+        Set storyRange = story
+        Do
+            For index = 0 To UBound(names)
+                marker = "{" & names(index) & "}"
+                Set occurrences = m_wordAnchors(VBA.CStr(names(index)))
+                searchStart = storyRange.Start
+                storyEnd = storyRange.End
+                Do While searchStart < storyEnd
+                    Set searchRange = storyRange.Duplicate
+                    searchRange.SetRange searchStart, storyEnd
+                    searchRange.Find.ClearFormatting
+                    If Not searchRange.Find.Execute(marker, True, False, False, False, False, True, 0, False) Then Exit Do
+                    ' Capture numeric bounds before Bookmarks.Add can affect a COM Range argument.
+                    matchStart = searchRange.Start
+                    matchEnd = searchRange.End
+                    If matchStart < searchStart Or matchEnd <= searchStart Or matchEnd > storyEnd Then
+                        private_Log "TDB_WORD_INDEX_BOUNDARY", "Marker=" & marker & " | Start=" & VBA.CStr(searchStart) & _
+                            " | Match=" & VBA.CStr(matchStart) & "/" & VBA.CStr(matchEnd)
+                        private_Fail "Marker", VBA.CStr(names(index))
+                    End If
+                    duplicate = False
+                    For Each existing In searchRange.Bookmarks
+                        If VBA.Left$(existing.Name, VBA.Len(prefix)) = prefix Then duplicate = True
+                    Next existing
+                    If Not duplicate Then
+                        bookmarkName = prefix & VBA.CStr(index) & "_" & VBA.CStr(occurrences.Count + 1)
+                        ' Consume the marker before anchoring: Word can repeat an unchanged Find match.
+                        ' Equal-length padding preserves offsets and is replaced through the bookmark later.
+                        searchRange.Text = VBA.Space$(matchEnd - matchStart)
+                        document.Bookmarks.Add bookmarkName, searchRange.Duplicate
+                        occurrences.Add bookmarkName
+                    End If
+                    searchStart = matchEnd
+                Loop
+            Next index
+            Set storyRange = storyRange.NextStoryRange
+        Loop Until storyRange Is Nothing
+    Next story
+    For index = 0 To UBound(names)
+        Set occurrences = m_wordAnchors(VBA.CStr(names(index)))
+        If occurrences.Count = 0 And names(index) <> "FooterSpacer" Then private_Fail "Marker", VBA.CStr(names(index))
+    Next index
+End Sub
