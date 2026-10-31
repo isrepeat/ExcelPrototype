@@ -76,6 +76,14 @@ Public Sub Unprotect()
     End If
 End Sub
 
+Public Sub PrepareMetadataWrite()
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then ex_TDB_History.fn_Fail "ProtectionUnavailable"
+    ' Metadata changes do not resize tables and can remain protected from the UI throughout.
+    If Not Me.TryProtect(diagnostic) Then VBA.Err.Raise VBA.vbObjectError + 2470, "TicketsHistory.Protection", diagnostic
+End Sub
+
 Public Function TryProtect(ByRef diagnostic As String) As Boolean
     Dim sheet As Worksheet
     Dim failure As String
@@ -107,16 +115,18 @@ Private Function private_ProtectSheet(ByVal sheet As Worksheet) As String
     On Error GoTo Failed
     If Not sheet.ProtectContents Then
         sheet.Cells.Locked = True
+    End If
+    If Not sheet.ProtectContents Or Not sheet.ProtectionMode Then
         private_Trace "Protect", sheet
         sheet.Protect Password:=SHEET_PASSWORD, DrawingObjects:=True, Contents:=True, Scenarios:=True, _
-            UserInterfaceOnly:=False, AllowFiltering:=True
+            UserInterfaceOnly:=True, AllowFiltering:=True
     End If
     ' Avoid resetting selection policy on an inactive workbook when it is already correct.
     If sheet.EnableSelection <> xlNoRestrictions Then
         private_Trace "EnableSelection", sheet
         sheet.EnableSelection = xlNoRestrictions
     End If
-    If Not sheet.ProtectContents Then ex_TDB_History.fn_Fail "ProtectionNotApplied"
+    If Not sheet.ProtectContents Or Not sheet.ProtectionMode Then ex_TDB_History.fn_Fail "ProtectionNotApplied"
     Exit Function
 Failed:
     private_ProtectSheet = VBA.Err.Description
