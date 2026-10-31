@@ -27,6 +27,9 @@ Public Function fn_Run(ByRef diagnostic As String) As Boolean
     Dim report As Object
     Dim rows As Collection
     Dim result As obj_LookupResult
+    Dim display As ListObject
+    Dim sheet As Worksheet
+    Dim tags As obj_IUiRowTags
 
     On Error GoTo EH
     Set previousBook = Application.ActiveWorkbook
@@ -68,9 +71,50 @@ Public Function fn_Run(ByRef diagnostic As String) As Boolean
     If result.RowCount <> 3 Then
         Err.Raise 5, , "Movement diff table lost report rows."
     End If
+    If rows(1)("UndoBefore") <> "Manual value" Or rows(1)("UndoAfter") <> "Generated value" Then
+        Err.Raise 5, , "Undo values must retain raw capture independently of display text."
+    End If
+    Set sheet = book.Worksheets.Add
+    sheet.Range("A1").Value2 = ex_PEB_Export.fn_Config("movementDiff.columns.DiffId")
+    sheet.Range("A2").Value2 = "2"
+    sheet.Range("A3").Value2 = "1"
+    sheet.Range("A4").Value2 = "3"
+    Set display = sheet.ListObjects.Add(1, sheet.Range("A1:A4"), , 1)
+    ' A physically reordered display resolves by stable identity rather than source ordinal.
+    If Not ex_PEB_MovementDiff.fn_Toggle(report, sheet.Range("A2"), display.Range) Then
+        Err.Raise 5, , "Cannot select a displayed diff row."
+    End If
+    If Not rows(2)("UndoSelected") Or rows(1)("UndoSelected") Then
+        Err.Raise 5, , "Undo selection addressed the wrong source row after sorting."
+    End If
+    If ex_PEB_MovementDiff.fn_SelectedCount(report) <> 1 Then
+        Err.Raise 5, , "Incorrect undo selection count."
+    End If
+    result.Dispose
+    If Not ex_PEB_MovementDiff.fn_Result(report, result, diagnostic) Then
+        Err.Raise 5, , diagnostic
+    End If
+    Set tags = result
+    If tags.RowTagsAt(2) <> "diffUndoPending" Then
+        Err.Raise 5, , "Selected undo rows must expose the pending style tag."
+    End If
+    If Not ex_PEB_MovementDiff.fn_Toggle(report, sheet.Range("A2"), display.Range) Then
+        Err.Raise 5, , "Cannot clear an undo selection."
+    End If
+    If ex_PEB_MovementDiff.fn_SelectedCount(report) <> 0 Then
+        Err.Raise 5, , "Repeated undo selection must clear the mark."
+    End If
+    rows(2)("UndoApplied") = True
+    If ex_PEB_MovementDiff.fn_Toggle(report, sheet.Range("A2"), display.Range) Then
+        Err.Raise 5, , "An applied undo must not be selected again."
+    End If
+    If ex_PEB_MovementDiff.fn_Toggle(report, sheet.Range("A1"), display.Range) Then
+        Err.Raise 5, , "Headers must not be selectable for undo."
+    End If
     fn_Run = True
 Cleanup:
     On Error Resume Next
+    Set tags = Nothing
     If Not result Is Nothing Then
         result.Dispose
     End If
@@ -102,6 +146,7 @@ Private Function private_Action( _
 
     Set action = VBA.CreateObject("Scripting.Dictionary")
     action.Add "RowId", identifier
+    action.Add "Revision", 1
     action.Add "PersonName", identifier
     action.Add "EventName", "Fixture"
     action.Add "Operation", "append"

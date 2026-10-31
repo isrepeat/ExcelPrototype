@@ -44,6 +44,27 @@ def main():
     assert 'If fn_Apply Then\n        Set exportDiff = pendingDiff' in apply
     assert apply.index('fn_RecordExport') < apply.index('fn_Apply = True')
     assert 'private_Restore(target, entries' in apply
+    assert apply.index('MovementDiff.fn_Seal pendingDiff') < apply.index('fn_Apply = True')
+
+    diff_source = sources['ex_PEB_MovementDiff.vba']
+    undo = procedure(diff_source, 'fn_ApplyUndo')
+    assert undo.index('private_CheckJournal journal, undoCount') < undo.index('changed = True')
+    assert undo.index('row("UndoStamp") <> private_RowStamp') < undo.index('changed = True')
+    assert undo.index('cell.HasFormula') < undo.index('changed = True')
+    assert undo.index('private_Write cell, row("UndoBefore")') < undo.index('fn_ApplyUndo = True')
+    assert undo.index('journalRow.Range.Cells(1, column).Value2') < undo.index('fn_ApplyUndo = True')
+    assert 'private_Write entry("Cell"), entry("Value"), entry("Format")' in undo
+    assert 'journal.ListRows(journal.ListRows.Count).Delete' in undo
+    assert 'history.conflicts' in undo and 'DiffRevert' in undo
+    assert 'history.fieldState' not in undo
+    assert 'History.fn_' not in undo and '.Save' not in undo and '.Close' not in undo
+    assert 'Application.EnableEvents = previousEvents' in undo
+    assert 'Application.ScreenUpdating = previousScreen' in undo
+    toggle = procedure(diff_source, 'fn_Toggle')
+    assert 'movementDiff.columns.DiffId' in toggle
+    assert 'If row("UndoApplied") Then' in toggle
+    assert 'row("UndoSelected") = Not row("UndoSelected")' in toggle
+    assert '"DiffTags"' in procedure(diff_source, 'fn_Result')
 
     report = procedure(sources['ex_PEB_MovementDiff.vba'], 'fn_Build')
     assert 'private_Text(entry("Value"),' in report
@@ -65,7 +86,7 @@ def main():
     assert '"CandidatesVisibility", "EjosVisibility", "MedicalVisibility", "HistoryVisibility", "ConflictsVisibility"' in show
     assert '"MovementDiffVisibility", "Collapsed"' in close
     assert '"CandidatesVisibility"' not in close
-    for command in ['ShowMovementDiff', 'CloseMovementDiff', 'MovementDiffAbsence', 'MovementDiffTvo']:
+    for command in ['ShowMovementDiff', 'CloseMovementDiff', 'MovementDiffAbsence', 'MovementDiffTvo', 'ToggleDiff', 'ApplyDiffEdits']:
         assert '"' + command + '"' in sources['obj_PEB_PgMain.cls.vba']
 
     ui = ET.parse(ROOT / 'PROJECTS_EXCEL/ui/PersonalEventBuilder/MainPage.xaml').getroot()
@@ -80,6 +101,10 @@ def main():
         assert nodes[name].get('visibility') is None
         assert len('btn_' + name) <= 31
     assert nodes['MovementDiffTabs'].get('visibility') == '{Binding Path=Form.MovementDiffVisibility}'
+    assert nodes['ApplyDiffEdits'].get('visibility') == '{Binding Path=Form.DiffEditsVisibility}'
+    assert nodes['ApplyDiffEdits'].get('command') == '{Binding Path=Commands.ApplyDiffEdits}'
+    assert len('btn_ApplyDiffEdits') <= 31
+    assert any('tags=diffUndoPending' in node.get('selector', '') for node in ui.iter())
     assert 'row("Worksheet") <> worksheetName' in procedure(sources['ex_PEB_MovementDiff.vba'], 'fn_Result')
     for name in ['MovementDiff', 'MovementDiffSummary', 'ShowMovementDiff']:
         assert len('btn_' + name) <= 31
@@ -92,6 +117,8 @@ def main():
         assert all(labels.values())
         for field in config['movementDiff.fields'].split('|'):
             assert config['movementDiff.columns.' + field]
+        assert config['hotkeys.diffUndo'] == '^{DELETE}'
+        assert config['movementDiff.fields'].split('|')[0] == 'DiffId'
         for placeholder in ['time', 'order', 'date', 'added', 'updated', 'unchanged']:
             assert '{' + placeholder + '}' in config['movementDiff.summary']
         settings.append(labels)

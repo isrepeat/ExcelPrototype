@@ -96,6 +96,24 @@ def main():
     assert 'row("DutyPersonName") = parent("PersonName")' in children
     assert 'private_Tvo rows, row, result' in children
     prepare_tvo = procedure(table, 'fn_Prepare')
+    # Изменения ТВО проверяются до пропуска уже выгруженных данных отсутствующего.
+    revise_call = prepare_tvo.index('private_ReviseDeparture model, chain, requested')
+    assert revise_call < prepare_tvo.index('If action("Status") = "AlreadyApplied" Then')
+    assert 'row("Action")("Status") = "Planned"' in prepare_tvo
+    assert 'row("Action")("IsUpdate") = True' in prepare_tvo
+    revise = procedure(table, 'private_ReviseDeparture')
+    assert 'chain.Count <> 1 Or requested.Count <> 1' in revise
+    assert 'fn_OrderDate(row("StartDate")) <> CDbl(eventDate)' in revise
+    for field in ('StartOrder', 'EndDate', 'EndOrder'):
+        assert f'row("{field}")' in revise
+    # Текст основания без даты и приказа не подтверждает сдачу; сохраняем его без изменений.
+    assert 'Len(ex_PEB_Export.fn_Text(row("EndBasis")))' not in revise
+    assert 'desired(field) = row(field)' in revise
+    assert 'desired("EndBasis") =' not in revise
+    assert revise.index('If Not changed Then') < revise.index('fn_OrderDate(row("StartDate"))')
+    assert revise.index('"TvoRevisionRequiresReview"') < revise.index('row(field) = desired(field)')
+    assert 'private_RenderTexts desired, values' in revise
+    assert 'ListRows.Add' not in revise
     assert 'row("PlannedEndDate") = values("DateToShort")' not in prepare_tvo
     assert 'row("PlannedEndDate") = DateAdd(' in prepare_tvo
     assert 'ex_PEB_Export.fn_ParseDate(values("DateToShort"), "DateToShort")' in prepare_tvo

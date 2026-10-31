@@ -68,6 +68,46 @@ Public Sub fn_RegisterHotkeys()
     If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_ClearForm") Then
         VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
     End If
+    keySequence = ex_PEB_Export.fn_Config("hotkeys.diffUndo")
+    If VBA.Len(VBA.Trim$(keySequence)) = 0 Then
+        VBA.Err.Raise 5, , "Empty configuration key: PersonalEventBuilder::hotkeys.diffUndo"
+    End If
+    If Not ex_AppHotkeys.fn_Register(keySequence, "ex_PersonalEventBuilder.fn_ToggleDiff") Then
+        VBA.Err.Raise 5, , "Hotkey registration failed: " & keySequence
+    End If
+End Sub
+
+Public Sub fn_ToggleDiff()
+    Dim runtimeContext As Object
+    Dim context As obj_UiRenderContext
+    Dim command As obj_UiCommand
+    Dim previousScreen As Boolean
+    Dim diagnostic As String
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    If Not Application.ActiveWorkbook Is ThisWorkbook Then Exit Sub
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then Exit Sub
+    If Not TypeOf Application.Selection Is Range Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    previousScreen = Application.ScreenUpdating
+    On Error GoTo EH_DIFF_KEY
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then GoTo CleanDiffKey
+    If Not ex_UiBindingRuntime.fn_TryResolveCommand( _
+            "{Binding Path=Commands.ToggleDiff}", context.BindingContext, command) Then GoTo CleanDiffKey
+    Application.ScreenUpdating = False
+    command.Execute
+    If Not context.FlushLayout(diagnostic) Then Err.Raise 5, , diagnostic
+CleanDiffKey:
+    Application.ScreenUpdating = previousScreen
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH_DIFF_KEY:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    Application.ScreenUpdating = previousScreen
+    ex_RuntimeLifecycle.fn_Leave runtimeContext
+    VBA.Err.Raise errorNumber, "ex_PersonalEventBuilder.fn_ToggleDiff", errorDescription
 End Sub
 
 Public Sub fn_ClearForm()
