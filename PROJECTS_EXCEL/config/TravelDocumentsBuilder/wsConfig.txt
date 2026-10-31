@@ -248,6 +248,9 @@ value	TravelDocumentsBuilder::history.text.ReasonRequired	Для скасува�
 value	TravelDocumentsBuilder::history.text.RecoveryFailed	Не вдалося записати журнал відновлення TicketsHistory: {details}. Подію не підтверджено.
 value	TravelDocumentsBuilder::history.text.SelectRequired	Спочатку завантажте подію з історії та підтвердьте її вибір через Ctrl+Enter.
 value	TravelDocumentsBuilder::history.text.InvalidRevision	Пошкоджено ревізію TicketsHistory: перевірте Revision і повний знімок у TicketRevisions.
+value	TravelDocumentsBuilder::history.text.ProtectionFailed	Не вдалося змінити захист листів TicketsHistory: {details}
+value	TravelDocumentsBuilder::history.text.ProtectionNotApplied	Excel не застосував захист листа. Перевірте Tickets і TicketRevisions.
+value	TravelDocumentsBuilder::history.text.ProtectionUnavailable	Механізм захисту TicketsHistory не ініціалізовано.
 value	TravelDocumentsBuilder::history.sheet	Tickets
 value	TravelDocumentsBuilder::history.table	tbTickets
 value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt

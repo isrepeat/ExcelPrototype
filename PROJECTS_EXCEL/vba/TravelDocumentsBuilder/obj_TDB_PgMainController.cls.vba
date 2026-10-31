@@ -285,11 +285,11 @@ Public Function ClearFormHandler() As Boolean
     updates("Form.GenerationStatusStyle") = "generationSuccess"
     updates("Form.CandidatesVisibility") = "Visible"
     updates("Form.HistoryVisibility") = "Collapsed"
-    updates("Data.SelectedHistory") = VBA.vbNullString
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
         private_SetActionStatus diagnostic, True
         Exit Function
     End If
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
     m_previousAutoFill = Empty
     If Not private_UpdateFieldState() Then Exit Function
     If Not Me.DocumentTypeChangedHandler() Then Exit Function

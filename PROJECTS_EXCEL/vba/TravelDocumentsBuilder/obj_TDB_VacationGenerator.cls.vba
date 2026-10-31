@@ -120,6 +120,8 @@ Public Function TrySave( _
     Dim revisions As ListObject
     Dim transaction As Object
     Dim recoveryToken As String
+    Dim protection As obj_TDB_HistoryProtection
+    Dim protectionDiagnostic As String
     Dim historyRows As Object
     Dim historyRow As Object
     Dim identifier As String
@@ -221,11 +223,14 @@ Public Function TrySave( _
 
     ' Recheck both tables before the history-only transaction.
     ex_TDB_History.fn_AssertCurrent ticketsTable, revisions, transaction
+    Set protection = New obj_TDB_HistoryProtection
+    If Not protection.Initialize(ticketsTable, revisions) Then ex_TDB_History.fn_Fail "ReadOnly"
     eventsBefore = Application.EnableEvents
     updatingBefore = Application.ScreenUpdating
     guarded = True
     Application.EnableEvents = False
     Application.ScreenUpdating = False
+    protection.Unprotect
     tableChanged = True
     private_LogStage "WriteRegistry"
     If mainRow Is Nothing Then Set mainRow = private_AddRow(ticketsTable, donationRow)
@@ -294,10 +299,12 @@ Public Function TrySave( _
     If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
         private_LogStage "WriteHistoryRecovery"
         recoveryToken = ex_TDB_HistoryRecovery.fn_Prepare(ticketsTable, revisions, identifier, transaction)
-        ex_TDB_HistoryRecovery.fn_Mark ticketsTable.Parent.Parent, recoveryToken, "COMMIT"
     End If
+    If Not protection.TryProtect(protectionDiagnostic) Then VBA.Err.Raise 5, , protectionDiagnostic
+    If VBA.Len(recoveryToken) > 0 Then ex_TDB_HistoryRecovery.fn_Mark ticketsTable.Parent.Parent, recoveryToken, "COMMIT"
 
     tableChanged = False
+    protection.Dispose
     Application.EnableEvents = eventsBefore
     Application.ScreenUpdating = updatingBefore
     guarded = False
@@ -321,8 +328,15 @@ EH:
     On Error Resume Next
     If tableChanged Then
         VBA.Err.Clear
+        protection.Unprotect
+        If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
+        VBA.Err.Clear
         ex_TDB_History.fn_Rollback ticketsTable, revisions, transaction
         If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
+    End If
+    If Not protection Is Nothing Then
+        If Not protection.TryProtect(protectionDiagnostic) Then rollbackError = rollbackError & protectionDiagnostic & VBA.vbCrLf
+        protection.Dispose
     End If
     If guarded Then
         Application.EnableEvents = eventsBefore

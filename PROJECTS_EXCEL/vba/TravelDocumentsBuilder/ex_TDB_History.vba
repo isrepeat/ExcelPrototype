@@ -81,6 +81,8 @@ Public Sub fn_Open( _
     Dim book As Workbook
     Dim path As String
     Dim fileSystem As Object
+    Dim protection As obj_TDB_HistoryProtection
+    Dim diagnostic As String
 
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     path = fn_Config("path")
@@ -93,9 +95,12 @@ Public Sub fn_Open( _
             If book.ReadOnly Then fn_Fail "ReadOnly"
             Set tickets = private_GetTable(book, fn_Config("sheet"), fn_Config("table"))
             Set revisions = private_GetTable(book, fn_Config("versions.sheet"), fn_Config("versions.table"))
-            If tickets.Parent.ProtectContents Or revisions.Parent.ProtectContents Then fn_Fail "ReadOnly"
             private_ValidateSchema tickets, fn_Config("columns")
             private_ValidateSchema revisions, fn_Config("versions.columns")
+            Set protection = New obj_TDB_HistoryProtection
+            If Not protection.Initialize(tickets, revisions) Then fn_Fail "ReadOnly"
+            If Not protection.TryProtect(diagnostic) Then VBA.Err.Raise 5, , diagnostic
+            protection.Dispose
             Exit Sub
         End If
     Next book
@@ -282,7 +287,7 @@ Public Sub fn_AssertCurrent( _
     ByVal transaction As Object _
 )
     If private_TableStamp(tickets) & private_TableStamp(revisions) <> transaction("Stamp") Then fn_Fail "Stale"
-    If tickets.Parent.ProtectContents Or revisions.Parent.ProtectContents Then fn_Fail "ReadOnly"
+    If tickets.Parent.Parent.ReadOnly Then fn_Fail "ReadOnly"
 End Sub
 
 Public Sub fn_Write( _

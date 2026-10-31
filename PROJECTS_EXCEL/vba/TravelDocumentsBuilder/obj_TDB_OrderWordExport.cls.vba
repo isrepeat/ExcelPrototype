@@ -101,6 +101,8 @@ Public Function TryExport( _
     Dim rollback As String
     Dim text As String
     Dim activePath As String
+    Dim protection As obj_TDB_HistoryProtection
+    Dim protectionDiagnostic As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo Failed
@@ -192,6 +194,9 @@ Public Function TryExport( _
         published.Add name
     Next path
     ex_TDB_History.fn_AssertCurrent tickets, revisions, transaction
+    Set protection = New obj_TDB_HistoryProtection
+    If Not protection.Initialize(tickets, revisions) Then ex_TDB_History.fn_Fail "ReadOnly"
+    protection.Unprotect
     historyChanged = True
     For Each group In groups
         Set root = group(1)
@@ -208,6 +213,7 @@ Public Function TryExport( _
         End If
         ex_TDB_History.fn_Write tickets, target, metadata
     Next group
+    If Not protection.TryProtect(protectionDiagnostic) Then VBA.Err.Raise 5, , protectionDiagnostic
     committed = True
     TryExport = True
     diagnostic = VBA.Replace$(private_Config("text.Success"), "{count}", VBA.CStr(wanted.Count))
@@ -234,6 +240,9 @@ Failed:
         End If
         If historyChanged Then
             VBA.Err.Clear
+            If Not protection Is Nothing Then protection.Unprotect
+            If VBA.Err.Number <> 0 Then rollback = rollback & VBA.Err.Description & VBA.vbLf
+            VBA.Err.Clear
             ex_TDB_History.fn_Rollback tickets, revisions, transaction
             If VBA.Err.Number <> 0 Then rollback = rollback & VBA.Err.Description & VBA.vbLf
         End If
@@ -243,6 +252,13 @@ Failed:
     If VBA.Len(rollback) > 0 Then diagnostic = diagnostic & VBA.vbLf & private_Config("text.Rollback") & VBA.vbLf & rollback & stage
 Cleanup:
     On Error Resume Next
+    If Not protection Is Nothing Then
+        If Not protection.TryProtect(protectionDiagnostic) Then
+            diagnostic = diagnostic & VBA.vbLf & protectionDiagnostic
+            TryExport = False
+        End If
+        protection.Dispose
+    End If
     ' A failed restoration retains its backup directory for explicit recovery.
     If stageCreated And VBA.Len(rollback) = 0 Then
         VBA.Err.Clear
