@@ -424,6 +424,9 @@ assert 'ex_TDB_WordSession.fn_Acquire()' in generator
 assert 'ex_TDB_WordSession.fn_Module_Dispose' in controller
 assert 'ex_TDB_WordSession.fn_Module_Dispose' in (sources / "ThisWorkbook.vba").read_text(encoding="utf-8-sig")
 assert 'documentCount = m_application.Documents.Count' in word_session
+end_word_export = re.search(r'Public Sub fn_EndExport\(\)[\s\S]*?^End Sub', word_session, re.M)[0]
+assert 'm_application.ScreenUpdating = True' in end_word_export
+assert 'ex_TDB_WordSession.fn_EndExport' in exporter[exporter.index('\nCleanup:'):]
 assert 'If m_wordSession Is Nothing Then' in generator
 assert 'word.ScreenUpdating = False' in generator
 assert 'word.Documents.Open(' in generator
