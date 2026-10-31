@@ -35,21 +35,28 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim key As Variant
     Dim valueText As String
     Dim diagnostic As String
+    Dim dependencyLoader As obj_TDB_DependencyLoader
 
     If m_isDisposed Or m_isInitialized Then Exit Function
     Set m_pageBase = pageBase
     If m_pageBase Is Nothing Then Exit Function
+    Set dependencyLoader = New obj_TDB_DependencyLoader
+    If Not dependencyLoader.Initialize() Then Exit Function
+    ex_TableSnapshots.fn_Register dependencyLoader, ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     Set m_messages = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
-            "PersonnelCount", "PersonnelMore", "PersonnelSelected", "ConnectionsReset", "CandidateCountTemplate")
-        If Not ex_Core.fn_TryGetWorkbookConfigValue( _
-                "TravelDocumentsBuilder::text." & VBA.CStr(key), valueText) Then Exit Function
+            "PersonnelCount", "PersonnelMore", "PersonnelSelected", "CandidateCountTemplate")
+        valueText = ex_TravelDocumentsBuilder.fn_Config("text." & VBA.CStr(key))
         m_messages(VBA.CStr(key)) = valueText
     Next key
     Set m_lookupProfile = New obj_LookupProfile
     If Not m_lookupProfile.Initialize("TravelDocumentsBuilder::lookup.Personnel", diagnostic) Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_INITIALIZE_FAILED | Stage=LookupProfile | " & diagnostic
+        ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
         Exit Function
+    End If
+    If VBA.LCase$(m_lookupProfile.Source.RangeAddress) = "auto" Then
+        VBA.Err.Raise 5, , "Explicit configuration range required: TravelDocumentsBuilder::lookup.Personnel.source.range"
     End If
     Set m_lookupService = New obj_LookupService
     If Not m_lookupService.Initialize(m_lookupProfile) Then
@@ -58,6 +65,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     End If
     If Not m_lookupService.TrySearch(VBA.vbNullString, m_lookupResult, diagnostic) Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_INITIALIZE_FAILED | Stage=InitialSearch | " & diagnostic
+        ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then Exit Function
@@ -88,6 +96,11 @@ Public Function SearchPersonnelHandler() As Boolean
     Dim statusText As String
     Dim isTvo As Variant
 
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If ex_TableSnapshots.fn_Active() Is Nothing Then
+        ex_WindowsUi.fn_ShowMessage ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired"), VBA.vbExclamation
+        Exit Function
+    End If
     If Not private_TryReadFormValue("PersonnelQuery", searchText) Then Exit Function
     If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then Exit Function
     If VBA.CBool(isTvo) Then
@@ -160,8 +173,10 @@ Public Function RefreshPersonnelHandler() As Boolean
     Dim emptyResult As obj_LookupResult
     Dim diagnostic As String
 
-    If m_lookupService Is Nothing Then Exit Function
-    ex_TableDataRuntime.fn_ResetCaches
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo Failed
+    If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then GoTo Failed
+    m_lookupService.InvalidateCache
     If Not m_lookupService.TrySearch(VBA.vbNullString, emptyResult, diagnostic) Then
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation, "Personnel lookup"
         Exit Function
@@ -172,7 +187,13 @@ Public Function RefreshPersonnelHandler() As Boolean
     Set m_lookupResult = emptyResult
     If Not private_SetCandidateCount(emptyResult.RowCount) Then Exit Function
     RefreshPersonnelHandler = m_pageBase.BindingContext.SetValue( _
-        "Text", "PersonnelStatus", m_messages("ConnectionsReset"))
+        "Text", "PersonnelStatus", private_BuildPersonnelStatus(VBA.vbNullString, emptyResult))
+    ex_Core.fn_StatusBar_Show ex_TravelDocumentsBuilder.fn_Config("text.DependenciesReady")
+    Exit Function
+Failed:
+    If VBA.Len(diagnostic) = 0 Then diagnostic = VBA.Err.Description
+    ex_Core.fn_StatusBar_Show diagnostic
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
 End Function
 
 Public Function DocumentTypeChangedHandler() As Boolean
@@ -232,6 +253,10 @@ Public Function ClearFormHandler() As Boolean
         Exit Function
     End If
     If Not Me.DocumentTypeChangedHandler() Then Exit Function
+    If ex_TableSnapshots.fn_Active() Is Nothing Then
+        ClearFormHandler = True
+        Exit Function
+    End If
     ClearFormHandler = Me.SearchPersonnelHandler()
 End Function
 

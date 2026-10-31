@@ -13,7 +13,7 @@ Private m_lookupService As obj_LookupService
 Private m_config As Object
 Private m_form As Object
 Private m_fileSystem As Object
-Private m_ordersConnection As Object
+Private m_orderResolver As obj_OrderResolver
 Private m_operationId As String
 Private m_stage As String
 
@@ -44,10 +44,14 @@ Public Function Initialize( _
     If bindingContext Is Nothing Or lookupService Is Nothing Then Exit Function
     Set m_bindingContext = bindingContext
     Set m_lookupService = lookupService
+    Set m_orderResolver = New obj_OrderResolver
+    If Not m_orderResolver.Initialize("TravelDocumentsBuilder::orders", "TravelDocumentsBuilder::text", valueText) Then
+        ex_WindowsUi.fn_ShowMessage valueText, VBA.vbExclamation
+        Exit Function
+    End If
     Set m_config = VBA.CreateObject("Scripting.Dictionary")
     Set m_fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     keys = "registry.workbook,registry.sheet,registry.table,registry.columns,registry.arrivalFormula," & _
-        "orders.path,orders.rangePrefix,orders.numberHeader,orders.dateHeader," & _
         "kind.ids,abroad.yes,abroad.no,abroad.word,status.active,status.cancelled,status.mark," & _
         "donation.event,donation.orderMissing,donation.orderPrefix,months,datePattern,name.active,name.cancelled," & _
         "duration.connector,duration.vacation.one,duration.vacation.few,duration.vacation.many," & _
@@ -78,8 +82,8 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
-    If Not m_ordersConnection Is Nothing Then m_ordersConnection.Close
-    Set m_ordersConnection = Nothing
+    If Not m_orderResolver Is Nothing Then m_orderResolver.Dispose
+    Set m_orderResolver = Nothing
     Set m_bindingContext = Nothing
     Set m_lookupService = Nothing
     Set m_config = Nothing
@@ -136,6 +140,10 @@ Public Function TryGenerate( _
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
     diagnostic = VBA.vbNullString
+    If ex_TableSnapshots.fn_Active() Is Nothing Then
+        diagnostic = ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
+        Exit Function
+    End If
     m_operationId = operationId
     private_LogStage "ReadForm"
     private_ReadForm
@@ -509,66 +517,24 @@ Private Sub private_ResolveOrder( _
     ByRef orderDate As Date, _
     ByVal allowMissing As Boolean _
 )
-    Dim year As Long
-    Dim inputDate As Date
-    Dim isDateReference As Boolean
-    Dim tableRef As String
-    Dim recordset As Object
-    Dim candidateNo As String
-    Dim candidateDate As Date
-    Dim count As Long
+    Dim matches As Collection
+    Dim record As obj_LookupRecord
+    Dim diagnostic As String
     Dim value As Variant
-    Dim errorNumber As Long
-    Dim errorDescription As String
 
-    On Error GoTo EH
     orderNo = VBA.vbNullString
-    isDateReference = VBA.InStr(reference, ".") > 0
-    If isDateReference Then
-        inputDate = private_Date(reference)
-        year = VBA.Year(inputDate)
-    Else
-        year = VBA.Year(VBA.Date)
-        reference = VBA.Replace$(reference, "№", VBA.vbNullString)
-        reference = VBA.Trim$(reference)
-        If VBA.Len(reference) = 0 Or reference Like "*[!0-9]*" Then private_Fail "Order", reference
+    reference = VBA.Trim$(VBA.Replace$(reference, "№", VBA.vbNullString))
+    If VBA.Len(reference) = 0 Then private_Fail "Order", reference
+    If Not m_orderResolver.TrySearch(reference, VBA.vbNullString, matches, diagnostic) Then
+        private_Fail "Order", diagnostic
     End If
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig( _
-            m_config("orders.rangePrefix") & VBA.CStr(year), tableRef) Then private_Fail "Order", VBA.CStr(year)
-    If m_ordersConnection Is Nothing Then
-        Set m_ordersConnection = VBA.CreateObject("ADODB.Connection")
-        m_ordersConnection.Open "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=""" & _
-            VBA.Replace$(private_Path(m_config("orders.path")), """", """""") & _
-            """;Extended Properties=""Excel 12.0 Xml;HDR=YES;IMEX=1;ReadOnly=True"";"
-    End If
-    Set recordset = VBA.CreateObject("ADODB.Recordset")
-    recordset.Open "SELECT * FROM " & tableRef, m_ordersConnection, 0, 1
-    Do While Not recordset.EOF
-        value = recordset.Fields(m_config("orders.numberHeader")).Value
-        candidateNo = VBA.vbNullString
-        If Not VBA.IsNull(value) Then candidateNo = VBA.Trim$(VBA.Replace$(VBA.CStr(value), "№", VBA.vbNullString))
-        value = recordset.Fields(m_config("orders.dateHeader")).Value
-        If VBA.IsDate(value) Then
-            candidateDate = VBA.DateValue(value)
-            If (isDateReference And candidateDate = inputDate) Or (Not isDateReference And candidateNo = reference) Then
-                If VBA.Len(candidateNo) = 0 Or candidateNo Like "*[!0-9]*" Then private_Fail "Order", candidateNo
-                count = count + 1
-                orderNo = candidateNo
-                orderDate = candidateDate
-            End If
-        End If
-        recordset.MoveNext
-    Loop
-    recordset.Close
-    If count > 1 Or (count = 0 And Not allowMissing) Then private_Fail "Order", reference
-    Exit Sub
-EH:
-    errorNumber = VBA.Err.Number
-    errorDescription = VBA.Err.Description
-    On Error Resume Next
-    If Not recordset Is Nothing Then recordset.Close
-    On Error GoTo 0
-    VBA.Err.Raise errorNumber, "Orders", errorDescription
+    If matches.Count > 1 Or (matches.Count = 0 And Not allowMissing) Then private_Fail "Order", reference
+    If matches.Count = 0 Then Exit Sub
+    Set record = matches(1)
+    If Not record.TryGetValue("OrderNumber", value) Then private_Fail "Order", reference
+    orderNo = VBA.CStr(value)
+    If Not record.TryGetValue("OrderDate", value) Then private_Fail "Order", reference
+    orderDate = VBA.CDate(value)
 End Sub
 
 Private Function private_OpenWorkbook() As Workbook

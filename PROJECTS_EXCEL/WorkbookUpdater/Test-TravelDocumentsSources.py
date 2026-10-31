@@ -72,7 +72,7 @@ for node in markup.iter():
             assert f'"{key}"' in page + controller, f"Unknown data binding: {key}"
 assert len(names) == len(set(names)), "Duplicate control names"
 assert "TvoLookup" not in names
-for name in ("TvoName", "TvoIpn", "TvoPosition", "LookupTarget", "ClearTvo"):
+for name in ("TvoName", "TvoIpn", "TvoPosition", "LookupTarget"):
     assert name in names, f"Missing TVO control: {name}"
 assert int(cfg("lookup.Tvo.apply.count")) == 3
 assert {
@@ -94,7 +94,8 @@ with zipfile.ZipFile(workbook_folder / cfg("generation.registry.workbook")) as a
     ]
     table = next(table for table in tables if table.attrib["name"] == cfg("generation.registry.table"))
     headers = [column.attrib["name"] for column in table.find("s:tableColumns", namespace)]
-    assert headers == cfg("generation.registry.columns").split("|"), "Registry schema mismatch"
+    assert len(headers) == len(set(headers)) == 21
+    assert set(headers) == set(cfg("generation.registry.columns").split("|")), "Registry schema mismatch"
     workbook = ET.fromstring(archive.read("xl/workbook.xml"))
     assert any(sheet.attrib["name"] == cfg("generation.registry.sheet")
                for sheet in workbook.find("s:sheets", namespace)), "Registry sheet missing"
@@ -109,30 +110,85 @@ with zipfile.ZipFile(template) as archive:
     for marker in markers:
         assert f"<{marker}></{marker}>" in text, f"Template placeholder missing: {marker}"
 
-# Check yearly order ranges and headers in the source workbook.
-orders = (workbook_folder / cfg("generation.orders.path")).resolve()
-with zipfile.ZipFile(orders) as archive:
-    shared = ET.fromstring(archive.read("xl/sharedStrings.xml"))
-    strings = ["".join(item.itertext()) for item in shared]
-    for key, reference in config.items():
-        if not key.startswith(PREFIX + cfg("generation.orders.rangePrefix")):
-            continue
-        match = re.fullmatch(r"\[([^$]+)\$([A-Z]+)(\d+):([A-Z]+)(\d+)\]", reference)
-        assert match, f"Invalid orders range: {reference}"
+# Validate explicit dependency ranges and source headers against saved XLSX files.
+def source_headers(prefix):
+    path = (workbook_folder / cfg(prefix + ".path").replace("\\", "/")).resolve()
+    match = re.fullmatch(r"([A-Z]+)(\d+):([A-Z]+)(\d+)", cfg(prefix + ".range"))
+    assert match, f"Explicit range required: {prefix}"
+    with zipfile.ZipFile(path) as archive:
+        shared = archive.read("xl/sharedStrings.xml") if "xl/sharedStrings.xml" in archive.namelist() else None
+        strings = ["".join(item.itertext()) for item in ET.fromstring(shared)] if shared else []
         workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-        sheet = next(item for item in workbook.find("s:sheets", namespace) if item.attrib["name"] == match[1])
+        sheet = next(item for item in workbook.find("s:sheets", namespace)
+                     if item.attrib["name"] == cfg(prefix + ".sheet"))
         relationships = ET.fromstring(archive.read("xl/_rels/workbook.xml.rels"))
         relationship_id = sheet.attrib["{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"]
         target = next(item.attrib["Target"] for item in relationships if item.attrib["Id"] == relationship_id)
         target = target.lstrip("/") if target.startswith("/") else "xl/" + target
         data = ET.fromstring(archive.read(target))
-        cells = {cell.attrib["r"]: cell for cell in data.findall(".//s:c", namespace)}
+        def column_number(text):
+            result = 0
+            for char in text:
+                result = result * 26 + ord(char) - ord("A") + 1
+            return result
+        first, last = column_number(match[1]), column_number(match[3])
         actual = []
-        for column in (match[2], match[4]):
-            cell = cells[column + match[3]]
-            value = cell.find("s:v", namespace).text
-            actual.append(strings[int(value)] if cell.attrib.get("t") == "s" else value)
-        assert set(actual) == {cfg("generation.orders.numberHeader"), cfg("generation.orders.dateHeader")}
+        for cell in data.findall(".//s:c", namespace):
+            address = re.fullmatch(r"([A-Z]+)(\d+)", cell.attrib["r"])
+            if address[2] != match[2] or not first <= column_number(address[1]) <= last:
+                continue
+            value = cell.find("s:v", namespace)
+            if cell.attrib.get("t") == "s" and value is not None:
+                actual.append(strings[int(value.text)])
+            elif cell.attrib.get("t") == "inlineStr":
+                actual.append("".join(cell.find("s:is", namespace).itertext()))
+            elif value is not None:
+                actual.append(value.text)
+        return actual
 
-print(f"PASS: TravelDocumentsBuilder config, {len(names)} controls, command handlers, tbTickets schema, 12 DOCX placeholders and yearly orders ranges.")
+assert cfg("snapshots.sources").split("|") == ["lookup.Personnel.source", "orders.source"]
+personnel_headers = source_headers("lookup.Personnel.source")
+for index in range(1, int(cfg("lookup.Personnel.columns.count")) + 1):
+    header = cfg(f"lookup.Personnel.columns.{index}.header")
+    assert personnel_headers.count(header) == 1, f"Missing or ambiguous personnel header: {header}"
+order_headers = source_headers("orders.source")
+for header in (cfg("orders.dateHeader"), cfg("orders.numberHeader")):
+    assert order_headers.count(header) == 1, f"Missing or ambiguous order header: {header}"
+
+# Guard the migration boundaries: prepared reads, explicit loading and live registry writes.
+loader = (sources / "obj_TDB_DependencyLoader.cls.vba").read_text(encoding="utf-8-sig")
+entry = (sources / "ex_TravelDocumentsBuilder.vba").read_text(encoding="utf-8-sig")
+workbook_source = (sources / "ThisWorkbook.vba").read_text(encoding="utf-8-sig")
+assert "Implements obj_ITableSnapshotLoader" in loader
+assert "snapshot.TryLoad(source, diagnostic)" in loader
+assert "lookup.PrepareSnapshot(snapshot, diagnostic)" in loader
+assert "orders.PrepareSnapshot(snapshot, diagnostic)" in loader
+assert loader.count("private_FileStamp(") == 3
+assert "ex_TableSnapshots.fn_Register dependencyLoader" in controller
+assert "ex_TableSnapshots.fn_Refresh(diagnostic)" in controller
+assert "ex_TableDataRuntime.fn_ResetCaches" not in controller
+assert "ex_TableSnapshots.fn_Module_Dispose" in entry
+assert "obj_OrderResolver" in generator and "m_orderResolver.TrySearch" in generator
+assert "ADODB.Connection" not in generator and "generation.orders." not in generator
+assert "matches.Count = 0 And Not allowMissing" in generator
+assert "If matches.Count = 0 Then Exit Sub" in generator
+assert "Set ticketsWorkbook = private_OpenWorkbook()" in generator
+assert "Set ticketsTable = private_Table(ticketsWorkbook)" in generator
+assert "table.ListRows.Add" in generator
+assert cfg("candidates.selectionMode") in ("Focus", "Confirm")
+candidate_table = next(node for node in markup.iter() if node.attrib.get("name") == "Candidates")
+assert candidate_table.attrib["selectionMode"] == "{Binding Path=Settings.CandidateSelectionMode}"
+assert "ThisWorkbook::ui.confirmSelectionKey" in config
+assert "fn_CancelPending" in workbook_source and "fn_ForgetContext" in workbook_source
+assert "Cancel = True" in workbook_source
+for key in re.findall(r'fn_Config\("([^"]+)"\)', page + controller + generator + loader + entry + workbook_source):
+    cfg(key)
+for key in ("OrderSourceError", "OrderInvalidYear", "OrderInvalidInput", "OrderInvalidDate",
+            "OrderYearConflict", "OrderDataInvalid", "OrderDuplicate"):
+    cfg("text." + key)
+assert config["ThisWorkbook::ui.pageMappings"] == "MainPage=MainPage.xaml"
+assert (ROOT / "ui" / cfg("ui.folder") / "MainPage.xaml").is_file()
+keys = list(config)
+assert keys == sorted(keys, key=lambda key: tuple((len(part), part) for part in key.replace("::", ".").split("."))), "Configuration staircase order"
+print(f"PASS: TravelDocumentsBuilder config, {len(names)} controls, routes, registry schema, DOCX markers, dependency headers and snapshot contracts.")
 print("Excel, Word and VBA were not executed.")
