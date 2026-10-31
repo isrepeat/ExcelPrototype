@@ -29,6 +29,91 @@ controller = (sources / "obj_TDB_PgMainController.cls.vba").read_text(encoding="
 generator = (sources / "obj_TDB_VacationGenerator.cls.vba").read_text(encoding="utf-8-sig")
 all_sources = page + controller + generator
 
+# Planned return is persisted as a calculated date value, not formula text in snapshots.
+write_row = re.search(r"Private Sub private_WriteRow\([\s\S]*?^End Sub", generator, re.M)[0]
+assert 'ByVal plannedReturn As Date' in write_row
+assert 'ex_TDB_History.fn_Write table, row, fields' in write_row
+assert '.Formula =' not in write_row
+
+# Every form value written to the registry must first be captured from the binding context.
+read_form = re.search(r"Private Sub private_ReadForm\(\)[\s\S]*?^End Sub", generator, re.M)[0]
+read_fields = re.search(r"For Each key In VBA.Array\(([\s\S]*?)\)\n", read_form)[1]
+read_fields = set(re.findall(r'"(\w+)"', read_fields))
+assert set(re.findall(r'm_form\("(\w+)"\)', write_row)) <= read_fields
+assert 'PersonPosition' in read_fields
+
+# Both tables persist literal text, including dates and revision metadata.
+history_source = (sources / "ex_TDB_History.vba").read_text(encoding="utf-8-sig")
+write = re.search(r"Public Sub fn_Write\([\s\S]*?^End Sub", history_source, re.M)[0]
+assert 'target.Range.NumberFormat = "@"' in write
+assert 'cell.Value2 = private_FieldText(VBA.CStr(field), row(field))' in write
+assert '.Formula' not in write and 'dd.mm.yyyy' not in write
+assert 'registry.arrivalFormula' not in generator and PREFIX + 'generation.registry.arrivalFormula' not in config
+assert not re.search(r'\.Formula\s*=|\.Calculate\b', generator)
+assert 'snapshot(field) = private_FieldText(' in history_source
+assert 'tickets.DataBodyRange.Value2' in history_source and 'revisions.DataBodyRange.Value2' in history_source
+assert 'table.DataBodyRange.Value2 = data' in history_source
+assert 'If formulas.Exists(key) Then cell.Formula = formulas(key)' in history_source
+assert 'If VBA.Format$(parsed, "dd.mm.yyyy") <> text Then GoTo InvalidDate' in history_source
+assert 'fn_ReturnDate = VBA.DateAdd("d", vacationDays + roadDays + donationDays, departure)' in history_source
+assert 'ex_TDB_History.fn_ReturnDate' in controller
+assert 'departureDate, vacationDays, roadDays, ticketNo, finalReturn' in generator
+assert 'finalReturn, mainReturn, donationDays, 0, ticketNo, finalReturn' in generator
+assert 'finalReturn = ex_TDB_History.fn_Date(root("PlannedReturnDate"))' in generator
+assert 'ex_TDB_History.fn_Date(root("OrderDate"))' in generator
+assert '{value}' in cfg('history.text.InvalidDate')
+
+recovery = (sources / "ex_TDB_HistoryRecovery.vba").read_text(encoding="utf-8-sig")
+assert cfg("history.recovery.suffix") == ".recovery.xml.log"
+assert "{details}" in cfg("history.text.RecoveryFailed")
+assert 'root.setAttribute "state", "PREPARE"' in recovery
+assert 'For Each row In previous' in recovery and 'For Each row In group' in recovery
+assert '"RevisionsCount"' in recovery and '"Revision"' in recovery
+assert 'files.OpenTextFile(path, 8, True, -1)' in recovery
+prepare_at = generator.index('recoveryToken = ex_TDB_HistoryRecovery.fn_Prepare')
+mark_at = generator.index('ex_TDB_HistoryRecovery.fn_Mark')
+assert generator.index('ex_TDB_History.fn_Commit') < prepare_at < mark_at < generator.index('    tableChanged = False')
+assert '"COMMIT"' in generator[mark_at:mark_at + 110]
+
+# Keep TDB section boundaries consistent with the PEB module and class conventions.
+for source in sources.glob("*.vba"):
+    source_text = source.read_text(encoding="utf-8-sig")
+    if source.name.endswith(".cls.vba"):
+        assert "namespace " not in source_text, source
+        sections = list(re.finditer(r"^' //\n' // (\w+)\n' //\n", source_text, re.M))
+        section_names = [section[1] for section in sections]
+        assert section_names.count("Lifecycle") == 1, source
+        assert section_names[0] == "Lifecycle", source
+        fields = re.findall(r"^Private (\w+) As \w+", source_text, re.M)
+        assert fields[:2] == ["m_isInitialized", "m_isDisposed"], source
+        for index, section in enumerate(sections):
+            end = sections[index + 1].start() if index + 1 < len(sections) else len(source_text)
+            procedures = re.findall(r"^(Public|Private) (?:Sub|Function|Property \w+) (\w+)", source_text[section.end():end], re.M)
+            if section[1] == "Lifecycle":
+                assert procedures == [("Private", "Class_Initialize"), ("Private", "Class_Terminate")], source
+            elif section[1] == "API":
+                assert procedures[:2] == [("Public", "Initialize"), ("Public", "Dispose")], source
+            elif section[1] == "Private":
+                assert all(access == "Private" and name.startswith("private_") for access, name in procedures), source
+    else:
+        sections = re.findall(r"^' namespace (\w+) \{", source_text, re.M)
+        endings = re.findall(r"^' \} // namespace (\w+)", source_text, re.M)
+        assert sections == endings, source
+        if source.name == "ThisWorkbook.vba":
+            assert sections == ["Private"], source
+        else:
+            assert sections[:2] == ["Lifecycle", "API"], source
+            assert "Public Sub fn_Module_Dispose()" in source_text, source
+
+# Dialogs must use the shared Unicode API; routine feedback belongs in page status.
+for source in sources.glob("*.vba"):
+    source_text = source.read_text(encoding="utf-8-sig")
+    assert not re.search(r"\b(?:VBA\.)?MsgBox\s*(?:\(|\s)", source_text, re.I), source
+    assert not re.search(r"\b(?:MessageBox[AW]?|WScript\.Shell)\b", source_text, re.I), source
+runtime_handlers = controller[controller.index("Public Function SearchPersonnelHandler()"):]
+assert runtime_handlers.count("ex_WindowsUi.fn_ShowMessage") == 1
+assert 'If Not private_SetActionStatus Then ex_WindowsUi.fn_ShowMessage' in runtime_handlers
+
 # Check required keys and option lists against configuration.
 key_assignment = re.search(r"    keys = (.*?)\n    For Each key", generator, re.S)[1]
 required = "".join(re.findall(r'"([^"]*)"', key_assignment)).split(",")
@@ -64,7 +149,11 @@ for node in markup.iter():
             assert key in registered, f"Unregistered command: {key}"
             assert f"Public Function {registered[key]}" in controller, f"Missing handler: {key}"
         elif category == "Form":
-            assert f'"{key}"' in page, f"Form binding not initialized: {key}"
+            derived = any(key == field + suffix for field in cfg("forms.readOnly.fields").split("|") for suffix in ("ReadOnly", "Style", "LabelStyle"))
+            if derived:
+                suffix = next(suffix for field in cfg("forms.readOnly.fields").split("|") for suffix in ("ReadOnly", "Style", "LabelStyle") if key == field + suffix)
+                assert re.search(r'bindingContext\.SetValue\("Form", VBA\.CStr\(key\) & "' + suffix + r'",', page), f"Derived form binding not registered: {key}"
+            assert f'"{key}"' in page or derived, f"Form binding not initialized: {key}"
         elif category == "Text":
             if key not in ("PersonnelStatus", "CandidateCount"):
                 assert f'"{key}"' in all_sources, f"Unknown text binding: {key}"
@@ -72,32 +161,49 @@ for node in markup.iter():
             assert f'"{key}"' in page + controller, f"Unknown data binding: {key}"
 assert len(names) == len(set(names)), "Duplicate control names"
 assert "TvoLookup" not in names
-for name in ("TvoName", "TvoIpn", "TvoPosition", "LookupTarget"):
+for name in ("TvoName", "TvoIpn", "TvoPosition"):
     assert name in names, f"Missing TVO control: {name}"
 assert int(cfg("lookup.Tvo.apply.count")) == 3
 assert {
     cfg(f"lookup.Tvo.apply.{index}.target") for index in range(1, 4)
 } == {"Form.TvoName", "Form.TvoIpn", "Form.TvoPosition"}
-for state in ("Personnel", "Tvo"):
-    caption = cfg(f"text.LookupTarget.{state}")
-    assert caption.count("[[color=#") == caption.count("[[/color]]") == 1
-    assert re.search(r"\[\[color=#[0-9A-Fa-f]{6}\]\].+?\[\[/color\]\]", caption)
-
 # Validate contracts against actual files rather than a copied test schema.
 workbook_folder = ROOT / "workbook/TravelDocumentsBuilder"
-with zipfile.ZipFile(workbook_folder / cfg("generation.registry.workbook")) as archive:
+with zipfile.ZipFile(workbook_folder / cfg("history.path")) as archive:
     namespace = {"s": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
     tables = [
         ET.fromstring(archive.read(name))
         for name in archive.namelist()
         if re.fullmatch(r"xl/tables/table\d+\.xml", name)
     ]
-    table = next(table for table in tables if table.attrib["name"] == cfg("generation.registry.table"))
+    table = next(table for table in tables if table.attrib["name"] == cfg("history.table"))
     headers = [column.attrib["name"] for column in table.find("s:tableColumns", namespace)]
-    assert len(headers) == len(set(headers)) == 21
-    assert set(headers) == set(cfg("generation.registry.columns").split("|")), "Registry schema mismatch"
+    assert len(headers) == len(set(headers)) == 28
+    assert all(re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", field) for field in headers)
+    assert not {"LastChangeId", "RowOrder", "Purpose", "ReportNo", "PersonUnit"} & set(headers)
+    assert set(headers) == set(cfg("history.columns").split("|")), "Registry schema mismatch"
+    versions = next(table for table in tables if table.attrib["name"] == cfg("history.versions.table"))
+    version_headers = [column.attrib["name"] for column in versions.find("s:tableColumns", namespace)]
+    assert len(version_headers) == 35
+    assert version_headers == cfg("history.versions.columns").split("|")
+    snapshot_fields = cfg("history.snapshotFields").split("|")
+    assert [field.removeprefix("Snapshot.") for field in version_headers[9:]] == snapshot_fields
+    assert set(snapshot_fields) == set(headers) - {"Revision", "Status"}
+    assert not {"ТВО.ПІБ", "ТВО.ІПН", "ТВО.Посада", "Статус"} & set(headers)
+    assert set(cfg("history.dateFields").split("|")) <= set(headers)
+    assert set(cfg("generation.registry.fieldOrder").split("|")) <= set(headers)
+    for setting in ("formFields", "dateFormFields", "actorFields"):
+        for mapping in cfg("history." + setting).split("|"):
+            assert mapping.split("=")[1] in headers, mapping
+    for field in re.findall(r'metadata\.Add "(\w+)"', generator):
+        assert field in headers, f"Unknown saved metadata field: {field}"
+    assert 'Purpose=Basis' in cfg("history.formFields")
+    assert 'ReportNo=ReportNumber' in cfg("history.formFields")
+    assert 'm_form("PersonPosition"), eventText' in generator
+    assert 'm_form("Purpose"), plannedReturn' in generator
+    assert 'basis = m_form("ReportNo")' not in generator
     workbook = ET.fromstring(archive.read("xl/workbook.xml"))
-    assert any(sheet.attrib["name"] == cfg("generation.registry.sheet")
+    assert any(sheet.attrib["name"] == cfg("history.sheet")
                for sheet in workbook.find("s:sheets", namespace)), "Registry sheet missing"
 
 template = workbook_folder / cfg("generation.templates.VacationTicket").replace("\\", "/")
@@ -108,7 +214,8 @@ with zipfile.ZipFile(template) as archive:
     markers = re.findall(r'"(\w+)"', placeholders)
     assert len(markers) == 12
     for marker in markers:
-        assert f"<{marker}></{marker}>" in text, f"Template placeholder missing: {marker}"
+        if marker != "FooterSpacer":
+            assert "{" + marker + "}" in text, f"Template placeholder missing: {marker}"
 
 # Validate explicit dependency ranges and source headers against saved XLSX files.
 def source_headers(prefix):
@@ -172,8 +279,7 @@ assert "obj_OrderResolver" in generator and "m_orderResolver.TrySearch" in gener
 assert "ADODB.Connection" not in generator and "generation.orders." not in generator
 assert "matches.Count = 0 And Not allowMissing" in generator
 assert "If matches.Count = 0 Then Exit Sub" in generator
-assert "Set ticketsWorkbook = private_OpenWorkbook()" in generator
-assert "Set ticketsTable = private_Table(ticketsWorkbook)" in generator
+assert "ex_TDB_History.fn_Open ticketsTable, revisions" in generator
 assert "table.ListRows.Add" in generator
 assert cfg("candidates.selectionMode") in ("Focus", "Confirm")
 candidate_table = next(node for node in markup.iter() if node.attrib.get("name") == "Candidates")
@@ -181,7 +287,7 @@ assert candidate_table.attrib["selectionMode"] == "{Binding Path=Settings.Candid
 assert "ThisWorkbook::ui.confirmSelectionKey" in config
 assert "fn_CancelPending" in workbook_source and "fn_ForgetContext" in workbook_source
 assert "Cancel = True" in workbook_source
-for key in re.findall(r'fn_Config\("([^"]+)"\)', page + controller + generator + loader + entry + workbook_source):
+for key in re.findall(r'(?<!ex_TDB_History\.)fn_Config\("([^"]+)"\)', page + controller + generator + loader + entry + workbook_source):
     cfg(key)
 for key in ("OrderSourceError", "OrderInvalidYear", "OrderInvalidInput", "OrderInvalidDate",
             "OrderYearConflict", "OrderDataInvalid", "OrderDuplicate"):
@@ -190,5 +296,107 @@ assert config["ThisWorkbook::ui.pageMappings"] == "MainPage=MainPage.xaml"
 assert (ROOT / "ui" / cfg("ui.folder") / "MainPage.xaml").is_file()
 keys = list(config)
 assert keys == sorted(keys, key=lambda key: tuple((len(part), part) for part in key.replace("::", ".").split("."))), "Configuration staircase order"
-print(f"PASS: TravelDocumentsBuilder config, {len(names)} controls, routes, registry schema, DOCX markers, dependency headers and snapshot contracts.")
+history = (sources / "ex_TDB_History.vba").read_text(encoding="utf-8-sig")
+for key in re.findall(r'ex_TDB_History.fn_Config\("([^"]+)"\)', page + controller + generator):
+    cfg("history." + key)
+for key in re.findall(r'(?<![\w.])fn_Config\("([^"]+)"\)', history):
+    cfg("history." + key)
+for key in re.findall(r'(?:ex_TDB_History\.)?fn_Fail "([^"]+)"', history + generator + controller):
+    cfg("history.text." + key)
+for mapping in cfg("history.listFields").split("|"):
+    field, caption = mapping.split("=")
+    assert field in headers
+    cfg("history.text." + caption)
+for text in (history, generator, controller):
+    assert "ExportJournal" not in text and "ex_PEB_" not in text
+assert "private_FindMain" not in generator and "private_FindDonation" not in generator
+assert 'identifier = m_form("HistoryRowId")' in generator
+assert "ex_TDB_History.fn_AssertCurrent ticketsTable, revisions, transaction" in generator
+assert generator.index("ex_TDB_History.fn_AssertCurrent") < generator.index('private_LogStage "WriteRegistry"')
+assert "PublishDocument" not in generator
+assert "ex_TDB_History.fn_Rollback ticketsTable, revisions, transaction" in generator
+assert 'private_CheckRevision revisions, group' in history
+assert 'fn_Stamp(group) <> expectedStamp' in history
+assert 'If changed Then revision = revision + 1' in history
+assert 'If Not changed Then Exit Sub' in history
+assert 'snapshot.Add "Snapshot." & field, row(field)' in history
+assert 'metadata("DutyPositionCode") = positionCode' in generator
+assert 'positionCode = metadata("PositionCode")' in generator
+assert 'metadata("RowId") = ex_TDB_History.fn_NewId()' in generator
+assert "CoCreateGuid" in history and "Scriptlet.TypeLib" not in history
+assert 'If cell.HasFormula Then' in history and 'private_Formulas(tickets)' in history
+assert '"HistoryRowId", "HistoryStamp", "ChangeReason"' in page
+assert "AddTvoHandler" in controller and "RemoveTvoHandler" in controller
+assert "SelectHistoryHandler" in controller and "ex_TDB_History.fn_Load" in controller
+assert "ex_TDB_History.fn_List(m_acceptedOrderNumber, m_acceptedOrderDate)" in controller
+assert 'private_Text(row(fn_Config("orderNumberField"))) = orderNumber' in history
+assert 'fn_Date(row("OrderDate")) = orderDate' in history
+assert 'display.Add "HistoryStamp", fn_Stamp(fn_Group(rows, VBA.CStr(key)))' in history
+assert "m_historyOrderDate <> m_acceptedOrderDate" in controller
+assert "m_previousAutoFill" in controller
+assert 'SetValue("Form", "AutoFillPersonnel", False)' in controller
+assert 'updates("Form.AutoFillPersonnel") = m_previousAutoFill' in controller
+assert "TryGetNearby(matches, diagnostic)" in controller and "TrySearch(VBA.CStr(query), VBA.CStr(year)" in controller
+assert 'matches.Count = 1 And VBA.Len' in controller
+nodes = {node.get("name"): node for node in markup.iter() if node.get("name")}
+for field in cfg("forms.readOnly.fields").split("|"):
+    assert nodes[field].get("readOnly") == "{Binding Path=Form." + field + "ReadOnly}"
+    assert nodes[field].get("style") == "{Binding Path=Form." + field + "Style}"
+assert nodes["AutoFillPersonnel"].get("onChange") == "{Binding Path=Commands.AutoFillChanged}"
+assert nodes["OrderQuery"].get("editable") == "true"
+assert nodes["History"].get("closeCommand") == "{Binding Path=Commands.CloseHistory}"
+peb_markup = ET.parse(ROOT / "ui/PersonalEventBuilder/MainPage.xaml")
+for name in ("personnelFormField", "currentOrderField", "lookupKeyField"):
+    expected = next(node for node in peb_markup.iter() if node.tag.endswith("controlStyle") and node.get("name") == name)
+    assert nodes[name].attrib == expected.attrib, name
+for style in ("personnelFormField", "currentOrderField", "formField"):
+    selector = f"type=input;part=editor;tags=readOnly {style}"
+    actual = next(node for node in markup.iter() if node.get("selector") == selector)
+    expected = next(node for node in peb_markup.iter() if node.get("selector") == selector)
+    assert actual.get("styles") == expected.get("styles"), selector
+assert nodes["TvoName"].get("onChange") == "{Binding Path=Commands.TvoNameChanged}"
+exporter = (sources / "obj_TDB_OrderWordExport.cls.vba").read_text(encoding="utf-8-sig")
+save_body = re.search(r"Public Function TrySave\(.*?End Function", generator, re.S)[0]
+render_body = re.search(r"Public Function TryRender\(.*?End Function", generator, re.S)[0]
+assert "private_GenerateWord" not in save_body and "MoveFile" not in save_body
+assert "private_GenerateWord" in render_body
+assert 'row("DocumentRevision") = revision' not in history
+assert 'If Not private_IsDocumentField(VBA.CStr(field)) Then' in history
+assert "obj_TDB_OrderWordExport" in controller and "vacationGenerator.TrySave" in controller
+assert "ex_TDB_History.fn_OrderGroups" in exporter
+assert "private_CheckRevision revisions, group" in history
+assert "ex_TDB_History.fn_Commit" not in exporter and "ExportJournal" not in exporter
+assert exporter.index("m_vacationGenerator.TryRender") < exporter.index("m_fileSystem.MoveFile VBA.CStr(path), name")
+assert exporter.count("ex_TDB_History.fn_AssertCurrent") == 2
+assert 'If root("Status") = "Active" Then' in exporter
+assert 'metadata.Add "DocumentPath", VBA.vbNullString' in exporter
+assert 'metadata.Add "DocumentRevision", root("Revision")' in exporter
+assert "For Each path In owned" in exporter and "If m_namePattern.Test(file.Name) Then" in exporter
+assert exporter.index('m_fileSystem.MoveFile m_fileSystem.BuildPath(stage, wanted(path)), name') < exporter.index("published.Add name")
+assert "If stageCreated And VBA.Len(rollback) = 0 Then" in exporter
+assert "GetParentFolderName(m_fileSystem.GetAbsolutePathName(stage))" in exporter
+assert "ex_TDB_History.fn_Rollback tickets, revisions, transaction" in exporter
+assert generator.count('VBA.CreateObject("Word.Application")') == 1
+assert 'If m_wordSession Is Nothing Then' in generator
+assert 'orderRecord.TryGetValue("OrderNumber", value)' in controller
+assert "CreateDocumentHandler" not in controller and "UpdateDocumentHandler" not in controller
+for key in re.findall(r'private_Config\("([^"]+)"\)', exporter):
+    cfg("word." + key)
+for key in re.findall(r'private_Fail "([^"]+)"', exporter):
+    cfg("word.text." + key)
+preflight = re.search(r'For Each key In VBA.Split\((.*?), ","\)', exporter, re.S)[1]
+for key in "".join(re.findall(r'"([^"]*)"', preflight)).split(","):
+    cfg("word." + key)
+assert cfg("word.folder") == "TDB_{date}_{number}"
+assert "{TicketNo}" in cfg("word.filename.label") and "{FIO}" in cfg("word.filename.label")
+pattern = re.compile(cfg("word.filename.pattern"), re.I)
+identifier = "T-01234567-89AB-4CDE-8F01-23456789ABCD"
+for label in ("old_name", "new_name", "2026_121_1_ПІБ"):
+    match = pattern.fullmatch(f"TDB_{identifier}__{label}.docx")
+    assert match and match[1] == identifier
+for unmanaged in ("В.к. 2026_121_1.docx", "notes.docx", f"~$TDB_{identifier}__name.docx",
+                  f"TDB_{identifier}__name.docx.bak", "TDB_bad-id__name.docx"):
+    assert pattern.fullmatch(unmanaged) is None, unmanaged
+assert "SaveHistory" in nodes and "ExportWord" in nodes
+print(f"PASS: TicketsHistory schemas, separate saving, order-wide WORD synchronization, RowId file ownership, revisions, {len(names)} controls and source contracts.")
 print("Excel, Word and VBA were not executed.")

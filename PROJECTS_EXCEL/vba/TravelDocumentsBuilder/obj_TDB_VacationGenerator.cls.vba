@@ -12,10 +12,11 @@ Private m_bindingContext As obj_UiBindingContext
 Private m_lookupService As obj_LookupService
 Private m_config As Object
 Private m_form As Object
-Private m_fileSystem As Object
 Private m_orderResolver As obj_OrderResolver
 Private m_operationId As String
 Private m_stage As String
+Private m_chain As Collection
+Private m_wordSession As Object
 
 ' //
 ' // Lifecycle
@@ -50,18 +51,15 @@ Public Function Initialize( _
         Exit Function
     End If
     Set m_config = VBA.CreateObject("Scripting.Dictionary")
-    Set m_fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    keys = "registry.workbook,registry.sheet,registry.table,registry.columns,registry.arrivalFormula," & _
-        "kind.ids,abroad.yes,abroad.no,abroad.word,status.active,status.cancelled,status.mark," & _
-        "donation.event,donation.orderMissing,donation.orderPrefix,months,datePattern,name.active,name.cancelled," & _
+    keys = "registry.fieldOrder," & _
+        "kind.ids,abroad.yes,abroad.no,abroad.word,status.active,status.cancelled," & _
+        "donation.event,donation.orderMissing,donation.orderPrefix,months,datePattern," & _
         "duration.connector,duration.vacation.one,duration.vacation.few,duration.vacation.many," & _
         "duration.donation.one,duration.donation.few,duration.donation.many,duration.donation.suffix," & _
         "duration.road.one,duration.road.few,duration.road.many,duration.road.suffix," & _
         "position.reservedPrefix,position.removedPrefix,position.reservedText,position.removedText," & _
-        "message.Required,message.Invalid,message.Workbook,message.Table,message.Column,message.Duplicate," & _
-        "message.NotFound,message.Exists,message.Restore,message.Replace,message.Path,message.Marker," & _
-        "message.Order,message.Tvo,message.Unsupported,message.Success,message.Failed,message.Rollback," & _
-        "message.Title,limits.maxDays"
+        "message.Required,message.Invalid,message.Column,message.Marker,message.Order,message.Unsupported," & _
+        "message.Success,message.Failed,message.Rollback,limits.maxDays"
     For Each key In VBA.Split(keys, ",")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation." & VBA.CStr(key), valueText) Then Exit Function
         m_config.Add VBA.CStr(key), valueText
@@ -82,22 +80,23 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
+    If Not m_wordSession Is Nothing Then m_wordSession.Quit 0
+    Set m_wordSession = Nothing
     If Not m_orderResolver Is Nothing Then m_orderResolver.Dispose
     Set m_orderResolver = Nothing
     Set m_bindingContext = Nothing
     Set m_lookupService = Nothing
     Set m_config = Nothing
     Set m_form = Nothing
-    Set m_fileSystem = Nothing
+    Set m_chain = Nothing
     On Error GoTo 0
 End Sub
 
-Public Function TryGenerate( _
+Public Function TrySave( _
     ByVal isUpdate As Boolean, _
     ByRef diagnostic As String, _
     Optional ByVal operationId As String = "" _
 ) As Boolean
-    Dim ticketsWorkbook As Workbook
     Dim ticketsTable As ListObject
     Dim mainRow As ListRow
     Dim donationRow As ListRow
@@ -114,22 +113,20 @@ Public Function TryGenerate( _
     Dim kindWord As String
     Dim kindEvent As String
     Dim donationOrder As String
-    Dim documentPath As String
-    Dim matchedPath As String
-    Dim temporaryPath As String
-    Dim backupPath As String
-    Dim templatePath As String
-    Dim outputFolder As String
-    Dim arrivalFormula As String
-    Dim originalData As Variant
-    Dim originalFormats As Object
-    Dim originalCount As Long
     Dim tableChanged As Boolean
-    Dim filePublished As Boolean
     Dim eventsBefore As Boolean
     Dim updatingBefore As Boolean
     Dim guarded As Boolean
-    Dim restoreRecord As Boolean
+    Dim revisions As ListObject
+    Dim transaction As Object
+    Dim recoveryToken As String
+    Dim historyRows As Object
+    Dim historyRow As Object
+    Dim identifier As String
+    Dim metadata As Object
+    Dim parentId As String
+    Dim positionCode As String
+    Dim revision As Long
     Dim key As Variant
     Dim index As Long
     Dim rollbackError As String
@@ -156,7 +153,7 @@ Public Function TryGenerate( _
     private_LogStage "ValidateForm"
     If m_form("DocumentType") <> private_DocumentCaption() Then private_Fail "Unsupported", m_form("DocumentType")
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPositionCode", "DocumentTarget", _
-            "OrderReference", "ReportNo", "DepartureDate", "VacationKind", "VacationAbroad", "VacationStatus", "TemplatePath", "OutputFolderPath")
+            "OrderReference", "ReportNo", "DepartureDate", "VacationKind", "VacationAbroad", "VacationStatus")
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
     Next key
     departureDate = private_Date(m_form("DepartureDate"))
@@ -171,10 +168,10 @@ Public Function TryGenerate( _
         private_Fail "Invalid", private_FieldCaption("VacationStatus")
     End If
     private_LogStage "ResolveTvoAndOrder"
-    private_ResolveTvo
+    private_ReadChain
     private_ResolveOrder m_form("OrderReference"), orderNo, orderDate, False
-    mainReturn = VBA.DateAdd("d", vacationDays + roadDays, departureDate)
-    finalReturn = VBA.DateAdd("d", donationDays, mainReturn)
+    mainReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays)
+    finalReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays, donationDays)
     If donationDays > 0 Then
         private_ResolveOrder VBA.Format$(mainReturn, "dd.mm.yyyy"), donationOrder, orderDate, True
         If VBA.Len(donationOrder) = 0 Then donationOrder = m_config("donation.orderMissing")
@@ -184,70 +181,46 @@ Public Function TryGenerate( _
 
     ' Validate the workbook, schema and existing records before changing data.
     private_LogStage "ResolveRegistry"
-    Set ticketsWorkbook = private_OpenWorkbook()
-    If ticketsWorkbook.ReadOnly Then private_Fail "Workbook", ticketsWorkbook.Name
-    Set ticketsTable = private_Table(ticketsWorkbook)
-    private_Log "TDB_REGISTRY", "Workbook=" & ex_TravelDocumentsBuilder.fn_LogValue(ticketsWorkbook.FullName) & _
-        " | Sheet=" & ticketsTable.Parent.Name & " | Table=" & ticketsTable.Name & " | Rows=" & VBA.CStr(ticketsTable.ListRows.Count)
-    For Each key In VBA.Split(m_config("registry.columns"), "|")
-        index = private_Column(ticketsTable, VBA.CStr(key))
+    ex_TDB_History.fn_Open ticketsTable, revisions
+    identifier = m_form("HistoryRowId")
+    If isUpdate And VBA.Len(identifier) = 0 Then ex_TDB_History.fn_Fail "SelectRequired"
+    If Not isUpdate And VBA.Len(identifier) > 0 Then ex_TDB_History.fn_Fail "NewRequired"
+    Set transaction = ex_TDB_History.fn_Begin(ticketsTable, revisions, identifier, m_form("HistoryStamp"))
+    Set historyRows = ex_TDB_History.fn_Read(ticketsTable)
+    For Each key In historyRows.Keys
+        Set historyRow = historyRows(key)
+        If historyRow("RowType") = "Event" And historyRow("RowId") <> identifier Then
+            If VBA.CStr(historyRow(private_Header(2))) = m_form("PersonId") And _
+                    VBA.CStr(historyRow(private_Header(6))) = orderNo And ex_TDB_History.fn_Date(historyRow("OrderDate")) = orderDate And _
+                    VBA.CStr(historyRow(private_Header(4))) = m_form("VacationKind") And ex_TDB_History.fn_Date(historyRow(private_Header(8))) = departureDate Then
+                ex_TDB_History.fn_Fail "Duplicate"
+            End If
+        End If
     Next key
-    private_FindMain ticketsTable, orderNo, mainRow
-    If isUpdate And mainRow Is Nothing Then private_Fail "NotFound", m_form("PersonId") & " / " & orderNo
-    If mainRow Is Nothing Then
-        ticketNo = private_NextNumber(ticketsTable, orderNo, orderDate)
+    If isUpdate Then
+        Set mainRow = ex_TDB_History.fn_Find(ticketsTable, identifier)
+        ticketNo = private_Cell(mainRow, ticketsTable, 12)
+        revision = VBA.CLng(mainRow.Range.Cells(1, ticketsTable.ListColumns("Revision").Index).Value2)
     Else
-        ticketNo = private_Cell(mainRow, ticketsTable, 15)
-        If VBA.Len(ticketNo) = 0 Then private_Fail "Invalid", private_Header(15)
+        identifier = ex_TDB_History.fn_NewId()
+        ticketNo = private_NextNumber(ticketsTable, orderNo, orderDate)
+        revision = 1
     End If
-    private_FindDonation ticketsTable, ticketNo, donationRow
+    If VBA.Len(ticketNo) = 0 Then private_Fail "Invalid", private_Header(12)
+    For Each key In historyRows.Keys
+        Set historyRow = historyRows(key)
+        If historyRow("ParentRowId") = identifier And historyRow("RowType") = "Donation" Then
+            Set donationRow = ex_TDB_History.fn_Find(ticketsTable, VBA.CStr(historyRow("RowId")))
+        End If
+    Next key
     private_Log "TDB_RESOLVED", "Ticket=" & ticketNo & " | Order=" & orderNo & _
         " | OrderDate=" & VBA.Format$(orderDate, "yyyy-mm-dd") & " | MainReturn=" & VBA.Format$(mainReturn, "yyyy-mm-dd") & _
         " | FinalReturn=" & VBA.Format$(finalReturn, "yyyy-mm-dd") & " | DonationOrder=" & ex_TravelDocumentsBuilder.fn_LogValue(donationOrder)
     If Not mainRow Is Nothing Then private_LogRow ticketsTable, mainRow, "BeforeMain"
     If Not donationRow Is Nothing Then private_LogRow ticketsTable, donationRow, "BeforeDonation"
-    private_LogStage "ResolveDocumentPaths"
-    templatePath = private_Path(m_form("TemplatePath"))
-    outputFolder = private_Path(m_form("OutputFolderPath"))
-    If Not m_fileSystem.FileExists(templatePath) Then private_Fail "Path", templatePath
-    If Not m_fileSystem.FolderExists(outputFolder) Then private_Fail "Path", outputFolder
-    matchedPath = private_FindDocument(outputFolder, ticketNo)
-    If isUpdate And VBA.Len(matchedPath) = 0 Then private_Fail "NotFound", ticketNo
-    If Not isUpdate And Not mainRow Is Nothing Then
-        If VBA.Len(matchedPath) > 0 Then private_Fail "Exists", matchedPath
-        If Not private_Confirm("Restore", ticketNo) Then Exit Function
-        restoreRecord = True
-    End If
-    documentPath = private_DocumentPath(outputFolder, ticketNo)
-    If VBA.StrComp(templatePath, documentPath, VBA.vbTextCompare) = 0 Then private_Fail "Path", templatePath
-    If VBA.StrComp(templatePath, matchedPath, VBA.vbTextCompare) = 0 Then private_Fail "Path", templatePath
-    If m_fileSystem.FileExists(documentPath) And VBA.StrComp(documentPath, matchedPath, VBA.vbTextCompare) <> 0 Then
-        private_Fail "Exists", documentPath
-    End If
-    If Not isUpdate And Not restoreRecord And VBA.Len(matchedPath) > 0 Then
-        If Not private_Confirm("Replace", matchedPath) Then Exit Function
-    End If
-    arrivalFormula = private_ArrivalFormula(ticketsTable)
-    temporaryPath = m_fileSystem.BuildPath(outputFolder, m_fileSystem.GetTempName & ".docx")
-    private_Log "TDB_DOCUMENT_PATHS", "Template=" & ex_TravelDocumentsBuilder.fn_LogValue(templatePath) & _
-        " | Output=" & ex_TravelDocumentsBuilder.fn_LogValue(documentPath) & " | Existing=" & ex_TravelDocumentsBuilder.fn_LogValue(matchedPath) & _
-        " | Temporary=" & ex_TravelDocumentsBuilder.fn_LogValue(temporaryPath)
-    private_LogStage "GenerateWord"
-    private_GenerateWord templatePath, temporaryPath, ticketNo, orderDate, departureDate, finalReturn, _
-        vacationDays, roadDays, donationDays, kindWord
 
-    ' Snapshot the table so updated and deleted rows can also be restored.
-    private_LogStage "SnapshotRegistry"
-    originalCount = ticketsTable.ListRows.Count
-    Set originalFormats = VBA.CreateObject("Scripting.Dictionary")
-    If originalCount > 0 Then
-        originalData = ticketsTable.DataBodyRange.Formula
-        For Each row In ticketsTable.ListRows
-            For index = 1 To ticketsTable.ListColumns.Count
-                originalFormats.Add VBA.CStr(row.Index) & "/" & VBA.CStr(index), row.Range.Cells(1, index).NumberFormat
-            Next index
-        Next row
-    End If
+    ' Recheck both tables before the history-only transaction.
+    ex_TDB_History.fn_AssertCurrent ticketsTable, revisions, transaction
     eventsBefore = Application.EnableEvents
     updatingBefore = Application.ScreenUpdating
     guarded = True
@@ -256,42 +229,85 @@ Public Function TryGenerate( _
     tableChanged = True
     private_LogStage "WriteRegistry"
     If mainRow Is Nothing Then Set mainRow = private_AddRow(ticketsTable, donationRow)
-    private_WriteRow ticketsTable, mainRow, kindEvent, m_form("DocumentTarget"), orderNo, orderDate, _
-        departureDate, vacationDays, roadDays, ticketNo, arrivalFormula
-    private_LogRow ticketsTable, mainRow, "AfterMain"
+    private_WriteRow ticketsTable, mainRow, m_form("VacationKind"), m_form("DocumentTarget"), orderNo, orderDate, _
+        departureDate, vacationDays, roadDays, ticketNo, finalReturn
+    Set metadata = VBA.CreateObject("Scripting.Dictionary")
+    metadata.Add "RowId", identifier
+    metadata.Add "ParentRowId", VBA.vbNullString
+    metadata.Add "RowType", "Event"
+    metadata.Add "Revision", revision
+    metadata.Add "PositionCode", m_form("PersonPositionCode")
+    metadata.Add "UnitName", m_form("PersonUnit")
+    metadata.Add "VacationKind", m_form("VacationKind")
+    metadata.Add "VacationAbroad", m_form("VacationAbroad")
+    metadata.Add "OrderDate", orderDate
+    metadata.Add "ReportNumber", m_form("ReportNo")
+    metadata.Add "Basis", m_form("Purpose")
+    private_LogStage "WriteEventMetadata"
+    ex_TDB_History.fn_Write ticketsTable, mainRow, metadata
     If donationDays > 0 Then
         If donationRow Is Nothing Then Set donationRow = private_AddRow(ticketsTable, mainRow)
-        private_WriteRow ticketsTable, donationRow, m_config("donation.event"), VBA.vbNullString, donationOrder, _
-            finalReturn, mainReturn, donationDays, 0, ticketNo, arrivalFormula
-        private_LogRow ticketsTable, donationRow, "AfterDonation"
-    End If
-
-    ' Publish the prepared DOCX while keeping a backup of the previous file.
-    private_LogStage "PublishDocument"
-    If VBA.Len(matchedPath) > 0 Then
-        backupPath = m_fileSystem.BuildPath(outputFolder, m_fileSystem.GetTempName & ".bak")
-        m_fileSystem.MoveFile matchedPath, backupPath
-    End If
-    m_fileSystem.MoveFile temporaryPath, documentPath
-    filePublished = True
-    If donationDays = 0 And Not donationRow Is Nothing Then
-        private_LogRow ticketsTable, donationRow, "DeleteDonation"
+        private_WriteRow ticketsTable, donationRow, m_form("VacationKind"), VBA.vbNullString, donationOrder, _
+            finalReturn, mainReturn, donationDays, 0, ticketNo, finalReturn
+        metadata("RowType") = "Donation"
+        metadata("ParentRowId") = identifier
+        metadata("RowId") = VBA.CStr(donationRow.Range.Cells(1, ticketsTable.ListColumns("RowId").Index).Value2)
+        If VBA.Len(metadata("RowId")) = 0 Then metadata("RowId") = ex_TDB_History.fn_NewId()
+        ex_TDB_History.fn_Write ticketsTable, donationRow, metadata
+    ElseIf Not donationRow Is Nothing Then
         donationRow.Delete
     End If
-    If VBA.Len(backupPath) > 0 Then m_fileSystem.DeleteFile backupPath
+
+    ' Replace only this event's TVO children, retaining stable IDs from the loaded chain.
+    For index = ticketsTable.ListRows.Count To 1 Step -1
+        Set row = ticketsTable.ListRows(index)
+        key = VBA.CStr(row.Range.Cells(1, ticketsTable.ListColumns("RowId").Index).Value2)
+        If historyRows.Exists(key) Then
+            Set historyRow = historyRows(key)
+            If historyRow("RowType") = "TVO" Then
+                Set metadata = historyRow
+                Do While metadata("RowType") <> "Event"
+                    Set metadata = historyRows(metadata("ParentRowId"))
+                Loop
+                If metadata("RowId") = identifier Then row.Delete
+            End If
+        End If
+    Next index
+    parentId = identifier
+    positionCode = m_form("PersonPositionCode")
+    For index = 1 To m_chain.Count
+        Set metadata = m_chain(index)
+        If VBA.Len(metadata("RowId")) = 0 Then metadata("RowId") = ex_TDB_History.fn_NewId()
+        metadata("ParentRowId") = parentId
+        metadata("RowType") = "TVO"
+        metadata("DutyPositionCode") = positionCode
+        metadata("Revision") = revision
+        metadata("Status") = "Active"
+        If m_form("VacationStatus") = m_config("status.cancelled") Then metadata("Status") = "Cancelled"
+        Set row = ticketsTable.ListRows.Add
+        ex_TDB_History.fn_Write ticketsTable, row, metadata
+        parentId = metadata("RowId")
+        positionCode = metadata("PositionCode")
+    Next index
+    private_LogStage "CommitHistoryRevision"
+    ex_TDB_History.fn_Commit ticketsTable, revisions, identifier, transaction, m_form("ChangeReason")
+    If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
+        private_LogStage "WriteHistoryRecovery"
+        recoveryToken = ex_TDB_HistoryRecovery.fn_Prepare(ticketsTable, revisions, identifier, transaction)
+        ex_TDB_HistoryRecovery.fn_Mark ticketsTable.Parent.Parent, recoveryToken, "COMMIT"
+    End If
+
     tableChanged = False
-    filePublished = False
-    backupPath = VBA.vbNullString
     Application.EnableEvents = eventsBefore
     Application.ScreenUpdating = updatingBefore
     guarded = False
+    m_bindingContext.SetValue "Form", "HistoryRowId", identifier
     m_bindingContext.SetValue "Form", "ReturnDate", VBA.Format$(finalReturn, "dd.mm.yyyy")
     m_bindingContext.SetValue "Form", "TicketNo", ticketNo
-    m_bindingContext.SetValue "Form", "DocumentPath", documentPath
     m_bindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
-    m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", documentPath)
-    private_Log "TDB_GENERATED", "Ticket=" & ticketNo & " | Path=" & ex_TravelDocumentsBuilder.fn_LogValue(documentPath)
-    TryGenerate = True
+    m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", ticketNo)
+    private_Log "TDB_HISTORY_SAVED", "Ticket=" & ticketNo & " | RowId=" & identifier
+    TrySave = True
     Exit Function
 EH:
     failureNumber = VBA.Err.Number
@@ -299,28 +315,13 @@ EH:
     failureDescription = VBA.Err.Description
     private_Log "TDB_GENERATION_ERROR", "Stage=" & m_stage & " | Number=" & VBA.CStr(failureNumber) & _
         " | Source=" & ex_TravelDocumentsBuilder.fn_LogValue(failureSource) & " | Description=" & ex_TravelDocumentsBuilder.fn_LogValue(failureDescription) & _
-        " | TableChanged=" & VBA.CStr(tableChanged) & " | FilePublished=" & VBA.CStr(filePublished)
+        " | TableChanged=" & VBA.CStr(tableChanged)
     diagnostic = private_Message("Failed", failureDescription)
     ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_FAILED | " & diagnostic
     On Error Resume Next
-    If filePublished Then
-        VBA.Err.Clear
-        m_fileSystem.DeleteFile documentPath
-        If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
-    End If
-    If VBA.Len(backupPath) > 0 Then
-        VBA.Err.Clear
-        If m_fileSystem.FileExists(backupPath) Then m_fileSystem.MoveFile backupPath, matchedPath
-        If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
-    End If
     If tableChanged Then
         VBA.Err.Clear
-        private_RestoreTable ticketsTable, originalCount, originalData, originalFormats
-        If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
-    End If
-    If VBA.Len(temporaryPath) > 0 Then
-        VBA.Err.Clear
-        If m_fileSystem.FileExists(temporaryPath) Then m_fileSystem.DeleteFile temporaryPath
+        ex_TDB_History.fn_Rollback ticketsTable, revisions, transaction
         If VBA.Err.Number <> 0 Then rollbackError = rollbackError & VBA.Err.Description & VBA.vbCrLf
     End If
     If guarded Then
@@ -330,6 +331,54 @@ EH:
     If VBA.Len(rollbackError) > 0 Then diagnostic = diagnostic & VBA.vbCrLf & private_Message("Rollback", rollbackError)
     On Error GoTo 0
     private_Log "TDB_ROLLBACK_FINISHED", "Errors=" & ex_TravelDocumentsBuilder.fn_LogValue(rollbackError)
+End Function
+
+Public Function TryRender( _
+    ByVal root As Object, _
+    ByVal group As Collection, _
+    ByVal templatePath As String, _
+    ByVal outputPath As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim row As Object
+    Dim vacationDays As Long
+    Dim roadDays As Long
+    Dim donationDays As Long
+    Dim departure As Date
+    Dim finalReturn As Date
+    Dim kindWord As String
+    Dim kindEvent As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo Failed
+    m_operationId = "WORD/" & root("RowId") & "/R" & root("Revision")
+    Set m_form = VBA.CreateObject("Scripting.Dictionary")
+    For Each mapping In VBA.Split(ex_TDB_History.fn_Config("formFields"), "|")
+        pair = VBA.Split(mapping, "=")
+        m_form(pair(0)) = VBA.CStr(root(pair(1)))
+    Next mapping
+    m_form("DonationDays") = "0"
+    For Each row In group
+        If row("RowType") = "Donation" Then m_form("DonationDays") = VBA.CStr(row(ex_TDB_History.fn_Config("durationField")))
+    Next row
+    vacationDays = private_Days("VacationDays", False)
+    roadDays = private_Days("RoadDays", True)
+    donationDays = private_Days("DonationDays", True)
+    departure = ex_TDB_History.fn_Date(root(ex_TDB_History.fn_Config("departureField")))
+    finalReturn = ex_TDB_History.fn_Date(root("PlannedReturnDate"))
+    If finalReturn <> ex_TDB_History.fn_ReturnDate(departure, vacationDays, roadDays, donationDays) Then ex_TDB_History.fn_Fail "InvalidRows"
+    private_MapKind kindWord, kindEvent
+    If m_form("VacationAbroad") <> m_config("abroad.yes") And m_form("VacationAbroad") <> m_config("abroad.no") Then
+        private_Fail "Invalid", private_FieldCaption("VacationAbroad")
+    End If
+    private_GenerateWord templatePath, outputPath, VBA.CStr(root(ex_TDB_History.fn_Config("ticketField"))), _
+        ex_TDB_History.fn_Date(root("OrderDate")), departure, finalReturn, vacationDays, roadDays, donationDays, kindWord
+    TryRender = True
+    Exit Function
+Failed:
+    diagnostic = VBA.Err.Description
 End Function
 
 ' //
@@ -372,14 +421,16 @@ Private Sub private_ReadForm()
     Dim isObject As Boolean
 
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
-    For Each key In VBA.Array("DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPositionCode", _
+    For Each key In VBA.Array("HistoryRowId", "HistoryStamp", "ChangeReason", "PersonUnit", "DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPosition", "PersonPositionCode", _
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
             "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
         End If
         If isObject Or VBA.IsError(value) Or VBA.IsNull(value) Then private_Fail "Invalid", private_FieldCaption(VBA.CStr(key))
-        If VBA.CStr(key) = "Purpose" Then
+        If VBA.CStr(key) = "HistoryStamp" Then
+            m_form.Add VBA.CStr(key), VBA.CStr(value)
+        ElseIf VBA.CStr(key) = "Purpose" Then
             m_form.Add VBA.CStr(key), VBA.Trim$(VBA.CStr(value))
         Else
             m_form.Add VBA.CStr(key), ex_TableQuery.fn_NormalizeText(VBA.CStr(value))
@@ -425,30 +476,8 @@ Private Sub private_Fail( _
     VBA.Err.Raise VBA.vbObjectError + 2401, "obj_TDB_VacationGenerator", private_Message(key, value)
 End Sub
 
-Private Function private_Confirm( _
-    ByVal key As String, _
-    ByVal value As String _
-) As Boolean
-    private_Confirm = ex_WindowsUi.fn_ShowMessage( _
-        private_Message(key, value), _
-        VBA.vbYesNo + VBA.vbQuestion, _
-        m_config("message.Title") _
-    ) = VBA.vbYes
-    private_Log "TDB_CONFIRMATION", "Kind=" & key & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(value) & _
-        " | Accepted=" & VBA.CStr(private_Confirm)
-    If Not private_Confirm Then private_Log "TDB_CANCELLED", "Reason=" & key
-End Function
-
 Private Function private_Date(ByVal text As String) As Date
-    Dim parts As Variant
-    Dim parsed As Date
-
-    parts = VBA.Split(text, ".")
-    If UBound(parts) <> 2 Then private_Fail "Invalid", text
-    If Not text Like "##.##.####" Then private_Fail "Invalid", text
-    parsed = VBA.DateSerial(VBA.CInt(parts(2)), VBA.CInt(parts(1)), VBA.CInt(parts(0)))
-    If VBA.Format$(parsed, "dd.mm.yyyy") <> text Then private_Fail "Invalid", text
-    private_Date = parsed
+    private_Date = ex_TDB_History.fn_Date(text)
 End Function
 
 Private Function private_Days( _
@@ -481,34 +510,55 @@ Private Sub private_MapKind( _
     private_Fail "Invalid", private_FieldCaption("VacationKind")
 End Sub
 
-Private Sub private_ResolveTvo()
-    Dim result As obj_LookupResult
-    Dim record As obj_LookupRecord
-    Dim diagnostic As String
-    Dim name As Variant
-    Dim ipn As Variant
-    Dim position As Variant
-    Dim count As Long
-    Dim key As Variant
+Private Sub private_ReadChain()
+    Dim source As Object
+    Dim value As Variant
+    Dim isObject As Boolean
+    Dim row As Object
+    Dim resolved As Object
+    Dim people As Object
+    Dim positions As Object
+    Dim preserved As Object
+    Dim field As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
 
-    If VBA.Len(m_form("TvoName")) = 0 And VBA.Len(m_form("TvoIpn")) = 0 And VBA.Len(m_form("TvoPosition")) = 0 Then Exit Sub
-    For Each key In VBA.Array("TvoName", "TvoIpn", "TvoPosition")
-        If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
-    Next key
-    If Not m_lookupService.TrySearch(m_form("TvoIpn"), result, diagnostic) Then private_Fail "Tvo", diagnostic
-    For Each record In result.Records
-        If Not record.TryGetValue("Personnel.FullName", name) Then private_Fail "Tvo", m_form("TvoIpn")
-        If Not record.TryGetValue("Personnel.TaxId", ipn) Then private_Fail "Tvo", m_form("TvoIpn")
-        If VBA.CStr(ipn) = m_form("TvoIpn") Then
-            count = count + 1
-            If Not record.TryGetValue("Personnel.PositionCode", position) Then private_Fail "Tvo", m_form("TvoIpn")
-            If VBA.StrComp(ex_TableQuery.fn_NormalizeText(VBA.CStr(name)), m_form("TvoName"), VBA.vbTextCompare) <> 0 Or _
-                    VBA.StrComp(VBA.CStr(position), m_form("TvoPosition"), VBA.vbTextCompare) <> 0 Then
-                private_Fail "Tvo", m_form("TvoIpn")
-            End If
+    Set m_chain = New Collection
+    If Not m_bindingContext.TryGetValue("Data", "TvoChain", value, source, isObject) Then ex_TDB_History.fn_Fail "InvalidChain"
+    If Not isObject Then ex_TDB_History.fn_Fail "InvalidChain"
+    Set people = VBA.CreateObject("Scripting.Dictionary")
+    Set positions = VBA.CreateObject("Scripting.Dictionary")
+    people.CompareMode = VBA.vbTextCompare
+    positions.CompareMode = VBA.vbTextCompare
+    people.Add m_form("PersonId"), True
+    positions.Add m_form("PersonPositionCode"), True
+    For Each row In source
+        Set resolved = ex_TDB_History.fn_Actor(m_lookupService, VBA.CStr(row(ex_TDB_History.fn_Config("personIdField"))), _
+            VBA.CStr(row(ex_TDB_History.fn_Config("personNameField"))), VBA.CStr(row("PositionCode")))
+        Set preserved = ex_TDB_History.fn_NewRow()
+        For Each field In row.Keys
+            preserved(field) = row(field)
+        Next field
+        For Each mapping In VBA.Split(ex_TDB_History.fn_Config("actorFields"), "|")
+            pair = VBA.Split(mapping, "=")
+            preserved(pair(1)) = resolved(pair(1))
+        Next mapping
+        Set resolved = preserved
+        If people.Exists(resolved(ex_TDB_History.fn_Config("personIdField"))) Or positions.Exists(resolved("PositionCode")) Then
+            ex_TDB_History.fn_Fail "InvalidChain"
         End If
-    Next record
-    If count <> 1 Or result.HasMore Then private_Fail "Tvo", m_form("TvoIpn")
+        people.Add resolved(ex_TDB_History.fn_Config("personIdField")), True
+        positions.Add resolved("PositionCode"), True
+        m_chain.Add resolved
+    Next row
+    If VBA.Len(m_form("TvoName") & m_form("TvoIpn") & m_form("TvoPosition")) > 0 Then
+        If m_chain.Count > 0 Then ex_TDB_History.fn_Fail "PendingTvo"
+        Set resolved = ex_TDB_History.fn_Actor(m_lookupService, m_form("TvoIpn"), m_form("TvoName"), m_form("TvoPosition"))
+        If people.Exists(resolved(ex_TDB_History.fn_Config("personIdField"))) Or positions.Exists(resolved("PositionCode")) Then
+            ex_TDB_History.fn_Fail "InvalidChain"
+        End If
+        m_chain.Add resolved
+    End If
 End Sub
 
 Private Sub private_ResolveOrder( _
@@ -537,41 +587,11 @@ Private Sub private_ResolveOrder( _
     orderDate = VBA.CDate(value)
 End Sub
 
-Private Function private_OpenWorkbook() As Workbook
-    Dim book As Workbook
-
-    For Each book In Application.Workbooks
-        If VBA.StrComp(book.Name, m_config("registry.workbook"), VBA.vbTextCompare) = 0 Then
-            Set private_OpenWorkbook = book
-            Exit Function
-        End If
-    Next book
-    private_Fail "Workbook", m_config("registry.workbook")
-End Function
-
-Private Function private_Table(ByVal book As Workbook) As ListObject
-    Dim sheet As Worksheet
-    Dim table As ListObject
-
-    For Each sheet In book.Worksheets
-        If sheet.Name = m_config("registry.sheet") Then
-            If sheet.ProtectContents Then private_Fail "Table", sheet.Name
-            For Each table In sheet.ListObjects
-                If table.Name = m_config("registry.table") Then
-                    Set private_Table = table
-                    Exit Function
-                End If
-            Next table
-        End If
-    Next sheet
-    private_Fail "Table", m_config("registry.sheet") & "/" & m_config("registry.table")
-End Function
-
 Private Function private_Header(ByVal index As Long) As String
     Dim headers As Variant
 
-    headers = VBA.Split(m_config("registry.columns"), "|")
-    If UBound(headers) <> 20 Then private_Fail "Invalid", "generation.registry.columns"
+    headers = VBA.Split(m_config("registry.fieldOrder"), "|")
+    If UBound(headers) <> 18 Then private_Fail "Invalid", "generation.registry.fieldOrder"
     private_Header = headers(index)
 End Function
 
@@ -598,43 +618,6 @@ Private Function private_Cell( _
     private_Cell = ex_TableQuery.fn_NormalizeText(VBA.CStr(row.Range.Cells(1, private_Column(table, private_Header(index))).Value2))
 End Function
 
-Private Sub private_FindMain( _
-    ByVal table As ListObject, _
-    ByVal orderNo As String, _
-    ByRef matched As ListRow _
-)
-    Dim row As ListRow
-
-    For Each row In table.ListRows
-        If private_Cell(row, table, 2) = m_form("PersonId") And private_Cell(row, table, 6) = orderNo And _
-                private_Cell(row, table, 4) <> m_config("donation.event") Then
-            If Not matched Is Nothing Then private_Fail "Duplicate", m_form("PersonId") & "/" & orderNo
-            Set matched = row
-        End If
-    Next row
-End Sub
-
-Private Sub private_FindDonation( _
-    ByVal table As ListObject, _
-    ByVal ticketNo As String, _
-    ByRef matched As ListRow _
-)
-    Dim row As ListRow
-    Dim orderReference As String
-
-    For Each row In table.ListRows
-        If private_Cell(row, table, 2) = m_form("PersonId") And private_Cell(row, table, 15) = ticketNo And _
-                private_Cell(row, table, 4) = m_config("donation.event") Then
-            orderReference = private_Cell(row, table, 6)
-            If VBA.Len(orderReference) = 0 Or _
-                    VBA.Left$(orderReference, VBA.Len(m_config("donation.orderPrefix")) + 1) = m_config("donation.orderPrefix") & " " Then
-                If Not matched Is Nothing Then private_Fail "Duplicate", ticketNo
-                Set matched = row
-            End If
-        End If
-    Next row
-End Sub
-
 Private Function private_NextNumber( _
     ByVal table As ListObject, _
     ByVal orderNo As String, _
@@ -648,13 +631,14 @@ Private Function private_NextNumber( _
 
     prefix = VBA.CStr(VBA.Year(orderDate)) & "/" & orderNo & "/"
     For Each row In table.ListRows
-        If private_Cell(row, table, 6) = orderNo Then
-            number = private_Cell(row, table, 15)
-            If VBA.Left$(number, VBA.Len(prefix)) <> prefix Then private_Fail "Invalid", number
-            sequence = VBA.Mid$(number, VBA.Len(prefix) + 1)
-            If VBA.Len(sequence) = 0 Or sequence Like "*[!0-9]*" Then private_Fail "Invalid", number
-            If VBA.CDbl(sequence) >= 2147483647# Then private_Fail "Invalid", number
-            If VBA.CLng(sequence) > maximum Then maximum = VBA.CLng(sequence)
+        If VBA.CStr(row.Range.Cells(1, table.ListColumns("RowType").Index).Value2) = "Event" Then
+            If VBA.Left$(private_Cell(row, table, 12), VBA.Len(prefix)) = prefix Then
+                number = private_Cell(row, table, 12)
+                sequence = VBA.Mid$(number, VBA.Len(prefix) + 1)
+                If VBA.Len(sequence) = 0 Or sequence Like "*[!0-9]*" Then private_Fail "Invalid", number
+                If VBA.CDbl(sequence) >= 2147483647# Then private_Fail "Invalid", number
+                If VBA.CLng(sequence) > maximum Then maximum = VBA.CLng(sequence)
+            End If
         End If
     Next row
     private_NextNumber = prefix & VBA.CStr(maximum + 1)
@@ -683,36 +667,6 @@ Private Function private_AddRow( _
     Set private_AddRow = table.ListRows.Add
 End Function
 
-Private Function private_ArrivalFormula(ByVal table As ListObject) As String
-    Dim row As ListRow
-    Dim cell As Range
-
-    For Each row In table.ListRows
-        Set cell = row.Range.Cells(1, private_Column(table, private_Header(11)))
-        If cell.HasFormula Then
-            private_ArrivalFormula = cell.Formula
-            Exit Function
-        End If
-    Next row
-    private_ArrivalFormula = m_config("registry.arrivalFormula")
-    If VBA.Len(private_ArrivalFormula) = 0 Then private_Fail "Required", private_Header(11)
-End Function
-
-Private Function private_Position(ByVal code As String) As String
-    Dim normalized As String
-
-    normalized = VBA.UCase$(VBA.Replace$(code, " ", VBA.vbNullString))
-    normalized = VBA.Replace$(normalized, VBA.ChrW$(1040), "A")
-    normalized = VBA.Replace$(normalized, VBA.ChrW$(1042), "B")
-    If VBA.Left$(normalized, VBA.Len(m_config("position.reservedPrefix"))) = m_config("position.reservedPrefix") Then
-        private_Position = m_config("position.reservedText")
-    ElseIf VBA.Left$(normalized, VBA.Len(m_config("position.removedPrefix"))) = m_config("position.removedPrefix") Then
-        private_Position = m_config("position.removedText")
-    Else
-        private_Position = code
-    End If
-End Function
-
 Private Sub private_WriteRow( _
     ByVal table As ListObject, _
     ByVal row As ListRow, _
@@ -724,119 +678,30 @@ Private Sub private_WriteRow( _
     ByVal duration As Long, _
     ByVal road As Long, _
     ByVal ticketNo As String, _
-    ByVal arrivalFormula As String _
+    ByVal plannedReturn As Date _
 )
     Dim values As Variant
     Dim indexes As Variant
     Dim index As Long
-    Dim cell As Range
     Dim status As String
-    Dim basis As String
+    Dim fields As Object
 
-    basis = m_form("ReportNo")
-    If VBA.Len(m_form("Purpose")) > 0 Then basis = basis & VBA.vbLf & VBA.vbLf & m_form("Purpose")
-    If m_form("VacationStatus") = m_config("status.cancelled") Then status = m_config("status.mark")
-    indexes = VBA.Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20)
+    status = "Active"
+    If m_form("VacationStatus") = m_config("status.cancelled") Then status = "Cancelled"
+    indexes = VBA.Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 17, 11)
     values = VBA.Array(m_form("PersonRank"), m_form("PersonName"), m_form("PersonId"), _
-        private_Position(m_form("PersonPositionCode")), eventText, destination, orderNo, foodDate, departure, _
-        duration, road, ticketNo, m_form("TvoName"), m_form("TvoIpn"), private_Position(m_form("TvoPosition")), status, basis)
+        m_form("PersonPosition"), eventText, destination, orderNo, foodDate, departure, _
+        duration, road, ticketNo, status, m_form("Purpose"), plannedReturn)
+    Set fields = VBA.CreateObject("Scripting.Dictionary")
     For index = 0 To UBound(indexes)
-        Set cell = row.Range.Cells(1, private_Column(table, private_Header(VBA.CLng(indexes(index)))))
+        fields.Add private_Header(VBA.CLng(indexes(index))), values(index)
         private_Log "TDB_REGISTRY_WRITE", "Row=" & VBA.CStr(row.Index) & _
             " | Column=" & ex_TravelDocumentsBuilder.fn_LogValue(private_Header(VBA.CLng(indexes(index)))) & _
             " | IntendedValue=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
-        If VBA.VarType(values(index)) = VBA.vbString Then
-            cell.NumberFormat = "@"
-        ElseIf VBA.VarType(values(index)) = VBA.vbDate Then
-            cell.NumberFormat = "dd.mm.yyyy"
-        End If
-        If indexes(index) = 9 Or indexes(index) = 10 Then
-            cell.NumberFormat = "0"
-            If values(index) = 0 Then
-                cell.Value2 = VBA.vbNullString
-            Else
-                cell.Value2 = values(index)
-            End If
-        Else
-            cell.Value = values(index)
-        End If
-        If indexes(index) = 20 Then cell.WrapText = True
     Next index
-    row.Range.Cells(1, private_Column(table, private_Header(11))).Formula = arrivalFormula
-    private_Log "TDB_REGISTRY_FORMULA", "Row=" & VBA.CStr(row.Index) & " | Formula=" & ex_TravelDocumentsBuilder.fn_LogValue(arrivalFormula)
+    ex_TDB_History.fn_Write table, row, fields
+    row.Range.Cells(1, private_Column(table, private_Header(17))).WrapText = True
 End Sub
-
-Private Sub private_RestoreTable( _
-    ByVal table As ListObject, _
-    ByVal count As Long, _
-    ByVal data As Variant, _
-    ByVal formats As Object _
-)
-    Dim row As ListRow
-    Dim index As Long
-
-    Do While table.ListRows.Count > count
-        table.ListRows(table.ListRows.Count).Delete
-    Loop
-    Do While table.ListRows.Count < count
-        table.ListRows.Add
-    Loop
-    If count = 0 Then Exit Sub
-    For Each row In table.ListRows
-        For index = 1 To table.ListColumns.Count
-            row.Range.Cells(1, index).NumberFormat = formats(VBA.CStr(row.Index) & "/" & VBA.CStr(index))
-        Next index
-    Next row
-    table.DataBodyRange.Formula = data
-End Sub
-
-Private Function private_Path(ByVal path As String) As String
-    If VBA.Left$(path, 1) = "\" And VBA.Left$(path, 2) <> "\\" Then
-        private_Fail "Path", path
-    End If
-    If VBA.Left$(path, 2) <> "\\" And VBA.Mid$(path, 2, 2) <> ":\" Then
-        path = m_fileSystem.BuildPath(ThisWorkbook.Path, path)
-    End If
-    private_Path = m_fileSystem.GetAbsolutePathName(path)
-End Function
-
-Private Function private_DocumentPath( _
-    ByVal folder As String, _
-    ByVal ticketNo As String _
-) As String
-    Dim name As String
-    Dim char As Variant
-    Dim key As String
-
-    key = "name.active"
-    If m_form("VacationStatus") = m_config("status.cancelled") Then key = "name.cancelled"
-    name = VBA.Replace$(m_config(key), "{TicketNo}", ticketNo)
-    name = VBA.Replace$(name, "{FIO}", m_form("PersonName"))
-    name = VBA.Replace$(name, "{IPN}", m_form("PersonId"))
-    For Each char In VBA.Array("\", "/", ":", "*", "?", """", "<", ">", "|")
-        name = VBA.Replace$(name, VBA.CStr(char), "_")
-    Next char
-    private_DocumentPath = m_fileSystem.BuildPath(folder, name & ".docx")
-End Function
-
-Private Function private_FindDocument( _
-    ByVal folder As String, _
-    ByVal ticketNo As String _
-) As String
-    Dim file As Object
-    Dim safeNumber As String
-
-    safeNumber = VBA.Replace$(ticketNo, "/", "_")
-    For Each file In m_fileSystem.GetFolder(folder).Files
-        If VBA.LCase$(m_fileSystem.GetExtensionName(file.Name)) = "docx" And VBA.Left$(file.Name, 2) <> "~$" Then
-            If VBA.InStr(1, file.Name, " " & safeNumber & " ", VBA.vbTextCompare) > 0 And _
-                    VBA.InStr(1, file.Name, "(" & m_form("PersonId") & ")", VBA.vbTextCompare) > 0 Then
-                If VBA.Len(private_FindDocument) > 0 Then private_Fail "Duplicate", ticketNo
-                private_FindDocument = file.Path
-            End If
-        End If
-    Next file
-End Function
 
 Private Function private_WordDate(ByVal dateValue As Date) As String
     Dim months As Variant
@@ -877,7 +742,8 @@ Private Sub private_GenerateWord( _
 )
     Dim word As Object
     Dim document As Object
-    Dim range As Object
+    Dim story As Object
+    Dim storyRange As Object
     Dim names As Variant
     Dim values As Variant
     Dim parts As Variant
@@ -899,52 +765,77 @@ Private Sub private_GenerateWord( _
         private_CountForm(donationDays, "donation") & " " & m_config("duration.donation.suffix")
     If roadDays > 0 Then duration = duration & " " & m_config("duration.connector") & " " & _
         private_CountForm(roadDays, "road") & " " & m_config("duration.road.suffix")
-    abroad = VBA.vbCr
+    abroad = VBA.vbNullString
     If m_form("VacationAbroad") = m_config("abroad.yes") Then abroad = m_config("abroad.word")
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
         "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer")
     values = VBA.Array(private_WordDate(orderDate), ticketNo, m_form("PersonRank") & " " & m_form("PersonName"), _
         kindWord, m_form("DocumentTarget"), duration, private_WordDate(departure), private_WordDate(finalReturn), _
-        initials, private_WordDate(VBA.DateAdd("d", 1, finalReturn)), abroad, VBA.vbCr)
+        initials, private_WordDate(VBA.DateAdd("d", 1, finalReturn)), abroad, VBA.vbNullString)
     For index = 0 To UBound(names)
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
     Next index
-    Set word = VBA.CreateObject("Word.Application")
+    If m_wordSession Is Nothing Then Set m_wordSession = VBA.CreateObject("Word.Application")
+    Set word = m_wordSession
     word.Visible = False
     word.DisplayAlerts = 0
     word.AutomationSecurity = 3
     Set document = word.Documents.Open(templatePath, False, True, False)
     For index = 0 To UBound(names)
         found = False
-        Set range = document.Content.Duplicate
-        With range.Find
-            .ClearFormatting
-            .Text = "<" & names(index) & "></" & names(index) & ">"
-            .Forward = True
-            .Wrap = 0
-            .MatchWildcards = False
-            .MatchCase = True
-            .MatchWholeWord = False
-            .Format = False
-        End With
-        Do While range.Find.Execute
-            found = True
-            range.Text = VBA.CStr(values(index))
-            range.Collapse 0
-            range.End = document.Content.End
-        Loop
-        If Not found Then private_Fail "Marker", VBA.CStr(names(index))
+        ' Search each story, including first-page headers and footers and later sections.
+        For Each story In document.StoryRanges
+            Set storyRange = story
+            Do
+                If private_ReplaceWordMarker(storyRange, "{" & names(index) & "}", VBA.CStr(values(index))) Then found = True
+                Set storyRange = storyRange.NextStoryRange
+            Loop Until storyRange Is Nothing
+        Next story
+        ' FooterSpacer is optional in templates with a positioned footer.
+        If Not found And names(index) <> "FooterSpacer" Then private_Fail "Marker", VBA.CStr(names(index))
     Next index
     document.SaveAs2 path, 12
     document.Close False
-    word.Quit
     Exit Sub
 EH:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     On Error Resume Next
     If Not document Is Nothing Then document.Close False
-    If Not word Is Nothing Then word.Quit
+    If Not word Is Nothing Then word.Quit 0
+    Set m_wordSession = Nothing
     On Error GoTo 0
     VBA.Err.Raise errorNumber, "Word", errorDescription
 End Sub
+
+Private Function private_ReplaceWordMarker( _
+    ByVal storyRange As Object, _
+    ByVal marker As String, _
+    ByVal value As String _
+) As Boolean
+    Dim searchRange As Object
+    Dim remainingRange As Object
+
+    Set remainingRange = storyRange.Duplicate
+    Do
+        Set searchRange = remainingRange.Duplicate
+        With searchRange.Find
+            .ClearFormatting
+            .Text = marker
+            .Forward = True
+            .Wrap = 0
+            .MatchWildcards = False
+            .MatchCase = True
+            .MatchWholeWord = False
+            .MatchSoundsLike = False
+            .MatchAllWordForms = False
+            .Format = False
+        End With
+        If Not searchRange.Find.Execute Then Exit Do
+        private_ReplaceWordMarker = True
+        ' Range.Text inserts literal values and finds markers split across formatting runs.
+        searchRange.Text = value
+        remainingRange.Start = searchRange.End
+        If remainingRange.Start >= remainingRange.End Then Exit Do
+    Loop
+End Function
