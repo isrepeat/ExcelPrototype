@@ -27,6 +27,7 @@
 
 ## Инструменты и другие режимы
 
+- [TravelDocumentsBuilder Word table DSL](TravelDocumentsBuilder-TableDSL.md) — table structure, dynamic rows, Word markers and generation settings.
 - [Обновление VBA-книги](../WorkbookUpdater/README.md) — установка, протокол обновления и восстановление.
 - [Генерация периодов](../vba/PeriodsGeneration/README.md) — структура, работа и подключение режима.
 

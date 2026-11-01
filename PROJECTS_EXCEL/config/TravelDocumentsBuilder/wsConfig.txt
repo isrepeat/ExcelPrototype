@@ -132,6 +132,14 @@ value	TravelDocumentsBuilder::word.text.SignatorySource	Не вдалося пр
 value	TravelDocumentsBuilder::word.text.SignatoryRequired	Для наказу {details} не заповнено підписанта, ПІБ або звання в довіднику «Накази».
 value	TravelDocumentsBuilder::word.text.SignatoryAmbiguous	Для наказу {details} знайдено різних підписантів. Виправте довідник «Накази».
 value	TravelDocumentsBuilder::word.folder	TDB_{date}_{number}
+value	TravelDocumentsBuilder::word.tables.mode	table
+value	TravelDocumentsBuilder::word.tables.path	WordTableTemplates.xml
+value	TravelDocumentsBuilder::word.tables.text.Failed	Не вдалося сформувати таблицю WORD: {details}
+value	TravelDocumentsBuilder::word.tables.images.Emblem	Шаблони\TicketEmblem.png
+value	TravelDocumentsBuilder::word.tables.maxRows	512
+value	TravelDocumentsBuilder::word.tables.maxDepth	32
+value	TravelDocumentsBuilder::word.tables.template	Ticket
+value	TravelDocumentsBuilder::word.tables.maxColumns	16
 value	TravelDocumentsBuilder::word.maxPath	240
 value	TravelDocumentsBuilder::word.filename.label	{TicketNo}_{FIO}
 value	TravelDocumentsBuilder::word.filename.pattern	^TDB_.+__(T-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})[.]docx$
@@ -347,7 +355,7 @@ value	TravelDocumentsBuilder::generation.position.reservedText	РОЗП
 value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
 value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
 value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId|PositionName|VacationKind|Destination|OrderNumber|FoodDepartureDate|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|TicketNumber|PositionCode|DutyPositionCode|UnitName|Status|Basis|ReportNumber
-value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (Шаблон).docx
+value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (DSL).docx
 value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
 value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}

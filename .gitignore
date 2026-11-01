@@ -16,6 +16,7 @@ Tools/Agregator/**/*.xlsx
 Tools/Agregator/**/*.tmp
 Scripts/Testing/PEB/node_modules/
 Scripts/Testing/PEB/__pycache__/
+Scripts/Testing/TravelDocuments/__pycache__/
 
 PROJECTS_EXCEL/tests/PersonalEventBuilder/cases-preview.png
 PROJECTS_EXCEL/tests/PersonalEventBuilder/**/*.inspect.ndjson
@@ -25,6 +26,7 @@ PROJECTS_EXCEL/**/*.xlsx
 !PROJECTS_EXCEL/workbook/cfgDependencies.xlsx
 PROJECTS_EXCEL/**/*.xlsm
 PROJECTS_EXCEL/**/*.docx
+!PROJECTS_EXCEL/workbook/TravelDocumentsBuilder/Шаблони/Відпустка (DSL).docx
 !PROJECTS_EXCEL/workbook/PersonalEventBuilder/{yyyy}-{mm}-{dd} №{OrderNum} ({Signatory}) (Александр).docx
 !PROJECTS_EXCEL/workbook/PeriodsGeneration/РУХ генерація періодів.xlsm
 !PROJECTS_EXCEL/tests/PersonalEventBuilder/Dependencies/*.xlsx

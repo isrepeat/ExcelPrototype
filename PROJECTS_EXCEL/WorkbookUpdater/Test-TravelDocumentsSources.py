@@ -214,9 +214,16 @@ with zipfile.ZipFile(template) as archive:
     markers = re.findall(r'"(\w+)"', placeholders)
     assert len(markers) == 15
     assert {"SignatoryPosition", "SignatoryRank", "SignatoryName"} <= set(markers)
+    table_text = ""
+    if cfg("word.tables.mode") == "table":
+        table_catalog = ET.parse(workbook_folder / cfg("word.tables.path"))
+        table_text = "".join(table_catalog.getroot().itertext())
+        table_name = cfg("word.tables.template")
+        assert text.count("{\\exportTable:" + table_name + "_Begin}") == 1
+        assert text.count("{\\exportTable:" + table_name + "_End}") == 1
     for marker in markers:
         if marker != "FooterSpacer":
-            assert "{" + marker + "}" in text, f"Template placeholder missing: {marker}"
+            assert "{" + marker + "}" in text or "{[" + marker + "]}" in table_text, f"Template placeholder missing: {marker}"
 
 # Validate explicit dependency ranges and source headers against saved XLSX files.
 def source_headers(prefix):

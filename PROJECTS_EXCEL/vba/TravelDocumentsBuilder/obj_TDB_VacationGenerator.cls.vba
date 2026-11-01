@@ -20,6 +20,9 @@ Private m_wordSession As Object
 Private m_wordAnchors As Object
 Private m_wordTemplatePath As String
 Private m_wordSourcePath As String
+Private m_wordMode As String
+Private m_wordTableTemplate As obj_WordTableTemplate
+Private m_wordValues As Object
 
 ' //
 ' // Lifecycle
@@ -74,6 +77,8 @@ Public Function Initialize( _
             m_config.Add key, valueText
         Next part
     Next kind
+    m_wordMode = ex_TravelDocumentsBuilder.fn_Config("word.tables.mode")
+    If m_wordMode <> "markers" And m_wordMode <> "table" Then Err.Raise 5, , "Invalid word.tables.mode: " & m_wordMode
     m_isInitialized = True
     Initialize = True
 End Function
@@ -83,6 +88,9 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
+    If Not m_wordTableTemplate Is Nothing Then m_wordTableTemplate.Dispose
+    Set m_wordTableTemplate = Nothing
+    Set m_wordValues = Nothing
     Set m_wordSession = Nothing
     Set m_wordAnchors = Nothing
     m_wordTemplatePath = VBA.vbNullString
@@ -385,10 +393,21 @@ Public Function TryRender( _
     Dim finalReturn As Date
     Dim kindWord As String
     Dim kindEvent As String
+    Dim key As Variant
+    Dim tvoChain As Collection
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo Failed
     m_operationId = "WORD/" & root("RowId") & "/R" & root("Revision")
+    Set m_wordValues = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In root.Keys
+        m_wordValues.Add VBA.CStr(key), root(key)
+    Next key
+    Set tvoChain = New Collection
+    For Each row In group
+        If row("RowType") = "TVO" Then tvoChain.Add row
+    Next row
+    m_wordValues.Add "TvoChain", tvoChain
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
     For Each mapping In VBA.Split(ex_TDB_History.fn_Config("formFields"), "|")
         pair = VBA.Split(mapping, "=")
@@ -763,6 +782,38 @@ Private Function private_CountForm( _
     private_CountForm = VBA.CStr(count) & " " & m_config("duration." & category & "." & suffix)
 End Function
 
+Private Sub private_InitializeWordTable()
+    Dim fileSystem As Object
+    Dim tablePath As String
+    Dim imagePaths As Object
+    Dim imagePath As String
+    Dim valueText As String
+
+    If Not m_wordTableTemplate Is Nothing Then Exit Sub
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    tablePath = ex_TravelDocumentsBuilder.fn_Config("word.tables.path")
+    If fileSystem.GetDriveName(tablePath) = VBA.vbNullString And VBA.Left$(tablePath, 2) <> "\\" Then
+        tablePath = fileSystem.BuildPath(ThisWorkbook.Path, tablePath)
+    End If
+    Set m_wordTableTemplate = New obj_WordTableTemplate
+    Set imagePaths = VBA.CreateObject("Scripting.Dictionary")
+    imagePath = ex_TravelDocumentsBuilder.fn_Config("word.tables.images.Emblem")
+    If fileSystem.GetDriveName(imagePath) = VBA.vbNullString And VBA.Left$(imagePath, 2) <> "\\" Then
+        imagePath = fileSystem.BuildPath(ThisWorkbook.Path, imagePath)
+    End If
+    imagePaths.Add "Emblem", fileSystem.GetAbsolutePathName(imagePath)
+    If Not m_wordTableTemplate.Initialize( _
+            fileSystem.GetAbsolutePathName(tablePath), _
+            VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("word.tables.maxDepth")), _
+            VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("word.tables.maxRows")), _
+            VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("word.tables.maxColumns")), _
+            VBA.CStr(m_config("months")), _
+            valueText, _
+            imagePaths) Then
+        Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed"), "{details}", valueText)
+    End If
+End Sub
+
 Private Sub private_GenerateWord( _
     ByVal templatePath As String, _
     ByVal path As String, _
@@ -792,6 +843,8 @@ Private Sub private_GenerateWord( _
     Dim stage As String
     Dim errorNumber As Long
     Dim errorDescription As String
+    Dim tablePlan As Object
+    Dim tableDiagnostic As String
 
     On Error GoTo EH
     documentStartedAt = VBA.Timer
@@ -817,7 +870,18 @@ Private Sub private_GenerateWord( _
         signatory("SignatoryPosition"), signatory("SignatoryRank"), signatory("SignatoryName"))
     For index = 0 To UBound(names)
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
+        m_wordValues(VBA.CStr(names(index))) = values(index)
     Next index
+    If m_wordMode = "table" Then
+        private_InitializeWordTable
+        If Not m_wordTableTemplate.TryPrepare( _
+                ex_TravelDocumentsBuilder.fn_Config("word.tables.template"), _
+                m_wordValues, _
+                tablePlan, _
+                tableDiagnostic) Then
+            Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed"), "{details}", tableDiagnostic)
+        End If
+    End If
     private_WordPerf stage, stageStartedAt
     stage = "Session.Start"
     stageStartedAt = VBA.Timer
@@ -845,6 +909,14 @@ Private Sub private_GenerateWord( _
     Else
         If VBA.StrComp(templatePath, m_wordSourcePath, VBA.vbTextCompare) <> 0 Then private_Fail "Invalid", "TemplatePath"
         Set document = private_OpenWordDocument(word, m_wordTemplatePath)
+        private_WordPerf stage, stageStartedAt
+    End If
+    If m_wordMode = "table" Then
+        stage = "Document.InsertTable"
+        stageStartedAt = VBA.Timer
+        If Not m_wordTableTemplate.TryInsert(document, tablePlan, tableDiagnostic) Then
+            Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed"), "{details}", tableDiagnostic)
+        End If
         private_WordPerf stage, stageStartedAt
     End If
     stage = "Document.ReplaceMarkers"
@@ -972,6 +1044,6 @@ Private Sub private_IndexWordMarkers( _
     Next story
     For index = 0 To UBound(names)
         Set occurrences = m_wordAnchors(VBA.CStr(names(index)))
-        If occurrences.Count = 0 And names(index) <> "FooterSpacer" Then private_Fail "Marker", VBA.CStr(names(index))
+        If m_wordMode = "markers" And occurrences.Count = 0 And names(index) <> "FooterSpacer" Then private_Fail "Marker", VBA.CStr(names(index))
     Next index
 End Sub
