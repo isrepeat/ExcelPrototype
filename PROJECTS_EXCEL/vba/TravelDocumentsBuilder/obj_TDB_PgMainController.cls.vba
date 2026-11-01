@@ -1044,6 +1044,11 @@ Private Function private_UpdateFieldState() As Boolean
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
     Set updates = VBA.CreateObject("Scripting.Dictionary")
+    If Not private_TryReadFormValue("HistoryRowId", value) Then Exit Function
+    updates("Form.ChangeReasonVisibility") = "Collapsed"
+    If VBA.Len(VBA.CStr(value)) > 0 Then
+        updates("Form.ChangeReasonVisibility") = "Visible"
+    End If
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.fields"), "|")
         If Not private_TryReadFormValue(VBA.CStr(field), value) Then Exit Function
         readOnly = VBA.CBool(autoFill) And VBA.Len(VBA.CStr(value)) > 0

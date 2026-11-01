@@ -753,6 +753,7 @@ Private Sub private_ApplyProperties( _
 )
     Dim colorValue As Long
     Dim fillTransparency As Double
+    Dim rowHeight As Double
 
     If properties Is Nothing Then Exit Sub
     If properties.Exists("backcolor") Then
@@ -851,8 +852,8 @@ Private Sub private_ApplyProperties( _
         If Not targetRange Is Nothing Then
             If VBA.LCase$(properties("rowheight")) = "auto" Then
                 targetRange.EntireRow.AutoFit
-            ElseIf VBA.IsNumeric(properties("rowheight")) Then
-                targetRange.EntireRow.RowHeight = VBA.CDbl(properties("rowheight"))
+            ElseIf ex_Helpers.fn_TryParseInvariantNumber(VBA.CStr(properties("rowheight")), rowHeight) Then
+                targetRange.EntireRow.RowHeight = rowHeight
             Else
                 ex_UiStyleDiagnostics.fn_Raise "RowHeight"
             End If

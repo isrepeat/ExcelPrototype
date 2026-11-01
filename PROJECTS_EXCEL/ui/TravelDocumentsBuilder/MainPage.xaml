@@ -517,7 +517,7 @@
                         style="formField"
                         value="{Binding Path=Form.Purpose}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.ChangeReasonVisibility}">
         <controls:label name="ChangeReasonLabel"
                         row="1"
                         column="1"
@@ -985,7 +985,7 @@
     <stylePipelineStage name="default">
       <layer name="sheet-base">
         <rule target="sheet"
-              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:30;overflow:wrap;gridLines:true;zoom:90%;}"/>
+              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:28.5;overflow:wrap;gridLines:true;zoom:90%;}"/>
         <rule target="row"
               selector="address=1:1"
               styles="{rowHeight:8;}"/>

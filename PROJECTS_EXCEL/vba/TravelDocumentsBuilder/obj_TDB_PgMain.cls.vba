@@ -224,6 +224,7 @@ Private Function private_TryRegisterBindings() As Boolean
             Exit Function
         End If
     Next key
+    If Not bindingContext.SetValue("Form", "ChangeReasonVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "PlaceFieldsVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "TreatmentVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "DestinationVisibility", "Visible") Then Exit Function
