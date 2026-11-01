@@ -190,6 +190,7 @@ Public Function TrySave( _
             "OrderReference", "ReportNo", "DepartureDate", "VacationKind", "VacationAbroad", "VacationStatus")
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
     Next key
+    private_ValidateTreatment
     departureDate = private_Date(m_form("DepartureDate"))
     vacationDays = private_Days("VacationDays", False)
     roadDays = private_Days("RoadDays", True)
@@ -280,6 +281,10 @@ Public Function TrySave( _
     metadata.Add "UnitName", m_form("PersonUnit")
     metadata.Add "VacationKind", m_form("VacationKind")
     metadata.Add "VacationAbroad", m_form("VacationAbroad")
+    metadata.Add "VlkNo", m_form("VlkNo")
+    metadata.Add "VlkDate", m_form("VlkDate")
+    metadata.Add "LongTreatmentDays", m_form("LongTreatmentDays")
+    metadata.Add "TreatmentLeaveDays", m_form("TreatmentLeaveDays")
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
@@ -434,6 +439,7 @@ Public Function TryRender( _
         pair = VBA.Split(mapping, "=")
         m_form(pair(0)) = VBA.CStr(root(pair(1)))
     Next mapping
+    private_ValidateTreatment
     m_form("DonationDays") = "0"
     For Each row In group
         If row("RowType") = "Donation" Then
@@ -510,7 +516,8 @@ Private Sub private_ReadForm()
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("HistoryRowId", "HistoryStamp", "ChangeReason", "PersonUnit", "DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPosition", "PersonPositionCode", _
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
-            "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition")
+            "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", _
+            "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
         End If
@@ -568,6 +575,21 @@ End Sub
 Private Function private_Date(ByVal text As String) As Date
     private_Date = ex_TDB_History.fn_Date(text)
 End Function
+
+Private Sub private_ValidateTreatment()
+    Dim field As Variant
+    Dim days As Long
+    Dim vlkDate As Date
+
+    If VBA.StrComp(m_form("VacationKind"), m_config("kind.treatment.input"), VBA.vbTextCompare) <> 0 Then Exit Sub
+    For Each field In VBA.Array("VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays")
+        If VBA.Len(m_form(field)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(field))
+    Next field
+    If Not VBA.IsDate(m_form("VlkDate")) Then private_Fail "Invalid", private_FieldCaption("VlkDate")
+    vlkDate = private_Date(m_form("VlkDate"))
+    days = private_Days("LongTreatmentDays", False)
+    days = private_Days("TreatmentLeaveDays", False)
+End Sub
 
 Private Function private_Days( _
     ByVal field As String, _

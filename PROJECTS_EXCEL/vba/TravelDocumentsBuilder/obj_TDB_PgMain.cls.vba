@@ -197,6 +197,7 @@ Private Function private_TryRegisterBindings() As Boolean
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
             "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus", _
+            "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "HistoryRowId", "HistoryStamp", "ChangeReason", "OrderQuery", "OrderYear", "AcceptedOrderNumber", "AcceptedOrderDate")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
             Exit Function
@@ -211,6 +212,7 @@ Private Function private_TryRegisterBindings() As Boolean
             Exit Function
         End If
     Next key
+    If Not bindingContext.SetValue("Form", "TreatmentVisibility", "Collapsed") Then Exit Function
     For Each key In VBA.Array("VacationKinds", "AbroadOptions", "StatusOptions")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then
             Exit Function
@@ -227,6 +229,7 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
+            "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", _
             "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _
             "LoadHistory", "AddTvo", "RemoveTvo", "ChangeReason", "TvoChainTitle", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
@@ -293,6 +296,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand(bindingContext, "AutoFillChanged", "AutoFillChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "CloseHistory", "CloseHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "TvoNameChanged", "TvoNameChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "VacationKindChanged", "VacationKindChangedHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function
 

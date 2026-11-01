@@ -22,6 +22,10 @@
     <cellStyle name="HeaderCell"
                basedOn="Centered"
                vertical="top"/>
+    <cellStyle name="TicketDetails"
+               basedOn="Centered"
+               fontSize="12"
+               spaceAfter="3pt"/>
     <cellStyle name="Caption"
                basedOn="Centered"
                fontSize="12"/>
@@ -159,7 +163,7 @@
           </paragraph>
         </cell>
         <cell columnSpan="3"
-              style="Centered">
+              style="TicketDetails">
           <paragraph>
             <text>{[TicketDate]}</text>
           </paragraph>
@@ -172,7 +176,7 @@
           </paragraph>
         </cell>
         <cell columnSpan="3"
-              style="Centered">
+              style="TicketDetails">
           <paragraph>
             <text>№ {[TicketNum]}</text>
           </paragraph>
@@ -187,7 +191,7 @@
           </paragraph>
         </cell>
         <cell columnSpan="3"
-              style="Centered">
+              style="TicketDetails">
           <paragraph>
             <text>м. Харків, 61121</text>
           </paragraph>
@@ -321,17 +325,11 @@
         <cell columnSpan="7"
               style="Body">
           <paragraph>
-            <text/>
-          </paragraph>
-          <paragraph>
             <text>Після закінчення строку відпустки</text>
           </paragraph>
         </cell>
         <cell columnSpan="4"
               style="Underlined">
-          <paragraph>
-            <text/>
-          </paragraph>
           <paragraph>
             <text>{[PersonalInitials]}</text>
           </paragraph>

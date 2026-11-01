@@ -235,6 +235,7 @@ End Function
 Public Function RefreshPersonnelHandler() As Boolean
     Dim emptyResult As obj_LookupResult
     Dim diagnostic As String
+    Dim statusText As String
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -263,8 +264,9 @@ Public Function RefreshPersonnelHandler() As Boolean
         m_lookupResult.Dispose
     End If
     Set m_lookupResult = emptyResult
-    RefreshPersonnelHandler = private_SetActionStatus(private_BuildPersonnelStatus(VBA.vbNullString, emptyResult), False)
-    ex_Core.fn_StatusBar_Show ex_TravelDocumentsBuilder.fn_Config("text.DependenciesReady")
+    statusText = private_BuildPersonnelStatus(VBA.vbNullString, emptyResult)
+    RefreshPersonnelHandler = private_SetActionStatus(statusText, False)
+    ex_Core.fn_StatusBar_Show statusText
     Exit Function
 Failed:
     If VBA.Len(diagnostic) = 0 Then
@@ -272,6 +274,24 @@ Failed:
     End If
     ex_Core.fn_StatusBar_Show diagnostic
     private_SetActionStatus diagnostic, True
+End Function
+
+Public Function VacationKindChangedHandler() As Boolean
+    Dim vacationKind As Variant
+    Dim documentType As Variant
+    Dim treatmentKind As String
+    Dim prefix As String
+    Dim visibility As String
+
+    If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
+    If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.kind.treatment.input", treatmentKind) Then Exit Function
+    visibility = "Collapsed"
+    If prefix = "VacationTicket" And VBA.StrComp(VBA.CStr(vacationKind), treatmentKind, VBA.vbTextCompare) = 0 Then
+        visibility = "Visible"
+    End If
+    VacationKindChangedHandler = m_pageBase.BindingContext.SetValue("Form", "TreatmentVisibility", visibility)
 End Function
 
 Public Function DocumentTypeChangedHandler() As Boolean
@@ -289,7 +309,7 @@ Public Function DocumentTypeChangedHandler() As Boolean
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
     ' Bindings refresh captions; rebuilding the page during a click disposes the active handler.
-    DocumentTypeChangedHandler = True
+    DocumentTypeChangedHandler = Me.VacationKindChangedHandler()
 End Function
 
 Public Function ClearFormHandler() As Boolean
@@ -304,6 +324,7 @@ Public Function ClearFormHandler() As Boolean
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
+            "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "ReturnDate", "Purpose", "ReportNo", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
             "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason")
         updates("Form." & VBA.CStr(key)) = VBA.vbNullString
@@ -775,7 +796,8 @@ Private Function private_AcceptOrder( _
     updates("Form.OrderReference") = private_OrderCaption(m_acceptedOrderNumber, m_acceptedOrderDate)
     If Not preserveEdit Then
         updates("Form.GenerationStatusStyle") = "generationSuccess"
-        updates("Form.GenerationStatus") = VBA.Replace$(ex_TDB_History.fn_Config("text.OrderAccepted"), "{order}", private_OrderCaption(m_acceptedOrderNumber, m_acceptedOrderDate))
+        updates("Form.GenerationStatus") = VBA.Replace$(ex_TDB_History.fn_Config("text.OrderAccepted"), "{order}", private_OrderCaption(m_acceptedOrderNumber, m_acceptedOrderDate)) & _
+            VBA.vbCrLf & private_BuildPersonnelStatus(VBA.vbNullString, m_lookupResult)
     End If
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
     If preserveEdit Then
@@ -1023,6 +1045,14 @@ Private Function private_BuildPersonnelStatus( _
     ByVal searchText As String, _
     ByVal result As obj_LookupResult _
 ) As String
+    If ex_TableSnapshots.fn_Active() Is Nothing Then
+        private_BuildPersonnelStatus = ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
+        Exit Function
+    End If
+    If VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderDate = 0 Then
+        private_BuildPersonnelStatus = ex_TDB_History.fn_Config("text.ChooseOrder")
+        Exit Function
+    End If
     If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) < m_lookupProfile.MinChars Then
         private_BuildPersonnelStatus = VBA.Replace$( _
             m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))

@@ -10,9 +10,11 @@ value	ThisWorkbook::initializer	ex_TravelDocumentsBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_TravelDocumentsBuilder.fn_CreatePage
 value	TravelDocumentsBuilder::ui.folder	TravelDocumentsBuilder
 value	TravelDocumentsBuilder::text.Title	Документи
+value	TravelDocumentsBuilder::text.VlkNo	ВЛК №
 value	TravelDocumentsBuilder::text.AddTvo	+
 value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
 value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
+value	TravelDocumentsBuilder::text.VlkDate	ВЛК дата
 value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
@@ -70,7 +72,7 @@ value	TravelDocumentsBuilder::text.OrderQueryLabel	№ наказу / дата �
 value	TravelDocumentsBuilder::text.PersonNameLabel	ПІБ
 value	TravelDocumentsBuilder::text.PersonRankLabel	Звання
 value	TravelDocumentsBuilder::text.PersonUnitLabel	Підрозділ
-value	TravelDocumentsBuilder::text.PersonnelPrompt	Завантажте дані, введіть частину ПІБ або ІПН та натисніть Enter.
+value	TravelDocumentsBuilder::text.PersonnelPrompt	Натисніть «Завантажити дані», щоб завантажити довідники і накази.
 value	TravelDocumentsBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
 value	TravelDocumentsBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
 value	TravelDocumentsBuilder::text.CloseFlushFailed	Не вдалося зберегти журнал діагностики. Книгу залишено відкритою.
@@ -88,6 +90,7 @@ value	TravelDocumentsBuilder::text.StyleSelectorKey	Непідтримувани
 value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
 value	TravelDocumentsBuilder::text.DependenciesReady	Дані завантажено. Виконайте пошук військовослужбовця.
 value	TravelDocumentsBuilder::text.DocumentTypeLabel	Тип документа
+value	TravelDocumentsBuilder::text.LongTreatmentDays	Потребує днів тривалого лікування
 value	TravelDocumentsBuilder::text.OrderInvalidInput	Допустимі формати: номер, ДД.ММ, ДД.ММ.РРРР або номер / ДД.ММ.РРРР. Номер — лише цифри; день і місяць — по дві цифри.
 value	TravelDocumentsBuilder::text.OrderYearConflict	Рік у даті не збігається з полем «Рік наказу».
 value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
@@ -99,6 +102,7 @@ value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
 value	TravelDocumentsBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
 value	TravelDocumentsBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
 value	TravelDocumentsBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
+value	TravelDocumentsBuilder::text.TreatmentLeaveDays	Потребує днів відпустки для лікування
 value	TravelDocumentsBuilder::text.DependenciesLoading	Завантаження довідників і наказів...
 value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
 value	TravelDocumentsBuilder::text.StyleOverlayBinding	Не вдалося визначити стиль виділення.
@@ -270,13 +274,13 @@ value	TravelDocumentsBuilder::history.text.ProtectionNotApplied	Excel не за�
 value	TravelDocumentsBuilder::history.text.ProtectionUnavailable	Механізм захисту TicketsHistory не ініціалізовано.
 value	TravelDocumentsBuilder::history.sheet	Tickets
 value	TravelDocumentsBuilder::history.table	tbTickets
-value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt
+value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays
 value	TravelDocumentsBuilder::history.recovery.suffix	.recovery.xml.log
 value	TravelDocumentsBuilder::history.versions.sheet	TicketRevisions
 value	TravelDocumentsBuilder::history.versions.table	tbTicketRevisions
-value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt
+value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays
 value	TravelDocumentsBuilder::history.dateFields	FoodDepartureDate|DepartureDate|PlannedReturnDate|OrderDate
-value	TravelDocumentsBuilder::history.formFields	PersonName=FullName|PersonRank=Rank|PersonId=TaxId|PersonPosition=PositionName|PersonPositionCode=PositionCode|PersonUnit=UnitName|DocumentTarget=Destination|VacationDays=VacationDays|RoadDays=RoadDays|VacationKind=VacationKind|VacationAbroad=VacationAbroad|ReportNo=ReportNumber|Purpose=Basis|TicketNo=TicketNumber|DocumentPath=DocumentPath
+value	TravelDocumentsBuilder::history.formFields	PersonName=FullName|PersonRank=Rank|PersonId=TaxId|PersonPosition=PositionName|PersonPositionCode=PositionCode|PersonUnit=UnitName|DocumentTarget=Destination|VacationDays=VacationDays|RoadDays=RoadDays|VacationKind=VacationKind|VacationAbroad=VacationAbroad|ReportNo=ReportNumber|Purpose=Basis|TicketNo=TicketNumber|DocumentPath=DocumentPath|VlkNo=VlkNo|VlkDate=VlkDate|LongTreatmentDays=LongTreatmentDays|TreatmentLeaveDays=TreatmentLeaveDays
 value	TravelDocumentsBuilder::history.listFields	FullName=Name|TicketNumber=Ticket|DepartureDate=Departure|Revision=Revision|RowId=RowId
 value	TravelDocumentsBuilder::history.actorFields	Personnel.FullName=FullName|Personnel.TaxId=TaxId|Personnel.Rank=Rank|Personnel.Position=PositionName|Personnel.PositionCode=PositionCode|Personnel.Unit=UnitName
 value	TravelDocumentsBuilder::history.ticketField	TicketNumber
@@ -284,7 +288,7 @@ value	TravelDocumentsBuilder::history.durationField	VacationDays
 value	TravelDocumentsBuilder::history.personIdField	TaxId
 value	TravelDocumentsBuilder::history.dateFormFields	DepartureDate=DepartureDate|ReturnDate=PlannedReturnDate
 value	TravelDocumentsBuilder::history.departureField	DepartureDate
-value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt
+value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays
 value	TravelDocumentsBuilder::history.personNameField	FullName
 value	TravelDocumentsBuilder::history.orderNumberField	OrderNumber
 value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source
