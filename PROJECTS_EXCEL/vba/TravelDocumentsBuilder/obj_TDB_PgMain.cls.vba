@@ -145,6 +145,9 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Settings", "CandidateSelectionMode", ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then
         Exit Function
     End If
+    If Not bindingContext.SetValue("Settings", "CandidateColumnOffset", ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
+    If Not bindingContext.SetValue("Settings", "CandidateMaxColumns", ex_TravelDocumentsBuilder.fn_Config("candidates.layout.columns")) Then Exit Function
+    If Not bindingContext.SetValue("Text", "CandidateOverflow", ex_TravelDocumentsBuilder.fn_Config("candidates.layout.overflowMessage")) Then Exit Function
     If Not bindingContext.SetValue("Form", "LookupIsTvo", False) Then
         Exit Function
     End If
@@ -213,6 +216,7 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
     Next key
     If Not bindingContext.SetValue("Form", "TreatmentVisibility", "Collapsed") Then Exit Function
+    If Not bindingContext.SetValue("Form", "DestinationVisibility", "Visible") Then Exit Function
     For Each key In VBA.Array("VacationKinds", "AbroadOptions", "StatusOptions")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then
             Exit Function
@@ -297,6 +301,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand(bindingContext, "CloseHistory", "CloseHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "TvoNameChanged", "TvoNameChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "VacationKindChanged", "VacationKindChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "PlaceChanged", "PlaceChangedHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function
 

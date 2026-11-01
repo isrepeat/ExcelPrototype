@@ -91,6 +91,7 @@ Private Function obj_IUiControl_Measure( _
         Exit Function
     End If
     m_uiControlBase.GetSize target, rows, columns
+    columns = columns + private_LayoutLong("columnOffset", 0)
     obj_IUiControl_Measure = True
 End Function
 
@@ -539,6 +540,9 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
     Dim tableIndex As Long, rows As Long, columns As Long
     Dim rawTable As obj_UiRawTable
     Dim value As Variant, sourceObject As Object, isObject As Boolean
+    Dim columnOffset As Long
+    Dim maxColumns As Long
+    Dim diagnostic As String
 
     If uiRenderContext Is Nothing Then Exit Function
     If m_table Is Nothing Then
@@ -570,6 +574,19 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
     If m_showHeaders And IsArray(rawTable.Headers) Then rows = rows + 1
     columns = rawTable.ColumnCount
     If columns <= 0 Then Exit Function
+    columnOffset = private_LayoutLong("columnOffset", 0)
+    maxColumns = private_LayoutLong("maxColumns", 0)
+    If columnOffset < 0 Then VBA.Err.Raise 5, , "Table columnOffset must be nonnegative."
+    If maxColumns > 0 And columnOffset + columns > maxColumns Then
+        If Not ex_UiBindingRuntime.fn_TryResolveText( _
+                private_ReadAttribute(m_uiControlBase.ControlNode, "overflowMessage"), _
+                uiRenderContext.BindingContext, diagnostic) Then Exit Function
+        If VBA.Len(diagnostic) = 0 Then VBA.Err.Raise 5, , "Table overflowMessage is required with maxColumns."
+        diagnostic = VBA.Replace$(diagnostic, "{columns}", VBA.CStr(columns))
+        diagnostic = VBA.Replace$(diagnostic, "{offset}", VBA.CStr(columnOffset))
+        diagnostic = VBA.Replace$(diagnostic, "{available}", VBA.CStr(maxColumns - columnOffset))
+        VBA.Err.Raise 5, , diagnostic
+    End If
     If private_ReadAttribute(m_uiControlBase.ControlNode, "representation") = "Smart" Then
         For tableIndex = 1 To columns
             If private_ColumnSpanAt(tableIndex) <> 1 Then
@@ -580,7 +597,7 @@ Private Function private_Measure(ByVal uiRenderContext As obj_UiRenderContext) A
     If rows <= 0 Then rows = 1
     Set m_targetRange = uiRenderContext.TargetWorksheet.Cells(1, 1).Offset( _
         private_ReadLong(m_uiControlBase.ControlNode, "row", 1) - 1, _
-        private_ReadLong(m_uiControlBase.ControlNode, "column", 1) - 1).Resize(rows, columns)
+        private_ReadLong(m_uiControlBase.ControlNode, "column", 1) - 1 + columnOffset).Resize(rows, columns)
     Set private_Measure = m_targetRange
 End Function
 
@@ -1014,6 +1031,26 @@ Private Function private_ReadLong( _
     Dim value As String: value = private_ReadAttribute(node, name)
 
     If VBA.IsNumeric(value) Then private_ReadLong = VBA.CLng(value) Else private_ReadLong = defaultValue
+End Function
+
+Private Function private_LayoutLong( _
+    ByVal attributeName As String, _
+    ByVal defaultValue As Long _
+) As Long
+    Dim expression As String
+    Dim value As String
+
+    expression = private_ReadAttribute(m_uiControlBase.ControlNode, attributeName)
+    If VBA.Len(expression) = 0 Then
+        private_LayoutLong = defaultValue
+        Exit Function
+    End If
+    If Not ex_UiBindingRuntime.fn_TryResolveText(expression, m_renderContext.BindingContext, value) Then
+        VBA.Err.Raise 5, , "Cannot resolve table layout attribute: " & attributeName
+    End If
+    If Not VBA.IsNumeric(value) Then VBA.Err.Raise 5, , "Invalid table layout attribute: " & attributeName
+    If VBA.CDbl(value) <> VBA.Fix(VBA.CDbl(value)) Then VBA.Err.Raise 5, , "Table layout attribute must be an integer: " & attributeName
+    private_LayoutLong = VBA.CLng(value)
 End Function
 
 Private Function private_ReadBoolean( _

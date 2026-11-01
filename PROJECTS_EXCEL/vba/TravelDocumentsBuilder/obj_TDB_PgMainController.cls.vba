@@ -16,6 +16,8 @@ Private m_pageBase As obj_PageBase
 Private m_lookupProfile As obj_LookupProfile
 Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
+Private m_placeResult As obj_LookupResult
+Private m_lookupIsPlace As Boolean
 Private m_messages As Object
 Private m_historyResult As obj_LookupResult
 Private m_orderResolver As obj_OrderResolver
@@ -44,6 +46,9 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim valueText As String
     Dim diagnostic As String
     Dim dependencyLoader As obj_TDB_DependencyLoader
+    Dim spans As Variant
+    Dim column As Object
+    Dim columnIndex As Long
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -69,6 +74,12 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
         Exit Function
     End If
+    spans = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnSpans"), "|")
+    If UBound(spans) + 1 <> m_lookupProfile.DisplayColumns.Count Then VBA.Err.Raise 5, , "Candidate column span count mismatch."
+    For columnIndex = 1 To m_lookupProfile.DisplayColumns.Count
+        Set column = m_lookupProfile.DisplayColumns(columnIndex)
+        column("columnSpan") = VBA.CLng(spans(columnIndex - 1))
+    Next columnIndex
     If VBA.LCase$(m_lookupProfile.Source.RangeAddress) = "auto" Then
         VBA.Err.Raise 5, , "Explicit configuration range required: TravelDocumentsBuilder::lookup.Personnel.source.range"
     End If
@@ -89,6 +100,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
         Exit Function
     End If
+    If Not private_ValidateCandidateBounds(m_lookupResult, "candidates.personnel.columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then
         Exit Function
     End If
@@ -110,6 +122,8 @@ Public Sub Dispose()
     ex_TDB_WordSession.fn_Module_Dispose
     If Not m_lookupService Is Nothing Then m_lookupService.Dispose
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
+    If Not m_placeResult Is Nothing Then m_placeResult.Dispose
+    Set m_placeResult = Nothing
     If Not m_lookupProfile Is Nothing Then m_lookupProfile.Dispose
     If Not m_historyResult Is Nothing Then m_historyResult.Dispose
     Set m_historyResult = Nothing
@@ -133,6 +147,11 @@ Public Function SearchPersonnelHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
+    m_lookupIsPlace = False
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
         Exit Function
     End If
@@ -163,6 +182,7 @@ Public Function SearchPersonnelHandler() As Boolean
         Exit Function
     End If
     Set m_lookupResult = result
+    If Not private_ValidateCandidateBounds(result, "candidates.personnel.columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then
         Exit Function
     End If
@@ -207,11 +227,61 @@ Public Function TvoNameChangedHandler() As Boolean
     TvoNameChangedHandler = Me.SearchPersonnelHandler()
 End Function
 
+Public Function PlaceChangedHandler() As Boolean
+    Dim query As Variant
+    Dim vacationKind As Variant
+    Dim result As obj_LookupResult
+    Dim status As String
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
+    If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(VBA.CStr(vacationKind)) Then
+        PlaceChangedHandler = True
+        Exit Function
+    End If
+    If Not private_TryReadFormValue("DocumentTarget", query) Then Exit Function
+    Set result = ex_TDB_Places.fn_Search(VBA.CStr(query))
+    If Not private_ValidateCandidateBounds(result, "lookup.Places.columnOffset") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
+            ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columnOffset")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", "Confirm") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
+    m_lookupIsPlace = True
+    If Not m_placeResult Is Nothing Then m_placeResult.Dispose
+    Set m_placeResult = result
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.minChars")) Then
+        status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Minimum"), _
+            "{minChars}", ex_TravelDocumentsBuilder.fn_Config("lookup.Places.minChars"))
+    ElseIf result.RowCount = 0 Then
+        status = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Empty")
+    ElseIf result.HasMore Then
+        status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.More"), _
+            "{count}", VBA.CStr(result.RowCount))
+    Else
+        status = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Choose")
+    End If
+    PlaceChangedHandler = private_SetActionStatus(status, False)
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
 Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim diagnostic As String
     Dim autoFillPersonnel As Variant
+    Dim address As Variant
 
     If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then
+        Exit Function
+    End If
+    If m_lookupIsPlace Then
+        If Not selected.TryGetValue("Address", address) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "DocumentTarget", address) Then Exit Function
+        SelectPersonnelHandler = private_SetActionStatus(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Selected"), False)
         Exit Function
     End If
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then
@@ -257,6 +327,7 @@ Public Function RefreshPersonnelHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Exit Function
     End If
+    If Not private_ValidateCandidateBounds(emptyResult, "candidates.personnel.columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then
         Exit Function
     End If
@@ -264,6 +335,11 @@ Public Function RefreshPersonnelHandler() As Boolean
         m_lookupResult.Dispose
     End If
     Set m_lookupResult = emptyResult
+    m_lookupIsPlace = False
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
     statusText = private_BuildPersonnelStatus(VBA.vbNullString, emptyResult)
     RefreshPersonnelHandler = private_SetActionStatus(statusText, False)
     ex_Core.fn_StatusBar_Show statusText
@@ -279,19 +355,31 @@ End Function
 Public Function VacationKindChangedHandler() As Boolean
     Dim vacationKind As Variant
     Dim documentType As Variant
-    Dim treatmentKind As String
     Dim prefix As String
     Dim visibility As String
+    Dim destination As Variant
+    Dim fixedDestination As String
 
     If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
     If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.kind.treatment.input", treatmentKind) Then Exit Function
     visibility = "Collapsed"
-    If prefix = "VacationTicket" And VBA.StrComp(VBA.CStr(vacationKind), treatmentKind, VBA.vbTextCompare) = 0 Then
+    If prefix = "VacationTicket" And ex_TravelDocumentsBuilder.fn_IsTreatment(VBA.CStr(vacationKind)) Then
         visibility = "Visible"
     End If
-    VacationKindChangedHandler = m_pageBase.BindingContext.SetValue("Form", "TreatmentVisibility", visibility)
+    If Not m_pageBase.BindingContext.SetValue("Form", "TreatmentVisibility", visibility) Then Exit Function
+    fixedDestination = ex_TravelDocumentsBuilder.fn_Config("generation.medicalCompany.destination")
+    visibility = "Visible"
+    If prefix = "VacationTicket" And ex_TravelDocumentsBuilder.fn_IsMedicalCompany(VBA.CStr(vacationKind)) Then
+        visibility = "Collapsed"
+        If Not m_pageBase.BindingContext.SetValue("Form", "DocumentTarget", fixedDestination) Then Exit Function
+    Else
+        If Not private_TryReadFormValue("DocumentTarget", destination) Then Exit Function
+        If VBA.CStr(destination) = fixedDestination Then
+            If Not m_pageBase.BindingContext.SetValue("Form", "DocumentTarget", VBA.vbNullString) Then Exit Function
+        End If
+    End If
+    VacationKindChangedHandler = m_pageBase.BindingContext.SetValue("Form", "DestinationVisibility", visibility)
 End Function
 
 Public Function DocumentTypeChangedHandler() As Boolean
@@ -879,6 +967,32 @@ Private Function private_SetLookupTarget(ByVal isTvo As Boolean) As Boolean
     End If
     If Not m_pageBase.BindingContext.SetValue("Form", "LookupIsTvo", isTvo) Then Exit Function
     private_SetLookupTarget = m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString)
+End Function
+
+Private Function private_ValidateCandidateBounds( _
+    ByVal lookupResult As obj_LookupResult, _
+    ByVal offsetKey As String _
+) As Boolean
+    Dim tableSource As obj_IUiTableSource
+    Dim rawTable As obj_UiRawTable
+    Dim columnOffset As Long
+    Dim maxColumns As Long
+    Dim message As String
+
+    Set tableSource = lookupResult
+    Set rawTable = tableSource.GetTable(1)
+    columnOffset = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(offsetKey))
+    maxColumns = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("candidates.layout.columns"))
+    If columnOffset < 0 Or maxColumns < 1 Or columnOffset + rawTable.ColumnCount > maxColumns Then
+        message = ex_TravelDocumentsBuilder.fn_Config("candidates.layout.overflowMessage")
+        message = VBA.Replace$(message, "{columns}", VBA.CStr(rawTable.ColumnCount))
+        message = VBA.Replace$(message, "{offset}", VBA.CStr(columnOffset))
+        message = VBA.Replace$(message, "{available}", VBA.CStr(maxColumns - columnOffset))
+        ex_WindowsUi.fn_ShowMessage message, VBA.vbExclamation
+        private_SetActionStatus message, True
+        Exit Function
+    End If
+    private_ValidateCandidateBounds = True
 End Function
 
 Private Function private_ApplySelectedPersonnel( _

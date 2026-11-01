@@ -178,6 +178,9 @@ Public Function TrySave( _
     m_operationId = operationId
     private_LogStage "ReadForm"
     private_ReadForm
+    If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(m_form("VacationKind")) Then
+        m_form("DocumentTarget") = ex_TravelDocumentsBuilder.fn_Config("generation.medicalCompany.destination")
+    End If
     For Each key In m_form.Keys
         private_Log "TDB_FORM_NORMALIZED", "Field=" & key & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(m_form(key))
     Next key
@@ -596,7 +599,7 @@ Private Sub private_ValidateTreatment()
     Dim days As Long
     Dim vlkDate As Date
 
-    If VBA.StrComp(m_form("VacationKind"), m_config("kind.treatment.input"), VBA.vbTextCompare) <> 0 Then Exit Sub
+    If Not ex_TravelDocumentsBuilder.fn_IsTreatment(m_form("VacationKind")) Then Exit Sub
     For Each field In VBA.Array("VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays")
         If VBA.Len(m_form(field)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(field))
     Next field

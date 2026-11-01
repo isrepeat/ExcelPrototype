@@ -9,6 +9,7 @@ Implements obj_IUiTableSource
 Implements obj_IUiSelectionSource
 Implements obj_IUiColumnMetadata
 Implements obj_IUiRowTags
+Implements obj_IUiColumnLayout
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -18,6 +19,7 @@ Private m_table As obj_UiRawTable
 Private m_hasMore As Boolean
 Private m_sourceAliases As Variant
 Private m_rowTagField As String
+Private m_columnSpans As Collection
 
 ' //
 ' // Lifecycle
@@ -55,6 +57,12 @@ End Property
 ' //
 ' // Interface
 ' //
+Private Function obj_IUiColumnLayout_ColumnSpanAt(ByVal columnIndex As Long) As Long
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If columnIndex < 1 Or columnIndex > m_columnSpans.Count Then Exit Function
+    obj_IUiColumnLayout_ColumnSpanAt = m_columnSpans(columnIndex)
+End Function
+
 Private Property Get obj_IUiTableSource_TableCount() As Long
     If m_isInitialized And Not m_isDisposed Then obj_IUiTableSource_TableCount = 1
 End Property
@@ -106,6 +114,10 @@ Public Function Initialize( _
     Dim column As Object
     Dim record As obj_LookupRecord
     Dim value As Variant
+    Dim expanded As New Collection
+    Dim placeholder As Object
+    Dim span As Long
+    Dim covered As Long
 
     If m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo EH
@@ -114,6 +126,22 @@ Public Function Initialize( _
         diagnostic = "Lookup requires at least one display column."
         Exit Function
     End If
+    Set m_columnSpans = New Collection
+    For Each column In columns
+        span = 1
+        If column.Exists("columnSpan") Then span = VBA.CLng(column("columnSpan"))
+        If span < 1 Then VBA.Err.Raise 5, , "Lookup columnSpan must be positive."
+        expanded.Add column
+        m_columnSpans.Add span
+        For covered = 2 To span
+            Set placeholder = VBA.CreateObject("Scripting.Dictionary")
+            placeholder.Add "name", VBA.vbNullString
+            placeholder.Add "caption", VBA.vbNullString
+            expanded.Add placeholder
+            m_columnSpans.Add 0
+        Next covered
+    Next column
+    Set columns = expanded
     Set m_records = New Collection
     ReDim headers(0 To columns.Count - 1)
     ReDim aliases(0 To columns.Count - 1)
@@ -157,6 +185,7 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     Set m_records = Nothing
+    Set m_columnSpans = Nothing
     m_sourceAliases = Empty
     m_rowTagField = VBA.vbNullString
     If Not m_table Is Nothing Then m_table.Dispose

@@ -165,6 +165,11 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "selectionKeyColumn", "string", False, "", False, 0
             If m_type = "table" Then schema.AddAttribute "excelTableName", "string", False, "", False, 255
             If m_type = "table" Then
+                schema.AddAttribute "columnOffset", "nonnegative", False, "", True, 0
+                schema.AddAttribute "maxColumns", "positive", False, "", True, 0
+                schema.AddAttribute "overflowMessage", "string", False, "", True, 0
+            End If
+            If m_type = "table" Then
                 Set wrapper = New obj_UiMarkupSchema
                 Set rule = New obj_UiMarkupSchema
                 If Not wrapper.Initialize() Or Not rule.Initialize() Then Err.Raise 5, , "Cannot initialize cell template schema."

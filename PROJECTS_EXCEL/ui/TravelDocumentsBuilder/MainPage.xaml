@@ -144,7 +144,7 @@
                         value="{Binding Path=Form.PersonPosition}"
                         readOnly="{Binding Path=Form.PersonPositionReadOnly}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.DestinationVisibility}">
         <controls:label name="DocumentTargetLabel"
                         row="1"
                         column="1"
@@ -154,8 +154,9 @@
                         row="1"
                         column="2"
                         columnSpan="2"
-                        style="formField"
-                        value="{Binding Path=Form.DocumentTarget}"/>
+                        style="lookupKeyField"
+                        value="{Binding Path=Form.DocumentTarget}"
+                        onChange="{Binding Path=Commands.PlaceChanged}"/>
       </grid>
       <grid>
         <controls:label name="DepartureDateLabel"
@@ -394,14 +395,15 @@
 
     <controls:button name="SaveHistory"
                      row="2"
-                     column="10"
+                     column="11"
+                     columnSpan="2"
                      style="resetFormButton"
                      caption="{Binding Path=Text.SaveHistory}"
                      command="{Binding Path=Commands.SaveHistory}"/>
 
     <controls:button name="ExportWord"
                      row="4"
-                     column="12"
+                     column="14"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ExportWord}"
@@ -409,7 +411,7 @@
 
     <controls:button name="ClearForm"
                      row="2"
-                     column="7"
+                     column="8"
                      columnSpan="2"
                      style="resetFormButton"
                      caption="{Binding Path=Text.ClearForm}"
@@ -417,18 +419,18 @@
 
     <controls:label name="OrderQueryLabel"
                     row="6"
-                    column="12"
+                    column="14"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:label name="OrderYearLabel"
                     row="6"
-                    column="13"
+                    column="15"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
                      row="7"
-                     column="12"
+                     column="14"
                      style="lookupKeyField"
                      value="{Binding Path=Form.OrderQuery}"
                      editable="true"
@@ -437,34 +439,34 @@
                      onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:input name="OrderYear"
                     row="7"
-                    column="13"
+                    column="15"
                     style="lookupKeyField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:label name="HistoryEditMode"
                     row="14"
-                    column="12"
+                    column="14"
                     rowSpan="2"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.HistoryEditMode}"/>
     <controls:button name="LoadHistory"
                      row="3"
-                     column="12"
+                     column="14"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.LoadHistory}"
                      command="{Binding Path=Commands.LoadHistory}"/>
     <controls:label name="LastStatusLabel"
                     row="9"
-                    column="12"
+                    column="14"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
 
     <controls:label name="GenerationStatus"
                     row="10"
-                    column="12"
+                    column="14"
                     rowSpan="4"
                     columnSpan="2"
                     style="{Binding Path=Form.GenerationStatusStyle}"
@@ -473,14 +475,14 @@
     <controls:label name="SearchSection"
                     row="1"
                     column="5"
-                    columnSpan="6"
+                    columnSpan="8"
                     style="sectionTitle"
                     text="{Binding Path=Text.SearchSection}"/>
 
     <controls:checkbox name="AutoFillPersonnel"
                        row="2"
                        column="5"
-                       columnSpan="2"
+                       columnSpan="3"
                        style="personnelCheckbox"
                        value="{Binding Path=Form.AutoFillPersonnel}"
                          caption="{Binding Path=Text.AutoFillPersonnelLabel}"
@@ -490,14 +492,14 @@
 
     <controls:label name="ActionsSection"
                     row="1"
-                    column="12"
+                    column="14"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
 
     <controls:button name="RefreshPersonnel"
                      row="2"
-                     column="12"
+                     column="14"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
@@ -507,6 +509,9 @@
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
                     row="3"
                     column="5"
+                    columnOffset="{Binding Path=Settings.CandidateColumnOffset}"
+                    maxColumns="{Binding Path=Settings.CandidateMaxColumns}"
+                    overflowMessage="{Binding Path=Text.CandidateOverflow}"
                     style="candidateTable"
                     visibility="{Binding Path=Form.CandidatesVisibility}"
                     selectedItem="{Binding Path=Data.SelectedPersonnel}"
@@ -849,31 +854,16 @@
               selector="address=E:E"
               styles="{width:2;}"/>
         <rule target="column"
-              selector="address=F:F"
-              styles="{width:13;}"/>
-        <rule target="column"
-              selector="address=G:G"
-              styles="{width:32;}"/>
-        <rule target="column"
-              selector="address=H:H"
-              styles="{width:13;}"/>
-        <rule target="column"
-              selector="address=I:I"
-              styles="{width:13;}"/>
-        <rule target="column"
-              selector="address=J:J"
-              styles="{width:29;}"/>
-        <rule target="column"
-              selector="address=K:K"
-              styles="{width:20;}"/>
-        <rule target="column"
-              selector="address=L:L"
-              styles="{width:2;}"/>
-        <rule target="column"
-              selector="address=M:M"
-              styles="{width:25;}"/>
+              selector="address=F:M"
+              styles="{width:17;}"/>
         <rule target="column"
               selector="address=N:N"
+              styles="{width:2;}"/>
+        <rule target="column"
+              selector="address=O:O"
+              styles="{width:25;}"/>
+        <rule target="column"
+              selector="address=P:P"
               styles="{width:12;}"/>
       </layer>
       <layer name="table-parts">

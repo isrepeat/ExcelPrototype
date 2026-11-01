@@ -102,5 +102,15 @@ Public Function fn_TryGetDocumentPrefix( _
     ex_WindowsUi.fn_ShowMessage VBA.Replace$(diagnostic, "{value}", documentType), VBA.vbExclamation, "Configuration"
 End Function
 ' --------------------------------------
+Public Function fn_IsMedicalCompany(ByVal vacationKind As String) As Boolean
+    fn_IsMedicalCompany = VBA.StrComp(vacationKind, fn_Config("generation.kind.annualMedical.input"), VBA.vbTextCompare) = 0 Or _
+        VBA.StrComp(vacationKind, fn_Config("generation.kind.treatmentMedical.input"), VBA.vbTextCompare) = 0
+End Function
+
+Public Function fn_IsTreatment(ByVal vacationKind As String) As Boolean
+    fn_IsTreatment = VBA.StrComp(vacationKind, fn_Config("generation.kind.treatment.input"), VBA.vbTextCompare) = 0 Or _
+        VBA.StrComp(vacationKind, fn_Config("generation.kind.treatmentMedical.input"), VBA.vbTextCompare) = 0
+End Function
+
 ' } // namespace API
 ' --------------------------------------

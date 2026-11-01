@@ -56,6 +56,7 @@ Private Function private_Lookup( _
     Dim diagnostic As String
     Dim failureNumber As Long
     Dim failureDescription As String
+    Dim specialPosition As String
 
     On Error GoTo Failed
     Set snapshot = ex_TableSnapshots.fn_Active()
@@ -76,6 +77,16 @@ Private Function private_Lookup( _
     valueHeader = ex_TravelDocumentsBuilder.fn_Config(prefix & ".valueHeader")
     lookupInput = VBA.CStr(values(ex_TravelDocumentsBuilder.fn_Config(prefix & ".input")))
     If VBA.Len(lookupInput) = 0 Then VBA.Err.Raise 5, , keyHeader
+    If ex_TravelDocumentsBuilder.fn_Config(prefix & ".output") = "PositionGenitive" Then
+        lookupInput = private_PositionKey(lookupInput)
+        specialPosition = private_SpecialPosition(lookupInput, VBA.CStr(values("PersonRank")))
+        If VBA.Len(specialPosition) > 0 Then
+            private_Lookup = specialPosition
+            tableQuery.Dispose
+            tableSource.Dispose
+            Exit Function
+        End If
+    End If
     tableQuery.AddColumn keyHeader
     tableQuery.AddColumn valueHeader
     tableQuery.AddCondition keyHeader, QueryEquals, lookupInput, QueryText, True
@@ -99,6 +110,53 @@ Failed:
     If Not tableSource Is Nothing Then tableSource.Dispose
     On Error GoTo 0
     VBA.Err.Raise failureNumber, "Tickets.Declensions.Lookup", failureDescription
+End Function
+
+Private Function private_PositionKey(ByVal value As String) As String
+    Dim normalized As String
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim kind As Variant
+    Dim prefix As String
+    Dim code As String
+
+    private_PositionKey = VBA.UCase$(ex_TableQuery.fn_NormalizeText(value))
+    normalized = VBA.Replace$(private_PositionKey, " ", VBA.vbNullString)
+    For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("declensions.positions.characters"), "|")
+        pair = VBA.Split(mapping, "=")
+        normalized = VBA.Replace$(normalized, pair(0), pair(1))
+    Next mapping
+    For Each kind In VBA.Array("tp", "rozp", "spis")
+        prefix = ex_TravelDocumentsBuilder.fn_Config("declensions.positions." & kind & ".prefix")
+        code = ex_TravelDocumentsBuilder.fn_Config("declensions.positions." & kind & ".code")
+        If private_PositionKey = code Or VBA.Left$(normalized, VBA.Len(prefix)) = prefix Then
+            private_PositionKey = code
+            Exit Function
+        End If
+    Next kind
+End Function
+
+Private Function private_SpecialPosition( _
+    ByVal positionCode As String, _
+    ByVal personRank As String _
+) As String
+    Dim pattern As Object
+    Dim unit As String
+
+    If positionCode = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.tp.code") Then
+        private_SpecialPosition = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.tp.text")
+    ElseIf positionCode = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.rozp.code") Then
+        Set pattern = VBA.CreateObject("VBScript.RegExp")
+        pattern.Pattern = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.officerPattern")
+        pattern.IgnoreCase = True
+        If pattern.Test(personRank) Then
+            unit = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.rozp.officerUnit")
+        Else
+            unit = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.rozp.otherUnit")
+        End If
+        private_SpecialPosition = VBA.Replace$( _
+            ex_TravelDocumentsBuilder.fn_Config("declensions.positions.rozp.text"), "{unit}", unit)
+    End If
 End Function
 ' --------------------------------------
 ' } // namespace Private

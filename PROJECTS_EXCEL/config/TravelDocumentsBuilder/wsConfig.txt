@@ -170,6 +170,26 @@ value	TravelDocumentsBuilder::lookup.Tvo.apply.2.target	Form.TvoIpn
 value	TravelDocumentsBuilder::lookup.Tvo.apply.3.field	Personnel.PositionCode
 value	TravelDocumentsBuilder::lookup.Tvo.apply.3.target	Form.TvoPosition
 value	TravelDocumentsBuilder::lookup.Tvo.apply.count	3
+value	TravelDocumentsBuilder::lookup.Places.text.More	Показано перші {count} місць. Уточніть пошук.
+value	TravelDocumentsBuilder::lookup.Places.text.Empty	Населених пунктів не знайдено.
+value	TravelDocumentsBuilder::lookup.Places.text.Choose	Оберіть місце відпустки та натисніть Ctrl+Enter.
+value	TravelDocumentsBuilder::lookup.Places.text.Minimum	Введіть щонайменше {minChars} символи назви населеного пункту та натисніть Enter.
+value	TravelDocumentsBuilder::lookup.Places.text.Selected	Місце відпустки обрано. Повну адресу підставлено у форму.
+value	TravelDocumentsBuilder::lookup.Places.fields	Address|Region|Type|Name|District
+value	TravelDocumentsBuilder::lookup.Places.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::lookup.Places.source.sheet	Місця відпусток
+value	TravelDocumentsBuilder::lookup.Places.source.table	tbPlacesUkraine
+value	TravelDocumentsBuilder::lookup.Places.columns.Name	Місто / селище
+value	TravelDocumentsBuilder::lookup.Places.columns.Type	Тип
+value	TravelDocumentsBuilder::lookup.Places.columns.Region	Область
+value	TravelDocumentsBuilder::lookup.Places.columns.Address	Повна адреса
+value	TravelDocumentsBuilder::lookup.Places.columns.District	Район
+value	TravelDocumentsBuilder::lookup.Places.minChars	2
+value	TravelDocumentsBuilder::lookup.Places.maxResults	50
+value	TravelDocumentsBuilder::lookup.Places.columnSpans	2|1|1|1|1
+value	TravelDocumentsBuilder::lookup.Places.columnOffset	1
+value	TravelDocumentsBuilder::lookup.Places.sourceFields	Region|Type|Name|District
+value	TravelDocumentsBuilder::lookup.Places.addressTemplate	{Type} {Name}, {Region} обл., {District} р-н
 value	TravelDocumentsBuilder::lookup.Personnel.key	Personnel.TaxId
 value	TravelDocumentsBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
 value	TravelDocumentsBuilder::lookup.Personnel.apply.1.policy	overwrite
@@ -299,8 +319,12 @@ value	TravelDocumentsBuilder::snapshots.progress.Table	Читання табли
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
 value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
 value	TravelDocumentsBuilder::snapshots.progress.Profile	Підготовка пошуку: {source}
+value	TravelDocumentsBuilder::candidates.layout.columns	8
+value	TravelDocumentsBuilder::candidates.layout.overflowMessage	Таблиця кандидатів не вміщується в робочу область: ширина {columns} колонок, відступ зліва {offset}, доступно {available}. Перевірте налаштування розташування та ширини колонок.
+value	TravelDocumentsBuilder::candidates.personnel.columnSpans	1|2|1|1|2|1
+value	TravelDocumentsBuilder::candidates.personnel.columnOffset	0
 value	TravelDocumentsBuilder::candidates.selectionMode	Confirm
-value	TravelDocumentsBuilder::generation.kind.ids	annual,family,treatment,maternity,childcare
+value	TravelDocumentsBuilder::generation.kind.ids	annual,family,treatment,maternity,childcare,annualMedical,treatmentMedical
 value	TravelDocumentsBuilder::generation.kind.annual.word	у частину щорічної основної відпустки
 value	TravelDocumentsBuilder::generation.kind.annual.event	Щорічна відпустка
 value	TravelDocumentsBuilder::generation.kind.annual.input	Щорічна відпустка
@@ -315,10 +339,16 @@ value	TravelDocumentsBuilder::generation.kind.maternity.event	Відпустка
 value	TravelDocumentsBuilder::generation.kind.maternity.input	Відпустка у зв'язку з вагітністю та пологами
 value	TravelDocumentsBuilder::generation.kind.treatment.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
 value	TravelDocumentsBuilder::generation.kind.treatment.event	Відпустка для лікування
-value	TravelDocumentsBuilder::generation.kind.treatment.input	Відпустка для лікування після поранення (контузії, травми або каліцтва)
+value	TravelDocumentsBuilder::generation.kind.treatment.input	Відпустка для лікування
+value	TravelDocumentsBuilder::generation.kind.annualMedical.word	у частину щорічної основної відпустки
+value	TravelDocumentsBuilder::generation.kind.annualMedical.event	Щорічна відпустка (медична рота А7383)
+value	TravelDocumentsBuilder::generation.kind.annualMedical.input	Щорічна відпустка (медична рота А7383)
+value	TravelDocumentsBuilder::generation.kind.treatmentMedical.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
+value	TravelDocumentsBuilder::generation.kind.treatmentMedical.event	Відпустка для лікування (медична рота А7383)
+value	TravelDocumentsBuilder::generation.kind.treatmentMedical.input	Відпустка для лікування (медична рота А7383)
 value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
 value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
-value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування після поранення (контузії, травми або каліцтва)|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною
+value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Щорічна відпустка (медична рота А7383)|Відпустка для лікування (медична рота А7383)
 value	TravelDocumentsBuilder::generation.abroad.no	Ні
 value	TravelDocumentsBuilder::generation.abroad.yes	Так
 value	TravelDocumentsBuilder::generation.abroad.word	Дозволено виїзд за кордон
@@ -365,6 +395,7 @@ value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId
 value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (DSL).docx
 value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
+value	TravelDocumentsBuilder::generation.medicalCompany.destination	Медична рота А7383
 value	TravelDocumentsBuilder::declensions.count	6
 value	TravelDocumentsBuilder::declensions.error	Не вдалося отримати відмінювання {field}: {detail}
 value	TravelDocumentsBuilder::declensions.lookups.1.input	PersonRank
@@ -406,6 +437,18 @@ value	TravelDocumentsBuilder::declensions.lookups.6.valueHeader	Родовий
   ref	TravelDocumentsBuilder::declensions.sources.Positions.path	__cfgDependencies.filePersonnelShpo
   ref	TravelDocumentsBuilder::declensions.sources.Positions.range	__cfgDependencies.source.PersonnelPositions.range
   ref	TravelDocumentsBuilder::declensions.sources.Positions.sheet	__cfgDependencies.source.PersonnelPositions.sheet
+value	TravelDocumentsBuilder::declensions.positions.tp.code	ТП
+value	TravelDocumentsBuilder::declensions.positions.tp.text	який зарахований до тимчасово прибулого особового складу військової частини А7383
+value	TravelDocumentsBuilder::declensions.positions.tp.prefix	A1C
+value	TravelDocumentsBuilder::declensions.positions.rozp.code	РОЗП
+value	TravelDocumentsBuilder::declensions.positions.rozp.text	який перебуває у розпорядженні командира військової частини {unit}
+  ref	TravelDocumentsBuilder::declensions.positions.rozp.prefix	__cfgDependencies.common::position.rozp.prefix
+  ref	TravelDocumentsBuilder::declensions.positions.rozp.otherUnit	__cfgDependencies.common::position.rozp.other_unit
+  ref	TravelDocumentsBuilder::declensions.positions.rozp.officerUnit	__cfgDependencies.common::position.rozp.officer_unit
+  ref	TravelDocumentsBuilder::declensions.positions.spis.code	__cfgDependencies.common::position.spis.short
+  ref	TravelDocumentsBuilder::declensions.positions.spis.prefix	__cfgDependencies.common::position.spis.prefix
+value	TravelDocumentsBuilder::declensions.positions.characters	А=A|В=B|С=C
+value	TravelDocumentsBuilder::declensions.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)
 value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket
