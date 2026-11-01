@@ -45,6 +45,7 @@ Public Function fn_Build( _
     Dim span As Long
     Dim continuation As Boolean
     Dim padding As String
+    Dim borderKind As String
 
     Set document = VBA.CreateObject("MSXML2.DOMDocument.6.0")
     If Not document.LoadXML("<pkg:package xmlns:pkg='" & PKG_NS & "'/>") Then
@@ -136,10 +137,15 @@ Public Function fn_Build( _
                     private_Attribute node, "val", "restart"
                 End If
             End If
-            If cell("style").Exists("borderBottom") Then
-                Set node = private_W(properties, "tcBorders")
-                private_Border node, "bottom", cell("style")("borderBottom")
-            End If
+            ' Explicit cell borders match Word's No Border operation, including its editing grid.
+            Set node = private_W(properties, "tcBorders")
+            For Each key In VBA.Array("top", "left", "bottom", "right")
+                borderKind = private_Value(plan("style"), "borders", "none")
+                If key = "bottom" Then
+                    borderKind = private_Value(cell("style"), "borderBottom", borderKind)
+                End If
+                private_Border node, VBA.CStr(key), borderKind
+            Next key
             Set node = private_W(properties, "vAlign")
             private_Attribute node, "val", private_Value(cell("style"), "vertical", "center")
             If continuation Then

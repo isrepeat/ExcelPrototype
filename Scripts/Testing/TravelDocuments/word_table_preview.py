@@ -181,8 +181,10 @@ def preview(catalog_path, scaffold_path, output_path, context):
             if row_span > 1:
                 node(pr, "vMerge", **({"val": "restart"} if start_row == row_index else {}))
             cell_style = catalog_styles.get(cell.get("style"), {})
-            if cell_style.get("borderBottom") == "single":
-                node(node(pr, "tcBorders"), "bottom", val="single", sz=6, color="000000")
+            cell_borders = node(pr, "tcBorders")
+            for side in ("top", "left", "bottom", "right"):
+                kind = cell_style.get("borderBottom", table_style.get("borders", "none")) if side == "bottom" else table_style.get("borders", "none")
+                node(cell_borders, side, **({"val": "single", "sz": 6, "color": "000000"} if kind == "single" else {"val": "nil"}))
             node(pr, "vAlign", val=cell_style.get("vertical", "center"))
             if start_row != row_index:
                 node(tc, "p")

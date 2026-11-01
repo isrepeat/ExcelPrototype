@@ -94,6 +94,8 @@ Rows accept `header="true"` for consecutive repeated header rows, `allowBreakAcr
 
 Table styles support width, alignment (`left`, `center`, `right`), fixed layout, borders (`none`, `single`) and cell padding. `cellPadding` sets a uniform base; `cellPaddingTop`, `cellPaddingLeft`, `cellPaddingBottom` and `cellPaddingRight` override individual sides. The ticket retains the original 5.4-point left/right margins and zero top/bottom margins. Cell styles support font name/size, bold/italic, horizontal and vertical alignment, paragraph spacing, minimum line spacing, and `borderBottom="single|none"`. `basedOn` inherits a style of the same kind; cycles are rejected. Paragraph styles use the same cell-style catalog and override the containing cell's text properties.
 
+Cell borders are emitted explicitly on all four sides, matching Word's No Border operation rather than relying only on inherited table borders. `none` becomes `w:val="nil"`; `borderBottom="single"` retains the printed underline. Word's editing grid remains a separate, nonprinting view setting.
+
 A cell contains either one `text` or a sequence of `paragraph` elements. An empty cell is valid. A paragraph contains one `text` or one `image`:
 
 ```xml

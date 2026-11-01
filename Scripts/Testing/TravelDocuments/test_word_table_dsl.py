@@ -188,6 +188,10 @@ class WordTableDslTests(unittest.TestCase):
         self.assertNotIn(".hasAttribute(", source)
         self.assertIn('private_W(properties, "vMerge")', xml)
         self.assertIn('private_W(properties, "gridSpan")', xml)
+        cell_borders = xml[xml.index("' Explicit cell borders"):xml.index('private_W(properties, "vAlign")')]
+        self.assertIn('VBA.Array("top", "left", "bottom", "right")', cell_borders)
+        self.assertIn('private_Value(cell("style"), "borderBottom", borderKind)', cell_borders)
+        self.assertIn('private_Border node, VBA.CStr(key), borderKind', cell_borders)
         self.assertIn('If VBA.Len(paragraph("text")) = 0 Then\n        lines = VBA.Array(VBA.vbNullString)', xml)
         self.assertIn('For Each text In lines', xml)
         self.assertNotIn('For Each text In VBA.Split(paragraph("text")', xml)
