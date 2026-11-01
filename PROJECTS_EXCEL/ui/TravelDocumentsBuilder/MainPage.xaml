@@ -145,6 +145,23 @@
                         readOnly="{Binding Path=Form.PersonPositionReadOnly}"/>
       </grid>
       <grid visibility="{Binding Path=Form.DestinationVisibility}">
+        <controls:label name="PlaceKindLabel"
+                        row="1"
+                        column="1"
+                        style="formLabel"
+                        text="{Binding Path=Text.PlaceKind}"/>
+        <controls:select name="PlaceKind"
+                         itemsSource="{Binding Path=Data.PlaceKinds}"
+                         row="1"
+                         column="2"
+                         columnSpan="2"
+                         style="formField"
+                         value="{Binding Path=Form.PlaceKind}"
+                         onChange="{Binding Path=Commands.PlaceKindChanged}"
+                         panelStyle="formSelectPanel"
+                         itemStyle="formSelectItem"/>
+      </grid>
+      <grid visibility="{Binding Path=Form.DestinationVisibility}">
         <controls:label name="DocumentTargetLabel"
                         row="1"
                         column="1"
@@ -311,6 +328,7 @@
                          style="formField"
                          value="{Binding Path=Form.DepartureDate}"
                          editable="true"
+                         arrowColumnSpan="1"
                          highlightValue="{Binding Path=Data.CurrentDate}"
                          highlightStyle="currentDateItem"
                          itemHeight="20"

@@ -348,17 +348,19 @@ Public Function TrySave( _
         positionCode = metadata("PositionCode")
     Next index
     parentId = identifier
-    For Each metadata In m_places
-        If VBA.Len(metadata("RowId")) = 0 Then metadata("RowId") = ex_TDB_History.fn_NewId()
-        metadata("ParentRowId") = parentId
-        metadata("RowType") = "Place"
-        metadata("Revision") = revision
-        metadata("Status") = "Active"
-        If m_form("VacationStatus") = m_config("status.cancelled") Then metadata("Status") = "Cancelled"
-        Set row = ticketsTable.ListRows.Add
-        ex_TDB_History.fn_Write ticketsTable, row, metadata
-        parentId = metadata("RowId")
-    Next metadata
+    If m_places.Count > 1 Then
+        For Each metadata In m_places
+            If VBA.Len(metadata("RowId")) = 0 Then metadata("RowId") = ex_TDB_History.fn_NewId()
+            metadata("ParentRowId") = parentId
+            metadata("RowType") = "Place"
+            metadata("Revision") = revision
+            metadata("Status") = "Active"
+            If m_form("VacationStatus") = m_config("status.cancelled") Then metadata("Status") = "Cancelled"
+            Set row = ticketsTable.ListRows.Add
+            ex_TDB_History.fn_Write ticketsTable, row, metadata
+            parentId = metadata("RowId")
+        Next metadata
+    End If
     private_LogStage "CommitHistoryRevision"
     ex_TDB_History.fn_Commit ticketsTable, revisions, identifier, transaction, m_form("ChangeReason")
     If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
@@ -557,7 +559,7 @@ Private Sub private_ReadForm()
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
             "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
-            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel", _
+            "PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel", _
             "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))

@@ -446,6 +446,7 @@ Public Function fn_Load( _
     Dim parentId As String
     Dim found As Boolean
     Dim places As Collection
+    Dim placeField As Variant
 
     fn_Open tickets, revisions
     Set rows = fn_Read(tickets)
@@ -460,6 +461,7 @@ Public Function fn_Load( _
         pair = VBA.Split(mapping, "=")
         updates.Add "Form." & pair(0), root(pair(1))
     Next mapping
+    updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(root)
     For Each mapping In VBA.Split(fn_Config("dateFormFields"), "|")
         pair = VBA.Split(mapping, "=")
         If VBA.Len(private_Text(root(pair(1)))) > 0 Then
@@ -491,9 +493,18 @@ Public Function fn_Load( _
             End If
         Next row
     Loop While found
+    Set places = ex_TDB_PlaceChain.fn_FromGroup(group)
+    If places.Count = 1 Then
+        Set row = places(1)
+        updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(row)
+        updates("Form.DocumentTarget") = row("Destination")
+        For Each placeField In ex_TDB_Places.fn_FormFields()
+            updates("Form." & placeField) = row(placeField)
+        Next placeField
+        Set places = New Collection
+    End If
     If Not bindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
     If Not bindingContext.SetObject("Data", "TvoChain", chain) Then fn_Fail "InvalidRows"
-    Set places = ex_TDB_PlaceChain.fn_FromGroup(group)
     If Not bindingContext.SetObject("Data", "PlaceChain", places) Then fn_Fail "InvalidRows"
     If places.Count > 0 Then ex_TDB_PlaceChain.fn_ClearDraft bindingContext
     Set fn_Load = chain

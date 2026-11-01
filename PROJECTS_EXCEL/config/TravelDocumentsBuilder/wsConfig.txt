@@ -21,6 +21,7 @@ value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
 value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
+value	TravelDocumentsBuilder::text.PlaceKind	Тип місця
 value	TravelDocumentsBuilder::text.PlaceName	Місто / селище
 value	TravelDocumentsBuilder::text.PlaceType	Тип населеного пункту
 value	TravelDocumentsBuilder::text.RemoveTvo	−
@@ -170,6 +171,7 @@ value	TravelDocumentsBuilder::dates.daysAhead	15
 value	TravelDocumentsBuilder::dates.daysBefore	3
 value	TravelDocumentsBuilder::forms.readOnly.fields	PersonRank|PersonId|PersonPositionCode|PersonPosition|TvoIpn|TvoPosition
 value	TravelDocumentsBuilder::forms.readOnly.labelStyle	readOnlyFormLabel
+value	TravelDocumentsBuilder::forms.required.suffix	*
 value	TravelDocumentsBuilder::forms.sourceStyles.label	formLabel
 value	TravelDocumentsBuilder::forms.sourceStyles.default	formField
 value	TravelDocumentsBuilder::forms.sourceStyles.Personnel	personnelFormField
@@ -203,7 +205,7 @@ value	TravelDocumentsBuilder::lookup.Places.maxResults	50
 value	TravelDocumentsBuilder::lookup.Places.columnSpans	2|1|1|1|1
 value	TravelDocumentsBuilder::lookup.Places.columnOffset	1
 value	TravelDocumentsBuilder::lookup.Places.sourceFields	Region|Type|Name|District
-value	TravelDocumentsBuilder::lookup.Places.requiredFields	PlaceRegion|PlaceType|PlaceName|PlaceDistrict
+value	TravelDocumentsBuilder::lookup.Places.requiredFields	PlaceRegion|PlaceType|PlaceName
 value	TravelDocumentsBuilder::lookup.Places.addressTemplate	{Type} {Name}, {Region} обл., {District} р-н
 value	TravelDocumentsBuilder::lookup.Personnel.key	Personnel.TaxId
 value	TravelDocumentsBuilder::lookup.Personnel.apply.1.field	Personnel.FullName
@@ -262,6 +264,24 @@ value	TravelDocumentsBuilder::lookup.Personnel.display.count	0
 value	TravelDocumentsBuilder::lookup.Personnel.minChars	2
 value	TravelDocumentsBuilder::lookup.Personnel.maxResults	50
 value	TravelDocumentsBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
+value	TravelDocumentsBuilder::lookup.Militaries.text.Empty	Військових частин не знайдено. Можна ввести номер вручну.
+value	TravelDocumentsBuilder::lookup.Militaries.text.Minimum	Введіть щонайменше {minChars} символи номера військової частини та натисніть Enter.
+value	TravelDocumentsBuilder::lookup.Militaries.fields	Unit|Region|Type|Name|District
+value	TravelDocumentsBuilder::lookup.Militaries.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::lookup.Militaries.source.sheet	Військові частини
+value	TravelDocumentsBuilder::lookup.Militaries.source.table	tbMilitaries
+value	TravelDocumentsBuilder::lookup.Militaries.columns.Name	Місто / селище
+value	TravelDocumentsBuilder::lookup.Militaries.columns.Type	Тип населеного пункту
+value	TravelDocumentsBuilder::lookup.Militaries.columns.Unit	Військова частина
+value	TravelDocumentsBuilder::lookup.Militaries.columns.Region	Область
+value	TravelDocumentsBuilder::lookup.Militaries.columns.District	Район
+value	TravelDocumentsBuilder::lookup.Militaries.minChars	2
+value	TravelDocumentsBuilder::lookup.Militaries.formFields	Region=PlaceRegion|Type=PlaceType|Name=PlaceName|District=PlaceDistrict|Abroad=PlaceAbroad
+value	TravelDocumentsBuilder::lookup.Militaries.maxResults	50
+value	TravelDocumentsBuilder::lookup.Militaries.columnSpans	2|1|1|1|1
+value	TravelDocumentsBuilder::lookup.Militaries.columnOffset	1
+value	TravelDocumentsBuilder::lookup.Militaries.sourceFields	Unit|Region|Type|Name|District
+value	TravelDocumentsBuilder::lookup.Militaries.addressTemplate	в/ч {Unit}
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.fields	Address|Country|Region|Type|Name
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.source.sheet	Місця за кордоном
@@ -382,6 +402,7 @@ value	TravelDocumentsBuilder::generation.kind.annualMedical.input	Щорічна
 value	TravelDocumentsBuilder::generation.kind.treatmentMedical.word	у відпустку для лікування після поранення (контузії, травми або каліцтва)
 value	TravelDocumentsBuilder::generation.kind.treatmentMedical.event	Відпустка для лікування (медична рота А7383)
 value	TravelDocumentsBuilder::generation.kind.treatmentMedical.input	Відпустка для лікування (медична рота А7383)
+value	TravelDocumentsBuilder::generation.items.PlaceKinds	Населений пункт,Військова частина
 value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
 value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
 value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Щорічна відпустка (медична рота А7383)|Відпустка для лікування|Відпустка для лікування (медична рота А7383)|Відпустка по догляду за дитиною|Відпустка за сімейними обставинами|Відпустка у зв'язку з вагітністю та пологами
@@ -401,6 +422,7 @@ value	TravelDocumentsBuilder::generation.message.Success	Подію збереж
 value	TravelDocumentsBuilder::generation.message.Required	Не заповнено обов'язкове поле: {value}.
 value	TravelDocumentsBuilder::generation.message.Rollback	Не вдалося повністю відновити дані або прибрати тимчасові файли: {value}
 value	TravelDocumentsBuilder::generation.message.Unsupported	Генерація для цього типу документа ще не реалізована: {value}.
+value	TravelDocumentsBuilder::generation.defaults.PlaceKind	Населений пункт
 value	TravelDocumentsBuilder::generation.defaults.RoadDays	0
 value	TravelDocumentsBuilder::generation.defaults.DonationDays	0
 value	TravelDocumentsBuilder::generation.defaults.VacationDays	0
@@ -436,6 +458,8 @@ value	TravelDocumentsBuilder::placeChain.text.Fixed	Для медичної ро
 value	TravelDocumentsBuilder::placeChain.text.Limit	У ланцюгу може бути не більше 10 місць.
 value	TravelDocumentsBuilder::placeChain.text.Pending	Спочатку додайте поточне місце кнопкою «+» або очистіть його поля. Після цього «−» поверне останнє місце для редагування.
 value	TravelDocumentsBuilder::placeChain.fields	PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn
+value	TravelDocumentsBuilder::placeChain.military.kind	Військова частина
+value	TravelDocumentsBuilder::placeChain.military.type	в/ч
 value	TravelDocumentsBuilder::placeChain.maxItems	10
 value	TravelDocumentsBuilder::placeChain.separator	;
 value	TravelDocumentsBuilder::placeChain.itemTemplate	{index}. {address}

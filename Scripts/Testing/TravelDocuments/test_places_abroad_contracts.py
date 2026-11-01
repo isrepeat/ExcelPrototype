@@ -56,14 +56,19 @@ loader = (sources / 'obj_TDB_DependencyLoader.cls.vba').read_text(encoding='utf-
 for key in re.findall(r'ex_TravelDocumentsBuilder.fn_Config\("([^"]+)"\)', places + chain + controller):
     assert 'TravelDocumentsBuilder::' + key in config, key
 assert 'For Each sourceMode In VBA.Array(False, True)' in loader
-assert 'Set tableSource = fn_Source(isAbroad)' in places
+assert 'Set tableSource = fn_Source(isAbroad, isMilitary)' in places
 assert 'If VBA.IsNull(value) Or VBA.IsEmpty(value) Then value = VBA.vbNullString' in places
 assert 'fields("Region") <> fields("Name")' in places
 assert 'fields("RegionEn") <> fields("NameEn")' in places
 assert 'ua = VBA.CStr(fields("Country"))' in places
 assert 'en = VBA.CStr(fields("CountryEn"))' in places
 assert 'address = fn_Address(fields, isAbroad)' in places
-assert 'ex_TDB_Places.fn_Search(VBA.CStr(query), isAbroad)' in controller
+assert 'ex_TDB_Places.fn_Search(VBA.CStr(query), isAbroad, isMilitary)' in controller
+assert 'Set source = ex_TDB_Places.fn_Source(False, True)' in loader
+assert cfg('lookup.Militaries.source.table') == 'tbMilitaries'
+assert cfg('lookup.Militaries.source.sheet') == 'Військові частини'
+assert cfg('lookup.Militaries.fields').split('|') == ['Unit', 'Region', 'Type', 'Name', 'District']
+assert len(cfg('lookup.Militaries.columnSpans').split('|')) == 5
 change = re.search(r'Public Function VacationAbroadChangedHandler\([\s\S]*?^End Function', controller, re.M)[0]
 assert 'Me.PlaceChangedHandler()' in change
 assert 'SetObject("Data", "PlaceChain"' not in change

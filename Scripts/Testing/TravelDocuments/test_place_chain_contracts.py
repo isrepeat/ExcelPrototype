@@ -34,6 +34,11 @@ assert 'parent("RowType") <> "Event" And parent("RowType") <> "Place"' in graph
 assert 'links.Exists(link)' in graph and 'seen.Exists(parent("RowId"))' in graph
 assert 'Set places = ex_TDB_PlaceChain.fn_FromGroup(group)' in history
 assert 'If places.Count > 0 Then ex_TDB_PlaceChain.fn_ClearDraft bindingContext' in history
+load_single = re.search(r'If places.Count = 1 Then[\s\S]*?End If', history)[0]
+assert 'updates("Form.DocumentTarget") = row("Destination")' in load_single
+assert 'For Each placeField In ex_TDB_Places.fn_FormFields()' in load_single
+assert 'updates("Form." & placeField) = row(placeField)' in load_single
+assert 'Set places = New Collection' in load_single
 
 # Save includes the current draft, preserves loaded child IDs, and chains each next parent.
 assert 'If hasDraft Then result.Add fn_FromValues(values)' in chain
@@ -46,6 +51,23 @@ assert 'metadata("ParentRowId") = parentId' in write
 assert 'parentId = metadata("RowId")' in write
 assert 'metadata("Status") = "Cancelled"' in write
 assert 'm_wordValues.Add "PlaceChain", placeChain' in generator
+
+# Single-place storage omits children after removing any previous route children.
+storage = generator[generator.index("    ' Replace only this event's ordered TVO and place children"):generator.index('    private_LogStage "CommitHistoryRevision"')]
+assert storage.index('row.Delete') < storage.index('If m_places.Count > 1 Then')
+assert re.search(r'If m_places.Count > 1 Then\s+For Each metadata In m_places[\s\S]*?Next metadata\s+End If', storage)
+assert 'For Each key In ex_TDB_Places.fn_FormFields()\n        metadata.Add VBA.CStr(key), m_form(key)' in generator
+
+# Loading/export reconstruct an Event-only place without copying Event's identity.
+restore = re.search(r'Public Function fn_FromGroup\([\s\S]*?^End Function', chain, re.M)[0]
+single = restore[restore.index('    Set root = group(1)'):]
+assert 'If result.Count = 0 And VBA.Len(VBA.Trim$(VBA.CStr(root("PlaceName")))) > 0 Then' in single
+assert 'Set row = ex_TDB_History.fn_NewRow()' in single
+assert 'VBA.Split("Destination|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")' in single
+assert 'row(field) = root(field)' in single
+assert 'RowId' not in single and 'ParentRowId' not in single
+assert 'result.Add row' in single
+assert restore.index('If result.Count <> count Then') < restore.index('    Set root = group(1)')
 
 layout = ET.parse(root / 'ui/TravelDocumentsBuilder/MainPage.xaml')
 for name in ('AddPlace', 'RemovePlace'):

@@ -323,7 +323,7 @@ Cleanup:
     If stageCreated And VBA.Len(rollback) = 0 Then
         VBA.Err.Clear
         If VBA.StrComp(m_fileSystem.GetParentFolderName(m_fileSystem.GetAbsolutePathName(stage)), m_fileSystem.GetAbsolutePathName(folder), VBA.vbTextCompare) = 0 Then
-            If VBA.Left$(m_fileSystem.GetFileName(stage), VBA.Len("._TDB-stage-T-")) = "._TDB-stage-T-" Then
+            If VBA.Left$(m_fileSystem.GetFileName(stage), VBA.Len("._TDB-stage-")) = "._TDB-stage-" Then
                 If m_fileSystem.FolderExists(stage) Then m_fileSystem.DeleteFolder stage, True
             End If
         End If

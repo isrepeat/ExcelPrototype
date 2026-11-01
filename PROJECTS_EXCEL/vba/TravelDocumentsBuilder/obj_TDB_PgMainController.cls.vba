@@ -254,6 +254,8 @@ End Function
 
 Public Function PlaceChangedHandler() As Boolean
     Dim query As Variant
+    Dim scalarPlaceKind As Variant
+    Dim isMilitary As Boolean
     Dim vacationKind As Variant
     Dim result As obj_LookupResult
     Dim status As String
@@ -271,6 +273,8 @@ Public Function PlaceChangedHandler() As Boolean
         Exit Function
     End If
     If Not private_TryReadFormValue("DocumentTarget", query) Then Exit Function
+    If Not private_TryReadFormValue("PlaceKind", scalarPlaceKind) Then Exit Function
+    isMilitary = scalarPlaceKind = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind")
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If VBA.CBool(autoFill) Then
         For Each field In ex_TDB_Places.fn_FormFields()
@@ -281,8 +285,8 @@ Public Function PlaceChangedHandler() As Boolean
     End If
     If Not private_TryReadFormValue("VacationAbroad", abroad) Then Exit Function
     isAbroad = ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad))
-    prefix = ex_TDB_Places.fn_Prefix(isAbroad)
-    Set result = ex_TDB_Places.fn_Search(VBA.CStr(query), isAbroad)
+    prefix = ex_TDB_Places.fn_Prefix(isAbroad, isMilitary)
+    Set result = ex_TDB_Places.fn_Search(VBA.CStr(query), isAbroad, isMilitary)
     If Not private_ValidateCandidateBounds(result, prefix & ".columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
             ex_TravelDocumentsBuilder.fn_Config(prefix & ".columnOffset")) Then Exit Function
@@ -295,10 +299,18 @@ Public Function PlaceChangedHandler() As Boolean
     If Not m_placeResult Is Nothing Then m_placeResult.Dispose
     Set m_placeResult = result
     If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
-        status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Minimum"), _
-            "{minChars}", ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars"))
+        If isMilitary Then
+            status = ex_TravelDocumentsBuilder.fn_Config("lookup.Militaries.text.Minimum")
+        Else
+            status = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Minimum")
+        End If
+        status = VBA.Replace$(status, "{minChars}", ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars"))
     ElseIf result.RowCount = 0 Then
-        status = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Empty")
+        If isMilitary Then
+            status = ex_TravelDocumentsBuilder.fn_Config("lookup.Militaries.text.Empty")
+        Else
+            status = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Empty")
+        End If
     ElseIf result.HasMore Then
         status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.More"), _
             "{count}", VBA.CStr(result.RowCount))
@@ -339,6 +351,7 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         Next mapping
         If Not selected.TryGetValue("Abroad", abroad) Then Exit Function
         prefix = ex_TDB_Places.fn_Prefix(ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad)))
+        If selected.TryGetValue("Unit", placeValue) Then prefix = ex_TDB_Places.fn_Prefix(False, True)
         For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".formFields"), "|")
             pair = VBA.Split(mapping, "=")
             If Not selected.TryGetValue(VBA.CStr(pair(0)), placeValue) Then Exit Function
@@ -485,7 +498,7 @@ Public Function ClearFormHandler() As Boolean
             "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason")
         updates("Form." & VBA.CStr(key)) = VBA.vbNullString
     Next key
-    For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", _
+    For Each key In VBA.Array("PlaceKind", "VacationKind", "VacationAbroad", "VacationStatus", _
             "VacationDays", "RoadDays", "DonationDays")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig( _
                 "generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
@@ -851,6 +864,7 @@ Public Function RemovePlaceHandler() As Boolean
     Set row = chain(chain.Count)
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     updates("Form.DocumentTarget") = row("Destination")
+    updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(row)
     updates("Form.VacationAbroad") = row("PlaceAbroad")
     For Each field In ex_TDB_Places.fn_FormFields()
         updates("Form." & field) = row(field)
@@ -1188,6 +1202,10 @@ Private Function private_UpdatePlaceFields() As Boolean
     Dim prefix As String
     Dim field As Variant
     Dim emptyPlaces As New Collection
+    Dim placeKind As Variant
+    Dim requiredFields As String
+    Dim caption As String
+    Dim suffix As String
 
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
@@ -1203,8 +1221,25 @@ Private Function private_UpdatePlaceFields() As Boolean
     End If
     If Not private_TryReadFormValue("VacationAbroad", abroad) Then Exit Function
     prefix = ex_TDB_Places.fn_Prefix(ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad)))
-    If Not m_pageBase.BindingContext.SetValue("Text", "PlaceRegion", ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Region")) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Text", "PlaceName", ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name")) Then Exit Function
+    If Not private_TryReadFormValue("PlaceKind", placeKind) Then Exit Function
+    If visibility = "Visible" And placeKind <> ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind") Then
+        requiredFields = "|" & ex_TravelDocumentsBuilder.fn_Config(prefix & ".requiredFields") & "|"
+    End If
+    suffix = ex_TravelDocumentsBuilder.fn_Config("forms.required.suffix")
+    For Each field In ex_TDB_Places.fn_FormFields()
+        If field <> "PlaceAbroad" Then
+            Select Case VBA.CStr(field)
+                Case "PlaceRegion"
+                    caption = ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Region")
+                Case "PlaceName"
+                    caption = ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name")
+                Case Else
+                    caption = ex_TravelDocumentsBuilder.fn_Config("text." & field)
+            End Select
+            If VBA.InStr(1, requiredFields, "|" & field & "|", VBA.vbBinaryCompare) > 0 Then caption = caption & suffix
+            If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(field), caption) Then Exit Function
+        End If
+    Next field
     domesticVisibility = "Collapsed"
     foreignVisibility = "Collapsed"
     If visibility = "Visible" Then

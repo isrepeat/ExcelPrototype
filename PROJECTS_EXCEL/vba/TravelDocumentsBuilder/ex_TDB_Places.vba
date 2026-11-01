@@ -13,13 +13,16 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_Source(Optional ByVal isAbroad As Boolean = False) As obj_TableSource
+Public Function fn_Source( _
+    Optional ByVal isAbroad As Boolean = False, _
+    Optional ByVal isMilitary As Boolean = False _
+) As obj_TableSource
     Dim tableSource As New obj_TableSource
     Dim fileSystem As Object
     Dim path As String
     Dim prefix As String
 
-    prefix = fn_Prefix(isAbroad)
+    prefix = fn_Prefix(isAbroad, isMilitary)
     If Not tableSource.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize places source."
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     path = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.path")
@@ -34,7 +37,8 @@ End Function
 
 Public Function fn_Search( _
     ByVal searchText As String, _
-    Optional ByVal isAbroad As Boolean = False _
+    Optional ByVal isAbroad As Boolean = False, _
+    Optional ByVal isMilitary As Boolean = False _
 ) As obj_LookupResult
     Dim tableSource As obj_TableSource
     Dim tableQuery As obj_TableQuery
@@ -60,7 +64,11 @@ Public Function fn_Search( _
     Dim prefix As String
 
     On Error GoTo Failed
-    prefix = fn_Prefix(isAbroad)
+    prefix = fn_Prefix(isAbroad, isMilitary)
+    If isMilitary Then
+        searchText = VBA.Replace$(searchText, ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type"), VBA.vbNullString, 1, -1, VBA.vbTextCompare)
+        searchText = VBA.Trim$(VBA.Replace$(searchText, "A", "А", 1, -1, VBA.vbTextCompare))
+    End If
     Set snapshot = ex_TableSnapshots.fn_Active()
     If snapshot Is Nothing Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     spans = VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".columnSpans"), "|")
@@ -76,13 +84,17 @@ Public Function fn_Search( _
     If columnIndex <> UBound(spans) + 1 Then VBA.Err.Raise 5, , "Places column span count mismatch."
     limit = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".maxResults"))
     If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
-        Set tableSource = fn_Source(isAbroad)
+        Set tableSource = fn_Source(isAbroad, isMilitary)
         Set tableQuery = New obj_TableQuery
         If Not tableQuery.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize places query."
         For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".sourceFields"), "|")
             tableQuery.AddColumn ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
         Next field
-        tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name"), QueryContains, searchText, QueryText, True
+        If isMilitary Then
+            tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Unit"), QueryContains, searchText, QueryText, True
+        Else
+            tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name"), QueryContains, searchText, QueryText, True
+        End If
         tableQuery.Limit = limit + 1
         If Not snapshot.TryQuery(tableSource, tableQuery, dataTable, diagnostic) Then VBA.Err.Raise 5, , diagnostic
         hasMore = dataTable.RowCount > limit
@@ -98,7 +110,11 @@ Public Function fn_Search( _
             Next field
             fields.Add "Abroad", ex_TravelDocumentsBuilder.fn_Config("generation.abroad.no")
             If isAbroad Then fields("Abroad") = ex_TravelDocumentsBuilder.fn_Config("generation.abroad.yes")
-            address = fn_Address(fields, isAbroad)
+            If isMilitary Then
+                address = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config(prefix & ".addressTemplate"), "{Unit}", fields("Unit"))
+            Else
+                address = fn_Address(fields, isAbroad)
+            End If
             fields.Add "Address", address
             Set lookupRecord = New obj_LookupRecord
             If Not lookupRecord.Initialize(address, fields) Then VBA.Err.Raise 5, , "Cannot initialize place candidate."
@@ -120,9 +136,13 @@ Failed:
     Resume Cleanup
 End Function
 
-Public Function fn_Prefix(ByVal isAbroad As Boolean) As String
+Public Function fn_Prefix( _
+    ByVal isAbroad As Boolean, _
+    Optional ByVal isMilitary As Boolean = False _
+) As String
     fn_Prefix = "lookup.Places"
     If isAbroad Then fn_Prefix = "lookup.PlacesAbroad"
+    If isMilitary Then fn_Prefix = "lookup.Militaries"
 End Function
 
 Public Function fn_IsAbroad(ByVal value As String) As Boolean

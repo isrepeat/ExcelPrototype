@@ -21,7 +21,7 @@ Public Function fn_Draft(ByVal bindingContext As obj_UiBindingContext) As Object
     Dim isObject As Boolean
 
     Set values = VBA.CreateObject("Scripting.Dictionary")
-    For Each field In VBA.Split("DocumentTarget|AutoFillPersonnel|VacationAbroad|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
+    For Each field In VBA.Split("PlaceKind|DocumentTarget|AutoFillPersonnel|VacationAbroad|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
         If Not bindingContext.TryGetValue("Form", VBA.CStr(field), scalar, objectValue, isObject) Then VBA.Err.Raise 5, , VBA.CStr(field)
         If isObject Or VBA.IsError(scalar) Or VBA.IsNull(scalar) Then VBA.Err.Raise 5, , VBA.CStr(field)
         values.Add VBA.CStr(field), scalar
@@ -45,6 +45,17 @@ Public Function fn_FromValues(ByVal values As Object) As Object
     Next field
     row("PlaceAbroad") = values("VacationAbroad")
     row("Destination") = ex_TableQuery.fn_NormalizeText(VBA.CStr(values("DocumentTarget")))
+    If values("PlaceKind") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind") Then
+        If VBA.Len(row("Destination")) = 0 Then private_Required "text.VacationTicket.DocumentTargetLabel"
+        ' Preserve the place kind in the existing structured history fields.
+        row("PlaceType") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type")
+        row("PlaceName") = row("Destination")
+        If VBA.StrComp(VBA.Left$(row("Destination"), VBA.Len(row("PlaceType"))), row("PlaceType"), VBA.vbTextCompare) <> 0 Then
+            row("Destination") = row("PlaceType") & VBA.Space$(1) & row("Destination")
+        End If
+        Set fn_FromValues = row
+        Exit Function
+    End If
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".requiredFields"), "|")
         If VBA.Len(row(field)) = 0 Then
             If VBA.CBool(values("AutoFillPersonnel")) Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
@@ -93,7 +104,9 @@ Public Function fn_Build( _
         Next field
         For Each field In VBA.Split("Destination|" & ex_TravelDocumentsBuilder.fn_Config( _
                 ex_TDB_Places.fn_Prefix(ex_TDB_Places.fn_IsAbroad(VBA.CStr(copy("PlaceAbroad")))) & ".requiredFields"), "|")
-            If VBA.Len(VBA.Trim$(VBA.CStr(copy(field)))) = 0 Then ex_TDB_History.fn_Fail "InvalidChain"
+            If fn_Kind(copy) <> ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind") Or field = "Destination" Then
+                If VBA.Len(VBA.Trim$(VBA.CStr(copy(field)))) = 0 Then ex_TDB_History.fn_Fail "InvalidChain"
+            End If
         Next field
         result.Add copy
     Next item
@@ -119,9 +132,19 @@ Public Function fn_Join(ByVal chain As Collection) As String
     Next row
 End Function
 
+Public Function fn_Kind(ByVal row As Object) As String
+    If row("PlaceType") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type") Then
+        fn_Kind = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind")
+    Else
+        fn_Kind = ex_TravelDocumentsBuilder.fn_Config("generation.defaults.PlaceKind")
+    End If
+End Function
+
 Public Function fn_FromGroup(ByVal group As Collection) As Collection
     Dim result As New Collection
     Dim row As Object
+    Dim root As Object
+    Dim field As Variant
     Dim parentId As String
     Dim found As Boolean
     Dim count As Long
@@ -143,6 +166,16 @@ Public Function fn_FromGroup(ByVal group As Collection) As Collection
         Next row
     Loop While found
     If result.Count <> count Then ex_TDB_History.fn_Fail "InvalidChain"
+    Set root = group(1)
+    If result.Count = 0 And VBA.Len(VBA.Trim$(VBA.CStr(root("PlaceName")))) > 0 Then
+        ' A single place is stored on Event; its in-memory item has no persisted child ID.
+        Set row = ex_TDB_History.fn_NewRow()
+        For Each field In VBA.Split("Destination|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
+            row(field) = root(field)
+        Next field
+        row("RowType") = "Place"
+        result.Add row
+    End If
     Set fn_FromGroup = result
 End Function
 

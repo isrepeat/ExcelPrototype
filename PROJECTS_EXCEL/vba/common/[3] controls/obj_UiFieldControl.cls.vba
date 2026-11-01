@@ -784,6 +784,8 @@ Private Function private_RenderSelectShapes( _
     Dim placeholder As String
     Dim headerText As String
     Dim startedAt As Double
+    Dim arrowArea As Range
+    Dim arrowColumnSpan As Long
 
     startedAt = VBA.Timer
     If items Is Nothing Or uiCellBinding Is Nothing Then Exit Function
@@ -796,10 +798,21 @@ Private Function private_RenderSelectShapes( _
         msoShapeRectangle, m_targetRange.Left, m_targetRange.Top, _
         m_targetRange.Width, m_targetRange.Height)
     headerShape.Name = headerShapeName
+    headerShape.TextFrame2.AutoSize = msoAutoSizeNone
     Set m_selectHeaderShape = headerShape
     If m_editable Then
-        uiRenderContext.RegisterShapeLayout headerShape, m_targetRange, _
-            m_uiControlBase.ControlNode, "1/10", "right"
+        If m_uiControlBase.ControlNode.getAttributeNode("arrowColumnSpan") Is Nothing Then
+            uiRenderContext.RegisterShapeLayout headerShape, m_targetRange, _
+                m_uiControlBase.ControlNode, "1/10", "right"
+        Else
+            arrowColumnSpan = ex_UiElementFactory.fn_Long(m_uiControlBase.ControlNode, "arrowColumnSpan", 1)
+            If arrowColumnSpan > m_targetRange.Columns.Count Then
+                VBA.Err.Raise 5, "Select.Layout", "arrowColumnSpan exceeds the field column span."
+            End If
+            Set arrowArea = m_targetRange.Columns(m_targetRange.Columns.Count - arrowColumnSpan + 1).Resize( _
+                m_targetRange.Rows.Count, arrowColumnSpan)
+            uiRenderContext.RegisterShapeLayout headerShape, arrowArea, m_uiControlBase.ControlNode
+        End If
     Else
         uiRenderContext.RegisterShapeLayout headerShape, m_targetRange, m_uiControlBase.ControlNode
     End If

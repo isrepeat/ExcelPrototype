@@ -60,7 +60,7 @@ Public Function TryBuild( _
     signatures.CompareMode = VBA.vbTextCompare
     busyEntered = ex_UiBusy.fn_Begin(ex_TravelDocumentsBuilder.fn_Config("text.DependenciesLoading"))
     sourceDefinitions = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("snapshots.sources"), "|")
-    progressTotal = UBound(sourceDefinitions) + 1 + 5
+    progressTotal = UBound(sourceDefinitions) + 1 + 6
 
     ' Load every configured source before preparing projections.
     For Each prefix In sourceDefinitions
@@ -93,6 +93,15 @@ Public Function TryBuild( _
         source.Dispose
         Set source = Nothing
     Next sourceMode
+
+    Set source = ex_TDB_Places.fn_Source(False, True)
+    If Not signatures.Exists(source.WorkbookPath) Then
+        signatures.Add source.WorkbookPath, private_FileStamp(source.WorkbookPath)
+    End If
+    private_Progress progressStep, progressTotal, "Table", source.SheetName
+    If Not snapshot.TryLoad(source, diagnostic) Then GoTo Cleanup
+    source.Dispose
+    Set source = Nothing
 
     ' Prepare lookup and orders against the staged generation only.
     Set profile = New obj_LookupProfile
