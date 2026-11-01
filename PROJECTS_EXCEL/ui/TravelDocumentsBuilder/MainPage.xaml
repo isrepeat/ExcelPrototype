@@ -153,10 +153,15 @@
         <controls:input name="DocumentTarget"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="lookupKeyField"
                         value="{Binding Path=Form.DocumentTarget}"
                         onChange="{Binding Path=Commands.PlaceChanged}"/>
+        <controls:button name="AddPlace"
+                         row="1"
+                         column="3"
+                         style="tvoIconButton"
+                         caption="{Binding Path=Text.AddPlace}"
+                         command="{Binding Path=Commands.AddPlace}"/>
       </grid>
       <stackPanel name="PlaceFields"
                   orientation="vertical"
@@ -200,7 +205,7 @@
                           style="formField"
                           value="{Binding Path=Form.PlaceName}"/>
         </grid>
-        <grid>
+        <grid visibility="{Binding Path=Form.DomesticPlaceFieldsVisibility}">
           <controls:label name="PlaceDistrictLabel"
                           row="1"
                           column="1"
@@ -213,6 +218,84 @@
                           style="formField"
                           value="{Binding Path=Form.PlaceDistrict}"/>
         </grid>
+      </stackPanel>
+      <stackPanel name="ForeignPlaceFields"
+                  orientation="vertical"
+                  visibility="{Binding Path=Form.ForeignPlaceFieldsVisibility}">
+        <grid>
+          <controls:label name="PlaceCountryLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceCountry}"/>
+          <controls:input name="PlaceCountry"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceCountry}"/>
+        </grid>
+        <grid>
+          <controls:label name="PlaceCountryEnLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceCountryEn}"/>
+          <controls:input name="PlaceCountryEn"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceCountryEn}"/>
+        </grid>
+        <grid>
+          <controls:label name="PlaceRegionEnLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceRegionEn}"/>
+          <controls:input name="PlaceRegionEn"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceRegionEn}"/>
+        </grid>
+        <grid>
+          <controls:label name="PlaceNameEnLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceNameEn}"/>
+          <controls:input name="PlaceNameEn"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceNameEn}"/>
+        </grid>
+      </stackPanel>
+      <stackPanel name="PlaceChainPanel"
+                  orientation="vertical"
+                  visibility="{Binding Path=Form.PlaceChainVisibility}">
+        <grid>
+          <controls:label name="PlaceChainTitle"
+                          row="1"
+                          column="1"
+                          columnSpan="2"
+                          style="sectionTitle"
+                          text="{Binding Path=Text.PlaceChainTitle}"/>
+          <controls:button name="RemovePlace"
+                           row="1"
+                           column="3"
+                           style="tvoIconButton"
+                           caption="{Binding Path=Text.RemovePlace}"
+                           command="{Binding Path=Commands.RemovePlace}"/>
+        </grid>
+        <controls:table name="PlaceList"
+                        itemsSource="{Binding Path=Data.PlaceChainView}"
+                        style="statusText"
+                        showHeaders="false"/>
       </stackPanel>
       <grid>
         <controls:label name="DepartureDateLabel"
@@ -290,6 +373,7 @@
                          columnSpan="2"
                          style="formField"
                          value="{Binding Path=Form.VacationAbroad}"
+                         onChange="{Binding Path=Commands.VacationAbroadChanged}"
                          panelStyle="formSelectPanel"
                          itemStyle="formSelectItem"/>
       </grid>
@@ -396,6 +480,28 @@
                         value="{Binding Path=Form.TvoPosition}"
                         readOnly="{Binding Path=Form.TvoPositionReadOnly}"/>
       </grid>
+      <stackPanel name="TvoChainPanel"
+                  orientation="vertical"
+                  visibility="{Binding Path=Form.TvoChainVisibility}">
+        <grid>
+          <controls:label name="TvoChainTitle"
+                          row="1"
+                          column="1"
+                          columnSpan="2"
+                          style="sectionTitle"
+                          text="{Binding Path=Text.TvoChainTitle}"/>
+          <controls:button name="RemoveTvo"
+                           row="1"
+                           column="3"
+                           style="tvoIconButton"
+                           caption="{Binding Path=Text.RemoveTvo}"
+                           command="{Binding Path=Commands.RemoveTvo}"/>
+        </grid>
+        <controls:table name="TvoList"
+                        itemsSource="{Binding Path=Data.TvoChainView}"
+                        style="statusText"
+                        showHeaders="false"/>
+      </stackPanel>
       <grid>
         <controls:label name="PurposeLabel"
                         row="1"
@@ -423,29 +529,6 @@
                         columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.ChangeReason}"/>
-      </grid>
-      <grid>
-        <controls:label name="TvoChainTitle"
-                        row="1"
-                        column="1"
-                        columnSpan="2"
-                        style="sectionTitle"
-                        text="{Binding Path=Text.TvoChainTitle}"/>
-        <controls:button name="RemoveTvo"
-                         row="1"
-                         column="3"
-                         style="tvoIconButton"
-                         caption="{Binding Path=Text.RemoveTvo}"
-                         command="{Binding Path=Commands.RemoveTvo}"/>
-      </grid>
-      <grid>
-        <controls:label name="TvoChainSummary"
-                        row="1"
-                        column="1"
-                        rowSpan="3"
-                        columnSpan="3"
-                        style="statusText"
-                        text="{Binding Path=Text.TvoChainSummary}"/>
       </grid>
     </stackPanel>
 

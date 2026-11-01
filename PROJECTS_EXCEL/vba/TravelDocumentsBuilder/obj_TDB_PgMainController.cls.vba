@@ -17,6 +17,8 @@ Private m_lookupProfile As obj_LookupProfile
 Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
 Private m_placeResult As obj_LookupResult
+Private m_placeChainView As obj_LookupResult
+Private m_tvoChainView As obj_LookupResult
 Private m_lookupIsPlace As Boolean
 Private m_messages As Object
 Private m_historyResult As obj_LookupResult
@@ -49,6 +51,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim spans As Variant
     Dim column As Object
     Dim columnIndex As Long
+    Dim emptyChain As New Collection
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -110,6 +113,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not private_UpdateFieldState() Then
         Exit Function
     End If
+    If Not private_PublishPlaces() Then Exit Function
+    If Not private_PublishChain(emptyChain) Then Exit Function
     m_isInitialized = True
     Initialize = True
 End Function
@@ -124,6 +129,10 @@ Public Sub Dispose()
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
     If Not m_placeResult Is Nothing Then m_placeResult.Dispose
     Set m_placeResult = Nothing
+    If Not m_placeChainView Is Nothing Then m_placeChainView.Dispose
+    Set m_placeChainView = Nothing
+    If Not m_tvoChainView Is Nothing Then m_tvoChainView.Dispose
+    Set m_tvoChainView = Nothing
     If Not m_lookupProfile Is Nothing Then m_lookupProfile.Dispose
     If Not m_historyResult Is Nothing Then m_historyResult.Dispose
     Set m_historyResult = Nothing
@@ -227,6 +236,22 @@ Public Function TvoNameChangedHandler() As Boolean
     TvoNameChangedHandler = Me.SearchPersonnelHandler()
 End Function
 
+Public Function VacationAbroadChangedHandler() As Boolean
+    Dim field As Variant
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    For Each field In ex_TDB_Places.fn_FormFields()
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
+    Next field
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    If Not private_UpdatePlaceFields() Then Exit Function
+    VacationAbroadChangedHandler = Me.PlaceChangedHandler()
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
 Public Function PlaceChangedHandler() As Boolean
     Dim query As Variant
     Dim vacationKind As Variant
@@ -234,6 +259,9 @@ Public Function PlaceChangedHandler() As Boolean
     Dim status As String
     Dim autoFill As Variant
     Dim field As Variant
+    Dim abroad As Variant
+    Dim isAbroad As Boolean
+    Dim prefix As String
 
     On Error GoTo Failed
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -244,17 +272,20 @@ Public Function PlaceChangedHandler() As Boolean
     End If
     If Not private_TryReadFormValue("DocumentTarget", query) Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
-    If Not VBA.CBool(autoFill) Then
-        PlaceChangedHandler = True
-        Exit Function
+    If VBA.CBool(autoFill) Then
+        For Each field In ex_TDB_Places.fn_FormFields()
+            If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
+        Next field
+    Else
+        query = VBA.vbNullString
     End If
-    For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
-        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
-    Next field
-    Set result = ex_TDB_Places.fn_Search(VBA.CStr(query))
-    If Not private_ValidateCandidateBounds(result, "lookup.Places.columnOffset") Then Exit Function
+    If Not private_TryReadFormValue("VacationAbroad", abroad) Then Exit Function
+    isAbroad = ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad))
+    prefix = ex_TDB_Places.fn_Prefix(isAbroad)
+    Set result = ex_TDB_Places.fn_Search(VBA.CStr(query), isAbroad)
+    If Not private_ValidateCandidateBounds(result, prefix & ".columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
-            ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columnOffset")) Then Exit Function
+            ex_TravelDocumentsBuilder.fn_Config(prefix & ".columnOffset")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", "Confirm") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
@@ -263,9 +294,9 @@ Public Function PlaceChangedHandler() As Boolean
     m_lookupIsPlace = True
     If Not m_placeResult Is Nothing Then m_placeResult.Dispose
     Set m_placeResult = result
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.minChars")) Then
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
         status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Minimum"), _
-            "{minChars}", ex_TravelDocumentsBuilder.fn_Config("lookup.Places.minChars"))
+            "{minChars}", ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars"))
     ElseIf result.RowCount = 0 Then
         status = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Empty")
     ElseIf result.HasMore Then
@@ -288,6 +319,8 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim pair As Variant
     Dim placeValue As Variant
     Dim updates As Object
+    Dim abroad As Variant
+    Dim prefix As String
 
     If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then
         Exit Function
@@ -301,7 +334,12 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         If Not selected.TryGetValue("Address", address) Then Exit Function
         Set updates = VBA.CreateObject("Scripting.Dictionary")
         updates("Form.DocumentTarget") = address
-        For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.formFields"), "|")
+        For Each mapping In ex_TDB_Places.fn_FormFields()
+            updates("Form." & VBA.CStr(mapping)) = VBA.vbNullString
+        Next mapping
+        If Not selected.TryGetValue("Abroad", abroad) Then Exit Function
+        prefix = ex_TDB_Places.fn_Prefix(ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad)))
+        For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".formFields"), "|")
             pair = VBA.Split(mapping, "=")
             If Not selected.TryGetValue(VBA.CStr(pair(0)), placeValue) Then Exit Function
             updates("Form." & pair(1)) = placeValue
@@ -434,12 +472,14 @@ Public Function ClearFormHandler() As Boolean
     Dim diagnostic As String
     Dim emptyChain As New Collection
     Dim currentAutoFill As Variant
+    Dim emptyPlaces As New Collection
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
             "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+            "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "ReturnDate", "Purpose", "ReportNo", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
             "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason")
@@ -474,6 +514,8 @@ Public Function ClearFormHandler() As Boolean
     If Not private_UpdateFieldState() Then Exit Function
     If Not Me.DocumentTypeChangedHandler() Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "TvoChain", emptyChain) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PlaceChain", emptyPlaces) Then Exit Function
+    If Not private_PublishPlaces() Then Exit Function
     If Not private_PublishChain(emptyChain) Then Exit Function
     If ex_TableSnapshots.fn_Active() Is Nothing Then
         ClearFormHandler = True
@@ -652,6 +694,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     If Not private_PublishChain(chain) Then
         Exit Function
     End If
+    If Not private_PublishPlaces() Then Exit Function
     If Not Me.VacationDatesChangedHandler() Then
         Exit Function
     End If
@@ -755,6 +798,70 @@ Public Function SearchOrdersHandler() As Boolean
 Failed:
     If VBA.Len(diagnostic) = 0 Then diagnostic = VBA.Err.Description
     SearchOrdersHandler = private_SetActionStatus(diagnostic, True)
+End Function
+
+Public Function AddPlaceHandler() As Boolean
+    Dim scalar As Variant
+    Dim chain As Object
+    Dim isObject As Boolean
+    Dim row As Object
+    Dim vacationKind As Variant
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
+    If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(VBA.CStr(vacationKind)) Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("placeChain.text.Fixed")
+    End If
+    If Not m_pageBase.BindingContext.TryGetValue("Data", "PlaceChain", scalar, chain, isObject) Then Exit Function
+    If Not isObject Then ex_TDB_History.fn_Fail "InvalidChain"
+    If chain.Count >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("placeChain.maxItems")) Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("placeChain.text.Limit")
+    End If
+    Set row = ex_TDB_PlaceChain.fn_Draft(m_pageBase.BindingContext)
+    ex_TDB_PlaceChain.fn_ClearDraft m_pageBase.BindingContext
+    chain.Add row
+    AddPlaceHandler = private_PublishPlaces()
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function RemovePlaceHandler() As Boolean
+    Dim scalar As Variant
+    Dim chain As Object
+    Dim isObject As Boolean
+    Dim row As Object
+    Dim field As Variant
+    Dim updates As Object
+    Dim diagnostic As String
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.TryGetValue("Data", "PlaceChain", scalar, chain, isObject) Then Exit Function
+    If Not isObject Then ex_TDB_History.fn_Fail "InvalidChain"
+    If chain.Count = 0 Then
+        RemovePlaceHandler = True
+        Exit Function
+    End If
+    For Each field In VBA.Split("DocumentTarget|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
+        If Not private_TryReadFormValue(VBA.CStr(field), scalar) Then Exit Function
+        If VBA.Len(VBA.CStr(scalar)) > 0 Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("placeChain.text.Pending")
+    Next field
+    Set row = chain(chain.Count)
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Form.DocumentTarget") = row("Destination")
+    updates("Form.VacationAbroad") = row("PlaceAbroad")
+    For Each field In ex_TDB_Places.fn_FormFields()
+        updates("Form." & field) = row(field)
+    Next field
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    chain.Remove chain.Count
+    If Not private_UpdatePlaceFields() Then Exit Function
+    RemovePlaceHandler = private_PublishPlaces()
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
 End Function
 
 Public Function AddTvoHandler() As Boolean
@@ -954,12 +1061,68 @@ Private Function private_UpdateFieldState() As Boolean
     If Not private_UpdateFieldState Then VBA.Err.Raise 5, , diagnostic
 End Function
 
+Private Function private_PublishPlaces() As Boolean
+    Dim scalar As Variant
+    Dim chain As Object
+    Dim isObject As Boolean
+    Dim records As New Collection
+    Dim columns As New Collection
+    Dim column As Object
+    Dim row As Object
+    Dim fields As Object
+    Dim lookupRecord As obj_LookupRecord
+    Dim result As New obj_LookupResult
+    Dim index As Long
+    Dim line As String
+    Dim diagnostic As String
+    Dim visibility As String
+
+    If Not m_pageBase.BindingContext.TryGetValue("Data", "PlaceChain", scalar, chain, isObject) Then Exit Function
+    If Not isObject Then ex_TDB_History.fn_Fail "InvalidChain"
+    Set column = VBA.CreateObject("Scripting.Dictionary")
+    column.Add "name", "Address"
+    column.Add "caption", ex_TravelDocumentsBuilder.fn_Config("text.PlaceChainTitle")
+    column.Add "columnSpan", 3
+    columns.Add column
+    For index = 1 To chain.Count
+        Set row = chain(index)
+        line = ex_TravelDocumentsBuilder.fn_Config("placeChain.itemTemplate")
+        line = VBA.Replace$(line, "{index}", VBA.CStr(index))
+        line = VBA.Replace$(line, "{address}", VBA.CStr(row("Destination")))
+        Set fields = VBA.CreateObject("Scripting.Dictionary")
+        fields.Add "Address", line
+        Set lookupRecord = New obj_LookupRecord
+        If Not lookupRecord.Initialize(VBA.CStr(index), fields) Then ex_TDB_History.fn_Fail "InvalidChain"
+        records.Add lookupRecord
+    Next index
+    If Not result.Initialize(records, columns, False, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    If Not m_pageBase.BindingContext.SetObject("Data", "PlaceChainView", result) Then Exit Function
+    If Not m_placeChainView Is Nothing Then m_placeChainView.Dispose
+    Set m_placeChainView = result
+    visibility = "Collapsed"
+    If chain.Count > 0 Then visibility = "Visible"
+    private_PublishPlaces = m_pageBase.BindingContext.SetValue("Form", "PlaceChainVisibility", visibility)
+End Function
+
 Private Function private_PublishChain(ByVal chain As Collection) As Boolean
     Dim row As Object
     Dim text As String
     Dim line As String
     Dim index As Long
+    Dim records As New Collection
+    Dim columns As New Collection
+    Dim column As Object
+    Dim fields As Object
+    Dim lookupRecord As obj_LookupRecord
+    Dim result As New obj_LookupResult
+    Dim diagnostic As String
+    Dim visibility As String
 
+    Set column = VBA.CreateObject("Scripting.Dictionary")
+    column.Add "name", "Summary"
+    column.Add "caption", ex_TravelDocumentsBuilder.fn_Config("text.TvoChainTitle")
+    column.Add "columnSpan", 3
+    columns.Add column
     For index = 1 To chain.Count
         Set row = chain(index)
         line = ex_TDB_History.fn_Config("text.ChainItem")
@@ -968,8 +1131,20 @@ Private Function private_PublishChain(ByVal chain As Collection) As Boolean
         line = VBA.Replace$(line, "{position}", VBA.CStr(row("PositionCode")))
         If VBA.Len(text) > 0 Then text = text & VBA.vbLf
         text = text & line
+        Set fields = VBA.CreateObject("Scripting.Dictionary")
+        fields.Add "Summary", line
+        Set lookupRecord = New obj_LookupRecord
+        If Not lookupRecord.Initialize(VBA.CStr(index), fields) Then ex_TDB_History.fn_Fail "InvalidChain"
+        records.Add lookupRecord
     Next index
     If chain.Count = 0 Then text = ex_TDB_History.fn_Config("text.ChainEmpty")
+    If Not result.Initialize(records, columns, False, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    If Not m_pageBase.BindingContext.SetObject("Data", "TvoChainView", result) Then Exit Function
+    If Not m_tvoChainView Is Nothing Then m_tvoChainView.Dispose
+    Set m_tvoChainView = result
+    visibility = "Collapsed"
+    If chain.Count > 0 Then visibility = "Visible"
+    If Not m_pageBase.BindingContext.SetValue("Form", "TvoChainVisibility", visibility) Then Exit Function
     private_PublishChain = m_pageBase.BindingContext.SetValue("Text", "TvoChainSummary", text)
 End Function
 
@@ -1002,18 +1177,40 @@ Private Function private_UpdatePlaceFields() As Boolean
     Dim autoFill As Variant
     Dim vacationKind As Variant
     Dim visibility As String
+    Dim abroad As Variant
+    Dim domesticVisibility As String
+    Dim foreignVisibility As String
+    Dim prefix As String
     Dim field As Variant
+    Dim emptyPlaces As New Collection
 
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
     visibility = "Collapsed"
     If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(VBA.CStr(vacationKind)) Then
-        For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
+        If Not m_pageBase.BindingContext.SetObject("Data", "PlaceChain", emptyPlaces) Then Exit Function
+        If Not private_PublishPlaces() Then Exit Function
+        For Each field In ex_TDB_Places.fn_FormFields()
             If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
         Next field
     ElseIf Not VBA.CBool(autoFill) Then
         visibility = "Visible"
     End If
+    If Not private_TryReadFormValue("VacationAbroad", abroad) Then Exit Function
+    prefix = ex_TDB_Places.fn_Prefix(ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad)))
+    If Not m_pageBase.BindingContext.SetValue("Text", "PlaceRegion", ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Region")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Text", "PlaceName", ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name")) Then Exit Function
+    domesticVisibility = "Collapsed"
+    foreignVisibility = "Collapsed"
+    If visibility = "Visible" Then
+        If ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad)) Then
+            foreignVisibility = "Visible"
+        Else
+            domesticVisibility = "Visible"
+        End If
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "DomesticPlaceFieldsVisibility", domesticVisibility) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "ForeignPlaceFieldsVisibility", foreignVisibility) Then Exit Function
     private_UpdatePlaceFields = m_pageBase.BindingContext.SetValue("Form", "PlaceFieldsVisibility", visibility)
 End Function
 
@@ -1152,6 +1349,7 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
         If private_TryReadFormValue("HistoryRowId", value) Then
             Set objectValue = ex_TDB_History.fn_Load(VBA.CStr(value), m_pageBase.BindingContext)
             private_PublishChain objectValue
+            If Not private_PublishPlaces() Then Exit Function
             If private_TryReadFormValue("OrderReference", value) Then
                 If Not m_orderResolver.TrySearch(VBA.CStr(value), VBA.vbNullString, matches, diagnostic) Then
                     VBA.Err.Raise 5, , diagnostic

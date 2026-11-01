@@ -445,6 +445,7 @@ Public Function fn_Load( _
     Dim diagnostic As String
     Dim parentId As String
     Dim found As Boolean
+    Dim places As Collection
 
     fn_Open tickets, revisions
     Set rows = fn_Read(tickets)
@@ -492,6 +493,9 @@ Public Function fn_Load( _
     Loop While found
     If Not bindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
     If Not bindingContext.SetObject("Data", "TvoChain", chain) Then fn_Fail "InvalidRows"
+    Set places = ex_TDB_PlaceChain.fn_FromGroup(group)
+    If Not bindingContext.SetObject("Data", "PlaceChain", places) Then fn_Fail "InvalidRows"
+    If places.Count > 0 Then ex_TDB_PlaceChain.fn_ClearDraft bindingContext
     Set fn_Load = chain
 End Function
 
@@ -639,7 +643,7 @@ Private Sub private_ValidateGraph(ByVal rows As Object)
     Set links = VBA.CreateObject("Scripting.Dictionary")
     For Each key In rows.Keys
         Set row = rows(key)
-        If row("RowType") <> "Event" And row("RowType") <> "Donation" And row("RowType") <> "TVO" Then fn_Fail "InvalidRows"
+        If row("RowType") <> "Event" And row("RowType") <> "Donation" And row("RowType") <> "TVO" And row("RowType") <> "Place" Then fn_Fail "InvalidRows"
         If row("Status") <> "Active" And row("Status") <> "Cancelled" Then fn_Fail "InvalidRows"
         If Not VBA.IsNumeric(row("Revision")) Then fn_Fail "InvalidRevision"
         If VBA.CDbl(row("Revision")) < 1 Or VBA.CDbl(row("Revision")) >= 2147483647# Or _
@@ -650,6 +654,10 @@ Private Sub private_ValidateGraph(ByVal rows As Object)
             If Not rows.Exists(row("ParentRowId")) Then fn_Fail "InvalidRows"
             Set parent = rows(row("ParentRowId"))
             If row("RowType") = "Donation" And parent("RowType") <> "Event" Then fn_Fail "InvalidRows"
+            If row("RowType") = "Place" Then
+                If parent("RowType") <> "Event" And parent("RowType") <> "Place" Then fn_Fail "InvalidRows"
+                If VBA.Len(private_Text(row("Destination"))) = 0 Then fn_Fail "InvalidChain"
+            End If
             If row("RowType") = "TVO" Then
                 If parent("RowType") <> "Event" And parent("RowType") <> "TVO" Then fn_Fail "InvalidRows"
                 If VBA.Len(row("PositionCode")) = 0 Or row("DutyPositionCode") <> parent("PositionCode") Then fn_Fail "InvalidChain"

@@ -13,24 +13,29 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Function fn_Source() As obj_TableSource
+Public Function fn_Source(Optional ByVal isAbroad As Boolean = False) As obj_TableSource
     Dim tableSource As New obj_TableSource
     Dim fileSystem As Object
     Dim path As String
+    Dim prefix As String
 
+    prefix = fn_Prefix(isAbroad)
     If Not tableSource.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize places source."
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    path = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.source.path")
+    path = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.path")
     If fileSystem.GetDriveName(path) = VBA.vbNullString And VBA.Left$(path, 2) <> "\\" Then
         path = fileSystem.BuildPath(ThisWorkbook.Path, path)
     End If
     tableSource.WorkbookPath = fileSystem.GetAbsolutePathName(path)
-    tableSource.TableName = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.source.table")
-    tableSource.SheetName = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.source.sheet")
+    tableSource.TableName = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.table")
+    tableSource.SheetName = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.sheet")
     Set fn_Source = tableSource
 End Function
 
-Public Function fn_Search(ByVal searchText As String) As obj_LookupResult
+Public Function fn_Search( _
+    ByVal searchText As String, _
+    Optional ByVal isAbroad As Boolean = False _
+) As obj_LookupResult
     Dim tableSource As obj_TableSource
     Dim tableQuery As obj_TableQuery
     Dim snapshot As obj_TableSnapshotSet
@@ -52,44 +57,48 @@ Public Function fn_Search(ByVal searchText As String) As obj_LookupResult
     Dim errorDescription As String
     Dim spans As Variant
     Dim columnIndex As Long
+    Dim prefix As String
 
     On Error GoTo Failed
+    prefix = fn_Prefix(isAbroad)
     Set snapshot = ex_TableSnapshots.fn_Active()
     If snapshot Is Nothing Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
-    spans = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columnSpans"), "|")
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.fields"), "|")
+    spans = VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".columnSpans"), "|")
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".fields"), "|")
         Set column = VBA.CreateObject("Scripting.Dictionary")
         column.Add "name", VBA.CStr(field)
-        column.Add "caption", ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columns." & field)
+        column.Add "caption", ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
         If columnIndex > UBound(spans) Then VBA.Err.Raise 5, , "Places column span count mismatch."
         column.Add "columnSpan", VBA.CLng(spans(columnIndex))
         columnIndex = columnIndex + 1
         columns.Add column
     Next field
     If columnIndex <> UBound(spans) + 1 Then VBA.Err.Raise 5, , "Places column span count mismatch."
-    limit = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.maxResults"))
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.minChars")) Then
-        Set tableSource = fn_Source()
+    limit = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".maxResults"))
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
+        Set tableSource = fn_Source(isAbroad)
         Set tableQuery = New obj_TableQuery
         If Not tableQuery.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize places query."
-        For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.sourceFields"), "|")
-            tableQuery.AddColumn ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columns." & field)
+        For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".sourceFields"), "|")
+            tableQuery.AddColumn ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
         Next field
-        tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columns.Name"), QueryContains, searchText, QueryText, True
+        tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name"), QueryContains, searchText, QueryText, True
         tableQuery.Limit = limit + 1
         If Not snapshot.TryQuery(tableSource, tableQuery, dataTable, diagnostic) Then VBA.Err.Raise 5, , diagnostic
         hasMore = dataTable.RowCount > limit
         For rowIndex = 1 To dataTable.RowCount
             If rowIndex > limit Then Exit For
             Set fields = VBA.CreateObject("Scripting.Dictionary")
-            address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressTemplate")
-            For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.sourceFields"), "|")
+            For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".sourceFields"), "|")
                 value = dataTable.ValueAt(rowIndex, ex_TableQuery.fn_HeaderIndex( _
-                    dataTable.Headers, ex_TravelDocumentsBuilder.fn_Config("lookup.Places.columns." & field)))
-                If VBA.IsError(value) Or VBA.IsNull(value) Then VBA.Err.Raise 5, , VBA.CStr(field)
+                    dataTable.Headers, ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)))
+                If VBA.IsError(value) Then VBA.Err.Raise 5, , VBA.CStr(field)
+                If VBA.IsNull(value) Or VBA.IsEmpty(value) Then value = VBA.vbNullString
                 fields.Add VBA.CStr(field), ex_TableQuery.fn_NormalizeText(VBA.CStr(value))
-                address = VBA.Replace$(address, "{" & field & "}", fields(field))
             Next field
+            fields.Add "Abroad", ex_TravelDocumentsBuilder.fn_Config("generation.abroad.no")
+            If isAbroad Then fields("Abroad") = ex_TravelDocumentsBuilder.fn_Config("generation.abroad.yes")
+            address = fn_Address(fields, isAbroad)
             fields.Add "Address", address
             Set lookupRecord = New obj_LookupRecord
             If Not lookupRecord.Initialize(address, fields) Then VBA.Err.Raise 5, , "Cannot initialize place candidate."
@@ -109,6 +118,75 @@ Failed:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     Resume Cleanup
+End Function
+
+Public Function fn_Prefix(ByVal isAbroad As Boolean) As String
+    fn_Prefix = "lookup.Places"
+    If isAbroad Then fn_Prefix = "lookup.PlacesAbroad"
+End Function
+
+Public Function fn_IsAbroad(ByVal value As String) As Boolean
+    If value = ex_TravelDocumentsBuilder.fn_Config("generation.abroad.yes") Then
+        fn_IsAbroad = True
+    ElseIf value <> ex_TravelDocumentsBuilder.fn_Config("generation.abroad.no") And VBA.Len(value) > 0 Then
+        VBA.Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("generation.message.Invalid"), _
+            "{value}", ex_TravelDocumentsBuilder.fn_Config("text.VacationAbroad"))
+    End If
+End Function
+
+Public Function fn_Address( _
+    ByVal fields As Object, _
+    ByVal isAbroad As Boolean _
+) As String
+    Dim address As String
+    Dim field As Variant
+    Dim ua As String
+    Dim en As String
+    Dim separator As String
+
+    If Not isAbroad Then
+        address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressTemplate")
+        For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.sourceFields"), "|")
+            address = VBA.Replace$(address, "{" & field & "}", VBA.CStr(fields(field)))
+        Next field
+        fn_Address = address
+        Exit Function
+    End If
+    separator = ex_TravelDocumentsBuilder.fn_Config("lookup.PlacesAbroad.separator") & VBA.Space$(1)
+    ua = VBA.CStr(fields("Name"))
+    en = VBA.CStr(fields("NameEn"))
+    If ua = VBA.CStr(fields("Country")) And en = VBA.CStr(fields("CountryEn")) Then
+        ua = VBA.CStr(fields("Country"))
+        en = VBA.CStr(fields("CountryEn"))
+    Else
+        If VBA.Len(fields("Type")) > 0 Then ua = fields("Type") & VBA.Space$(1) & ua
+        If VBA.Len(fields("Region")) > 0 And fields("Region") <> fields("Name") Then ua = ua & separator & fields("Region")
+        If VBA.Len(fields("RegionEn")) > 0 And fields("RegionEn") <> fields("NameEn") Then en = en & separator & fields("RegionEn")
+        ua = ua & separator & fields("Country")
+        en = en & separator & fields("CountryEn")
+    End If
+    address = ex_TravelDocumentsBuilder.fn_Config("lookup.PlacesAbroad.addressTemplate")
+    address = VBA.Replace$(address, "{UA}", ua)
+    fn_Address = VBA.Replace$(address, "{EN}", en)
+End Function
+
+Public Function fn_FormFields() As Variant
+    fn_FormFields = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
+End Function
+
+Public Function fn_RowAddress(ByVal row As Object) As String
+    Dim fields As Object
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim isAbroad As Boolean
+
+    isAbroad = fn_IsAbroad(VBA.CStr(row("PlaceAbroad")))
+    Set fields = VBA.CreateObject("Scripting.Dictionary")
+    For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(fn_Prefix(isAbroad) & ".formFields"), "|")
+        pair = VBA.Split(mapping, "=")
+        fields(pair(0)) = row(pair(1))
+    Next mapping
+    fn_RowAddress = fn_Address(fields, isAbroad)
 End Function
 ' --------------------------------------
 ' } // namespace API

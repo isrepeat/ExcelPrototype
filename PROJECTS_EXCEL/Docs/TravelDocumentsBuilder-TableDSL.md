@@ -148,6 +148,18 @@ A loop may contain several rows or nested structural blocks. Each item must be a
 
 The provided ticket catalog reproduces the original table without adding a TVO section to the printed form. Dynamic rows are available for future template changes.
 
+## Ordered vacation places
+
+The place field is a draft. The plus button appends a validated draft to the ordered place chain and clears the draft fields. The minus button moves the final chain item back into the draft for editing; it refuses to overwrite a nonempty draft. Saving also includes a nonempty validated draft, so the final place does not require a separate plus click. The chain limit is configured by `placeChain.maxItems`. Medical-company modes clear the chain and retain their fixed destination.
+
+Each saved place is a `RowType=Place` child in `tbTickets`. The first place references the event through `ParentRowId`; each next place references the previous place. Each child stores its own `Destination` and the structured fields configured by `placeChain.fields`. Revision snapshots and rollback include these rows, and editing preserves their IDs. Place links cannot cross into TVO or donation branches. The event's `Destination` joins ordered place addresses with a semicolon and a space; scalar place fields on the event retain the first place for compatibility.
+
+`VacationAbroad` switches the draft lookup between `lookup.Places` (`tbPlacesUkraine`) and `lookup.PlacesAbroad` (`tbPlacesAbroad`). Both named tables are loaded into the same dependency snapshot. Switching clears the draft metadata and replaces candidates and headers without clearing the ordered chain. Overseas addresses are assembled from the seven structured source columns; the workbook's `Повна адреса` column is not queried. Both language variants include a nonempty region unless it repeats the place name. Country-only entries do not repeat the country. Manual overseas input requires country and place names in both languages; region and type are optional. The event is marked abroad when any saved chain item is abroad.
+
+Add `PlaceAbroad`, `PlaceCountry`, `PlaceCountryEn`, `PlaceRegionEn` and `PlaceNameEn` to `tbTickets`, and the matching `Snapshot.` columns to `tbTicketRevisions`. These fields supplement `PlaceRegion`, `PlaceType`, `PlaceName` and `PlaceDistrict`; foreign entries do not require a Ukrainian district.
+
+History loading restores the ordered children and clears the draft to avoid duplication on the next save. Older events without Place children retain their existing single-place draft and acquire Place children when saved again. Word uses the saved aggregate destination and also exposes the ordered collection as `PlaceChain` for table DSL templates. It does not look up current place dictionaries during export.
+
 ## Saved grammatical forms
 
 Saving an event resolves grammatical forms from the loaded SHPO dictionaries, using the same source contracts as PersonalEventBuilder: rank by `Звання`, person by `ІПН`, and position by `Код`. The sources, headers and mappings are configured under `declensions` in wsConfig. Missing, ambiguous or empty results stop saving with a field-specific diagnostic; nominative text is not silently substituted.

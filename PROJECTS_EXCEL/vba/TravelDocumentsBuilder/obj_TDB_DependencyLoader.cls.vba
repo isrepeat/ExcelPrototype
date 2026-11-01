@@ -51,6 +51,7 @@ Public Function TryBuild( _
     Dim sourceDefinitions As Variant
     Dim progressStep As Long
     Dim progressTotal As Long
+    Dim sourceMode As Variant
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Dependency loader is unavailable."
@@ -59,7 +60,7 @@ Public Function TryBuild( _
     signatures.CompareMode = VBA.vbTextCompare
     busyEntered = ex_UiBusy.fn_Begin(ex_TravelDocumentsBuilder.fn_Config("text.DependenciesLoading"))
     sourceDefinitions = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("snapshots.sources"), "|")
-    progressTotal = UBound(sourceDefinitions) + 1 + 4
+    progressTotal = UBound(sourceDefinitions) + 1 + 5
 
     ' Load every configured source before preparing projections.
     For Each prefix In sourceDefinitions
@@ -82,14 +83,16 @@ Public Function TryBuild( _
         Set source = Nothing
     Next prefix
 
-    Set source = ex_TDB_Places.fn_Source()
-    If Not signatures.Exists(source.WorkbookPath) Then
-        signatures.Add source.WorkbookPath, private_FileStamp(source.WorkbookPath)
-    End If
-    private_Progress progressStep, progressTotal, "Table", source.SheetName
-    If Not snapshot.TryLoad(source, diagnostic) Then GoTo Cleanup
-    source.Dispose
-    Set source = Nothing
+    For Each sourceMode In VBA.Array(False, True)
+        Set source = ex_TDB_Places.fn_Source(VBA.CBool(sourceMode))
+        If Not signatures.Exists(source.WorkbookPath) Then
+            signatures.Add source.WorkbookPath, private_FileStamp(source.WorkbookPath)
+        End If
+        private_Progress progressStep, progressTotal, "Table", source.SheetName
+        If Not snapshot.TryLoad(source, diagnostic) Then GoTo Cleanup
+        source.Dispose
+        Set source = Nothing
+    Next sourceMode
 
     ' Prepare lookup and orders against the staged generation only.
     Set profile = New obj_LookupProfile

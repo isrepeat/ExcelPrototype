@@ -702,6 +702,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             If columnSpan > 1 Then
                 If columnIndex + columnSpan - 1 > rawTable.ColumnCount Then Err.Raise 5, , "Table columnSpan exceeds table width"
                 For rowIndex = targetRow To m_targetRange.Rows.Count
+                    ' Covered columns are presentation placeholders, not independent values.
+                    ' Clear zero-length strings explicitly so Excel does not prompt on merge.
+                    m_targetRange.Cells(rowIndex, columnIndex + 1).Resize(1, columnSpan - 1).ClearContents
                     ex_UiTables.fn_MergeRange _
                         m_targetRange.Cells(rowIndex, columnIndex).Resize(1, columnSpan), _
                         m_uiControlBase.ControlName

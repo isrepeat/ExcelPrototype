@@ -16,6 +16,7 @@ Private m_orderResolver As obj_OrderResolver
 Private m_operationId As String
 Private m_stage As String
 Private m_chain As Collection
+Private m_places As Collection
 Private m_wordSession As Object
 Private m_wordAnchors As Object
 Private m_wordTemplatePath As String
@@ -118,6 +119,7 @@ Public Sub Dispose()
     Set m_config = Nothing
     Set m_form = Nothing
     Set m_chain = Nothing
+    Set m_places = Nothing
     On Error GoTo 0
 End Sub
 
@@ -178,9 +180,7 @@ Public Function TrySave( _
     m_operationId = operationId
     private_LogStage "ReadForm"
     private_ReadForm
-    If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(m_form("VacationKind")) Then
-        m_form("DocumentTarget") = ex_TravelDocumentsBuilder.fn_Config("generation.medicalCompany.destination")
-    End If
+    private_PreparePlaces
     For Each key In m_form.Keys
         private_Log "TDB_FORM_NORMALIZED", "Field=" & key & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(m_form(key))
     Next key
@@ -194,7 +194,6 @@ Public Function TrySave( _
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
     Next key
     ex_TDB_Declensions.fn_Enrich m_form
-    private_ValidatePlace
     private_ValidateTreatment
     departureDate = private_Date(m_form("DepartureDate"))
     vacationDays = private_Days("VacationDays", False)
@@ -299,10 +298,9 @@ Public Function TrySave( _
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
-    metadata.Add "PlaceRegion", m_form("PlaceRegion")
-    metadata.Add "PlaceType", m_form("PlaceType")
-    metadata.Add "PlaceName", m_form("PlaceName")
-    metadata.Add "PlaceDistrict", m_form("PlaceDistrict")
+    For Each key In ex_TDB_Places.fn_FormFields()
+        metadata.Add VBA.CStr(key), m_form(key)
+    Next key
     private_LogStage "WriteEventMetadata"
     ex_TDB_History.fn_Write ticketsTable, mainRow, metadata
     If donationDays > 0 Then
@@ -318,13 +316,13 @@ Public Function TrySave( _
         donationRow.Delete
     End If
 
-    ' Replace only this event's TVO children, retaining stable IDs from the loaded chain.
+    ' Replace only this event's ordered TVO and place children, retaining stable IDs.
     For index = ticketsTable.ListRows.Count To 1 Step -1
         Set row = ticketsTable.ListRows(index)
         key = VBA.CStr(row.Range.Cells(1, ticketsTable.ListColumns("RowId").Index).Value2)
         If historyRows.Exists(key) Then
             Set historyRow = historyRows(key)
-            If historyRow("RowType") = "TVO" Then
+            If historyRow("RowType") = "TVO" Or historyRow("RowType") = "Place" Then
                 Set metadata = historyRow
                 Do While metadata("RowType") <> "Event"
                     Set metadata = historyRows(metadata("ParentRowId"))
@@ -349,6 +347,18 @@ Public Function TrySave( _
         parentId = metadata("RowId")
         positionCode = metadata("PositionCode")
     Next index
+    parentId = identifier
+    For Each metadata In m_places
+        If VBA.Len(metadata("RowId")) = 0 Then metadata("RowId") = ex_TDB_History.fn_NewId()
+        metadata("ParentRowId") = parentId
+        metadata("RowType") = "Place"
+        metadata("Revision") = revision
+        metadata("Status") = "Active"
+        If m_form("VacationStatus") = m_config("status.cancelled") Then metadata("Status") = "Cancelled"
+        Set row = ticketsTable.ListRows.Add
+        ex_TDB_History.fn_Write ticketsTable, row, metadata
+        parentId = metadata("RowId")
+    Next metadata
     private_LogStage "CommitHistoryRevision"
     ex_TDB_History.fn_Commit ticketsTable, revisions, identifier, transaction, m_form("ChangeReason")
     If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
@@ -431,6 +441,7 @@ Public Function TryRender( _
     Dim kindEvent As String
     Dim key As Variant
     Dim tvoChain As Collection
+    Dim placeChain As Collection
     Dim renderStarted As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then
@@ -449,6 +460,11 @@ Public Function TryRender( _
         End If
     Next row
     m_wordValues.Add "TvoChain", tvoChain
+    Set placeChain = ex_TDB_PlaceChain.fn_FromGroup(group)
+    m_wordValues.Add "PlaceChain", placeChain
+    If placeChain.Count > 0 Then
+        If VBA.CStr(root("Destination")) <> ex_TDB_PlaceChain.fn_Join(placeChain) Then ex_TDB_History.fn_Fail "InvalidChain"
+    End If
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
     For Each mapping In VBA.Split(ex_TDB_History.fn_Config("formFields"), "|")
         pair = VBA.Split(mapping, "=")
@@ -541,7 +557,8 @@ Private Sub private_ReadForm()
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
             "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
-            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel")
+            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel", _
+            "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
         End If
@@ -600,37 +617,30 @@ Private Function private_Date(ByVal text As String) As Date
     private_Date = ex_TDB_History.fn_Date(text)
 End Function
 
-Private Sub private_ValidatePlace()
+Private Sub private_PreparePlaces()
     Dim field As Variant
-    Dim mapping As Variant
-    Dim pair As Variant
-    Dim address As String
+    Dim first As Object
 
+    Set m_places = New Collection
     If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(m_form("VacationKind")) Then
-        For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
+        m_form("DocumentTarget") = ex_TravelDocumentsBuilder.fn_Config("generation.medicalCompany.destination")
+        For Each field In ex_TDB_Places.fn_FormFields()
             m_form(field) = VBA.vbNullString
         Next field
         Exit Sub
     End If
-    For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
-        If VBA.Len(m_form(field)) = 0 Then
-            If VBA.CBool(m_form("AutoFillPersonnel")) Then
-                VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
-            End If
-            private_Fail "Required", private_FieldCaption(VBA.CStr(field))
+    Set m_places = ex_TDB_PlaceChain.fn_Build(m_bindingContext, m_form)
+    m_form("DocumentTarget") = ex_TDB_PlaceChain.fn_Join(m_places)
+    m_form("VacationAbroad") = ex_TravelDocumentsBuilder.fn_Config("generation.abroad.no")
+    For Each first In m_places
+        If ex_TDB_Places.fn_IsAbroad(VBA.CStr(first("PlaceAbroad"))) Then
+            m_form("VacationAbroad") = ex_TravelDocumentsBuilder.fn_Config("generation.abroad.yes")
         End If
+    Next first
+    Set first = m_places(1)
+    For Each field In ex_TDB_Places.fn_FormFields()
+        m_form(field) = first(field)
     Next field
-    If VBA.InStr(1, "|" & ex_TravelDocumentsBuilder.fn_Config("lookup.Places.types") & "|", _
-            "|" & m_form("PlaceType") & "|", VBA.vbBinaryCompare) = 0 Then private_Fail "Invalid", private_FieldCaption("PlaceType")
-    If Not VBA.CBool(m_form("AutoFillPersonnel")) Then Exit Sub
-    address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressTemplate")
-    For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.formFields"), "|")
-        pair = VBA.Split(mapping, "=")
-        address = VBA.Replace$(address, "{" & pair(0) & "}", m_form(pair(1)))
-    Next mapping
-    If VBA.StrComp(address, m_form("DocumentTarget"), VBA.vbBinaryCompare) <> 0 Then
-        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
-    End If
 End Sub
 
 Private Sub private_ValidateTreatment()

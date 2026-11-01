@@ -41,8 +41,8 @@ assert place_fields <= set(config['TravelDocumentsBuilder::history.snapshotField
 assert {'Snapshot.' + field for field in place_fields} <= set(config['TravelDocumentsBuilder::history.versions.columns'].split('|'))
 assert {field + '=' + field for field in place_fields} <= set(config['TravelDocumentsBuilder::history.formFields'].split('|'))
 generator = (root / 'vba/TravelDocumentsBuilder/obj_TDB_VacationGenerator.cls.vba').read_text(encoding='utf-8-sig')
-for field in place_fields:
-    assert f'metadata.Add "{field}", m_form("{field}")' in generator
+assert 'For Each key In ex_TDB_Places.fn_FormFields()' in generator
+assert 'metadata.Add VBA.CStr(key), m_form(key)' in generator
 rows = list(sheet[table.ref])[1:]
 addresses = []
 for row in rows:
@@ -56,5 +56,6 @@ field = next(node for node in layout.iter() if node.attrib.get('name') == 'Docum
 assert field.attrib['style'] == 'lookupKeyField'
 assert field.attrib['onChange'] == '{Binding Path=Commands.PlaceChanged}'
 loader = (root / 'vba/TravelDocumentsBuilder/obj_TDB_DependencyLoader.cls.vba').read_text(encoding='utf-8-sig')
-assert 'Set source = ex_TDB_Places.fn_Source()' in loader
+assert 'For Each sourceMode In VBA.Array(False, True)' in loader
+assert 'Set source = ex_TDB_Places.fn_Source(VBA.CBool(sourceMode))' in loader
 print('Places table schema, address examples and UI route: OK')

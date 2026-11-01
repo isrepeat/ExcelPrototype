@@ -89,6 +89,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim daysBefore As Double
     Dim offset As Long
     Dim chain As New Collection
+    Dim placeChain As New Collection
     Dim orderOptions As New Collection
 
     If m_pageBase Is Nothing Then
@@ -101,6 +102,9 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetObject("Data", "TvoChain", chain) Then
         Exit Function
     End If
+    If Not bindingContext.SetObject("Data", "PlaceChain", placeChain) Then Exit Function
+    If Not bindingContext.SetValue("Form", "PlaceChainVisibility", "Collapsed") Then Exit Function
+    If Not bindingContext.SetValue("Form", "TvoChainVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then
         Exit Function
     End If
@@ -201,12 +205,16 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
             "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus", _
             "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+            "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "HistoryRowId", "HistoryStamp", "ChangeReason", "OrderQuery", "OrderYear", "AcceptedOrderNumber", "AcceptedOrderDate")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
             Exit Function
         End If
     Next key
+    If Not bindingContext.SetValue("Form", "PlaceAbroad", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "DomesticPlaceFieldsVisibility", "Collapsed") Then Exit Function
+    If Not bindingContext.SetValue("Form", "ForeignPlaceFieldsVisibility", "Collapsed") Then Exit Function
     For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
             "RoadDays", "DonationDays")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then
@@ -235,11 +243,13 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
     Next key
     For Each key In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+            "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", _
             "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _
-            "LoadHistory", "AddTvo", "RemoveTvo", "ChangeReason", "TvoChainTitle", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
+            "LoadHistory", "AddTvo", "RemoveTvo", "AddPlace", "RemovePlace", "PlaceChainTitle", _
+            "ChangeReason", "TvoChainTitle", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then
             Exit Function
         End If
@@ -305,6 +315,9 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand(bindingContext, "TvoNameChanged", "TvoNameChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "VacationKindChanged", "VacationKindChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "PlaceChanged", "PlaceChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "VacationAbroadChanged", "VacationAbroadChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "AddPlace", "AddPlaceHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "RemovePlace", "RemovePlaceHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function
 
