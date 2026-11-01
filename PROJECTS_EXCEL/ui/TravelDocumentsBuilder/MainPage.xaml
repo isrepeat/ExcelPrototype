@@ -71,8 +71,8 @@
     <controls:input name="PersonPosition"
                     row="8"
                     column="2"
-                    columnSpan="2"
                     rowSpan="2"
+                    columnSpan="2"
                     style="{Binding Path=Form.PersonPositionStyle}"
                     value="{Binding Path=Form.PersonPosition}"
                     readOnly="{Binding Path=Form.PersonPositionReadOnly}"/>
@@ -87,11 +87,11 @@
                      itemsSource="{Binding Path=Data.VacationKinds}"
                      row="2"
                      column="2"
-                    columnSpan="2"
+                     columnSpan="2"
                      style="formField"
+                     value="{Binding Path=Form.VacationKind}"
                      panelStyle="formSelectPanel"
-                     itemStyle="formSelectItem"
-                     value="{Binding Path=Form.VacationKind}"/>
+                     itemStyle="formSelectItem"/>
 
     <controls:label name="VacationStatusLabel"
                     row="3"
@@ -103,11 +103,11 @@
                      itemsSource="{Binding Path=Data.StatusOptions}"
                      row="3"
                      column="2"
-                    columnSpan="2"
+                     columnSpan="2"
                      style="formField"
+                     value="{Binding Path=Form.VacationStatus}"
                      panelStyle="formSelectPanel"
-                     itemStyle="formSelectItem"
-                     value="{Binding Path=Form.VacationStatus}"/>
+                     itemStyle="formSelectItem"/>
 
     <controls:label name="DocumentTargetLabel"
                     row="10"
@@ -195,11 +195,11 @@
                      itemsSource="{Binding Path=Data.AbroadOptions}"
                      row="15"
                      column="2"
-                    columnSpan="2"
+                     columnSpan="2"
                      style="formField"
+                     value="{Binding Path=Form.VacationAbroad}"
                      panelStyle="formSelectPanel"
-                     itemStyle="formSelectItem"
-                     value="{Binding Path=Form.VacationAbroad}"/>
+                     itemStyle="formSelectItem"/>
 
     <controls:label name="TvoNameLabel"
                     row="16"
@@ -265,8 +265,8 @@
     <controls:input name="Purpose"
                     row="20"
                     column="2"
-                    columnSpan="2"
                     rowSpan="2"
+                    columnSpan="2"
                     style="formField"
                     value="{Binding Path=Form.Purpose}"/>
 
@@ -316,11 +316,11 @@
                      itemsSource="{Binding Path=Data.DocumentTypes}"
                      row="1"
                      column="2"
-                    columnSpan="2"
+                     columnSpan="2"
                      style="formField"
+                     value="{Binding Path=Form.DocumentType}"
                      panelStyle="formSelectPanel"
                      itemStyle="formSelectItem"
-                     value="{Binding Path=Form.DocumentType}"
                      onChange="{Binding Path=Commands.DocumentTypeChanged}"/>
 
     <controls:button name="SaveHistory"

@@ -5,6 +5,15 @@ Private Const W_NS As String = "http://schemas.openxmlformats.org/wordprocessing
 Private Const PKG_NS As String = "http://schemas.microsoft.com/office/2006/xmlPackage"
 
 ' --------------------------------------
+' namespace Lifecycle {
+' --------------------------------------
+Public Sub fn_Module_Dispose()
+End Sub
+' --------------------------------------
+' } // namespace Lifecycle
+' --------------------------------------
+
+' --------------------------------------
 ' namespace API {
 ' --------------------------------------
 Public Function fn_Build( _
@@ -35,6 +44,7 @@ Public Function fn_Build( _
     Dim width As Double
     Dim span As Long
     Dim continuation As Boolean
+    Dim padding As String
 
     Set document = VBA.CreateObject("MSXML2.DOMDocument.6.0")
     If Not document.LoadXML("<pkg:package xmlns:pkg='" & PKG_NS & "'/>") Then
@@ -59,11 +69,15 @@ Public Function fn_Build( _
     Next key
     Set node = private_W(properties, "tblLayout")
     private_Attribute node, "type", "fixed"
-    If plan("style").Exists("cellPadding") Then
+    If plan("style").Exists("cellPadding") Or _
+            plan("style").Exists("cellPaddingTop") Or plan("style").Exists("cellPaddingLeft") Or _
+            plan("style").Exists("cellPaddingBottom") Or plan("style").Exists("cellPaddingRight") Then
         Set node = private_W(properties, "tblCellMar")
         For Each key In VBA.Array("top", "left", "bottom", "right")
+            padding = private_Value(plan("style"), "cellPadding", "0pt")
+            padding = private_Value(plan("style"), "cellPadding" & VBA.UCase$(VBA.Left$(VBA.CStr(key), 1)) & VBA.Mid$(VBA.CStr(key), 2), padding)
             Set grid = private_W(node, VBA.CStr(key))
-            private_Attribute grid, "w", VBA.CStr(VBA.CLng(private_Points(plan("style")("cellPadding")) * 20))
+            private_Attribute grid, "w", VBA.CStr(VBA.CLng(private_Points(padding) * 20))
             private_Attribute grid, "type", "dxa"
         Next key
     End If

@@ -36,22 +36,25 @@ Public Function Initialize( _
     ByVal months As String, _
     Optional ByVal resources As Object = Nothing _
 ) As Boolean
+    Dim monthNames As Variant
+
     If m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
     If sharedTemplates Is Nothing Then
         Err.Raise 5, , "Shared DSL templates are required."
     End If
+    monthNames = VBA.Split(months, "|")
+    If UBound(monthNames) <> 11 Then
+        Err.Raise 5, , "DSL requires twelve month names."
+    End If
+    If maxDepth < 1 Or maxDepth > 64 Then
+        Err.Raise 5, , "DSL maxDepth must be between 1 and 64."
+    End If
     Set m_sharedTemplates = sharedTemplates
     Set m_resources = resources
     m_maxDepth = maxDepth
-    m_months = VBA.Split(months, "|")
-    If UBound(m_months) <> 11 Then
-        Err.Raise 5, , "DSL requires twelve month names."
-    End If
-    If m_maxDepth < 1 Or m_maxDepth > 64 Then
-        Err.Raise 5, , "DSL maxDepth must be between 1 and 64."
-    End If
+    m_months = monthNames
     m_isInitialized = True
     Initialize = True
 End Function
@@ -64,6 +67,7 @@ Public Sub Dispose()
     m_isInitialized = False
     Set m_sharedTemplates = Nothing
     Set m_resources = Nothing
+    m_months = Empty
 End Sub
 
 Public Function TryRender( _

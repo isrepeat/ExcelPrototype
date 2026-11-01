@@ -6,7 +6,9 @@
                 alignment="left"
                 layout="fixed"
                 borders="none"
-                cellPadding="0pt"/>
+                cellPadding="0pt"
+                cellPaddingLeft="5.4pt"
+                cellPaddingRight="5.4pt"/>
     <cellStyle name="Body"
                fontName="Times New Roman"
                fontSize="16"
@@ -17,6 +19,9 @@
     <cellStyle name="Centered"
                basedOn="Body"
                horizontal="center"/>
+    <cellStyle name="HeaderCell"
+               basedOn="Centered"
+               vertical="top"/>
     <cellStyle name="Caption"
                basedOn="Centered"
                fontSize="12"/>
@@ -72,7 +77,7 @@
            heightRule="atLeast">
         <cell rowSpan="6"
               columnSpan="4"
-              style="Centered">
+              style="HeaderCell">
           <paragraph style="Logo">
             <image source="Emblem"
                    width="7mm"
@@ -87,7 +92,7 @@
         </cell>
         <cell rowSpan="9"
               columnSpan="5"
-              style="Centered">
+              style="HeaderCell">
           <paragraph>
             <text/>
           </paragraph>

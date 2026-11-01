@@ -47,8 +47,12 @@ Public Function Initialize( _
     Dim kind As Variant
     Dim part As Variant
 
-    If m_isInitialized Or m_isDisposed Then Exit Function
-    If bindingContext Is Nothing Or lookupService Is Nothing Then Exit Function
+    If m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    If bindingContext Is Nothing Or lookupService Is Nothing Then
+        Exit Function
+    End If
     Set m_bindingContext = bindingContext
     Set m_lookupService = lookupService
     Set m_orderResolver = New obj_OrderResolver
@@ -67,35 +71,47 @@ Public Function Initialize( _
         "message.Required,message.Invalid,message.Column,message.Marker,message.Order,message.Unsupported," & _
         "message.Success,message.Failed,message.Rollback,limits.maxDays"
     For Each key In VBA.Split(keys, ",")
-        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation." & VBA.CStr(key), valueText) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation." & VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
         m_config.Add VBA.CStr(key), valueText
     Next key
     For Each kind In VBA.Split(m_config("kind.ids"), ",")
         For Each part In VBA.Array("input", "word", "event")
             key = "kind." & VBA.CStr(kind) & "." & VBA.CStr(part)
-            If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation." & key, valueText) Then Exit Function
+            If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation." & key, valueText) Then
+                Exit Function
+            End If
             m_config.Add key, valueText
         Next part
     Next kind
     m_wordMode = ex_TravelDocumentsBuilder.fn_Config("word.tables.mode")
-    If m_wordMode <> "markers" And m_wordMode <> "table" Then Err.Raise 5, , "Invalid word.tables.mode: " & m_wordMode
+    If m_wordMode <> "markers" And m_wordMode <> "table" Then
+        Err.Raise 5, , "Invalid word.tables.mode: " & m_wordMode
+    End If
     m_isInitialized = True
     Initialize = True
 End Function
 
 Public Sub Dispose()
-    If m_isDisposed Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
-    If Not m_wordTableTemplate Is Nothing Then m_wordTableTemplate.Dispose
+    If Not m_wordTableTemplate Is Nothing Then
+        m_wordTableTemplate.Dispose
+    End If
     Set m_wordTableTemplate = Nothing
     Set m_wordValues = Nothing
     Set m_wordSession = Nothing
     Set m_wordAnchors = Nothing
     m_wordTemplatePath = VBA.vbNullString
     m_wordSourcePath = VBA.vbNullString
-    If Not m_orderResolver Is Nothing Then m_orderResolver.Dispose
+    If Not m_orderResolver Is Nothing Then
+        m_orderResolver.Dispose
+    End If
     Set m_orderResolver = Nothing
     Set m_bindingContext = Nothing
     Set m_lookupService = Nothing
@@ -395,8 +411,11 @@ Public Function TryRender( _
     Dim kindEvent As String
     Dim key As Variant
     Dim tvoChain As Collection
+    Dim renderStarted As Boolean
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
     On Error GoTo Failed
     m_operationId = "WORD/" & root("RowId") & "/R" & root("Revision")
     Set m_wordValues = VBA.CreateObject("Scripting.Dictionary")
@@ -405,7 +424,9 @@ Public Function TryRender( _
     Next key
     Set tvoChain = New Collection
     For Each row In group
-        If row("RowType") = "TVO" Then tvoChain.Add row
+        If row("RowType") = "TVO" Then
+            tvoChain.Add row
+        End If
     Next row
     m_wordValues.Add "TvoChain", tvoChain
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
@@ -415,24 +436,36 @@ Public Function TryRender( _
     Next mapping
     m_form("DonationDays") = "0"
     For Each row In group
-        If row("RowType") = "Donation" Then m_form("DonationDays") = VBA.CStr(row(ex_TDB_History.fn_Config("durationField")))
+        If row("RowType") = "Donation" Then
+            m_form("DonationDays") = VBA.CStr(row(ex_TDB_History.fn_Config("durationField")))
+        End If
     Next row
     vacationDays = private_Days("VacationDays", False)
     roadDays = private_Days("RoadDays", True)
     donationDays = private_Days("DonationDays", True)
     departure = ex_TDB_History.fn_Date(root(ex_TDB_History.fn_Config("departureField")))
     finalReturn = ex_TDB_History.fn_Date(root("PlannedReturnDate"))
-    If finalReturn <> ex_TDB_History.fn_ReturnDate(departure, vacationDays, roadDays, donationDays) Then ex_TDB_History.fn_Fail "InvalidRows"
+    If finalReturn <> ex_TDB_History.fn_ReturnDate(departure, vacationDays, roadDays, donationDays) Then
+        ex_TDB_History.fn_Fail "InvalidRows"
+    End If
     private_MapKind kindWord, kindEvent
     If m_form("VacationAbroad") <> m_config("abroad.yes") And m_form("VacationAbroad") <> m_config("abroad.no") Then
         private_Fail "Invalid", private_FieldCaption("VacationAbroad")
     End If
+    renderStarted = True
     private_GenerateWord templatePath, outputPath, VBA.CStr(root(ex_TDB_History.fn_Config("ticketField"))), _
         ex_TDB_History.fn_Date(root("OrderDate")), departure, finalReturn, vacationDays, roadDays, donationDays, kindWord, signatory
     TryRender = True
     Exit Function
 Failed:
     diagnostic = VBA.Err.Description
+    If Not renderStarted Then
+        ex_Core.fn_Diagnostic_WriteError "TDB.Word.Prepare | Operation=" & m_operationId & " | Path=" & outputPath, _
+            VBA.Err.Number, VBA.Err.Source, diagnostic
+    End If
+    If m_wordMode = "table" Then
+        diagnostic = ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed")
+    End If
 End Function
 
 ' //
@@ -481,7 +514,9 @@ Private Sub private_ReadForm()
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
         End If
-        If isObject Or VBA.IsError(value) Or VBA.IsNull(value) Then private_Fail "Invalid", private_FieldCaption(VBA.CStr(key))
+        If isObject Or VBA.IsError(value) Or VBA.IsNull(value) Then
+            private_Fail "Invalid", private_FieldCaption(VBA.CStr(key))
+        End If
         If VBA.CStr(key) = "HistoryStamp" Then
             m_form.Add VBA.CStr(key), VBA.CStr(value)
         ElseIf VBA.CStr(key) = "Purpose" Then
@@ -789,7 +824,9 @@ Private Sub private_InitializeWordTable()
     Dim imagePath As String
     Dim valueText As String
 
-    If Not m_wordTableTemplate Is Nothing Then Exit Sub
+    If Not m_wordTableTemplate Is Nothing Then
+        Exit Sub
+    End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     tablePath = ex_TravelDocumentsBuilder.fn_Config("word.tables.path")
     If fileSystem.GetDriveName(tablePath) = VBA.vbNullString And VBA.Left$(tablePath, 2) <> "\\" Then
@@ -810,7 +847,7 @@ Private Sub private_InitializeWordTable()
             VBA.CStr(m_config("months")), _
             valueText, _
             imagePaths) Then
-        Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed"), "{details}", valueText)
+        Err.Raise 5, "Word.Table.Initialize", valueText
     End If
 End Sub
 
@@ -842,6 +879,7 @@ Private Sub private_GenerateWord( _
     Dim stageStartedAt As Double
     Dim stage As String
     Dim errorNumber As Long
+    Dim errorSource As String
     Dim errorDescription As String
     Dim tablePlan As Object
     Dim tableDiagnostic As String
@@ -851,16 +889,24 @@ Private Sub private_GenerateWord( _
     stage = "Document.Prepare"
     stageStartedAt = documentStartedAt
     parts = VBA.Split(m_form("PersonName"), " ")
-    If UBound(parts) < 2 Then private_Fail "Invalid", private_FieldCaption("PersonName")
+    If UBound(parts) < 2 Then
+        private_Fail "Invalid", private_FieldCaption("PersonName")
+    End If
     initials = m_form("PersonRank") & " " & parts(0) & VBA.ChrW$(160) & _
         VBA.Left$(parts(1), 1) & "." & VBA.Left$(parts(2), 1) & "."
     duration = private_CountForm(vacationDays, "vacation")
-    If donationDays > 0 Then duration = duration & " " & m_config("duration.connector") & " " & _
-        private_CountForm(donationDays, "donation") & " " & m_config("duration.donation.suffix")
-    If roadDays > 0 Then duration = duration & " " & m_config("duration.connector") & " " & _
-        private_CountForm(roadDays, "road") & " " & m_config("duration.road.suffix")
+    If donationDays > 0 Then
+        duration = duration & " " & m_config("duration.connector") & " " & _
+            private_CountForm(donationDays, "donation") & " " & m_config("duration.donation.suffix")
+    End If
+    If roadDays > 0 Then
+        duration = duration & " " & m_config("duration.connector") & " " & _
+            private_CountForm(roadDays, "road") & " " & m_config("duration.road.suffix")
+    End If
     abroad = VBA.vbNullString
-    If m_form("VacationAbroad") = m_config("abroad.yes") Then abroad = m_config("abroad.word")
+    If m_form("VacationAbroad") = m_config("abroad.yes") Then
+        abroad = m_config("abroad.word")
+    End If
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
         "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer", _
         "SignatoryPosition", "SignatoryRank", "SignatoryName")
@@ -879,7 +925,7 @@ Private Sub private_GenerateWord( _
                 m_wordValues, _
                 tablePlan, _
                 tableDiagnostic) Then
-            Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed"), "{details}", tableDiagnostic)
+            Err.Raise 5, "Word.Table.Prepare", tableDiagnostic
         End If
     End If
     private_WordPerf stage, stageStartedAt
@@ -907,7 +953,9 @@ Private Sub private_GenerateWord( _
         m_wordSourcePath = templatePath
         private_WordPerf stage, stageStartedAt
     Else
-        If VBA.StrComp(templatePath, m_wordSourcePath, VBA.vbTextCompare) <> 0 Then private_Fail "Invalid", "TemplatePath"
+        If VBA.StrComp(templatePath, m_wordSourcePath, VBA.vbTextCompare) <> 0 Then
+            private_Fail "Invalid", "TemplatePath"
+        End If
         Set document = private_OpenWordDocument(word, m_wordTemplatePath)
         private_WordPerf stage, stageStartedAt
     End If
@@ -915,7 +963,7 @@ Private Sub private_GenerateWord( _
         stage = "Document.InsertTable"
         stageStartedAt = VBA.Timer
         If Not m_wordTableTemplate.TryInsert(document, tablePlan, tableDiagnostic) Then
-            Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed"), "{details}", tableDiagnostic)
+            Err.Raise 5, "Word.Table.Insert", tableDiagnostic
         End If
         private_WordPerf stage, stageStartedAt
     End If
@@ -943,18 +991,22 @@ Private Sub private_GenerateWord( _
     Exit Sub
 EH:
     errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
     errorDescription = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError "TDB.Word." & stage & " | Operation=" & m_operationId & " | Path=" & path, _
+        errorNumber, errorSource, errorDescription
     On Error Resume Next
-    private_Log "TDB_WORD_FAILED", "Stage=" & stage & " | Path=" & path & " | Number=" & VBA.CStr(errorNumber) & " | Error=" & errorDescription
     private_WordPerf stage & ".Failed", stageStartedAt
-    If Not document Is Nothing Then document.Close False
+    If Not document Is Nothing Then
+        document.Close False
+    End If
     Set m_wordSession = Nothing
     Set m_wordAnchors = Nothing
     m_wordTemplatePath = VBA.vbNullString
     m_wordSourcePath = VBA.vbNullString
     private_WordPerf "Document.FailedTotal", documentStartedAt
     On Error GoTo 0
-    VBA.Err.Raise errorNumber, "Word", errorDescription
+    VBA.Err.Raise errorNumber, errorSource, errorDescription
 End Sub
 
 Private Sub private_WordPerf( _
@@ -1015,7 +1067,9 @@ Private Sub private_IndexWordMarkers( _
                     Set searchRange = storyRange.Duplicate
                     searchRange.SetRange searchStart, storyEnd
                     searchRange.Find.ClearFormatting
-                    If Not searchRange.Find.Execute(marker, True, False, False, False, False, True, 0, False) Then Exit Do
+                    If Not searchRange.Find.Execute(marker, True, False, False, False, False, True, 0, False) Then
+                        Exit Do
+                    End If
                     ' Capture numeric bounds before Bookmarks.Add can affect a COM Range argument.
                     matchStart = searchRange.Start
                     matchEnd = searchRange.End
@@ -1026,7 +1080,9 @@ Private Sub private_IndexWordMarkers( _
                     End If
                     duplicate = False
                     For Each existing In searchRange.Bookmarks
-                        If VBA.Left$(existing.Name, VBA.Len(prefix)) = prefix Then duplicate = True
+                        If VBA.Left$(existing.Name, VBA.Len(prefix)) = prefix Then
+                            duplicate = True
+                        End If
                     Next existing
                     If Not duplicate Then
                         bookmarkName = prefix & VBA.CStr(index) & "_" & VBA.CStr(occurrences.Count + 1)
@@ -1044,6 +1100,8 @@ Private Sub private_IndexWordMarkers( _
     Next story
     For index = 0 To UBound(names)
         Set occurrences = m_wordAnchors(VBA.CStr(names(index)))
-        If m_wordMode = "markers" And occurrences.Count = 0 And names(index) <> "FooterSpacer" Then private_Fail "Marker", VBA.CStr(names(index))
+        If m_wordMode = "markers" And occurrences.Count = 0 And names(index) <> "FooterSpacer" Then
+            private_Fail "Marker", VBA.CStr(names(index))
+        End If
     Next index
 End Sub

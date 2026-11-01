@@ -390,10 +390,6 @@ Private Sub private_Children( _
         End If
     Next child
 End Sub
-' --------------------------------------
-' } // namespace Private
-' --------------------------------------
-
 Private Function private_Text(ByVal value As Variant) As String
     If VBA.IsError(value) Then
         Err.Raise 5, , "A DSL value contains an Excel error."
@@ -416,3 +412,6 @@ Private Function private_RequiredValue( _
     End If
     private_RequiredValue = values(key)
 End Function
+' --------------------------------------
+' } // namespace Private
+' --------------------------------------

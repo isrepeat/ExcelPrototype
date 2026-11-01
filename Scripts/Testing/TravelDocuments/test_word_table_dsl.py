@@ -17,6 +17,45 @@ def fragment(text):
 
 
 class WordTableDslTests(unittest.TestCase):
+    def test_word_errors_use_the_common_peb_logger(self):
+        folder = ROOT / "PROJECTS_EXCEL/vba"
+        generator = (folder / "TravelDocumentsBuilder/obj_TDB_VacationGenerator.cls.vba").read_text(encoding="utf-8-sig")
+        peb = (folder / "PersonalEventBuilder/obj_PEB_ExptrWord.cls.vba").read_text(encoding="utf-8-sig")
+        self.assertIn("ex_Core.fn_Diagnostic_WriteError", peb)
+        render = generator[generator.index("Private Sub private_GenerateWord"):]
+        handler = render[render.index("\nEH:"):render.index("\nEnd Sub")]
+        self.assertLess(handler.index("errorNumber = VBA.Err.Number"), handler.index("ex_Core.fn_Diagnostic_WriteError"))
+        self.assertLess(handler.index("errorSource = VBA.Err.Source"), handler.index("ex_Core.fn_Diagnostic_WriteError"))
+        self.assertLess(handler.index("errorDescription = VBA.Err.Description"), handler.index("ex_Core.fn_Diagnostic_WriteError"))
+        self.assertLess(handler.index("ex_Core.fn_Diagnostic_WriteError"), handler.index("On Error Resume Next"))
+        self.assertIn("VBA.Err.Raise errorNumber, errorSource, errorDescription", handler)
+        operation = re.search(r"Public Function TryRender\([\s\S]*?^End Function", generator, re.M)[0]
+        failure = operation[operation.index("\nFailed:"):]
+        self.assertIn("If Not renderStarted Then", failure)
+        self.assertIn("ex_Core.fn_Diagnostic_WriteError", failure)
+        self.assertIn('diagnostic = ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed")', failure)
+        self.assertNotIn("ex_WordDslDiagnostics", generator)
+        self.assertFalse((folder / "common/modules/ex_WordDslDiagnostics.vba").exists())
+        keys = [line.split("\t")[1] for line in (ROOT / "PROJECTS_EXCEL/config/TravelDocumentsBuilder/wsConfig.txt").read_text(encoding="utf-8-sig").splitlines() if "TravelDocumentsBuilder::word.tables.text." in line]
+        self.assertEqual(keys, ["TravelDocumentsBuilder::word.tables.text.Failed"])
+
+    def test_ticket_cell_margins_match_original_style(self):
+        from word_table_preview import points
+
+        root = ET.parse(str(CATALOG)).getroot()
+        resolved = styles(root)
+        table_style = resolved["Ticket"]
+        with ZipFile(SOURCE) as package:
+            style_root = ET.fromstring(package.read("word/styles.xml"))
+        original = style_root.find("w:style[@w:styleId='TableNormal']/w:tblPr/w:tblCellMar", NS)
+        for side in ("top", "left", "bottom", "right"):
+            expected = int(original.find("w:" + side, NS).get(f"{{{W}}}w"))
+            value = table_style.get("cellPadding" + side.title(), table_style["cellPadding"])
+            self.assertEqual(round(points(value) * 20), expected, side)
+        header = root.find("p:template/p:table/p:row", NS)
+        for cell in list(header)[:2]:
+            self.assertEqual(resolved[cell.get("style")]["vertical"], "top")
+
     def test_vba_procedure_names_are_unique_per_module(self):
         folder = ROOT / "PROJECTS_EXCEL/vba"
         files = list((folder / "TravelDocumentsBuilder").glob("*.vba"))
@@ -167,6 +206,8 @@ class WordTableDslTests(unittest.TestCase):
             old = old.replace('            If collectionName = "BasisDocuments" Then\n                Set values(collectionName) = ex_PEB_Export.fn_BasisDocuments(values)\n            End If\n', "")
             old = re.sub(r"^\s*'.*\n", "", old, flags=re.M)
             new = re.sub(r"^\s*'.*\n", "", new, flags=re.M)
+            old = re.sub(r"(?m)^(\s*)(?:VBA\.)?Err\.Raise 5, , [^\n]+$", r"\1Err.Raise 5", old)
+            new = re.sub(r"(?m)^(\s*)(?:VBA\.)?Err\.Raise 5, , [^\n]+$", r"\1Err.Raise 5", new)
             simple_if = r"(?m)^( +)If ([^\n]+) Then\n\1    ([^\n]+)\n\1End If$"
             old = re.sub(simple_if, r"\1If \2 Then \3", old)
             new = re.sub(simple_if, r"\1If \2 Then \3", new)

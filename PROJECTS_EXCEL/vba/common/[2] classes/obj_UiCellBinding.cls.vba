@@ -119,9 +119,15 @@ Public Sub UnsubscribeRefresh(ByVal listener As obj_IUiCellRefreshListener)
 End Sub
 
 Public Function HandleCellChange(ByVal target As Range) As Boolean
-    If m_isDisposed Or target Is Nothing Then Exit Function
-    If VBA.StrComp(target.Parent.Name, m_worksheetName, VBA.vbTextCompare) <> 0 Then Exit Function
-    If VBA.StrComp(target.Address(False, False), m_cellAddress, VBA.vbTextCompare) <> 0 Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Or target Is Nothing Then
+        Exit Function
+    End If
+    If VBA.StrComp(target.Parent.Name, m_worksheetName, VBA.vbTextCompare) <> 0 Then
+        Exit Function
+    End If
+    If VBA.StrComp(target.Address(False, False), m_cellAddress, VBA.vbTextCompare) <> 0 Then
+        Exit Function
+    End If
     If target.Cells(1, 1).NumberFormat = "@" Then
         If target.Cells(1, 1).Errors(xlNumberAsText).Value Then
             target.Cells(1, 1).Errors(xlNumberAsText).Ignore = True
@@ -135,7 +141,9 @@ Public Function HandleCellChange(ByVal target As Range) As Boolean
     If Not m_bindingContext.TrySetPathValue( _
             m_sourceName, m_bindingPath, target.Value2) Then Exit Function
     If Not m_command Is Nothing Then
-        If Not m_command.Execute() Then Exit Function
+        If Not m_command.Execute() Then
+            Exit Function
+        End If
     End If
     HandleCellChange = True
 End Function
@@ -150,15 +158,22 @@ Private Sub obj_IUiBindingListener_OnValueChanged( _
     private_bindingContext_ValueChanged sourceName, bindingPath
 End Sub
 
-Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVal bindingPath As String)
+Private Sub private_bindingContext_ValueChanged( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String _
+)
     Dim value As Variant
     Dim sourceObject As Object
     Dim isObject As Boolean
     Dim previousEnableEvents As Boolean
     Dim target As Range
 
-    If m_isDisposed Then Exit Sub
-    If VBA.StrComp(sourceName, m_sourceName, VBA.vbTextCompare) <> 0 Then Exit Sub
+    If m_isDisposed Then
+        Exit Sub
+    End If
+    If VBA.StrComp(sourceName, m_sourceName, VBA.vbTextCompare) <> 0 Then
+        Exit Sub
+    End If
     If VBA.StrComp(bindingPath, m_bindingPath, VBA.vbTextCompare) <> 0 Then
         If VBA.StrComp(VBA.Left$(m_bindingPath, VBA.Len(bindingPath) + 1), _
                 bindingPath & ".", VBA.vbTextCompare) <> 0 Then Exit Sub

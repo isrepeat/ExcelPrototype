@@ -54,6 +54,7 @@ Public Function Initialize( _
     Dim stream As Object
     Dim image As Object
     Dim binaryNode As Object
+    Dim errorDescription As String
 
     If m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -165,8 +166,14 @@ Public Function Initialize( _
     Initialize = True
     Exit Function
 Failed:
-    diagnostic = "Word table DSL: " & VBA.Err.Description
+    errorDescription = VBA.Err.Description
+    On Error Resume Next
+    If Not stream Is Nothing Then
+        stream.Close
+    End If
     Me.Dispose
+    On Error GoTo 0
+    diagnostic = "Word table DSL: " & errorDescription
 End Function
 
 Public Sub Dispose()
@@ -392,7 +399,7 @@ End Sub
 
 Private Function private_StyleKeys(ByVal kind As String) As String
     If kind = "tableStyle" Then
-        private_StyleKeys = "width|alignment|layout|borders|cellPadding"
+        private_StyleKeys = "width|alignment|layout|borders|cellPadding|cellPaddingTop|cellPaddingLeft|cellPaddingBottom|cellPaddingRight"
     Else
         private_StyleKeys = "fontName|fontSize|fontBold|fontItalic|horizontal|vertical|spaceBefore|spaceAfter|lineSpacing|borderBottom"
     End If
@@ -504,7 +511,7 @@ Private Sub private_ValidateStyle( _
         Select Case VBA.CStr(key)
             Case "width"
                 number = private_Length(properties(key), False)
-            Case "cellPadding", "spaceBefore", "spaceAfter"
+            Case "cellPadding", "cellPaddingTop", "cellPaddingLeft", "cellPaddingBottom", "cellPaddingRight", "spaceBefore", "spaceAfter"
                 number = private_Length(properties(key), True)
             Case "fontSize"
                 number = private_FontSize(properties(key))

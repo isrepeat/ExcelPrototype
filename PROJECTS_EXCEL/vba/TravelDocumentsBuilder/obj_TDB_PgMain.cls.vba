@@ -91,20 +91,44 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim chain As New Collection
     Dim orderOptions As New Collection
 
-    If m_pageBase Is Nothing Then Exit Function
+    If m_pageBase Is Nothing Then
+        Exit Function
+    End If
     Set bindingContext = m_pageBase.BindingContext
-    If bindingContext Is Nothing Then Exit Function
-    If Not bindingContext.SetObject("Data", "TvoChain", chain) Then Exit Function
-    If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then Exit Function
-    If Not bindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
-    If Not bindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
-    If Not bindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
-    If Not bindingContext.SetObject("Data", "OrderOptions", orderOptions) Then Exit Function
-    If Not bindingContext.SetValue("Text", "HistoryEditMode", ex_TDB_History.fn_Config("text.NewMode")) Then Exit Function
+    If bindingContext Is Nothing Then
+        Exit Function
+    End If
+    If Not bindingContext.SetObject("Data", "TvoChain", chain) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetObject("Data", "OrderOptions", orderOptions) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Text", "HistoryEditMode", ex_TDB_History.fn_Config("text.NewMode")) Then
+        Exit Function
+    End If
     For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.fields"), "|")
-        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "ReadOnly", False) Then Exit Function
-        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "Style", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then Exit Function
-        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "LabelStyle", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.label")) Then Exit Function
+        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "ReadOnly", False) Then
+            Exit Function
+        End If
+        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "Style", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then
+            Exit Function
+        End If
+        If Not bindingContext.SetValue("Form", VBA.CStr(key) & "LabelStyle", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.label")) Then
+            Exit Function
+        End If
     Next key
     valueText = ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")
     If valueText <> "Focus" And valueText <> "Confirm" Then
@@ -114,18 +138,36 @@ Private Function private_TryRegisterBindings() As Boolean
         If Not ex_Core.fn_TryGetWorkbookConfigValue("ThisWorkbook::ui.confirmSelectionKey", valueText) Then
             VBA.Err.Raise 5, , "Required configuration key not found: ThisWorkbook::ui.confirmSelectionKey"
         End If
-        If VBA.Len(VBA.Trim$(valueText)) = 0 Then VBA.Err.Raise 5, , "Empty confirmation hotkey."
+        If VBA.Len(VBA.Trim$(valueText)) = 0 Then
+            VBA.Err.Raise 5, , "Empty confirmation hotkey."
+        End If
     End If
-    If Not bindingContext.SetValue("Settings", "CandidateSelectionMode", ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
-    If Not bindingContext.SetValue("Form", "LookupIsTvo", False) Then Exit Function
-    If Not bindingContext.SetValue("Form", "GenerationStatusStyle", "generationSuccess") Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysAhead", valueText) Then Exit Function
-    If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysAhead) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysBefore", valueText) Then Exit Function
-    If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysBefore) Then Exit Function
+    If Not bindingContext.SetValue("Settings", "CandidateSelectionMode", ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "LookupIsTvo", False) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "GenerationStatusStyle", "generationSuccess") Then
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysAhead", valueText) Then
+        Exit Function
+    End If
+    If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysAhead) Then
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("dates.daysBefore", valueText) Then
+        Exit Function
+    End If
+    If Not ex_Helpers.fn_TryParseInvariantNumber(valueText, daysBefore) Then
+        Exit Function
+    End If
     If daysAhead < 0 Or daysAhead > 31 Or daysAhead <> VBA.Fix(daysAhead) Or _
             daysBefore < 0 Or daysBefore > 31 Or daysBefore <> VBA.Fix(daysBefore) Then
-        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.InvalidDateRange", valueText) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.InvalidDateRange", valueText) Then
+            Exit Function
+        End If
         ex_WindowsUi.fn_ShowMessage valueText, VBA.vbExclamation
         Exit Function
     End If
@@ -133,53 +175,91 @@ Private Function private_TryRegisterBindings() As Boolean
     For offset = -VBA.CLng(daysBefore) To VBA.CLng(daysAhead)
         departureDates.Add VBA.Format$(VBA.DateAdd("d", offset, VBA.Date), "dd.mm.yyyy")
     Next offset
-    If Not bindingContext.SetObject("Data", "DepartureDates", departureDates) Then Exit Function
-    If Not bindingContext.SetValue("Data", "CurrentDate", VBA.Format$(VBA.Date, "dd.mm.yyyy")) Then Exit Function
+    If Not bindingContext.SetObject("Data", "DepartureDates", departureDates) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Data", "CurrentDate", VBA.Format$(VBA.Date, "dd.mm.yyyy")) Then
+        Exit Function
+    End If
 
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.default", defaultDocumentType) Then Exit Function
-    If Not bindingContext.SetValue("Form", "DocumentType", defaultDocumentType) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.items", valueText) Then Exit Function
-    If Not bindingContext.SetValue("Data", "DocumentTypes", valueText) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.default", defaultDocumentType) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "DocumentType", defaultDocumentType) Then
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.items", valueText) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Data", "DocumentTypes", valueText) Then
+        Exit Function
+    End If
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
             "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus", _
             "HistoryRowId", "HistoryStamp", "ChangeReason", "OrderQuery", "OrderYear", "AcceptedOrderNumber", "AcceptedOrderDate")
-        If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
+        If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
+            Exit Function
+        End If
     Next key
     For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
             "RoadDays", "DonationDays")
-        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
-        If Not bindingContext.SetValue("Form", VBA.CStr(key), valueText) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
+        If Not bindingContext.SetValue("Form", VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
     Next key
     For Each key In VBA.Array("VacationKinds", "AbroadOptions", "StatusOptions")
-        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
         If VBA.CStr(key) = "VacationKinds" Then
             items = VBA.Split(valueText, "|")
-            If Not bindingContext.SetValue("Data", VBA.CStr(key), items) Then Exit Function
+            If Not bindingContext.SetValue("Data", VBA.CStr(key), items) Then
+                Exit Function
+            End If
         Else
-            If Not bindingContext.SetValue("Data", VBA.CStr(key), valueText) Then Exit Function
+            If Not bindingContext.SetValue("Data", VBA.CStr(key), valueText) Then
+                Exit Function
+            End If
         End If
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", _
             "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _
             "LoadHistory", "AddTvo", "RemoveTvo", "ChangeReason", "TvoChainTitle", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
-        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
-        If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
+        If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
     Next key
-    If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
-    If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then Exit Function
+    If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then
+        Exit Function
+    End If
     For Each key In VBA.Array("DocumentTypeLabel", "PersonNameLabel", _
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
             "RefreshPersonnel", "AutoFillPersonnelLabel", "Title", "PersonnelSection", _
             "DocumentSection", "SearchSection", "PersonPositionCodeLabel", _
             "CheckboxChecked", "CheckboxUnchecked", "ActionsSection")
-        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
-        If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
+        If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then
+            Exit Function
+        End If
     Next key
     If Not ex_Core.fn_TryGetWorkbookConfigValue( _
             "TravelDocumentsBuilder::text.PersonnelPrompt", valueText) Then Exit Function
-    If Not bindingContext.SetValue("Form", "GenerationStatus", valueText) Then Exit Function
+    If Not bindingContext.SetValue("Form", "GenerationStatus", valueText) Then
+        Exit Function
+    End If
     private_TryRegisterBindings = private_ApplyDocumentMode(defaultDocumentType)
 End Function
 

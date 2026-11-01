@@ -134,7 +134,7 @@ value	TravelDocumentsBuilder::word.text.SignatoryAmbiguous	Для наказу {
 value	TravelDocumentsBuilder::word.folder	TDB_{date}_{number}
 value	TravelDocumentsBuilder::word.tables.mode	table
 value	TravelDocumentsBuilder::word.tables.path	WordTableTemplates.xml
-value	TravelDocumentsBuilder::word.tables.text.Failed	Не вдалося сформувати таблицю WORD: {details}
+value	TravelDocumentsBuilder::word.tables.text.Failed	Не вдалося сформувати таблицю WORD. Подробиці — у журналі.
 value	TravelDocumentsBuilder::word.tables.images.Emblem	Шаблони\TicketEmblem.png
 value	TravelDocumentsBuilder::word.tables.maxRows	512
 value	TravelDocumentsBuilder::word.tables.maxDepth	32

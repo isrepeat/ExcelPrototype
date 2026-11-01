@@ -45,11 +45,17 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim diagnostic As String
     Dim dependencyLoader As obj_TDB_DependencyLoader
 
-    If m_isDisposed Or m_isInitialized Then Exit Function
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
     Set m_pageBase = pageBase
-    If m_pageBase Is Nothing Then Exit Function
+    If m_pageBase Is Nothing Then
+        Exit Function
+    End If
     Set dependencyLoader = New obj_TDB_DependencyLoader
-    If Not dependencyLoader.Initialize() Then Exit Function
+    If Not dependencyLoader.Initialize() Then
+        Exit Function
+    End If
     ex_TableSnapshots.fn_Register dependencyLoader, ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     Set m_messages = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
@@ -83,10 +89,17 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
         Exit Function
     End If
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "HistoryCandidates", m_lookupResult) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "HistoryCandidates", m_lookupResult) Then
+        Exit Function
+    End If
+    If Not private_UpdateFieldState() Then
+        Exit Function
+    End If
     m_isInitialized = True
-    Initialize = private_UpdateFieldState()
+    Initialize = True
 End Function
 
 Public Sub Dispose()
@@ -117,26 +130,42 @@ Public Function SearchPersonnelHandler() As Boolean
     Dim statusText As String
     Dim isTvo As Variant
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then
+        Exit Function
+    End If
     If ex_TableSnapshots.fn_Active() Is Nothing Then
         private_SetActionStatus ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired"), True
         Exit Function
     End If
-    If Not private_TryReadFormValue("PersonnelQuery", searchText) Then Exit Function
-    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then Exit Function
-    If VBA.CBool(isTvo) Then
-        If Not private_ClearTvo(True) Then Exit Function
+    If Not private_TryReadFormValue("PersonnelQuery", searchText) Then
+        Exit Function
     End If
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then
+        Exit Function
+    End If
+    If VBA.CBool(isTvo) Then
+        If Not private_ClearTvo(True) Then
+            Exit Function
+        End If
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Exit Function
+    End If
     If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic) Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_PERSONNEL_SEARCH_FAILED | " & diagnostic
         private_SetActionStatus diagnostic, True
         Exit Function
     End If
     Set m_lookupResult = result
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then
+        Exit Function
+    End If
     statusText = private_BuildPersonnelStatus(VBA.CStr(searchText), result)
     SearchPersonnelHandler = private_SetActionStatus(statusText, False)
 End Function
@@ -182,8 +211,12 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim diagnostic As String
     Dim autoFillPersonnel As Variant
 
-    If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then Exit Function
-    If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then Exit Function
+    If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then
+        Exit Function
+    End If
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then
+        Exit Function
+    End If
     If Not VBA.CBool(autoFillPersonnel) Then
         SelectPersonnelHandler = True
         Exit Function
@@ -194,33 +227,49 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         Exit Function
     End If
     SelectPersonnelHandler = private_SetActionStatus(m_messages("PersonnelSelected"), False)
-    If SelectPersonnelHandler Then SelectPersonnelHandler = private_UpdateFieldState()
+    If SelectPersonnelHandler Then
+        SelectPersonnelHandler = private_UpdateFieldState()
+    End If
 End Function
 
 Public Function RefreshPersonnelHandler() As Boolean
     Dim emptyResult As obj_LookupResult
     Dim diagnostic As String
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
     On Error GoTo Failed
-    If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then GoTo Failed
+    If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then
+        GoTo Failed
+    End If
     m_lookupService.InvalidateCache
     m_orderResolver.InvalidateCache
     m_orderOptions.RemoveAll
-    If Not Me.SearchOrdersHandler() Then Exit Function
+    If Not Me.SearchOrdersHandler() Then
+        Exit Function
+    End If
     If Not m_lookupService.TrySearch(VBA.vbNullString, emptyResult, diagnostic) Then
         private_SetActionStatus diagnostic, True
         Exit Function
     End If
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
-    If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then
+        Exit Function
+    End If
+    If Not m_lookupResult Is Nothing Then
+        m_lookupResult.Dispose
+    End If
     Set m_lookupResult = emptyResult
     RefreshPersonnelHandler = private_SetActionStatus(private_BuildPersonnelStatus(VBA.vbNullString, emptyResult), False)
     ex_Core.fn_StatusBar_Show ex_TravelDocumentsBuilder.fn_Config("text.DependenciesReady")
     Exit Function
 Failed:
-    If VBA.Len(diagnostic) = 0 Then diagnostic = VBA.Err.Description
+    If VBA.Len(diagnostic) = 0 Then
+        diagnostic = VBA.Err.Description
+    End If
     ex_Core.fn_StatusBar_Show diagnostic
     private_SetActionStatus diagnostic, True
 End Function
@@ -313,16 +362,26 @@ Public Function ExportWordHandler() As Boolean
     Dim diagnostic As String
     Dim succeeded As Boolean
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
     On Error GoTo Failed
     If VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderDate = 0 Then
         private_SetActionStatus ex_TDB_History.fn_Config("text.ChooseOrder"), True
         Exit Function
     End If
-    If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, templatePath) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults.OutputFolderPath", outputRoot) Then Exit Function
+    If Not private_TryReadFormValue("DocumentType", documentType) Then
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, templatePath) Then
+        Exit Function
+    End If
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults.OutputFolderPath", outputRoot) Then
+        Exit Function
+    End If
     Set orderWordExport = New obj_TDB_OrderWordExport
     If Not orderWordExport.Initialize(m_pageBase.BindingContext, m_lookupService) Then
         VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("word.text.Initialize")
@@ -330,14 +389,18 @@ Public Function ExportWordHandler() As Boolean
     succeeded = orderWordExport.TryExport(m_acceptedOrderNumber, m_acceptedOrderDate, VBA.CStr(templatePath), VBA.CStr(outputRoot), diagnostic)
     orderWordExport.Dispose
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
-    If succeeded Then m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
+    If succeeded Then
+        m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
+    End If
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
     ex_Core.fn_StatusBar_Show diagnostic
     ExportWordHandler = succeeded
     Exit Function
 Failed:
     diagnostic = VBA.Err.Description
-    If Not orderWordExport Is Nothing Then orderWordExport.Dispose
+    If Not orderWordExport Is Nothing Then
+        orderWordExport.Dispose
+    End If
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
 End Function
@@ -346,23 +409,37 @@ Public Function LoadHistoryHandler() As Boolean
     Dim result As obj_LookupResult
     Dim status As String
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
     On Error GoTo Failed
     If VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderDate = 0 Then
         private_SetActionStatus ex_TDB_History.fn_Config("text.ChooseOrder"), True
         Exit Function
     End If
     Set result = ex_TDB_History.fn_List(m_acceptedOrderNumber, m_acceptedOrderDate)
-    If Not m_pageBase.BindingContext.SetObject("Data", "HistoryCandidates", result) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
-    If Not m_historyResult Is Nothing Then m_historyResult.Dispose
+    If Not m_pageBase.BindingContext.SetObject("Data", "HistoryCandidates", result) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not m_historyResult Is Nothing Then
+        m_historyResult.Dispose
+    End If
     Set m_historyResult = result
     m_historyOrderNumber = m_acceptedOrderNumber
     m_historyOrderDate = m_acceptedOrderDate
-    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Visible") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Visible") Then
+        Exit Function
+    End If
     status = ex_TDB_History.fn_Config("text.SelectHint")
-    If result.RowCount = 0 Then status = ex_TDB_History.fn_Config("text.EmptyOrder")
+    If result.RowCount = 0 Then
+        status = ex_TDB_History.fn_Config("text.EmptyOrder")
+    End If
     LoadHistoryHandler = private_SetActionStatus(status, False)
     Exit Function
 Failed:
@@ -377,33 +454,73 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     Dim value As Variant
     Dim savedAutoFill As Variant
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
     On Error GoTo Failed
-    If Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    If Not TypeOf selected Is obj_LookupRecord Then
+        Exit Function
+    End If
     Set record = selected
     If VBA.Len(m_acceptedOrderNumber) = 0 Or m_historyOrderNumber <> m_acceptedOrderNumber Or _
             m_historyOrderDate <> m_acceptedOrderDate Then ex_TDB_History.fn_Fail "OrderStale"
-    If Not record.TryGetValue(ex_TDB_History.fn_Config("orderNumberField"), value) Then Exit Function
-    If VBA.CStr(value) <> m_acceptedOrderNumber Then ex_TDB_History.fn_Fail "OrderStale"
-    If Not record.TryGetValue("OrderDate", value) Then Exit Function
-    If VBA.CStr(value) <> VBA.Format$(m_acceptedOrderDate, "dd.mm.yyyy") Then ex_TDB_History.fn_Fail "OrderStale"
-    If Not record.TryGetValue("RowId", identifier) Then Exit Function
-    If Not record.TryGetValue("HistoryStamp", stamp) Then Exit Function
+    If Not record.TryGetValue(ex_TDB_History.fn_Config("orderNumberField"), value) Then
+        Exit Function
+    End If
+    If VBA.CStr(value) <> m_acceptedOrderNumber Then
+        ex_TDB_History.fn_Fail "OrderStale"
+    End If
+    If Not record.TryGetValue("OrderDate", value) Then
+        Exit Function
+    End If
+    If VBA.CStr(value) <> VBA.Format$(m_acceptedOrderDate, "dd.mm.yyyy") Then
+        ex_TDB_History.fn_Fail "OrderStale"
+    End If
+    If Not record.TryGetValue("RowId", identifier) Then
+        Exit Function
+    End If
+    If Not record.TryGetValue("HistoryStamp", stamp) Then
+        Exit Function
+    End If
     If VBA.IsEmpty(m_previousAutoFill) Then
-        If Not private_TryReadFormValue("AutoFillPersonnel", savedAutoFill) Then Exit Function
+        If Not private_TryReadFormValue("AutoFillPersonnel", savedAutoFill) Then
+            Exit Function
+        End If
     End If
     Set chain = ex_TDB_History.fn_Load(VBA.CStr(identifier), m_pageBase.BindingContext, VBA.CStr(stamp))
-    If VBA.IsEmpty(m_previousAutoFill) Then m_previousAutoFill = savedAutoFill
-    If Not m_pageBase.BindingContext.SetValue("Form", "AutoFillPersonnel", False) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
-    If Not private_SetLookupTarget(False) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Text", "HistoryEditMode", VBA.Replace$(ex_TDB_History.fn_Config("text.Editing"), "{id}", VBA.CStr(identifier))) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Text", "SaveHistory", ex_TravelDocumentsBuilder.fn_Config("text.UpdateHistory")) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "DocumentType", ex_TravelDocumentsBuilder.fn_Config("text.VacationTicket.DocumentFormTitle")) Then Exit Function
-    If Not Me.DocumentTypeChangedHandler() Then Exit Function
-    If Not private_PublishChain(chain) Then Exit Function
-    If Not Me.VacationDatesChangedHandler() Then Exit Function
-    If Not private_UpdateFieldState() Then Exit Function
+    If VBA.IsEmpty(m_previousAutoFill) Then
+        m_previousAutoFill = savedAutoFill
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "AutoFillPersonnel", False) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not private_SetLookupTarget(False) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Text", "HistoryEditMode", VBA.Replace$(ex_TDB_History.fn_Config("text.Editing"), "{id}", VBA.CStr(identifier))) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Text", "SaveHistory", ex_TravelDocumentsBuilder.fn_Config("text.UpdateHistory")) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "DocumentType", ex_TravelDocumentsBuilder.fn_Config("text.VacationTicket.DocumentFormTitle")) Then
+        Exit Function
+    End If
+    If Not Me.DocumentTypeChangedHandler() Then
+        Exit Function
+    End If
+    If Not private_PublishChain(chain) Then
+        Exit Function
+    End If
+    If Not Me.VacationDatesChangedHandler() Then
+        Exit Function
+    End If
+    If Not private_UpdateFieldState() Then
+        Exit Function
+    End If
     SelectHistoryHandler = private_SetActionStatus(ex_TDB_History.fn_Config("text.Loaded"), False)
     Exit Function
 Failed:
@@ -413,11 +530,19 @@ End Function
 Public Function CloseHistoryHandler() As Boolean
     Dim query As Variant
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then
+        Exit Function
+    End If
     If Not m_lookupResult Is Nothing Then
-        If Not private_TryReadFormValue("PersonnelQuery", query) Then Exit Function
-        If Not private_SetActionStatus(private_BuildPersonnelStatus(VBA.CStr(query), m_lookupResult), False) Then Exit Function
+        If Not private_TryReadFormValue("PersonnelQuery", query) Then
+            Exit Function
+        End If
+        If Not private_SetActionStatus(private_BuildPersonnelStatus(VBA.CStr(query), m_lookupResult), False) Then
+            Exit Function
+        End If
     End If
     CloseHistoryHandler = m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible")
 End Function
@@ -775,22 +900,39 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
     Dim isObject As Boolean
     Dim matches As Collection
     Dim orderRecord As obj_LookupRecord
+
     Static attemptNumber As Long
 
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
     On Error GoTo EH
     If VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderDate = 0 Then
         private_SetActionStatus ex_TDB_History.fn_Config("text.ChooseOrder"), True
         Exit Function
     End If
-    If Not private_TryReadFormValue("OrderReference", value) Then Exit Function
-    If Not m_orderResolver.TrySearch(VBA.CStr(value), VBA.vbNullString, matches, diagnostic) Then VBA.Err.Raise 5, , diagnostic
-    If matches.Count <> 1 Then ex_TDB_History.fn_Fail "OrderStale"
+    If Not private_TryReadFormValue("OrderReference", value) Then
+        Exit Function
+    End If
+    If Not m_orderResolver.TrySearch(VBA.CStr(value), VBA.vbNullString, matches, diagnostic) Then
+        VBA.Err.Raise 5, , diagnostic
+    End If
+    If matches.Count <> 1 Then
+        ex_TDB_History.fn_Fail "OrderStale"
+    End If
     Set orderRecord = matches(1)
-    If Not orderRecord.TryGetValue("OrderNumber", value) Then Exit Function
-    If VBA.CStr(value) <> m_acceptedOrderNumber Then ex_TDB_History.fn_Fail "OrderStale"
-    If Not orderRecord.TryGetValue("OrderDate", value) Then Exit Function
-    If VBA.CDate(value) <> m_acceptedOrderDate Then ex_TDB_History.fn_Fail "OrderStale"
+    If Not orderRecord.TryGetValue("OrderNumber", value) Then
+        Exit Function
+    End If
+    If VBA.CStr(value) <> m_acceptedOrderNumber Then
+        ex_TDB_History.fn_Fail "OrderStale"
+    End If
+    If Not orderRecord.TryGetValue("OrderDate", value) Then
+        Exit Function
+    End If
+    If VBA.CDate(value) <> m_acceptedOrderDate Then
+        ex_TDB_History.fn_Fail "OrderStale"
+    End If
     If isUpdate Then
         If VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderNumber <> m_historyOrderNumber Or _
                 m_acceptedOrderDate <> m_historyOrderDate Then ex_TDB_History.fn_Fail "OrderStale"
@@ -827,17 +969,27 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
             Set objectValue = ex_TDB_History.fn_Load(VBA.CStr(value), m_pageBase.BindingContext)
             private_PublishChain objectValue
             If private_TryReadFormValue("OrderReference", value) Then
-                If Not m_orderResolver.TrySearch(VBA.CStr(value), VBA.vbNullString, matches, diagnostic) Then VBA.Err.Raise 5, , diagnostic
-                If matches.Count <> 1 Then ex_TDB_History.fn_Fail "OrderStale"
+                If Not m_orderResolver.TrySearch(VBA.CStr(value), VBA.vbNullString, matches, diagnostic) Then
+                    VBA.Err.Raise 5, , diagnostic
+                End If
+                If matches.Count <> 1 Then
+                    ex_TDB_History.fn_Fail "OrderStale"
+                End If
                 Set orderRecord = matches(1)
-                If Not private_AcceptOrder(orderRecord, True) Then Exit Function
+                If Not private_AcceptOrder(orderRecord, True) Then
+                    Exit Function
+                End If
             End If
             If VBA.IsEmpty(m_previousAutoFill) Then
-                If Not private_TryReadFormValue("AutoFillPersonnel", m_previousAutoFill) Then Exit Function
+                If Not private_TryReadFormValue("AutoFillPersonnel", m_previousAutoFill) Then
+                    Exit Function
+                End If
             End If
             m_pageBase.BindingContext.SetValue "Form", "AutoFillPersonnel", False
             m_pageBase.BindingContext.SetValue "Text", "SaveHistory", ex_TravelDocumentsBuilder.fn_Config("text.UpdateHistory")
-            If Not private_TryReadFormValue("HistoryRowId", value) Then Exit Function
+            If Not private_TryReadFormValue("HistoryRowId", value) Then
+                Exit Function
+            End If
             m_pageBase.BindingContext.SetValue "Text", "HistoryEditMode", VBA.Replace$(ex_TDB_History.fn_Config("text.Editing"), "{id}", VBA.CStr(value))
             private_UpdateFieldState
         End If
@@ -856,7 +1008,9 @@ EH:
     diagnostic = VBA.Err.Description
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
-    If Not vacationGenerator Is Nothing Then vacationGenerator.Dispose
+    If Not vacationGenerator Is Nothing Then
+        vacationGenerator.Dispose
+    End If
     ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_HANDLER_FAILED | Operation=" & operationId & _
         " | Diagnostic=" & ex_TravelDocumentsBuilder.fn_LogValue(diagnostic)
     If Not ex_Core.fn_Diagnostic_Flush() Then

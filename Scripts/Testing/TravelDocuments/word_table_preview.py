@@ -156,7 +156,8 @@ def preview(catalog_path, scaffold_path, output_path, context):
     node(properties, "tblLayout", type="fixed")
     margins = node(properties, "tblCellMar")
     for side in ("top", "left", "bottom", "right"):
-        node(margins, side, w=round(points(table_style.get("cellPadding", "0pt")) * 20), type="dxa")
+        padding = table_style.get("cellPadding" + side.title(), table_style.get("cellPadding", "0pt"))
+        node(margins, side, w=round(points(padding) * 20), type="dxa")
     table_grid = node(result, "tblGrid")
     for width in columns:
         node(table_grid, "gridCol", w=round(width * 20))

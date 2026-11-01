@@ -55,12 +55,7 @@ End Sub
 ' // Interface
 ' //
 Private Function obj_IUiControl_Initialize() As Boolean
-    If m_isDisposed Or m_isInitialized Then
-        Exit Function
-    End If
-    If m_uiControlBase Is Nothing Then Set m_uiControlBase = New obj_UiControlBase
-    obj_IUiControl_Initialize = m_uiControlBase.Initialize()
-    m_isInitialized = obj_IUiControl_Initialize
+    obj_IUiControl_Initialize = Me.Initialize()
 End Function
 
 Private Sub obj_IUiControl_Dispose()
@@ -125,12 +120,18 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
 ) As Boolean
     Dim nextStyle As String
 
-    If Not private_Configure(m_uiControlBase.ControlNode) Then Exit Function
-    If m_targetRange Is Nothing Or m_cellBinding Is Nothing Then Exit Function
+    If Not private_Configure(m_uiControlBase.ControlNode) Then
+        Exit Function
+    End If
+    If m_targetRange Is Nothing Or m_cellBinding Is Nothing Then
+        Exit Function
+    End If
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly
     m_cellBinding.SetTwoWay Not m_readOnly
-    If Not m_checkboxShape Is Nothing Then m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
+    If Not m_checkboxShape Is Nothing Then
+        m_checkboxShape.ControlFormat.Enabled = Not m_readOnly
+    End If
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
         ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), context.BindingContext, nextStyle) Then Exit Function
     If Not context.Styles.TryApplyFontOnly(m_targetRange, m_appliedStyleName, nextStyle) Then
@@ -189,6 +190,17 @@ End Function
 ' //
 ' // API
 ' //
+Public Function Initialize() As Boolean
+    If m_isDisposed Or m_isInitialized Then
+        Exit Function
+    End If
+    If m_uiControlBase Is Nothing Then
+        Set m_uiControlBase = New obj_UiControlBase
+    End If
+    Initialize = m_uiControlBase.Initialize()
+    m_isInitialized = Initialize
+End Function
+
 Public Sub Dispose()
     Dim shapeName As Variant
 
@@ -539,14 +551,15 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim targetCell As Range
     Dim selectItems As Collection
     Dim focusCommand As obj_UiCommand
-
     Dim shapeNameToRemove As Variant
 
     startedAt = VBA.Timer
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RENDER_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
-    If Not m_cellBinding Is Nothing Then m_cellBinding.Dispose
+    If Not m_cellBinding Is Nothing Then
+        m_cellBinding.Dispose
+    End If
     Set m_cellBinding = Nothing
     If Not m_selectAction Is Nothing Then
         For Each shapeNameToRemove In m_selectAction.ShapeNames
@@ -565,8 +578,12 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RANGE_PREPARE_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
-    If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
-    If m_targetRange Is Nothing Then Exit Function
+    If m_targetRange Is Nothing Then
+        Set m_targetRange = private_Measure(uiRenderContext)
+    End If
+    If m_targetRange Is Nothing Then
+        Exit Function
+    End If
     ex_UiTables.fn_MergeRange m_targetRange, m_uiControlBase.ControlName
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RANGE_PREPARE_COMPLETED | Name=" & m_uiControlBase.ControlName
@@ -576,7 +593,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
 #End If
     If Not uiRenderContext.BindingContext.TryGetValue( _
             m_sourceName, m_bindingPath, value, sourceObject, isObject) Then Exit Function
-    If isObject Then Exit Function
+    If isObject Then
+        Exit Function
+    End If
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_RESOLVE_COMPLETED | Name=" & m_uiControlBase.ControlName
 #End If
@@ -610,7 +629,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_targetRange.Value2 = value
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly
-    If Not m_isSelect And Not m_isCheckbox Then m_targetRange.WrapText = True
+    If Not m_isSelect And Not m_isCheckbox Then
+        m_targetRange.WrapText = True
+    End If
     private_RegisterStatePart False
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_COMPLETED | Name=" & m_uiControlBase.ControlName
@@ -621,7 +642,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         Else
             m_targetRange.NumberFormat = ";;;"
         End If
-        If Not private_TryResolveItems(uiRenderContext, selectItems) Then Exit Function
+        If Not private_TryResolveItems(uiRenderContext, selectItems) Then
+            Exit Function
+        End If
     Else
         On Error Resume Next
         m_targetRange.Cells(1, 1).Validation.Delete
@@ -730,13 +753,18 @@ Private Function private_TryResolveItems( _
     private_TryResolveItems = True
 End Function
 
-Private Sub private_AddDelimitedItems(ByVal listText As String, ByVal outItems As Collection)
+Private Sub private_AddDelimitedItems( _
+    ByVal listText As String, _
+    ByVal outItems As Collection _
+)
     Dim item As Variant
     Dim itemText As String
 
     For Each item In VBA.Split(listText, ",")
         itemText = VBA.Trim$(VBA.CStr(item))
-        If VBA.Len(itemText) > 0 Then outItems.Add itemText
+        If VBA.Len(itemText) > 0 Then
+            outItems.Add itemText
+        End If
     Next item
 End Sub
 

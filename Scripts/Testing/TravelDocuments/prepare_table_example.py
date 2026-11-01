@@ -41,9 +41,10 @@ def catalog():
     root = ET.Element(f"{{{P}}}wordTableTemplates", nsmap={None: P}, version="1")
     styles = element(root, "styles")
     widths = [int(node.get(f"{{{W}}}w")) for node in original.findall("w:tblGrid/w:gridCol", NS)]
-    element(styles, "tableStyle", name="Ticket", width=f"{sum(widths) / 20:g}pt", alignment="left", layout="fixed", borders="none", cellPadding="0pt")
+    element(styles, "tableStyle", name="Ticket", width=f"{sum(widths) / 20:g}pt", alignment="left", layout="fixed", borders="none", cellPadding="0pt", cellPaddingLeft="5.4pt", cellPaddingRight="5.4pt")
     element(styles, "cellStyle", name="Body", fontName="Times New Roman", fontSize="16", horizontal="left", vertical="center", spaceBefore="0pt", spaceAfter="0pt")
     element(styles, "cellStyle", name="Centered", basedOn="Body", horizontal="center")
+    element(styles, "cellStyle", name="HeaderCell", basedOn="Centered", vertical="top")
     element(styles, "cellStyle", name="Caption", basedOn="Centered", fontSize="12")
     element(styles, "cellStyle", name="Title", basedOn="Centered", fontBold="true")
     element(styles, "cellStyle", name="Stamp", basedOn="Body", fontSize="14", vertical="top")
@@ -73,6 +74,8 @@ def catalog():
                 column += span
                 continue
             cell_style = "Centered"
+            if index == 1 and column in (0, 4):
+                cell_style = "HeaderCell"
             if index <= 6 and column >= 9:
                 cell_style = "Stamp"
             elif index in (14, 16, 18, 20, 23, 27, 29):

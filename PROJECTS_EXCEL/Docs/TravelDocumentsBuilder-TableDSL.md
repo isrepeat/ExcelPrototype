@@ -28,10 +28,12 @@ All runtime settings are in `config/TravelDocumentsBuilder/wsConfig.txt` and mus
 | `word.tables.maxRows` | Maximum expanded row count. |
 | `word.tables.maxColumns` | Maximum grid column count, up to Word's limit of 63. |
 | `word.tables.images.Emblem` | PNG asset path, relative to the application workbook. |
-| `word.tables.text.Failed` | Failure message with the `{details}` placeholder. |
+| `word.tables.text.Failed` | Short user-facing failure message; technical details go to the common log. |
 | `generation.templates.VacationTicket` | Word scaffold used for vacation tickets. |
 
 The checked-in configuration selects the new table renderer and scaffold. To use the original renderer, explicitly change both `word.tables.mode` to `markers` and `generation.templates.VacationTicket` back to `Шаблони\Відпустка (Шаблон).docx`. There is no automatic fallback when a catalog, asset, style, field or marker is missing.
+
+Technical DSL validation errors use `Err.Raise` and are returned to the export boundary, following the PEB renderer pattern. The exporter records the original number, source and description through `ex_Core.fn_Diagnostic_WriteError`, with the stage, operation ID and document path. Log output, timing, buffering and flushing use the existing `ex_Core.fn_Diagnostic_*` mechanism shared with PEB. Only the short message shown to the user comes from `word.tables.text.Failed`; internal validation text is not shown in the status block. Stateless standard modules expose `fn_Module_Dispose` for the workbook lifecycle contract.
 
 ## Structure and styles
 
@@ -90,7 +92,7 @@ Lengths accept `mm`, `cm` and `pt` with a dot as decimal separator. Font size is
 
 Rows accept `header="true"` for consecutive repeated header rows, `allowBreakAcrossPages="true|false"`, and `height` with `heightRule="atLeast|exact"`. Omit height for automatic sizing, or explicitly use `heightRule="auto"`. Use exact heights only for intentional empty spacers. Cells cannot merge across a repeated-header boundary.
 
-Table styles support width, alignment (`left`, `center`, `right`), fixed layout, borders (`none`, `single`) and uniform cell padding. Cell styles support font name/size, bold/italic, horizontal and vertical alignment, paragraph spacing, minimum line spacing, and `borderBottom="single|none"`. `basedOn` inherits a style of the same kind; cycles are rejected. Paragraph styles use the same cell-style catalog and override the containing cell's text properties.
+Table styles support width, alignment (`left`, `center`, `right`), fixed layout, borders (`none`, `single`) and cell padding. `cellPadding` sets a uniform base; `cellPaddingTop`, `cellPaddingLeft`, `cellPaddingBottom` and `cellPaddingRight` override individual sides. The ticket retains the original 5.4-point left/right margins and zero top/bottom margins. Cell styles support font name/size, bold/italic, horizontal and vertical alignment, paragraph spacing, minimum line spacing, and `borderBottom="single|none"`. `basedOn` inherits a style of the same kind; cycles are rejected. Paragraph styles use the same cell-style catalog and override the containing cell's text properties.
 
 A cell contains either one `text` or a sequence of `paragraph` elements. An empty cell is valid. A paragraph contains one `text` or one `image`:
 
@@ -153,6 +155,8 @@ The original scalar-marker bookmarks are indexed once in the frozen template and
 The existing order-wide staging, rollback and history synchronization remain responsible for publishing files. No working workbook is changed by source validation.
 
 Run `PROJECTS_EXCEL/WorkbookUpdater/Test-TravelDocumentsSources.py` and `Scripts/Testing/TravelDocuments/test_word_table_dsl.py` with the bundled Python runtime. The latter checks the original ticket grid, dynamic expansion cases, invalid spans, styles, insertion markers, preservation of other DOCX parts, and text-engine parity. These are static/offline checks, not VBA execution.
+
+`check_recent_contracts.py --base ee2a848^` audits the two UI/DSL commits together with working changes. It checks module lifecycle entry points, namespace boundaries, class lifecycle/API sections, changed procedure formatting, the technical/user message boundary, XML syntax and final bytes. A different base revision can be supplied for a later change set.
 
 `prepare_table_example.py --emit-patch` prints a reviewable catalog patch from the original DOCX. `--build-scaffold` regenerates only the new scaffold and extracted PNG. All text edits must still be applied through `apply_patch`.
 
