@@ -122,6 +122,11 @@ Public Function HandleCellChange(ByVal target As Range) As Boolean
     If m_isDisposed Or target Is Nothing Then Exit Function
     If VBA.StrComp(target.Parent.Name, m_worksheetName, VBA.vbTextCompare) <> 0 Then Exit Function
     If VBA.StrComp(target.Address(False, False), m_cellAddress, VBA.vbTextCompare) <> 0 Then Exit Function
+    If target.Cells(1, 1).NumberFormat = "@" Then
+        If target.Cells(1, 1).Errors(xlNumberAsText).Value Then
+            target.Cells(1, 1).Errors(xlNumberAsText).Ignore = True
+        End If
+    End If
     If Not m_twoWay Then
         private_bindingContext_ValueChanged m_sourceName, m_bindingPath
         HandleCellChange = True
@@ -172,6 +177,11 @@ Private Sub private_bindingContext_ValueChanged(ByVal sourceName As String, ByVa
     Set target = ThisWorkbook.Worksheets(m_worksheetName).Range(m_cellAddress)
     Application.EnableEvents = False
     target.Value2 = value
+    If target.Cells(1, 1).NumberFormat = "@" Then
+        If target.Cells(1, 1).Errors(xlNumberAsText).Value Then
+            target.Cells(1, 1).Errors(xlNumberAsText).Ignore = True
+        End If
+    End If
     Application.EnableEvents = previousEnableEvents
     private_NotifyValueRefreshed
     Exit Sub

@@ -348,9 +348,17 @@ assert nodes["AutoFillPersonnel"].get("onChange") == "{Binding Path=Commands.Aut
 assert nodes["OrderQuery"].get("editable") == "true"
 assert nodes["History"].get("closeCommand") == "{Binding Path=Commands.CloseHistory}"
 peb_markup = ET.parse(ROOT / "ui/PersonalEventBuilder/MainPage.xaml")
+for rule in markup.iter():
+    if rule.get("target", "").lower() in ("controlpart", "inlinepart"):
+        selector = dict(segment.strip().split("=", 1) for segment in rule.get("selector", "").split(";") if segment.strip())
+        assert {"type", "part"} <= selector.keys(), f"Invalid part selector: {selector}"
 for name in ("personnelFormField", "currentOrderField", "lookupKeyField"):
     expected = next(node for node in peb_markup.iter() if node.tag.endswith("controlStyle") and node.get("name") == name)
-    assert nodes[name].attrib == expected.attrib, name
+    expected_attributes = dict(expected.attrib)
+    expected_attributes["horizontal"] = "left"
+    if name == "lookupKeyField":
+        expected_attributes.update(paddingLeft="10", paddingRight="10")
+    assert nodes[name].attrib == expected_attributes, name
 for style in ("personnelFormField", "currentOrderField", "formField"):
     selector = f"type=input;part=editor;tags=readOnly {style}"
     actual = next(node for node in markup.iter() if node.get("selector") == selector)

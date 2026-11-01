@@ -10,14 +10,14 @@ value	ThisWorkbook::initializer	ex_TravelDocumentsBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_TravelDocumentsBuilder.fn_CreatePage
 value	TravelDocumentsBuilder::ui.folder	TravelDocumentsBuilder
 value	TravelDocumentsBuilder::text.Title	Документи
-value	TravelDocumentsBuilder::text.AddTvo	Додати ТВО
+value	TravelDocumentsBuilder::text.AddTvo	+
 value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
 value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
 value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
 value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
-value	TravelDocumentsBuilder::text.RemoveTvo	Прибрати останнього ТВО
+value	TravelDocumentsBuilder::text.RemoveTvo	−
 value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
 value	TravelDocumentsBuilder::text.ExportWord	Експорт WORD — весь наказ
 value	TravelDocumentsBuilder::text.LastStatus	Статус останньої дії
@@ -43,6 +43,7 @@ value	TravelDocumentsBuilder::text.StyleCellType	Непідтримуване з
 value	TravelDocumentsBuilder::text.StyleProperty	Непідтримувана властивість стилю: {value}
 value	TravelDocumentsBuilder::text.StyleRangeKey	Селектор не підтримується для діапазону: {value}
 value	TravelDocumentsBuilder::text.StyleSelector	Некоректний селектор стилів: {value}
+value	TravelDocumentsBuilder::text.TvoChainTitle	ТВО Ланцюг
 value	TravelDocumentsBuilder::text.UpdateHistory	Оновити подію
 value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
 value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
@@ -108,7 +109,6 @@ value	TravelDocumentsBuilder::text.DependenciesProgress	Завантаження
 value	TravelDocumentsBuilder::text.DependenciesRequired	Натисніть «Завантажити дані», щоб завантажити довідники і накази.
 value	TravelDocumentsBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
 value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
-value	TravelDocumentsBuilder::text.CandidateCountTemplate	Кандидатів: {count}
 value	TravelDocumentsBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.PurposeLabel	Мета відрядження
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.ReturnDateLabel	Дата повернення
@@ -142,7 +142,7 @@ value	TravelDocumentsBuilder::word.signatory.actingPrefix	ТВО
 value	TravelDocumentsBuilder::word.signatory.actingPosition	Тимчасово виконуючий обов’язки командира військової частини А7383
 value	TravelDocumentsBuilder::dates.daysAhead	15
 value	TravelDocumentsBuilder::dates.daysBefore	3
-value	TravelDocumentsBuilder::forms.readOnly.fields	PersonRank|PersonId|PersonPositionCode|PersonPosition|PersonUnit|TvoIpn|TvoPosition
+value	TravelDocumentsBuilder::forms.readOnly.fields	PersonRank|PersonId|PersonPositionCode|PersonPosition|TvoIpn|TvoPosition
 value	TravelDocumentsBuilder::forms.readOnly.labelStyle	readOnlyFormLabel
 value	TravelDocumentsBuilder::forms.sourceStyles.label	formLabel
 value	TravelDocumentsBuilder::forms.sourceStyles.default	formField
@@ -225,7 +225,6 @@ value	TravelDocumentsBuilder::orders.signatoryNameHeader	ПІБ
 value	TravelDocumentsBuilder::orders.signatoryRankHeader	Звання
 value	TravelDocumentsBuilder::history.path	TicketsHistory.xlsx
 value	TravelDocumentsBuilder::history.text.Name	ПІБ
-value	TravelDocumentsBuilder::history.text.Count	Подій наказу: {count}
 value	TravelDocumentsBuilder::history.text.RowId	ID події
 value	TravelDocumentsBuilder::history.text.Stale	Подія або історія змінилася після завантаження. Оновіть список та повторно виберіть подію.
 value	TravelDocumentsBuilder::history.text.Loaded	Подію завантажено для редагування. Зміни зберігаються кнопкою «Оновити подію».

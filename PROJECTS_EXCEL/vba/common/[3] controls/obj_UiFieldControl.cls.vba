@@ -141,6 +141,11 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
     If Not m_selectHeaderShape Is Nothing Then
         context.Styles.ApplyControlStyle Nothing, m_selectHeaderShape, _
             m_uiControlBase.ControlNode, context.BindingContext
+        If m_editable Then
+            m_selectHeaderShape.TextFrame2.MarginLeft = 0
+            m_selectHeaderShape.TextFrame2.MarginRight = 0
+            m_selectHeaderShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
+        End If
     End If
     obj_IUiBindingTarget_RefreshBindings = True
 End Function
@@ -627,6 +632,11 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_BINDING_NEW_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
     Set targetCell = m_targetRange.Cells(1, 1)
+    If targetCell.NumberFormat = "@" Then
+        If targetCell.Errors(xlNumberAsText).Value Then
+            targetCell.Errors(xlNumberAsText).Ignore = True
+        End If
+    End If
     Set uiCellBinding = New obj_UiCellBinding
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_BINDING_NEW_COMPLETED | Name=" & m_uiControlBase.ControlName

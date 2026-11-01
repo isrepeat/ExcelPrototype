@@ -53,7 +53,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     ex_TableSnapshots.fn_Register dependencyLoader, ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     Set m_messages = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
-            "PersonnelCount", "PersonnelMore", "PersonnelSelected", "CandidateCountTemplate")
+            "PersonnelCount", "PersonnelMore", "PersonnelSelected")
         valueText = ex_TravelDocumentsBuilder.fn_Config("text." & VBA.CStr(key))
         m_messages(VBA.CStr(key)) = valueText
     Next key
@@ -84,7 +84,6 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult) Then Exit Function
-    If Not private_SetCandidateCount(m_lookupResult.RowCount) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "HistoryCandidates", m_lookupResult) Then Exit Function
     m_isInitialized = True
     Initialize = private_UpdateFieldState()
@@ -138,9 +137,8 @@ Public Function SearchPersonnelHandler() As Boolean
     End If
     Set m_lookupResult = result
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
-    If Not private_SetCandidateCount(result.RowCount) Then Exit Function
     statusText = private_BuildPersonnelStatus(VBA.CStr(searchText), result)
-    SearchPersonnelHandler = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", statusText)
+    SearchPersonnelHandler = private_SetActionStatus(statusText, False)
 End Function
 
 Public Function PersonNameChangedHandler() As Boolean
@@ -195,8 +193,7 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         private_SetActionStatus diagnostic, True
         Exit Function
     End If
-    SelectPersonnelHandler = m_pageBase.BindingContext.SetValue( _
-        "Text", "PersonnelStatus", m_messages("PersonnelSelected"))
+    SelectPersonnelHandler = private_SetActionStatus(m_messages("PersonnelSelected"), False)
     If SelectPersonnelHandler Then SelectPersonnelHandler = private_UpdateFieldState()
 End Function
 
@@ -219,9 +216,7 @@ Public Function RefreshPersonnelHandler() As Boolean
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", emptyResult) Then Exit Function
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
     Set m_lookupResult = emptyResult
-    If Not private_SetCandidateCount(emptyResult.RowCount) Then Exit Function
-    RefreshPersonnelHandler = m_pageBase.BindingContext.SetValue( _
-        "Text", "PersonnelStatus", private_BuildPersonnelStatus(VBA.vbNullString, emptyResult))
+    RefreshPersonnelHandler = private_SetActionStatus(private_BuildPersonnelStatus(VBA.vbNullString, emptyResult), False)
     ex_Core.fn_StatusBar_Show ex_TravelDocumentsBuilder.fn_Config("text.DependenciesReady")
     Exit Function
 Failed:
@@ -238,8 +233,6 @@ Public Function DocumentTypeChangedHandler() As Boolean
 
     If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, valueText) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "TemplatePath", valueText) Then Exit Function
     For Each key In VBA.Array("DocumentFormTitle", "DocumentTargetLabel", _
             "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _
@@ -313,8 +306,10 @@ End Function
 
 Public Function ExportWordHandler() As Boolean
     Dim orderWordExport As obj_TDB_OrderWordExport
-    Dim templatePath As Variant
-    Dim outputRoot As Variant
+    Dim documentType As Variant
+    Dim prefix As String
+    Dim templatePath As String
+    Dim outputRoot As String
     Dim diagnostic As String
     Dim succeeded As Boolean
 
@@ -324,8 +319,10 @@ Public Function ExportWordHandler() As Boolean
         private_SetActionStatus ex_TDB_History.fn_Config("text.ChooseOrder"), True
         Exit Function
     End If
-    If Not private_TryReadFormValue("TemplatePath", templatePath) Then Exit Function
-    If Not private_TryReadFormValue("OutputFolderPath", outputRoot) Then Exit Function
+    If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, templatePath) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults.OutputFolderPath", outputRoot) Then Exit Function
     Set orderWordExport = New obj_TDB_OrderWordExport
     If Not orderWordExport.Initialize(m_pageBase.BindingContext, m_lookupService) Then
         VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("word.text.Initialize")
@@ -362,12 +359,11 @@ Public Function LoadHistoryHandler() As Boolean
     Set m_historyResult = result
     m_historyOrderNumber = m_acceptedOrderNumber
     m_historyOrderDate = m_acceptedOrderDate
-    If Not m_pageBase.BindingContext.SetValue("Text", "CandidateCount", VBA.Replace$(ex_TDB_History.fn_Config("text.Count"), "{count}", VBA.CStr(result.RowCount))) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Visible") Then Exit Function
     status = ex_TDB_History.fn_Config("text.SelectHint")
     If result.RowCount = 0 Then status = ex_TDB_History.fn_Config("text.EmptyOrder")
-    LoadHistoryHandler = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", status)
+    LoadHistoryHandler = private_SetActionStatus(status, False)
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True
@@ -408,7 +404,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     If Not private_PublishChain(chain) Then Exit Function
     If Not Me.VacationDatesChangedHandler() Then Exit Function
     If Not private_UpdateFieldState() Then Exit Function
-    SelectHistoryHandler = m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", ex_TDB_History.fn_Config("text.Loaded"))
+    SelectHistoryHandler = private_SetActionStatus(ex_TDB_History.fn_Config("text.Loaded"), False)
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True
@@ -420,9 +416,8 @@ Public Function CloseHistoryHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     If Not m_lookupResult Is Nothing Then
-        If Not private_SetCandidateCount(m_lookupResult.RowCount) Then Exit Function
         If Not private_TryReadFormValue("PersonnelQuery", query) Then Exit Function
-        If Not m_pageBase.BindingContext.SetValue("Text", "PersonnelStatus", private_BuildPersonnelStatus(VBA.CStr(query), m_lookupResult)) Then Exit Function
+        If Not private_SetActionStatus(private_BuildPersonnelStatus(VBA.CStr(query), m_lookupResult), False) Then Exit Function
     End If
     CloseHistoryHandler = m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible")
 End Function
@@ -809,7 +804,7 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
             "PersonPosition", "PersonUnit", "PersonnelQuery", "AutoFillPersonnel", "LookupIsTvo", _
             "DocumentTarget", "DepartureDate", "ReturnDate", "OrderReference", "Purpose", "ReportNo", "VacationKind", _
             "VacationDays", "RoadDays", "DonationDays", "VacationAbroad", "VacationStatus", _
-            "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", "TicketNo", "DocumentPath")
+            "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath")
         If m_pageBase.BindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             ex_Core.fn_Diagnostic_WriteLog "TDB_FORM_RAW | Operation=" & operationId & " | Field=" & key & _
                 " | Type=" & VBA.TypeName(value) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(value)
@@ -868,11 +863,6 @@ EH:
         ex_Core.fn_Diagnostic_WriteLog "TDB_LOG_FLUSH_FAILED | Operation=" & operationId & " | Phase=HandlerError"
     End If
     private_SetActionStatus diagnostic, True
-End Function
-
-Private Function private_SetCandidateCount(ByVal count As Long) As Boolean
-    private_SetCandidateCount = m_pageBase.BindingContext.SetValue( _
-        "Text", "CandidateCount", VBA.Replace$(m_messages("CandidateCountTemplate"), "{count}", VBA.CStr(count)))
 End Function
 
 Private Function private_BuildPersonnelStatus( _

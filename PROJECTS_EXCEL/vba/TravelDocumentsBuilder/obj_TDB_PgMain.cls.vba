@@ -147,7 +147,7 @@ Private Function private_TryRegisterBindings() As Boolean
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then Exit Function
     Next key
     For Each key In VBA.Array("VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
-            "RoadDays", "DonationDays", "OutputFolderPath")
+            "RoadDays", "DonationDays")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Form", VBA.CStr(key), valueText) Then Exit Function
     Next key
@@ -161,15 +161,15 @@ Private Function private_TryRegisterBindings() As Boolean
         End If
     Next key
     For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
-            "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", "TemplatePath", "OutputFolderPath", _
+            "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", _
             "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _
-            "LoadHistory", "AddTvo", "RemoveTvo", "ChangeReason", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
+            "LoadHistory", "AddTvo", "RemoveTvo", "ChangeReason", "TvoChainTitle", "OrderQueryLabel", "OrderYearLabel", "CloseHistory")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
         If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then Exit Function
-    For Each key In VBA.Array("DocumentTypeLabel", "PersonnelPrompt", "PersonNameLabel", _
+    For Each key In VBA.Array("DocumentTypeLabel", "PersonNameLabel", _
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
             "RefreshPersonnel", "AutoFillPersonnelLabel", "Title", "PersonnelSection", _
             "DocumentSection", "SearchSection", "PersonPositionCodeLabel", _
@@ -179,7 +179,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Next key
     If Not ex_Core.fn_TryGetWorkbookConfigValue( _
             "TravelDocumentsBuilder::text.PersonnelPrompt", valueText) Then Exit Function
-    If Not bindingContext.SetValue("Text", "PersonnelStatus", valueText) Then Exit Function
+    If Not bindingContext.SetValue("Form", "GenerationStatus", valueText) Then Exit Function
     private_TryRegisterBindings = private_ApplyDocumentMode(defaultDocumentType)
 End Function
 
@@ -240,8 +240,6 @@ Private Function private_ApplyDocumentMode(ByVal documentType As String) As Bool
     If bindingContext Is Nothing Then Exit Function
 
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(documentType, prefix) Then Exit Function
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.templates." & prefix, valueText) Then Exit Function
-    If Not bindingContext.SetValue("Form", "TemplatePath", valueText) Then Exit Function
     For Each key In VBA.Array("DocumentFormTitle", "DocumentTargetLabel", _
             "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _
