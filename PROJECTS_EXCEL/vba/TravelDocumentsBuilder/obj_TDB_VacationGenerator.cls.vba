@@ -190,6 +190,7 @@ Public Function TrySave( _
             "OrderReference", "ReportNo", "DepartureDate", "VacationKind", "VacationAbroad", "VacationStatus")
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
     Next key
+    ex_TDB_Declensions.fn_Enrich m_form
     private_ValidateTreatment
     departureDate = private_Date(m_form("DepartureDate"))
     vacationDays = private_Days("VacationDays", False)
@@ -285,6 +286,12 @@ Public Function TrySave( _
     metadata.Add "VlkDate", m_form("VlkDate")
     metadata.Add "LongTreatmentDays", m_form("LongTreatmentDays")
     metadata.Add "TreatmentLeaveDays", m_form("TreatmentLeaveDays")
+    metadata.Add "RankGenitive", m_form("RankGenitive")
+    metadata.Add "RankDative", m_form("RankDative")
+    metadata.Add "FIOAccusative", m_form("FIOAccusative")
+    metadata.Add "FIODative", m_form("FIODative")
+    metadata.Add "FIOInitialsGenitive", m_form("FIOInitialsGenitive")
+    metadata.Add "PositionGenitive", m_form("PositionGenitive")
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
@@ -439,6 +446,14 @@ Public Function TryRender( _
         pair = VBA.Split(mapping, "=")
         m_form(pair(0)) = VBA.CStr(root(pair(1)))
     Next mapping
+    For Each key In VBA.Array("RankGenitive", "RankDative", "FIOAccusative", "FIODative", _
+            "FIOInitialsGenitive", "PositionGenitive")
+        m_form(key) = VBA.CStr(root(key))
+        If VBA.Len(m_form(key)) = 0 Then
+            VBA.Err.Raise 5, , VBA.Replace$(VBA.Replace$( _
+                ex_TravelDocumentsBuilder.fn_Config("declensions.error"), "{field}", VBA.CStr(key)), "{detail}", VBA.CStr(key))
+        End If
+    Next key
     private_ValidateTreatment
     m_form("DonationDays") = "0"
     For Each row In group
@@ -932,7 +947,7 @@ Private Sub private_GenerateWord( _
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
         "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer", _
         "SignatoryPosition", "SignatoryRank", "SignatoryName")
-    values = VBA.Array(private_WordDate(orderDate), ticketNo, m_form("PersonRank") & " " & m_form("PersonName"), _
+    values = VBA.Array(private_WordDate(orderDate), ticketNo, m_form("RankDative") & " " & m_form("FIODative"), _
         kindWord, m_form("DocumentTarget"), duration, private_WordDate(departure), private_WordDate(finalReturn), _
         initials, private_WordDate(VBA.DateAdd("d", 1, finalReturn)), abroad, VBA.vbNullString, _
         signatory("SignatoryPosition"), signatory("SignatoryRank"), signatory("SignatoryName"))
@@ -1071,7 +1086,7 @@ Private Sub private_IndexWordMarkers( _
     Dim matchEnd As Long
 
     Set m_wordAnchors = VBA.CreateObject("Scripting.Dictionary")
-    prefix = "TDB_" & VBA.Mid$(ex_TDB_History.fn_NewId(), 3, 8) & "_"
+    prefix = "TDB_" & VBA.Left$(ex_TDB_History.fn_NewId(), 8) & "_"
     For index = 0 To UBound(names)
         Set occurrences = New Collection
         m_wordAnchors.Add VBA.CStr(names(index)), occurrences

@@ -125,7 +125,7 @@ Public Function fn_NewId() As String
     identifier = VBA.String$(39, VBA.vbNullChar)
     If CoCreateGuid(value) <> 0 Then fn_Fail "InvalidRows"
     If StringFromGUID2(value, VBA.StrPtr(identifier), 39) <> 39 Then fn_Fail "InvalidRows"
-    fn_NewId = "T-" & VBA.Mid$(identifier, 2, 36)
+    fn_NewId = VBA.Mid$(identifier, 2, 36)
 End Function
 
 Public Function fn_Actor( _

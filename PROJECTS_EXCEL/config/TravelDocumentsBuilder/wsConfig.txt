@@ -1,3 +1,4 @@
+importCfg	Import::workbooks.__cfgDependencies	../cfgDependencies.xlsx
 value	ThisWorkbook::id	TravelDocumentsBuilder
 value	ThisWorkbook::ui.pageMappings	MainPage=MainPage.xaml
 value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
@@ -135,7 +136,7 @@ value	TravelDocumentsBuilder::word.text.Initialize	Не вдалося підг�
 value	TravelDocumentsBuilder::word.text.SignatorySource	Не вдалося прочитати підписанта з довідника «Накази»: {details}.
 value	TravelDocumentsBuilder::word.text.SignatoryRequired	Для наказу {details} не заповнено підписанта, ПІБ або звання в довіднику «Накази».
 value	TravelDocumentsBuilder::word.text.SignatoryAmbiguous	Для наказу {details} знайдено різних підписантів. Виправте довідник «Накази».
-value	TravelDocumentsBuilder::word.folder	TDB_{date}_{number}
+value	TravelDocumentsBuilder::word.folder	{date}_{number}
 value	TravelDocumentsBuilder::word.tables.mode	table
 value	TravelDocumentsBuilder::word.tables.path	WordTableTemplates.xml
 value	TravelDocumentsBuilder::word.tables.text.Failed	Не вдалося сформувати таблицю WORD. Подробиці — у журналі.
@@ -146,7 +147,9 @@ value	TravelDocumentsBuilder::word.tables.template	Ticket
 value	TravelDocumentsBuilder::word.tables.maxColumns	16
 value	TravelDocumentsBuilder::word.maxPath	240
 value	TravelDocumentsBuilder::word.filename.label	{TicketNo}_{FIO}
-value	TravelDocumentsBuilder::word.filename.pattern	^TDB_.+__(T-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})[.]docx$
+value	TravelDocumentsBuilder::word.filename.prefix.VacationTicket	Вк
+value	TravelDocumentsBuilder::word.filename.prefix.BusinessTripCertificate	Пв
+value	TravelDocumentsBuilder::word.filename.pattern	^.+__((T-)?[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})[.]docx$
 value	TravelDocumentsBuilder::word.filename.labelMaxChars	72
 value	TravelDocumentsBuilder::word.filename.legacyPattern	^TDB_(T-[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})__.+[.]docx$
 value	TravelDocumentsBuilder::word.signatory.position	Командир військової частини А7383
@@ -274,11 +277,11 @@ value	TravelDocumentsBuilder::history.text.ProtectionNotApplied	Excel не за�
 value	TravelDocumentsBuilder::history.text.ProtectionUnavailable	Механізм захисту TicketsHistory не ініціалізовано.
 value	TravelDocumentsBuilder::history.sheet	Tickets
 value	TravelDocumentsBuilder::history.table	tbTickets
-value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays
+value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive
 value	TravelDocumentsBuilder::history.recovery.suffix	.recovery.xml.log
 value	TravelDocumentsBuilder::history.versions.sheet	TicketRevisions
 value	TravelDocumentsBuilder::history.versions.table	tbTicketRevisions
-value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays
+value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays|Snapshot.RankGenitive|Snapshot.RankDative|Snapshot.FIOAccusative|Snapshot.FIODative|Snapshot.FIOInitialsGenitive|Snapshot.PositionGenitive
 value	TravelDocumentsBuilder::history.dateFields	FoodDepartureDate|DepartureDate|PlannedReturnDate|OrderDate
 value	TravelDocumentsBuilder::history.formFields	PersonName=FullName|PersonRank=Rank|PersonId=TaxId|PersonPosition=PositionName|PersonPositionCode=PositionCode|PersonUnit=UnitName|DocumentTarget=Destination|VacationDays=VacationDays|RoadDays=RoadDays|VacationKind=VacationKind|VacationAbroad=VacationAbroad|ReportNo=ReportNumber|Purpose=Basis|TicketNo=TicketNumber|DocumentPath=DocumentPath|VlkNo=VlkNo|VlkDate=VlkDate|LongTreatmentDays=LongTreatmentDays|TreatmentLeaveDays=TreatmentLeaveDays
 value	TravelDocumentsBuilder::history.listFields	FullName=Name|TicketNumber=Ticket|DepartureDate=Departure|Revision=Revision|RowId=RowId
@@ -288,10 +291,10 @@ value	TravelDocumentsBuilder::history.durationField	VacationDays
 value	TravelDocumentsBuilder::history.personIdField	TaxId
 value	TravelDocumentsBuilder::history.dateFormFields	DepartureDate=DepartureDate|ReturnDate=PlannedReturnDate
 value	TravelDocumentsBuilder::history.departureField	DepartureDate
-value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays
+value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive
 value	TravelDocumentsBuilder::history.personNameField	FullName
 value	TravelDocumentsBuilder::history.orderNumberField	OrderNumber
-value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source
+value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source|declensions.sources.Alf|declensions.sources.Ranks|declensions.sources.Positions
 value	TravelDocumentsBuilder::snapshots.progress.Table	Читання таблиці: {source}
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
 value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
@@ -362,8 +365,49 @@ value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId
 value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (DSL).docx
 value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (Шаблон).docx
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
+value	TravelDocumentsBuilder::declensions.count	6
+value	TravelDocumentsBuilder::declensions.error	Не вдалося отримати відмінювання {field}: {detail}
+value	TravelDocumentsBuilder::declensions.lookups.1.input	PersonRank
+value	TravelDocumentsBuilder::declensions.lookups.1.output	RankGenitive
+value	TravelDocumentsBuilder::declensions.lookups.1.source	Ranks
+value	TravelDocumentsBuilder::declensions.lookups.1.keyHeader	Звання
+value	TravelDocumentsBuilder::declensions.lookups.1.valueHeader	Родовий
+value	TravelDocumentsBuilder::declensions.lookups.2.input	PersonRank
+value	TravelDocumentsBuilder::declensions.lookups.2.output	RankDative
+value	TravelDocumentsBuilder::declensions.lookups.2.source	Ranks
+value	TravelDocumentsBuilder::declensions.lookups.2.keyHeader	Звання
+value	TravelDocumentsBuilder::declensions.lookups.2.valueHeader	Давальний
+value	TravelDocumentsBuilder::declensions.lookups.3.input	PersonId
+value	TravelDocumentsBuilder::declensions.lookups.3.output	FIOAccusative
+value	TravelDocumentsBuilder::declensions.lookups.3.source	Alf
+value	TravelDocumentsBuilder::declensions.lookups.3.keyHeader	ІПН
+value	TravelDocumentsBuilder::declensions.lookups.3.valueHeader	Знахідний
+value	TravelDocumentsBuilder::declensions.lookups.4.input	PersonId
+value	TravelDocumentsBuilder::declensions.lookups.4.output	FIODative
+value	TravelDocumentsBuilder::declensions.lookups.4.source	Alf
+value	TravelDocumentsBuilder::declensions.lookups.4.keyHeader	ІПН
+value	TravelDocumentsBuilder::declensions.lookups.4.valueHeader	Давальний
+value	TravelDocumentsBuilder::declensions.lookups.5.input	PersonId
+value	TravelDocumentsBuilder::declensions.lookups.5.output	FIOInitialsGenitive
+value	TravelDocumentsBuilder::declensions.lookups.5.source	Alf
+value	TravelDocumentsBuilder::declensions.lookups.5.keyHeader	ІПН
+value	TravelDocumentsBuilder::declensions.lookups.5.valueHeader	ПІП (Родовий)
+value	TravelDocumentsBuilder::declensions.lookups.6.input	PersonPositionCode
+value	TravelDocumentsBuilder::declensions.lookups.6.output	PositionGenitive
+value	TravelDocumentsBuilder::declensions.lookups.6.source	Positions
+value	TravelDocumentsBuilder::declensions.lookups.6.keyHeader	Код
+value	TravelDocumentsBuilder::declensions.lookups.6.valueHeader	Родовий
+  ref	TravelDocumentsBuilder::declensions.sources.Alf.path	__cfgDependencies.filePersonnelShpo
+  ref	TravelDocumentsBuilder::declensions.sources.Alf.range	__cfgDependencies.source.PersonnelAlf.range
+  ref	TravelDocumentsBuilder::declensions.sources.Alf.sheet	__cfgDependencies.source.PersonnelAlf.sheet
+  ref	TravelDocumentsBuilder::declensions.sources.Ranks.path	__cfgDependencies.filePersonnelShpo
+  ref	TravelDocumentsBuilder::declensions.sources.Ranks.range	__cfgDependencies.source.PersonnelRanks.range
+  ref	TravelDocumentsBuilder::declensions.sources.Ranks.sheet	__cfgDependencies.source.PersonnelRanks.sheet
+  ref	TravelDocumentsBuilder::declensions.sources.Positions.path	__cfgDependencies.filePersonnelShpo
+  ref	TravelDocumentsBuilder::declensions.sources.Positions.range	__cfgDependencies.source.PersonnelPositions.range
+  ref	TravelDocumentsBuilder::declensions.sources.Positions.sheet	__cfgDependencies.source.PersonnelPositions.sheet
 value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
-value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
-value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
+value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket
+value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток
 value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток

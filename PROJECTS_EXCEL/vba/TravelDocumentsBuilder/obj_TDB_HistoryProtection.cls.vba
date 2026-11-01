@@ -5,6 +5,8 @@ END
 Attribute VB_Name = "obj_TDB_HistoryProtection"
 Option Explicit
 
+#Const TDB_HISTORY_PROTECTION_ENABLED = False
+
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
@@ -113,6 +115,7 @@ End Function
 ' //
 Private Function private_ProtectSheet(ByVal sheet As Worksheet) As String
     On Error GoTo Failed
+#If TDB_HISTORY_PROTECTION_ENABLED Then
     If Not sheet.ProtectContents Then
         sheet.Cells.Locked = True
     End If
@@ -127,6 +130,14 @@ Private Function private_ProtectSheet(ByVal sheet As Worksheet) As String
         sheet.EnableSelection = xlNoRestrictions
     End If
     If Not sheet.ProtectContents Or Not sheet.ProtectionMode Then ex_TDB_History.fn_Fail "ProtectionNotApplied"
+#Else
+    ' Development builds also unlock sheets protected by a previous build.
+    If sheet.ProtectContents Or sheet.ProtectDrawingObjects Or sheet.ProtectScenarios Then
+        private_Trace "Unprotect.Development", sheet
+        sheet.Unprotect Password:=SHEET_PASSWORD
+    End If
+    If sheet.EnableSelection <> xlNoRestrictions Then sheet.EnableSelection = xlNoRestrictions
+#End If
     Exit Function
 Failed:
     private_ProtectSheet = VBA.Err.Description

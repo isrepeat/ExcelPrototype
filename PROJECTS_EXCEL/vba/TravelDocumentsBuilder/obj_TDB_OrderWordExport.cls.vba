@@ -383,7 +383,7 @@ Private Function private_FileName(ByVal root As Object) As String
         label = VBA.Replace$(label, VBA.Chr$(index), "_")
     Next index
     label = VBA.Left$(label, VBA.CLng(private_Config("filename.labelMaxChars")))
-    name = "TDB_" & label & "__" & root("RowId") & ".docx"
+    name = ex_TravelDocumentsBuilder.fn_Config("word.filename.prefix.VacationTicket") & "_" & label & "__" & root("RowId") & ".docx"
     If Not m_namePattern.Test(name) Then private_Fail "Identity"
     Set matches = m_namePattern.Execute(name)
     If VBA.StrComp(matches(0).SubMatches(0), VBA.CStr(root("RowId")), VBA.vbTextCompare) <> 0 Then private_Fail "Identity"

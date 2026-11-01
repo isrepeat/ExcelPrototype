@@ -148,6 +148,14 @@ A loop may contain several rows or nested structural blocks. Each item must be a
 
 The provided ticket catalog reproduces the original table without adding a TVO section to the printed form. Dynamic rows are available for future template changes.
 
+## Saved grammatical forms
+
+Saving an event resolves grammatical forms from the loaded SHPO dictionaries, using the same source contracts as PersonalEventBuilder: rank by `Звання`, person by `ІПН`, and position by `Код`. The sources, headers and mappings are configured under `declensions` in wsConfig. Missing, ambiguous or empty results stop saving with a field-specific diagnostic; nominative text is not silently substituted.
+
+TicketsHistory requires six additional columns in `tbTickets`: `RankGenitive`, `RankDative`, `FIOAccusative`, `FIODative`, `FIOInitialsGenitive`, and `PositionGenitive`. Add the corresponding `Snapshot.<field>` columns to `tbTicketRevisions`. They are independent of the four VLK columns. Saving records these forms in the event and revision snapshots. Existing events must be opened and saved again to populate their forms before Word export.
+
+Word export uses the saved forms without consulting current dictionaries. `PersonalLine` combines `RankDative` and `FIODative`; all six saved fields are also available as table DSL placeholders. The existing nominative `PersonalInitials` remains appropriate for the return acknowledgement.
+
 ## Rendering and verification
 
 The catalog, shared text blocks and PNG assets are loaded once per Word export, on first use. Saving an event does not load the Word table catalog. For each document, the renderer expands conditions/loops, renders cell text, validates styles and the complete grid, then constructs a Flat OPC package. Word receives the table through one `Range.InsertXML` call, avoiding repeated row insertion, cell merging and per-cell COM formatting.
