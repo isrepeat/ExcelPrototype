@@ -194,6 +194,7 @@ Public Function TrySave( _
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
     Next key
     ex_TDB_Declensions.fn_Enrich m_form
+    private_ValidatePlace
     private_ValidateTreatment
     departureDate = private_Date(m_form("DepartureDate"))
     vacationDays = private_Days("VacationDays", False)
@@ -298,6 +299,10 @@ Public Function TrySave( _
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
+    metadata.Add "PlaceRegion", m_form("PlaceRegion")
+    metadata.Add "PlaceType", m_form("PlaceType")
+    metadata.Add "PlaceName", m_form("PlaceName")
+    metadata.Add "PlaceDistrict", m_form("PlaceDistrict")
     private_LogStage "WriteEventMetadata"
     ex_TDB_History.fn_Write ticketsTable, mainRow, metadata
     If donationDays > 0 Then
@@ -535,7 +540,8 @@ Private Sub private_ReadForm()
     For Each key In VBA.Array("HistoryRowId", "HistoryStamp", "ChangeReason", "PersonUnit", "DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPosition", "PersonPositionCode", _
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
             "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", _
-            "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays")
+            "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
+            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
         End If
@@ -566,7 +572,7 @@ Private Function private_FieldCaption(ByVal field As String) As String
 
     captionKey = field
     Select Case field
-        Case "PersonName", "PersonId", "PersonRank", "PersonPositionCode", "DocumentType"
+        Case "PersonName", "PersonId", "PersonRank", "PersonPositionCode", "DocumentType", "AutoFillPersonnel"
             captionKey = field & "Label"
         Case "DocumentTarget", "DepartureDate", "Purpose"
             captionKey = "VacationTicket." & field & "Label"
@@ -593,6 +599,39 @@ End Sub
 Private Function private_Date(ByVal text As String) As Date
     private_Date = ex_TDB_History.fn_Date(text)
 End Function
+
+Private Sub private_ValidatePlace()
+    Dim field As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim address As String
+
+    If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(m_form("VacationKind")) Then
+        For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
+            m_form(field) = VBA.vbNullString
+        Next field
+        Exit Sub
+    End If
+    For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
+        If VBA.Len(m_form(field)) = 0 Then
+            If VBA.CBool(m_form("AutoFillPersonnel")) Then
+                VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
+            End If
+            private_Fail "Required", private_FieldCaption(VBA.CStr(field))
+        End If
+    Next field
+    If VBA.InStr(1, "|" & ex_TravelDocumentsBuilder.fn_Config("lookup.Places.types") & "|", _
+            "|" & m_form("PlaceType") & "|", VBA.vbBinaryCompare) = 0 Then private_Fail "Invalid", private_FieldCaption("PlaceType")
+    If Not VBA.CBool(m_form("AutoFillPersonnel")) Then Exit Sub
+    address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressTemplate")
+    For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.formFields"), "|")
+        pair = VBA.Split(mapping, "=")
+        address = VBA.Replace$(address, "{" & pair(0) & "}", m_form(pair(1)))
+    Next mapping
+    If VBA.StrComp(address, m_form("DocumentTarget"), VBA.vbBinaryCompare) <> 0 Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
+    End If
+End Sub
 
 Private Sub private_ValidateTreatment()
     Dim field As Variant

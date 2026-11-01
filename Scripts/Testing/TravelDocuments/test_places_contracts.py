@@ -35,6 +35,14 @@ assert 3 + sum(spans) > workspace
 controller = (root / 'vba/TravelDocumentsBuilder/obj_TDB_PgMainController.cls.vba').read_text(encoding='utf-8-sig')
 assert 'columnOffset + rawTable.ColumnCount > maxColumns' in controller
 assert 'ex_WindowsUi.fn_ShowMessage message, VBA.vbExclamation' in controller
+place_fields = {'PlaceRegion', 'PlaceType', 'PlaceName', 'PlaceDistrict'}
+assert place_fields <= set(config['TravelDocumentsBuilder::history.columns'].split('|'))
+assert place_fields <= set(config['TravelDocumentsBuilder::history.snapshotFields'].split('|'))
+assert {'Snapshot.' + field for field in place_fields} <= set(config['TravelDocumentsBuilder::history.versions.columns'].split('|'))
+assert {field + '=' + field for field in place_fields} <= set(config['TravelDocumentsBuilder::history.formFields'].split('|'))
+generator = (root / 'vba/TravelDocumentsBuilder/obj_TDB_VacationGenerator.cls.vba').read_text(encoding='utf-8-sig')
+for field in place_fields:
+    assert f'metadata.Add "{field}", m_form("{field}")' in generator
 rows = list(sheet[table.ref])[1:]
 addresses = []
 for row in rows:

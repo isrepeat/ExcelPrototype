@@ -232,6 +232,8 @@ Public Function PlaceChangedHandler() As Boolean
     Dim vacationKind As Variant
     Dim result As obj_LookupResult
     Dim status As String
+    Dim autoFill As Variant
+    Dim field As Variant
 
     On Error GoTo Failed
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -241,6 +243,14 @@ Public Function PlaceChangedHandler() As Boolean
         Exit Function
     End If
     If Not private_TryReadFormValue("DocumentTarget", query) Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If Not VBA.CBool(autoFill) Then
+        PlaceChangedHandler = True
+        Exit Function
+    End If
+    For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
+    Next field
     Set result = ex_TDB_Places.fn_Search(VBA.CStr(query))
     If Not private_ValidateCandidateBounds(result, "lookup.Places.columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
@@ -274,13 +284,29 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim diagnostic As String
     Dim autoFillPersonnel As Variant
     Dim address As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim placeValue As Variant
+    Dim updates As Object
 
     If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then
         Exit Function
     End If
     If m_lookupIsPlace Then
+        If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then Exit Function
+        If Not VBA.CBool(autoFillPersonnel) Then
+            SelectPersonnelHandler = True
+            Exit Function
+        End If
         If Not selected.TryGetValue("Address", address) Then Exit Function
-        If Not m_pageBase.BindingContext.SetValue("Form", "DocumentTarget", address) Then Exit Function
+        Set updates = VBA.CreateObject("Scripting.Dictionary")
+        updates("Form.DocumentTarget") = address
+        For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.formFields"), "|")
+            pair = VBA.Split(mapping, "=")
+            If Not selected.TryGetValue(VBA.CStr(pair(0)), placeValue) Then Exit Function
+            updates("Form." & pair(1)) = placeValue
+        Next mapping
+        If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
         SelectPersonnelHandler = private_SetActionStatus(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Selected"), False)
         Exit Function
     End If
@@ -379,7 +405,8 @@ Public Function VacationKindChangedHandler() As Boolean
             If Not m_pageBase.BindingContext.SetValue("Form", "DocumentTarget", VBA.vbNullString) Then Exit Function
         End If
     End If
-    VacationKindChangedHandler = m_pageBase.BindingContext.SetValue("Form", "DestinationVisibility", visibility)
+    If Not m_pageBase.BindingContext.SetValue("Form", "DestinationVisibility", visibility) Then Exit Function
+    VacationKindChangedHandler = private_UpdatePlaceFields()
 End Function
 
 Public Function DocumentTypeChangedHandler() As Boolean
@@ -412,6 +439,7 @@ Public Function ClearFormHandler() As Boolean
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
+            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "ReturnDate", "Purpose", "ReportNo", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
             "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason")
@@ -672,6 +700,7 @@ Public Function AutoFillChangedHandler() As Boolean
         End If
     End If
     If Not private_UpdateFieldState() Then Exit Function
+    If Not private_UpdatePlaceFields() Then Exit Function
     AutoFillChangedHandler = m_pageBase.FlushUpdates()
 End Function
 
@@ -967,6 +996,25 @@ Private Function private_SetLookupTarget(ByVal isTvo As Boolean) As Boolean
     End If
     If Not m_pageBase.BindingContext.SetValue("Form", "LookupIsTvo", isTvo) Then Exit Function
     private_SetLookupTarget = m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString)
+End Function
+
+Private Function private_UpdatePlaceFields() As Boolean
+    Dim autoFill As Variant
+    Dim vacationKind As Variant
+    Dim visibility As String
+    Dim field As Variant
+
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If Not private_TryReadFormValue("VacationKind", vacationKind) Then Exit Function
+    visibility = "Collapsed"
+    If ex_TravelDocumentsBuilder.fn_IsMedicalCompany(VBA.CStr(vacationKind)) Then
+        For Each field In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict")
+            If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
+        Next field
+    ElseIf Not VBA.CBool(autoFill) Then
+        visibility = "Visible"
+    End If
+    private_UpdatePlaceFields = m_pageBase.BindingContext.SetValue("Form", "PlaceFieldsVisibility", visibility)
 End Function
 
 Private Function private_ValidateCandidateBounds( _

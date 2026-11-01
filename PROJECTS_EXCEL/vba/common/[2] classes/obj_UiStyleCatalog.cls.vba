@@ -1046,9 +1046,13 @@ Private Sub private_ApplyBorders( _
         Next borderIndex
     End If
     If Not targetShape Is Nothing Then
-        targetShape.Line.Visible = -1
-        targetShape.Line.Weight = shapeLineWeight
-        If hasColor Then targetShape.Line.ForeColor.RGB = colorValue
+        If lineStyle = xlLineStyleNone Then
+            targetShape.Line.Visible = 0
+        Else
+            targetShape.Line.Visible = -1
+            targetShape.Line.Weight = shapeLineWeight
+            If hasColor Then targetShape.Line.ForeColor.RGB = colorValue
+        End If
     End If
 End Sub
 

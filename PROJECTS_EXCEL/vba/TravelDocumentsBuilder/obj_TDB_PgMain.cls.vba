@@ -200,6 +200,7 @@ Private Function private_TryRegisterBindings() As Boolean
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
             "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus", _
+            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "HistoryRowId", "HistoryStamp", "ChangeReason", "OrderQuery", "OrderYear", "AcceptedOrderNumber", "AcceptedOrderDate")
         If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
@@ -215,6 +216,7 @@ Private Function private_TryRegisterBindings() As Boolean
             Exit Function
         End If
     Next key
+    If Not bindingContext.SetValue("Form", "PlaceFieldsVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "TreatmentVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "DestinationVisibility", "Visible") Then Exit Function
     For Each key In VBA.Array("VacationKinds", "AbroadOptions", "StatusOptions")
@@ -232,7 +234,8 @@ Private Function private_TryRegisterBindings() As Boolean
             End If
         End If
     Next key
-    For Each key In VBA.Array("VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
+    For Each key In VBA.Array("PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+            "VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", _
             "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _

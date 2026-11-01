@@ -158,6 +158,62 @@
                         value="{Binding Path=Form.DocumentTarget}"
                         onChange="{Binding Path=Commands.PlaceChanged}"/>
       </grid>
+      <stackPanel name="PlaceFields"
+                  orientation="vertical"
+                  visibility="{Binding Path=Form.PlaceFieldsVisibility}">
+        <grid>
+          <controls:label name="PlaceRegionLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceRegion}"/>
+          <controls:input name="PlaceRegion"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceRegion}"/>
+        </grid>
+        <grid>
+          <controls:label name="PlaceTypeLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceType}"/>
+          <controls:input name="PlaceType"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceType}"/>
+        </grid>
+        <grid>
+          <controls:label name="PlaceNameLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceName}"/>
+          <controls:input name="PlaceName"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceName}"/>
+        </grid>
+        <grid>
+          <controls:label name="PlaceDistrictLabel"
+                          row="1"
+                          column="1"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.PlaceDistrict}"/>
+          <controls:input name="PlaceDistrict"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.PlaceDistrict}"/>
+        </grid>
+      </stackPanel>
       <grid>
         <controls:label name="DepartureDateLabel"
                         row="1"
@@ -540,7 +596,7 @@
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
-                  textColor="#FFFFFF"
+                  textColor="#F2F2F2"
                   fontName="Calibri"
                   fontSize="11"
                   fontBold="false"
@@ -553,8 +609,8 @@
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
-                  textColor="#87CEFA"
-                  fontColor="#87CEFA"
+                  textColor="#F2F2F2"
+                  fontColor="#F2F2F2"
                   fontName="Calibri"
                   fontSize="11"
                   fontBold="false"
@@ -567,7 +623,7 @@
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#3A3A3A"
-                  textColor="#F4A46B"
+                  textColor="#F2F2F2"
                   fontName="Calibri"
                   fontSize="11"
                   borderColor="#000000"
@@ -642,6 +698,18 @@
                   borderWeight="thin"
                   horizontal="right"
                   vertical="center"/>
+    <controlStyle name="manualPlaceLabel"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#333333"
+                  textColor="#9DC3E6"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="#000000"
+                  borderWeight="thin"
+                  horizontal="right"
+                  vertical="center"/>
     <controlStyle name="readOnlyFormLabel"
                   paddingLeft="10"
                   paddingRight="10"
@@ -659,7 +727,7 @@
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="#2D2D2D"
-                  textColor="#F4A46B"
+                  textColor="#F2F2F2"
                   fontName="Calibri"
                   fontSize="11"
                   fontBold="false"
@@ -872,13 +940,16 @@
               styles="{cellType:text;horizontal:left;}"/>
         <rule target="control"
               selector="type=select"
-              styles="{cellType:text;horizontal:left;}"/>
+              styles="{cellType:text;horizontal:left;fontColor:#F4A46B;}"/>
+        <rule target="controlPart"
+              selector="type=select;part=header"
+              styles="{marginTop:3;marginBottom:3;borderLineStyle:none;}"/>
         <rule target="controlPart"
               selector="type=select;name=DepartureDate;part=header"
-              styles="{horizontal:center;vertical:center;paddingLeft:0;paddingRight:0;}"/>
+              styles="{horizontal:center;vertical:center;paddingLeft:0;paddingRight:0;borderLineStyle:solid;borderColor:#000000;borderWeight:thin;}"/>
         <rule target="controlPart"
               selector="type=select;name=OrderQuery;part=header"
-              styles="{horizontal:center;vertical:center;paddingLeft:0;paddingRight:0;}"/>
+              styles="{horizontal:center;vertical:center;paddingLeft:0;paddingRight:0;borderLineStyle:solid;borderColor:#000000;borderWeight:thin;}"/>
         <rule target="controlPart"
               selector="type=table;part=header"
               styles="{backColor:#3A3A3A;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;}"/>

@@ -616,13 +616,11 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
     ' Apply the configured cell format before Excel receives the bound value.
-    If Not m_isSelect Or m_editable Then
-        uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
-            m_uiControlBase.ControlNode, uiRenderContext.BindingContext
-        If Not ex_UiBindingRuntime.fn_TryResolveText( _
-            ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), _
-            uiRenderContext.BindingContext, m_appliedStyleName) Then Exit Function
-    End If
+    uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
+        m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    If Not ex_UiBindingRuntime.fn_TryResolveText( _
+        ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), _
+        uiRenderContext.BindingContext, m_appliedStyleName) Then Exit Function
     If Len(ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "numberFormat")) > 0 Then
         m_targetRange.NumberFormat = ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "numberFormat")
     End If
