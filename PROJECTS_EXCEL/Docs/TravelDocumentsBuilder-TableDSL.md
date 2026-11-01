@@ -1,6 +1,6 @@
 # TravelDocumentsBuilder Word table DSL
 
-The vacation ticket's first table is generated from `workbook/TravelDocumentsBuilder/WordTableTemplates.xml`. The new Word scaffold is `workbook/TravelDocumentsBuilder/Шаблони/Відпустка (DSL).docx`. The original DOCX remains available. The scaffold preserves the original text after the first table, page break, reverse side, headers and footers.
+The vacation ticket's first table is generated from `workbook/TravelDocumentsBuilder/VacationTicketTable.xml`. The Word scaffold is `workbook/TravelDocumentsBuilder/Шаблони/Відпустка (DSL).docx`. The original DOCX is retained in `Шаблони/old`. The validity notice and conditional `VacationAbroadText` row belong to the generated `Ticket` table; the scaffold preserves the page break, reverse side, headers and footers.
 
 ## Word insertion boundaries
 
@@ -13,7 +13,7 @@ Place the following markers in two separate paragraphs in the main document body
 
 `Ticket` is the XML template name. Each marker must occur exactly once, outside an existing table. The begin marker must precede the end marker. The generator replaces both marker paragraphs and everything between them. It leaves other document content in place. Markers may be split across Word runs.
 
-Existing scalar placeholders outside the generated table, including `{VacationAbroadText}` and signatory placeholders in the footer, are still replaced through the existing bookmark mechanism. Table text uses `{[Field]}` syntax instead.
+Signatory placeholders in the footer are still replaced through the existing bookmark mechanism. Table text uses `{[Field]}` syntax. Both the validity notice and `{[VacationAbroadText]}` are inside `Ticket`; an empty `VacationAbroadText` omits its entire row.
 
 ## Configuration
 
@@ -159,6 +159,16 @@ A single place is stored directly on the `Event` row in `tbTickets`, with its `D
 Add `PlaceAbroad`, `PlaceCountry`, `PlaceCountryEn`, `PlaceRegionEn` and `PlaceNameEn` to `tbTickets`, and the matching `Snapshot.` columns to `tbTicketRevisions`. These fields supplement `PlaceRegion`, `PlaceType`, `PlaceName` and `PlaceDistrict`; foreign entries do not require a Ukrainian district.
 
 History loading restores multiple places into the ordered chain and clears the draft to avoid duplication on the next save. A single place, whether stored on Event or as an older Place child, is restored into the regular destination field and its structured draft fields; the chain block stays hidden. Existing one-child routes collapse to Event-only storage on their next save. Older events without structured place fields retain their draft for completion. Word reconstructs a single in-memory place from Event's structured fields and exposes the same ordered `PlaceChain` collection for either storage form, using the saved aggregate destination. A reconstructed item has no child ID and never reuses Event's identity. Export does not look up current place dictionaries.
+
+## Business-trip scaffold
+
+`Шаблони/Відрядження (DSL).docx` is the business-trip scaffold. Its unique top-level markers are `{\exportTable:BusinessTrip_Begin}` and `{\exportTable:BusinessTrip_End}`. The separate `BusinessTripTable.xml` catalog contains the matching `BusinessTrip` template. It preserves the original six-column, 25-row front grid and appendix 29, using the same font styles, emblem and first-page signature footer as vacation tickets. The validity notice and optional weapon line follow the original grid inside the DSL table. The reverse-side form is retained from `Відрядження (Шаблон).docx`; an explicit page break before its continuation heading keeps both reverse headings together on page two. The original DOCX is unchanged.
+
+The front table requires `TicketDate`, `TicketNum`, `PersonalLine`, `Position`, `TravelPlace`, `MilitaryPlace`, `Duration`, `Purpose`, `Basis` and `WeaponLine`. Purpose and basis are supplied values, replacing the original sample-specific course and order text. `WeaponLine` is the complete optional line supplied by the form: an empty string omits the entire row; a nonempty string is printed verbatim without a fixed prefix or punctuation. The first-page footer uses `{SignatoryPosition}`, `{SignatoryRank}` and `{SignatoryName}`. Military-unit names and geographic destinations remain separate slots.
+
+This prepares the template only. The active vacation table remains `Ticket`; this change does not enable business-trip event generation or change the configured business-trip scalar template. A future business-trip exporter must select `BusinessTrip`, use the DSL scaffold and explicitly supply its fields. Do not feed vacation aliases to these distinct business-trip slots.
+
+`prepare_business_trip_template.py --emit-patch` prints a reviewable patch for the catalog entry. `--build-scaffold` recreates only the new DOCX, preserving every unaffected source package part. Apply catalog text changes through `apply_patch`. Run `test_business_trip_template.py` for offline grid, source-package, footer and pagination-boundary checks. `word_table_preview.preview` accepts an optional template name for synthetic layout checks of either catalog entry.
 
 ## Saved grammatical forms
 

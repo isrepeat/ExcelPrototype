@@ -11,9 +11,9 @@ from lxml import etree as ET
 
 ROOT = Path(__file__).resolve().parents[3]
 FOLDER = ROOT / "PROJECTS_EXCEL/workbook/TravelDocumentsBuilder"
-SOURCE = FOLDER / "Шаблони/Відпустка (Шаблон).docx"
+SOURCE = FOLDER / "Шаблони/old/Відпустка (Шаблон).docx"
 TARGET = FOLDER / "Шаблони/Відпустка (DSL).docx"
-CATALOG = FOLDER / "WordTableTemplates.xml"
+CATALOG = FOLDER / "VacationTicketTable.xml"
 ASSET = FOLDER / "Шаблони/TicketEmblem.png"
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 P = "urn:excelprototype:profiles"
@@ -106,6 +106,16 @@ def catalog():
                     paragraph = element(cell, "paragraph")
                     element(paragraph, "text").text = text
             column += span
+    row = element(table, "row", allowBreakAcrossPages="false", height="12pt", heightRule="exact")
+    cell = element(row, "cell", columnSpan="11", style="Body")
+    element(cell, "text")
+    row = element(table, "row", allowBreakAcrossPages="false")
+    cell = element(row, "cell", columnSpan="11", style="Body")
+    element(cell, "text").text = "Дійсний у разі пред’явлення документа, який засвідчує особу."
+    optional = element(table, "if", test="[VacationAbroadText]")
+    row = element(optional, "row", allowBreakAcrossPages="false")
+    cell = element(row, "cell", columnSpan="11", style="Body")
+    element(cell, "text").text = "{[VacationAbroadText]}"
     return format_xml(root)
 
 
@@ -137,6 +147,12 @@ def build_scaffold():
     original = body.find("w:tbl", NS)
     index = body.index(original)
     body.remove(original)
+    for paragraph in list(body):
+        if ET.QName(paragraph).localname != "p":
+            continue
+        text = "".join(paragraph.xpath(".//w:t/text()", namespaces=NS))
+        if text.startswith("Дійсний у разі пред’явлення документа") or text == "{VacationAbroadText}":
+            body.remove(paragraph)
     for offset, marker in enumerate((r"{\exportTable:Ticket_Begin}", r"{\exportTable:Ticket_End}")):
         paragraph = ET.Element(f"{{{W}}}p")
         run = ET.SubElement(paragraph, f"{{{W}}}r")

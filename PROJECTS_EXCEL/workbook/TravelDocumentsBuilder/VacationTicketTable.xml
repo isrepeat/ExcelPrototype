@@ -1,0 +1,461 @@
+<wordTableTemplates xmlns="urn:excelprototype:profiles"
+                    version="1">
+  <styles>
+    <tableStyle name="Ticket"
+                width="474.95pt"
+                alignment="left"
+                layout="fixed"
+                borders="none"
+                cellPadding="0pt"
+                cellPaddingLeft="5.4pt"
+                cellPaddingRight="5.4pt"/>
+    <cellStyle name="Body"
+               fontName="Times New Roman"
+               fontSize="16"
+               horizontal="left"
+               vertical="center"
+               spaceBefore="0pt"
+               spaceAfter="0pt"/>
+    <cellStyle name="Centered"
+               basedOn="Body"
+               horizontal="center"/>
+    <cellStyle name="HeaderCell"
+               basedOn="Centered"
+               vertical="top"/>
+    <cellStyle name="TicketDetails"
+               basedOn="Centered"
+               fontSize="12"
+               spaceAfter="3pt"/>
+    <cellStyle name="Caption"
+               basedOn="Centered"
+               fontSize="12"/>
+    <cellStyle name="Title"
+               basedOn="Centered"
+               fontBold="true"/>
+    <cellStyle name="Stamp"
+               basedOn="Body"
+               fontSize="14"
+               vertical="top"/>
+    <cellStyle name="Logo"
+               basedOn="Centered"
+               fontSize="11"
+               fontBold="true"/>
+    <cellStyle name="LogoCode"
+               basedOn="Centered"
+               fontSize="9"/>
+    <cellStyle name="Underlined"
+               basedOn="Centered"
+               borderBottom="single"/>
+    <cellStyle name="UnderlinedLeft"
+               basedOn="Body"
+               borderBottom="single"/>
+  </styles>
+  <template name="Ticket">
+    <table style="Ticket">
+      <columns>
+        <column name="C1"
+                width="11.85pt"/>
+        <column name="C2"
+                width="78.55pt"/>
+        <column name="C3"
+                width="14.2pt"/>
+        <column name="C4"
+                width="90.85pt"/>
+        <column name="C5"
+                width="50.35pt"/>
+        <column name="C6"
+                width="0.45pt"/>
+        <column name="C7"
+                width="8.95pt"/>
+        <column name="C8"
+                width="35.25pt"/>
+        <column name="C9"
+                width="3.2pt"/>
+        <column name="C10"
+                width="101.45pt"/>
+        <column name="C11"
+                width="79.85pt"/>
+      </columns>
+      <row allowBreakAcrossPages="false"
+           height="7.25pt"
+           heightRule="atLeast">
+        <cell rowSpan="6"
+              columnSpan="4"
+              style="HeaderCell">
+          <paragraph style="Logo">
+            <image source="Emblem"
+                   width="7mm"
+                   height="9mm"/>
+          </paragraph>
+          <paragraph style="Logo">
+            <text>МІНІСТЕРСТВО ОБОРОНИ{#newline}УКРАЇНИ{#newline}ЗБРОЙНІ СИЛИ УКРАЇНИ{#newline}ВІЙСЬКОВА ЧАСТИНА{#newline}А7383</text>
+          </paragraph>
+          <paragraph style="LogoCode">
+            <text>Код ЄДРПОУ 26630678</text>
+          </paragraph>
+        </cell>
+        <cell rowSpan="9"
+              columnSpan="5"
+              style="HeaderCell">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="2"
+              style="Stamp">
+          <paragraph>
+            <text>Додаток 31</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="8.2pt"
+           heightRule="atLeast">
+        <cell columnSpan="2"
+              style="Stamp">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Stamp">
+          <paragraph>
+            <text>до Інструкції з діловодства у Збройних Силах України</text>
+          </paragraph>
+          <paragraph>
+            <text>(пункт 2.8.9)</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Stamp">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Stamp">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="18.4pt"
+           heightRule="atLeast">
+        <cell rowSpan="4"
+              columnSpan="2"
+              style="Stamp">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="3"
+              style="TicketDetails">
+          <paragraph>
+            <text>{[TicketDate]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="3"
+              style="TicketDetails">
+          <paragraph>
+            <text>№ {[TicketNum]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="4.75pt"
+           heightRule="atLeast">
+        <cell style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="3"
+              style="TicketDetails">
+          <paragraph>
+            <text>м. Харків, 61121</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="12.5pt"
+           heightRule="exact">
+        <cell columnSpan="11"
+              style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Title">
+          <paragraph>
+            <text>ВІДПУСКНИЙ КВИТОК</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="12.5pt"
+           heightRule="exact">
+        <cell columnSpan="11"
+              style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Underlined">
+          <paragraph>
+            <text>{[PersonalLine]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Caption">
+          <paragraph>
+            <text>(військове звання, прізвище, ім’я та по батькові)</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Body">
+          <paragraph>
+            <text>звільнений</text>
+          </paragraph>
+        </cell>
+        <cell columnSpan="9"
+              style="Underlined">
+          <paragraph>
+            <text>{[VacationKind]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Caption">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="9"
+              style="Caption">
+          <paragraph>
+            <text>(вид відпустки та найменування населеного пункту,</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Underlined">
+          <paragraph>
+            <text>{[VacationPlace]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Caption">
+          <paragraph>
+            <text>до якого звільнено військовослужбовця)</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="3"
+              style="Body">
+          <paragraph>
+            <text>терміном на </text>
+          </paragraph>
+        </cell>
+        <cell columnSpan="8"
+              style="Underlined">
+          <paragraph>
+            <text>{[VacationDuration]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="3"
+              style="Caption">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="8"
+              style="Caption">
+          <paragraph>
+            <text>(кількість днів прописом)</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Centered">
+          <paragraph>
+            <text>      з {[DateFrom]} по {[DateTo]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="7"
+              style="Body">
+          <paragraph>
+            <text>Після закінчення строку відпустки</text>
+          </paragraph>
+        </cell>
+        <cell columnSpan="4"
+              style="Underlined">
+          <paragraph>
+            <text>{[PersonalInitials]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="6"
+              style="Caption">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="5"
+              style="Caption">
+          <paragraph>
+            <text>   (військове звання, прізвище та ініціали)</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="8"
+              style="Body">
+          <paragraph>
+            <text>зобов’язаний прибути до місця служби у </text>
+          </paragraph>
+        </cell>
+        <cell columnSpan="3"
+              style="Underlined">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="8"
+              style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="3"
+              style="Centered">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Underlined">
+          <paragraph>
+            <text>військову частину А7383 </text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Caption">
+          <paragraph>
+            <text>(найменування військової частини або населеного пункту)</text>
+          </paragraph>
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Body">
+          <paragraph>
+            <text>{[DateArrival]} до 08:00 год.</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="5"
+              style="Caption">
+          <paragraph>
+            <text> (дата та час повернення)</text>
+          </paragraph>
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+        <cell columnSpan="6"
+              style="Caption">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="10"
+              style="Body">
+          <paragraph>
+            <text>Для проїзду видано військові перевізні документи за №</text>
+          </paragraph>
+        </cell>
+        <cell style="Underlined">
+          <paragraph>
+            <text/>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="12pt"
+           heightRule="exact">
+        <cell columnSpan="11"
+              style="Body">
+          <text/>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="11"
+              style="Body">
+          <text>Дійсний у разі пред’явлення документа, який засвідчує особу.</text>
+        </cell>
+      </row>
+      <if test="[VacationAbroadText]">
+        <row allowBreakAcrossPages="false">
+          <cell columnSpan="11"
+                style="Body">
+            <text>{[VacationAbroadText]}</text>
+          </cell>
+        </row>
+      </if>
+    </table>
+  </template>
+</wordTableTemplates>

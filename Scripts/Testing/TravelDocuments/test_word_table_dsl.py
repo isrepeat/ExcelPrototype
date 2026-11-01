@@ -76,14 +76,15 @@ class WordTableDslTests(unittest.TestCase):
 
     def test_ticket_geometry_matches_existing_word_table(self):
         table = ET.parse(str(CATALOG)).find("p:template/p:table", NS)
-        columns, rows, cells, occupied = grid(table, {})
+        columns, rows, cells, occupied = grid(table, {"VacationAbroadText": ""})
         with ZipFile(SOURCE) as package:
             original = ET.fromstring(package.read("word/document.xml")).find(".//w:tbl", NS)
-        self.assertEqual(len(rows), 30)
+        self.assertEqual(len(rows), 32)
+        self.assertEqual(len(grid(table, {"VacationAbroadText": "Дозволено виїзд за кордон."})[1]), 33)
         self.assertEqual(len(columns), 11)
         expected = [int(node.get(f"{{{W}}}w")) for node in original.findall("w:tblGrid/w:gridCol", NS)]
         self.assertEqual([round(width * 20) for width in columns], expected)
-        for index, (row, _) in enumerate(rows):
+        for index, (row, _) in enumerate(rows[:30]):
             original_cells = original.findall("w:tr", NS)[index].findall("w:tc", NS)
             expected_spans = [int(node.find("w:tcPr/w:gridSpan", NS).get(f"{{{W}}}val")) if node.find("w:tcPr/w:gridSpan", NS) is not None else 1 for node in original_cells]
             actual = []
@@ -102,7 +103,14 @@ class WordTableDslTests(unittest.TestCase):
             scaffold = ET.fromstring(target.read("word/document.xml"))
             original_body = original.find("w:body", NS)
             scaffold_body = scaffold.find("w:body", NS)
+            scaffold_text = "".join(scaffold_body.xpath(".//w:t/text()", namespaces=NS))
+            self.assertNotIn("{VacationAbroadText}", scaffold_text)
+            self.assertNotIn("Дійсний у разі пред’явлення документа", scaffold_text)
             original_body.remove(original_body.find("w:tbl", NS))
+            for paragraph in list(original_body):
+                text = "".join(paragraph.xpath(".//w:t/text()", namespaces=NS))
+                if text.startswith("Дійсний у разі пред’явлення документа") or text == "{VacationAbroadText}":
+                    original_body.remove(paragraph)
             begin, end = marker_bounds(scaffold_body, "Ticket")
             self.assertEqual(end, begin + 1)
             for item in list(scaffold_body)[begin:end + 1]:

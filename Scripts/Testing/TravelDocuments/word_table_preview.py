@@ -129,10 +129,12 @@ def render_text(text, context):
     return text
 
 
-def preview(catalog_path, scaffold_path, output_path, context):
+def preview(catalog_path, scaffold_path, output_path, context, template_name=None):
     root = ET.parse(str(catalog_path)).getroot()
     catalog_styles = styles(root)
-    template = root.find("p:template", NS)
+    template = root.find("p:template", NS) if template_name is None else root.find(f"p:template[@name='{template_name}']", NS)
+    if template is None:
+        raise ValueError(f"Unknown table template: {template_name}")
     table = template.find("p:table", NS)
     columns, rows, cells, occupied = grid(table, context)
     table_style = catalog_styles[table.get("style")]
@@ -143,9 +145,9 @@ def preview(catalog_path, scaffold_path, output_path, context):
     document = ET.fromstring(package["word/document.xml"])
     body = document.find("w:body", NS)
     begin, end = marker_bounds(body, template.get("name"))
-    with ZipFile(scaffold_path.parent / "Відпустка (Шаблон).docx") as original:
-        drawing_template = ET.fromstring(original.read("word/document.xml"))
-        image_id = drawing_template.xpath(".//*[local-name()='blip']/@*[local-name()='embed']")[0]
+    relationships = ET.fromstring(package["word/_rels/document.xml.rels"])
+    image_id = next(item.get("Id") for item in relationships
+                    if item.get("Type", "").endswith("/image") and item.get("Target") == "media/image1.png")
     result = ET.Element(f"{{{W}}}tbl")
     properties = node(result, "tblPr")
     node(properties, "tblW", w=round(sum(columns) * 20), type="dxa")
@@ -229,7 +231,7 @@ def preview(catalog_path, scaffold_path, output_path, context):
     body.insert(begin, result)
     package["word/document.xml"] = ET.tostring(document, xml_declaration=True, encoding="UTF-8", standalone=True)
     for name in list(package):
-        if name == "word/document.xml" or re.fullmatch(r"word/(header|footer)\d+\.xml", name):
+        if name == "word/document.xml" or re.fullmatch(r"word/(header|footer)[^/]*\.xml", name):
             story = ET.fromstring(package[name])
             for paragraph in story.findall(".//w:p", NS):
                 texts = paragraph.findall(".//w:t", NS)

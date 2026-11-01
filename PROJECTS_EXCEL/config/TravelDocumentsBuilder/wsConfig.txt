@@ -150,7 +150,7 @@ value	TravelDocumentsBuilder::word.text.SignatoryRequired	Для наказу {d
 value	TravelDocumentsBuilder::word.text.SignatoryAmbiguous	Для наказу {details} знайдено різних підписантів. Виправте довідник «Накази».
 value	TravelDocumentsBuilder::word.folder	{date}_{number}
 value	TravelDocumentsBuilder::word.tables.mode	table
-value	TravelDocumentsBuilder::word.tables.path	WordTableTemplates.xml
+value	TravelDocumentsBuilder::word.tables.path	VacationTicketTable.xml
 value	TravelDocumentsBuilder::word.tables.text.Failed	Не вдалося сформувати таблицю WORD. Подробиці — у журналі.
 value	TravelDocumentsBuilder::word.tables.images.Emblem	Шаблони\TicketEmblem.png
 value	TravelDocumentsBuilder::word.tables.maxRows	512
