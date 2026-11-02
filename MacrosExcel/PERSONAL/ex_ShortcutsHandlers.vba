@@ -201,6 +201,87 @@ EH:
     Resume CleanExit
 End Sub
 
+Public Sub fn_ResetWorkbookTables()
+    private_Filter_ResetWorkbookTables False
+End Sub
+
+Public Sub fn_ResetWorkbookTablesEnd()
+    private_Filter_ResetWorkbookTables True
+End Sub
+
+Private Sub private_Filter_ResetWorkbookTables(ByVal scrollToEnd As Boolean)
+    Dim targetWorkbook As Workbook
+    Dim originalSheet As Object
+    Dim targetWindow As Excel.Window
+    Dim ws As Worksheet
+    Dim previousEnableEvents As Boolean
+    Dim previousScreenUpdating As Boolean
+    Dim stateChanged As Boolean
+    Dim failures As String
+    Dim failure As String
+    Dim restoreStage As String
+
+    On Error GoTo EH
+    Set targetWorkbook = Application.ActiveWorkbook
+    If targetWorkbook Is Nothing Then Exit Sub
+    Set originalSheet = Application.ActiveSheet
+    Set targetWindow = Application.ActiveWindow
+    If targetWindow Is Nothing Then Exit Sub
+
+    ' Cancel pending input before moving focus or clearing table filters.
+    previousEnableEvents = Application.EnableEvents
+    previousScreenUpdating = Application.ScreenUpdating
+    stateChanged = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    private_Filter_CancelPendingFilterInput
+
+    ' Process hidden sheets too, but only activate visible worksheets.
+    For Each ws In targetWorkbook.Worksheets
+        failure = private_Filter_ResetSheetTables(ws, targetWindow, scrollToEnd)
+        If VBA.Len(failure) > 0 Then
+            If VBA.Len(failures) > 0 Then failures = failures & VBA.vbCrLf
+            failures = failures & failure
+        End If
+    Next ws
+
+CleanExit:
+    ' Restore the original sheet and application state even after an error.
+    On Error GoTo RestoreError
+    restoreStage = "RestoreOriginalSheet"
+    If Not originalSheet Is Nothing Then originalSheet.Activate
+    If stateChanged And previousScreenUpdating And scrollToEnd Then
+        ' Recompute and apply the final viewport with painting enabled.
+        ' VisibleRange may still describe the old viewport while painting is suspended.
+        Application.ScreenUpdating = True
+        If TypeOf originalSheet Is Worksheet Then
+            Set ws = originalSheet
+            If ws.ListObjects.Count = 1 Then
+                Set targetWindow = Application.ActiveWindow
+                private_Filter_ScrollTableEnd ws.ListObjects(1), targetWindow, restoreStage
+            End If
+        End If
+    End If
+RestoreState:
+    If stateChanged Then
+        Application.EnableEvents = previousEnableEvents
+        Application.ScreenUpdating = previousScreenUpdating
+    End If
+    If VBA.Len(failures) > 0 Then
+        ex_Core.fn_Diagnostic_WriteLog failures
+        ex_WindowsUi.fn_ShowMessage failures, VBA.vbExclamation
+    End If
+    Exit Sub
+RestoreError:
+    failures = failures & VBA.vbCrLf & "Stage=" & restoreStage & _
+        " | Number=" & VBA.CStr(VBA.Err.Number) & " | Source=" & VBA.Err.Source & _
+        " | Description=" & VBA.Err.Description
+    Resume RestoreState
+EH:
+    failures = failures & VBA.vbCrLf & VBA.Err.Source & ": " & VBA.Err.Description
+    Resume CleanExit
+End Sub
+
 Public Sub fn_RecalculateWorkbook()
     Application.Calculate
 End Sub
@@ -326,6 +407,125 @@ End Sub
 ' --------------------------------------
 ' namespace Filter {
 ' --------------------------------------
+Private Function private_Filter_ResetSheetTables( _
+    ByVal ws As Worksheet, _
+    ByVal targetWindow As Excel.Window, _
+    ByVal scrollToEnd As Boolean _
+) As String
+    Dim tableObj As ListObject
+    Dim focusCell As Range
+    Dim context As String
+    Dim paneObj As Excel.Pane
+    Dim stageName As String
+    Dim fieldIndex As Long
+    Dim paneIndex As Long
+
+    On Error GoTo EH
+    context = ws.Name
+    stageName = "FindTable"
+    If ws.ListObjects.Count <> 1 Then Exit Function
+    Set tableObj = ws.ListObjects(1)
+    context = ws.Name & " / " & tableObj.Name
+    stageName = "ShowHeaders"
+    tableObj.ShowHeaders = True
+    stageName = "ShowAutoFilter"
+    tableObj.ShowAutoFilter = True
+    stageName = "ClearFilters"
+    If tableObj.AutoFilter.FilterMode Then tableObj.AutoFilter.ShowAllData
+    stageName = "ShowFilterButtons"
+    ' Enable each field button through Range.AutoFilter for Excel compatibility.
+    For fieldIndex = 1 To tableObj.ListColumns.Count
+        tableObj.Range.AutoFilter Field:=fieldIndex, VisibleDropDown:=True
+    Next fieldIndex
+    stageName = "ResolveFocusCell"
+    Set focusCell = tableObj.HeaderRowRange.Cells(1, 1)
+    If scrollToEnd Then
+        If Not tableObj.DataBodyRange Is Nothing Then
+            Set focusCell = tableObj.DataBodyRange.Cells(tableObj.ListRows.Count, 1)
+        End If
+    End If
+
+    ' Hidden sheets retain their visibility and cannot receive focus.
+    If ws.Visible = xlSheetVisible Then
+        stageName = "ActivateSheet"
+        ws.Activate
+        stageName = "GetActiveWindow"
+        Set targetWindow = Application.ActiveWindow
+        stageName = "FocusCell"
+        Application.Goto focusCell, False
+        If scrollToEnd Then
+            private_Filter_ScrollTableEnd tableObj, targetWindow, stageName
+        Else
+            stageName = "Home.ReadFreezePanes"
+            If targetWindow.FreezePanes Then
+                stageName = "Home.Window.ScrollRow"
+                targetWindow.ScrollRow = 1
+                stageName = "Home.Window.ScrollColumn"
+                targetWindow.ScrollColumn = 1
+            Else
+                ' Access panes by index without requiring a collection enumerator.
+                stageName = "Home.Panes.Count"
+                For paneIndex = 1 To targetWindow.Panes.Count
+                    stageName = "Home.Panes.Item"
+                    Set paneObj = targetWindow.Panes.Item(paneIndex)
+                    stageName = "Home.Pane.ScrollRow"
+                    paneObj.ScrollRow = 1
+                    stageName = "Home.Pane.ScrollColumn"
+                    paneObj.ScrollColumn = 1
+                Next paneIndex
+            End If
+        End If
+    End If
+    Exit Function
+EH:
+    private_Filter_ResetSheetTables = context & " | Stage=" & stageName & _
+        " | Number=" & VBA.CStr(VBA.Err.Number) & " | Source=" & VBA.Err.Source & _
+        " | Description=" & VBA.Err.Description
+End Function
+
+Private Sub private_Filter_ScrollTableEnd( _
+    ByVal tableObj As ListObject, _
+    ByVal targetWindow As Excel.Window, _
+    ByRef stageName As String _
+)
+    Const BOTTOM_MARGIN As Double = 0.1
+    Dim ws As Worksheet
+    Dim paneObj As Excel.Pane
+    Dim lastRow As Long
+    Dim topRow As Long
+    Dim minimumRow As Long
+    Dim availableHeight As Double
+    Dim usedHeight As Double
+    Dim rowHeight As Double
+
+    Set ws = tableObj.Parent
+    stageName = "End.GetActivePane"
+    Set paneObj = targetWindow.ActivePane
+    minimumRow = 1
+    stageName = "End.ReadFreezePanes"
+    If targetWindow.FreezePanes Then minimumRow = targetWindow.SplitRow + 1
+    lastRow = tableObj.Range.Row + tableObj.Range.Rows.Count - 1
+
+    ' Position the bottom first so viewport height is measured near the target.
+    stageName = "End.Pane.ScrollRow"
+    paneObj.ScrollRow = VBA.IIf(lastRow < minimumRow, minimumRow, lastRow)
+    stageName = "End.Pane.ScrollColumn"
+    paneObj.ScrollColumn = 1
+    stageName = "End.MeasureViewport"
+    availableHeight = paneObj.VisibleRange.Height * (1 - BOTTOM_MARGIN)
+    topRow = lastRow
+    usedHeight = ws.Rows(lastRow).Height
+    Do While topRow > minimumRow
+        rowHeight = ws.Rows(topRow - 1).Height
+        If usedHeight + rowHeight > availableHeight Then Exit Do
+        usedHeight = usedHeight + rowHeight
+        topRow = topRow - 1
+    Loop
+    If topRow < minimumRow Then topRow = minimumRow
+    stageName = "End.Pane.FinalScrollRow"
+    paneObj.ScrollRow = topRow
+End Sub
+
 Private Sub private_Filter_BeginFilterInput( _
     ByVal tableObj As ListObject, _
     ByVal fieldIndex As Long, _
@@ -454,11 +654,14 @@ Private Function private_Filter_IsDateFilterColumn( _
 End Function
 
 Private Sub private_Filter_CancelPendingFilterInput()
+    Dim previousEnableEvents As Boolean
+
     If Not m_filterInputActive Then Exit Sub
+    previousEnableEvents = Application.EnableEvents
     On Error Resume Next
     Application.EnableEvents = False
     private_Filter_RestoreFilterInputCell
-    Application.EnableEvents = True
+    Application.EnableEvents = previousEnableEvents
     private_Filter_ClearPendingFilterInput
 End Sub
 
