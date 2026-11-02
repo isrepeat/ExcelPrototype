@@ -650,7 +650,8 @@ End Function
 
 Public Function fn_ParseDate( _
     ByVal value As Variant, _
-    ByVal key As String _
+    ByVal key As String, _
+    Optional ByVal referenceDate As Date = 0 _
 ) As Date
     Dim parts As Variant
     Dim parsed As Date
@@ -696,7 +697,8 @@ Public Function fn_ParseDate( _
         Err.Raise 5, , "Date D, D.M or D.M.YYYY required: " & key
     End If
     parts = VBA.Split(text, ".")
-    today = VBA.DateTime.Date
+    today = referenceDate
+    If today = 0 Then today = VBA.DateTime.Date
     dateDay = VBA.CLng(parts(0))
     dateMonth = VBA.DateTime.Month(today)
     dateYear = VBA.DateTime.Year(today)
@@ -712,7 +714,12 @@ Public Function fn_ParseDate( _
     fn_ParseDate = parsed
 End Function
 
-Public Function fn_ExtensionValue(ByVal value As Variant, ByVal fieldType As String, ByVal field As String) As Variant
+Public Function fn_ExtensionValue( _
+    ByVal value As Variant, _
+    ByVal fieldType As String, _
+    ByVal field As String, _
+    Optional ByVal referenceDate As Date = 0 _
+) As Variant
     Select Case fieldType
         Case "text", "number", "date"
         Case Else
@@ -729,7 +736,7 @@ Public Function fn_ExtensionValue(ByVal value As Variant, ByVal fieldType As Str
             If Not IsNumeric(value) Then Err.Raise 5, , Replace$(ex_PEB_Export.fn_Config("extensions.invalid"), "{field}", field)
             fn_ExtensionValue = CDbl(value)
         Case "date"
-            fn_ExtensionValue = ex_PEB_Export.fn_ParseDate(value, field)
+            fn_ExtensionValue = ex_PEB_Export.fn_ParseDate(value, field, referenceDate)
     End Select
 End Function
 ' --------------------------------------

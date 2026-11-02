@@ -118,7 +118,7 @@ Public Function TryPrepareExtensions( _
             fieldPrefix = prefix & ".form." & CStr(index)
             field = ex_PEB_Export.fn_Config(fieldPrefix & ".name")
             fieldType = ex_PEB_Export.fn_Config(fieldPrefix & ".type")
-            row(field) = ex_PEB_Export.fn_ExtensionValue(row(field), fieldType, CStr(field))
+            row(field) = ex_PEB_Export.fn_ExtensionValue(row(field), fieldType, CStr(field), ex_PEB_History.fn_Date(values("AcceptedOrderDate")))
             If fieldType = "date" And Len(ex_PEB_Export.fn_Text(row(field))) > 0 Then
                 row(field) = Format$(row(field), "dd.mm.yyyy")
             End If
@@ -343,12 +343,12 @@ Public Function TryPrepare( _
         End If
     Next key
 
-    ' Resolve partial dates against the current calendar date before export.
+    ' Resolve partial event dates against the selected order, independently of the system date.
     dateFields = VBA.Split(ex_PEB_Export.fn_Config("export.dateFields"), "|")
     For Each key In dateFields
         scalar = ex_PEB_Export.fn_Required(values, VBA.CStr(key))
         If VBA.Len(ex_PEB_Export.fn_Text(scalar)) > 0 Then
-            values(key) = private_Date(scalar, VBA.CStr(key))
+            values(key) = ex_PEB_Export.fn_ParseDate(scalar, VBA.CStr(key), ex_PEB_History.fn_Date(values("AcceptedOrderDate")))
         End If
     Next key
 
@@ -1039,7 +1039,7 @@ Private Sub private_CompleteWordContext( _
                         Next index
                     End If
                     If row.Exists("DocDateShort") Then
-                        If VBA.Len(ex_PEB_Export.fn_Text(row("DocDateShort"))) > 0 Then row("DocDateShort") = VBA.Format$(private_Date(row("DocDateShort"), "DocDateShort"), "dd.mm.yyyy")
+                        If VBA.Len(ex_PEB_Export.fn_Text(row("DocDateShort"))) > 0 Then row("DocDateShort") = VBA.Format$(ex_PEB_Export.fn_ParseDate(row("DocDateShort"), "DocDateShort", ex_PEB_History.fn_Date(values("AcceptedOrderDate"))), "dd.mm.yyyy")
                     End If
                     normalized.Add row
                 Next item
@@ -1050,7 +1050,7 @@ Private Sub private_CompleteWordContext( _
         Next key
     End If
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.dateInputs"), "|")
-        If VBA.Len(ex_PEB_Export.fn_Text(values(key))) > 0 Then values(key) = VBA.Format$(private_Date(values(key), VBA.CStr(key)), "dd.mm.yyyy")
+        If VBA.Len(ex_PEB_Export.fn_Text(values(key))) > 0 Then values(key) = VBA.Format$(ex_PEB_Export.fn_ParseDate(values(key), VBA.CStr(key), ex_PEB_History.fn_Date(values("AcceptedOrderDate"))), "dd.mm.yyyy")
     Next key
     For index = 1 To ex_PEB_Export.fn_Count("export.Word.context.lookups.count")
         prefix = "export.Word.context.lookups." & VBA.CStr(index)
@@ -1285,7 +1285,7 @@ Private Sub private_CompleteEventInputs( _
             End If
         End If
         If VBA.InStr(1, dates, "|" & name & "|", VBA.vbBinaryCompare) > 0 And VBA.Len(ex_PEB_Export.fn_Text(values(name))) > 0 Then
-            values(name) = VBA.Format$(private_Date(values(name), VBA.CStr(name)), "dd.mm.yyyy")
+            values(name) = VBA.Format$(ex_PEB_Export.fn_ParseDate(values(name), VBA.CStr(name), ex_PEB_History.fn_Date(values("AcceptedOrderDate"))), "dd.mm.yyyy")
         End If
     Next name
     For Each name In VBA.Split(ex_PEB_Export.fn_Config("export.shared.inputs.collections"), "|")
@@ -1330,7 +1330,7 @@ Private Sub private_CompleteEventInputs( _
                     Next field
                     If row.Exists("DocDateShort") Then
                         If VBA.Len(ex_PEB_Export.fn_Text(row("DocDateShort"))) > 0 Then
-                            row("DocDateShort") = VBA.Format$(private_Date(row("DocDateShort"), "DocDateShort"), "dd.mm.yyyy")
+                            row("DocDateShort") = VBA.Format$(ex_PEB_Export.fn_ParseDate(row("DocDateShort"), "DocDateShort", ex_PEB_History.fn_Date(values("AcceptedOrderDate"))), "dd.mm.yyyy")
                         End If
                     End If
                     normalized.Add row

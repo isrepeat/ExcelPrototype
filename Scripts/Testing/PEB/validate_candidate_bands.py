@@ -66,7 +66,7 @@ def main():
     normalize = procedure(export, "fn_ExtensionValue")
     assert 'Case "text", "number", "date"' in normalize
     assert 'If Not IsNumeric(value)' in normalize
-    assert 'fn_ParseDate(value, field)' in normalize
+    assert 'fn_ParseDate(value, field, referenceDate)' in normalize
     assert 'private_BuildTicket' not in manager
     assert 'forms.sections.Ticket' not in manager
     assert 'Set renderRows = private_RenderRows()' in procedure(manager, "private_BuildRows")

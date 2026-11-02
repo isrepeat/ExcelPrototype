@@ -488,8 +488,12 @@ Public Function Collect( _
     Dim ignored As Object
     Dim isObject As Boolean
     Dim requiredFields As String
+    Dim referenceDate As Date
 
     On Error GoTo EH_COLLECT
+    If Not m_page.BindingContext.TryGetValue("Form", "AcceptedOrderDate", scalar, ignored, isObject) Then Exit Function
+    If isObject Then Exit Function
+    referenceDate = ex_PEB_History.fn_Date(scalar)
     Set output = New Collection
     For Each row In m_rows
         If Not private_Active(row) Then GoTo NextCollectedRow
@@ -504,7 +508,7 @@ Public Function Collect( _
             If field = "Document" And Len(private_FixedDocument(row)) > 0 Then
                 scalar = private_FixedDocument(row)
             End If
-            item(field) = ex_PEB_Export.fn_ExtensionValue(scalar, private_FieldConfig(row("Type"), CStr(field), "type"), CStr(field))
+            item(field) = ex_PEB_Export.fn_ExtensionValue(scalar, private_FieldConfig(row("Type"), CStr(field), "type"), CStr(field), referenceDate)
         Next field
         requiredFields = private_Config(row("Type"), "required")
         If private_Required(row) Then requiredFields = private_ReadConfig("extensions.role." & row("Role") & ".required")
