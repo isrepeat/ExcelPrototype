@@ -20,6 +20,7 @@ Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_source As obj_IUiTableSource
 Private m_targetRange As Range
+Private m_readOnlyRange As Range
 Private m_sourceRaw As String
 Private m_table As obj_UiRawTable
 Private m_showHeaders As Boolean
@@ -132,6 +133,10 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     Dim columnIndex As Long
     Dim node As Object
 
+    If kind = "change" Then
+        obj_IUiEventHandler_HandleEvent = private_RestoreReadOnlyCell(payload)
+        Exit Function
+    End If
     If kind <> "selection" And kind <> "confirmSelection" Then Exit Function
     ' Confirmation mode ignores navigation without reading records or changing styles.
     If kind = "selection" And m_selectionMode = "Confirm" Then Exit Function
@@ -232,6 +237,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    private_UnregisterReadOnly
     If Not m_cellTemplates Is Nothing Then m_cellTemplates.Dispose
     Set m_cellTemplates = Nothing
     If Not m_renderContext Is Nothing Then m_renderContext.Router.UnregisterSelection m_uiControlBase.ControlName
@@ -626,6 +632,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim oddRows As Range
     Dim taggedArea As Range
     Dim candidates As obj_UiCandidatesSource
+    Dim readOnlyRaw As String
+    Dim readOnlyValue As String
+    Dim cell As Range
 
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
@@ -635,6 +644,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         Exit Function
     End If
     If Not m_cellTemplates Is Nothing Then m_cellTemplates.Clear
+    private_UnregisterReadOnly
     ReDim buffer(1 To m_targetRange.Rows.Count, 1 To m_targetRange.Columns.Count)
     targetRow = 1
     Set rawTable = m_table
@@ -837,6 +847,18 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_renderedSchema = private_SourceSchema(m_source, rawTable)
     m_renderedValues = buffer
     Set m_renderedSelection = m_selectionSource
+    readOnlyRaw = private_ReadAttribute(m_uiControlBase.ControlNode, "readOnly")
+    readOnlyValue = "true"
+    If VBA.Len(readOnlyRaw) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveText( _
+                readOnlyRaw, uiRenderContext.BindingContext, readOnlyValue) Then Exit Function
+    End If
+    If VBA.LCase$(readOnlyValue) = "true" Then
+        Set m_readOnlyRange = m_targetRange
+        For Each cell In m_readOnlyRange.Cells
+            uiRenderContext.Router.RegisterCell cell, Me
+        Next cell
+    End If
     If m_uiControlBase.ControlNode.SelectNodes("*[local-name()='table.cellTemplates']").Length > 0 Then
         If m_cellTemplates Is Nothing Then
             Set m_cellTemplates = New obj_UiTableCellTemplates
@@ -854,6 +876,43 @@ End Function
 ' //
 ' // Private
 ' //
+Private Sub private_UnregisterReadOnly()
+    Dim cell As Range
+
+    If m_readOnlyRange Is Nothing Then Exit Sub
+    For Each cell In m_readOnlyRange.Cells
+        m_renderContext.Router.UnregisterCell cell, Me
+    Next cell
+    Set m_readOnlyRange = Nothing
+End Sub
+
+Private Function private_RestoreReadOnlyCell(ByVal payload As Variant) As Boolean
+    Dim target As Range
+    Dim previousEvents As Boolean
+    Dim rowIndex As Long
+    Dim columnIndex As Long
+
+    If m_isDisposed Or m_readOnlyRange Is Nothing Then Exit Function
+    If Not VBA.IsArray(m_renderedValues) Then Exit Function
+    Set target = payload
+    If target Is Nothing Then Exit Function
+    If Not target.Parent Is m_readOnlyRange.Parent Then Exit Function
+    If Application.Intersect(target, m_readOnlyRange) Is Nothing Then Exit Function
+    Set target = target.MergeArea.Cells(1, 1)
+    rowIndex = target.Row - m_readOnlyRange.Row + 1
+    columnIndex = target.Column - m_readOnlyRange.Column + 1
+    previousEvents = Application.EnableEvents
+    On Error GoTo EH
+    Application.EnableEvents = False
+    target.Value2 = m_renderedValues(rowIndex, columnIndex)
+    Application.EnableEvents = previousEvents
+    private_RestoreReadOnlyCell = True
+    Exit Function
+EH:
+    Application.EnableEvents = previousEvents
+    VBA.Err.Raise VBA.Err.Number, "Table.ReadOnly", VBA.Err.Description
+End Function
+
 Private Function private_SourceSchema( _
     ByVal source As obj_IUiTableSource, _
     ByVal table As obj_UiRawTable _

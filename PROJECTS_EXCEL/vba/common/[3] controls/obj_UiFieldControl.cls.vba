@@ -15,6 +15,7 @@ Implements obj_IUiControl
 Implements obj_IUiEventHandler
 Implements obj_IUiCellRefreshListener
 Implements obj_IUiBindingTarget
+Implements obj_IUiBindingListener
 
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
@@ -184,7 +185,13 @@ Private Function obj_IUiEventHandler_HandleEvent( _
             Exit Function
         End If
     End If
-    obj_IUiEventHandler_HandleEvent = m_cellBinding.HandleCellChange(target)
+    If m_isSelect And Not m_editable Then
+        m_cellBinding.SetTwoWay False
+        obj_IUiEventHandler_HandleEvent = m_cellBinding.HandleCellChange(target)
+        m_cellBinding.SetTwoWay Not m_readOnly
+    Else
+        obj_IUiEventHandler_HandleEvent = m_cellBinding.HandleCellChange(target)
+    End If
     Exit Function
 EH:
     Application.EnableEvents = previousEvents
@@ -214,7 +221,8 @@ Public Sub Dispose()
     m_isDisposed = True
     m_isInitialized = False
     If Not m_renderContext Is Nothing Then
-        If Not m_targetRange Is Nothing Then m_renderContext.Router.UnregisterCell m_targetRange.Cells(1, 1)
+        m_renderContext.BindingContext.Unsubscribe Me
+        If Not m_targetRange Is Nothing Then m_renderContext.Router.UnregisterCell m_targetRange.Cells(1, 1), Me
         m_renderContext.Router.UnregisterSelection m_uiControlBase.ControlName
         If Not m_selectAction Is Nothing Then
             For Each shapeName In m_selectAction.ShapeNames
@@ -333,6 +341,61 @@ Public Function RefreshDropdownHighlight(ByVal itemShapeNames As Collection) As 
         End If
     Next shapeName
     RefreshDropdownHighlight = True
+End Function
+
+Public Sub ApplySelectHeaderStyle(ByVal isPlaceholder As Boolean)
+    Dim tags As String
+    Dim styleAttribute As String
+
+    If m_isDisposed Or m_selectHeaderShape Is Nothing Then Exit Sub
+    tags = VBA.Trim$(VBA.Replace(" " & private_ReadAttribute(m_uiControlBase.ControlNode, "tags") & " ", _
+        " selectPlaceholder ", " "))
+    If isPlaceholder Then
+        tags = VBA.Trim$(tags & " selectPlaceholder")
+        styleAttribute = "placeholderStyle"
+    Else
+        styleAttribute = "selectionStyle"
+    End If
+    m_uiControlBase.ControlNode.setAttribute "tags", tags
+    m_renderContext.Styles.ApplyControlPartStyle m_selectHeaderShape, _
+        m_uiControlBase.ControlNode, m_renderContext.BindingContext, styleAttribute
+End Sub
+
+Public Function RefreshDropdownItems( _
+    ByRef items As Collection, _
+    ByRef itemShapeNames As Collection, _
+    ByRef shapeNames As Collection, _
+    ByRef dropdownCreated As Boolean _
+) As Boolean
+    Dim currentItems As Collection
+    Dim itemIndex As Long
+    Dim shapeName As String
+    Dim itemsChanged As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryResolveItems(m_renderContext, currentItems) Then Exit Function
+    itemsChanged = (items.Count <> currentItems.Count)
+    If Not itemsChanged Then
+        For itemIndex = 1 To items.Count
+            If VBA.StrComp(VBA.CStr(items(itemIndex)), VBA.CStr(currentItems(itemIndex)), VBA.vbBinaryCompare) <> 0 Then
+                itemsChanged = True
+                Exit For
+            End If
+        Next itemIndex
+    End If
+    If itemsChanged Then
+        ' Rebuild only the popup when its bound source changes.
+        For itemIndex = shapeNames.Count To 2 Step -1
+            shapeName = VBA.CStr(shapeNames(itemIndex))
+            m_renderContext.Router.UnregisterShape shapeName
+            m_renderContext.TargetWorksheet.Shapes(shapeName).Delete
+            shapeNames.Remove itemIndex
+        Next itemIndex
+        Set itemShapeNames = New Collection
+        Set items = currentItems
+        dropdownCreated = False
+    End If
+    RefreshDropdownItems = True
 End Function
 
 Public Function CreateDropdownShapes( _
@@ -827,7 +890,7 @@ Private Function private_RenderSelectShapes( _
     headerText = selectedValue
     If VBA.Len(headerText) = 0 Then headerText = placeholder
     headerShape.TextFrame2.TextRange.Text = headerText
-    If items.Count > 0 Then headerShape.TextFrame2.TextRange.Text = headerText & " " & arrowText
+    headerShape.TextFrame2.TextRange.Text = headerText & " " & arrowText
     headerShape.TextFrame2.MarginLeft = 5
     headerShape.TextFrame2.MarginRight = 5
     headerShape.TextFrame2.MarginTop = 0
@@ -860,6 +923,10 @@ Private Function private_RenderSelectShapes( _
     For Each routeName In uiSelectAction.ShapeNames
         uiRenderContext.Router.RegisterShape VBA.CStr(routeName), uiSelectAction
     Next routeName
+    If Not m_readOnly Then
+        uiRenderContext.BindingContext.Subscribe Me
+        If Not uiSelectAction.RefreshSelection() Then Exit Function
+    End If
     private_RenderSelectShapes = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Select.CreateShapes | Name=" & m_uiControlBase.ControlName & _
         " | Items=" & VBA.CStr(items.Count), startedAt
@@ -895,6 +962,27 @@ End Function
 
 Private Sub obj_IUiCellRefreshListener_OnValueRefreshed()
     private_cellBinding_ValueRefreshed
+End Sub
+
+Private Sub obj_IUiBindingListener_OnValueChanged( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String _
+)
+    Dim itemsSourceName As String
+    Dim itemsBindingPath As String
+
+    If m_isDisposed Or m_selectAction Is Nothing Then Exit Sub
+    If Not ex_UiBindingRuntime.fn_TryParseBinding( _
+            m_itemsSourceRaw, VBA.vbNullString, itemsSourceName, itemsBindingPath, _
+            m_renderContext.BindingContext) Then Exit Sub
+    If VBA.StrComp(sourceName, itemsSourceName, VBA.vbTextCompare) <> 0 Then Exit Sub
+    If VBA.StrComp(bindingPath, itemsBindingPath, VBA.vbTextCompare) <> 0 Then
+        If VBA.StrComp(VBA.Left$(itemsBindingPath, VBA.Len(bindingPath) + 1), _
+                bindingPath & ".", VBA.vbTextCompare) <> 0 Then Exit Sub
+    End If
+    If Not m_selectAction.RefreshSelection() Then
+        VBA.Err.Raise 5, "Select.ItemsSource", "Cannot refresh bound select: " & m_uiControlBase.ControlName
+    End If
 End Sub
 
 Private Sub private_cellBinding_ValueRefreshed()

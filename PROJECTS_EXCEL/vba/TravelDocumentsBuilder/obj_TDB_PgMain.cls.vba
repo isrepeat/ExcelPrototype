@@ -118,11 +118,8 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Form", "BasisTextVisibility", "Visible") Then
         Exit Function
     End If
-    For Each key In VBA.Array("Types")
-        If Not bindingContext.SetValue("Data", "Basis" & key, ex_TravelDocumentsBuilder.fn_Config("basisChain.items." & key)) Then
-            Exit Function
-        End If
-    Next key
+    If Not bindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Data", "BasisTypes", VBA.vbNullString) Then Exit Function
     If Not ex_TDB_BasisChain.fn_RefreshInstitutions(bindingContext) Then
         Exit Function
     End If
@@ -131,6 +128,7 @@ Private Function private_TryRegisterBindings() As Boolean
             Exit Function
         End If
     Next key
+    If Not bindingContext.SetValue("Text", "BasisInstitutionQuery", ex_TravelDocumentsBuilder.fn_Config("text.BasisInstitutionQuery")) Then Exit Function
     If Not bindingContext.SetValue("Form", "PlaceChainVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "TvoChainVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then
@@ -354,6 +352,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand(bindingContext, "BasisInstitutionChanged", "BasisInstitutionChangedHandler") Then
         Exit Function
     End If
+    If Not private_TryRegisterCommand(bindingContext, "BasisInstitutionQueryChanged", "BasisInstitutionQueryChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "AddBasis", "AddBasisHandler") Then
         Exit Function
     End If

@@ -63,6 +63,9 @@ End Function
 Public Sub fn_Validate(ByVal row As Object)
     Dim field As Variant
     Dim roles As String
+    Dim entry As Variant
+    Dim parts As Variant
+    Dim documentTypes As String
 
     row("BasisNumber") = VBA.Trim$(VBA.CStr(row("BasisNumber")))
     If VBA.Left$(row("BasisNumber"), 1) = "№" Then
@@ -74,6 +77,18 @@ Public Sub fn_Validate(ByVal row As Object)
                 "{value}", ex_TravelDocumentsBuilder.fn_Config("text." & field))
         End If
     Next field
+    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.institutions"), "|")
+        parts = VBA.Split(VBA.CStr(entry), "~")
+        If UBound(parts) <> 1 Then ex_TDB_History.fn_Fail "InvalidChain"
+        If VBA.CStr(parts(1)) = VBA.CStr(row("BasisInstitution")) Then
+            documentTypes = ex_TravelDocumentsBuilder.fn_Config("basisChain.items.Types." & parts(0))
+        End If
+    Next entry
+    If VBA.Len(documentTypes) = 0 Or VBA.InStr(1, "," & documentTypes & ",", _
+            "," & row("BasisType") & ",", VBA.vbTextCompare) = 0 Then
+        VBA.Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("generation.message.Invalid"), _
+            "{value}", ex_TravelDocumentsBuilder.fn_Config("text.BasisType"))
+    End If
     roles = private_Roles(VBA.CStr(row("BasisInstitution")))
     If VBA.Len(roles) > 0 And VBA.Len(VBA.CStr(row("BasisIssuer"))) > 0 Then
         If VBA.InStr(1, "," & roles & ",", "," & row("BasisIssuer") & ",", VBA.vbTextCompare) = 0 Then
@@ -182,6 +197,7 @@ Public Sub fn_ClearDraft(ByVal bindingContext As obj_UiBindingContext)
     If Not bindingContext.SetValue("Form", "BasisDraftId", VBA.vbNullString) Then
         ex_TDB_History.fn_Fail "InvalidChain"
     End If
+    If Not bindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
     If Not fn_RefreshInstitutions(bindingContext) Then
         ex_TDB_History.fn_Fail "InvalidChain"
     End If
@@ -197,6 +213,7 @@ Public Function fn_RefreshInstitutions( _
     Dim roles As String
     Dim issuer As String
     Dim institution As String
+    Dim documentTypes As String
 
     For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.institutions"), "|")
         parts = VBA.Split(VBA.CStr(entry), "~")
@@ -208,7 +225,19 @@ Public Function fn_RefreshInstitutions( _
         End If
         institutions = institutions & parts(1)
     Next entry
+    If Not bindingContext.SetValue("Data", "BasisInstitutions", institutions) Then
+        Exit Function
+    End If
     institution = fn_Value(bindingContext, "BasisInstitution")
+    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.institutions"), "|")
+        parts = VBA.Split(VBA.CStr(entry), "~")
+        If VBA.CStr(parts(1)) = institution Then
+            documentTypes = ex_TravelDocumentsBuilder.fn_Config("basisChain.items.Types." & parts(0))
+        End If
+    Next entry
+    If Not bindingContext.SetValue("Data", "BasisTypes", documentTypes) Then Exit Function
+    If Not bindingContext.SetValue("Form", "BasisInstitutionVisibility", _
+            VBA.IIf(VBA.Len(institution) > 0, "Visible", "Collapsed")) Then Exit Function
     roles = private_Roles(institution)
     issuer = fn_Value(bindingContext, "BasisIssuer")
     If institutionChanged And VBA.Len(roles) = 0 Then
@@ -223,10 +252,121 @@ Public Function fn_RefreshInstitutions( _
             End If
         End If
     End If
-    If Not bindingContext.SetValue("Data", "BasisInstitutions", institutions) Then
-        Exit Function
-    End If
     fn_RefreshInstitutions = bindingContext.SetValue("Data", "BasisIssuers", roles)
+End Function
+
+Public Function fn_SearchInstitutions( _
+    ByVal institution As String, _
+    ByVal searchText As String _
+) As obj_LookupResult
+    Dim tableSource As New obj_TableSource
+    Dim tableQuery As New obj_TableQuery
+    Dim snapshot As obj_TableSnapshotSet
+    Dim dataTable As obj_DataTable
+    Dim lookupResult As New obj_LookupResult
+    Dim lookupRecord As obj_LookupRecord
+    Dim records As New Collection
+    Dim columns As New Collection
+    Dim fields As Object
+    Dim column As Object
+    Dim fileSystem As Object
+    Dim field As Variant
+    Dim entry As Variant
+    Dim parts As Variant
+    Dim value As Variant
+    Dim prefix As String
+    Dim path As String
+    Dim diagnostic As String
+    Dim rowIndex As Long
+    Dim limit As Long
+    Dim hasMore As Boolean
+    Dim errorNumber As Long
+    Dim errorDescription As String
+    Dim spans As Variant
+    Dim columnIndex As Long
+
+    On Error GoTo Failed
+    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.institutions"), "|")
+        parts = VBA.Split(VBA.CStr(entry), "~")
+        If UBound(parts) <> 1 Then ex_TDB_History.fn_Fail "InvalidChain"
+        If VBA.CStr(parts(1)) = institution Then prefix = "basisChain.lookup." & parts(0)
+    Next entry
+    If VBA.Len(prefix) = 0 Then ex_TDB_History.fn_Fail "InvalidChain"
+    spans = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.columnSpans"), "|")
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.fields"), "|")
+        Set column = VBA.CreateObject("Scripting.Dictionary")
+        column.Add "name", VBA.CStr(field)
+        column.Add "caption", ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
+        If columnIndex > UBound(spans) Then ex_TDB_History.fn_Fail "InvalidChain"
+        column.Add "columnSpan", VBA.CLng(spans(columnIndex))
+        columnIndex = columnIndex + 1
+        columns.Add column
+    Next field
+    If columnIndex <> UBound(spans) + 1 Then ex_TDB_History.fn_Fail "InvalidChain"
+    limit = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.maxResults"))
+    If ex_TravelDocumentsBuilder.fn_Config(prefix & ".searchField") = "Key" Then
+        searchText = VBA.Trim$(VBA.Replace$(searchText, "A", "А", 1, -1, VBA.vbTextCompare))
+    End If
+    If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= _
+            VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars")) Then
+        Set snapshot = ex_TableSnapshots.fn_Active()
+        If snapshot Is Nothing Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
+        If Not tableSource.Initialize() Or Not tableQuery.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize institution lookup."
+        Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+        path = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.path")
+        If fileSystem.GetDriveName(path) = VBA.vbNullString And VBA.Left$(path, 2) <> "\\" Then
+            path = fileSystem.BuildPath(ThisWorkbook.Path, path)
+        End If
+        tableSource.WorkbookPath = fileSystem.GetAbsolutePathName(path)
+        tableSource.SheetName = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.sheet")
+        tableSource.TableName = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.table")
+        For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.sourceFields"), "|")
+            tableQuery.AddColumn ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
+        Next field
+        tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & _
+            ex_TravelDocumentsBuilder.fn_Config(prefix & ".searchField")), QueryContains, searchText, QueryText, True
+        tableQuery.Limit = limit + 1
+        If Not snapshot.TryQuery(tableSource, tableQuery, dataTable, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+        hasMore = (dataTable.RowCount > limit)
+        For rowIndex = 1 To dataTable.RowCount
+            If rowIndex > limit Then Exit For
+            Set fields = VBA.CreateObject("Scripting.Dictionary")
+            For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.sourceFields"), "|")
+                value = dataTable.ValueAt(rowIndex, ex_TableQuery.fn_HeaderIndex( _
+                    dataTable.Headers, ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)))
+                If VBA.IsError(value) Then ex_TDB_History.fn_Fail "InvalidChain"
+                If VBA.IsNull(value) Or VBA.IsEmpty(value) Then value = VBA.vbNullString
+                fields.Add VBA.CStr(field), VBA.Trim$(VBA.CStr(value))
+            Next field
+            ' Numbered units have configured names even without a custom full title.
+            If ex_TravelDocumentsBuilder.fn_Config(prefix & ".searchField") = "Key" Then
+                If VBA.Len(VBA.CStr(fields("Name"))) = 0 Then
+                    fields("Name") = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config(prefix & ".nameTemplate"), _
+                        "{Key}", VBA.CStr(fields("Key")))
+                    If VBA.Len(VBA.CStr(fields("Genitive"))) = 0 Then
+                        fields("Genitive") = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config(prefix & ".genitiveTemplate"), _
+                            "{Key}", VBA.CStr(fields("Key")))
+                    End If
+                End If
+            End If
+            fields.Add "InstitutionKind", institution
+            Set lookupRecord = New obj_LookupRecord
+            If Not lookupRecord.Initialize(VBA.CStr(fields("Key")), fields) Then VBA.Err.Raise 5, , diagnostic
+            records.Add lookupRecord
+        Next rowIndex
+    End If
+    If Not lookupResult.Initialize(records, columns, hasMore, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    Set fn_SearchInstitutions = lookupResult
+Cleanup:
+    If Not dataTable Is Nothing Then dataTable.Dispose
+    tableQuery.Dispose
+    tableSource.Dispose
+    If errorNumber <> 0 Then VBA.Err.Raise errorNumber, "Basis.Institutions", errorDescription
+    Exit Function
+Failed:
+    errorNumber = VBA.Err.Number
+    errorDescription = VBA.Err.Description
+    Resume Cleanup
 End Function
 
 Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Boolean
@@ -255,7 +395,10 @@ Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Bool
     If VBA.Len(number) > 0 And VBA.Len(dateText) > 0 Then
         text = fn_Join(emptyChain, number, ex_TDB_History.fn_Date(dateText))
     Else
-        text = ex_TravelDocumentsBuilder.fn_Config("basisChain.text.ChooseOrder")
+        text = VBA.Replace$(VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.orderTemplate"), _
+            "{number}", ex_TravelDocumentsBuilder.fn_Config("basisChain.text.OrderNumberPending")), _
+            "{date}", ex_TravelDocumentsBuilder.fn_Config("basisChain.text.OrderDatePending")) & _
+            ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
     End If
     Set column = VBA.CreateObject("Scripting.Dictionary")
     column.Add "name", "BasisText"

@@ -117,6 +117,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
     schema.AddAttribute "columnSpan", "positive", False, "", False, 0
     schema.AddAttribute "name", "string", True, "", False, 0
     schema.AddAttribute "style", "string", False, "", True, 0
+    schema.AddAttribute "tags", "string", False, "", False, 0
     schema.AddAttribute "paddingLeft", "number", False, "", False, 0
     schema.AddAttribute "paddingTop", "number", False, "", False, 0
     schema.AddAttribute "paddingRight", "number", False, "", False, 0
@@ -170,6 +171,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
                 schema.AddAttribute "overflowMessage", "string", False, "", True, 0
             End If
             If m_type = "table" Then
+                schema.AddAttribute "readOnly", "boolean", False, "", True, 0
                 Set wrapper = New obj_UiMarkupSchema
                 Set rule = New obj_UiMarkupSchema
                 If Not wrapper.Initialize() Or Not rule.Initialize() Then Err.Raise 5, , "Cannot initialize cell template schema."
@@ -224,6 +226,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "inputType", "enum", False, "text|select|checkbox", False, 0
             schema.AddAttribute "numberFormat", "string", False, "", False, 0
             schema.AddAttribute "placeholder", "string", False, "", True, 0
+            schema.AddAttribute "placeholderStyle", "string", False, "", True, 0
+            schema.AddAttribute "selectionStyle", "string", False, "", True, 0
             schema.AddAttribute "readOnly", "boolean", False, "", True, 0
             schema.AddAttribute "partStylesEnabled", "boolean", False, "", False, 0
             schema.AddAttribute "editable", "boolean", False, "", False, 0

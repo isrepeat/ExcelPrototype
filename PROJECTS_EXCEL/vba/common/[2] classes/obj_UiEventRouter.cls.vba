@@ -67,12 +67,19 @@ Public Function DispatchShape(ByVal name As String) As Boolean
     DispatchShape = handler.HandleEvent("click", name)
 End Function
 
-Public Sub UnregisterCell(ByVal cell As Range)
+Public Sub UnregisterCell( _
+    ByVal cell As Range, _
+    ByVal handler As obj_IUiEventHandler _
+)
     Dim key As String
+    Dim registered As obj_IUiEventHandler
 
-    If m_cells Is Nothing Or cell Is Nothing Then Exit Sub
+    If m_cells Is Nothing Or cell Is Nothing Or handler Is Nothing Then Exit Sub
     key = cell.Address(False, False)
-    If m_cells.Exists(key) Then m_cells.Remove key
+    If Not m_cells.Exists(key) Then Exit Sub
+    Set registered = m_cells(key)
+    ' A moved control must not remove the new occupant's route.
+    If registered Is handler Then m_cells.Remove key
 End Sub
 
 Public Function DispatchCells(ByVal target As Range) As Boolean

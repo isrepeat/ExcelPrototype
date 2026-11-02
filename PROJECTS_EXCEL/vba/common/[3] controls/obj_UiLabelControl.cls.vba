@@ -190,7 +190,7 @@ Private Sub private_UnregisterHeader()
 
     If m_registeredRange Is Nothing Then Exit Sub
     For Each cell In m_registeredRange.Cells
-        m_renderContext.Router.UnregisterCell cell
+        m_renderContext.Router.UnregisterCell cell, Me
     Next cell
     Set m_registeredRange = Nothing
 End Sub
@@ -215,7 +215,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     uiRenderContext.Styles.ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     m_captionColor = targetRange.Cells(1, 1).Font.Color
     ex_UiInlineText.fn_ApplyCellCaption targetRange, captionText, m_captionColor
-    If ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "readOnly") = "true" Then
+    If ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "readOnly") <> "false" Then
         private_UnregisterHeader
         Set m_registeredRange = targetRange
         For Each cell In m_registeredRange.Cells

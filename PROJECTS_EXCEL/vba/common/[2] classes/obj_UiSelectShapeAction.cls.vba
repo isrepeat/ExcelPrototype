@@ -26,11 +26,13 @@ Private m_shapeNames As Collection
 Private m_items As Collection
 Private m_selectedValue As String
 Private m_placeholder As String
+Private m_placeholderDismissed As Boolean
 Private m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 Private m_editable As Boolean
 Private m_uiFieldControl As obj_UiFieldControl
 Private m_dropdownCreated As Boolean
+Private m_isRefreshingSelection As Boolean
 
 ' //
 ' // Lifecycle
@@ -114,6 +116,7 @@ Public Function Initialize( _
     Set m_items = items
     m_selectedValue = selectedValue
     m_placeholder = placeholder
+    m_placeholderDismissed = (VBA.Len(selectedValue) > 0)
     Set m_uiCellBinding = uiCellBinding
     m_isExpanded = False
     m_editable = editable
@@ -168,6 +171,32 @@ Public Function HandleShapeClick(ByVal callerShapeName As String) As Boolean
     Next itemIndex
 End Function
 
+Public Function RefreshSelection() As Boolean
+    If m_isDisposed Or Not m_isInitialized Then Exit Function
+    If m_isRefreshingSelection Then
+        RefreshSelection = True
+        Exit Function
+    End If
+    On Error GoTo EH
+    m_isRefreshingSelection = True
+    If Not m_uiFieldControl Is Nothing Then
+        If m_isExpanded Then
+            If Not Me.CollapseDropdown() Then GoTo CLEANUP
+        End If
+        If Not m_uiFieldControl.RefreshDropdownItems( _
+                m_items, m_itemShapeNames, m_shapeNames, m_dropdownCreated) Then GoTo CLEANUP
+    End If
+    m_selectedValue = VBA.CStr(m_targetCell.Value2)
+    private_UpdateHeader
+    RefreshSelection = True
+CLEANUP:
+    m_isRefreshingSelection = False
+    Exit Function
+EH:
+    m_isRefreshingSelection = False
+    VBA.Err.Raise VBA.Err.Number, "Select.RefreshSelection", VBA.Err.Description
+End Function
+
 Public Function CollapseDropdown() As Boolean
     If m_isDisposed Then
         CollapseDropdown = True
@@ -191,6 +220,10 @@ Private Function private_ToggleDropdown() As Boolean
     Dim shapeName As String
     Dim errorDescription As String
 
+    ' Resolve dependent options before checking an initially empty list.
+    If Not m_isExpanded And Not m_uiFieldControl Is Nothing Then
+        If Not Me.RefreshSelection() Then Exit Function
+    End If
     If m_items.Count = 0 Then
         private_ToggleDropdown = True
         If Not m_uiFieldControl Is Nothing Then private_ToggleDropdown = m_uiFieldControl.HandleEmptyDropdown()
@@ -238,8 +271,11 @@ Private Function private_SelectItem(ByVal itemIndex As Long) As Boolean
     selectedValue = VBA.CStr(m_items(itemIndex))
     m_selectedValue = selectedValue
     m_isExpanded = False
+    m_placeholderDismissed = True
     private_UpdateHeader
-    If Not private_ApplyVisibility() Then Exit Function
+    If m_dropdownCreated Then
+        If Not private_ApplyVisibility() Then Exit Function
+    End If
 
     previousEnableEvents = Application.EnableEvents
     On Error GoTo EH
@@ -307,12 +343,7 @@ Private Sub private_UpdateHeader()
     Set headerShape = m_worksheet.Shapes(m_headerShapeName)
     If headerShape Is Nothing Then Exit Sub
     headerText = m_selectedValue
-    If VBA.Len(headerText) = 0 Then headerText = m_placeholder
-    ' Keep the editable field arrow visible even when the list is empty.
-    If m_items.Count = 0 And Not m_editable Then
-        headerShape.TextFrame2.TextRange.Text = headerText
-        Exit Sub
-    End If
+    If VBA.Len(headerText) = 0 And Not m_placeholderDismissed Then headerText = m_placeholder
     If m_isExpanded Then
         arrowText = VBA.ChrW(&H25B2)
     Else
@@ -322,6 +353,9 @@ Private Sub private_UpdateHeader()
         headerShape.TextFrame2.TextRange.Text = arrowText
     Else
         headerShape.TextFrame2.TextRange.Text = headerText & " " & arrowText
+    End If
+    If Not m_uiFieldControl Is Nothing And Not m_editable Then
+        m_uiFieldControl.ApplySelectHeaderStyle (VBA.Len(m_selectedValue) = 0 And Not m_placeholderDismissed)
     End If
     On Error GoTo 0
 End Sub
@@ -333,5 +367,6 @@ End Sub
 Private Sub private_uiCellBinding_ValueRefreshed()
     If m_isDisposed Or m_targetCell Is Nothing Then Exit Sub
     m_selectedValue = VBA.CStr(m_targetCell.Value2)
+    If VBA.Len(m_selectedValue) > 0 Then m_placeholderDismissed = True
     private_UpdateHeader
 End Sub

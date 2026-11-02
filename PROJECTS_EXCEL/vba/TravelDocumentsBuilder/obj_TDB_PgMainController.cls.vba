@@ -20,6 +20,7 @@ Private m_placeResult As obj_LookupResult
 Private m_placeChainView As obj_LookupResult
 Private m_tvoChainView As obj_LookupResult
 Private m_lookupIsPlace As Boolean
+Private m_lookupIsBasis As Boolean
 Private m_messages As Object
 Private m_historyResult As obj_LookupResult
 Private m_orderResolver As obj_OrderResolver
@@ -160,6 +161,7 @@ Public Function SearchPersonnelHandler() As Boolean
         Exit Function
     End If
     m_lookupIsPlace = False
+    m_lookupIsBasis = False
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
             ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
@@ -299,6 +301,7 @@ Public Function PlaceChangedHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
     m_lookupIsPlace = True
+    m_lookupIsBasis = False
     If Not m_placeResult Is Nothing Then m_placeResult.Dispose
     Set m_placeResult = result
     If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
@@ -338,6 +341,25 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
     Dim prefix As String
 
     If selected Is Nothing Or Not TypeOf selected Is obj_LookupRecord Then
+        Exit Function
+    End If
+    If m_lookupIsBasis Then
+        If Not selected.TryGetValue("InstitutionKind", placeValue) Then Exit Function
+        If VBA.CStr(placeValue) <> ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitution") Then Exit Function
+        Set updates = VBA.CreateObject("Scripting.Dictionary")
+        If Not selected.TryGetValue("Key", placeValue) Then Exit Function
+        updates("Form.BasisInstitutionQuery") = placeValue
+        If Not selected.TryGetValue("Genitive", placeValue) Then Exit Function
+        If VBA.Len(VBA.Trim$(VBA.CStr(placeValue))) = 0 Then
+            diagnostic = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.MissingGenitive"), _
+                "{key}", VBA.CStr(updates("Form.BasisInstitutionQuery")))
+            private_SetActionStatus diagnostic, True
+            ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
+            Exit Function
+        End If
+        updates("Form.BasisInstitutionName") = placeValue
+        If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+        SelectPersonnelHandler = private_SetActionStatus(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Selected"), False)
         Exit Function
     End If
     If m_lookupIsPlace Then
@@ -908,7 +930,52 @@ Public Function BasisInstitutionChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then Exit Function
     BasisInstitutionChangedHandler = ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext, True)
+    If BasisInstitutionChangedHandler Then BasisInstitutionChangedHandler = Me.BasisInstitutionQueryChangedHandler()
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function BasisInstitutionQueryChangedHandler() As Boolean
+    Dim institution As String
+    Dim query As String
+    Dim result As obj_LookupResult
+    Dim status As String
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    institution = ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitution")
+    If VBA.Len(institution) = 0 Then
+        BasisInstitutionQueryChangedHandler = True
+        Exit Function
+    End If
+    query = ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitutionQuery")
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
+    Set result = ex_TDB_BasisChain.fn_SearchInstitutions(institution, query)
+    If Not private_ValidateCandidateBounds(result, "basisChain.lookup.columnOffset") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
+            ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.columnOffset")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", "Confirm") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then Exit Function
+    m_lookupIsBasis = True
+    m_lookupIsPlace = False
+    If Not m_placeResult Is Nothing Then m_placeResult.Dispose
+    Set m_placeResult = result
+    status = ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Choose")
+    If VBA.Len(query) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars")) Then
+        status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Minimum"), _
+            "{minChars}", ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars"))
+    ElseIf result.RowCount = 0 Then
+        status = ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Empty")
+    End If
+    BasisInstitutionQueryChangedHandler = private_SetActionStatus(status, False)
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True
@@ -959,6 +1026,7 @@ Public Function RemoveBasisHandler() As Boolean
     Set row = chain(chain.Count)
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     updates.Add "Form.BasisDraftId", row("RowId")
+    updates.Add "Form.BasisInstitutionQuery", row("BasisInstitutionName")
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
         updates.Add "Form." & field, row(field)
     Next field

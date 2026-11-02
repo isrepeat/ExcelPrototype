@@ -52,6 +52,7 @@ Public Function TryBuild( _
     Dim progressStep As Long
     Dim progressTotal As Long
     Dim sourceMode As Variant
+    Dim tableName As String
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Dependency loader is unavailable."
@@ -72,7 +73,14 @@ Public Function TryBuild( _
         End If
         source.WorkbookPath = fileSystem.GetAbsolutePathName(VBA.CStr(path))
         source.SheetName = ex_TravelDocumentsBuilder.fn_Config(VBA.CStr(prefix) & ".sheet")
-        source.RangeAddress = ex_TravelDocumentsBuilder.fn_Config(VBA.CStr(prefix) & ".range")
+        ' Sources use either a named table or an explicit worksheet range.
+        tableName = VBA.vbNullString
+        If ex_Core.fn_TryGetWorkbookConfigValue( _
+                "TravelDocumentsBuilder::" & VBA.CStr(prefix) & ".table", tableName) Then
+            source.TableName = tableName
+        Else
+            source.RangeAddress = ex_TravelDocumentsBuilder.fn_Config(VBA.CStr(prefix) & ".range")
+        End If
         If Not source.TryValidate(diagnostic) Then GoTo Cleanup
         If Not signatures.Exists(source.WorkbookPath) Then
             signatures.Add source.WorkbookPath, private_FileStamp(source.WorkbookPath)

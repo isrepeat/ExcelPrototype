@@ -8,6 +8,7 @@ Option Explicit
 Implements obj_IUiTableSource
 Implements obj_IUiSelectionSource
 Implements obj_IUiColumnMetadata
+Implements obj_IUiColumnAliases
 Implements obj_IUiRowTags
 Implements obj_IUiColumnLayout
 
@@ -75,6 +76,15 @@ Private Function obj_IUiSelectionSource_GetItemAt(ByVal rowIndex As Long) As Obj
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If rowIndex < 1 Or rowIndex > m_records.Count Then Exit Function
     Set obj_IUiSelectionSource_GetItemAt = m_records(rowIndex)
+End Function
+
+Private Function obj_IUiColumnAliases_ColumnAliasAt(ByVal columnIndex As Long) As String
+    Dim columnAliases As obj_IUiColumnAliases
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If m_table Is Nothing Then Exit Function
+    Set columnAliases = m_table
+    obj_IUiColumnAliases_ColumnAliasAt = columnAliases.ColumnAliasAt(columnIndex)
 End Function
 
 Private Function obj_IUiColumnMetadata_SourceAliasAt(ByVal columnIndex As Long) As String
