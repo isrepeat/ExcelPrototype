@@ -89,7 +89,6 @@ Public Function TryExport( _
     Dim stageCreated As Boolean
     Dim backupFolder As String
     Dim frozenTemplate As String
-    Dim templateStamp As String
     Dim folderStamp As String
     Dim name As String
     Dim identifier As String
@@ -122,6 +121,10 @@ Public Function TryExport( _
     Dim previousWindow As Window
     Dim previousSheet As Object
     Dim signatory As Object
+    Dim templatePaths As Object
+    Dim templateStamps As Object
+    Dim frozenTemplates As Object
+    Dim documentId As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     totalStartedAt = VBA.Timer
@@ -168,8 +171,30 @@ Public Function TryExport( _
     stageCreated = True
     backupFolder = m_fileSystem.BuildPath(stage, "backup")
     m_fileSystem.CreateFolder backupFolder
-    templateStamp = private_FileStamp(templatePath)
-    m_fileSystem.CopyFile templatePath, frozenTemplate, False
+    Set templatePaths = VBA.CreateObject("Scripting.Dictionary")
+    Set templateStamps = VBA.CreateObject("Scripting.Dictionary")
+    Set frozenTemplates = VBA.CreateObject("Scripting.Dictionary")
+    For Each group In groups
+        Set root = group(1)
+        If root("Status") = "Active" Then
+            documentId = ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))
+            If Not templatePaths.Exists(documentId) Then
+                path = private_Path(ex_TravelDocumentsBuilder.fn_Config("generation.templates." & documentId))
+                activePath = VBA.CStr(path)
+                If Not m_fileSystem.FileExists(path) Then
+                    private_Fail "Path"
+                End If
+                templatePaths.Add documentId, VBA.CStr(path)
+                templateStamps.Add documentId, private_FileStamp(VBA.CStr(path))
+                frozenTemplate = m_fileSystem.BuildPath(stage, documentId & ".docx")
+                If VBA.Len(frozenTemplate) > VBA.CLng(private_Config("maxPath")) Then
+                    private_Fail "Path"
+                End If
+                frozenTemplates.Add documentId, frozenTemplate
+                m_fileSystem.CopyFile path, frozenTemplate, False
+            End If
+        End If
+    Next group
     folderStamp = private_FolderStamp(folder)
     For Each file In m_fileSystem.GetFolder(folder).Files
         If VBA.LCase$(m_fileSystem.GetExtensionName(file.Name)) = "docx" Then
@@ -202,6 +227,8 @@ Public Function TryExport( _
         Set root = group(1)
         If root("Status") = "Active" Then
             progress = progress + 1
+            documentId = ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))
+            frozenTemplate = frozenTemplates(documentId)
             activePath = m_fileSystem.BuildPath(stage, staged(root("RowId")))
             text = VBA.Replace$(private_Config("text.Progress"), "{step}", VBA.CStr(progress))
             text = VBA.Replace$(text, "{total}", VBA.CStr(wanted.Count))
@@ -214,7 +241,14 @@ Public Function TryExport( _
     Next group
     ex_Core.fn_Diagnostic_WritePerf "TDB.Word.Export.RenderAll", phaseStartedAt
     phaseStartedAt = VBA.Timer
-    If private_FileStamp(templatePath) <> templateStamp Or private_FolderStamp(folder) <> folderStamp Then private_Fail "Stale"
+    For Each path In templatePaths.Keys
+        If private_FileStamp(templatePaths(path)) <> templateStamps(path) Then
+            private_Fail "Stale"
+        End If
+    Next path
+    If private_FolderStamp(folder) <> folderStamp Then
+        private_Fail "Stale"
+    End If
     ex_TDB_History.fn_AssertCurrent tickets, revisions, transaction
     ex_Core.fn_Diagnostic_WritePerf "TDB.Word.Export.Verify", phaseStartedAt
     phaseStartedAt = VBA.Timer
@@ -383,7 +417,8 @@ Private Function private_FileName(ByVal root As Object) As String
         label = VBA.Replace$(label, VBA.Chr$(index), "_")
     Next index
     label = VBA.Left$(label, VBA.CLng(private_Config("filename.labelMaxChars")))
-    name = ex_TravelDocumentsBuilder.fn_Config("word.filename.prefix.VacationTicket") & "_" & label & "__" & root("RowId") & ".docx"
+    name = ex_TravelDocumentsBuilder.fn_Config("word.filename.prefix." & _
+        ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))) & "_" & label & "__" & root("RowId") & ".docx"
     If Not m_namePattern.Test(name) Then private_Fail "Identity"
     Set matches = m_namePattern.Execute(name)
     If VBA.StrComp(matches(0).SubMatches(0), VBA.CStr(root("RowId")), VBA.vbTextCompare) <> 0 Then private_Fail "Identity"

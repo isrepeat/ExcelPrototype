@@ -23,8 +23,8 @@ for key in re.findall(r'ex_TravelDocumentsBuilder.fn_Config\("([^"]+)"\)', chain
     assert 'TravelDocumentsBuilder::' + key in config, key
 
 # Each Place child retains structured domestic and foreign fields.
-assert len(config['TravelDocumentsBuilder::history.columns'].split('|')) == 47
-assert len(config['TravelDocumentsBuilder::history.versions.columns'].split('|')) == 54
+assert len(config['TravelDocumentsBuilder::history.columns'].split('|')) == 48
+assert len(config['TravelDocumentsBuilder::history.versions.columns'].split('|')) == 55
 for field in ('Destination', 'PlaceRegion', 'PlaceType', 'PlaceName', 'PlaceDistrict'):
     assert field in config['TravelDocumentsBuilder::history.snapshotFields'].split('|')
 

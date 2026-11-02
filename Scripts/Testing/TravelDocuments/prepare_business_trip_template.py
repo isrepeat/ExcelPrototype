@@ -44,6 +44,8 @@ def trip_template():
     active = {}
     logo = ET.parse(str(CATALOG)).find('.//p:template[@name="BusinessTrip"]/p:table/p:row/p:cell', NS)
     for index, old_row in enumerate(original.findall('w:tr', NS)):
+        if index in (18, 19, 21, 22):
+            continue
         row = element(table, 'row', allowBreakAcrossPages='false')
         height = old_row.find('w:trPr/w:trHeight', NS)
         if height is not None:
@@ -89,6 +91,8 @@ def trip_template():
                     elif index == 24:
                         text = 'Підстава відрядження: {[Basis]}'
                     text = text.replace('Термін відрядження:', 'Термін відрядження: ')
+                    text = text.replace('{[Duration]}.', '{[Duration]}')
+                    text = text.replace('(пункти призначень)', '(місце відрядження)')
                     paragraph = element(cell, 'paragraph')
                     element(paragraph, 'text').text = text
             column += span

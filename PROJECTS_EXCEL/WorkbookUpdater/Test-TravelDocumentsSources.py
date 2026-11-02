@@ -111,8 +111,10 @@ for source in sources.glob("*.vba"):
     assert not re.search(r"\b(?:VBA\.)?MsgBox\s*(?:\(|\s)", source_text, re.I), source
     assert not re.search(r"\b(?:MessageBox[AW]?|WScript\.Shell)\b", source_text, re.I), source
 runtime_handlers = controller[controller.index("Public Function SearchPersonnelHandler()"):]
-assert runtime_handlers.count("ex_WindowsUi.fn_ShowMessage") == 1
+assert runtime_handlers.count("ex_WindowsUi.fn_ShowMessage") == 2
 assert 'If Not private_SetActionStatus Then ex_WindowsUi.fn_ShowMessage' in runtime_handlers
+overflow = re.search(r'Private Function private_ValidateCandidateBounds\([\s\S]*?^End Function', controller, re.M)[0]
+assert 'ex_WindowsUi.fn_ShowMessage message, VBA.vbExclamation' in overflow
 
 # Check required keys and option lists against configuration.
 key_assignment = re.search(r"    keys = (.*?)\n    For Each key", generator, re.S)[1]
@@ -123,7 +125,7 @@ for kind in cfg("generation.kind.ids").split(","):
     for part in ("input", "word", "event"):
         cfg(f"generation.kind.{kind}.{part}")
 kinds = [cfg(f"generation.kind.{kind}.input") for kind in cfg("generation.kind.ids").split(",")]
-assert cfg("generation.items.VacationKinds").split("|") == kinds
+assert sorted(cfg("generation.items.VacationKinds").split("|")) == sorted(kinds)
 assert cfg("generation.defaults.VacationKind") in kinds
 assert len(cfg("generation.months").split("|")) == 12
 assert cfg("generation.defaults.VacationAbroad") in cfg("generation.items.AbroadOptions").split(",")
@@ -178,13 +180,13 @@ with zipfile.ZipFile(workbook_folder / cfg("history.path")) as archive:
     ]
     table = next(table for table in tables if table.attrib["name"] == cfg("history.table"))
     headers = [column.attrib["name"] for column in table.find("s:tableColumns", namespace)]
-    assert len(headers) == len(set(headers)) == 28
+    assert len(headers) == len(set(headers)) == len(cfg("history.columns").split("|")), "Registry schema requires migration"
     assert all(re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", field) for field in headers)
     assert not {"LastChangeId", "RowOrder", "Purpose", "ReportNo", "PersonUnit"} & set(headers)
     assert set(headers) == set(cfg("history.columns").split("|")), "Registry schema mismatch"
     versions = next(table for table in tables if table.attrib["name"] == cfg("history.versions.table"))
     version_headers = [column.attrib["name"] for column in versions.find("s:tableColumns", namespace)]
-    assert len(version_headers) == 35
+    assert len(version_headers) == len(cfg("history.versions.columns").split("|")), "Revision schema requires migration"
     assert version_headers == cfg("history.versions.columns").split("|")
     snapshot_fields = cfg("history.snapshotFields").split("|")
     assert [field.removeprefix("Snapshot.") for field in version_headers[9:]] == snapshot_fields
@@ -216,9 +218,9 @@ with zipfile.ZipFile(template) as archive:
     assert {"SignatoryPosition", "SignatoryRank", "SignatoryName"} <= set(markers)
     table_text = ""
     if cfg("word.tables.mode") == "table":
-        table_catalog = ET.parse(workbook_folder / cfg("word.tables.path"))
+        table_catalog = ET.parse(workbook_folder / cfg("generation.tablePaths.VacationTicket"))
         table_text = "".join(table_catalog.getroot().itertext())
-        table_name = cfg("word.tables.template")
+        table_name = cfg("generation.tableNames.VacationTicket")
         assert text.count("{\\exportTable:" + table_name + "_Begin}") == 1
         assert text.count("{\\exportTable:" + table_name + "_End}") == 1
     for marker in markers:

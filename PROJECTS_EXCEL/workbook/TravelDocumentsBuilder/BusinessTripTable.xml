@@ -284,25 +284,7 @@
         <cell columnSpan="3"
               style="Caption">
           <paragraph>
-            <text>(пункти призначень)</text>
-          </paragraph>
-        </cell>
-      </row>
-      <row allowBreakAcrossPages="false">
-        <cell columnSpan="6"
-              style="Centered">
-          <paragraph>
-            <text>{[MilitaryPlace]}</text>
-          </paragraph>
-        </cell>
-      </row>
-      <row allowBreakAcrossPages="false"
-           height="20.05pt"
-           heightRule="atLeast">
-        <cell columnSpan="6"
-              style="Caption">
-          <paragraph>
-            <text>(найменування військової частини, установи, організації)</text>
+            <text>(місце відрядження)</text>
           </paragraph>
         </cell>
       </row>
@@ -312,23 +294,7 @@
         <cell columnSpan="6"
               style="Centered">
           <paragraph>
-            <text>Термін відрядження: {[Duration]}.</text>
-          </paragraph>
-        </cell>
-      </row>
-      <row allowBreakAcrossPages="false">
-        <cell columnSpan="6"
-              style="Underlined">
-          <paragraph>
-            <text>{[Purpose]}</text>
-          </paragraph>
-        </cell>
-      </row>
-      <row allowBreakAcrossPages="false">
-        <cell columnSpan="6"
-              style="Caption">
-          <paragraph>
-            <text>(мета відрядження)</text>
+            <text>Термін відрядження: {[Duration]}</text>
           </paragraph>
         </cell>
       </row>

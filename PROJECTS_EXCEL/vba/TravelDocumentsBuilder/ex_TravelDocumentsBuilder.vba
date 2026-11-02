@@ -107,6 +107,22 @@ Public Function fn_IsMedicalCompany(ByVal vacationKind As String) As Boolean
         VBA.StrComp(vacationKind, fn_Config("generation.kind.treatmentMedical.input"), VBA.vbTextCompare) = 0
 End Function
 
+Public Function fn_DocumentId(ByVal eventKind As String) As String
+    Dim kind As Variant
+
+    If eventKind = fn_Config("generation.businessTrip.kind") Then
+        fn_DocumentId = "BusinessTripCertificate"
+        Exit Function
+    End If
+    For Each kind In VBA.Split(fn_Config("generation.kind.ids"), ",")
+        If VBA.StrComp(eventKind, fn_Config("generation.kind." & kind & ".input"), VBA.vbTextCompare) = 0 Then
+            fn_DocumentId = "VacationTicket"
+            Exit Function
+        End If
+    Next kind
+    VBA.Err.Raise 5, , VBA.Replace$(fn_Config("text.UnknownDocumentType"), "{value}", eventKind)
+End Function
+
 Public Function fn_IsTreatment(ByVal vacationKind As String) As Boolean
     fn_IsTreatment = VBA.StrComp(vacationKind, fn_Config("generation.kind.treatment.input"), VBA.vbTextCompare) = 0 Or _
         VBA.StrComp(vacationKind, fn_Config("generation.kind.treatmentMedical.input"), VBA.vbTextCompare) = 0

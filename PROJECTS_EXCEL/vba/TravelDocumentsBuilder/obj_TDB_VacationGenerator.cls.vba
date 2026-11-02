@@ -23,7 +23,10 @@ Private m_wordTemplatePath As String
 Private m_wordSourcePath As String
 Private m_wordMode As String
 Private m_wordTableTemplate As obj_WordTableTemplate
+Private m_wordTables As Object
 Private m_wordValues As Object
+Private m_documentId As String
+Private m_wordCatalogId As String
 
 ' //
 ' // Lifecycle
@@ -62,12 +65,14 @@ Public Function Initialize( _
         Exit Function
     End If
     Set m_config = VBA.CreateObject("Scripting.Dictionary")
+    Set m_wordTables = VBA.CreateObject("Scripting.Dictionary")
     keys = "registry.fieldOrder," & _
         "kind.ids,abroad.yes,abroad.no,abroad.word,status.active,status.cancelled," & _
         "donation.event,donation.orderMissing,donation.orderPrefix,months,datePattern," & _
         "duration.connector,duration.vacation.one,duration.vacation.few,duration.vacation.many," & _
         "duration.donation.one,duration.donation.few,duration.donation.many,duration.donation.suffix," & _
         "duration.road.one,duration.road.few,duration.road.many,duration.road.suffix," & _
+        "duration.trip.one,duration.trip.few,duration.trip.many," & _
         "position.reservedPrefix,position.removedPrefix,position.reservedText,position.removedText," & _
         "message.Required,message.Invalid,message.Column,message.Marker,message.Order,message.Unsupported," & _
         "message.Success,message.Failed,message.Rollback,limits.maxDays"
@@ -95,16 +100,25 @@ Public Function Initialize( _
 End Function
 
 Public Sub Dispose()
+    Dim key As Variant
+    Dim wordTableTemplate As obj_WordTableTemplate
+
     If m_isDisposed Then
         Exit Sub
     End If
     m_isDisposed = True
     m_isInitialized = False
     On Error Resume Next
-    If Not m_wordTableTemplate Is Nothing Then
-        m_wordTableTemplate.Dispose
+    If Not m_wordTables Is Nothing Then
+        For Each key In m_wordTables.Keys
+            Set wordTableTemplate = m_wordTables(key)
+            wordTableTemplate.Dispose
+        Next key
     End If
+    Set m_wordTables = Nothing
     Set m_wordTableTemplate = Nothing
+    m_wordCatalogId = VBA.vbNullString
+    m_documentId = VBA.vbNullString
     Set m_wordValues = Nothing
     Set m_wordSession = Nothing
     Set m_wordAnchors = Nothing
@@ -180,6 +194,9 @@ Public Function TrySave( _
     m_operationId = operationId
     private_LogStage "ReadForm"
     private_ReadForm
+    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(m_form("DocumentType"), m_documentId) Then
+        private_Fail "Unsupported", m_form("DocumentType")
+    End If
     private_PreparePlaces
     For Each key In m_form.Keys
         private_Log "TDB_FORM_NORMALIZED", "Field=" & key & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(m_form(key))
@@ -188,7 +205,9 @@ Public Function TrySave( _
         private_Log "TDB_GENERATION_CONFIG", "Key=" & key & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(m_config(key))
     Next key
     private_LogStage "ValidateForm"
-    If m_form("DocumentType") <> private_DocumentCaption() Then private_Fail "Unsupported", m_form("DocumentType")
+    If ex_TravelDocumentsBuilder.fn_DocumentId(m_form("VacationKind")) <> m_documentId Then
+        private_Fail "Invalid", private_FieldCaption("DocumentType")
+    End If
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPositionCode", "DocumentTarget", _
             "OrderReference", "ReportNo", "DepartureDate", "VacationKind", "VacationAbroad", "VacationStatus")
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
@@ -199,6 +218,14 @@ Public Function TrySave( _
     vacationDays = private_Days("VacationDays", False)
     roadDays = private_Days("RoadDays", True)
     donationDays = private_Days("DonationDays", True)
+    If m_documentId = "BusinessTripCertificate" Then
+        If vacationDays = 0 Then
+            private_Fail "Invalid", private_FieldCaption("VacationDays")
+        End If
+        If donationDays <> 0 Then
+            private_Fail "Invalid", private_FieldCaption("DonationDays")
+        End If
+    End If
     private_MapKind kindWord, kindEvent
     If m_form("VacationAbroad") <> m_config("abroad.yes") And m_form("VacationAbroad") <> m_config("abroad.no") Then
         private_Fail "Invalid", private_FieldCaption("VacationAbroad")
@@ -298,6 +325,9 @@ Public Function TrySave( _
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
+    For Each key In VBA.Array("WeaponLine")
+        metadata.Add VBA.CStr(key), m_form(key)
+    Next key
     For Each key In ex_TDB_Places.fn_FormFields()
         metadata.Add VBA.CStr(key), m_form(key)
     Next key
@@ -451,6 +481,7 @@ Public Function TryRender( _
     End If
     On Error GoTo Failed
     m_operationId = "WORD/" & root("RowId") & "/R" & root("Revision")
+    m_documentId = ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))
     Set m_wordValues = VBA.CreateObject("Scripting.Dictionary")
     For Each key In root.Keys
         m_wordValues.Add VBA.CStr(key), root(key)
@@ -559,7 +590,7 @@ Private Sub private_ReadForm()
             "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
             "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
-            "PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel", _
+            "WeaponLine", "PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel", _
             "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn")
         If Not m_bindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             private_Fail "Required", private_FieldCaption(VBA.CStr(key))
@@ -569,7 +600,7 @@ Private Sub private_ReadForm()
         End If
         If VBA.CStr(key) = "HistoryStamp" Then
             m_form.Add VBA.CStr(key), VBA.CStr(value)
-        ElseIf VBA.CStr(key) = "Purpose" Then
+        ElseIf VBA.CStr(key) = "Purpose" Or VBA.CStr(key) = "WeaponLine" Then
             m_form.Add VBA.CStr(key), VBA.Trim$(VBA.CStr(value))
         Else
             m_form.Add VBA.CStr(key), ex_TableQuery.fn_NormalizeText(VBA.CStr(value))
@@ -580,12 +611,6 @@ Private Sub private_ReadForm()
     Loop
 End Sub
 
-Private Function private_DocumentCaption() As String
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text.VacationTicket.DocumentFormTitle", private_DocumentCaption) Then
-        VBA.Err.Raise VBA.vbObjectError + 2400
-    End If
-End Function
-
 Private Function private_FieldCaption(ByVal field As String) As String
     Dim captionKey As String
 
@@ -594,7 +619,9 @@ Private Function private_FieldCaption(ByVal field As String) As String
         Case "PersonName", "PersonId", "PersonRank", "PersonPositionCode", "DocumentType", "AutoFillPersonnel"
             captionKey = field & "Label"
         Case "DocumentTarget", "DepartureDate", "Purpose"
-            captionKey = "VacationTicket." & field & "Label"
+            captionKey = m_documentId & "." & field & "Label"
+        Case "VacationDays"
+            captionKey = m_documentId & ".VacationDays"
     End Select
     If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & captionKey, private_FieldCaption) Then
         VBA.Err.Raise VBA.vbObjectError + 2400
@@ -680,6 +707,11 @@ Private Sub private_MapKind( _
 )
     Dim kind As Variant
 
+    If m_documentId = "BusinessTripCertificate" Then
+        word = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind")
+        eventText = word
+        Exit Sub
+    End If
     For Each kind In VBA.Split(m_config("kind.ids"), ",")
         If VBA.StrComp(m_form("VacationKind"), m_config("kind." & kind & ".input"), VBA.vbTextCompare) = 0 Then
             word = m_config("kind." & kind & ".word")
@@ -916,10 +948,18 @@ Private Sub private_InitializeWordTable()
     Dim valueText As String
 
     If Not m_wordTableTemplate Is Nothing Then
+        If m_wordCatalogId = m_documentId Then
+            Exit Sub
+        End If
+        Set m_wordTableTemplate = Nothing
+    End If
+    If m_wordTables.Exists(m_documentId) Then
+        Set m_wordTableTemplate = m_wordTables(m_documentId)
+        m_wordCatalogId = m_documentId
         Exit Sub
     End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    tablePath = ex_TravelDocumentsBuilder.fn_Config("word.tables.path")
+    tablePath = ex_TravelDocumentsBuilder.fn_Config("generation.tablePaths." & m_documentId)
     If fileSystem.GetDriveName(tablePath) = VBA.vbNullString And VBA.Left$(tablePath, 2) <> "\\" Then
         tablePath = fileSystem.BuildPath(ThisWorkbook.Path, tablePath)
     End If
@@ -940,6 +980,8 @@ Private Sub private_InitializeWordTable()
             imagePaths) Then
         Err.Raise 5, "Word.Table.Initialize", valueText
     End If
+    m_wordCatalogId = m_documentId
+    m_wordTables.Add m_documentId, m_wordTableTemplate
 End Sub
 
 Private Sub private_GenerateWord( _
@@ -1009,10 +1051,29 @@ Private Sub private_GenerateWord( _
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
         m_wordValues(VBA.CStr(names(index))) = values(index)
     Next index
+    If m_documentId = "BusinessTripCertificate" Then
+        If vacationDays = 0 Then
+            private_Fail "Invalid", private_FieldCaption("VacationDays")
+        End If
+        If m_wordMode <> "table" Then
+            private_Fail "Unsupported", m_form("VacationKind")
+        End If
+        If donationDays <> 0 Then
+            private_Fail "Invalid", private_FieldCaption("DonationDays")
+        End If
+        m_wordValues("Position") = m_form("PersonPosition")
+        m_wordValues("TravelPlace") = m_form("DocumentTarget")
+        m_wordValues("Duration") = VBA.Replace$(VBA.Replace$(VBA.Replace$( _
+            ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.durationPattern"), _
+            "{duration}", private_CountForm(vacationDays + roadDays, "trip")), "{from}", private_WordDate(departure)), _
+            "{to}", private_WordDate(VBA.DateAdd("d", -1, finalReturn)))
+        m_wordValues("Basis") = m_form("Purpose")
+        m_wordValues("WeaponLine") = m_form("WeaponLine")
+    End If
     If m_wordMode = "table" Then
         private_InitializeWordTable
         If Not m_wordTableTemplate.TryPrepare( _
-                ex_TravelDocumentsBuilder.fn_Config("word.tables.template"), _
+                ex_TravelDocumentsBuilder.fn_Config("generation.tableNames." & m_documentId), _
                 m_wordValues, _
                 tablePlan, _
                 tableDiagnostic) Then
@@ -1027,6 +1088,11 @@ Private Sub private_GenerateWord( _
     End If
     Set word = m_wordSession
     word.ScreenUpdating = False
+    If VBA.StrComp(templatePath, m_wordSourcePath, VBA.vbTextCompare) <> 0 Then
+        Set m_wordAnchors = Nothing
+        m_wordTemplatePath = VBA.vbNullString
+        m_wordSourcePath = VBA.vbNullString
+    End If
     private_WordPerf stage, stageStartedAt
     stage = "Document.Create"
     stageStartedAt = VBA.Timer

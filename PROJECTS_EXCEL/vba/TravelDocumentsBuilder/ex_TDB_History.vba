@@ -457,6 +457,7 @@ Public Function fn_Load( _
     End If
     Set root = group(1)
     Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Form.DocumentType") = ex_TravelDocumentsBuilder.fn_Config("text." & ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) & ".DocumentFormTitle")
     For Each mapping In VBA.Split(fn_Config("formFields"), "|")
         pair = VBA.Split(mapping, "=")
         updates.Add "Form." & pair(0), root(pair(1))

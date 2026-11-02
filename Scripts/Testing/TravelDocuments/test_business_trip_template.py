@@ -17,12 +17,12 @@ template = catalog.find('p:template[@name="BusinessTrip"]', NS)
 assert template is not None
 table = template.find('p:table', NS)
 fields = set(re.findall(r'\{\[([^]]+)\]\}', ''.join(table.itertext())))
-assert fields == {'TicketDate', 'TicketNum', 'PersonalLine', 'Position', 'TravelPlace', 'MilitaryPlace', 'Duration', 'Purpose', 'Basis', 'WeaponLine'}
+assert fields == {'TicketDate', 'TicketNum', 'PersonalLine', 'Position', 'TravelPlace', 'Duration', 'Basis', 'WeaponLine'}
 context = {field: field for field in fields}
 columns, rows, cells, occupied = grid(table, context)
-assert len(columns) == 6 and len(rows) == 28
+assert len(columns) == 6 and len(rows) == 24
 empty_weapon = dict(context, WeaponLine='')
-assert len(grid(table, empty_weapon)[1]) == 27
+assert len(grid(table, empty_weapon)[1]) == 23
 assert table.find('p:if[@test="[WeaponLine]"]/p:row/p:cell/p:text', NS).text == '{[WeaponLine]}'
 assert 'Слідує зі зброєю:' not in ''.join(table.itertext())
 assert abs(sum(columns) - 474.95) < 0.01

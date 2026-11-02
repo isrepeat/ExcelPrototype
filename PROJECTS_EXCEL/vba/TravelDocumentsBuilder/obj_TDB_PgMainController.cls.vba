@@ -465,16 +465,62 @@ Public Function DocumentTypeChangedHandler() As Boolean
     Dim prefix As String
     Dim key As Variant
     Dim valueText As String
+    Dim vacationKind As Variant
+    Dim visibility As String
 
     If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
     For Each key In VBA.Array("DocumentFormTitle", "DocumentTargetLabel", _
-            "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel")
+            "DepartureDateLabel", "ReturnDateLabel", "PurposeLabel", "VacationDays")
         If Not ex_Core.fn_TryGetWorkbookConfigValue( _
                 "TravelDocumentsBuilder::text." & prefix & "." & VBA.CStr(key), valueText) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
     Next key
+    visibility = "Collapsed"
+    If prefix = "VacationTicket" Then
+        visibility = "Visible"
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "VacationVisibility", visibility) Then
+        Exit Function
+    End If
+    visibility = "Collapsed"
+    If prefix = "BusinessTripCertificate" Then
+        visibility = "Visible"
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "TripVisibility", visibility) Then
+        Exit Function
+    End If
+    If Not private_TryReadFormValue("VacationKind", vacationKind) Then
+        Exit Function
+    End If
+    If prefix = "BusinessTripCertificate" Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "VacationKind", ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind")) Then
+            Exit Function
+        End If
+        If Not m_pageBase.BindingContext.SetValue("Form", "DonationDays", "0") Then
+            Exit Function
+        End If
+        For Each key In VBA.Array("VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays")
+            If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
+                Exit Function
+            End If
+        Next key
+    Else
+        If VBA.CStr(vacationKind) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind") Then
+            If Not m_pageBase.BindingContext.SetValue("Form", "VacationKind", ex_TravelDocumentsBuilder.fn_Config("generation.defaults.VacationKind")) Then
+                Exit Function
+            End If
+        End If
+        For Each key In VBA.Array("WeaponLine")
+            If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
+                Exit Function
+            End If
+        Next key
+    End If
     ' Bindings refresh captions; rebuilding the page during a click disposes the active handler.
+    If Not Me.VacationDatesChangedHandler() Then
+        Exit Function
+    End If
     DocumentTypeChangedHandler = Me.VacationKindChangedHandler()
 End Function
 
@@ -491,7 +537,7 @@ Public Function ClearFormHandler() As Boolean
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
-            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+            "WeaponLine", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "ReturnDate", "Purpose", "ReportNo", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
@@ -696,9 +742,6 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("Text", "SaveHistory", ex_TravelDocumentsBuilder.fn_Config("text.UpdateHistory")) Then
-        Exit Function
-    End If
-    If Not m_pageBase.BindingContext.SetValue("Form", "DocumentType", ex_TravelDocumentsBuilder.fn_Config("text.VacationTicket.DocumentFormTitle")) Then
         Exit Function
     End If
     If Not Me.DocumentTypeChangedHandler() Then

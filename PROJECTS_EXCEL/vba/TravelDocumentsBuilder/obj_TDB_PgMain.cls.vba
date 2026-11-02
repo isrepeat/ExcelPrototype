@@ -60,6 +60,9 @@ Public Function Initialize(ByVal profileId As String) As Boolean
     Set m_controller = New obj_TDB_PgMainController
     If Not m_controller.Initialize(m_pageBase) Then Exit Function
     If Not private_TryRegisterCommands() Then Exit Function
+    If Not m_controller.DocumentTypeChangedHandler() Then
+        Exit Function
+    End If
     Initialize = True
     m_isInitialized = True
 End Function
@@ -204,7 +207,7 @@ Private Function private_TryRegisterBindings() As Boolean
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "ReturnDate", "Purpose", _
             "OrderReference", "ReportNo", "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath", "GenerationStatus", _
-            "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+            "WeaponLine", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "HistoryRowId", "HistoryStamp", "ChangeReason", "OrderQuery", "OrderYear", "AcceptedOrderNumber", "AcceptedOrderDate")
@@ -228,6 +231,12 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Form", "PlaceFieldsVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "TreatmentVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "DestinationVisibility", "Visible") Then Exit Function
+    If Not bindingContext.SetValue("Form", "VacationVisibility", "Visible") Then
+        Exit Function
+    End If
+    If Not bindingContext.SetValue("Form", "TripVisibility", "Collapsed") Then
+        Exit Function
+    End If
     For Each key In VBA.Array("PlaceKinds", "VacationKinds", "AbroadOptions", "StatusOptions")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then
             Exit Function
@@ -243,7 +252,7 @@ Private Function private_TryRegisterBindings() As Boolean
             End If
         End If
     Next key
-    For Each key In VBA.Array("PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
+    For Each key In VBA.Array("WeaponLine", "PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _

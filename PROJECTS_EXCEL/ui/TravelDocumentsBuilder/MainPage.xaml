@@ -26,7 +26,7 @@
                          itemStyle="formSelectItem"
                          onChange="{Binding Path=Commands.DocumentTypeChanged}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.VacationVisibility}">
         <controls:label name="VacationKindLabel"
                         row="1"
                         column="1"
@@ -364,7 +364,7 @@
                         value="{Binding Path=Form.RoadDays}"
                         onChange="{Binding Path=Commands.VacationDatesChanged}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.VacationVisibility}">
         <controls:label name="DonationDaysLabel"
                         row="1"
                         column="1"
@@ -535,6 +535,25 @@
                         style="formField"
                         value="{Binding Path=Form.Purpose}"/>
       </grid>
+      <stackPanel name="TripFields"
+                  orientation="vertical"
+                  visibility="{Binding Path=Form.TripVisibility}">
+        <grid>
+          <controls:label name="WeaponLineLabel"
+                          row="1"
+                          column="1"
+                          rowSpan="2"
+                          style="formLabel"
+                          text="{Binding Path=Text.WeaponLine}"/>
+          <controls:input name="WeaponLine"
+                          row="1"
+                          column="2"
+                          rowSpan="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.WeaponLine}"/>
+        </grid>
+      </stackPanel>
       <grid visibility="{Binding Path=Form.ChangeReasonVisibility}">
         <controls:label name="ChangeReasonLabel"
                         row="1"
