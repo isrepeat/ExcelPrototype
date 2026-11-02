@@ -31,10 +31,17 @@ def main():
             ("МКСХ № 5241 від 07.10.2026", ("5241", "07.10.2026")),
             ("м/к № 52/41 від 7.10.2026", ("52/41", "7.10.2026")),
             ("МКСХ № 5241", ("5241", None)),
+            ("МКСХ № 9.22921 від 28.10.2026;", ("9.22921", "28.10.2026")),
+            ("МКСХ № 009.022921.", ("009.022921", None)),
+            ("МКСХ № 52/41-В від 28.10.2026.", ("52/41-В", "28.10.2026")),
         ):
             matches = list(card.finditer(basis))
             assert len(matches) == 1 and matches[0].groups() == expected, basis
         assert not list(card.finditer("рапорт № 5241 від 22.10.2026"))
+        return_card = re.compile(settings['lookup.ReturnHospital.cardPattern'], re.IGNORECASE)
+        for number in ('9.22921', '009.022921', '52/41-В', '5241'):
+            match = return_card.search(f'МКСХ № {number} від 28.10.2026.')
+            assert match and match.group(1) == number
         form = event.get("form")
         count = int(settings[f"forms.{form}.fields.count"])
         fields = {settings[f"forms.{form}.fields.{i}.name"] for i in range(1, count + 1)}

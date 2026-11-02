@@ -1570,12 +1570,12 @@ value	PersonalEventBuilder::lookup.ReturnHospital.modes	FromHospital
 value	PersonalEventBuilder::lookup.ReturnHospital.fields	Hospital|HospitalShortName|Document|DocumentNumber
 value	PersonalEventBuilder::lookup.ReturnHospital.dateField	DocumentDate
   ref	PersonalEventBuilder::lookup.ReturnHospital.basisHeader	PersonalEventBuilder::export.Movement.headers.DepartureBasis
-value	PersonalEventBuilder::lookup.ReturnHospital.cardPattern	МКСХ\s*(?:№|N(?:o)?\.?)?\s*([0-9]+(?:[/-][0-9A-Za-zА-Яа-яІіЇїЄєҐґ]+)*)
+value	PersonalEventBuilder::lookup.ReturnHospital.cardPattern	МКСХ\s*(?:№|N(?:o)?\.?)?\s*([0-9]+(?:[./-][0-9A-Za-zА-Яа-яІіЇїЄєҐґ]+)*)
 value	PersonalEventBuilder::lookup.ReturnHospital.sourceAlias	ReturnTickets
 value	PersonalEventBuilder::lookup.ReturnHospital.cardDocument	м/к
 value	PersonalEventBuilder::lookup.AnnualContinuation.modes	MoveFromHospitalToAnnualVacationContinuation
 value	PersonalEventBuilder::lookup.AnnualContinuation.fields	Hospital=Movement.Hospital|HospitalShortName=Movement.HospitalShortName|Destination=Absence.Destination|DurationDays=Absence.DurationDays|DocumentNumber=Absence.TicketNumber|DocumentDate=Absence.TicketDate|EventDate=Absence.DepartureDate
-value	PersonalEventBuilder::lookup.AnnualContinuation.cardPattern	(?:ВМКСХ|МКСХ|м/к)\s*(?:№|N(?:o)?\.?)?\s*([0-9]+(?:[/-][0-9A-Za-zА-Яа-яІіЇїЄєҐґ]+)*)(?:\s+від\s+([0-9]{1,2}\.[0-9]{1,2}\.[0-9]{4}))?
+value	PersonalEventBuilder::lookup.AnnualContinuation.cardPattern	(?:ВМКСХ|МКСХ|м/к)\s*(?:№|N(?:o)?\.?)?\s*([0-9]+(?:[./-][0-9A-Za-zА-Яа-яІіЇїЄєҐґ]+)*)(?:\s+від\s+([0-9]{1,2}\.[0-9]{1,2}\.[0-9]{4}))?
   ref	PersonalEventBuilder::orders.source.path	__cfgDependencies.fileOrders
   ref	PersonalEventBuilder::orders.source.range	__cfgDependencies.source.Orders.range
   ref	PersonalEventBuilder::orders.source.sheet	__cfgDependencies.source.Orders.sheet
