@@ -23,8 +23,7 @@ columns, rows, cells, occupied = grid(table, context)
 assert len(columns) == 6 and len(rows) == 24
 empty_weapon = dict(context, WeaponLine='')
 assert len(grid(table, empty_weapon)[1]) == 23
-assert table.find('p:if[@test="[WeaponLine]"]/p:row/p:cell/p:text', NS).text == '{[WeaponLine]}'
-assert 'Слідує зі зброєю:' not in ''.join(table.itertext())
+assert table.find('p:if[@test="[WeaponLine]"]/p:row/p:cell/p:text', NS).text == 'Слідує зі зброєю: {[WeaponLine]}.'
 assert abs(sum(columns) - 474.95) < 0.01
 assert styles(catalog)[table.get('style')]['borders'] == 'none'
 assert '16.09.2026' not in ''.join(table.itertext())
@@ -49,7 +48,7 @@ assert 'Олег ЧЕРКАШИН' not in source_text(body)
 assert '<WeaponLine>' not in source_text(body)
 assert '{WeaponLine}' not in source_text(body)
 
-context.update(WeaponLine='без зброї', SignatoryPosition='Командир військової частини А7383',
+context.update(WeaponLine='АК-47', SignatoryPosition='Командир військової частини А7383',
                SignatoryRank='полковник', SignatoryName='Іван ПРИКЛАД')
 with TemporaryDirectory() as folder:
     path = preview(CATALOG, TARGET, Path(folder) / 'trip.docx', context, 'BusinessTrip')
@@ -57,8 +56,11 @@ with TemporaryDirectory() as folder:
     output = ET.fromstring(package['word/document.xml'])
     assert len(output.findall('.//w:body/w:tbl', NS)) == 2
     assert '\\exportTable:' not in source_text(output)
+    assert 'Слідує зі зброєю: АК-47.' in source_text(output)
     footer = source_text(ET.fromstring(package['word/footerTrip.xml']))
     assert 'Іван ПРИКЛАД' in footer and '{Signatory' not in footer
-    preview(CATALOG, TARGET, Path(folder) / 'empty.docx', dict(context, WeaponLine=''), 'BusinessTrip')
+    empty_path = preview(CATALOG, TARGET, Path(folder) / 'empty.docx', dict(context, WeaponLine=''), 'BusinessTrip')
+    empty_document = ET.fromstring(read_package(empty_path)['word/document.xml'])
+    assert 'Слідує зі зброєю:' not in source_text(empty_document)
 
 print('Business-trip grid, fields, source preservation, footer and page break: OK')

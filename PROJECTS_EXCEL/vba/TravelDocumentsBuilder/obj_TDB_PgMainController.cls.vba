@@ -114,6 +114,9 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     If Not private_PublishPlaces() Then Exit Function
+    If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
+        Exit Function
+    End If
     If Not private_PublishChain(emptyChain) Then Exit Function
     m_isInitialized = True
     Initialize = True
@@ -494,6 +497,11 @@ Public Function DocumentTypeChangedHandler() As Boolean
         Exit Function
     End If
     If prefix = "BusinessTripCertificate" Then
+        If VBA.CStr(vacationKind) <> ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind") Then
+            If Not m_pageBase.BindingContext.SetValue("Form", "Purpose", VBA.vbNullString) Then
+                Exit Function
+            End If
+        End If
         If Not m_pageBase.BindingContext.SetValue("Form", "VacationKind", ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind")) Then
             Exit Function
         End If
@@ -518,7 +526,14 @@ Public Function DocumentTypeChangedHandler() As Boolean
         Next key
     End If
     ' Bindings refresh captions; rebuilding the page during a click disposes the active handler.
-    If Not Me.VacationDatesChangedHandler() Then
+    visibility = "Collapsed"
+    If prefix = "VacationTicket" Then
+        visibility = "Visible"
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisTextVisibility", visibility) Then
+        Exit Function
+    End If
+    If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
         Exit Function
     End If
     DocumentTypeChangedHandler = Me.VacationKindChangedHandler()
@@ -532,6 +547,7 @@ Public Function ClearFormHandler() As Boolean
     Dim emptyChain As New Collection
     Dim currentAutoFill As Variant
     Dim emptyPlaces As New Collection
+    Dim emptyBasis As New Collection
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     Set updates = VBA.CreateObject("Scripting.Dictionary")
@@ -566,6 +582,10 @@ Public Function ClearFormHandler() As Boolean
     updates("Form.HistoryVisibility") = "Collapsed"
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
         private_SetActionStatus diagnostic, True
+        Exit Function
+    End If
+    ex_TDB_BasisChain.fn_ClearDraft m_pageBase.BindingContext
+    If Not m_pageBase.BindingContext.SetObject("Data", "BasisChain", emptyBasis) Then
         Exit Function
     End If
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
@@ -751,9 +771,6 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
         Exit Function
     End If
     If Not private_PublishPlaces() Then Exit Function
-    If Not Me.VacationDatesChangedHandler() Then
-        Exit Function
-    End If
     If Not private_UpdateFieldState() Then
         Exit Function
     End If
@@ -825,6 +842,9 @@ Public Function SearchOrdersHandler() As Boolean
     m_acceptedOrderDate = 0
     If Not m_pageBase.BindingContext.SetValue("Form", "AcceptedOrderNumber", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "AcceptedOrderDate", VBA.vbNullString) Then Exit Function
+    If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
+        Exit Function
+    End If
     If Not Me.CloseHistoryHandler() Then Exit Function
     If Not private_UpdateFieldState() Then Exit Function
     If VBA.Len(VBA.CStr(year)) > 0 Then
@@ -878,6 +898,78 @@ Public Function AddPlaceHandler() As Boolean
     ex_TDB_PlaceChain.fn_ClearDraft m_pageBase.BindingContext
     chain.Add row
     AddPlaceHandler = private_PublishPlaces()
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function BasisInstitutionChangedHandler() As Boolean
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    BasisInstitutionChangedHandler = ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext, True)
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function AddBasisHandler() As Boolean
+    Dim chain As Collection
+    Dim row As Object
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    Set chain = ex_TDB_BasisChain.fn_Read(m_pageBase.BindingContext)
+    If chain.Count >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.maxItems")) Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.Limit")
+    End If
+    Set row = ex_TDB_BasisChain.fn_Draft(m_pageBase.BindingContext)
+    ex_TDB_BasisChain.fn_ClearDraft m_pageBase.BindingContext
+    chain.Add row
+    AddBasisHandler = ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext)
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function RemoveBasisHandler() As Boolean
+    Dim chain As Collection
+    Dim row As Object
+    Dim field As Variant
+    Dim updates As Object
+    Dim diagnostic As String
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    Set chain = ex_TDB_BasisChain.fn_Read(m_pageBase.BindingContext)
+    If chain.Count = 0 Then
+        RemoveBasisHandler = True
+        Exit Function
+    End If
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
+        If VBA.Len(ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, VBA.CStr(field))) > 0 Then
+            VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.Pending")
+        End If
+    Next field
+    Set row = chain(chain.Count)
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates.Add "Form.BasisDraftId", row("RowId")
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
+        updates.Add "Form." & field, row(field)
+    Next field
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
+        VBA.Err.Raise 5, , diagnostic
+    End If
+    chain.Remove chain.Count
+    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
+        Exit Function
+    End If
+    RemoveBasisHandler = ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext)
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True
@@ -966,40 +1058,6 @@ Public Function RemoveTvoHandler() As Boolean
     RemoveTvoHandler = private_PublishChain(chain)
 End Function
 
-Public Function VacationDatesChangedHandler() As Boolean
-    Dim value As Variant
-    Dim parts As Variant
-    Dim departure As Date
-    Dim totalDays As Long
-    Dim key As Variant
-    Dim maximum As String
-    Dim result As String
-    Dim text As String
-
-    If Not m_isInitialized Or m_isDisposed Then Exit Function
-    On Error GoTo InvalidInput
-    If Not private_TryReadFormValue("DepartureDate", value) Then GoTo InvalidInput
-    text = VBA.Trim$(VBA.CStr(value))
-    If Not text Like "##.##.####" Then GoTo InvalidInput
-    parts = VBA.Split(text, ".")
-    departure = VBA.DateSerial(VBA.CInt(parts(2)), VBA.CInt(parts(1)), VBA.CInt(parts(0)))
-    If VBA.Format$(departure, "dd.mm.yyyy") <> text Then GoTo InvalidInput
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.limits.maxDays", maximum) Then GoTo InvalidInput
-    For Each key In VBA.Array("VacationDays", "RoadDays", "DonationDays")
-        If Not private_TryReadFormValue(VBA.CStr(key), value) Then GoTo InvalidInput
-        text = VBA.Trim$(VBA.CStr(value))
-        If VBA.Len(text) = 0 Then
-            If VBA.CStr(key) = "VacationDays" Then GoTo InvalidInput
-            text = "0"
-        End If
-        If text Like "*[!0-9]*" Then GoTo InvalidInput
-        If VBA.CDbl(text) > VBA.CDbl(maximum) Then GoTo InvalidInput
-        totalDays = totalDays + VBA.CLng(text)
-    Next key
-    result = VBA.Format$(ex_TDB_History.fn_ReturnDate(departure, totalDays, 0), "dd.mm.yyyy")
-InvalidInput:
-    VacationDatesChangedHandler = m_pageBase.BindingContext.SetValue("Form", "ReturnDate", result)
-End Function
 
 ' //
 ' // Private
@@ -1084,6 +1142,9 @@ Private Function private_AcceptOrder( _
     If preserveEdit Then
         m_historyOrderNumber = m_acceptedOrderNumber
         m_historyOrderDate = m_acceptedOrderDate
+    End If
+    If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
+        Exit Function
     End If
     private_AcceptOrder = private_UpdateFieldState()
 End Function

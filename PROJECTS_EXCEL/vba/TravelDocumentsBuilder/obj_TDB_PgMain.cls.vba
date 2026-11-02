@@ -94,6 +94,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim chain As New Collection
     Dim placeChain As New Collection
     Dim orderOptions As New Collection
+    Dim basisChain As New Collection
 
     If m_pageBase Is Nothing Then
         Exit Function
@@ -106,6 +107,30 @@ Private Function private_TryRegisterBindings() As Boolean
         Exit Function
     End If
     If Not bindingContext.SetObject("Data", "PlaceChain", placeChain) Then Exit Function
+    If Not bindingContext.SetObject("Data", "BasisChain", basisChain) Then
+        Exit Function
+    End If
+    For Each key In VBA.Split("BasisDraftId|" & ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
+        If Not bindingContext.SetValue("Form", VBA.CStr(key), VBA.vbNullString) Then
+            Exit Function
+        End If
+    Next key
+    If Not bindingContext.SetValue("Form", "BasisTextVisibility", "Visible") Then
+        Exit Function
+    End If
+    For Each key In VBA.Array("Types")
+        If Not bindingContext.SetValue("Data", "Basis" & key, ex_TravelDocumentsBuilder.fn_Config("basisChain.items." & key)) Then
+            Exit Function
+        End If
+    Next key
+    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(bindingContext) Then
+        Exit Function
+    End If
+    For Each key In VBA.Array("BasisType", "BasisInstitution", "BasisIssuer", "BasisNumber", "BasisDate", "AddBasis", "RemoveBasis", "BasisTitle")
+        If Not bindingContext.SetValue("Text", VBA.CStr(key), ex_TravelDocumentsBuilder.fn_Config("text." & key)) Then
+            Exit Function
+        End If
+    Next key
     If Not bindingContext.SetValue("Form", "PlaceChainVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "TvoChainVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then
@@ -313,8 +338,6 @@ Private Function private_TryRegisterCommands() As Boolean
             bindingContext, "ExportWord", "ExportWordHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "ClearForm", "ClearFormHandler") Then Exit Function
-    If Not private_TryRegisterCommand( _
-            bindingContext, "VacationDatesChanged", "VacationDatesChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "LoadHistory", "LoadHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "SelectHistory", "SelectHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "AddTvo", "AddTvoHandler") Then Exit Function
@@ -328,6 +351,15 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand(bindingContext, "PlaceKindChanged", "VacationAbroadChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "VacationAbroadChanged", "VacationAbroadChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "AddPlace", "AddPlaceHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "BasisInstitutionChanged", "BasisInstitutionChangedHandler") Then
+        Exit Function
+    End If
+    If Not private_TryRegisterCommand(bindingContext, "AddBasis", "AddBasisHandler") Then
+        Exit Function
+    End If
+    If Not private_TryRegisterCommand(bindingContext, "RemoveBasis", "RemoveBasisHandler") Then
+        Exit Function
+    End If
     If Not private_TryRegisterCommand(bindingContext, "RemovePlace", "RemovePlaceHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function

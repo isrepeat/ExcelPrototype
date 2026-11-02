@@ -333,8 +333,7 @@
                          highlightStyle="currentDateItem"
                          itemHeight="20"
                          panelStyle="formSelectPanel"
-                         itemStyle="formSelectItem"
-                         onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+                         itemStyle="formSelectItem"/>
       </grid>
       <grid>
         <controls:label name="VacationDaysLabel"
@@ -347,8 +346,7 @@
                         column="2"
                         columnSpan="2"
                         style="formField"
-                        value="{Binding Path=Form.VacationDays}"
-                        onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+                        value="{Binding Path=Form.VacationDays}"/>
       </grid>
       <grid>
         <controls:label name="RoadDaysLabel"
@@ -361,8 +359,7 @@
                         column="2"
                         columnSpan="2"
                         style="formField"
-                        value="{Binding Path=Form.RoadDays}"
-                        onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+                        value="{Binding Path=Form.RoadDays}"/>
       </grid>
       <grid visibility="{Binding Path=Form.VacationVisibility}">
         <controls:label name="DonationDaysLabel"
@@ -375,8 +372,7 @@
                         column="2"
                         columnSpan="2"
                         style="formField"
-                        value="{Binding Path=Form.DonationDays}"
-                        onChange="{Binding Path=Commands.VacationDatesChanged}"/>
+                        value="{Binding Path=Form.DonationDays}"/>
       </grid>
       <grid>
         <controls:label name="VacationAbroadLabel"
@@ -520,7 +516,7 @@
                         style="statusText"
                         showHeaders="false"/>
       </stackPanel>
-      <grid>
+      <grid visibility="{Binding Path=Form.BasisTextVisibility}">
         <controls:label name="PurposeLabel"
                         row="1"
                         column="1"
@@ -538,6 +534,107 @@
       <stackPanel name="TripFields"
                   orientation="vertical"
                   visibility="{Binding Path=Form.TripVisibility}">
+        <grid>
+          <controls:label name="BasisTypeLabel"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisType}"/>
+          <controls:select name="BasisType"
+                           itemsSource="{Binding Path=Data.BasisTypes}"
+                           row="1"
+                           column="2"
+                           columnSpan="2"
+                           style="formField"
+                           value="{Binding Path=Form.BasisType}"
+                           editable="true"
+                           panelStyle="formSelectPanel"
+                           itemStyle="formSelectItem"/>
+        </grid>
+        <grid>
+          <controls:label name="BasisInstitutionLabel"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisInstitution}"/>
+          <controls:select name="BasisInstitution"
+                           itemsSource="{Binding Path=Data.BasisInstitutions}"
+                           row="1"
+                           column="2"
+                           columnSpan="2"
+                           style="formField"
+                           value="{Binding Path=Form.BasisInstitution}"
+                           editable="true"
+                           panelStyle="formSelectPanel"
+                           itemStyle="formSelectItem"
+                           onChange="{Binding Path=Commands.BasisInstitutionChanged}"/>
+        </grid>
+        <grid>
+          <controls:label name="BasisIssuerLabel"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisIssuer}"/>
+          <controls:select name="BasisIssuer"
+                           itemsSource="{Binding Path=Data.BasisIssuers}"
+                           row="1"
+                           column="2"
+                           columnSpan="2"
+                           style="formField"
+                           value="{Binding Path=Form.BasisIssuer}"
+                           editable="true"
+                           panelStyle="formSelectPanel"
+                           itemStyle="formSelectItem"/>
+        </grid>
+        <grid>
+          <controls:label name="BasisNumberLabel"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisNumber}"/>
+          <controls:input name="BasisNumber"
+                          row="1"
+                          column="2"
+                          columnSpan="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisNumber}"/>
+        </grid>
+        <grid>
+          <controls:label name="BasisDateLabel"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisDate}"/>
+          <controls:input name="BasisDate"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisDate}"/>
+          <controls:button name="AddBasis"
+                           row="1"
+                           column="3"
+                           style="tvoIconButton"
+                           caption="{Binding Path=Text.AddBasis}"
+                           command="{Binding Path=Commands.AddBasis}"/>
+        </grid>
+        <grid>
+          <controls:label name="BasisTitle"
+                          row="1"
+                          column="1"
+                          columnSpan="2"
+                          style="sectionTitle"
+                          text="{Binding Path=Text.BasisTitle}"/>
+          <controls:button name="RemoveBasis"
+                           row="1"
+                           column="3"
+                           style="tvoIconButton"
+                           caption="{Binding Path=Text.RemoveBasis}"
+                           command="{Binding Path=Commands.RemoveBasis}"/>
+        </grid>
+        <controls:table name="BasisList"
+                        itemsSource="{Binding Path=Data.BasisView}"
+                        style="statusText"
+                        showHeaders="false"/>
         <grid>
           <controls:label name="WeaponLineLabel"
                           row="1"

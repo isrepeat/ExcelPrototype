@@ -32,7 +32,7 @@ columns = cfg('history.columns').split('|')
 snapshots = cfg('history.snapshotFields').split('|')
 versions = cfg('history.versions.columns').split('|')
 mappings = dict(pair.split('=') for pair in cfg('history.formFields').split('|'))
-assert len(columns) == len(set(columns)) == 48
+assert len(columns) == len(set(columns)) == 53
 for field in ['WeaponLine']:
     assert field in columns and field in snapshots
     assert 'Snapshot.' + field in versions and mappings[field] == field
@@ -64,6 +64,25 @@ assert '"text.VacationTicket.DocumentFormTitle"' not in load
 assert 'm_wordValues("Basis") = m_form("Purpose")' in generator
 assert 'm_wordValues("TravelPlace") = m_form("DocumentTarget")' in generator
 assert 'MilitaryPlace' not in generator and 'TripUnit' not in generator
+assert cfg('generation.businessTrip.indefinite').replace('{from}', '01.11.2026') == 'з 01.11.2026 до окремого розпорядження.'
+assert '"{from}", VBA.Format$(departure, "dd.mm.yyyy"))' in generator
+assert cfg('generation.businessTrip.indefiniteInput') == 'до о/р'
+assert '{phrase}' in cfg('generation.businessTrip.durationError')
+assert 'fields(private_Header(9)) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")' in generator
+assert 'private_Days = ex_TravelDocumentsBuilder.fn_ParseDuration(m_documentId, text)' in generator
+assert 'VacationDatesChanged' not in controller
+for name in ['DepartureDate', 'VacationDays', 'RoadDays', 'DonationDays']:
+    assert 'onChange' not in nodes[name].attrib
+duration_source = (source / 'ex_TravelDocumentsBuilder.vba').read_text(encoding='utf-8-sig')
+assert 'If VBA.Len(value) = 0 Or value Like "*[!0-9]*" Then' in duration_source
+assert 'If VBA.CDbl(value) <= 0 Or VBA.CDbl(value) > VBA.CDbl(maximum) Then' in duration_source
+assert 'private_IsIndefinite = m_documentId = "BusinessTripCertificate" And days = 0' in generator
+assert 'If m_documentId = "VacationTicket" And days = 0 Then' in generator
+assert generator.count('private_ValidateDuration vacationDays') == 2
+assert generator.count('vacationDays = private_Days("VacationDays", False)') == 2
+assert 'fields(private_Header(11)) = VBA.vbNullString' in generator
+assert 'VBA.CStr(root("PlannedReturnDate"))' in generator
+assert 'If dateValue = 0 Then' in generator
 assert 'm_wordValues("WeaponLine") = m_form("WeaponLine")' in generator
 assert 'm_wordTables.Exists(m_documentId)' in generator
 assert 'Set m_wordAnchors = Nothing' in generator

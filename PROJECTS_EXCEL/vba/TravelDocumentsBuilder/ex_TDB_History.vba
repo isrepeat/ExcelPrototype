@@ -447,6 +447,7 @@ Public Function fn_Load( _
     Dim found As Boolean
     Dim places As Collection
     Dim placeField As Variant
+    Dim basisChain As Collection
 
     fn_Open tickets, revisions
     Set rows = fn_Read(tickets)
@@ -463,6 +464,10 @@ Public Function fn_Load( _
         updates.Add "Form." & pair(0), root(pair(1))
     Next mapping
     updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(root)
+    Set basisChain = ex_TDB_BasisChain.fn_FromGroup(group)
+    If ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) = "BusinessTripCertificate" Then
+        updates("Form.Purpose") = VBA.vbNullString
+    End If
     For Each mapping In VBA.Split(fn_Config("dateFormFields"), "|")
         pair = VBA.Split(mapping, "=")
         If VBA.Len(private_Text(root(pair(1)))) > 0 Then
@@ -507,6 +512,13 @@ Public Function fn_Load( _
     If Not bindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
     If Not bindingContext.SetObject("Data", "TvoChain", chain) Then fn_Fail "InvalidRows"
     If Not bindingContext.SetObject("Data", "PlaceChain", places) Then fn_Fail "InvalidRows"
+    If Not bindingContext.SetObject("Data", "BasisChain", basisChain) Then
+        fn_Fail "InvalidRows"
+    End If
+    ex_TDB_BasisChain.fn_ClearDraft bindingContext
+    If Not ex_TDB_BasisChain.fn_Publish(bindingContext) Then
+        fn_Fail "InvalidRows"
+    End If
     If places.Count > 0 Then ex_TDB_PlaceChain.fn_ClearDraft bindingContext
     Set fn_Load = chain
 End Function
@@ -655,7 +667,9 @@ Private Sub private_ValidateGraph(ByVal rows As Object)
     Set links = VBA.CreateObject("Scripting.Dictionary")
     For Each key In rows.Keys
         Set row = rows(key)
-        If row("RowType") <> "Event" And row("RowType") <> "Donation" And row("RowType") <> "TVO" And row("RowType") <> "Place" Then fn_Fail "InvalidRows"
+        If row("RowType") <> "Event" And row("RowType") <> "Donation" And row("RowType") <> "TVO" And row("RowType") <> "Place" And row("RowType") <> "Basis" Then
+            fn_Fail "InvalidRows"
+        End If
         If row("Status") <> "Active" And row("Status") <> "Cancelled" Then fn_Fail "InvalidRows"
         If Not VBA.IsNumeric(row("Revision")) Then fn_Fail "InvalidRevision"
         If VBA.CDbl(row("Revision")) < 1 Or VBA.CDbl(row("Revision")) >= 2147483647# Or _
@@ -669,6 +683,12 @@ Private Sub private_ValidateGraph(ByVal rows As Object)
             If row("RowType") = "Place" Then
                 If parent("RowType") <> "Event" And parent("RowType") <> "Place" Then fn_Fail "InvalidRows"
                 If VBA.Len(private_Text(row("Destination"))) = 0 Then fn_Fail "InvalidChain"
+            End If
+            If row("RowType") = "Basis" Then
+                If parent("RowType") <> "Event" And parent("RowType") <> "Basis" Then
+                    fn_Fail "InvalidRows"
+                End If
+                ex_TDB_BasisChain.fn_Validate row
             End If
             If row("RowType") = "TVO" Then
                 If parent("RowType") <> "Event" And parent("RowType") <> "TVO" Then fn_Fail "InvalidRows"
@@ -690,6 +710,11 @@ Private Sub private_ValidateGraph(ByVal rows As Object)
                 End If
             Loop
             If row("Status") <> parent("Status") Then fn_Fail "InvalidRevision"
+            If row("RowType") = "Basis" Then
+                If ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(parent("VacationKind"))) <> "BusinessTripCertificate" Then
+                    fn_Fail "InvalidChain"
+                End If
+            End If
         End If
     Next key
 End Sub

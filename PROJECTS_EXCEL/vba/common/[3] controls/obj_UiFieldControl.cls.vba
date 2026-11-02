@@ -143,8 +143,12 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
         context.Styles.ApplyControlStyle Nothing, m_selectHeaderShape, _
             m_uiControlBase.ControlNode, context.BindingContext
         If m_editable Then
+            m_selectHeaderShape.TextFrame2.AutoSize = msoAutoSizeNone
             m_selectHeaderShape.TextFrame2.MarginLeft = 0
             m_selectHeaderShape.TextFrame2.MarginRight = 0
+            m_selectHeaderShape.TextFrame2.MarginTop = 0
+            m_selectHeaderShape.TextFrame2.MarginBottom = 0
+            m_selectHeaderShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
             m_selectHeaderShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
         End If
     End If
@@ -832,8 +836,12 @@ Private Function private_RenderSelectShapes( _
         m_uiControlBase.ControlNode, uiRenderContext.BindingContext
     If m_editable Then
         headerShape.TextFrame2.TextRange.Text = arrowText
+        headerShape.TextFrame2.AutoSize = msoAutoSizeNone
         headerShape.TextFrame2.MarginLeft = 0
         headerShape.TextFrame2.MarginRight = 0
+        headerShape.TextFrame2.MarginTop = 0
+        headerShape.TextFrame2.MarginBottom = 0
+        headerShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
         headerShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
     End If
     headerShape.OnAction = "ex_UiBridge.fn_OnShapeClick"

@@ -92,11 +92,18 @@ Private Function private_Lookup( _
     tableQuery.AddCondition keyHeader, QueryEquals, lookupInput, QueryText, True
     tableQuery.Limit = 2
     If Not snapshot.TryQuery(tableSource, tableQuery, dataTable, diagnostic) Then VBA.Err.Raise 5, , diagnostic
-    If dataTable.RowCount <> 1 Then VBA.Err.Raise 5, , tableSource.SheetName & ": " & keyHeader & "=" & lookupInput
+    If dataTable.RowCount = 0 Then
+        GoTo Cleanup
+    End If
+    If dataTable.RowCount > 1 Then
+        VBA.Err.Raise 5, , tableSource.SheetName & ": " & keyHeader & "=" & lookupInput
+    End If
     value = dataTable.ValueAt(1, ex_TableQuery.fn_HeaderIndex(dataTable.Headers, valueHeader))
-    If VBA.IsError(value) Or VBA.IsNull(value) Then VBA.Err.Raise 5, , valueHeader
+    If VBA.IsError(value) Or VBA.IsNull(value) Or VBA.IsEmpty(value) Then
+        GoTo Cleanup
+    End If
     private_Lookup = ex_TableQuery.fn_NormalizeText(VBA.CStr(value))
-    If VBA.Len(private_Lookup) = 0 Then VBA.Err.Raise 5, , valueHeader & ": " & lookupInput
+Cleanup:
     dataTable.Dispose
     tableQuery.Dispose
     tableSource.Dispose

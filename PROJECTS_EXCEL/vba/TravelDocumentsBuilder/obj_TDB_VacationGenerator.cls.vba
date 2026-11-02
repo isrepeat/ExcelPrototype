@@ -17,6 +17,7 @@ Private m_operationId As String
 Private m_stage As String
 Private m_chain As Collection
 Private m_places As Collection
+Private m_basis As Collection
 Private m_wordSession As Object
 Private m_wordAnchors As Object
 Private m_wordTemplatePath As String
@@ -24,6 +25,7 @@ Private m_wordSourcePath As String
 Private m_wordMode As String
 Private m_wordTableTemplate As obj_WordTableTemplate
 Private m_wordTables As Object
+Private m_wordTemplates As Object
 Private m_wordValues As Object
 Private m_documentId As String
 Private m_wordCatalogId As String
@@ -66,6 +68,7 @@ Public Function Initialize( _
     End If
     Set m_config = VBA.CreateObject("Scripting.Dictionary")
     Set m_wordTables = VBA.CreateObject("Scripting.Dictionary")
+    Set m_wordTemplates = VBA.CreateObject("Scripting.Dictionary")
     keys = "registry.fieldOrder," & _
         "kind.ids,abroad.yes,abroad.no,abroad.word,status.active,status.cancelled," & _
         "donation.event,donation.orderMissing,donation.orderPrefix,months,datePattern," & _
@@ -116,6 +119,7 @@ Public Sub Dispose()
         Next key
     End If
     Set m_wordTables = Nothing
+    Set m_wordTemplates = Nothing
     Set m_wordTableTemplate = Nothing
     m_wordCatalogId = VBA.vbNullString
     m_documentId = VBA.vbNullString
@@ -134,6 +138,7 @@ Public Sub Dispose()
     Set m_form = Nothing
     Set m_chain = Nothing
     Set m_places = Nothing
+    Set m_basis = Nothing
     On Error GoTo 0
 End Sub
 
@@ -218,10 +223,8 @@ Public Function TrySave( _
     vacationDays = private_Days("VacationDays", False)
     roadDays = private_Days("RoadDays", True)
     donationDays = private_Days("DonationDays", True)
+    private_ValidateDuration vacationDays
     If m_documentId = "BusinessTripCertificate" Then
-        If vacationDays = 0 Then
-            private_Fail "Invalid", private_FieldCaption("VacationDays")
-        End If
         If donationDays <> 0 Then
             private_Fail "Invalid", private_FieldCaption("DonationDays")
         End If
@@ -236,8 +239,15 @@ Public Function TrySave( _
     private_LogStage "ResolveTvoAndOrder"
     private_ReadChain
     private_ResolveOrder m_form("OrderReference"), orderNo, orderDate, False
-    mainReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays)
-    finalReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays, donationDays)
+    Set m_basis = New Collection
+    If m_documentId = "BusinessTripCertificate" Then
+        Set m_basis = ex_TDB_BasisChain.fn_Build(m_bindingContext)
+        m_form("Purpose") = ex_TDB_BasisChain.fn_Join(m_basis, orderNo, orderDate)
+    End If
+    If Not private_IsIndefinite(vacationDays) Then
+        mainReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays)
+        finalReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays, donationDays)
+    End If
     If donationDays > 0 Then
         private_ResolveOrder VBA.Format$(mainReturn, "dd.mm.yyyy"), donationOrder, orderDate, True
         If VBA.Len(donationOrder) = 0 Then donationOrder = m_config("donation.orderMissing")
@@ -352,7 +362,7 @@ Public Function TrySave( _
         key = VBA.CStr(row.Range.Cells(1, ticketsTable.ListColumns("RowId").Index).Value2)
         If historyRows.Exists(key) Then
             Set historyRow = historyRows(key)
-            If historyRow("RowType") = "TVO" Or historyRow("RowType") = "Place" Then
+            If historyRow("RowType") = "TVO" Or historyRow("RowType") = "Place" Or historyRow("RowType") = "Basis" Then
                 Set metadata = historyRow
                 Do While metadata("RowType") <> "Event"
                     Set metadata = historyRows(metadata("ParentRowId"))
@@ -392,6 +402,22 @@ Public Function TrySave( _
         Next metadata
     End If
     private_LogStage "CommitHistoryRevision"
+    parentId = identifier
+    For Each metadata In m_basis
+        If VBA.Len(metadata("RowId")) = 0 Then
+            metadata("RowId") = ex_TDB_History.fn_NewId()
+        End If
+        metadata("ParentRowId") = parentId
+        metadata("RowType") = "Basis"
+        metadata("Revision") = revision
+        metadata("Status") = "Active"
+        If m_form("VacationStatus") = m_config("status.cancelled") Then
+            metadata("Status") = "Cancelled"
+        End If
+        Set row = ticketsTable.ListRows.Add
+        ex_TDB_History.fn_Write ticketsTable, row, metadata
+        parentId = metadata("RowId")
+    Next metadata
     ex_TDB_History.fn_Commit ticketsTable, revisions, identifier, transaction, m_form("ChangeReason")
     If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
         private_LogStage "WriteHistoryRecovery"
@@ -407,8 +433,23 @@ Public Function TrySave( _
     Application.ScreenUpdating = updatingBefore
     guarded = False
     m_bindingContext.SetValue "Form", "HistoryRowId", identifier
-    m_bindingContext.SetValue "Form", "ReturnDate", VBA.Format$(finalReturn, "dd.mm.yyyy")
+    If finalReturn = 0 Then
+        m_bindingContext.SetValue "Form", "ReturnDate", VBA.vbNullString
+    Else
+        m_bindingContext.SetValue "Form", "ReturnDate", VBA.Format$(finalReturn, "dd.mm.yyyy")
+    End If
     m_bindingContext.SetValue "Form", "TicketNo", ticketNo
+    If m_documentId = "BusinessTripCertificate" Then
+        m_bindingContext.SetObject "Data", "BasisChain", m_basis
+        ex_TDB_BasisChain.fn_ClearDraft m_bindingContext
+        m_bindingContext.SetValue "Form", "Purpose", VBA.vbNullString
+        m_bindingContext.SetValue "Form", "BasisTextVisibility", "Collapsed"
+        ex_TDB_BasisChain.fn_Publish m_bindingContext
+    Else
+        m_bindingContext.SetObject "Data", "BasisChain", m_basis
+        ex_TDB_BasisChain.fn_ClearDraft m_bindingContext
+        ex_TDB_BasisChain.fn_Publish m_bindingContext
+    End If
     m_bindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
     m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", ticketNo)
     If Len(filterError) > 0 Then
@@ -495,6 +536,13 @@ Public Function TryRender( _
     m_wordValues.Add "TvoChain", tvoChain
     Set placeChain = ex_TDB_PlaceChain.fn_FromGroup(group)
     m_wordValues.Add "PlaceChain", placeChain
+    Set m_basis = ex_TDB_BasisChain.fn_FromGroup(group)
+    m_wordValues.Add "BasisDocuments", m_basis
+    If m_documentId = "BusinessTripCertificate" Then
+        If VBA.CStr(root("Basis")) <> ex_TDB_BasisChain.fn_Join(m_basis, VBA.CStr(root("OrderNumber")), ex_TDB_History.fn_Date(root("OrderDate"))) Then
+            ex_TDB_History.fn_Fail "InvalidChain"
+        End If
+    End If
     If placeChain.Count > 0 Then
         If VBA.CStr(root("Destination")) <> ex_TDB_PlaceChain.fn_Join(placeChain) Then ex_TDB_History.fn_Fail "InvalidChain"
     End If
@@ -506,10 +554,6 @@ Public Function TryRender( _
     For Each key In VBA.Array("RankGenitive", "RankDative", "FIOAccusative", "FIODative", _
             "FIOInitialsGenitive", "PositionGenitive")
         m_form(key) = VBA.CStr(root(key))
-        If VBA.Len(m_form(key)) = 0 Then
-            VBA.Err.Raise 5, , VBA.Replace$(VBA.Replace$( _
-                ex_TravelDocumentsBuilder.fn_Config("declensions.error"), "{field}", VBA.CStr(key)), "{detail}", VBA.CStr(key))
-        End If
     Next key
     private_ValidateTreatment
     m_form("DonationDays") = "0"
@@ -522,9 +566,16 @@ Public Function TryRender( _
     roadDays = private_Days("RoadDays", True)
     donationDays = private_Days("DonationDays", True)
     departure = ex_TDB_History.fn_Date(root(ex_TDB_History.fn_Config("departureField")))
-    finalReturn = ex_TDB_History.fn_Date(root("PlannedReturnDate"))
-    If finalReturn <> ex_TDB_History.fn_ReturnDate(departure, vacationDays, roadDays, donationDays) Then
-        ex_TDB_History.fn_Fail "InvalidRows"
+    private_ValidateDuration vacationDays
+    If private_IsIndefinite(vacationDays) Then
+        If VBA.Len(VBA.Trim$(VBA.CStr(root("PlannedReturnDate")))) > 0 Then
+            ex_TDB_History.fn_Fail "InvalidRows"
+        End If
+    Else
+        finalReturn = ex_TDB_History.fn_Date(root("PlannedReturnDate"))
+        If finalReturn <> ex_TDB_History.fn_ReturnDate(departure, vacationDays, roadDays, donationDays) Then
+            ex_TDB_History.fn_Fail "InvalidRows"
+        End If
     End If
     private_MapKind kindWord, kindEvent
     If m_form("VacationAbroad") <> m_config("abroad.yes") And m_form("VacationAbroad") <> m_config("abroad.no") Then
@@ -694,12 +745,30 @@ Private Function private_Days( _
     Dim text As String
 
     text = m_form(field)
+    If field = "VacationDays" Then
+        private_Days = ex_TravelDocumentsBuilder.fn_ParseDuration(m_documentId, text)
+        If private_Days = 0 Then
+            m_form(field) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")
+        End If
+        Exit Function
+    End If
     If VBA.Len(text) = 0 And optionalValue Then Exit Function
     If VBA.Len(text) = 0 Then private_Fail "Required", private_FieldCaption(field)
     If text Like "*[!0-9]*" Then private_Fail "Invalid", private_FieldCaption(field)
     If VBA.CDbl(text) > VBA.CDbl(m_config("limits.maxDays")) Then private_Fail "Invalid", private_FieldCaption(field)
     private_Days = VBA.CLng(text)
 End Function
+
+Private Function private_IsIndefinite(ByVal days As Long) As Boolean
+    private_IsIndefinite = m_documentId = "BusinessTripCertificate" And days = 0 And _
+        m_form("VacationDays") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")
+End Function
+
+Private Sub private_ValidateDuration(ByVal days As Long)
+    If m_documentId = "VacationTicket" And days = 0 Then
+        private_Fail "Invalid", private_FieldCaption("VacationDays")
+    End If
+End Sub
 
 Private Sub private_MapKind( _
     ByRef word As String, _
@@ -911,6 +980,12 @@ Private Sub private_WriteRow( _
             " | Column=" & ex_TravelDocumentsBuilder.fn_LogValue(private_Header(VBA.CLng(indexes(index)))) & _
             " | IntendedValue=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
     Next index
+    If plannedReturn = 0 Then
+        fields(private_Header(11)) = VBA.vbNullString
+    End If
+    If private_IsIndefinite(duration) Then
+        fields(private_Header(9)) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")
+    End If
     ex_TDB_History.fn_Write table, row, fields
     row.Range.Cells(1, private_Column(table, private_Header(17))).WrapText = True
 End Sub
@@ -919,6 +994,9 @@ Private Function private_WordDate(ByVal dateValue As Date) As String
     Dim months As Variant
     Dim result As String
 
+    If dateValue = 0 Then
+        Exit Function
+    End If
     months = VBA.Split(m_config("months"), "|")
     If UBound(months) <> 11 Then private_Fail "Invalid", "generation.months"
     result = VBA.Replace$(m_config("datePattern"), "{dd}", VBA.Format$(dateValue, "dd"))
@@ -1045,16 +1123,17 @@ Private Sub private_GenerateWord( _
         "SignatoryPosition", "SignatoryRank", "SignatoryName")
     values = VBA.Array(private_WordDate(orderDate), ticketNo, m_form("RankDative") & " " & m_form("FIODative"), _
         kindWord, m_form("DocumentTarget"), duration, private_WordDate(departure), private_WordDate(finalReturn), _
-        initials, private_WordDate(VBA.DateAdd("d", 1, finalReturn)), abroad, VBA.vbNullString, _
+        initials, VBA.vbNullString, abroad, VBA.vbNullString, _
         signatory("SignatoryPosition"), signatory("SignatoryRank"), signatory("SignatoryName"))
     For index = 0 To UBound(names)
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
         m_wordValues(VBA.CStr(names(index))) = values(index)
     Next index
+    If finalReturn <> 0 Then
+        values(9) = private_WordDate(VBA.DateAdd("d", 1, finalReturn))
+        m_wordValues("DateArrival") = values(9)
+    End If
     If m_documentId = "BusinessTripCertificate" Then
-        If vacationDays = 0 Then
-            private_Fail "Invalid", private_FieldCaption("VacationDays")
-        End If
         If m_wordMode <> "table" Then
             private_Fail "Unsupported", m_form("VacationKind")
         End If
@@ -1063,10 +1142,16 @@ Private Sub private_GenerateWord( _
         End If
         m_wordValues("Position") = m_form("PersonPosition")
         m_wordValues("TravelPlace") = m_form("DocumentTarget")
-        m_wordValues("Duration") = VBA.Replace$(VBA.Replace$(VBA.Replace$( _
+        If private_IsIndefinite(vacationDays) Then
+            m_wordValues("Duration") = VBA.Replace$( _
+                ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefinite"), _
+                "{from}", VBA.Format$(departure, "dd.mm.yyyy"))
+        Else
+            m_wordValues("Duration") = VBA.Replace$(VBA.Replace$(VBA.Replace$( _
             ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.durationPattern"), _
             "{duration}", private_CountForm(vacationDays + roadDays, "trip")), "{from}", private_WordDate(departure)), _
             "{to}", private_WordDate(VBA.DateAdd("d", -1, finalReturn)))
+        End If
         m_wordValues("Basis") = m_form("Purpose")
         m_wordValues("WeaponLine") = m_form("WeaponLine")
     End If
@@ -1092,6 +1177,12 @@ Private Sub private_GenerateWord( _
         Set m_wordAnchors = Nothing
         m_wordTemplatePath = VBA.vbNullString
         m_wordSourcePath = VBA.vbNullString
+        If m_wordTemplates.Exists(templatePath) Then
+            Set m_wordAnchors = m_wordTemplates(templatePath)
+            m_wordTemplatePath = VBA.Left$(templatePath, VBA.InStrRev(templatePath, "\")) & _
+                "a_" & m_documentId & ".docx"
+            m_wordSourcePath = templatePath
+        End If
     End If
     private_WordPerf stage, stageStartedAt
     stage = "Document.Create"
@@ -1105,9 +1196,11 @@ Private Sub private_GenerateWord( _
         private_WordPerf stage, stageStartedAt
         stage = "Template.SaveAnchors"
         stageStartedAt = VBA.Timer
-        m_wordTemplatePath = VBA.Left$(templatePath, VBA.InStrRev(templatePath, "\")) & "a.docx"
+        m_wordTemplatePath = VBA.Left$(templatePath, VBA.InStrRev(templatePath, "\")) & _
+            "a_" & m_documentId & ".docx"
         document.SaveAs2 m_wordTemplatePath, 12
         m_wordSourcePath = templatePath
+        m_wordTemplates.Add templatePath, m_wordAnchors
         private_WordPerf stage, stageStartedAt
     Else
         If VBA.StrComp(templatePath, m_wordSourcePath, VBA.vbTextCompare) <> 0 Then
@@ -1204,6 +1297,8 @@ Private Sub private_IndexWordMarkers( _
     Dim storyEnd As Long
     Dim matchStart As Long
     Dim matchEnd As Long
+    Dim storyText As String
+    Dim textPosition As Long
 
     Set m_wordAnchors = VBA.CreateObject("Scripting.Dictionary")
     prefix = "TDB_" & VBA.Left$(ex_TDB_History.fn_NewId(), 8) & "_"
@@ -1215,12 +1310,15 @@ Private Sub private_IndexWordMarkers( _
     For Each story In document.StoryRanges
         Set storyRange = story
         Do
+            ' Read each story once; absent markers must not issue expensive COM Find calls.
+            storyText = storyRange.Text
             For index = 0 To UBound(names)
                 marker = "{" & names(index) & "}"
+                textPosition = VBA.InStr(1, storyText, marker, VBA.vbBinaryCompare)
                 Set occurrences = m_wordAnchors(VBA.CStr(names(index)))
                 searchStart = storyRange.Start
                 storyEnd = storyRange.End
-                Do While searchStart < storyEnd
+                Do While textPosition > 0 And searchStart < storyEnd
                     Set searchRange = storyRange.Duplicate
                     searchRange.SetRange searchStart, storyEnd
                     searchRange.Find.ClearFormatting
@@ -1250,6 +1348,7 @@ Private Sub private_IndexWordMarkers( _
                         occurrences.Add bookmarkName
                     End If
                     searchStart = matchEnd
+                    textPosition = VBA.InStr(textPosition + VBA.Len(marker), storyText, marker, VBA.vbBinaryCompare)
                 Loop
             Next index
             Set storyRange = storyRange.NextStoryRange

@@ -105,7 +105,7 @@ def trip_template():
     optional = element(table, 'if', test='[WeaponLine]')
     row = element(optional, 'row', allowBreakAcrossPages='false')
     cell = element(row, 'cell', columnSpan='6', style='Body')
-    element(cell, 'text').text = '{[WeaponLine]}'
+    element(cell, 'text').text = 'Слідує зі зброєю: {[WeaponLine]}.'
     return template
 
 

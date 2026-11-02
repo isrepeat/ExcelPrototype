@@ -16,25 +16,32 @@ value	TravelDocumentsBuilder::text.AddTvo	+
 value	TravelDocumentsBuilder::text.TvoIpn	ТВО ІПН
 value	TravelDocumentsBuilder::text.TvoName	ТВО ПІБ
 value	TravelDocumentsBuilder::text.VlkDate	ВЛК дата
+value	TravelDocumentsBuilder::text.AddBasis	+
 value	TravelDocumentsBuilder::text.AddPlace	+
 value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
+value	TravelDocumentsBuilder::text.BasisDate	Дата документа
+value	TravelDocumentsBuilder::text.BasisType	Тип документа
 value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
 value	TravelDocumentsBuilder::text.PlaceKind	Тип місця
 value	TravelDocumentsBuilder::text.PlaceName	Місто / селище
 value	TravelDocumentsBuilder::text.PlaceType	Тип населеного пункту
 value	TravelDocumentsBuilder::text.RemoveTvo	−
 value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
+value	TravelDocumentsBuilder::text.BasisTitle	Документи-підстави
 value	TravelDocumentsBuilder::text.ExportWord	Експорт WORD — весь наказ
 value	TravelDocumentsBuilder::text.LastStatus	Статус останньої дії
 value	TravelDocumentsBuilder::text.RankHeader	Звання
 value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
 value	TravelDocumentsBuilder::text.WeaponLine	Рядок про зброю (необов’язково)
+value	TravelDocumentsBuilder::text.BasisIssuer	Посадова особа
+value	TravelDocumentsBuilder::text.BasisNumber	Номер документа
 value	TravelDocumentsBuilder::text.LoadHistory	Редагувати історію
 value	TravelDocumentsBuilder::text.PlaceNameEn	Місце (EN)
 value	TravelDocumentsBuilder::text.PlaceRegion	Область
+value	TravelDocumentsBuilder::text.RemoveBasis	−
 value	TravelDocumentsBuilder::text.RemovePlace	−
 value	TravelDocumentsBuilder::text.SaveHistory	Зберегти подію
 value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
@@ -90,6 +97,7 @@ value	TravelDocumentsBuilder::text.PersonnelPrompt	Натисніть «Зава
 value	TravelDocumentsBuilder::text.PlaceChainTitle	Ланцюг місць
 value	TravelDocumentsBuilder::text.StyleInitialize	Не вдалося ініціалізувати stylePipeline.
 value	TravelDocumentsBuilder::text.StyleSpanBounds	Інтервал стилів виходить за межі аркуша: {value}
+value	TravelDocumentsBuilder::text.BasisInstitution	Установа
 value	TravelDocumentsBuilder::text.CloseFlushFailed	Не вдалося зберегти журнал діагностики. Книгу залишено відкритою.
 value	TravelDocumentsBuilder::text.InvalidDateRange	Параметри dates.daysAhead і dates.daysBefore мають бути цілими числами від 0 до 31.
 value	TravelDocumentsBuilder::text.OrderDataInvalid	Некоректна дата або номер у рядку джерела наказів: {row}.
@@ -354,12 +362,12 @@ value	TravelDocumentsBuilder::history.text.ProtectionNotApplied	Excel не за�
 value	TravelDocumentsBuilder::history.text.ProtectionUnavailable	Механізм захисту TicketsHistory не ініціалізовано.
 value	TravelDocumentsBuilder::history.sheet	Tickets
 value	TravelDocumentsBuilder::history.table	tbTickets
-value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine
+value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisIssuer|BasisNumber|BasisDate
 value	TravelDocumentsBuilder::history.recovery.suffix	.recovery.xml.log
 value	TravelDocumentsBuilder::history.versions.sheet	TicketRevisions
 value	TravelDocumentsBuilder::history.versions.table	tbTicketRevisions
-value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays|Snapshot.RankGenitive|Snapshot.RankDative|Snapshot.FIOAccusative|Snapshot.FIODative|Snapshot.FIOInitialsGenitive|Snapshot.PositionGenitive|Snapshot.PlaceRegion|Snapshot.PlaceType|Snapshot.PlaceName|Snapshot.PlaceDistrict|Snapshot.PlaceAbroad|Snapshot.PlaceCountry|Snapshot.PlaceCountryEn|Snapshot.PlaceRegionEn|Snapshot.PlaceNameEn|Snapshot.WeaponLine
-value	TravelDocumentsBuilder::history.dateFields	FoodDepartureDate|DepartureDate|PlannedReturnDate|OrderDate
+value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays|Snapshot.RankGenitive|Snapshot.RankDative|Snapshot.FIOAccusative|Snapshot.FIODative|Snapshot.FIOInitialsGenitive|Snapshot.PositionGenitive|Snapshot.PlaceRegion|Snapshot.PlaceType|Snapshot.PlaceName|Snapshot.PlaceDistrict|Snapshot.PlaceAbroad|Snapshot.PlaceCountry|Snapshot.PlaceCountryEn|Snapshot.PlaceRegionEn|Snapshot.PlaceNameEn|Snapshot.WeaponLine|Snapshot.BasisType|Snapshot.BasisInstitution|Snapshot.BasisIssuer|Snapshot.BasisNumber|Snapshot.BasisDate
+value	TravelDocumentsBuilder::history.dateFields	FoodDepartureDate|DepartureDate|PlannedReturnDate|OrderDate|BasisDate
 value	TravelDocumentsBuilder::history.formFields	PersonName=FullName|PersonRank=Rank|PersonId=TaxId|PersonPosition=PositionName|PersonPositionCode=PositionCode|PersonUnit=UnitName|DocumentTarget=Destination|VacationDays=VacationDays|RoadDays=RoadDays|VacationKind=VacationKind|VacationAbroad=VacationAbroad|ReportNo=ReportNumber|Purpose=Basis|TicketNo=TicketNumber|DocumentPath=DocumentPath|VlkNo=VlkNo|VlkDate=VlkDate|LongTreatmentDays=LongTreatmentDays|TreatmentLeaveDays=TreatmentLeaveDays|PlaceRegion=PlaceRegion|PlaceType=PlaceType|PlaceName=PlaceName|PlaceDistrict=PlaceDistrict|PlaceAbroad=PlaceAbroad|PlaceCountry=PlaceCountry|PlaceCountryEn=PlaceCountryEn|PlaceRegionEn=PlaceRegionEn|PlaceNameEn=PlaceNameEn|WeaponLine=WeaponLine
 value	TravelDocumentsBuilder::history.listFields	FullName=Name|TicketNumber=Ticket|DepartureDate=Departure|Revision=Revision|RowId=RowId
 value	TravelDocumentsBuilder::history.actorFields	Personnel.FullName=FullName|Personnel.TaxId=TaxId|Personnel.Rank=Rank|Personnel.Position=PositionName|Personnel.PositionCode=PositionCode|Personnel.Unit=UnitName
@@ -368,7 +376,7 @@ value	TravelDocumentsBuilder::history.durationField	VacationDays
 value	TravelDocumentsBuilder::history.personIdField	TaxId
 value	TravelDocumentsBuilder::history.dateFormFields	DepartureDate=DepartureDate|ReturnDate=PlannedReturnDate
 value	TravelDocumentsBuilder::history.departureField	DepartureDate
-value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine
+value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisIssuer|BasisNumber|BasisDate
 value	TravelDocumentsBuilder::history.personNameField	FullName
 value	TravelDocumentsBuilder::history.orderNumberField	OrderNumber
 value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source|declensions.sources.Alf|declensions.sources.Ranks|declensions.sources.Positions
@@ -376,6 +384,22 @@ value	TravelDocumentsBuilder::snapshots.progress.Table	Читання табли
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
 value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
 value	TravelDocumentsBuilder::snapshots.progress.Profile	Підготовка пошуку: {source}
+value	TravelDocumentsBuilder::basisChain.text.Limit	У переліку може бути не більше 20 додаткових документів.
+value	TravelDocumentsBuilder::basisChain.text.Pending	Спочатку додайте або очистіть поточний документ-підставу.
+value	TravelDocumentsBuilder::basisChain.text.ChooseOrder	Оберіть наказ — його реквізити буде додано до підстави автоматично.
+value	TravelDocumentsBuilder::basisChain.text.InvalidDate	Вкажіть коректну дату документа у форматі дд.мм.рррр.
+value	TravelDocumentsBuilder::basisChain.text.InvalidIssuer	Оберіть посадову особу зі списку, допустимого для цієї установи.
+value	TravelDocumentsBuilder::basisChain.items.Types	повідомлення,розпорядження,наказ,рапорт
+value	TravelDocumentsBuilder::basisChain.roles.TCC	начальника,заступника начальника
+value	TravelDocumentsBuilder::basisChain.roles.Unit	командира,заступника командира,начальника штабу
+value	TravelDocumentsBuilder::basisChain.roles.Hospital	начальника,заступника начальника
+value	TravelDocumentsBuilder::basisChain.fields	BasisType|BasisInstitution|BasisIssuer|BasisNumber|BasisDate
+value	TravelDocumentsBuilder::basisChain.maxItems	20
+value	TravelDocumentsBuilder::basisChain.separator	;
+value	TravelDocumentsBuilder::basisChain.terminator	.
+value	TravelDocumentsBuilder::basisChain.institutions	Unit~військової частини А7383|Unit~військової частини А7017|TCC~районного ТЦК та СП|Hospital~військового госпіталю
+value	TravelDocumentsBuilder::basisChain.orderTemplate	наказ командира військової частини А7383 (по стройовій частині) від {date} № {number}
+value	TravelDocumentsBuilder::basisChain.documentTemplate	{BasisType} {BasisIssuer} {BasisInstitution} № {BasisNumber} від {BasisDate}
 value	TravelDocumentsBuilder::candidates.layout.columns	8
 value	TravelDocumentsBuilder::candidates.layout.overflowMessage	Таблиця кандидатів не вміщується в робочу область: ширина {columns} колонок, відступ зліва {offset}, доступно {available}. Перевірте налаштування розташування та ширини колонок.
 value	TravelDocumentsBuilder::candidates.personnel.columnSpans	1|2|1|1|2|1
@@ -462,7 +486,10 @@ value	TravelDocumentsBuilder::generation.tablePaths.VacationTicket	VacationTicke
 value	TravelDocumentsBuilder::generation.tablePaths.BusinessTripCertificate	BusinessTripTable.xml
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
 value	TravelDocumentsBuilder::generation.businessTrip.kind	Відрядження
+value	TravelDocumentsBuilder::generation.businessTrip.indefinite	з {from} до окремого розпорядження.
+value	TravelDocumentsBuilder::generation.businessTrip.durationError	Вкажіть ціле число днів більше 0 (не більше {max}) або фразу «{phrase}».
 value	TravelDocumentsBuilder::generation.businessTrip.durationPattern	{duration}, з {from} по {to}
+value	TravelDocumentsBuilder::generation.businessTrip.indefiniteInput	до о/р
 value	TravelDocumentsBuilder::generation.medicalCompany.destination	Медична рота А7383
 value	TravelDocumentsBuilder::placeChain.text.Fixed	Для медичної роти використовується фіксоване місце; ланцюг місць недоступний.
 value	TravelDocumentsBuilder::placeChain.text.Limit	У ланцюгу може бути не більше 10 місць.

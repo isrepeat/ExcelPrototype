@@ -123,6 +123,42 @@ Public Function fn_DocumentId(ByVal eventKind As String) As String
     VBA.Err.Raise 5, , VBA.Replace$(fn_Config("text.UnknownDocumentType"), "{value}", eventKind)
 End Function
 
+Public Function fn_ParseDuration( _
+    ByVal documentId As String, _
+    ByVal value As String _
+) As Long
+    Dim phrase As String
+    Dim maximum As String
+    Dim diagnostic As String
+
+    value = ex_TableQuery.fn_NormalizeText(value)
+    maximum = fn_Config("generation.limits.maxDays")
+    If documentId = "BusinessTripCertificate" Then
+        phrase = fn_Config("generation.businessTrip.indefiniteInput")
+        If VBA.Len(VBA.Trim$(phrase)) = 0 Then
+            VBA.Err.Raise 5, , "Empty configuration key: TravelDocumentsBuilder::generation.businessTrip.indefiniteInput"
+        End If
+        If VBA.StrComp(value, phrase, VBA.vbTextCompare) = 0 Then
+            Exit Function
+        End If
+        diagnostic = VBA.Replace$(VBA.Replace$(fn_Config("generation.businessTrip.durationError"), _
+            "{phrase}", phrase), "{max}", maximum)
+    Else
+        diagnostic = VBA.Replace$(fn_Config("generation.message.Invalid"), "{value}", _
+            fn_Config("text.VacationTicket.VacationDays"))
+    End If
+    If VBA.Len(value) = 0 Or value Like "*[!0-9]*" Then
+        VBA.Err.Raise 5, , diagnostic
+    End If
+    If VBA.Len(value) > 10 Then
+        VBA.Err.Raise 5, , diagnostic
+    End If
+    If VBA.CDbl(value) <= 0 Or VBA.CDbl(value) > VBA.CDbl(maximum) Then
+        VBA.Err.Raise 5, , diagnostic
+    End If
+    fn_ParseDuration = VBA.CLng(value)
+End Function
+
 Public Function fn_IsTreatment(ByVal vacationKind As String) As Boolean
     fn_IsTreatment = VBA.StrComp(vacationKind, fn_Config("generation.kind.treatment.input"), VBA.vbTextCompare) = 0 Or _
         VBA.StrComp(vacationKind, fn_Config("generation.kind.treatmentMedical.input"), VBA.vbTextCompare) = 0

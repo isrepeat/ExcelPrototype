@@ -334,7 +334,7 @@
         <row allowBreakAcrossPages="false">
           <cell columnSpan="6"
                 style="Body">
-            <text>{[WeaponLine]}</text>
+            <text>Слідує зі зброєю: {[WeaponLine]}.</text>
           </cell>
         </row>
       </if>

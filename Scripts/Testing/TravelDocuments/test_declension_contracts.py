@@ -51,4 +51,10 @@ export = generator[generator.index("    m_operationId = \"WORD/"):generator.inde
 assert "fn_Enrich" not in export, "Export must use the saved snapshot rather than current dictionaries"
 assert 'm_form("RankDative") & " " & m_form("FIODative")' in generator
 assert "root(key)" in export
+lookup = (ROOT / "vba/TravelDocumentsBuilder/ex_TDB_Declensions.vba").read_text(encoding="utf-8-sig")
+assert 'If dataTable.RowCount = 0 Then\n        GoTo Cleanup' in lookup
+assert 'If dataTable.RowCount > 1 Then' in lookup
+assert 'If VBA.IsError(value) Or VBA.IsNull(value) Or VBA.IsEmpty(value) Then' in lookup
+assert 'If VBA.Len(private_Lookup) = 0 Then VBA.Err.Raise' not in lookup
+assert 'If VBA.Len(m_form(key)) = 0 Then' not in export
 print("Declension configuration, snapshots and Word contracts: OK")
