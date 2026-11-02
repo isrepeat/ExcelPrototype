@@ -265,10 +265,24 @@ End Function
 Private Function private_SelectItem(ByVal itemIndex As Long) As Boolean
     Dim previousEnableEvents As Boolean
     Dim selectedValue As String
+    Dim currentIndex As Long
+    Dim isAllowed As Boolean
 
     If itemIndex <= 0 Or itemIndex > m_items.Count Then Exit Function
     If m_targetCell Is Nothing Or m_uiCellBinding Is Nothing Then Exit Function
     selectedValue = VBA.CStr(m_items(itemIndex))
+    ' Validate the clicked value against the latest source, not its former row index.
+    If Not Me.RefreshSelection() Then Exit Function
+    For currentIndex = 1 To m_items.Count
+        If VBA.StrComp(selectedValue, VBA.CStr(m_items(currentIndex)), VBA.vbBinaryCompare) = 0 Then
+            isAllowed = True
+            Exit For
+        End If
+    Next currentIndex
+    If Not isAllowed Then
+        private_SelectItem = True
+        Exit Function
+    End If
     m_selectedValue = selectedValue
     m_isExpanded = False
     m_placeholderDismissed = True

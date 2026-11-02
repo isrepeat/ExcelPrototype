@@ -23,6 +23,8 @@ def cfg(key):
 
 kinds = dict(entry.split("~") for entry in cfg("basisChain.institutions").split("|"))
 assert kinds == {"Unit": "Військова частина", "Hospital": "Госпіталь"}
+assert cfg("basisChain.items.Types.Hospital").split(",") == ["повідомлення", "лист"]
+assert "розпорядження" in cfg("basisChain.items.Types.Unit").split(",")
 assert cfg("basisChain.lookup.Unit.nameTemplate").replace("{Key}", "А2573") == "військова частина А2573"
 assert cfg("basisChain.lookup.Unit.genitiveTemplate").replace("{Key}", "А2573") == "військової частини А2573"
 assert "{key}" in cfg("basisChain.lookup.text.MissingGenitive")
@@ -36,6 +38,7 @@ assert 'source.RangeAddress = ex_TravelDocumentsBuilder.fn_Config(VBA.CStr(prefi
 for kind in kinds:
     assert cfg(f"basisChain.items.Types.{kind}").split(",")
     assert cfg(f"basisChain.roles.{kind}").split(",")
+    assert len(cfg(f"basisChain.roles.{kind}").split(",")) == len(cfg(f"basisChain.issuerForms.{kind}").split(","))
     prefix = f"basisChain.lookup.{kind}"
     assert prefix + ".source" in cfg("snapshots.sources").split("|")
     path = (ROOT / "workbook/TravelDocumentsBuilder" / cfg(prefix + ".source.path")).resolve()

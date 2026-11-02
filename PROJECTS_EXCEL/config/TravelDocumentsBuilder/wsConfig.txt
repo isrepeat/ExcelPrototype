@@ -35,7 +35,7 @@ value	TravelDocumentsBuilder::text.LastStatus	Статус останньої д
 value	TravelDocumentsBuilder::text.RankHeader	Звання
 value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
-value	TravelDocumentsBuilder::text.WeaponLine	Рядок про зброю (необов’язково)
+value	TravelDocumentsBuilder::text.WeaponLine	Зброя
 value	TravelDocumentsBuilder::text.BasisIssuer	Посадова особа
 value	TravelDocumentsBuilder::text.BasisNumber	Номер документа
 value	TravelDocumentsBuilder::text.LoadHistory	Редагувати історію
@@ -393,9 +393,9 @@ value	TravelDocumentsBuilder::basisChain.text.InvalidIssuer	Оберіть по�
 value	TravelDocumentsBuilder::basisChain.text.OrderDatePending	__.__.____
 value	TravelDocumentsBuilder::basisChain.text.OrderNumberPending	___
 value	TravelDocumentsBuilder::basisChain.items.Types.Unit	повідомлення,розпорядження,наказ,рапорт
-value	TravelDocumentsBuilder::basisChain.items.Types.Hospital	повідомлення,розпорядження,наказ,рапорт
-value	TravelDocumentsBuilder::basisChain.roles.Unit	командира,заступника командира,начальника штабу
-value	TravelDocumentsBuilder::basisChain.roles.Hospital	начальника,заступника начальника
+value	TravelDocumentsBuilder::basisChain.items.Types.Hospital	повідомлення,лист
+value	TravelDocumentsBuilder::basisChain.roles.Unit	командир,заступник командира,начальник штабу
+value	TravelDocumentsBuilder::basisChain.roles.Hospital	начальник,заступник начальника
 value	TravelDocumentsBuilder::basisChain.fields	BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.sheet	Військові частини
@@ -429,6 +429,8 @@ value	TravelDocumentsBuilder::basisChain.lookup.sourceFields	Key|Name|Genitive
 value	TravelDocumentsBuilder::basisChain.maxItems	20
 value	TravelDocumentsBuilder::basisChain.separator	;
 value	TravelDocumentsBuilder::basisChain.terminator	.
+value	TravelDocumentsBuilder::basisChain.issuerForms.Unit	командира,заступника командира,начальника штабу
+value	TravelDocumentsBuilder::basisChain.issuerForms.Hospital	начальника,заступника начальника
 value	TravelDocumentsBuilder::basisChain.institutions	Unit~Військова частина|Hospital~Госпіталь
 value	TravelDocumentsBuilder::basisChain.orderTemplate	наказ командира військової частини А7383 (по стройовій частині) від {date} № {number}
 value	TravelDocumentsBuilder::basisChain.documentTemplate	{BasisType} {BasisIssuer} {BasisInstitutionName} № {BasisNumber} від {BasisDate}

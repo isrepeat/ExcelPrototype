@@ -145,7 +145,7 @@ Public Function fn_Join( _
     For Each row In chain
         text = ex_TravelDocumentsBuilder.fn_Config("basisChain.documentTemplate")
         For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
-            text = VBA.Replace$(text, "{" & field & "}", VBA.CStr(row(field)))
+            text = VBA.Replace$(text, "{" & field & "}", private_DocumentField(row, VBA.CStr(field)))
         Next field
         text = VBA.Trim$(VBA.Replace$(text, "  ", " "))
         fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.separator") & VBA.Space$(1) & text
@@ -235,6 +235,12 @@ Public Function fn_RefreshInstitutions( _
             documentTypes = ex_TravelDocumentsBuilder.fn_Config("basisChain.items.Types." & parts(0))
         End If
     Next entry
+    If VBA.Len(fn_Value(bindingContext, "BasisType")) > 0 Then
+        If VBA.InStr(1, "," & documentTypes & ",", _
+                "," & fn_Value(bindingContext, "BasisType") & ",", VBA.vbTextCompare) = 0 Then
+            If Not bindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then Exit Function
+        End If
+    End If
     If Not bindingContext.SetValue("Data", "BasisTypes", documentTypes) Then Exit Function
     If Not bindingContext.SetValue("Form", "BasisInstitutionVisibility", _
             VBA.IIf(VBA.Len(institution) > 0, "Visible", "Collapsed")) Then Exit Function
@@ -410,7 +416,7 @@ Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Bool
             Set row = chain(index)
             text = ex_TravelDocumentsBuilder.fn_Config("basisChain.documentTemplate")
             For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
-                text = VBA.Replace$(text, "{" & field & "}", VBA.CStr(row(field)))
+                text = VBA.Replace$(text, "{" & field & "}", private_DocumentField(row, VBA.CStr(field)))
             Next field
             text = VBA.Trim$(VBA.Replace$(text, "  ", " "))
         End If
@@ -442,7 +448,32 @@ End Function
 ' } // namespace API
 ' --------------------------------------
 
-Private Function private_Roles(ByVal institution As String) As String
+Private Function private_DocumentField( _
+    ByVal row As Object, _
+    ByVal field As String _
+) As String
+    Dim roles As Variant
+    Dim forms As Variant
+    Dim index As Long
+
+    private_DocumentField = VBA.CStr(row(field))
+    If field <> "BasisIssuer" Or VBA.Len(private_DocumentField) = 0 Then Exit Function
+    roles = VBA.Split(private_Roles(VBA.CStr(row("BasisInstitution"))), ",")
+    forms = VBA.Split(private_Roles(VBA.CStr(row("BasisInstitution")), True), ",")
+    If UBound(roles) <> UBound(forms) Then ex_TDB_History.fn_Fail "InvalidChain"
+    For index = LBound(roles) To UBound(roles)
+        If VBA.StrComp(private_DocumentField, VBA.CStr(roles(index)), VBA.vbTextCompare) = 0 Then
+            private_DocumentField = VBA.CStr(forms(index))
+            Exit Function
+        End If
+    Next index
+    ex_TDB_History.fn_Fail "InvalidChain"
+End Function
+
+Private Function private_Roles( _
+    ByVal institution As String, _
+    Optional ByVal useDocumentForms As Boolean = False _
+) As String
     Dim entry As Variant
     Dim parts As Variant
 
@@ -452,7 +483,11 @@ Private Function private_Roles(ByVal institution As String) As String
             ex_TDB_History.fn_Fail "InvalidChain"
         End If
         If VBA.StrComp(institution, VBA.CStr(parts(1)), VBA.vbTextCompare) = 0 Then
-            private_Roles = ex_TravelDocumentsBuilder.fn_Config("basisChain.roles." & parts(0))
+            If useDocumentForms Then
+                private_Roles = ex_TravelDocumentsBuilder.fn_Config("basisChain.issuerForms." & parts(0))
+            Else
+                private_Roles = ex_TravelDocumentsBuilder.fn_Config("basisChain.roles." & parts(0))
+            End If
             Exit Function
         End If
     Next entry

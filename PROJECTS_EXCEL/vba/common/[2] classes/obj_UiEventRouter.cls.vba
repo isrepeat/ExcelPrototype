@@ -16,6 +16,7 @@ Private m_shapes As Object
 Private m_cells As Object
 Private m_seed As Long
 Private m_selections As Object
+Private m_activeShapeHandler As obj_IUiEventHandler
 
 ' //
 ' // Lifecycle
@@ -64,6 +65,12 @@ Public Function DispatchShape(ByVal name As String) As Boolean
 
     If Not m_shapes.Exists(name) Then Exit Function
     Set handler = m_shapes(name)
+    If Not m_activeShapeHandler Is Nothing Then
+        If Not m_activeShapeHandler Is handler Then
+            m_activeShapeHandler.HandleEvent "dismiss", VBA.vbNullString
+        End If
+    End If
+    Set m_activeShapeHandler = handler
     DispatchShape = handler.HandleEvent("click", name)
 End Function
 
@@ -166,6 +173,7 @@ Public Sub Dispose()
     End If
     m_isDisposed = True
     m_isInitialized = False
+    Set m_activeShapeHandler = Nothing
     Set m_shapes = Nothing
     Set m_cells = Nothing
     Set m_selections = Nothing
