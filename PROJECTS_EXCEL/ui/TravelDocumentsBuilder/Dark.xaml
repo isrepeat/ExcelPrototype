@@ -52,6 +52,18 @@
          value="#000000"/>
   <color name="TextPrimary"
          value="#FFFFFF"/>
+  <color name="TableStripeBackground"
+         value="#383838"/>
+  <color name="ThemeDarkText"
+         value="#C3C3C3"/>
+  <color name="ThemeLightText"
+         value="#858585"/>
+  <color name="ThemeToggleBackground"
+         value="#303030"/>
+  <color name="ThemeToggleBorder"
+         value="#1C1C1C"/>
+  <color name="ThemeToggleMuted"
+         value="#858585"/>
   <color name="TodayBackground"
          value="#375D7A"/>
 </palette>

@@ -984,7 +984,7 @@ Private Sub private_ArrangeShape(ByVal entry As Collection)
         Exit Sub
     End If
     margins = VBA.Array(0#, 0#, 0#, 0#)
-    If entry(9) Then margins = m_styles.GetShapeMargins(shape.Name)
+    margins = m_styles.GetShapeMargins(shape.Name)
     If entry(9) Then private_ApplyContainerInsets entry, margins
     availableWidth = area.Width - margins(0) - margins(2)
     availableHeight = area.Height - margins(1) - margins(3)

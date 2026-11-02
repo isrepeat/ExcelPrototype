@@ -286,7 +286,7 @@ Public Sub CompletePartialRender()
     For Each entry In m_inlineCaptions.Items
         Set shape = entry(0)
         If Not Application.Intersect(shape.TopLeftCell, m_partialScope) Is Nothing Then
-            ex_UiInlineText.fn_ApplyCaption shape, VBA.CStr(entry(1)), VBA.CLng(entry(2))
+            ex_UiInlineText.fn_ApplyCaption shape, private_ResolveCaptionColors(VBA.CStr(entry(1))), VBA.CLng(entry(2))
         End If
     Next entry
 End Sub
@@ -322,7 +322,7 @@ Public Sub CompleteRender()
     private_ApplyStage "default", False, True
     If Not m_inlineCaptions Is Nothing Then
         For Each entry In m_inlineCaptions.Items
-            ex_UiInlineText.fn_ApplyCaption entry(0), VBA.CStr(entry(1)), VBA.CLng(entry(2))
+            ex_UiInlineText.fn_ApplyCaption entry(0), private_ResolveCaptionColors(VBA.CStr(entry(1))), VBA.CLng(entry(2))
         Next entry
     End If
 End Sub
@@ -339,7 +339,7 @@ Public Sub ApplyButtonCaption( _
     entry(1) = caption
     entry(2) = shape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB
     m_inlineCaptions(shape.Name) = entry
-    ex_UiInlineText.fn_ApplyCaption shape, caption, VBA.CLng(entry(2))
+    ex_UiInlineText.fn_ApplyCaption shape, private_ResolveCaptionColors(caption), VBA.CLng(entry(2))
 End Sub
 
 Public Sub ApplyCellCaption( _
@@ -361,7 +361,7 @@ Public Sub ApplyCellCaption( _
     entry(1) = caption
     entry(3) = owner
     m_cellCaptions(area.Address) = entry
-    ex_UiInlineText.fn_ApplyCellCaption area, caption, VBA.CLng(entry(2))
+    ex_UiInlineText.fn_ApplyCellCaption area, private_ResolveCaptionColors(caption), VBA.CLng(entry(2))
 End Sub
 
 Public Sub ApplyTheme(ByVal name As String)
@@ -378,7 +378,7 @@ Public Sub ApplyTheme(ByVal name As String)
             Set shape = entry(0)
             entry(2) = shape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB
             m_inlineCaptions(shape.Name) = entry
-            ex_UiInlineText.fn_ApplyCaption shape, VBA.CStr(entry(1)), VBA.CLng(entry(2))
+            ex_UiInlineText.fn_ApplyCaption shape, private_ResolveCaptionColors(VBA.CStr(entry(1))), VBA.CLng(entry(2))
         Next entry
     End If
     If Not m_cellCaptions Is Nothing Then
@@ -386,7 +386,7 @@ Public Sub ApplyTheme(ByVal name As String)
             Set area = entry(0)
             entry(2) = area.Cells(1, 1).Font.Color
             m_cellCaptions(area.Address) = entry
-            ex_UiInlineText.fn_ApplyCellCaption area, VBA.CStr(entry(1)), VBA.CLng(entry(2)), True
+            ex_UiInlineText.fn_ApplyCellCaption area, private_ResolveCaptionColors(VBA.CStr(entry(1))), VBA.CLng(entry(2)), True
         Next entry
     End If
 End Sub
@@ -665,6 +665,24 @@ End Sub
 ' //
 ' // Private
 ' //
+Private Function private_ResolveCaptionColors(ByVal caption As String) As String
+    Dim opening As Long
+    Dim closing As Long
+    Dim reference As String
+    Dim color As String
+
+    opening = VBA.InStr(1, caption, "{ThemeResource ", VBA.vbBinaryCompare)
+    Do While opening > 0
+        closing = VBA.InStr(opening, caption, "}", VBA.vbBinaryCompare)
+        If closing = 0 Then ex_UiStyleDiagnostics.fn_Raise "Declaration", caption
+        reference = VBA.Mid$(caption, opening, closing - opening + 1)
+        color = m_palette.ResolveColor(reference)
+        caption = VBA.Left$(caption, opening - 1) & color & VBA.Mid$(caption, closing + 1)
+        opening = VBA.InStr(opening + VBA.Len(color), caption, "{ThemeResource ", VBA.vbBinaryCompare)
+    Loop
+    private_ResolveCaptionColors = caption
+End Function
+
 Private Sub private_LoadStyleSources( _
     ByVal pageDocument As Object, _
     ByVal uiFolderPath As String _

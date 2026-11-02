@@ -769,7 +769,7 @@
                      row="1"
                      column="13"
                      columnSpan="2"
-                     style="secondaryButton"
+                     style="themeToggleButton"
                      caption="{Binding Path=Text.ToggleTheme}"
                      command="{Binding Path=Commands.ToggleTheme}"/>
 
@@ -977,6 +977,10 @@
                   horizontal="left"
                   vertical="center"/>
     <controlStyle name="personnelCheckbox"
+                  marginLeft="3"
+                  marginRight="3"
+                  marginTop="3"
+                  marginBottom="3"
                   paddingLeft="10"
                   paddingRight="10"
                   backColor="{ThemeResource PageBackground}"
@@ -1012,6 +1016,26 @@
                   borderScope="outline"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="themeToggleButton"
+                  marginLeft="0"
+                  marginRight="0"
+                  marginTop="0"
+                  marginBottom="0"
+                  paddingLeft="0"
+                  paddingRight="0"
+                  paddingTop="0"
+                  paddingBottom="0"
+                  backColor="{ThemeResource ThemeToggleBackground}"
+                  textColor="{ThemeResource ThemeToggleMuted}"
+                  fontName="Calibri"
+                  fontSize="12"
+                  fontBold="true"
+                  borderColor="{ThemeResource Border}"
+                  borderWeight="thin"
+                  borderLineStyle="solid"
+                  horizontal="center"
+                  vertical="center"
+                  overflow="wrap"/>
     <controlStyle name="resetFormButton"
                   marginLeft="3"
                   marginRight="3"
@@ -1176,7 +1200,7 @@
               styles="{cellType:text;horizontal:left;fontColor:{ThemeResource Accent};}"/>
         <rule target="controlPart"
               selector="type=select;part=header"
-              styles="{marginTop:3;marginBottom:3;borderLineStyle:none;}"/>
+              styles="{marginLeft:3;marginRight:3;marginTop:3;marginBottom:3;borderLineStyle:none;}"/>
         <rule target="controlPart"
               selector="type=select;part=header;tags=selectPlaceholder"
               styles="{fontColor:{ThemeResource PlaceholderText};fontItalic:true;}"/>
@@ -1188,7 +1212,7 @@
               styles="{backColor:{ThemeResource LookupBackground};fontColor:{ThemeResource TextPrimary};fontBold:true;horizontal:center;vertical:center;}"/>
         <rule target="controlPart"
               selector="type=table;part=row;tags=even"
-              styles="{backColor:{ThemeResource PopupBackground};}"/>
+              styles="{backColor:{ThemeResource TableStripeBackground};}"/>
       </layer>
       <layer name="readonly-fields"
              enabled="true">

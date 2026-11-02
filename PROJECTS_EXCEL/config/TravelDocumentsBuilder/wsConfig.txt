@@ -49,7 +49,7 @@ value	TravelDocumentsBuilder::text.SaveHistory	Зберегти подію
 value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
 value	TravelDocumentsBuilder::text.ThemeFailed	Не вдалося змінити тему: {detail}
-value	TravelDocumentsBuilder::text.ToggleTheme	Світла / темна тема
+value	TravelDocumentsBuilder::text.ToggleTheme	[[color={ThemeResource ThemeLightText}]]Світла[[/color]] / [[color={ThemeResource ThemeDarkText}]]темна[[/color]]
 value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
 value	TravelDocumentsBuilder::text.ChangeReason	Причина зміни
 value	TravelDocumentsBuilder::text.CloseHistory	×
@@ -624,4 +624,4 @@ value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося он
 value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	TravelDocumentsBuilder::documentTypes.ids	BusinessTripCertificate,VacationTicket
 value	TravelDocumentsBuilder::documentTypes.items	Посвідчення про відрядження,Відпускний квиток
-value	TravelDocumentsBuilder::documentTypes.default	Посвідчення про відрядження
+value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток

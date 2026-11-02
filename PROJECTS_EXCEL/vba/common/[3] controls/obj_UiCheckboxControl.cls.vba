@@ -208,11 +208,18 @@ Public Function Initialize() As Boolean
 End Function
 
 Public Sub Dispose()
+    Dim shapeName As String
+
     If m_isDisposed Then
         Exit Sub
     End If
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_renderContext Is Nothing And Not m_uiControlBase Is Nothing Then
+        shapeName = m_uiControlBase.ShapeName(CHECKBOX_SHAPE_PREFIX)
+        m_renderContext.Router.UnregisterShape shapeName
+        m_renderContext.UnregisterShapeLayout shapeName
+    End If
     Set m_buttonShape = Nothing
     If Not m_uiControlBase Is Nothing Then m_uiControlBase.Dispose
     Set m_uiControlBase = Nothing
@@ -267,7 +274,10 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     shapeName = m_uiControlBase.ShapeName(CHECKBOX_SHAPE_PREFIX)
     If VBA.Len(shapeName) = 0 Then Exit Function
     If Not m_uiControlBase.TryGetCaption(uiRenderContext.BindingContext, captionText) Then Exit Function
-    If Not m_buttonShape Is Nothing Then m_buttonShape.Delete
+    If Not m_buttonShape Is Nothing Then
+        uiRenderContext.UnregisterShapeLayout shapeName
+        m_buttonShape.Delete
+    End If
     Set m_buttonShape = uiRenderContext.TargetWorksheet.Shapes.AddShape( _
         msoShapeRectangle, targetRange.Left, targetRange.Top, targetRange.Width, targetRange.Height)
     m_buttonShape.Name = shapeName
@@ -275,6 +285,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     m_buttonShape.Placement = xlMoveAndSize
     m_buttonShape.TextFrame2.TextRange.Text = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, m_buttonShape, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    uiRenderContext.RegisterShapeLayout m_buttonShape, targetRange, m_uiControlBase.ControlNode
     m_buttonShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
     uiRenderContext.Router.RegisterShape shapeName, Me
     If Not private_RefreshCaption() Then Exit Function

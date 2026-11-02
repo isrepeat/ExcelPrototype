@@ -77,6 +77,20 @@ assert button.attrib["caption"] == "{Binding Path=Text.ToggleTheme}"
 assert (button.attrib["row"], button.attrib["column"], button.attrib["columnSpan"]) == ("1", "13", "2")
 assert not any(node.attrib.get("name") == "ActionsSection" for node in page.iter())
 assert len("btn_" + button.attrib["name"]) <= 31
+assert button.attrib["style"] == "themeToggleButton"
+toggle_style = next(node for node in page.iter() if node.attrib.get("name") == "themeToggleButton")
+assert toggle_style.attrib["fontBold"] == "true"
+assert all(toggle_style.attrib[key] == "0" for key in ("marginLeft", "marginRight", "marginTop", "marginBottom", "paddingLeft", "paddingRight", "paddingTop", "paddingBottom"))
+caption = config["TravelDocumentsBuilder::text.ToggleTheme"]
+assert set(RESOURCE.findall(caption)) == {"ThemeLightText", "ThemeDarkText"}
+for name in ("Dark", "Light"):
+    colors = {node.attrib["name"]: node.attrib["value"] for node in ET.parse(tdb.parent / (name + ".xaml")).getroot()}
+    resolved = RESOURCE.sub(lambda match: colors[match[1]], caption)
+    runs = re.findall(r"\[\[color=(#[0-9A-Fa-f]{6})\]\]([^\[]+)\[\[/color\]\]", resolved)
+    assert len(runs) == 2 and "{ThemeResource" not in resolved
+    light_level = sum(bytes.fromhex(colors["ThemeLightText"][1:]))
+    dark_level = sum(bytes.fromhex(colors["ThemeDarkText"][1:]))
+    assert light_level < dark_level
 palette_source = (ROOT / "vba/common/[2] classes/obj_UiPalette.cls.vba").read_text(encoding="utf-8-sig")
 for diagnostic in re.findall(r'fn_Raise "([^"]+)"', palette_source):
     assert config.get("TravelDocumentsBuilder::text.Style" + diagnostic), diagnostic
