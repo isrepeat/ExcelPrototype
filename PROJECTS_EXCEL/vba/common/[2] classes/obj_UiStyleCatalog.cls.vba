@@ -15,6 +15,7 @@ Private m_isDisposed As Boolean
 Private Const SHEET_SCOPE_MIN_COLUMN As Long = 40
 Private Const SHEET_SCOPE_MIN_ROW As Long = 100
 Private m_inlineCaptions As Object
+Private m_cellCaptions As Object
 Private m_shapeMargins As Object
 Private m_stylesByName As Object
 Private m_pageDocument As Object
@@ -22,6 +23,7 @@ Private m_targetWorksheet As Worksheet
 Private m_pipeline As obj_UiStylePipeline
 Private m_overlays As Object
 Private m_partialScope As Range
+Private m_palette As obj_UiPalette
 
 ' //
 ' // Lifecycle
@@ -56,14 +58,18 @@ Public Sub Dispose()
     Set m_pipeline = Nothing
     Set m_overlays = Nothing
     Set m_inlineCaptions = Nothing
+    Set m_cellCaptions = Nothing
     Set m_shapeMargins = Nothing
     Set m_partialScope = Nothing
+    If Not m_palette Is Nothing Then m_palette.Dispose
+    Set m_palette = Nothing
 End Sub
 
 Public Sub BeginPage( _
     ByVal targetWorksheet As Worksheet, _
     ByVal pageDocument As Object, _
-    ByVal uiFolderPath As String _
+    ByVal uiFolderPath As String, _
+    Optional ByVal bindings As obj_UiBindingContext _
 )
     Dim startedAt As Double
 
@@ -72,6 +78,10 @@ Public Sub BeginPage( _
     m_stylesByName.CompareMode = VBA.vbTextCompare
     Set m_targetWorksheet = targetWorksheet
     Set m_pageDocument = pageDocument
+    Set m_palette = New obj_UiPalette
+    If Not m_palette.Initialize(pageDocument, uiFolderPath, bindings, targetWorksheet) Then
+        ex_UiStyleDiagnostics.fn_Raise "Initialize"
+    End If
     private_LoadStyleSources pageDocument, uiFolderPath
     private_RegisterStyleNodes pageDocument
     Set m_pipeline = New obj_UiStylePipeline
@@ -238,13 +248,23 @@ Public Sub ApplyPagePipeline(ByVal targetWorksheet As Worksheet)
 End Sub
 
 Public Sub ForgetControl(ByVal name As String)
+    Dim key As Variant
+    Dim entry As Variant
+
     If Not m_pipeline Is Nothing Then m_pipeline.ForgetControl name
+    If Not m_cellCaptions Is Nothing Then
+        For Each key In m_cellCaptions.Keys
+            entry = m_cellCaptions(key)
+            If VBA.StrComp(VBA.CStr(entry(3)), name, VBA.vbTextCompare) = 0 Then m_cellCaptions.Remove key
+        Next key
+    End If
     If Not m_overlays Is Nothing Then
         If m_overlays.Exists(name) Then m_overlays.Remove name
     End If
 End Sub
 
 Public Sub ForgetShape(ByVal name As String)
+    If Not m_palette Is Nothing Then m_palette.ForgetShape name
     If Not m_shapeMargins Is Nothing Then
         If m_shapeMargins.Exists(name) Then m_shapeMargins.Remove name
     End If
@@ -282,8 +302,10 @@ Public Sub BeginRender( _
     Dim pageScope As Range
 
     If m_pipeline Is Nothing Then Exit Sub
+    If Not m_palette Is Nothing Then m_palette.BeginRender
     m_pipeline.BeginRender
     Set m_inlineCaptions = VBA.CreateObject("Scripting.Dictionary")
+    Set m_cellCaptions = VBA.CreateObject("Scripting.Dictionary")
     Set m_shapeMargins = VBA.CreateObject("Scripting.Dictionary")
     Set m_overlays = VBA.CreateObject("Scripting.Dictionary")
     m_overlays.CompareMode = VBA.vbTextCompare
@@ -318,6 +340,55 @@ Public Sub ApplyButtonCaption( _
     entry(2) = shape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB
     m_inlineCaptions(shape.Name) = entry
     ex_UiInlineText.fn_ApplyCaption shape, caption, VBA.CLng(entry(2))
+End Sub
+
+Public Sub ApplyCellCaption( _
+    ByVal area As Range, _
+    ByVal caption As String, _
+    ByVal owner As String, _
+    Optional ByVal useCurrentColor As Boolean = False _
+)
+    Dim entry As Variant
+
+    If m_cellCaptions Is Nothing Then Set m_cellCaptions = VBA.CreateObject("Scripting.Dictionary")
+    If m_cellCaptions.Exists(area.Address) And Not useCurrentColor Then
+        entry = m_cellCaptions(area.Address)
+    Else
+        ReDim entry(0 To 3)
+        Set entry(0) = area
+        entry(2) = area.Cells(1, 1).Font.Color
+    End If
+    entry(1) = caption
+    entry(3) = owner
+    m_cellCaptions(area.Address) = entry
+    ex_UiInlineText.fn_ApplyCellCaption area, caption, VBA.CLng(entry(2))
+End Sub
+
+Public Sub ApplyTheme(ByVal name As String)
+    Dim entry As Variant
+    Dim shape As Object
+    Dim area As Range
+
+    If Not m_isInitialized Or m_isDisposed Then ex_UiStyleDiagnostics.fn_Raise "Initialize"
+    If m_palette Is Nothing Then ex_UiStyleDiagnostics.fn_Raise "Initialize"
+    If VBA.Len(name) > 0 And VBA.StrComp(name, m_palette.ActiveName, VBA.vbTextCompare) = 0 Then Exit Sub
+    m_palette.ApplyTheme name
+    If Not m_inlineCaptions Is Nothing Then
+        For Each entry In m_inlineCaptions.Items
+            Set shape = entry(0)
+            entry(2) = shape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB
+            m_inlineCaptions(shape.Name) = entry
+            ex_UiInlineText.fn_ApplyCaption shape, VBA.CStr(entry(1)), VBA.CLng(entry(2))
+        Next entry
+    End If
+    If Not m_cellCaptions Is Nothing Then
+        For Each entry In m_cellCaptions.Items
+            Set area = entry(0)
+            entry(2) = area.Cells(1, 1).Font.Color
+            m_cellCaptions(area.Address) = entry
+            ex_UiInlineText.fn_ApplyCellCaption area, VBA.CStr(entry(1)), VBA.CLng(entry(2)), True
+        Next entry
+    End If
 End Sub
 
 Public Function GetShapeMargins(ByVal shapeName As String) As Variant
@@ -754,6 +825,7 @@ Private Sub private_ApplyProperties( _
     Dim colorValue As Long
     Dim fillTransparency As Double
     Dim rowHeight As Double
+    Dim textColor As String
 
     If properties Is Nothing Then Exit Sub
     If properties.Exists("backcolor") Then
@@ -773,19 +845,22 @@ Private Sub private_ApplyProperties( _
                 targetShape.Fill.ForeColor.RGB = colorValue
                 targetShape.Fill.Transparency = fillTransparency
             End If
+            m_palette.RememberColor targetRange, targetShape, "back", properties("backcolor")
         End If
     End If
     If properties.Exists("textcolor") Or properties.Exists("fontcolor") Then
         If properties.Exists("textcolor") Then
-            If Not private_TryParseColor(properties("textcolor"), colorValue) Then Exit Sub
-        ElseIf Not private_TryParseColor(properties("fontcolor"), colorValue) Then
-            Exit Sub
+            textColor = properties("textcolor")
+        Else
+            textColor = properties("fontcolor")
         End If
+        If Not private_TryParseColor(textColor, colorValue) Then Exit Sub
         If targetShape Is Nothing Then
             targetRange.Font.Color = colorValue
         Else
             targetShape.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = colorValue
         End If
+        m_palette.RememberColor targetRange, targetShape, "text", textColor
     End If
     If properties.Exists("fontbold") Then
         If targetShape Is Nothing Then
@@ -920,6 +995,7 @@ Private Sub private_ApplyShadow( _
             ex_UiStyleDiagnostics.fn_Raise "Property", "shadowcolor"
         End If
         targetShape.Shadow.ForeColor.RGB = color
+        m_palette.RememberColor Nothing, targetShape, "shadow", properties("shadowcolor")
     End If
     If properties.Exists("shadow") Then
         targetShape.Shadow.Visible = VBA.IIf(private_ReadBoolean(properties("shadow")), msoTrue, msoFalse)
@@ -1042,7 +1118,10 @@ Private Sub private_ApplyBorders( _
             With targetRange.Borders(borderIndex)
                 .LineStyle = lineStyle
                 .Weight = lineWeight
-                If hasColor Then .Color = colorValue
+                If hasColor Then
+                    .Color = colorValue
+                    m_palette.RememberColor targetRange, Nothing, "border", properties("bordercolor"), VBA.CLng(borderIndex)
+                End If
             End With
         Next borderIndex
     End If
@@ -1052,7 +1131,10 @@ Private Sub private_ApplyBorders( _
         Else
             targetShape.Line.Visible = -1
             targetShape.Line.Weight = shapeLineWeight
-            If hasColor Then targetShape.Line.ForeColor.RGB = colorValue
+            If hasColor Then
+                targetShape.Line.ForeColor.RGB = colorValue
+                m_palette.RememberColor Nothing, targetShape, "border", properties("bordercolor")
+            End If
         End If
     End If
 End Sub
@@ -1158,7 +1240,7 @@ Private Function private_TryParseBackground( _
     Dim alpha As Long
 
     outTransparency = 0
-    colorText = VBA.Trim$(colorText)
+    colorText = m_palette.ResolveColor(colorText)
     If VBA.Left$(colorText, 1) = "#" Then colorText = VBA.Mid$(colorText, 2)
     If VBA.Len(colorText) = 8 Then
         If Not colorText Like "[0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f][0-9A-Fa-f]" Then
@@ -1177,7 +1259,7 @@ Private Function private_TryParseColor(ByVal colorText As String, ByRef outColor
     Dim greenValue As Long
     Dim blueValue As Long
 
-    colorText = VBA.Trim$(colorText)
+    colorText = m_palette.ResolveColor(colorText)
     If VBA.Left$(colorText, 1) = "#" Then colorText = VBA.Mid$(colorText, 2)
     If VBA.Len(colorText) <> 6 Then Exit Function
     On Error GoTo EH

@@ -111,6 +111,8 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "version", "positive", False, "", False, 0
             schema.AddAttribute "zoom", "string", False, "", False, 0
             schema.AddAttribute "styleSources", "string", False, "", False, 0
+            schema.AddAttribute "paletteSources", "string", False, "", False, 0
+            schema.AddAttribute "palette", "string", False, "", True, 0
             schema.AddChild "grid", Nothing, 1, 1
             schema.AddChild "styles", private_StylesSchema(), 0, 1
             schema.AddChild "fieldCatalog", private_FieldCatalogSchema(), 0, -1
@@ -226,15 +228,15 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
         Err.Raise VBA.vbObjectError + 2167, , "Schema/validator initialization failed."
     End If
     schema.AddAttribute "name", "string", True, "", False, 0
-    schema.AddAttribute "backColor", "string", False, "", False, 0
-    schema.AddAttribute "textColor", "string", False, "", False, 0
-    schema.AddAttribute "fontColor", "string", False, "", False, 0
+    schema.AddAttribute "backColor", "themecolor", False, "", False, 0
+    schema.AddAttribute "textColor", "themecolor", False, "", False, 0
+    schema.AddAttribute "fontColor", "themecolor", False, "", False, 0
     schema.AddAttribute "cellType", "enum", False, "text|date|general", False, 0
     schema.AddAttribute "fontName", "string", False, "", False, 0
     schema.AddAttribute "fontSize", "string", False, "", False, 0
     schema.AddAttribute "fontBold", "string", False, "", False, 0
     schema.AddAttribute "fontItalic", "string", False, "", False, 0
-    schema.AddAttribute "borderColor", "string", False, "", False, 0
+    schema.AddAttribute "borderColor", "themecolor", False, "", False, 0
     schema.AddAttribute "borderWeight", "string", False, "", False, 0
     schema.AddAttribute "borderLineStyle", "string", False, "", False, 0
     schema.AddAttribute "borderScope", "string", False, "", False, 0
@@ -249,7 +251,7 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     schema.AddAttribute "paddingTop", "number", False, "", False, 0
     schema.AddAttribute "paddingBottom", "number", False, "", False, 0
     schema.AddAttribute "shadow", "boolean", False, "", False, 0
-    schema.AddAttribute "shadowColor", "string", False, "", False, 0
+    schema.AddAttribute "shadowColor", "themecolor", False, "", False, 0
     schema.AddAttribute "shadowBlur", "number", False, "", False, 0
     schema.AddAttribute "shadowTransparency", "number", False, "", False, 0
     schema.AddAttribute "shadowOffsetX", "number", False, "", False, 0

@@ -9,6 +9,7 @@ value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\TravelDocumentsBuilder
 value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_TravelDocumentsBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_TravelDocumentsBuilder.fn_CreatePage
+value	TravelDocumentsBuilder::ui.theme	Dark
 value	TravelDocumentsBuilder::ui.folder	TravelDocumentsBuilder
 value	TravelDocumentsBuilder::text.Title	Документи
 value	TravelDocumentsBuilder::text.VlkNo	ВЛК №
@@ -47,6 +48,8 @@ value	TravelDocumentsBuilder::text.RemovePlace	−
 value	TravelDocumentsBuilder::text.SaveHistory	Зберегти подію
 value	TravelDocumentsBuilder::text.StyleTarget	Непідтримувана ціль правила стилів: {value}
 value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
+value	TravelDocumentsBuilder::text.ThemeFailed	Не вдалося змінити тему: {detail}
+value	TravelDocumentsBuilder::text.ToggleTheme	Світла / темна тема
 value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
 value	TravelDocumentsBuilder::text.ChangeReason	Причина зміни
 value	TravelDocumentsBuilder::text.CloseHistory	×
@@ -54,6 +57,7 @@ value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
 value	TravelDocumentsBuilder::text.PlaceCountry	Держава (UA)
 value	TravelDocumentsBuilder::text.StyleEnabled	Значення enabled має бути true або false.
 value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
+value	TravelDocumentsBuilder::text.ThemeUnknown	Невідома тема: {name}
 value	TravelDocumentsBuilder::text.VacationDays	Дні відпустки
 value	TravelDocumentsBuilder::text.VacationKind	Вид відпустки
 value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
@@ -110,6 +114,9 @@ value	TravelDocumentsBuilder::text.PersonnelMinimum	Введіть щонайм�
 value	TravelDocumentsBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
 value	TravelDocumentsBuilder::text.RefreshPersonnel	Завантажити дані
 value	TravelDocumentsBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
+value	TravelDocumentsBuilder::text.StylePaletteLoad	Не вдалося завантажити палітру: {value}
+value	TravelDocumentsBuilder::text.StylePaletteName	Не вказано назву палітри: {value}
+value	TravelDocumentsBuilder::text.StylePaletteRoot	У файлі палітри немає кореневого елемента: {value}
 value	TravelDocumentsBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
 value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
 value	TravelDocumentsBuilder::text.DependenciesReady	Дані завантажено. Виконайте пошук військовослужбовця.
@@ -120,8 +127,11 @@ value	TravelDocumentsBuilder::text.OrderYearConflict	Рік у даті не з�
 value	TravelDocumentsBuilder::text.PersonnelSelected	Кандидата обрано. Дані підставлено у форму.
 value	TravelDocumentsBuilder::text.StyleCellSelector	Для стилю комірки потрібні row і col або address.
 value	TravelDocumentsBuilder::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
+value	TravelDocumentsBuilder::text.StylePaletteAlpha	Напівпрозорий фон палітри підтримується лише для фігур.
+value	TravelDocumentsBuilder::text.StylePaletteEmpty	Палітра не містить кольорів: {value}
 value	TravelDocumentsBuilder::text.StylePartSelector	Для стилю частини контрола потрібні type і part.
 value	TravelDocumentsBuilder::text.StyleStageMissing	Стадію стилів не оголошено: {value}
+value	TravelDocumentsBuilder::text.StyleThemeContext	Немає активної сторінки інтерфейсу для зміни теми.
 value	TravelDocumentsBuilder::text.PositionCodeHeader	Код посади
 value	TravelDocumentsBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.
 value	TravelDocumentsBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
@@ -131,14 +141,28 @@ value	TravelDocumentsBuilder::text.DependenciesLoading	Завантаження 
 value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
 value	TravelDocumentsBuilder::text.StyleOverlayBinding	Не вдалося визначити стиль виділення.
 value	TravelDocumentsBuilder::text.StyleOverlayMissing	Стиль виділення не оголошено: {value}
+value	TravelDocumentsBuilder::text.StylePaletteMissing	Палітру не оголошено: {value}
+value	TravelDocumentsBuilder::text.StylePaletteResolve	Не вдалося визначити палітру сторінки.
+value	TravelDocumentsBuilder::text.StylePaletteSources	Для палітри сторінки необхідно вказати paletteSources.
+value	TravelDocumentsBuilder::text.StylePaletteVersion	Непідтримувана версія палітри: {value}
 value	TravelDocumentsBuilder::text.StyleTargetSelector	Для селекторів row, col або address використовуйте ціль діапазону.
 value	TravelDocumentsBuilder::text.UnknownDocumentType	Невідомий тип документа: {value}
 value	TravelDocumentsBuilder::text.BasisInstitutionName	Конкретна установа
 value	TravelDocumentsBuilder::text.DependenciesProgress	Завантаження даних: {step}/{total} — {stage}
 value	TravelDocumentsBuilder::text.DependenciesRequired	Натисніть «Завантажити дані», щоб завантажити довідники і накази.
+value	TravelDocumentsBuilder::text.StylePaletteBindings	Прив’язки палітри недоступні.
+value	TravelDocumentsBuilder::text.StylePaletteContract	Палітри мають різний набір кольорів.
+value	TravelDocumentsBuilder::text.StylePaletteElements	У палітрі дозволені лише елементи color: {value}
+value	TravelDocumentsBuilder::text.StylePaletteResource	Некоректне посилання на колір теми: {value}
 value	TravelDocumentsBuilder::text.BasisInstitutionQuery	Пошук установи
+value	TravelDocumentsBuilder::text.StylePaletteColorName	Некоректна назва кольору палітри: {value}
+value	TravelDocumentsBuilder::text.StylePaletteDuplicate	Назва палітри повторюється: {value}
+value	TravelDocumentsBuilder::text.StylePaletteFileEmpty	Порожній шлях до файлу в paletteSources.
 value	TravelDocumentsBuilder::text.StyleRuleStyleMissing	Іменований стиль правила не оголошено: {value}
 value	TravelDocumentsBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
+value	TravelDocumentsBuilder::text.StylePaletteColorValue	Некоректний колір палітри: {value}
+value	TravelDocumentsBuilder::text.StylePaletteInitialize	Палітру не ініціалізовано.
+value	TravelDocumentsBuilder::text.StylePaletteRefMissing	Колір палітри не оголошено: {value}
 value	TravelDocumentsBuilder::text.StyleSelectorDuplicate	Повторний ключ селектора стилів: {value}
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.PurposeLabel	Підстава відрядження
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.VacationDays	Дні відрядження
@@ -147,7 +171,12 @@ value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentFormTitle	П�
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.DepartureDateLabel	Дата вибуття
 value	TravelDocumentsBuilder::text.BusinessTripCertificate.DocumentTargetLabel	Місце відрядження
 value	TravelDocumentsBuilder::text.PersonPositionCodeLabel	Код посади
+value	TravelDocumentsBuilder::text.StylePaletteFileMissing	Файл палітри не знайдено: {value}
+value	TravelDocumentsBuilder::text.StylePaletteRootInvalid	Некоректний кореневий елемент палітри: {value}
+value	TravelDocumentsBuilder::text.StylePaletteColorMissing	У палітрі відсутній колір: {value}
 value	TravelDocumentsBuilder::text.DependenciesSourceChanged	Джерело змінилося під час завантаження: {path}. Повторіть завантаження.
+value	TravelDocumentsBuilder::text.StylePaletteResolvedColor	Некоректне значення кольору з палітри: {value}
+value	TravelDocumentsBuilder::text.StylePaletteColorDuplicate	Назва кольору палітри повторюється: {value}
 value	TravelDocumentsBuilder::lookup.Personnel.columns.1.captionKey	TravelDocumentsBuilder::text.RankHeader
 value	TravelDocumentsBuilder::lookup.Personnel.columns.2.captionKey	TravelDocumentsBuilder::text.FullNameHeader
 value	TravelDocumentsBuilder::lookup.Personnel.columns.3.captionKey	TravelDocumentsBuilder::text.TaxIdHeader

@@ -150,6 +150,32 @@ Public Sub Dispose()
     Set m_pageBase = Nothing
 End Sub
 
+Public Function ToggleThemeHandler() As Boolean
+    Dim currentTheme As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+    Dim nextTheme As String
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.TryGetValue("Settings", "Theme", currentTheme, objectValue, isObject) Then Exit Function
+    Select Case VBA.CStr(currentTheme)
+        Case "Dark"
+            nextTheme = "Light"
+        Case "Light"
+            nextTheme = "Dark"
+        Case Else
+            diagnostic = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("text.ThemeUnknown"), "{name}", VBA.CStr(currentTheme))
+            GoTo Failed
+    End Select
+    If Not m_pageBase.ApplyTheme(nextTheme, diagnostic) Then GoTo Failed
+    ToggleThemeHandler = m_pageBase.BindingContext.SetValue("Settings", "Theme", nextTheme)
+    Exit Function
+Failed:
+    ex_WindowsUi.fn_ShowMessage VBA.Replace$( _
+        ex_TravelDocumentsBuilder.fn_Config("text.ThemeFailed"), "{detail}", diagnostic), VBA.vbExclamation
+End Function
+
 Public Function SearchPersonnelHandler() As Boolean
     Dim searchText As Variant
     Dim result As obj_LookupResult

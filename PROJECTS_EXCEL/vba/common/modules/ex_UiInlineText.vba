@@ -97,14 +97,15 @@ End Sub
 Public Sub fn_ApplyCellCaption( _
     ByVal target As Range, _
     ByVal rawText As String, _
-    ByVal baseColor As Long _
+    ByVal baseColor As Long, _
+    Optional ByVal colorsOnly As Boolean = False _
 )
     Dim plain As String
     Dim runs As Collection
     Dim run As Variant
 
     fn_ParseColors rawText, plain, runs
-    target.Cells(1, 1).Value2 = plain
+    If Not colorsOnly Then target.Cells(1, 1).Value2 = plain
     target.Font.Color = baseColor
     For Each run In runs
         target.Cells(1, 1).Characters(VBA.CLng(run(0)), VBA.CLng(run(1))).Font.Color = VBA.CLng(run(2))

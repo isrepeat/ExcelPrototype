@@ -22,7 +22,6 @@ Private m_renderContext As obj_UiRenderContext
 Private m_uiControlBase As obj_UiControlBase
 Private m_targetRange As Range
 Private m_registeredRange As Range
-Private m_captionColor As Long
 
 ' //
 ' // Lifecycle
@@ -178,7 +177,7 @@ Public Function RefreshText() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If m_targetRange Is Nothing Then Exit Function
     If Not m_uiControlBase.TryGetCaption(m_renderContext.BindingContext, caption) Then Exit Function
-    ex_UiInlineText.fn_ApplyCellCaption m_targetRange, caption, m_captionColor
+    m_renderContext.Styles.ApplyCellCaption m_targetRange, caption, m_uiControlBase.ControlName
     RefreshText = True
 End Function
 
@@ -213,8 +212,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ex_UiTables.fn_MergeRange targetRange, m_uiControlBase.ControlName
     targetRange.Value2 = captionText
     uiRenderContext.Styles.ApplyControlStyle targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
-    m_captionColor = targetRange.Cells(1, 1).Font.Color
-    ex_UiInlineText.fn_ApplyCellCaption targetRange, captionText, m_captionColor
+    uiRenderContext.Styles.ApplyCellCaption targetRange, captionText, m_uiControlBase.ControlName, True
     If ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "readOnly") <> "false" Then
         private_UnregisterHeader
         Set m_registeredRange = targetRange

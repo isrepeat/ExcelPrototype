@@ -133,6 +133,30 @@ EH:
     Resume CleanExit
 End Function
 
+Public Function ApplyTheme( _
+    ByVal name As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim context As obj_UiRenderContext
+    Dim previousScreenUpdating As Boolean
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo Failed
+    If Not TypeOf Application.ActiveSheet Is Worksheet Then ex_UiStyleDiagnostics.fn_Raise "ThemeContext"
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then ex_UiStyleDiagnostics.fn_Raise "ThemeContext"
+    If Not context.BindingContext Is m_uiBindingContext Then ex_UiStyleDiagnostics.fn_Raise "ThemeContext"
+    Application.ScreenUpdating = False
+    context.Styles.ApplyTheme name
+    ApplyTheme = True
+CleanExit:
+    Application.ScreenUpdating = previousScreenUpdating
+    Exit Function
+Failed:
+    diagnostic = VBA.Err.Description
+    Resume CleanExit
+End Function
+
 Public Function RefreshContent( _
     ByVal name As String, _
     ByRef diagnostic As String, _

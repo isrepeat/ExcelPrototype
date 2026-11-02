@@ -158,6 +158,13 @@ Private Function private_AttributeValid(ByVal value As String, ByVal rule As Var
     Dim intervals As Collection
 
     On Error GoTo InvalidValue
+    If rule(0) = "themecolor" And VBA.Left$(value, 15) = "{ThemeResource " Then
+        If VBA.Right$(value, 1) <> "}" Then Exit Function
+        path = VBA.Mid$(value, 16, VBA.Len(value) - 16)
+        If VBA.Len(path) = 0 Or path Like "*[!A-Za-z0-9_.-]*" Then Exit Function
+        private_AttributeValid = True
+        Exit Function
+    End If
     If VBA.Left$(VBA.Trim$(value), 1) = "{" And rule(0) <> "styleblock" Then
         If Not rule(3) Then Exit Function
         private_AttributeValid = ex_UiBindingRuntime.fn_TryParseBinding(value, "__scope", source, path)

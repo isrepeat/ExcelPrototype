@@ -205,7 +205,7 @@ Private Function private_RenderPage( _
     End If
     Set m_pages(targetWorksheet.Name) = uiRenderContext
     uiRenderContext.Styles.BeginPage targetWorksheet, _
-        uiPageDefinition.Document, uiFolderPath
+        uiPageDefinition.Document, uiFolderPath, uiBindingContext
     ex_Core.fn_Diagnostic_WritePerf "Page.BeginStyles | Sheet=" & targetWorksheet.Name, startedAt
     clearStartedAt = VBA.Timer
     private_ClearUi targetWorksheet
