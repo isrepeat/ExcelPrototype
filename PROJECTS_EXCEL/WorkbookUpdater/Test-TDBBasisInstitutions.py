@@ -59,6 +59,10 @@ assert set(fields) <= set(cfg("history.snapshotFields").split("|"))
 assert {"Snapshot." + field for field in fields} <= set(cfg("history.versions.columns").split("|"))
 assert "{BasisInstitutionName}" in cfg("basisChain.documentTemplate")
 assert "{BasisInstitution}" not in cfg("basisChain.documentTemplate")
+assert "PlaceKind" in cfg("history.columns").split("|")
+assert "PlaceKind" in cfg("history.snapshotFields").split("|")
+assert "Snapshot.PlaceKind" in cfg("history.versions.columns").split("|")
+assert cfg("lookup.Militaries.addressTemplate") == "{Unit}"
 assert len(cfg("basisChain.lookup.fields").split("|")) == len(cfg("basisChain.lookup.columnSpans").split("|"))
 
 page = ET.parse(ROOT / "ui/TravelDocumentsBuilder/MainPage.xaml")
@@ -73,5 +77,25 @@ for name in ("BasisInstitution", "BasisType", "BasisIssuer"):
 for name in ("BasisList", "TvoList", "PlaceList"):
     assert by_name[name].attrib["readOnly"] == "true"
     assert not any(node.tag.endswith("}cellTemplate") for node in by_name[name].iter())
+
+delete_button = by_name["DeleteEvent"]
+assert delete_button.attrib["visibility"] == "{Binding Path=Form.DeleteEventVisibility}"
+assert delete_button.attrib["command"] == "{Binding Path=Commands.DeleteEvent}"
+assert (delete_button.attrib["row"], delete_button.attrib["column"]) == ("17", "13")
+assert "{id}" in cfg("history.text.DeleteConfirm")
+history = (ROOT / "vba/TravelDocumentsBuilder/ex_TDB_History.vba").read_text(encoding="utf-8-sig")
+delete = history.split("Public Sub fn_DeleteEvent(", 1)[1].split("End Sub", 1)[0]
+assert "fn_Begin(tickets, revisions, identifier, expectedStamp)" in delete
+assert "fn_AssertCurrent tickets, revisions, transaction" in delete
+assert 'Set group = transaction("Previous")' in delete
+assert 'identifiers.Add VBA.CStr(row("RowId")), True' in delete
+assert 'revisions.ListColumns("EventRowId").Index' in delete
+assert "For rowIndex = revisions.ListRows.Count To 1 Step -1" in delete
+assert "For rowIndex = tickets.ListRows.Count To 1 Step -1" in delete
+assert "fn_Rollback tickets, revisions, transaction" in delete
+assert "ex_TableFilters.fn_Restore(filterStates)" in delete
+assert "Application.EnableEvents = previousEvents" in delete
+assert "Application.ScreenUpdating = previousScreen" in delete
+assert ".Save" not in delete and "Kill " not in delete
 
 print("Institution categories, source schemas, snapshot registration, persistence and UI order: OK")

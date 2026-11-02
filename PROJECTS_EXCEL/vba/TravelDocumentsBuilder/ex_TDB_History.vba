@@ -427,6 +427,97 @@ Public Sub fn_Rollback( _
     If VBA.Len(errors) > 0 Then VBA.Err.Raise 5, "TicketsHistory.Rollback", errors
 End Sub
 
+Public Sub fn_DeleteEvent( _
+    ByVal identifier As String, _
+    ByVal expectedStamp As String, _
+    ByVal orderNumber As String, _
+    ByVal orderDate As Date _
+)
+    Dim tickets As ListObject
+    Dim revisions As ListObject
+    Dim transaction As Object
+    Dim group As Collection
+    Dim root As Object
+    Dim row As Object
+    Dim identifiers As Object
+    Dim protection As New obj_TDB_HistoryProtection
+    Dim targets As New Collection
+    Dim filterStates As Collection
+    Dim diagnostic As String
+    Dim filterError As String
+    Dim failure As String
+    Dim rowIndex As Long
+    Dim idColumn As Long
+    Dim previousEvents As Boolean
+    Dim previousScreen As Boolean
+    Dim guarded As Boolean
+    Dim changed As Boolean
+
+    On Error GoTo Failed
+    If VBA.Len(identifier) = 0 Then fn_Fail "Stale"
+    fn_Open tickets, revisions
+    Set transaction = fn_Begin(tickets, revisions, identifier, expectedStamp)
+    Set group = transaction("Previous")
+    Set root = group(1)
+    If VBA.CStr(root("OrderNumber")) <> orderNumber Or fn_Date(root("OrderDate")) <> orderDate Then fn_Fail "OrderStale"
+    Set identifiers = VBA.CreateObject("Scripting.Dictionary")
+    For Each row In group
+        identifiers.Add VBA.CStr(row("RowId")), True
+    Next row
+    If Not protection.Initialize(tickets, revisions) Then fn_Fail "ReadOnly"
+    targets.Add tickets
+    targets.Add revisions
+    previousEvents = Application.EnableEvents
+    previousScreen = Application.ScreenUpdating
+    guarded = True
+    Application.EnableEvents = False
+    Application.ScreenUpdating = False
+    protection.Unprotect
+    If Not ex_TableFilters.fn_Suspend(targets, filterStates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    fn_AssertCurrent tickets, revisions, transaction
+    changed = True
+
+    ' Delete revision snapshots and the complete event tree, including nested children.
+    idColumn = revisions.ListColumns("EventRowId").Index
+    For rowIndex = revisions.ListRows.Count To 1 Step -1
+        If private_Text(revisions.DataBodyRange.Cells(rowIndex, idColumn).Value2) = identifier Then
+            revisions.ListRows(rowIndex).Delete
+        End If
+    Next rowIndex
+    idColumn = tickets.ListColumns("RowId").Index
+    For rowIndex = tickets.ListRows.Count To 1 Step -1
+        If identifiers.Exists(private_Text(tickets.DataBodyRange.Cells(rowIndex, idColumn).Value2)) Then
+            tickets.ListRows(rowIndex).Delete
+        End If
+    Next rowIndex
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If VBA.Len(filterError) > 0 Then VBA.Err.Raise 5, , filterError
+    If Not protection.TryProtect(diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    changed = False
+    GoTo Cleanup
+Failed:
+    failure = VBA.Err.Description
+    On Error Resume Next
+    If changed Then
+        protection.Unprotect
+        ex_TableFilters.fn_ClearCaptured filterStates
+        VBA.Err.Clear
+        fn_Rollback tickets, revisions, transaction
+        If VBA.Err.Number <> 0 Then failure = failure & VBA.vbLf & VBA.Err.Description
+    End If
+    filterError = ex_TableFilters.fn_Restore(filterStates)
+    If VBA.Len(filterError) > 0 Then failure = failure & VBA.vbLf & filterError
+    If Not protection.TryProtect(diagnostic) Then failure = failure & VBA.vbLf & diagnostic
+    On Error GoTo 0
+Cleanup:
+    If guarded Then
+        Application.EnableEvents = previousEvents
+        Application.ScreenUpdating = previousScreen
+    End If
+    protection.Dispose
+    If VBA.Len(failure) > 0 Then VBA.Err.Raise 5, "TicketsHistory.Delete", failure
+End Sub
+
 Public Function fn_Load( _
     ByVal identifier As String, _
     ByVal bindingContext As obj_UiBindingContext, _

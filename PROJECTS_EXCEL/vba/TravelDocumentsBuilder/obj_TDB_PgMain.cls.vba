@@ -94,6 +94,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Dim chain As New Collection
     Dim placeChain As New Collection
     Dim orderOptions As New Collection
+    Dim todayOrderOptions As New Collection
     Dim basisChain As New Collection
 
     If m_pageBase Is Nothing Then
@@ -119,6 +120,8 @@ Private Function private_TryRegisterBindings() As Boolean
         Exit Function
     End If
     If Not bindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "DeleteEventVisibility", "Collapsed") Then Exit Function
+    If Not bindingContext.SetValue("Text", "DeleteEvent", ex_TravelDocumentsBuilder.fn_Config("text.DeleteEvent")) Then Exit Function
     If Not bindingContext.SetValue("Data", "BasisTypes", VBA.vbNullString) Then Exit Function
     If Not ex_TDB_BasisChain.fn_RefreshInstitutions(bindingContext) Then
         Exit Function
@@ -146,6 +149,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetObject("Data", "OrderOptions", orderOptions) Then
         Exit Function
     End If
+    If Not bindingContext.SetObject("Data", "TodayOrderOptions", todayOrderOptions) Then Exit Function
     If Not bindingContext.SetValue("Text", "HistoryEditMode", ex_TDB_History.fn_Config("text.NewMode")) Then
         Exit Function
     End If
@@ -353,6 +357,7 @@ Private Function private_TryRegisterCommands() As Boolean
         Exit Function
     End If
     If Not private_TryRegisterCommand(bindingContext, "BasisInstitutionQueryChanged", "BasisInstitutionQueryChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "DeleteEvent", "DeleteEventHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "AddBasis", "AddBasisHandler") Then
         Exit Function
     End If

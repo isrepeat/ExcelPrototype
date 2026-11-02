@@ -31,11 +31,12 @@ End Sub
 ' //
 ' // API
 ' //
-Public Sub Initialize()
+Public Sub Initialize(Optional ByVal previousSeed As Long = 0)
     If m_isDisposed Or m_isInitialized Then
         Err.Raise VBA.vbObjectError + 2166, , "Object is already initialized or disposed."
     End If
     Set m_shapes = VBA.CreateObject("Scripting.Dictionary")
+    m_seed = previousSeed
     m_shapes.CompareMode = VBA.vbTextCompare
     Set m_cells = VBA.CreateObject("Scripting.Dictionary")
     m_cells.CompareMode = VBA.vbTextCompare
@@ -63,7 +64,10 @@ End Sub
 Public Function DispatchShape(ByVal name As String) As Boolean
     Dim handler As obj_IUiEventHandler
 
-    If Not m_shapes.Exists(name) Then Exit Function
+    If Not m_shapes.Exists(name) Then
+        ex_Core.fn_Diagnostic_WriteLog "UI_SHAPE_ROUTE_MISSING | Shape=" & name
+        Exit Function
+    End If
     Set handler = m_shapes(name)
     If Not m_activeShapeHandler Is Nothing Then
         If Not m_activeShapeHandler Is handler Then

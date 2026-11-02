@@ -268,7 +268,7 @@
         <cell columnSpan="3"
               style="Underlined">
           <paragraph>
-            <text>{[TravelPlace]}</text>
+            <text>{#if [HasTravelPlaces]}{#for place in PlaceChain}{#if #not place.__first}; {#endif}{#if place.[IsMilitary]}військової частини {#endif}{place.[Destination]}{#endfor}{#else}{[TravelPlace]}{#endif}</text>
           </paragraph>
         </cell>
       </row>

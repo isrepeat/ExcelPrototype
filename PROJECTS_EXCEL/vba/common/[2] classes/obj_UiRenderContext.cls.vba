@@ -529,6 +529,7 @@ End Sub
 Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
+    Dim previousShapeSeed As Long
 
     If Not m_needsMeasure Then
         FlushLayout = Me.FlushUpdates(diagnostic)
@@ -544,9 +545,11 @@ Public Function FlushLayout(ByRef diagnostic As String) As Boolean
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     m_needsMeasure = False
+    ' Old controls are disposed during rendering; never reuse their shape names.
+    previousShapeSeed = m_router.NextId()
     m_router.Dispose
     Set m_router = New obj_UiEventRouter
-    m_router.Initialize
+    m_router.Initialize previousShapeSeed
     If m_rows > 0 And m_columns > 0 Then
         ex_UiTables.fn_ClearRange m_targetWorksheet.Cells(1, 1).Resize(m_rows, m_columns), True
     End If

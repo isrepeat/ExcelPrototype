@@ -588,8 +588,6 @@ Public Function ClearFormHandler() As Boolean
                 "generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
         updates("Form." & VBA.CStr(key)) = valueText
     Next key
-    If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("documentTypes.default", valueText) Then Exit Function
-    updates("Form.DocumentType") = valueText
     updates("Form.LookupIsTvo") = False
     If Not private_TryReadFormValue("AutoFillPersonnel", currentAutoFill) Then Exit Function
     updates("Form.AutoFillPersonnel") = currentAutoFill
@@ -623,6 +621,40 @@ Public Function ClearFormHandler() As Boolean
         Exit Function
     End If
     ClearFormHandler = Me.SearchPersonnelHandler()
+End Function
+
+Public Function DeleteEventHandler() As Boolean
+    Dim identifier As Variant
+    Dim stamp As Variant
+    Dim prompt As String
+    Dim deleted As Boolean
+
+    On Error GoTo Failed
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("HistoryRowId", identifier) Then Exit Function
+    If VBA.Len(VBA.CStr(identifier)) = 0 Then ex_TDB_History.fn_Fail "Stale"
+    If Not private_TryReadFormValue("HistoryStamp", stamp) Then Exit Function
+    prompt = VBA.Replace$(ex_TDB_History.fn_Config("text.DeleteConfirm"), "{id}", VBA.CStr(identifier))
+    If ex_WindowsUi.fn_ShowMessage(prompt, VBA.vbYesNo Or VBA.vbQuestion Or VBA.vbDefaultButton2, _
+            ex_TravelDocumentsBuilder.fn_Config("text.DeleteEvent")) <> VBA.vbYes Then
+        DeleteEventHandler = True
+        Exit Function
+    End If
+    ex_TDB_History.fn_DeleteEvent VBA.CStr(identifier), VBA.CStr(stamp), m_acceptedOrderNumber, m_acceptedOrderDate
+    deleted = True
+    If Not Me.ClearFormHandler() Then GoTo RefreshFailed
+    If Not Me.LoadHistoryHandler() Then GoTo RefreshFailed
+    DeleteEventHandler = private_SetActionStatus(ex_TDB_History.fn_Config("text.Deleted"), False)
+    Exit Function
+RefreshFailed:
+    DeleteEventHandler = private_SetActionStatus(ex_TDB_History.fn_Config("text.DeletedRefreshFailed"), True)
+    Exit Function
+Failed:
+    If deleted Then
+        private_SetActionStatus ex_TDB_History.fn_Config("text.DeletedRefreshFailed"), True
+    Else
+        private_SetActionStatus VBA.Err.Description, True
+    End If
 End Function
 
 Public Function SaveHistoryHandler() As Boolean
@@ -1158,6 +1190,7 @@ End Function
 
 Private Function private_PublishOrders(ByVal matches As Collection) As Boolean
     Dim options As New Collection
+    Dim todayOptions As New Collection
     Dim record As obj_LookupRecord
     Dim number As Variant
     Dim orderDate As Variant
@@ -1171,7 +1204,9 @@ Private Function private_PublishOrders(ByVal matches As Collection) As Boolean
         If m_orderOptions.Exists(caption) Then ex_TDB_History.fn_Fail "OrderStale"
         m_orderOptions.Add caption, record
         options.Add caption
+        If VBA.DateValue(VBA.CDate(orderDate)) = VBA.Date Then todayOptions.Add caption
     Next record
+    If Not m_pageBase.BindingContext.SetObject("Data", "TodayOrderOptions", todayOptions) Then Exit Function
     private_PublishOrders = m_pageBase.BindingContext.SetObject("Data", "OrderOptions", options)
 End Function
 
@@ -1232,8 +1267,10 @@ Private Function private_UpdateFieldState() As Boolean
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     If Not private_TryReadFormValue("HistoryRowId", value) Then Exit Function
     updates("Form.ChangeReasonVisibility") = "Collapsed"
+    updates("Form.DeleteEventVisibility") = "Collapsed"
     If VBA.Len(VBA.CStr(value)) > 0 Then
         updates("Form.ChangeReasonVisibility") = "Visible"
+        updates("Form.DeleteEventVisibility") = "Visible"
     End If
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.fields"), "|")
         If Not private_TryReadFormValue(VBA.CStr(field), value) Then Exit Function

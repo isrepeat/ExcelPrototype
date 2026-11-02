@@ -335,6 +335,7 @@ Public Function TrySave( _
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
+    metadata.Add "PlaceKind", m_form("PlaceKind")
     For Each key In VBA.Array("WeaponLine")
         metadata.Add VBA.CStr(key), m_form(key)
     Next key
@@ -535,6 +536,10 @@ Public Function TryRender( _
     Next row
     m_wordValues.Add "TvoChain", tvoChain
     Set placeChain = ex_TDB_PlaceChain.fn_FromGroup(group)
+    For Each row In placeChain
+        row("IsMilitary") = (ex_TDB_PlaceChain.fn_Kind(row) = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind"))
+    Next row
+    m_wordValues.Add "HasTravelPlaces", (placeChain.Count > 0)
     m_wordValues.Add "PlaceChain", placeChain
     Set m_basis = ex_TDB_BasisChain.fn_FromGroup(group)
     m_wordValues.Add "BasisDocuments", m_basis
@@ -718,6 +723,7 @@ Private Sub private_PreparePlaces()
         End If
     Next first
     Set first = m_places(1)
+    m_form("PlaceKind") = ex_TDB_PlaceChain.fn_Kind(first)
     For Each field In ex_TDB_Places.fn_FormFields()
         m_form(field) = first(field)
     Next field

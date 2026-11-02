@@ -616,6 +616,8 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim isObject As Boolean
     Dim uiCellBinding As obj_UiCellBinding
     Dim targetCell As Range
+    Dim editorRange As Range
+    Dim arrowColumns As Long
     Dim selectItems As Collection
     Dim focusCommand As obj_UiCommand
     Dim shapeNameToRemove As Variant
@@ -651,7 +653,17 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If m_targetRange Is Nothing Then
         Exit Function
     End If
-    ex_UiTables.fn_MergeRange m_targetRange, m_uiControlBase.ControlName
+    Set editorRange = m_targetRange
+    If m_editable And Not m_uiControlBase.ControlNode.getAttributeNode("arrowColumnSpan") Is Nothing Then
+        arrowColumns = ex_UiElementFactory.fn_Long(m_uiControlBase.ControlNode, "arrowColumnSpan", 1)
+        If arrowColumns >= m_targetRange.Columns.Count Then
+            VBA.Err.Raise 5, "Select.Layout", "The arrow must leave at least one editor column."
+        End If
+        ' The arrow occupies adjacent cells, outside the editable value area.
+        m_targetRange.UnMerge
+        Set editorRange = m_targetRange.Resize(m_targetRange.Rows.Count, m_targetRange.Columns.Count - arrowColumns)
+    End If
+    ex_UiTables.fn_MergeRange editorRange, m_uiControlBase.ControlName
 #If ENABLE_LOGGING_VERBOSE Then
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_RANGE_PREPARE_COMPLETED | Name=" & m_uiControlBase.ControlName
 #End If
@@ -691,7 +703,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     If Len(ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "numberFormat")) > 0 Then
         m_targetRange.NumberFormat = ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "numberFormat")
     End If
-    m_targetRange.Value2 = value
+    editorRange.Value2 = value
     m_targetRange.Locked = m_readOnly
     m_appliedReadOnly = m_readOnly
     If Not m_isSelect And Not m_isCheckbox Then

@@ -19,7 +19,6 @@
                          itemsSource="{Binding Path=Data.DocumentTypes}"
                          row="1"
                          column="2"
-                         columnSpan="2"
                          style="formField"
                          value="{Binding Path=Form.DocumentType}"
                          panelStyle="formSelectPanel"
@@ -36,7 +35,6 @@
                          itemsSource="{Binding Path=Data.VacationKinds}"
                          row="1"
                          column="2"
-                         columnSpan="2"
                          style="formField"
                          value="{Binding Path=Form.VacationKind}"
                          onChange="{Binding Path=Commands.VacationKindChanged}"
@@ -53,7 +51,6 @@
                          itemsSource="{Binding Path=Data.StatusOptions}"
                          row="1"
                          column="2"
-                         columnSpan="2"
                          style="formField"
                          value="{Binding Path=Form.VacationStatus}"
                          panelStyle="formSelectPanel"
@@ -68,7 +65,6 @@
         <controls:input name="ReportNo"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.ReportNo}"/>
       </grid>
@@ -81,7 +77,6 @@
         <controls:input name="PersonRank"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="{Binding Path=Form.PersonRankStyle}"
                         value="{Binding Path=Form.PersonRank}"
                         readOnly="{Binding Path=Form.PersonRankReadOnly}"/>
@@ -95,7 +90,6 @@
         <controls:input name="PersonName"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="lookupKeyField"
                         value="{Binding Path=Form.PersonName}"
                         onChange="{Binding Path=Commands.PersonNameChanged}"/>
@@ -109,7 +103,6 @@
         <controls:input name="PersonId"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="{Binding Path=Form.PersonIdStyle}"
                         value="{Binding Path=Form.PersonId}"
                         readOnly="{Binding Path=Form.PersonIdReadOnly}"/>
@@ -123,7 +116,6 @@
         <controls:input name="PersonPositionCode"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="{Binding Path=Form.PersonPositionCodeStyle}"
                         value="{Binding Path=Form.PersonPositionCode}"
                         readOnly="{Binding Path=Form.PersonPositionCodeReadOnly}"/>
@@ -139,7 +131,6 @@
                         row="1"
                         column="2"
                         rowSpan="2"
-                        columnSpan="2"
                         style="{Binding Path=Form.PersonPositionStyle}"
                         value="{Binding Path=Form.PersonPosition}"
                         readOnly="{Binding Path=Form.PersonPositionReadOnly}"/>
@@ -154,7 +145,6 @@
                          itemsSource="{Binding Path=Data.PlaceKinds}"
                          row="1"
                          column="2"
-                         columnSpan="2"
                          style="formField"
                          value="{Binding Path=Form.PlaceKind}"
                          onChange="{Binding Path=Commands.PlaceKindChanged}"
@@ -192,7 +182,6 @@
           <controls:input name="PlaceRegion"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceRegion}"/>
         </grid>
@@ -205,7 +194,6 @@
           <controls:input name="PlaceType"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceType}"/>
         </grid>
@@ -218,7 +206,6 @@
           <controls:input name="PlaceName"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceName}"/>
         </grid>
@@ -231,7 +218,6 @@
           <controls:input name="PlaceDistrict"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceDistrict}"/>
         </grid>
@@ -248,7 +234,6 @@
           <controls:input name="PlaceCountry"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceCountry}"/>
         </grid>
@@ -261,7 +246,6 @@
           <controls:input name="PlaceCountryEn"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceCountryEn}"/>
         </grid>
@@ -274,7 +258,6 @@
           <controls:input name="PlaceRegionEn"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceRegionEn}"/>
         </grid>
@@ -287,7 +270,6 @@
           <controls:input name="PlaceNameEn"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.PlaceNameEn}"/>
         </grid>
@@ -346,7 +328,6 @@
         <controls:input name="VacationDays"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.VacationDays}"/>
       </grid>
@@ -359,7 +340,6 @@
         <controls:input name="RoadDays"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.RoadDays}"/>
       </grid>
@@ -372,7 +352,6 @@
         <controls:input name="DonationDays"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.DonationDays}"/>
       </grid>
@@ -386,7 +365,6 @@
                          itemsSource="{Binding Path=Data.AbroadOptions}"
                          row="1"
                          column="2"
-                         columnSpan="2"
                          style="formField"
                          value="{Binding Path=Form.VacationAbroad}"
                          onChange="{Binding Path=Commands.VacationAbroadChanged}"
@@ -405,7 +383,6 @@
           <controls:input name="VlkNo"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.VlkNo}"/>
         </grid>
@@ -418,7 +395,6 @@
           <controls:input name="VlkDate"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.VlkDate}"/>
         </grid>
@@ -431,7 +407,6 @@
           <controls:input name="LongTreatmentDays"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.LongTreatmentDays}"/>
         </grid>
@@ -444,7 +419,6 @@
           <controls:input name="TreatmentLeaveDays"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.TreatmentLeaveDays}"/>
         </grid>
@@ -477,7 +451,6 @@
         <controls:input name="TvoIpn"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="{Binding Path=Form.TvoIpnStyle}"
                         value="{Binding Path=Form.TvoIpn}"
                         readOnly="{Binding Path=Form.TvoIpnReadOnly}"/>
@@ -491,7 +464,6 @@
         <controls:input name="TvoPosition"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="{Binding Path=Form.TvoPositionStyle}"
                         value="{Binding Path=Form.TvoPosition}"
                         readOnly="{Binding Path=Form.TvoPositionReadOnly}"/>
@@ -530,7 +502,6 @@
                         row="1"
                         column="2"
                         rowSpan="2"
-                        columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.Purpose}"/>
       </grid>
@@ -547,7 +518,6 @@
                            itemsSource="{Binding Path=Data.BasisInstitutions}"
                            row="1"
                            column="2"
-                           columnSpan="2"
                            style="formField"
                            value="{Binding Path=Form.BasisInstitution}"
                            placeholder="{Binding Path=Text.BasisInstitution}"
@@ -566,7 +536,6 @@
           <controls:input name="BasisInstitutionQuery"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="lookupKeyField"
                           value="{Binding Path=Form.BasisInstitutionQuery}"
                           onChange="{Binding Path=Commands.BasisInstitutionQueryChanged}"/>
@@ -581,7 +550,6 @@
                            itemsSource="{Binding Path=Data.BasisTypes}"
                            row="1"
                            column="2"
-                           columnSpan="2"
                            style="formField"
                            value="{Binding Path=Form.BasisType}"
                            placeholder="{Binding Path=Text.BasisType}"
@@ -600,7 +568,6 @@
                            itemsSource="{Binding Path=Data.BasisIssuers}"
                            row="1"
                            column="2"
-                           columnSpan="2"
                            style="formField"
                            value="{Binding Path=Form.BasisIssuer}"
                            placeholder="{Binding Path=Text.BasisIssuer}"
@@ -618,7 +585,6 @@
           <controls:input name="BasisNumber"
                           row="1"
                           column="2"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.BasisNumber}"/>
         </grid>
@@ -670,7 +636,6 @@
                           row="1"
                           column="2"
                           rowSpan="1"
-                          columnSpan="2"
                           style="formField"
                           value="{Binding Path=Form.WeaponLine}"/>
         </grid>
@@ -684,7 +649,6 @@
         <controls:input name="ChangeReason"
                         row="1"
                         column="2"
-                        columnSpan="2"
                         style="formField"
                         value="{Binding Path=Form.ChangeReason}"/>
       </grid>
@@ -692,7 +656,7 @@
 
     <controls:button name="SaveHistory"
                      row="2"
-                     column="11"
+                     column="10"
                      columnSpan="2"
                      style="resetFormButton"
                      caption="{Binding Path=Text.SaveHistory}"
@@ -700,7 +664,7 @@
 
     <controls:button name="ExportWord"
                      row="4"
-                     column="14"
+                     column="13"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.ExportWord}"
@@ -708,7 +672,7 @@
 
     <controls:button name="ClearForm"
                      row="2"
-                     column="8"
+                     column="7"
                      columnSpan="2"
                      style="resetFormButton"
                      caption="{Binding Path=Text.ClearForm}"
@@ -716,55 +680,66 @@
 
     <controls:label name="OrderQueryLabel"
                     row="6"
-                    column="14"
+                    column="13"
                     style="formLabel"
                     text="{Binding Path=Text.OrderQueryLabel}"/>
     <controls:label name="OrderYearLabel"
                     row="6"
-                    column="15"
+                    column="14"
                     style="formLabel"
                     text="{Binding Path=Text.OrderYearLabel}"/>
     <controls:select name="OrderQuery"
                      itemsSource="{Binding Path=Data.OrderOptions}"
                      row="7"
-                     column="14"
+                     column="13"
                      style="lookupKeyField"
                      value="{Binding Path=Form.OrderQuery}"
                      editable="true"
+                     shapeWidth="13/100"
+                     highlightValue="{Binding Path=Data.TodayOrderOptions}"
+                     highlightStyle="currentDateItem"
                      tags="formIconButton"
                      panelStyle="formSelectPanel"
                      itemStyle="formSelectItem"
                      onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:input name="OrderYear"
                     row="7"
-                    column="15"
+                    column="14"
                     style="lookupKeyField"
                     value="{Binding Path=Form.OrderYear}"
                     onChange="{Binding Path=Commands.SearchOrders}"/>
     <controls:label name="HistoryEditMode"
                     row="14"
-                    column="14"
+                    column="13"
                     rowSpan="2"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.HistoryEditMode}"/>
+    <controls:button name="DeleteEvent"
+                     row="17"
+                     column="13"
+                     columnSpan="2"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.DeleteEvent}"
+                     command="{Binding Path=Commands.DeleteEvent}"
+                     visibility="{Binding Path=Form.DeleteEventVisibility}"/>
     <controls:button name="LoadHistory"
                      row="3"
-                     column="14"
+                     column="13"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.LoadHistory}"
                      command="{Binding Path=Commands.LoadHistory}"/>
     <controls:label name="LastStatusLabel"
                     row="9"
-                    column="14"
+                    column="13"
                     columnSpan="2"
                     style="statusHeading"
                     text="{Binding Path=Text.LastStatus}"/>
 
     <controls:label name="GenerationStatus"
                     row="10"
-                    column="14"
+                    column="13"
                     rowSpan="4"
                     columnSpan="2"
                     style="{Binding Path=Form.GenerationStatusStyle}"
@@ -772,14 +747,14 @@
 
     <controls:label name="SearchSection"
                     row="1"
-                    column="5"
+                    column="4"
                     columnSpan="8"
                     style="sectionTitle"
                     text="{Binding Path=Text.SearchSection}"/>
 
     <controls:checkbox name="AutoFillPersonnel"
                        row="2"
-                       column="5"
+                       column="4"
                        columnSpan="3"
                        style="personnelCheckbox"
                        value="{Binding Path=Form.AutoFillPersonnel}"
@@ -790,14 +765,14 @@
 
     <controls:label name="ActionsSection"
                     row="1"
-                    column="14"
+                    column="13"
                     columnSpan="2"
                     style="sectionTitle"
                     text="{Binding Path=Text.ActionsSection}"/>
 
     <controls:button name="RefreshPersonnel"
                      row="2"
-                     column="14"
+                     column="13"
                      columnSpan="2"
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
@@ -806,7 +781,7 @@
     <controls:table name="Candidates"
                     itemsSource="{Binding Path=Data.PersonnelCandidates}"
                     row="3"
-                    column="5"
+                    column="4"
                     columnOffset="{Binding Path=Settings.CandidateColumnOffset}"
                     maxColumns="{Binding Path=Settings.CandidateMaxColumns}"
                     overflowMessage="{Binding Path=Text.CandidateOverflow}"
@@ -820,7 +795,7 @@
     <controls:table name="History"
                     itemsSource="{Binding Path=Data.HistoryCandidates}"
                     row="3"
-                    column="5"
+                    column="4"
                     style="candidateTable"
                     visibility="{Binding Path=Form.HistoryVisibility}"
                     selectedItem="{Binding Path=Data.SelectedHistory}"
@@ -1174,20 +1149,20 @@
               selector="address=D:D"
               styles="{width:4;}"/>
         <rule target="column"
-              selector="address=E:E"
-              styles="{width:2;}"/>
+              selector="address=E:L"
+              styles="{width:17.65;}"/>
         <rule target="column"
-              selector="address=F:M"
-              styles="{width:17;}"/>
+              selector="address=M:M"
+              styles="{width:4;}"/>
         <rule target="column"
               selector="address=N:N"
-              styles="{width:2;}"/>
-        <rule target="column"
-              selector="address=O:O"
               styles="{width:25;}"/>
         <rule target="column"
-              selector="address=P:P"
+              selector="address=O:O"
               styles="{width:12;}"/>
+        <rule target="column"
+              selector="address=P:P"
+              styles="{width:2;}"/>
       </layer>
       <layer name="table-parts">
         <rule target="control"

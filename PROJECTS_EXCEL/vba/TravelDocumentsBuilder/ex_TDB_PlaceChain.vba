@@ -45,14 +45,9 @@ Public Function fn_FromValues(ByVal values As Object) As Object
     Next field
     row("PlaceAbroad") = values("VacationAbroad")
     row("Destination") = ex_TableQuery.fn_NormalizeText(VBA.CStr(values("DocumentTarget")))
+    row("PlaceKind") = VBA.CStr(values("PlaceKind"))
     If values("PlaceKind") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind") Then
         If VBA.Len(row("Destination")) = 0 Then private_Required "text.VacationTicket.DocumentTargetLabel"
-        ' Preserve the place kind in the existing structured history fields.
-        row("PlaceType") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type")
-        row("PlaceName") = row("Destination")
-        If VBA.StrComp(VBA.Left$(row("Destination"), VBA.Len(row("PlaceType"))), row("PlaceType"), VBA.vbTextCompare) <> 0 Then
-            row("Destination") = row("PlaceType") & VBA.Space$(1) & row("Destination")
-        End If
         Set fn_FromValues = row
         Exit Function
     End If
@@ -99,7 +94,7 @@ Public Function fn_Build( _
     If Not TypeOf source Is Collection Then ex_TDB_History.fn_Fail "InvalidChain"
     For Each item In source
         Set copy = ex_TDB_History.fn_NewRow()
-        For Each field In VBA.Split("RowId|Destination|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
+        For Each field In VBA.Split("RowId|Destination|PlaceKind|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
             copy(field) = item(field)
         Next field
         For Each field In VBA.Split("Destination|" & ex_TravelDocumentsBuilder.fn_Config( _
@@ -133,7 +128,9 @@ Public Function fn_Join(ByVal chain As Collection) As String
 End Function
 
 Public Function fn_Kind(ByVal row As Object) As String
-    If row("PlaceType") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type") Then
+    If VBA.Len(VBA.CStr(row("PlaceKind"))) > 0 Then
+        fn_Kind = VBA.CStr(row("PlaceKind"))
+    ElseIf row("PlaceType") = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type") Then
         fn_Kind = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind")
     Else
         fn_Kind = ex_TravelDocumentsBuilder.fn_Config("generation.defaults.PlaceKind")
@@ -167,10 +164,11 @@ Public Function fn_FromGroup(ByVal group As Collection) As Collection
     Loop While found
     If result.Count <> count Then ex_TDB_History.fn_Fail "InvalidChain"
     Set root = group(1)
-    If result.Count = 0 And VBA.Len(VBA.Trim$(VBA.CStr(root("PlaceName")))) > 0 Then
+    If result.Count = 0 And (VBA.Len(VBA.Trim$(VBA.CStr(root("PlaceName")))) > 0 Or _
+            VBA.Len(VBA.Trim$(VBA.CStr(root("PlaceKind")))) > 0) Then
         ' A single place is stored on Event; its in-memory item has no persisted child ID.
         Set row = ex_TDB_History.fn_NewRow()
-        For Each field In VBA.Split("Destination|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
+        For Each field In VBA.Split("Destination|PlaceKind|" & ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
             row(field) = root(field)
         Next field
         row("RowType") = "Place"
