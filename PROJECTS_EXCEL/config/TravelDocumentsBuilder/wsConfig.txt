@@ -204,7 +204,7 @@ value	TravelDocumentsBuilder::lookup.Places.source.path	../Dependencies/Уста
 value	TravelDocumentsBuilder::lookup.Places.source.sheet	Місця України
 value	TravelDocumentsBuilder::lookup.Places.source.table	tbPlacesUkraine
 value	TravelDocumentsBuilder::lookup.Places.columns.Name	Місто / селище
-value	TravelDocumentsBuilder::lookup.Places.columns.Type	Тип
+value	TravelDocumentsBuilder::lookup.Places.columns.Type	Тип населеного пункту
 value	TravelDocumentsBuilder::lookup.Places.columns.Region	Область
 value	TravelDocumentsBuilder::lookup.Places.columns.Address	Повна адреса
 value	TravelDocumentsBuilder::lookup.Places.columns.District	Район
@@ -296,7 +296,7 @@ value	TravelDocumentsBuilder::lookup.PlacesAbroad.source.path	../Dependencies/У
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.source.sheet	Місця за кордоном
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.source.table	tbPlacesAbroad
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.columns.Name	Місце (UA)
-value	TravelDocumentsBuilder::lookup.PlacesAbroad.columns.Type	Тип
+value	TravelDocumentsBuilder::lookup.PlacesAbroad.columns.Type	Тип населеного пункту
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.columns.NameEn	Місце (EN)
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.columns.Region	Регіон (UA)
 value	TravelDocumentsBuilder::lookup.PlacesAbroad.columns.Address	Повна адреса

@@ -26,6 +26,12 @@ value	common::personnel.header.name	Назва
 value	common::personnel.header.rank	Звання
 value	common::personnel.header.actual_rank	Військове звання фактично
 value	common::personnel.header.position_code	Код посади
+value	common::medicalCatalog.flag.header	Лікувальна
+value	common::medicalCatalog.flag.value	Так
+value	common::medicalCatalog.tables.units	tbMilitaries
+value	common::medicalCatalog.tables.institutions	ЛЗК
+value	common::medicalCatalog.headers	Група установи|Позначення|Назва|Родовий|Знахідний|Давальний
+value	common::medicalCatalog.unitHeaders	Група установи|Військова частина|Назва|Родовий|Знахідний|Давальний
 value	source.Orders.range	D2:H555
 value	source.Orders.sheet	Накази
 value	source.Orders.dateHeader	Дата
@@ -35,7 +41,7 @@ value	source.Absence.range	A5:Q20000
 value	source.Absence.sheet	5. Тимчасово відсутні
 value	source.Personnel.range	A1:CG10556
 value	source.Personnel.sheet	ОС
-value	source.Institutions.range	A3:F10000
+value	source.Institutions.range	@MedicalInstitutions
 value	source.Institutions.sheet	Лікувальні Заклади
 value	source.PersonnelAlf.range	A1:J12000
 value	source.PersonnelAlf.sheet	АЛФ

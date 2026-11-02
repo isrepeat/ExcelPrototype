@@ -40,9 +40,9 @@ for row in rows:
         if target in required:
             assert row[cfg(prefix + 'columns.' + alias)], (target, row)
 # The actual catalog exercises country-only, region-only and nullable type/region cases.
-assert any(row['Тип'] == 'держава' and not row['Регіон (UA)'] for row in rows)
-assert any(row['Тип'] == 'регіон' and row['Місце (UA)'] == row['Регіон (UA)'] for row in rows)
-assert any(not row['Тип'] for row in rows)
+assert any(row[cfg(prefix + 'columns.Type')] == 'держава' and not row['Регіон (UA)'] for row in rows)
+assert any(row[cfg(prefix + 'columns.Type')] == 'регіон' and row['Місце (UA)'] == row['Регіон (UA)'] for row in rows)
+assert any(not row[cfg(prefix + 'columns.Type')] for row in rows)
 assert any(row['Місце (UA)'] == 'Лінц' and row['Місце (EN)'] == 'Linz' for row in rows)
 book.close()
 assert sum(map(int, cfg(prefix + 'columnSpans').split('|'))) + int(cfg(prefix + 'columnOffset')) <= int(cfg('candidates.layout.columns'))

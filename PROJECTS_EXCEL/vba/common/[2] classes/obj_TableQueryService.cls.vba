@@ -94,6 +94,10 @@ Public Function TryExecute( _
             Exit Function
         End If
     End If
+    If source.RangeAddress = "@MedicalInstitutions" Then
+        TryExecute = ex_MedicalInstitutions.fn_TryQuery(source, query, Backend, output, diagnostic)
+        Exit Function
+    End If
     selected = Backend
     If selected = QueryAuto Then
         selected = QueryAdo

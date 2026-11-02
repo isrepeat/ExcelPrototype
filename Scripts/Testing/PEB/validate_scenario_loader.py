@@ -49,6 +49,31 @@ def load_tables(book):
     return result
 
 
+def lookup_rows(book, sheet_name, address):
+    if address != "@MedicalInstitutions":
+        sheet = book[sheet_name]
+        left, top, right, bottom = range_boundaries(address)
+        headers = [sheet.cell(top, column).value for column in range(left, right + 1)]
+        return [dict(zip(headers, [sheet.cell(row, column).value for column in range(left, right + 1)]))
+                for row in range(top + 1, min(bottom, sheet.max_row) + 1)]
+    shared = {}
+    for line in (ROOT / "PROJECTS_EXCEL/config/cfgDependencies/wsConfig.txt").read_text(encoding="utf-8-sig").splitlines():
+        _, key, value = line.split("\t")
+        shared[key] = value
+    prefix = "common::medicalCatalog."
+    headers = shared[prefix + "headers"].split("|")
+    unit_headers = shared[prefix + "unitHeaders"].split("|")
+    tables = load_tables(book)
+    result = []
+    for kind in ["institutions", "units"]:
+        table = tables[shared[prefix + "tables." + kind]]
+        for row in table["rows"]:
+            if kind == "units" and row[shared[prefix + "flag.header"]] != shared[prefix + "flag.value"]:
+                continue
+            result.append(dict(zip(headers, [row[key] for key in (unit_headers if kind == "units" else headers)])))
+    return result
+
+
 def unique(rows, field):
     result = {}
     for row in rows:
@@ -392,13 +417,9 @@ def directory_checks(tables, settings):
             lookup_path = (workbook_root / settings[f"{prefix}.path"]).resolve()
             if lookup_path not in books:
                 books[lookup_path] = openpyxl.load_workbook(lookup_path, data_only=True)
-            sheet = books[lookup_path][settings[f"{prefix}.sheet"]]
-            left, top, right, bottom = range_boundaries(settings[f"{prefix}.range"])
-            headers = [sheet.cell(top, column).value for column in range(left, right + 1)]
-            key_column = left + headers.index(settings[f"{prefix}.keyHeader"])
-            value_column = left + headers.index(settings[f"{prefix}.valueHeader"])
-            matches = [sheet.cell(row, value_column).value for row in range(top + 1, min(bottom, sheet.max_row) + 1)
-                       if sheet.cell(row, key_column).value == step[header]]
+            source_rows = lookup_rows(books[lookup_path], settings[f"{prefix}.sheet"], settings[f"{prefix}.range"])
+            matches = [row[settings[f"{prefix}.valueHeader"]] for row in source_rows
+                       if row[settings[f"{prefix}.keyHeader"]] == step[header]]
             if expected[step["StepId"]]["Outcome"] == "Success":
                 assert len(matches) == 1 and matches[0], f"Missing preview lookup: {step['StepId']}/{prefix}"
             elif ".ToHospital.lookups" in prefix or ".FromHospital.lookups" in prefix:

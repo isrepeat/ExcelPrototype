@@ -1,0 +1,9 @@
+# Medical institutions catalog
+
+`Установи.xlsx` stores each military unit once in `tbMilitaries`. Medical units have `Лікувальна = Так`; their display name and grammatical forms are stored in `Назва`, `Родовий`, `Знахідний` and `Давальний`. `Група установи` determines official titles independently of the medical flag. Nonmedical units use `Лікувальна = Ні`. The `ЛЗК` table contains independent medical institutions.
+
+The shared `source.Institutions.range` setting is the virtual source `@MedicalInstitutions`. `obj_TableQueryService` resolves this source through `ex_MedicalInstitutions`: it reads both named tables using the requested backend, appends only flagged units, maps their unit number to `Позначення`, and applies the original query to the combined data. Snapshot loading captures this combined catalog once from the saved workbook, so candidate lookup, declensions and return enrichment use the same data. No copied records or refresh-dependent formula table are stored in the workbook.
+
+The shared `common::medicalCatalog` settings define table names, projected headers, matching unit headers and the medical flag. Refresh `cfgDependencies.xlsx` from its configuration source, then reload consumer configuration and VBA modules before using the migrated workbook. The source-edit workflow does not update or execute working workbooks automatically.
+
+Adding a medical unit requires its unit number, `Лікувальна = Так`, display name and the required grammatical forms. Do not add a second copy to `ЛЗК`. Disabling the flag removes the unit from medical searches without removing it from the general military-unit catalog.
