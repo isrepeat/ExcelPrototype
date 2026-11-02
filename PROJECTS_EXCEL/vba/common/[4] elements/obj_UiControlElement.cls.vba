@@ -150,6 +150,10 @@ Private Function obj_IUiElement_Arrange( _
 End Function
 
 Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
+    Dim errorNumber As Long
+    Dim errorDescription As String
+
+    On Error GoTo EH_RENDER
     If m_collapsed Then
         obj_IUiElement_Render = True
         Exit Function
@@ -171,6 +175,13 @@ Private Function obj_IUiElement_Render(ByRef diagnostic As String) As Boolean
     If Not obj_IUiElement_Render Then
         diagnostic = "Cannot render control: " & ex_UiElementFactory.fn_Attribute(m_definition, "name")
     End If
+    Exit Function
+EH_RENDER:
+    obj_IUiElement_Render = False
+    errorNumber = Err.Number
+    errorDescription = Err.Source & ": " & Err.Description
+    diagnostic = "Control.Render/" & ex_UiElementFactory.fn_Attribute(m_definition, "name") & ": " & errorDescription
+    ex_Core.fn_Diagnostic_WriteError diagnostic, errorNumber, "obj_UiControlElement", errorDescription
 End Function
 
 Private Function obj_IUiElement_Validate(ByVal errors As Collection) As Boolean

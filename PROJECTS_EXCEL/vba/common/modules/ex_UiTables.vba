@@ -242,7 +242,9 @@ Public Sub fn_Prepare( _
         If owners.Exists(key) Then
             Set plan = owners(key)
             Set area = plan("range")
-            keep = plan("smart") And area.Row = table.Range.Row And area.Column = table.Range.Column
+            ' Recreate resized tables so partial rendering cannot retain stale table regions.
+            keep = plan("smart") And area.Row = table.Range.Row And area.Column = table.Range.Column And _
+                area.Rows.Count = table.Range.Rows.Count And area.Columns.Count = table.Range.Columns.Count
         End If
         If Not keep Then
             Set previousRange = table.Range
