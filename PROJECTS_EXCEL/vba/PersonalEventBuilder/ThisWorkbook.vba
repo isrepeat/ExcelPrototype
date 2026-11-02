@@ -186,16 +186,24 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     Dim flushSucceeded As Boolean
     Dim errorNumber As Long
     Dim errorDescription As String
+    Dim errorSource As String
+    Dim closeStage As String
 
     startedAt = VBA.Timer
     On Error GoTo EH
+    closeStage = "ResetUiBusy"
     ex_UiBusy.fn_Reset
+    closeStage = "GetRuntimeContext"
     Set runtimeContext = ex_RuntimeLifecycle.fn_Context()
+    closeStage = "DisposeTesting"
     ex_PEB_Testing.fn_Module_Dispose
+    closeStage = "CloseWord"
     ex_PEB_WordState.fn_CloseWord
+    closeStage = "CancelPendingUpdate"
     If runtimeContext("Phase") = "Requested" Then
         Application.Run "'WorkbookUpdater.xlam'!ex_WorkbookUpdater.fn_CancelPending", ThisWorkbook
     End If
+    closeStage = "FlushExistingLogBuffer"
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_STARTED | Workbook=" & _
         ThisWorkbook.Name
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_STAGE | Name=FlushExistingLogBuffer"
@@ -204,17 +212,21 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
         " | Succeeded=" & VBA.CStr(flushSucceeded)
     If Not flushSucceeded Then GoTo CancelClose
 
+    closeStage = "DeactivateHotkeys"
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_STAGE | Name=DeactivateHotkeys"
     ex_AppHotkeys.fn_Deactivate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_STAGE_COMPLETED | Name=DeactivateHotkeys"
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_COMPLETED | ElapsedMs=" & _
         private_FormatElapsedMilliseconds(startedAt)
+    closeStage = "FinalLogFlush"
     flushSucceeded = ex_Core.fn_Diagnostic_Flush()
     If flushSucceeded Then
+        closeStage = "ForgetReloadContext"
         private_ForgetReloadContext
         Exit Sub
     End If
 
+    closeStage = "RestoreHotkeys"
     ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
     ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_CLOSE_CANCELLED | Reason=FinalLogFlushFailed"
@@ -235,12 +247,14 @@ EH:
     Cancel = True
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
+    errorSource = VBA.Err.Source
     On Error Resume Next
     ex_UiBusy.fn_Reset
     ex_AppCommands.fn_RegisterHotkeys
     ex_AppHotkeys.fn_Activate
-    ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_ERROR | Number=" & _
-        VBA.CStr(errorNumber) & " | Description=" & errorDescription
+    ex_Core.fn_Diagnostic_WriteLog "WORKBOOK_BEFORE_CLOSE_ERROR | Stage=" & closeStage & _
+        " | Number=" & VBA.CStr(errorNumber) & " | Source=" & errorSource & _
+        " | Description=" & errorDescription
     ex_Core.fn_Diagnostic_Flush
     ex_WindowsUi.fn_ShowMessage "Workbook close diagnostics failed. The workbook will remain open.", _
         VBA.vbExclamation, "PersonalEventBuilder"

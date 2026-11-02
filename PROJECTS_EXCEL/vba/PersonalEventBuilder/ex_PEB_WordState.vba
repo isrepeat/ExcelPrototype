@@ -23,9 +23,13 @@ Public Function fn_AcquireWord() As Object
 End Function
 
 Public Sub fn_CloseWord()
+    Dim wordSession As obj_PEB_WordSession
+
     If Not m_wordSession Is Nothing Then
-        m_wordSession.Dispose
+        ' Detach first so a disposal error cannot leave a stale module reference.
+        Set wordSession = m_wordSession
         Set m_wordSession = Nothing
+        wordSession.Dispose
     End If
 End Sub
 

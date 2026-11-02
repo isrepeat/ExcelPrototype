@@ -35,12 +35,33 @@ Public Function Initialize() As Boolean
 End Function
 
 Public Sub Dispose()
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
+
     If m_isDisposed Then Exit Sub
     m_isDisposed = True
     m_isInitialized = False
     If Not m_application Is Nothing Then
+        ' A disconnected Word instance is already closed; always release its proxy.
+        On Error Resume Next
+        VBA.Err.Clear
         m_application.Quit 0
+        errorNumber = VBA.Err.Number
+        errorSource = VBA.Err.Source
+        errorDescription = VBA.Err.Description
+        VBA.Err.Clear
+        On Error GoTo 0
         Set m_application = Nothing
+        If errorNumber <> 0 Then
+            If errorNumber = 462 Or errorNumber = -2147417848 Then
+                ex_Core.fn_Diagnostic_WriteLog "WORD_SESSION_ALREADY_CLOSED | Stage=CloseWord.Quit" & _
+                    " | Number=" & VBA.CStr(errorNumber) & " | Source=" & errorSource & _
+                    " | Description=" & errorDescription
+            Else
+                VBA.Err.Raise errorNumber, errorSource, errorDescription
+            End If
+        End If
     End If
 End Sub
 
