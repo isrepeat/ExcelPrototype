@@ -35,8 +35,12 @@ Private Function obj_IPage_Initialize(ByVal profileId As String) As Boolean
 End Function
 
 Private Function obj_IPage_Render() As Boolean
+    Dim startedAt As Double
+
     If m_pageBase Is Nothing Then Exit Function
+    startedAt = VBA.Timer
     obj_IPage_Render = m_pageBase.Render()
+    ex_Core.fn_Diagnostic_WritePerf "TDB.UI.Render | Success=" & VBA.CStr(obj_IPage_Render), startedAt
 End Function
 
 Private Function obj_IPage_HandleCellChange(ByVal target As Range) As Boolean
@@ -52,7 +56,10 @@ End Sub
 ' // API
 ' //
 Public Function Initialize(ByVal profileId As String) As Boolean
+    Dim startedAt As Double
+
     If m_isDisposed Or m_isInitialized Then Exit Function
+    startedAt = VBA.Timer
 
     Set m_pageBase = New obj_PageBase
     If Not m_pageBase.Initialize(profileId, ex_TravelDocumentsBuilder.fn_Config("ui.folder")) Then Exit Function
@@ -63,6 +70,11 @@ Public Function Initialize(ByVal profileId As String) As Boolean
     If Not m_controller.DocumentTypeChangedHandler() Then
         Exit Function
     End If
+    If Not ex_TravelDocumentsBuilder.fn_ApplyResetValues(m_pageBase.BindingContext) Then Exit Function
+    If ex_TravelDocumentsBuilder.fn_IsResetting() Then
+        If Not m_controller.RestorePersonnelCandidatesHandler() Then Exit Function
+    End If
+    ex_Core.fn_Diagnostic_WritePerf "TDB.UI.Initialize", startedAt
     Initialize = True
     m_isInitialized = True
 End Function
@@ -121,6 +133,12 @@ Private Function private_TryRegisterBindings() As Boolean
     End If
     If Not bindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
     If Not bindingContext.SetValue("Form", "BasisOwnText", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "ResetInProgress", False) Then Exit Function
+    If Not bindingContext.SetValue("Form", "BasisDraftBaseline", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "BasisManualEdited", False) Then Exit Function
+    If Not bindingContext.SetValue("Form", "DocumentFieldsVisibility", "Visible") Then Exit Function
+    If Not bindingContext.SetValue("Form", "BasisIncludeOrder", _
+            VBA.CBool(ex_TravelDocumentsBuilder.fn_Config("basisChain.defaults.includeOrder"))) Then Exit Function
     If Not bindingContext.SetValue("Form", "DeleteEventVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Text", "DeleteEvent", ex_TravelDocumentsBuilder.fn_Config("text.DeleteEvent")) Then Exit Function
     If Not bindingContext.SetValue("Data", "BasisTypes", VBA.vbNullString) Then Exit Function
@@ -138,7 +156,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Text", "TvoChainSummary", ex_TDB_History.fn_Config("text.ChainEmpty")) Then
         Exit Function
     End If
-    If Not bindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
+    If Not bindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then
         Exit Function
     End If
     If Not bindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then
@@ -300,7 +318,8 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Exit Function
     End If
-    If Not bindingContext.SetValue("Form", "AutoFillPersonnel", True) Then
+    If Not bindingContext.SetValue("Form", "AutoFillPersonnel", _
+            VBA.CBool(ex_TravelDocumentsBuilder.fn_Config("generation.defaults.AutoFillPersonnel"))) Then
         Exit Function
     End If
     For Each key In VBA.Array("DocumentTypeLabel", "PersonNameLabel", _
@@ -347,7 +366,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand( _
             bindingContext, "ExportWord", "ExportWordHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
-            bindingContext, "ClearForm", "ClearFormHandler") Then Exit Function
+            bindingContext, "ClearForm", "NewEventHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "LoadHistory", "LoadHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "SelectHistory", "SelectHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "AddTvo", "AddTvoHandler") Then Exit Function
@@ -378,6 +397,8 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not private_TryRegisterCommand(bindingContext, "RemoveBasis", "RemoveBasisHandler") Then
         Exit Function
     End If
+    If Not private_TryRegisterCommand(bindingContext, "FocusBasisCell", "FocusBasisCellHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "BasisPreviewChanged", "BasisPreviewChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "RemovePlace", "RemovePlaceHandler") Then Exit Function
     private_TryRegisterCommands = True
 End Function

@@ -24,8 +24,16 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_Register(ByVal loader As obj_ITableSnapshotLoader, ByVal notLoadedMessage As String)
+Public Sub fn_Register( _
+    ByVal loader As obj_ITableSnapshotLoader, _
+    ByVal notLoadedMessage As String, _
+    Optional ByVal preserveActive As Boolean = False _
+)
+    Dim previous As obj_TableSnapshotSet
+
+    If preserveActive Then Set previous = m_active
     fn_Module_Dispose
+    If preserveActive Then Set m_active = previous
     Set m_loader = loader
     m_notLoadedMessage = notLoadedMessage
 End Sub

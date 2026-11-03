@@ -125,6 +125,8 @@ Public Function TryExport( _
     Dim templateStamps As Object
     Dim frozenTemplates As Object
     Dim documentId As String
+    Dim companionId As String
+    Dim companionKey As String
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     totalStartedAt = VBA.Timer
@@ -193,6 +195,20 @@ Public Function TryExport( _
                 frozenTemplates.Add documentId, frozenTemplate
                 m_fileSystem.CopyFile path, frozenTemplate, False
             End If
+            If private_HasCompanion(root) Then
+                companionId = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.companion.documentId")
+                If Not templatePaths.Exists(companionId) Then
+                    path = private_Path(ex_TravelDocumentsBuilder.fn_Config("generation.templates." & companionId))
+                    activePath = VBA.CStr(path)
+                    If Not m_fileSystem.FileExists(path) Then private_Fail "Path"
+                    templatePaths.Add companionId, VBA.CStr(path)
+                    templateStamps.Add companionId, private_FileStamp(VBA.CStr(path))
+                    frozenTemplate = m_fileSystem.BuildPath(stage, companionId & ".docx")
+                    If VBA.Len(frozenTemplate) > VBA.CLng(private_Config("maxPath")) Then private_Fail "Path"
+                    frozenTemplates.Add companionId, frozenTemplate
+                    m_fileSystem.CopyFile path, frozenTemplate, False
+                End If
+            End If
         End If
     Next group
     folderStamp = private_FolderStamp(folder)
@@ -215,6 +231,15 @@ Public Function TryExport( _
             wanted.Add identifier, name
             staged.Add identifier, VBA.CStr(wanted.Count) & ".docx"
             If VBA.Len(m_fileSystem.BuildPath(stage, staged(identifier))) > VBA.CLng(private_Config("maxPath")) Then private_Fail "Path"
+            If private_HasCompanion(root) Then
+                companionId = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.companion.documentId")
+                companionKey = identifier & "/" & companionId
+                name = private_FileName(root, companionId)
+                If VBA.Len(m_fileSystem.BuildPath(folder, name)) > VBA.CLng(private_Config("maxPath")) Then private_Fail "Path"
+                wanted.Add companionKey, name
+                staged.Add companionKey, VBA.CStr(wanted.Count) & ".docx"
+                If VBA.Len(m_fileSystem.BuildPath(stage, staged(companionKey))) > VBA.CLng(private_Config("maxPath")) Then private_Fail "Path"
+            End If
         End If
     Next group
 
@@ -237,6 +262,26 @@ Public Function TryExport( _
                 VBA.Err.Raise 5, , diagnostic
             End If
             renderedCount = renderedCount + 1
+            If private_HasCompanion(root) Then
+                progress = progress + 1
+                companionId = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.companion.documentId")
+                companionKey = root("RowId") & "/" & companionId
+                activePath = m_fileSystem.BuildPath(stage, staged(companionKey))
+                text = VBA.Replace$(private_Config("text.Progress"), "{step}", VBA.CStr(progress))
+                text = VBA.Replace$(text, "{total}", VBA.CStr(wanted.Count))
+                ex_Core.fn_StatusBar_Show text
+                If Not m_vacationGenerator.TryRender( _
+                        root, _
+                        group, _
+                        VBA.CStr(frozenTemplates(companionId)), _
+                        activePath, _
+                        signatory, _
+                        diagnostic, _
+                        companionId) Then
+                    VBA.Err.Raise 5, , diagnostic
+                End If
+                renderedCount = renderedCount + 1
+            End If
         End If
     Next group
     ex_Core.fn_Diagnostic_WritePerf "TDB.Word.Export.RenderAll", phaseStartedAt
@@ -401,7 +446,15 @@ Private Function private_Path(ByVal value As String) As String
     private_Path = m_fileSystem.GetAbsolutePathName(value)
 End Function
 
-Private Function private_FileName(ByVal root As Object) As String
+Private Function private_HasCompanion(ByVal root As Object) As Boolean
+    If ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) <> "BusinessTripCertificate" Then Exit Function
+    private_HasCompanion = VBA.CStr(root("TripKind")) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolKind")
+End Function
+
+Private Function private_FileName( _
+    ByVal root As Object, _
+    Optional ByVal documentId As String = "" _
+) As String
     Dim label As String
     Dim name As String
     Dim character As Variant
@@ -417,8 +470,8 @@ Private Function private_FileName(ByVal root As Object) As String
         label = VBA.Replace$(label, VBA.Chr$(index), "_")
     Next index
     label = VBA.Left$(label, VBA.CLng(private_Config("filename.labelMaxChars")))
-    name = ex_TravelDocumentsBuilder.fn_Config("word.filename.prefix." & _
-        ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))) & "_" & label & "__" & root("RowId") & ".docx"
+    If VBA.Len(documentId) = 0 Then documentId = ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))
+    name = ex_TravelDocumentsBuilder.fn_Config("word.filename.prefix." & documentId) & "_" & label & "__" & root("RowId") & ".docx"
     If Not m_namePattern.Test(name) Then private_Fail "Identity"
     Set matches = m_namePattern.Execute(name)
     If VBA.StrComp(matches(0).SubMatches(0), VBA.CStr(root("RowId")), VBA.vbTextCompare) <> 0 Then private_Fail "Identity"

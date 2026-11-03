@@ -318,7 +318,7 @@ Private Sub private_Paragraph( _
             private_Attribute node, "lineRule", "atLeast"
         End If
         Set node = private_W(pPr, "jc")
-        private_Attribute node, "val", private_Value(properties, "horizontal", "left")
+        private_Attribute node, "val", VBA.Replace$(private_Value(properties, "horizontal", "left"), "justify", "both")
         Set run = private_W(p, "r")
         Set rPr = private_W(run, "rPr")
         Set node = private_W(rPr, "rFonts")

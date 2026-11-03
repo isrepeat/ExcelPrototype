@@ -27,11 +27,13 @@ Private m_diagnosticBatchDepth As Long
 Private m_statusBarMessage As String
 Private m_statusBarOwned As Boolean
 Private m_statusBarPrevious As Variant
+Private m_configReadSnapshot As Object
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    Set m_configReadSnapshot = Nothing
     fn_StatusBar_Clear
     m_diagnosticBatchDepth = 0
     If fn_Diagnostic_Flush() Then
@@ -234,6 +236,41 @@ Public Function fn_TryGetWorkbookProfileId(ByRef outProfileId As String) As Bool
         VBA.vbExclamation, "Workbook profile"
 End Function
 
+Public Sub fn_BeginConfigReadSnapshot()
+    Dim targetWorksheet As Worksheet
+    Dim configTable As ListObject
+    Dim values As Variant
+    Dim keyColumn As Long
+    Dim row As Long
+    Dim key As String
+    Dim value As String
+    Dim snapshot As Object
+
+    If Not m_configReadSnapshot Is Nothing Then VBA.Err.Raise 5, , "Configuration snapshot is already active."
+    Set snapshot = VBA.CreateObject("Scripting.Dictionary")
+    snapshot.CompareMode = VBA.vbTextCompare
+    For Each targetWorksheet In ThisWorkbook.Worksheets
+        For Each configTable In targetWorksheet.ListObjects
+            If VBA.StrComp(configTable.Name, "tbConfig", VBA.vbTextCompare) = 0 Then
+                keyColumn = configTable.ListColumns("Key").Index
+                If keyColumn < configTable.ListColumns.Count Then
+                    values = ex_ConfigImports.fn_ReadValues(configTable)
+                    For row = 1 To UBound(values, 1)
+                        key = VBA.CStr(values(row, keyColumn))
+                        value = VBA.Trim$(VBA.CStr(values(row, keyColumn + 1)))
+                        If VBA.Len(value) > 0 And Not snapshot.Exists(key) Then snapshot.Add key, value
+                    Next row
+                End If
+            End If
+        Next configTable
+    Next targetWorksheet
+    Set m_configReadSnapshot = snapshot
+End Sub
+
+Public Sub fn_EndConfigReadSnapshot()
+    Set m_configReadSnapshot = Nothing
+End Sub
+
 Public Function fn_TryGetWorkbookConfigValue( _
     ByVal keyName As String, _
     ByRef outValue As String _
@@ -249,6 +286,13 @@ Public Function fn_TryGetWorkbookConfigValue( _
     outValue = VBA.vbNullString
     keyName = VBA.Trim$(keyName)
     If VBA.Len(keyName) = 0 Then Exit Function
+    If Not m_configReadSnapshot Is Nothing Then
+        If m_configReadSnapshot.Exists(keyName) Then
+            outValue = m_configReadSnapshot(keyName)
+            fn_TryGetWorkbookConfigValue = True
+        End If
+        Exit Function
+    End If
     On Error GoTo CleanExit
     For Each targetWorksheet In ThisWorkbook.Worksheets
         For Each configTable In targetWorksheet.ListObjects

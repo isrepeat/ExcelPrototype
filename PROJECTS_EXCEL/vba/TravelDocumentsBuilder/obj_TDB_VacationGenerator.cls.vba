@@ -15,6 +15,10 @@ Private m_form As Object
 Private m_orderResolver As obj_OrderResolver
 Private m_operationId As String
 Private m_stage As String
+Private m_saveStartedAt As Double
+Private m_saveStageStartedAt As Double
+Private m_saveTiming As Boolean
+Private m_saveStageTiming As Boolean
 Private m_chain As Collection
 Private m_places As Collection
 Private m_basis As Collection
@@ -197,12 +201,17 @@ Public Function TrySave( _
         Exit Function
     End If
     m_operationId = operationId
+    m_saveStartedAt = VBA.Timer
+    m_saveTiming = True
+    m_saveStageTiming = False
     private_LogStage "ReadForm"
     private_ReadForm
     If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(m_form("DocumentType"), m_documentId) Then
         private_Fail "Unsupported", m_form("DocumentType")
     End If
+    private_LogStage "PreparePlaces"
     private_PreparePlaces
+    private_LogStage "LogNormalizedForm"
     For Each key In m_form.Keys
         private_Log "TDB_FORM_NORMALIZED", "Field=" & key & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(m_form(key))
     Next key
@@ -217,7 +226,9 @@ Public Function TrySave( _
             "OrderReference", "ReportNo", "DepartureDate", "VacationKind", "VacationAbroad", "VacationStatus")
         If VBA.Len(m_form(key)) = 0 Then private_Fail "Required", private_FieldCaption(VBA.CStr(key))
     Next key
+    private_LogStage "EnrichDeclensions"
     ex_TDB_Declensions.fn_Enrich m_form
+    private_LogStage "ValidateDurationAndKind"
     private_ValidateTreatment
     departureDate = private_Date(m_form("DepartureDate"))
     vacationDays = private_Days("VacationDays", False)
@@ -240,10 +251,15 @@ Public Function TrySave( _
     private_ReadChain
     private_ResolveOrder m_form("OrderReference"), orderNo, orderDate, False
     Set m_basis = New Collection
+    private_LogStage "BuildBasisDocuments"
     If m_documentId = "BusinessTripCertificate" Then
         Set m_basis = ex_TDB_BasisChain.fn_Build(m_bindingContext)
         m_form("Purpose") = ex_TDB_BasisChain.fn_Join(m_basis, orderNo, orderDate, _
-            ex_TDB_BasisChain.fn_Value(m_bindingContext, "BasisOwnText"))
+            ex_TDB_BasisChain.fn_Value(m_bindingContext, "BasisOwnText"), _
+            ex_TDB_BasisChain.fn_IncludeOrder(m_bindingContext))
+        If VBA.Len(m_form("Purpose")) = 0 Then
+            VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.Empty")
+        End If
     End If
     If Not private_IsIndefinite(vacationDays) Then
         mainReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays)
@@ -262,7 +278,9 @@ Public Function TrySave( _
     identifier = m_form("HistoryRowId")
     If isUpdate And VBA.Len(identifier) = 0 Then ex_TDB_History.fn_Fail "SelectRequired"
     If Not isUpdate And VBA.Len(identifier) > 0 Then ex_TDB_History.fn_Fail "NewRequired"
+    private_LogStage "BeginHistoryTransaction"
     Set transaction = ex_TDB_History.fn_Begin(ticketsTable, revisions, identifier, m_form("HistoryStamp"))
+    private_LogStage "ReadAndValidateHistory"
     Set historyRows = ex_TDB_History.fn_Read(ticketsTable)
     For Each key In historyRows.Keys
         Set historyRow = historyRows(key)
@@ -274,6 +292,7 @@ Public Function TrySave( _
             End If
         End If
     Next key
+    private_LogStage "ResolveEventAndNumber"
     If isUpdate Then
         Set mainRow = ex_TDB_History.fn_Find(ticketsTable, identifier)
         ticketNo = private_Cell(mainRow, ticketsTable, 11)
@@ -297,7 +316,9 @@ Public Function TrySave( _
     If Not donationRow Is Nothing Then private_LogRow ticketsTable, donationRow, "BeforeDonation"
 
     ' Recheck both tables before the history-only transaction.
+    private_LogStage "AssertHistoryCurrent"
     ex_TDB_History.fn_AssertCurrent ticketsTable, revisions, transaction
+    private_LogStage "PrepareProtection"
     Set protection = New obj_TDB_HistoryProtection
     If Not protection.Initialize(ticketsTable, revisions) Then ex_TDB_History.fn_Fail "ReadOnly"
     eventsBefore = Application.EnableEvents
@@ -306,6 +327,7 @@ Public Function TrySave( _
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     protection.Unprotect
+    private_LogStage "SuspendFilters"
     filterTables.Add ticketsTable
     filterTables.Add revisions
     If Not ex_TableFilters.fn_Suspend(filterTables, filterStates, filterError) Then VBA.Err.Raise 5, , filterError
@@ -314,6 +336,7 @@ Public Function TrySave( _
     If mainRow Is Nothing Then Set mainRow = private_AddRow(ticketsTable, donationRow)
     private_WriteRow ticketsTable, mainRow, m_form("VacationKind"), m_form("DocumentTarget"), orderNo, _
         departureDate, vacationDays, roadDays, ticketNo, finalReturn
+    private_LogStage "BuildEventMetadata"
     Set metadata = VBA.CreateObject("Scripting.Dictionary")
     metadata.Add "RowId", identifier
     metadata.Add "ParentRowId", VBA.vbNullString
@@ -322,6 +345,7 @@ Public Function TrySave( _
     metadata.Add "PositionCode", m_form("PersonPositionCode")
     metadata.Add "UnitName", m_form("PersonUnit")
     metadata.Add "VacationKind", m_form("VacationKind")
+    metadata.Add "TripKind", m_form("TripKind")
     metadata.Add "VacationAbroad", m_form("VacationAbroad")
     metadata.Add "VlkNo", m_form("VlkNo")
     metadata.Add "VlkDate", m_form("VlkDate")
@@ -345,6 +369,7 @@ Public Function TrySave( _
     Next key
     private_LogStage "WriteEventMetadata"
     ex_TDB_History.fn_Write ticketsTable, mainRow, metadata
+    private_LogStage "WriteDonation"
     If donationDays > 0 Then
         If donationRow Is Nothing Then Set donationRow = private_AddRow(ticketsTable, mainRow)
         private_WriteRow ticketsTable, donationRow, m_form("VacationKind"), VBA.vbNullString, donationOrder, _
@@ -359,6 +384,7 @@ Public Function TrySave( _
     End If
 
     ' Replace only this event's ordered TVO and place children, retaining stable IDs.
+    private_LogStage "DeletePreviousChildren"
     For index = ticketsTable.ListRows.Count To 1 Step -1
         Set row = ticketsTable.ListRows(index)
         key = VBA.CStr(row.Range.Cells(1, ticketsTable.ListColumns("RowId").Index).Value2)
@@ -373,6 +399,7 @@ Public Function TrySave( _
             End If
         End If
     Next index
+    private_LogStage "WriteTvoChildren"
     parentId = identifier
     positionCode = m_form("PersonPositionCode")
     For index = 1 To m_chain.Count
@@ -390,6 +417,7 @@ Public Function TrySave( _
         positionCode = metadata("PositionCode")
     Next index
     parentId = identifier
+    private_LogStage "WritePlaceChildren"
     If m_places.Count > 1 Then
         For Each metadata In m_places
             If VBA.Len(metadata("RowId")) = 0 Then metadata("RowId") = ex_TDB_History.fn_NewId()
@@ -403,7 +431,7 @@ Public Function TrySave( _
             parentId = metadata("RowId")
         Next metadata
     End If
-    private_LogStage "CommitHistoryRevision"
+    private_LogStage "WriteBasisChildren"
     parentId = identifier
     For Each metadata In m_basis
         If VBA.Len(metadata("RowId")) = 0 Then
@@ -420,20 +448,26 @@ Public Function TrySave( _
         ex_TDB_History.fn_Write ticketsTable, row, metadata
         parentId = metadata("RowId")
     Next metadata
+    private_LogStage "CommitHistoryRevision"
     ex_TDB_History.fn_Commit ticketsTable, revisions, identifier, transaction, m_form("ChangeReason")
     If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
         private_LogStage "WriteHistoryRecovery"
         recoveryToken = ex_TDB_HistoryRecovery.fn_Prepare(ticketsTable, revisions, identifier, transaction)
     End If
+    private_LogStage "RestoreFilters"
     filterError = ex_TableFilters.fn_Restore(filterStates)
+    private_LogStage "ProtectHistory"
     If Not protection.TryProtect(protectionDiagnostic) Then VBA.Err.Raise 5, , protectionDiagnostic
+    private_LogStage "CommitRecoveryMarker"
     If VBA.Len(recoveryToken) > 0 Then ex_TDB_HistoryRecovery.fn_Mark ticketsTable.Parent.Parent, recoveryToken, "COMMIT"
 
+    private_LogStage "RestoreApplicationState"
     tableChanged = False
     protection.Dispose
     Application.EnableEvents = eventsBefore
     Application.ScreenUpdating = updatingBefore
     guarded = False
+    private_LogStage "PublishSavedForm"
     m_bindingContext.SetValue "Form", "HistoryRowId", identifier
     If finalReturn = 0 Then
         m_bindingContext.SetValue "Form", "ReturnDate", VBA.vbNullString
@@ -460,17 +494,20 @@ Public Function TrySave( _
     End If
     private_Log "TDB_HISTORY_SAVED", "Ticket=" & ticketNo & " | RowId=" & identifier
     TrySave = True
+    private_EndSaveTiming "Success"
     Exit Function
 EH:
     failureNumber = VBA.Err.Number
     failureSource = VBA.Err.Source
     failureDescription = VBA.Err.Description
+    private_FinishSaveStage "Failed"
     private_Log "TDB_GENERATION_ERROR", "Stage=" & m_stage & " | Number=" & VBA.CStr(failureNumber) & _
         " | Source=" & ex_TravelDocumentsBuilder.fn_LogValue(failureSource) & " | Description=" & ex_TravelDocumentsBuilder.fn_LogValue(failureDescription) & _
         " | TableChanged=" & VBA.CStr(tableChanged)
     diagnostic = private_Message("Failed", failureDescription)
     ex_Core.fn_Diagnostic_WriteLog "TDB_GENERATION_FAILED | " & diagnostic
     On Error Resume Next
+    private_LogStage "RollbackAndCleanup"
     If tableChanged Then
         VBA.Err.Clear
         protection.Unprotect
@@ -495,6 +532,7 @@ EH:
     If VBA.Len(rollbackError) > 0 Then diagnostic = diagnostic & VBA.vbCrLf & private_Message("Rollback", rollbackError)
     On Error GoTo 0
     private_Log "TDB_ROLLBACK_FINISHED", "Errors=" & ex_TravelDocumentsBuilder.fn_LogValue(rollbackError)
+    private_EndSaveTiming "Failed"
 End Function
 
 Public Function TryRender( _
@@ -503,7 +541,8 @@ Public Function TryRender( _
     ByVal templatePath As String, _
     ByVal outputPath As String, _
     ByVal signatory As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal renderDocumentId As String = "" _
 ) As Boolean
     Dim mapping As Variant
     Dim pair As Variant
@@ -519,6 +558,7 @@ Public Function TryRender( _
     Dim tvoChain As Collection
     Dim placeChain As Collection
     Dim renderStarted As Boolean
+    Dim companionValidation As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -526,6 +566,12 @@ Public Function TryRender( _
     On Error GoTo Failed
     m_operationId = "WORD/" & root("RowId") & "/R" & root("Revision")
     m_documentId = ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))
+    If VBA.Len(renderDocumentId) = 0 Then renderDocumentId = m_documentId
+    If renderDocumentId <> m_documentId Then
+        If m_documentId <> "BusinessTripCertificate" Then ex_TDB_History.fn_Fail "InvalidRows"
+        If VBA.CStr(root("TripKind")) <> ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolKind") Then ex_TDB_History.fn_Fail "InvalidRows"
+        If renderDocumentId <> ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.companion.documentId") Then ex_TDB_History.fn_Fail "InvalidRows"
+    End If
     Set m_wordValues = VBA.CreateObject("Scripting.Dictionary")
     For Each key In root.Keys
         m_wordValues.Add VBA.CStr(key), root(key)
@@ -547,9 +593,10 @@ Public Function TryRender( _
     m_wordValues.Add "BasisDocuments", m_basis
     If m_documentId = "BusinessTripCertificate" Then
         ' Historical exports use the approved text, not today's template definitions.
-        If VBA.Len(ex_TDB_BasisChain.fn_SavedOwnText(m_basis, VBA.CStr(root("Basis")))) = 0 Then
+        If VBA.Len(VBA.CStr(root("Basis"))) = 0 Then
             ex_TDB_History.fn_Fail "InvalidChain"
         End If
+        ex_TDB_BasisChain.fn_SavedOwnText m_basis, VBA.CStr(root("Basis"))
     End If
     If placeChain.Count > 0 Then
         If VBA.CStr(root("Destination")) <> ex_TDB_PlaceChain.fn_Join(placeChain) Then ex_TDB_History.fn_Fail "InvalidChain"
@@ -589,9 +636,14 @@ Public Function TryRender( _
     If m_form("VacationAbroad") <> m_config("abroad.yes") And m_form("VacationAbroad") <> m_config("abroad.no") Then
         private_Fail "Invalid", private_FieldCaption("VacationAbroad")
     End If
+    If renderDocumentId <> m_documentId Then
+        companionValidation = True
+        private_PrepareCompanion ex_TDB_History.fn_Date(root("OrderDate")), VBA.CStr(root(ex_TDB_History.fn_Config("ticketField")))
+        companionValidation = False
+    End If
     renderStarted = True
     private_GenerateWord templatePath, outputPath, VBA.CStr(root(ex_TDB_History.fn_Config("ticketField"))), _
-        ex_TDB_History.fn_Date(root("OrderDate")), departure, finalReturn, vacationDays, roadDays, donationDays, kindWord, signatory
+        ex_TDB_History.fn_Date(root("OrderDate")), departure, finalReturn, vacationDays, roadDays, donationDays, kindWord, signatory, renderDocumentId
     TryRender = True
     Exit Function
 Failed:
@@ -600,7 +652,7 @@ Failed:
         ex_Core.fn_Diagnostic_WriteError "TDB.Word.Prepare | Operation=" & m_operationId & " | Path=" & outputPath, _
             VBA.Err.Number, VBA.Err.Source, diagnostic
     End If
-    If m_wordMode = "table" Then
+    If m_wordMode = "table" And Not companionValidation Then
         diagnostic = ex_TravelDocumentsBuilder.fn_Config("word.tables.text.Failed")
     End If
 End Function
@@ -616,8 +668,26 @@ Private Sub private_Log( _
 End Sub
 
 Private Sub private_LogStage(ByVal stageName As String)
+    private_FinishSaveStage "Success"
     m_stage = stageName
     private_Log "TDB_STAGE", "Name=" & stageName
+    If m_saveTiming Then
+        m_saveStageStartedAt = VBA.Timer
+        m_saveStageTiming = True
+    End If
+End Sub
+
+Private Sub private_FinishSaveStage(ByVal outcome As String)
+    If Not m_saveStageTiming Then Exit Sub
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Save." & m_stage & " | Operation=" & m_operationId & " | Outcome=" & outcome, m_saveStageStartedAt
+    m_saveStageTiming = False
+End Sub
+
+Private Sub private_EndSaveTiming(ByVal outcome As String)
+    If Not m_saveTiming Then Exit Sub
+    private_FinishSaveStage outcome
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Save.Total | Operation=" & m_operationId & " | Outcome=" & outcome, m_saveStartedAt
+    m_saveTiming = False
 End Sub
 
 Private Sub private_LogRow( _
@@ -1026,7 +1096,63 @@ Private Function private_CountForm( _
     private_CountForm = VBA.CStr(count) & " " & m_config("duration." & category & "." & suffix)
 End Function
 
-Private Sub private_InitializeWordTable()
+Private Sub private_PrepareCompanion( _
+    ByVal orderDate As Date, _
+    ByVal ticketNo As String _
+)
+    Dim places As Collection
+    Dim place As Object
+    Dim basis As Object
+    Dim notification As Object
+    Dim field As Variant
+    Dim text As String
+    Dim prefix As String
+    Dim notificationTypes As String
+
+    prefix = "generation.businessTrip.companion."
+    Set places = m_wordValues("PlaceChain")
+    If places.Count = 0 Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.DestinationRequired")
+    End If
+    Set place = places(places.Count)
+    If Not VBA.CBool(place("IsMilitary")) Or VBA.Len(VBA.Trim$(VBA.CStr(place("PlaceName")))) = 0 Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.DestinationRequired")
+    End If
+    notificationTypes = "|" & ex_TravelDocumentsBuilder.fn_Config(prefix & "notificationTypes") & "|"
+    For Each basis In m_basis
+        If VBA.InStr(1, notificationTypes, "|" & VBA.CStr(basis("BasisTypeId")) & "|", VBA.vbBinaryCompare) > 0 Then
+            If Not notification Is Nothing Then
+                VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.NotificationAmbiguous")
+            End If
+            Set notification = basis
+        End If
+    Next basis
+    If notification Is Nothing Then
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.NotificationRequired")
+    End If
+    For Each field In VBA.Array("BasisInstitutionName", "BasisRenderedText", "BasisNumber", "BasisDate")
+        If VBA.Len(VBA.Trim$(VBA.CStr(notification(field)))) = 0 Then
+            VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.NotificationRequired")
+        End If
+    Next field
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & "textFields"), "|")
+        m_wordValues("Companion" & VBA.CStr(field)) = VBA.Replace$( _
+            ex_TravelDocumentsBuilder.fn_Config(prefix & "text." & VBA.CStr(field)), "|", VBA.vbLf)
+    Next field
+    m_wordValues("CompanionRecipient") = VBA.Replace$( _
+        ex_TravelDocumentsBuilder.fn_Config(prefix & "text.Recipient"), "{unit}", VBA.CStr(place("PlaceName")))
+    m_wordValues("CompanionCopyRecipient") = VBA.Replace$( _
+        ex_TravelDocumentsBuilder.fn_Config(prefix & "text.CopyRecipient"), "{institution}", VBA.CStr(notification("BasisInstitutionName")))
+    text = ex_TravelDocumentsBuilder.fn_Config(prefix & "text.Body")
+    text = VBA.Replace$(text, "{notification}", VBA.CStr(notification("BasisRenderedText")))
+    text = VBA.Replace$(text, "{rank}", m_form("RankGenitive"))
+    m_wordValues("CompanionBody") = VBA.Replace$(text, "{name}", m_form("FIOAccusative"))
+    text = ex_TravelDocumentsBuilder.fn_Config(prefix & "text.CertificateAttachment")
+    text = VBA.Replace$(text, "{number}", ticketNo)
+    m_wordValues("CompanionCertificateAttachment") = VBA.Replace$(text, "{date}", VBA.Format$(orderDate, "dd.mm.yyyy"))
+End Sub
+
+Private Sub private_InitializeWordTable(ByVal documentId As String)
     Dim fileSystem As Object
     Dim tablePath As String
     Dim imagePaths As Object
@@ -1034,18 +1160,18 @@ Private Sub private_InitializeWordTable()
     Dim valueText As String
 
     If Not m_wordTableTemplate Is Nothing Then
-        If m_wordCatalogId = m_documentId Then
+        If m_wordCatalogId = documentId Then
             Exit Sub
         End If
         Set m_wordTableTemplate = Nothing
     End If
-    If m_wordTables.Exists(m_documentId) Then
-        Set m_wordTableTemplate = m_wordTables(m_documentId)
-        m_wordCatalogId = m_documentId
+    If m_wordTables.Exists(documentId) Then
+        Set m_wordTableTemplate = m_wordTables(documentId)
+        m_wordCatalogId = documentId
         Exit Sub
     End If
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    tablePath = ex_TravelDocumentsBuilder.fn_Config("generation.tablePaths." & m_documentId)
+    tablePath = ex_TravelDocumentsBuilder.fn_Config("generation.tablePaths." & documentId)
     If fileSystem.GetDriveName(tablePath) = VBA.vbNullString And VBA.Left$(tablePath, 2) <> "\\" Then
         tablePath = fileSystem.BuildPath(ThisWorkbook.Path, tablePath)
     End If
@@ -1066,8 +1192,8 @@ Private Sub private_InitializeWordTable()
             imagePaths) Then
         Err.Raise 5, "Word.Table.Initialize", valueText
     End If
-    m_wordCatalogId = m_documentId
-    m_wordTables.Add m_documentId, m_wordTableTemplate
+    m_wordCatalogId = documentId
+    m_wordTables.Add documentId, m_wordTableTemplate
 End Sub
 
 Private Sub private_GenerateWord( _
@@ -1081,7 +1207,8 @@ Private Sub private_GenerateWord( _
     ByVal roadDays As Long, _
     ByVal donationDays As Long, _
     ByVal kindWord As String, _
-    ByVal signatory As Object _
+    ByVal signatory As Object, _
+    ByVal renderDocumentId As String _
 )
     Dim word As Object
     Dim document As Object
@@ -1162,11 +1289,17 @@ Private Sub private_GenerateWord( _
         End If
         m_wordValues("Basis") = m_form("Purpose")
         m_wordValues("WeaponLine") = m_form("WeaponLine")
+        m_wordValues("TripPurpose") = VBA.vbNullString
+        m_wordValues("TripPurposeCaption") = VBA.vbNullString
+        If m_form("TripKind") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolKind") Then
+            m_wordValues("TripPurpose") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolPurpose")
+            m_wordValues("TripPurposeCaption") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.purposeCaption")
+        End If
     End If
     If m_wordMode = "table" Then
-        private_InitializeWordTable
+        private_InitializeWordTable renderDocumentId
         If Not m_wordTableTemplate.TryPrepare( _
-                ex_TravelDocumentsBuilder.fn_Config("generation.tableNames." & m_documentId), _
+                ex_TravelDocumentsBuilder.fn_Config("generation.tableNames." & renderDocumentId), _
                 m_wordValues, _
                 tablePlan, _
                 tableDiagnostic) Then
@@ -1188,7 +1321,7 @@ Private Sub private_GenerateWord( _
         If m_wordTemplates.Exists(templatePath) Then
             Set m_wordAnchors = m_wordTemplates(templatePath)
             m_wordTemplatePath = VBA.Left$(templatePath, VBA.InStrRev(templatePath, "\")) & _
-                "a_" & m_documentId & ".docx"
+                "a_" & renderDocumentId & ".docx"
             m_wordSourcePath = templatePath
         End If
     End If
@@ -1205,7 +1338,7 @@ Private Sub private_GenerateWord( _
         stage = "Template.SaveAnchors"
         stageStartedAt = VBA.Timer
         m_wordTemplatePath = VBA.Left$(templatePath, VBA.InStrRev(templatePath, "\")) & _
-            "a_" & m_documentId & ".docx"
+            "a_" & renderDocumentId & ".docx"
         document.SaveAs2 m_wordTemplatePath, 12
         m_wordSourcePath = templatePath
         m_wordTemplates.Add templatePath, m_wordAnchors

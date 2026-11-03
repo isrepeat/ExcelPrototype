@@ -17,6 +17,10 @@ Signatory placeholders in the footer are still replaced through the existing boo
 
 ## Configuration
 
+AWOL business trips export a second, separate document using `AwolCoverLetterTable.xml` and `Шаблони/Супровід СЗЧ (DSL).docx`. `WorkbookUpdater/Build-TDBAwolCoverLetter.py` rebuilds its A4 scaffold with the configured table markers. The letter uses the final military destination, exactly one configured notification type from the saved basis chain, the saved notification text, the event's certificate number and order date, and the same resolved signatory as the certificate. Its outgoing number stays blank for registration. All letter text and attachment descriptions come from `generation.businessTrip.companion` in wsConfig. The food certificate and movement data are listed as attachments; this exporter does not generate those two attachments. The certificate also includes the configured AWOL purpose.
+
+Both files participate in the existing staged publication, template-stamp checks and rollback. Their managed names have different configured prefixes and the same event ID. Re-exporting after a trip-kind change or cancellation removes the obsolete companion with the rest of the previous managed set. `DocumentPath` continues to point to the main certificate; a successful export stamp is written only after the complete set is published. Deploy both VBA classes, the shared `ex_WordTableXml` serializer, wsConfig, both XML catalogs and the companion scaffold together. The serializer maps DSL `justify` to OOXML `both` for the letter body. `WorkbookUpdater/Test-TDBAwolCoverLetter.py` checks configuration, field coverage, grid/style/image references, the scaffold and filename identities without Excel or VBA execution.
+
 All runtime settings are in `config/TravelDocumentsBuilder/wsConfig.txt` and must be loaded into the workbook's `wsConfig` table by the normal update workflow.
 
 | Key after `TravelDocumentsBuilder::` | Meaning |

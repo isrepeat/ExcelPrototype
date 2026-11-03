@@ -742,6 +742,20 @@ NextOldArea:
             End If
         Next key
         If Not scope Is Nothing Then
+            ' Clearing a layout region also erases unchanged controls inside that region.
+            ' Restore them after clearing, even if their value-only refresh already ran.
+            For Each key In m_elements.Keys
+                Set registered = m_elements(key)
+                If TypeOf registered Is obj_UiControlElement Then
+                    Set controlElement = registered
+                    Set area = controlElement.RenderArea
+                    If Not area Is Nothing Then
+                        If Not Application.Intersect(area, scope) Is Nothing Then
+                            If Not pending.Exists(key) Then pending.Add key, False
+                        End If
+                    End If
+                End If
+            Next key
             ex_UiTables.fn_Prepare m_targetWorksheet, m_tablePlans, scope
             For Each part In scope.Areas
                 ex_UiTables.fn_ClearRange part

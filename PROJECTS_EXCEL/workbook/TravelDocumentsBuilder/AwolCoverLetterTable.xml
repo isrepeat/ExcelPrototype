@@ -1,0 +1,132 @@
+<wordTableTemplates xmlns="urn:excelprototype:profiles"
+                    version="1">
+  <styles>
+    <tableStyle name="Letter"
+                width="160mm"
+                alignment="left"
+                layout="fixed"
+                borders="none"
+                cellPadding="0pt"/>
+    <cellStyle name="Body"
+               fontName="Times New Roman"
+               fontSize="14"
+               horizontal="left"
+               vertical="top"
+               spaceBefore="0pt"
+               spaceAfter="0pt"/>
+    <cellStyle name="Letterhead"
+               basedOn="Body"
+               fontSize="12"
+               fontBold="true"
+               horizontal="center"/>
+    <cellStyle name="Requisites"
+               basedOn="Letterhead"
+               fontBold="false"/>
+    <cellStyle name="SpacedRequisites"
+               basedOn="Requisites"
+               spaceBefore="8pt"/>
+    <cellStyle name="Recipient"
+               basedOn="Body"
+               spaceBefore="12pt"/>
+    <cellStyle name="BodyParagraph"
+               basedOn="Body"
+               horizontal="justify"
+               spaceAfter="10pt"/>
+    <cellStyle name="SignatureName"
+               basedOn="Body"
+               horizontal="right"/>
+  </styles>
+  <template name="AwolCoverLetter">
+    <table style="Letter">
+      <columns>
+        <column name="Letterhead"
+                width="65mm"/>
+        <column name="Gap"
+                width="15mm"/>
+        <column name="Addressee"
+                width="80mm"/>
+      </columns>
+      <row allowBreakAcrossPages="false">
+        <cell style="Letterhead">
+          <paragraph>
+            <image source="Emblem"
+                   width="9mm"
+                   height="12mm"/>
+          </paragraph>
+          <paragraph>
+            <text>{[CompanionHeader]}</text>
+          </paragraph>
+          <paragraph style="Requisites">
+            <text>{[CompanionOrganizationCode]}</text>
+          </paragraph>
+          <paragraph style="SpacedRequisites">
+            <text>{[TicketDate]}</text>
+          </paragraph>
+          <paragraph style="SpacedRequisites">
+            <text>{[CompanionLetterNumber]}</text>
+          </paragraph>
+          <paragraph style="SpacedRequisites">
+            <text>{[CompanionAddress]}</text>
+          </paragraph>
+        </cell>
+        <cell/>
+        <cell style="Body">
+          <paragraph>
+            <text>{[CompanionDelivery]}</text>
+          </paragraph>
+          <paragraph style="Recipient">
+            <text>{[CompanionRecipient]}</text>
+          </paragraph>
+          <paragraph style="Recipient">
+            <text>{[CompanionCopyRecipient]}{#newline}{[CompanionCopyNotice]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="15mm"
+           heightRule="atLeast">
+        <cell columnSpan="3"/>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="3"
+              style="Body">
+          <paragraph style="BodyParagraph">
+            <text>{[CompanionBody]}</text>
+          </paragraph>
+          <paragraph>
+            <text>{[CompanionAttachmentsTitle]}</text>
+          </paragraph>
+          <paragraph>
+            <text>{[CompanionCertificateAttachment]}</text>
+          </paragraph>
+          <paragraph>
+            <text>{[CompanionFoodAttachment]}</text>
+          </paragraph>
+          <paragraph>
+            <text>{[CompanionMovementAttachment]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="15mm"
+           heightRule="atLeast">
+        <cell columnSpan="3"/>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="3"
+              style="Body">
+          <text>{[SignatoryPosition]}</text>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Body">
+          <text>{[SignatoryRank]}</text>
+        </cell>
+        <cell style="SignatureName">
+          <text>{[SignatoryName]}</text>
+        </cell>
+      </row>
+    </table>
+  </template>
+</wordTableTemplates>

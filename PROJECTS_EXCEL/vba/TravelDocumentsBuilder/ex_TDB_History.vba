@@ -560,9 +560,11 @@ Public Function fn_Load( _
     End If
     Set basisChain = ex_TDB_BasisChain.fn_FromGroup(group)
     updates("Form.BasisOwnText") = VBA.vbNullString
+    updates("Form.BasisIncludeOrder") = VBA.CBool(ex_TravelDocumentsBuilder.fn_Config("basisChain.defaults.includeOrder"))
     If ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) = "BusinessTripCertificate" Then
         updates("Form.Purpose") = VBA.vbNullString
         updates("Form.BasisOwnText") = ex_TDB_BasisChain.fn_SavedOwnText(basisChain, VBA.CStr(root("Basis")))
+        updates("Form.BasisIncludeOrder") = VBA.Len(VBA.CStr(updates("Form.BasisOwnText"))) > 0
     End If
     For Each mapping In VBA.Split(fn_Config("dateFormFields"), "|")
         pair = VBA.Split(mapping, "=")

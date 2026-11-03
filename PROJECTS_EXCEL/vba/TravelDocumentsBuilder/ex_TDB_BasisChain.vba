@@ -17,6 +17,7 @@ Public Function fn_Read(ByVal bindingContext As obj_UiBindingContext) As Collect
     Dim scalar As Variant
     Dim source As Object
     Dim isObject As Boolean
+    Dim row As Object
 
     If Not bindingContext.TryGetValue("Data", "BasisChain", scalar, source, isObject) Then
         ex_TDB_History.fn_Fail "InvalidChain"
@@ -27,6 +28,9 @@ Public Function fn_Read(ByVal bindingContext As obj_UiBindingContext) As Collect
     If Not TypeOf source Is Collection Then
         ex_TDB_History.fn_Fail "InvalidChain"
     End If
+    For Each row In source
+        If VBA.Len(VBA.CStr(row("RowId"))) = 0 Then row("RowId") = ex_TDB_History.fn_NewId()
+    Next row
     Set fn_Read = source
 End Function
 
@@ -64,10 +68,17 @@ Public Function fn_Draft(ByVal bindingContext As obj_UiBindingContext) As Object
 
     Set row = ex_TDB_History.fn_NewRow()
     row("RowId") = fn_Value(bindingContext, "BasisDraftId")
+    If VBA.Len(VBA.CStr(row("RowId"))) = 0 Then row("RowId") = ex_TDB_History.fn_NewId()
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
         row(field) = fn_Value(bindingContext, VBA.CStr(field))
     Next field
     fn_Validate row, True
+    If Not VBA.CBool(fn_Value(bindingContext, "AutoFillPersonnel")) Then
+        row("BasisRenderedText") = fn_Value(bindingContext, "BasisPreview")
+        If VBA.Len(VBA.CStr(row("BasisRenderedText"))) = 0 Then
+            VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.ManualRequired")
+        End If
+    End If
     Set fn_Draft = row
 End Function
 
@@ -222,11 +233,13 @@ Public Function fn_Build(ByVal bindingContext As obj_UiBindingContext) As Collec
         fn_Validate copy
         result.Add copy
     Next row
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.draftFields"), "|")
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.pendingFields"), "|")
         If VBA.Len(fn_Value(bindingContext, VBA.CStr(field))) > 0 Then
             pending = True
         End If
     Next field
+    If fn_Value(bindingContext, "BasisDraftBaseline") = private_DraftStamp(bindingContext) Then pending = False
+    If VBA.CBool(fn_Value(bindingContext, "BasisManualEdited")) Then pending = True
     If pending Then
         result.Add fn_Draft(bindingContext)
     End If
@@ -240,21 +253,27 @@ Public Function fn_Join( _
     ByVal chain As Collection, _
     ByVal orderNumber As String, _
     ByVal orderDate As Date, _
-    Optional ByVal ownText As String = VBA.vbNullString _
+    Optional ByVal ownText As String = VBA.vbNullString, _
+    Optional ByVal includeOrder As Boolean = True _
 ) As String
     Dim row As Object
     Dim text As String
     Dim field As Variant
 
-    fn_Join = ownText
-    If VBA.Len(fn_Join) = 0 Then
-        fn_Join = ex_TDB_BasisConfig.fn_Order(orderNumber, VBA.Format$(orderDate, "dd.mm.yyyy"))
+    If includeOrder Then
+        fn_Join = ownText
+        If VBA.Len(fn_Join) = 0 Then
+            fn_Join = ex_TDB_BasisConfig.fn_Order(orderNumber, VBA.Format$(orderDate, "dd.mm.yyyy"))
+        End If
     End If
     For Each row In chain
         text = fn_Format(row)
-        fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.separator") & VBA.Space$(1) & text
+        If VBA.Len(fn_Join) > 0 Then
+            fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.separator") & VBA.Space$(1)
+        End If
+        fn_Join = fn_Join & text
     Next row
-    fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
+    If VBA.Len(fn_Join) > 0 Then fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
 End Function
 
 Public Function fn_SavedOwnText( _
@@ -264,6 +283,7 @@ Public Function fn_SavedOwnText( _
     Dim ending As String
     Dim index As Long
 
+    If approved = fn_Join(chain, VBA.vbNullString, 0, VBA.vbNullString, False) Then Exit Function
     ending = ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
     For index = chain.Count To 1 Step -1
         ending = ex_TravelDocumentsBuilder.fn_Config("basisChain.separator") & VBA.Space$(1) & fn_Format(chain(index)) & ending
@@ -318,8 +338,31 @@ Public Sub fn_ClearDraft(ByVal bindingContext As obj_UiBindingContext)
     If Not bindingContext.SetValue("Form", "BasisDraftId", VBA.vbNullString) Then
         ex_TDB_History.fn_Fail "InvalidChain"
     End If
+    If Not bindingContext.SetValue("Form", "BasisPreview", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
     If Not bindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
     If Not fn_RefreshInstitutions(bindingContext) Then
+        ex_TDB_History.fn_Fail "InvalidChain"
+    End If
+    fn_MarkDraftBaseline bindingContext
+End Sub
+
+Public Sub fn_PrepareNextDraft(ByVal bindingContext As obj_UiBindingContext)
+    Dim field As Variant
+
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.afterAdd.clearFields"), "|")
+        If Not bindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
+    Next field
+    If Not bindingContext.SetValue("Form", "BasisDraftId", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
+    If Not bindingContext.SetValue("Form", "BasisRenderedText", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
+    If Not bindingContext.SetValue("Form", "BasisPreview", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
+    If Not fn_RefreshInstitutions(bindingContext) Then ex_TDB_History.fn_Fail "InvalidChain"
+    fn_MarkDraftBaseline bindingContext
+    If Not bindingContext.SetValue("Form", "BasisPreview", VBA.vbNullString) Then ex_TDB_History.fn_Fail "InvalidChain"
+End Sub
+
+Public Sub fn_MarkDraftBaseline(ByVal bindingContext As obj_UiBindingContext)
+    If Not bindingContext.SetValue("Form", "BasisManualEdited", False) Then ex_TDB_History.fn_Fail "InvalidChain"
+    If Not bindingContext.SetValue("Form", "BasisDraftBaseline", private_DraftStamp(bindingContext)) Then
         ex_TDB_History.fn_Fail "InvalidChain"
     End If
 End Sub
@@ -423,6 +466,14 @@ Public Function fn_Preview(ByVal bindingContext As obj_UiBindingContext) As Bool
     Dim text As String
 
     On Error GoTo Incomplete
+    If Not VBA.CBool(fn_Value(bindingContext, "AutoFillPersonnel")) Then
+        fn_Preview = True
+        Exit Function
+    End If
+    If fn_Value(bindingContext, "BasisDraftBaseline") = private_DraftStamp(bindingContext) Then
+        fn_Preview = bindingContext.SetValue("Form", "BasisPreview", VBA.vbNullString)
+        Exit Function
+    End If
     If VBA.Len(fn_Value(bindingContext, "BasisType")) = 0 Then
         fn_Preview = bindingContext.SetValue("Form", "BasisPreview", VBA.vbNullString)
         Exit Function
@@ -597,6 +648,20 @@ Failed:
     Resume Cleanup
 End Function
 
+Public Function fn_IncludeOrder(ByVal bindingContext As obj_UiBindingContext) As Boolean
+    Dim value As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+
+    If Not bindingContext.TryGetValue("Form", "BasisIncludeOrder", value, objectValue, isObject) Then
+        VBA.Err.Raise 5, , "Required binding not found: Form.BasisIncludeOrder"
+    End If
+    If isObject Or VBA.VarType(value) <> VBA.vbBoolean Then
+        VBA.Err.Raise 5, , "Invalid Boolean binding: Form.BasisIncludeOrder"
+    End If
+    fn_IncludeOrder = VBA.CBool(value)
+End Function
+
 Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Boolean
     Dim chain As Collection
     Dim text As String
@@ -632,7 +697,12 @@ Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Bool
     Set column = VBA.CreateObject("Scripting.Dictionary")
     column.Add "name", "BasisText"
     column.Add "caption", ex_TravelDocumentsBuilder.fn_Config("text.BasisTitle")
-    column.Add "columnSpan", 3
+    column.Add "columnSpan", 2
+    columns.Add column
+    Set column = VBA.CreateObject("Scripting.Dictionary")
+    column.Add "name", "Remove"
+    column.Add "caption", VBA.vbNullString
+    column.Add "columnSpan", 1
     columns.Add column
     For index = 0 To chain.Count
         If index > 0 Then
@@ -640,7 +710,29 @@ Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Bool
             text = fn_Format(row)
         End If
         Set fields = VBA.CreateObject("Scripting.Dictionary")
-        fields.Add "BasisText", text
+        fields.Add "BasisText", VBA.Replace$(VBA.Replace$( _
+            ex_TravelDocumentsBuilder.fn_Config("basisChain.itemTemplate"), _
+            "{index}", VBA.CStr(index + 1)), "{text}", text)
+        fields.Add "Remove", VBA.vbNullString
+        fields.Add "BasisRowId", VBA.vbNullString
+        fields.Add "ActionCaption", VBA.vbNullString
+        fields.Add "ActionVisibility", "Visible"
+        fields.Add "ActionStyle", ex_TravelDocumentsBuilder.fn_Config("basisChain.styles.checkbox")
+        fields.Add "Checked", fn_IncludeOrder(bindingContext)
+        fields.Add "CheckedGlyph", ex_TravelDocumentsBuilder.fn_Config("text.CheckboxChecked")
+        fields.Add "UncheckedGlyph", ex_TravelDocumentsBuilder.fn_Config("text.CheckboxUnchecked")
+        fields.Add "TextStyle", ex_TravelDocumentsBuilder.fn_Config("basisChain.styles.normal")
+        If index = 0 And Not fn_IncludeOrder(bindingContext) Then
+            fields("TextStyle") = ex_TravelDocumentsBuilder.fn_Config("basisChain.styles.excluded")
+        End If
+        If index > 0 Then
+            fields("BasisRowId") = VBA.CStr(row("RowId"))
+            fields("Checked") = False
+            fields("ActionVisibility") = "Collapsed"
+            fields("ActionStyle") = ex_TravelDocumentsBuilder.fn_Config("basisChain.styles.remove")
+            fields("CheckedGlyph") = ex_TravelDocumentsBuilder.fn_Config("text.RemoveBasis")
+            fields("UncheckedGlyph") = ex_TravelDocumentsBuilder.fn_Config("text.RemoveBasis")
+        End If
         Set record = New obj_LookupRecord
         If Not record.Initialize(VBA.CStr(index), fields) Then
             ex_TDB_History.fn_Fail "InvalidChain"
@@ -666,6 +758,16 @@ End Function
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
+
+Private Function private_DraftStamp(ByVal bindingContext As obj_UiBindingContext) As String
+    Dim field As Variant
+    Dim value As String
+
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.pendingFields"), "|")
+        value = fn_Value(bindingContext, VBA.CStr(field))
+        private_DraftStamp = private_DraftStamp & VBA.CStr(VBA.Len(value)) & ":" & value
+    Next field
+End Function
 
 Private Function private_DocumentField( _
     ByVal row As Object, _

@@ -69,8 +69,6 @@ Public Function fn_Search( _
         searchText = VBA.Replace$(searchText, ex_TravelDocumentsBuilder.fn_Config("placeChain.military.type"), VBA.vbNullString, 1, -1, VBA.vbTextCompare)
         searchText = VBA.Trim$(VBA.Replace$(searchText, "A", "А", 1, -1, VBA.vbTextCompare))
     End If
-    Set snapshot = ex_TableSnapshots.fn_Active()
-    If snapshot Is Nothing Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     spans = VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".columnSpans"), "|")
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".fields"), "|")
         Set column = VBA.CreateObject("Scripting.Dictionary")
@@ -87,6 +85,8 @@ Public Function fn_Search( _
         limit = ex_TDB_Candidates.fn_BrowseLimit(searchText)
     End If
     If ex_TDB_Candidates.fn_IsBrowse(searchText) Or VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
+        Set snapshot = ex_TableSnapshots.fn_Active()
+        If snapshot Is Nothing Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
         Set tableSource = fn_Source(isAbroad, isMilitary)
         Set tableQuery = New obj_TableQuery
         If Not tableQuery.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize places query."

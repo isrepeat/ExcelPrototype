@@ -236,6 +236,7 @@ Private Function private_ControlStyleSchema() As obj_UiMarkupSchema
     schema.AddAttribute "fontSize", "string", False, "", False, 0
     schema.AddAttribute "fontBold", "string", False, "", False, 0
     schema.AddAttribute "fontItalic", "string", False, "", False, 0
+    schema.AddAttribute "fontStrike", "string", False, "", False, 0
     schema.AddAttribute "borderColor", "themecolor", False, "", False, 0
     schema.AddAttribute "borderWeight", "string", False, "", False, 0
     schema.AddAttribute "borderLineStyle", "string", False, "", False, 0

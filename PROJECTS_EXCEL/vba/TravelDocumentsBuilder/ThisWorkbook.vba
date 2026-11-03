@@ -56,7 +56,10 @@ Private Sub Workbook_SheetSelectionChange( _
     End If
     On Error GoTo EH
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
-    If TypeOf sheet Is Worksheet Then ex_UiBindings.fn_HandleSelection target
+    If TypeOf sheet Is Worksheet Then
+        ex_UiBindings.fn_HandleSelection target
+        ex_TravelDocumentsBuilder.fn_FocusBasisCell target
+    End If
 Cleanup:
     If Not runtimeContext Is Nothing Then ex_RuntimeLifecycle.fn_Leave runtimeContext
     Exit Sub

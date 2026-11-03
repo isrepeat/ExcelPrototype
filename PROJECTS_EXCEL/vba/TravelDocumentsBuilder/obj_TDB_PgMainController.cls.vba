@@ -9,10 +9,13 @@ Attribute VB_PredeclaredId = False
 Attribute VB_Exposed = False
 Option Explicit
 
+Implements obj_IUiBindingListener
+
 Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_pageBase As obj_PageBase
+Private m_basisReorder As obj_TDB_BasisReorder
 Private m_lookupProfile As obj_LookupProfile
 Private m_lookupService As obj_LookupService
 Private m_lookupResult As obj_LookupResult
@@ -30,6 +33,16 @@ Private m_acceptedOrderDate As Date
 Private m_historyOrderNumber As String
 Private m_historyOrderDate As Date
 Private m_previousAutoFill As Variant
+Private m_resetting As Boolean
+Private m_resetWatch As String
+Private m_resetCollections As String
+Private m_resetDataFields As Variant
+Private m_resetDataCollections As Variant
+Private m_resetNumericFields As String
+Private m_resetIgnored As Object
+Private m_resetCaptionUpdating As Boolean
+Private m_resetCleanCaption As String
+Private m_resetDirtyCaption As String
 
 ' //
 ' // Lifecycle
@@ -39,6 +52,31 @@ End Sub
 
 Private Sub Class_Terminate()
     Me.Dispose
+End Sub
+
+' //
+' // Interface
+' //
+Private Sub obj_IUiBindingListener_OnValueChanged( _
+    ByVal sourceName As String, _
+    ByVal bindingPath As String _
+)
+    Dim resetInProgress As Variant
+
+    If m_resetting Or Not m_isInitialized Or m_isDisposed Then Exit Sub
+    If Not private_TryReadFormValue("ResetInProgress", resetInProgress) Then Exit Sub
+    If VBA.CBool(resetInProgress) Then Exit Sub
+    If sourceName = "Form" And bindingPath = "ResetInProgress" Then
+        private_UpdateResetCaption
+        Exit Sub
+    End If
+    If sourceName = "Form" Then
+        If VBA.InStr(1, m_resetWatch, "|" & bindingPath & "|", VBA.vbBinaryCompare) > 0 Or bindingPath = "HistoryRowId" Then
+            private_UpdateResetCaption
+        End If
+    ElseIf sourceName = "Data" Then
+        If VBA.InStr(1, m_resetCollections, "|" & bindingPath & "|", VBA.vbBinaryCompare) > 0 Then private_UpdateResetCaption
+    End If
 End Sub
 
 ' //
@@ -53,6 +91,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim column As Object
     Dim columnIndex As Long
     Dim emptyChain As New Collection
+    Dim mapping As Variant
+    Dim pair As Variant
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -61,11 +101,15 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If m_pageBase Is Nothing Then
         Exit Function
     End If
+    Set m_basisReorder = New obj_TDB_BasisReorder
+    If Not m_basisReorder.Initialize(m_pageBase) Then Exit Function
     Set dependencyLoader = New obj_TDB_DependencyLoader
     If Not dependencyLoader.Initialize() Then
         Exit Function
     End If
-    ex_TableSnapshots.fn_Register dependencyLoader, ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
+    ex_TableSnapshots.fn_Register dependencyLoader, _
+        ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired"), _
+        ex_TravelDocumentsBuilder.fn_IsResetting()
     Set m_messages = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("PersonnelError", "PersonnelMinimum", "PersonnelEmpty", _
             "PersonnelCount", "PersonnelMore", "PersonnelSelected")
@@ -119,7 +163,21 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         Exit Function
     End If
     If Not private_PublishChain(emptyChain) Then Exit Function
+    m_resetWatch = "|" & ex_TravelDocumentsBuilder.fn_Config("forms.reset.watch") & "|"
+    m_resetCollections = "|" & ex_TravelDocumentsBuilder.fn_Config("forms.reset.collections") & "|"
+    m_resetCleanCaption = ex_TravelDocumentsBuilder.fn_Config("text.NewEvent")
+    m_resetDirtyCaption = ex_TravelDocumentsBuilder.fn_Config("text.ClearForm")
+    m_resetDataFields = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.reset.dataFields"), "|")
+    m_resetDataCollections = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.reset.dataCollections"), "|")
+    m_resetNumericFields = "|" & ex_TravelDocumentsBuilder.fn_Config("forms.reset.numericFields") & "|"
+    Set m_resetIgnored = VBA.CreateObject("Scripting.Dictionary")
+    For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.reset.ignoredValues"), "|")
+        pair = VBA.Split(VBA.CStr(mapping), "=")
+        m_resetIgnored(pair(0)) = ex_TravelDocumentsBuilder.fn_Config(VBA.CStr(pair(1)))
+    Next mapping
+    m_pageBase.BindingContext.Subscribe Me
     m_isInitialized = True
+    private_UpdateResetCaption
     Initialize = True
 End Function
 
@@ -128,6 +186,7 @@ Public Sub Dispose()
 
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_pageBase Is Nothing Then m_pageBase.BindingContext.Unsubscribe Me
     ex_TDB_WordSession.fn_Module_Dispose
     If Not m_lookupService Is Nothing Then m_lookupService.Dispose
     If Not m_lookupResult Is Nothing Then m_lookupResult.Dispose
@@ -147,6 +206,8 @@ Public Sub Dispose()
     Set m_lookupService = Nothing
     Set m_lookupResult = Nothing
     Set m_lookupProfile = Nothing
+    If Not m_basisReorder Is Nothing Then m_basisReorder.Dispose
+    Set m_basisReorder = Nothing
     Set m_pageBase = Nothing
 End Sub
 
@@ -180,6 +241,22 @@ Failed:
         ex_TravelDocumentsBuilder.fn_Config("text.ThemeFailed"), "{detail}", diagnostic), VBA.vbExclamation
 End Function
 
+Public Function RestorePersonnelCandidatesHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    m_lookupIsPlace = False
+    m_lookupIsBasis = False
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "LookupIsTvo", False) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "GenerationStatus", VBA.vbNullString) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    RestorePersonnelCandidatesHandler = m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult)
+End Function
+
 Public Function SearchPersonnelHandler() As Boolean
     Dim searchText As Variant
     Dim result As obj_LookupResult
@@ -192,6 +269,11 @@ Public Function SearchPersonnelHandler() As Boolean
     End If
     m_lookupIsPlace = False
     m_lookupIsBasis = False
+    If Not private_TryReadFormValue("PersonnelQuery", searchText) Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.CStr(searchText))) = 0 Then
+        SearchPersonnelHandler = private_HideCandidates()
+        Exit Function
+    End If
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
             ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
@@ -204,9 +286,6 @@ Public Function SearchPersonnelHandler() As Boolean
     End If
     If ex_TableSnapshots.fn_Active() Is Nothing Then
         private_SetActionStatus ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired"), True
-        Exit Function
-    End If
-    If Not private_TryReadFormValue("PersonnelQuery", searchText) Then
         Exit Function
     End If
     If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then
@@ -242,7 +321,7 @@ Public Function PersonNameChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If Not VBA.CBool(autoFill) Then
-        PersonNameChangedHandler = True
+        PersonNameChangedHandler = private_HideCandidates()
         Exit Function
     End If
     If Not private_TryReadFormValue("PersonName", personName) Then Exit Function
@@ -262,7 +341,7 @@ Public Function TvoNameChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If Not VBA.CBool(autoFill) Then
-        TvoNameChangedHandler = True
+        TvoNameChangedHandler = private_HideCandidates()
         Exit Function
     End If
     If Not private_TryReadFormValue("TvoName", name) Then Exit Function
@@ -317,6 +396,10 @@ Public Function PlaceChangedHandler() As Boolean
         Next field
     Else
         query = VBA.vbNullString
+    End If
+    If VBA.Len(VBA.Trim$(VBA.CStr(query))) = 0 Then
+        PlaceChangedHandler = private_HideCandidates()
+        Exit Function
     End If
     If Not private_TryReadFormValue("VacationAbroad", abroad) Then Exit Function
     isAbroad = ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad))
@@ -531,6 +614,8 @@ Public Function TripKindChangedHandler() As Boolean
     Dim tripKind As Variant
     Dim duration As Variant
     Dim wasReadOnly As Variant
+    Dim placeKind As Variant
+    Dim historyRowId As Variant
     Dim prefix As String
     Dim isAwol As Boolean
     Dim visibility As String
@@ -550,12 +635,20 @@ Public Function TripKindChangedHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysStyle", _
             ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then Exit Function
     If isAwol Then
+        If Not private_TryReadFormValue("PlaceKind", placeKind) Then Exit Function
+        If Not private_TryReadFormValue("HistoryRowId", historyRowId) Then Exit Function
+        If VBA.Len(VBA.CStr(placeKind)) = 0 Or _
+                (Not VBA.CBool(wasReadOnly) And VBA.Len(VBA.CStr(historyRowId)) = 0) Then
+            If Not m_pageBase.BindingContext.SetValue("Form", "PlaceKind", _
+                    ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind")) Then Exit Function
+        End If
         If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysLabelStyle", _
                 ex_TravelDocumentsBuilder.fn_Config("forms.preparedStyles.label")) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysStyle", _
                 ex_TravelDocumentsBuilder.fn_Config("forms.preparedStyles.value")) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Form", "VacationDays", ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Form", "RoadDays", ex_TravelDocumentsBuilder.fn_Config("generation.defaults.RoadDays")) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "VacationAbroad", ex_TravelDocumentsBuilder.fn_Config("generation.abroad.no")) Then Exit Function
         If Not private_ClearTvo() Then Exit Function
         If Not m_pageBase.BindingContext.SetObject("Data", "TvoChain", emptyChain) Then Exit Function
         If Not private_PublishChain(emptyChain) Then Exit Function
@@ -565,7 +658,7 @@ Public Function TripKindChangedHandler() As Boolean
             If Not m_pageBase.BindingContext.SetValue("Form", "VacationDays", ex_TravelDocumentsBuilder.fn_Config("generation.defaults.VacationDays")) Then Exit Function
         End If
     End If
-    TripKindChangedHandler = True
+    TripKindChangedHandler = private_UpdatePlaceFields()
 End Function
 
 Public Function DocumentTypeChangedHandler() As Boolean
@@ -607,8 +700,10 @@ Public Function DocumentTypeChangedHandler() As Boolean
                 Exit Function
             End If
         End If
-        If Not m_pageBase.BindingContext.SetValue("Form", "VacationKind", ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind")) Then
-            Exit Function
+        If VBA.Len(VBA.CStr(documentType)) > 0 Then
+            If Not m_pageBase.BindingContext.SetValue("Form", "VacationKind", ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.kind")) Then
+                Exit Function
+            End If
         End If
         If Not m_pageBase.BindingContext.SetValue("Form", "DonationDays", "0") Then
             Exit Function
@@ -645,6 +740,44 @@ Public Function DocumentTypeChangedHandler() As Boolean
     DocumentTypeChangedHandler = Me.VacationKindChangedHandler()
 End Function
 
+Public Function NewEventHandler() As Boolean
+    Dim deep As Boolean
+    Dim restoreValues As Object
+    Dim field As Variant
+    Dim value As Variant
+    Dim snapshotActive As Boolean
+    Dim startedAt As Double
+
+    If Not m_isInitialized Or m_isDisposed Or m_resetting Then Exit Function
+    On Error GoTo Failed
+    startedAt = VBA.Timer
+    deep = Not private_HasResetData()
+    If deep Then
+        Set restoreValues = VBA.CreateObject("Scripting.Dictionary")
+        For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.reset.deepPreserve"), "|")
+            If Not private_TryReadFormValue(VBA.CStr(field), value) Then Exit Function
+            restoreValues.Add VBA.CStr(field), value
+        Next field
+        NewEventHandler = ex_TravelDocumentsBuilder.fn_ResetForm(restoreValues)
+        Exit Function
+    End If
+    m_resetting = True
+    ex_Core.fn_BeginConfigReadSnapshot
+    snapshotActive = True
+    NewEventHandler = Me.ClearFormHandler()
+    ex_Core.fn_EndConfigReadSnapshot
+    snapshotActive = False
+    m_resetting = False
+    private_UpdateResetCaption
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Reset.ClearData", startedAt
+    Exit Function
+Failed:
+    If snapshotActive Then ex_Core.fn_EndConfigReadSnapshot
+    m_resetting = False
+    private_UpdateResetCaption
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
 Public Function ClearFormHandler() As Boolean
     Dim updates As Object
     Dim key As Variant
@@ -654,11 +787,21 @@ Public Function ClearFormHandler() As Boolean
     Dim currentAutoFill As Variant
     Dim emptyPlaces As New Collection
     Dim emptyBasis As New Collection
+    Dim preserved As Object
+    Dim current As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
+    private_UpdateResetCaption
+    Set preserved = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.reset.preserve"), "|")
+        If Not private_TryReadFormValue(VBA.CStr(key), current) Then Exit Function
+        preserved("Form." & VBA.CStr(key)) = current
+    Next key
+    m_basisReorder.ClearFocus
     Set updates = VBA.CreateObject("Scripting.Dictionary")
+    updates("Form.BasisIncludeOrder") = VBA.CBool(ex_TravelDocumentsBuilder.fn_Config("basisChain.defaults.includeOrder"))
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
-            "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", _
+            "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "PlaceKind", _
             "WeaponLine", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
@@ -666,8 +809,8 @@ Public Function ClearFormHandler() As Boolean
             "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason", "BasisOwnText")
         updates("Form." & VBA.CStr(key)) = VBA.vbNullString
     Next key
-    For Each key In VBA.Array("PlaceKind", "VacationKind", "VacationAbroad", "VacationStatus", _
-            "VacationDays", "RoadDays", "DonationDays", "TripKind")
+    For Each key In VBA.Array("VacationAbroad", "VacationStatus", _
+            "VacationDays", "RoadDays", "DonationDays")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig( _
                 "generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
         updates("Form." & VBA.CStr(key)) = valueText
@@ -682,13 +825,16 @@ Public Function ClearFormHandler() As Boolean
     updates("Text.HistoryEditMode") = ex_TDB_History.fn_Config("text.NewMode")
     updates("Text.SaveHistory") = ex_TravelDocumentsBuilder.fn_Config("text.SaveHistory")
     updates("Form.GenerationStatusStyle") = "generationSuccess"
-    updates("Form.CandidatesVisibility") = "Visible"
+    updates("Form.CandidatesVisibility") = "Collapsed"
     updates("Form.HistoryVisibility") = "Collapsed"
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
         private_SetActionStatus diagnostic, True
         Exit Function
     End If
     ex_TDB_BasisChain.fn_ClearDraft m_pageBase.BindingContext
+    If Not m_pageBase.BindingContext.TryApplyValues(preserved, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then Exit Function
+    ex_TDB_BasisChain.fn_MarkDraftBaseline m_pageBase.BindingContext
     If Not m_pageBase.BindingContext.SetObject("Data", "BasisChain", emptyBasis) Then
         Exit Function
     End If
@@ -936,7 +1082,7 @@ Public Function CloseHistoryHandler() As Boolean
             Exit Function
         End If
     End If
-    CloseHistoryHandler = m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible")
+    CloseHistoryHandler = private_HideCandidates()
 End Function
 
 Public Function AutoFillChangedHandler() As Boolean
@@ -956,6 +1102,7 @@ Public Function AutoFillChangedHandler() As Boolean
     End If
     If Not private_UpdateFieldState() Then Exit Function
     If Not private_UpdatePlaceFields() Then Exit Function
+    If Not ex_TDB_BasisChain.fn_Preview(m_pageBase.BindingContext) Then Exit Function
     AutoFillChangedHandler = m_pageBase.FlushUpdates()
 End Function
 
@@ -1055,6 +1202,7 @@ Public Function BasisInstitutionChangedHandler() As Boolean
     End If
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
+    If Not private_HideCandidates() Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then Exit Function
     If VBA.Len(ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitution")) = 0 Then
         BasisInstitutionChangedHandler = ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext)
@@ -1076,7 +1224,7 @@ Public Function BasisInstitutionQueryChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     institution = ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitution")
     If VBA.Len(institution) = 0 Then
-        BasisInstitutionQueryChangedHandler = True
+        BasisInstitutionQueryChangedHandler = private_HideCandidates()
         Exit Function
     End If
     query = ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitutionQuery")
@@ -1088,6 +1236,10 @@ Public Function BasisInstitutionQueryChangedHandler() As Boolean
     End If
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
     If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
+        Exit Function
+    End If
+    If VBA.Len(VBA.Trim$(query)) = 0 Then
+        BasisInstitutionQueryChangedHandler = private_HideCandidates()
         Exit Function
     End If
     Set result = ex_TDB_BasisChain.fn_SearchInstitutions(institution, query)
@@ -1133,6 +1285,11 @@ Failed:
     private_SetActionStatus VBA.Err.Description, True
 End Function
 
+Public Function BasisPreviewChangedHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    BasisPreviewChangedHandler = m_pageBase.BindingContext.SetValue("Form", "BasisManualEdited", True)
+End Function
+
 Public Function BasisDraftChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     On Error GoTo Failed
@@ -1155,7 +1312,7 @@ Public Function AddBasisHandler() As Boolean
         VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.Limit")
     End If
     Set row = ex_TDB_BasisChain.fn_Draft(m_pageBase.BindingContext)
-    ex_TDB_BasisChain.fn_ClearDraft m_pageBase.BindingContext
+    ex_TDB_BasisChain.fn_PrepareNextDraft m_pageBase.BindingContext
     chain.Add row
     AddBasisHandler = ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext)
     Exit Function
@@ -1163,47 +1320,43 @@ Failed:
     private_SetActionStatus VBA.Err.Description, True
 End Function
 
-Public Function RemoveBasisHandler() As Boolean
+Public Function FocusBasisCellHandler(ByVal target As Object) As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    FocusBasisCellHandler = m_basisReorder.FocusCell(target)
+End Function
+
+Public Function RemoveBasisHandler(ByVal selected As Object) As Boolean
     Dim chain As Collection
     Dim row As Object
-    Dim field As Variant
-    Dim updates As Object
-    Dim diagnostic As String
+    Dim identifier As Variant
+    Dim index As Long
 
     On Error GoTo Failed
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
+    m_basisReorder.ClearFocus
+    If selected Is Nothing Then Exit Function
+    If Not TypeOf selected Is obj_LookupRecord Then Exit Function
+    If Not selected.TryGetValue("BasisRowId", identifier) Then Exit Function
+    If VBA.Len(VBA.CStr(identifier)) = 0 Then
+        If selected.Key <> "0" Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "BasisIncludeOrder", _
+                Not ex_TDB_BasisChain.fn_IncludeOrder(m_pageBase.BindingContext)) Then Exit Function
+        RemoveBasisHandler = ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext)
+        Exit Function
+    End If
     Set chain = ex_TDB_BasisChain.fn_Read(m_pageBase.BindingContext)
-    If chain.Count = 0 Then
-        RemoveBasisHandler = True
-        Exit Function
-    End If
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.draftFields"), "|")
-        If VBA.Len(ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, VBA.CStr(field))) > 0 Then
-            VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.Pending")
+    For index = 1 To chain.Count
+        Set row = chain(index)
+        If VBA.CStr(row("RowId")) = VBA.CStr(identifier) Then
+            ' Remove only the selected saved item; the next document draft stays intact.
+            chain.Remove index
+            RemoveBasisHandler = ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext)
+            Exit Function
         End If
-    Next field
-    Set row = chain(chain.Count)
-    Set updates = VBA.CreateObject("Scripting.Dictionary")
-    updates.Add "Form.BasisDraftId", row("RowId")
-    If VBA.Len(VBA.CStr(row("BasisInstitutionKey"))) > 0 Then
-        updates.Add "Form.BasisInstitutionQuery", row("BasisInstitutionKey")
-    Else
-        updates.Add "Form.BasisInstitutionQuery", row("BasisInstitutionName")
-    End If
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
-        updates.Add "Form." & field, row(field)
-    Next field
-    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
-        VBA.Err.Raise 5, , diagnostic
-    End If
-    chain.Remove chain.Count
-    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
-        Exit Function
-    End If
-    RemoveBasisHandler = ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext)
-    Exit Function
+    Next index
+    VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.RowMissing")
 Failed:
     private_SetActionStatus VBA.Err.Description, True
 End Function
@@ -1295,6 +1448,11 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_HideCandidates() As Boolean
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
+    private_HideCandidates = m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed")
+End Function
+
 Private Function private_SetActionStatus( _
     ByVal text As String, _
     ByVal isError As Boolean _
@@ -1383,6 +1541,62 @@ Private Function private_AcceptOrder( _
         Exit Function
     End If
     private_AcceptOrder = private_UpdateFieldState()
+End Function
+
+Private Sub private_UpdateResetCaption()
+    Dim key As String
+
+    If m_resetCaptionUpdating Or m_isDisposed Then Exit Sub
+    On Error GoTo Failed
+    m_resetCaptionUpdating = True
+    key = m_resetCleanCaption
+    If private_HasResetData() Then key = m_resetDirtyCaption
+    m_pageBase.BindingContext.SetValue "Text", "ClearForm", key
+    m_resetCaptionUpdating = False
+    Exit Sub
+Failed:
+    m_resetCaptionUpdating = False
+    VBA.Err.Raise VBA.Err.Number, "TDB.ResetCaption", VBA.Err.Description
+End Sub
+
+Private Function private_HasResetData() As Boolean
+    Dim field As Variant
+    Dim value As Variant
+    Dim source As Object
+    Dim isObject As Boolean
+    Dim text As String
+    For Each field In m_resetDataFields
+        If Not private_TryReadFormValue(VBA.CStr(field), value) Then Exit Function
+        text = VBA.Trim$(VBA.CStr(value))
+        If m_resetIgnored.Exists(VBA.CStr(field)) Then
+            If text = VBA.CStr(m_resetIgnored(VBA.CStr(field))) Then text = VBA.vbNullString
+        End If
+        If VBA.InStr(1, m_resetNumericFields, "|" & VBA.CStr(field) & "|", VBA.vbBinaryCompare) > 0 Then
+            If VBA.IsNumeric(text) Then
+                If VBA.CDbl(text) = 0 Then text = VBA.vbNullString
+            End If
+        End If
+        If VBA.Len(text) > 0 Then
+            private_HasResetData = True
+            Exit Function
+        End If
+    Next field
+    If Not private_TryReadFormValue("BasisManualEdited", value) Then Exit Function
+    If VBA.CBool(value) Then
+        If Not private_TryReadFormValue("BasisPreview", value) Then Exit Function
+        If VBA.Len(VBA.Trim$(VBA.CStr(value))) > 0 Then
+            private_HasResetData = True
+            Exit Function
+        End If
+    End If
+    For Each field In m_resetDataCollections
+        If Not m_pageBase.BindingContext.TryGetValue("Data", VBA.CStr(field), value, source, isObject) Then Exit Function
+        If Not isObject Or source Is Nothing Then VBA.Err.Raise 5, , "Invalid reset collection: " & VBA.CStr(field)
+        If source.Count > 0 Then
+            private_HasResetData = True
+            Exit Function
+        End If
+    Next field
 End Function
 
 Private Function private_UpdateFieldState() As Boolean
@@ -1564,6 +1778,7 @@ Private Function private_UpdatePlaceFields() As Boolean
     If Not private_TryReadFormValue("VacationAbroad", abroad) Then Exit Function
     prefix = ex_TDB_Places.fn_Prefix(ex_TDB_Places.fn_IsAbroad(VBA.CStr(abroad)))
     If Not private_TryReadFormValue("PlaceKind", placeKind) Then Exit Function
+    If VBA.Len(VBA.Trim$(VBA.CStr(placeKind))) = 0 Then visibility = "Collapsed"
     If visibility = "Visible" And placeKind <> ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind") Then
         requiredFields = "|" & ex_TravelDocumentsBuilder.fn_Config(prefix & ".requiredFields") & "|"
     End If
@@ -1663,8 +1878,13 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
     Dim isObject As Boolean
     Dim matches As Collection
     Dim orderRecord As obj_LookupRecord
+    Dim saveStartedAt As Double
+    Dim phaseStartedAt As Double
 
     Static attemptNumber As Long
+
+    saveStartedAt = VBA.Timer
+    phaseStartedAt = saveStartedAt
 
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -1703,6 +1923,7 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
     attemptNumber = attemptNumber + 1
     operationId = VBA.Format$(VBA.Now, "yyyymmdd-hhnnss") & "-" & _
         VBA.CStr(VBA.CLng(VBA.Timer * 1000#)) & "-" & VBA.CStr(attemptNumber)
+    private_SavePhase "ValidateSelectedOrder", phaseStartedAt, operationId
     ex_Core.fn_Diagnostic_WriteLog "TDB_ACTION | Operation=" & operationId & _
         " | Update=" & VBA.CStr(isUpdate) & " | Workbook=" & ex_TravelDocumentsBuilder.fn_LogValue(ThisWorkbook.FullName)
     For Each key In VBA.Array("DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPositionCode", _
@@ -1721,17 +1942,24 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
         ex_Core.fn_Diagnostic_WriteLog "TDB_LOG_FLUSH_FAILED | Operation=" & operationId & " | Phase=BeforeGeneration"
     End If
     Set vacationGenerator = New obj_TDB_VacationGenerator
+    private_SavePhase "LogFormAndFlush", phaseStartedAt, operationId
     If vacationGenerator.Initialize(m_pageBase.BindingContext, m_lookupService) Then
+        private_SavePhase "InitializeGenerator", phaseStartedAt, operationId
         private_SaveEvent = vacationGenerator.TrySave(isUpdate, diagnostic, operationId)
+        private_SavePhase "SaveGenerator", phaseStartedAt, operationId
     Else
+        private_SavePhase "InitializeGenerator.Failed", phaseStartedAt, operationId
         ex_Core.fn_Diagnostic_WriteLog "TDB_INITIALIZATION_FAILED | Operation=" & operationId
     End If
     vacationGenerator.Dispose
+    private_SavePhase "DisposeGenerator", phaseStartedAt, operationId
     If private_SaveEvent Then
         If private_TryReadFormValue("HistoryRowId", value) Then
             Set objectValue = ex_TDB_History.fn_Load(VBA.CStr(value), m_pageBase.BindingContext)
+            private_SavePhase "ReloadSavedEvent", phaseStartedAt, operationId
             private_PublishChain objectValue
             If Not private_PublishPlaces() Then Exit Function
+            private_SavePhase "PublishLoadedChains", phaseStartedAt, operationId
             If private_TryReadFormValue("OrderReference", value) Then
                 If Not m_orderResolver.TrySearch(VBA.CStr(value), VBA.vbNullString, matches, diagnostic) Then
                     VBA.Err.Raise 5, , diagnostic
@@ -1739,10 +1967,12 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
                 If matches.Count <> 1 Then
                     ex_TDB_History.fn_Fail "OrderStale"
                 End If
+                private_SavePhase "ResolveSavedOrder", phaseStartedAt, operationId
                 Set orderRecord = matches(1)
                 If Not private_AcceptOrder(orderRecord, True) Then
                     Exit Function
                 End If
+                private_SavePhase "AcceptSavedOrder", phaseStartedAt, operationId
             End If
             If VBA.IsEmpty(m_previousAutoFill) Then
                 If Not private_TryReadFormValue("AutoFillPersonnel", m_previousAutoFill) Then
@@ -1758,6 +1988,7 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
             private_UpdateFieldState
         End If
     End If
+    private_SavePhase "PublishEditState", phaseStartedAt, operationId
     ex_Core.fn_Diagnostic_WriteLog "TDB_ACTION_FINISHED | Operation=" & operationId & _
         " | Success=" & VBA.CStr(private_SaveEvent) & " | Diagnostic=" & ex_TravelDocumentsBuilder.fn_LogValue(diagnostic)
     If Not ex_Core.fn_Diagnostic_Flush() Then
@@ -1767,9 +1998,12 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
         m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
         m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
     End If
+    private_SavePhase "FinalLogFlush", phaseStartedAt, operationId
+    ex_Core.fn_Diagnostic_WritePerf "TDB.SaveHandler.Total | Operation=" & operationId & " | Success=" & VBA.CStr(private_SaveEvent), saveStartedAt
     Exit Function
 EH:
     diagnostic = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WritePerf "TDB.SaveHandler.Failed | Operation=" & operationId, saveStartedAt
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatusStyle", "generationError"
     m_pageBase.BindingContext.SetValue "Form", "GenerationStatus", diagnostic
     If Not vacationGenerator Is Nothing Then
@@ -1782,6 +2016,15 @@ EH:
     End If
     private_SetActionStatus diagnostic, True
 End Function
+
+Private Sub private_SavePhase( _
+    ByVal stage As String, _
+    ByRef startedAt As Double, _
+    ByVal operationId As String _
+)
+    ex_Core.fn_Diagnostic_WritePerf "TDB.SaveHandler." & stage & " | Operation=" & operationId, startedAt
+    startedAt = VBA.Timer
+End Sub
 
 Private Function private_BuildPersonnelStatus( _
     ByVal searchText As String, _

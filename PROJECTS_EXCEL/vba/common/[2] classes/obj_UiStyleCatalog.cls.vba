@@ -560,7 +560,7 @@ Private Sub private_ApplyRegions( _
     uniformProperties = True
     For Each key In properties.Keys
         Select Case CStr(key)
-            Case "backcolor", "textcolor", "fontcolor", "fontbold", "fontitalic", "fontsize", "fontname", _
+            Case "backcolor", "textcolor", "fontcolor", "fontbold", "fontitalic", "fontstrike", "fontsize", "fontname", _
                     "horizontal", "vertical", "format", "numberformat", "wraptext"
                 cellProperties.Add CStr(key), properties(key)
             Case Else
@@ -768,7 +768,7 @@ Private Function private_ReadVisualAttributes(ByVal node As Object) As Object
         propertyName = VBA.LCase$(VBA.CStr(attributeNode.nodeName))
         Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
-                 "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontsize", _
+                 "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontstrike", "fontsize", _
                  "marginleft", "margintop", "marginright", "marginbottom", _
                  "fontname", "horizontal", "vertical", "paddingleft", "paddingright", _
                  "paddingtop", "paddingbottom", "columnwidth", "width", "rowheight", _
@@ -818,7 +818,7 @@ End Function
 Private Function private_IsVisualProperty(ByVal propertyName As String) As Boolean
     Select Case propertyName
             Case "backcolor", "textcolor", "fontcolor", "bordercolor", "borderweight", _
-             "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontsize", _
+             "borderlinestyle", "borderscope", "fontbold", "fontitalic", "fontstrike", "fontsize", _
                  "marginleft", "margintop", "marginright", "marginbottom", _
                  "fontname", "horizontal", "vertical", "paddingleft", "paddingright", _
                  "paddingtop", "paddingbottom", "columnwidth", "width", "rowheight", _
@@ -894,6 +894,13 @@ Private Sub private_ApplyProperties( _
         Else
             targetShape.TextFrame2.TextRange.Font.Italic = _
                 IIf(private_ReadBoolean(properties("fontitalic")), -1, 0)
+        End If
+    End If
+    If properties.Exists("fontstrike") Then
+        If targetShape Is Nothing Then
+            targetRange.Font.Strikethrough = private_ReadBoolean(properties("fontstrike"))
+        Else
+            targetShape.TextFrame.Characters.Font.Strikethrough = private_ReadBoolean(properties("fontstrike"))
         End If
     End If
     If properties.Exists("fontsize") Then

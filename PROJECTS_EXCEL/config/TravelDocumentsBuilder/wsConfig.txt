@@ -21,12 +21,14 @@ value	TravelDocumentsBuilder::text.AddBasis	+
 value	TravelDocumentsBuilder::text.AddPlace	+
 value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
+value	TravelDocumentsBuilder::text.NewEvent	Нова подія
 value	TravelDocumentsBuilder::text.TripKind	Вид відрядження
+value	TravelDocumentsBuilder::text.ResetFailed	Не вдалося повторно ініціалізувати форму нової події.
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
 value	TravelDocumentsBuilder::text.BasisDate	Дата документа
 value	TravelDocumentsBuilder::text.BasisForm	Форма документа
 value	TravelDocumentsBuilder::text.BasisType	Тип документа
-value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
+value	TravelDocumentsBuilder::text.ClearForm	Очистити форму
 value	TravelDocumentsBuilder::text.PlaceKind	Тип місця
 value	TravelDocumentsBuilder::text.PlaceName	Місто / селище
 value	TravelDocumentsBuilder::text.PlaceType	Тип населеного пункту
@@ -227,6 +229,7 @@ value	TravelDocumentsBuilder::word.tables.maxColumns	16
 value	TravelDocumentsBuilder::word.maxPath	240
 value	TravelDocumentsBuilder::word.filename.label	{TicketNo}_{FIO}
 value	TravelDocumentsBuilder::word.filename.prefix.VacationTicket	Вк
+value	TravelDocumentsBuilder::word.filename.prefix.AwolCoverLetter	Супровід_СЗЧ
 value	TravelDocumentsBuilder::word.filename.prefix.BusinessTripCertificate	Пв
 value	TravelDocumentsBuilder::word.filename.pattern	^.+__((T-)?[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})[.]docx$
 value	TravelDocumentsBuilder::word.filename.labelMaxChars	72
@@ -236,6 +239,15 @@ value	TravelDocumentsBuilder::word.signatory.actingPrefix	ТВО
 value	TravelDocumentsBuilder::word.signatory.actingPosition	Тимчасово виконуючий обов’язки командира військової частини А7383
 value	TravelDocumentsBuilder::dates.daysAhead	15
 value	TravelDocumentsBuilder::dates.daysBefore	3
+value	TravelDocumentsBuilder::forms.reset.watch	DocumentType|VacationKind|TripKind|VacationStatus|ReportNo|PersonRank|PersonName|PersonId|PersonPositionCode|PersonPosition|PlaceKind|DocumentTarget|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|DepartureDate|VacationDays|RoadDays|DonationDays|VacationAbroad|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|TvoName|TvoIpn|TvoPosition|Purpose|BasisInstitution|BasisInstitutionQuery|BasisType|BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope|WeaponLine|ChangeReason|OrderQuery|OrderYear|AutoFillPersonnel|OrderReference|BasisIncludeOrder|BasisPreview|BasisManualEdited
+value	TravelDocumentsBuilder::forms.reset.preserve	DocumentType|VacationKind|TripKind|VacationStatus|PlaceKind|VacationAbroad|BasisInstitution|BasisType|BasisIssuer|BasisActing|BasisForm|BasisScope|BasisRefScope|OrderQuery|BasisInstitutionQuery|BasisInstitutionKey|BasisInstitutionName|BasisInstitutionGroup|BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisRequiredFields|BasisIncludeOrder
+value	TravelDocumentsBuilder::forms.reset.dataFields	HistoryRowId|ReportNo|PersonRank|PersonName|PersonId|PersonPositionCode|PersonPosition|PersonUnit|PersonnelQuery|DocumentTarget|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|DepartureDate|VacationDays|RoadDays|DonationDays|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|TvoName|TvoIpn|TvoPosition|Purpose|WeaponLine|ChangeReason|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate
+value	TravelDocumentsBuilder::forms.reset.collections	BasisView|PlaceChainView|TvoChainView
+value	TravelDocumentsBuilder::forms.reset.deepPreserve	DocumentType|VacationKind|TripKind|VacationStatus|VacationAbroad|PlaceKind
+value	TravelDocumentsBuilder::forms.reset.ignoredValues	VacationDays=generation.businessTrip.indefiniteInput|DocumentTarget=generation.medicalCompany.destination
+value	TravelDocumentsBuilder::forms.reset.numericFields	VacationDays|RoadDays|DonationDays|LongTreatmentDays|TreatmentLeaveDays
+value	TravelDocumentsBuilder::forms.reset.dataCollections	BasisChain|PlaceChain|TvoChain
+value	TravelDocumentsBuilder::forms.reset.restoreHandlers	DocumentType=DocumentTypeChanged|VacationKind=VacationKindChanged|TripKind=TripKindChanged|VacationStatus=|VacationAbroad=VacationAbroadChanged|PlaceKind=PlaceKindChanged
 value	TravelDocumentsBuilder::forms.readOnly.fields	PersonRank|PersonId|PersonPositionCode|PersonPosition|TvoIpn|TvoPosition
 value	TravelDocumentsBuilder::forms.readOnly.labelStyle	readOnlyFormLabel
 value	TravelDocumentsBuilder::forms.required.suffix	*
@@ -441,10 +453,13 @@ value	TravelDocumentsBuilder::snapshots.progress.Table	Читання табли
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
 value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
 value	TravelDocumentsBuilder::snapshots.progress.Profile	Підготовка пошуку: {source}
+value	TravelDocumentsBuilder::basisChain.text.Empty	Увімкніть наказ або додайте хоча б один документ-підставу.
 value	TravelDocumentsBuilder::basisChain.text.Limit	У переліку може бути не більше 20 додаткових документів.
 value	TravelDocumentsBuilder::basisChain.text.Pending	Спочатку додайте або очистіть поточний документ-підставу.
+value	TravelDocumentsBuilder::basisChain.text.RowMissing	Документ уже відсутній у переліку. Оновіть список і повторіть дію.
 value	TravelDocumentsBuilder::basisChain.text.InvalidDate	Вкажіть коректну дату документа у форматі дд.мм.рррр.
 value	TravelDocumentsBuilder::basisChain.text.InvalidIssuer	Оберіть посадову особу зі списку, допустимого для цієї установи.
+value	TravelDocumentsBuilder::basisChain.text.ManualRequired	Введіть текст документа-підстави або увімкніть автопідстановку.
 value	TravelDocumentsBuilder::basisChain.text.OrderDatePending	__.__.____
 value	TravelDocumentsBuilder::basisChain.text.OrderNumberPending	___
 value	TravelDocumentsBuilder::basisChain.text.InvalidRequiredSpec	Некоректна умова обов’язкових полів: {value}. Групуйте різні оператори дужками.
@@ -536,7 +551,7 @@ value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Type	t
 value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Usage	input
 value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Description	Номер реєстрації отриманого документа без знака №.
 value	TravelDocumentsBuilder::basisChain.model.bindings	document.type=Form.BasisType|document.type.genitive=Form.BasisTypeGenitive|institution.genitive=Form.BasisInstitutionName|issuer.role=Form.BasisIssuer|issuer.role.genitive=Form.BasisIssuerText|issuer.acting=Form.BasisActing|document.number=Form.BasisNumber|document.date=Form.BasisDate|registration.number=Form.BasisIncomingNumber|registration.date=Form.BasisIncomingDate|document.form=Form.BasisForm|document.scope=Form.BasisScope|court.caseNumber=Form.BasisCaseNumber|court.proceedingNumber=Form.BasisProceedingNumber|document.author=Form.BasisAuthor|reference.issuer=Form.BasisRefIssuer|reference.number=Form.BasisRefNumber|reference.date=Form.BasisRefDate|reference.scope=Form.BasisRefScope
-value	TravelDocumentsBuilder::basisChain.model.Documents.keys	notification|letter|order|instruction|separate_instruction|report|briefing|travel_certificate|court_order|certificate|personnel_notification
+value	TravelDocumentsBuilder::basisChain.model.Documents.keys	personnel_notification|travel_certificate|separate_instruction|instruction|notification|briefing|certificate|court_order|report|order|letter
 value	TravelDocumentsBuilder::basisChain.model.Documents.order.Name	наказ
 value	TravelDocumentsBuilder::basisChain.model.Documents.order.Forms	Оригінал,Копія,Витяг
 value	TravelDocumentsBuilder::basisChain.model.Documents.order.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form|document.scope
@@ -581,7 +596,7 @@ value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.
 value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Forms	Оригінал,Копія
 value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Fields	document.number|document.date|registration.number|registration.date|document.form|reference.issuer|reference.number|reference.date|reference.scope
 value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Required	(reference.issuer&reference.number&reference.date)
-value	TravelDocumentsBuilder::basisChain.model.Officials.keys	commander|deputy_commander|chief|deputy_chief|chief_of_staff|chief_of_staff_deputy|personnel_chief|administrative_chief|commander_in_chief|forces_commander
+value	TravelDocumentsBuilder::basisChain.model.Officials.keys	administrative_chief|chief_of_staff_deputy|personnel_chief|deputy_chief|deputy_commander|commander_in_chief|chief_of_staff|forces_commander|chief|commander
 value	TravelDocumentsBuilder::basisChain.model.Officials.chief.Name	Начальник
 value	TravelDocumentsBuilder::basisChain.model.Officials.commander.Name	Командир
 value	TravelDocumentsBuilder::basisChain.model.Officials.deputy_chief.Name	Заступник начальника
@@ -609,10 +624,14 @@ value	TravelDocumentsBuilder::basisChain.model.OfficialRules.LandCommand	forces_
 value	TravelDocumentsBuilder::basisChain.model.OfficialRules.ChiefCommand	commander_in_chief
 value	TravelDocumentsBuilder::basisChain.model.OfficialRules.GeneralStaff	chief
 value	TravelDocumentsBuilder::basisChain.scope.none	Без уточнення
-value	TravelDocumentsBuilder::basisChain.scope.values	по особовому складу|по стройовій частині|Без уточнення
+value	TravelDocumentsBuilder::basisChain.scope.values	по стройовій частині|по особовому складу|Без уточнення
+value	TravelDocumentsBuilder::basisChain.styles.normal	statusText
+value	TravelDocumentsBuilder::basisChain.styles.remove	formIconButton
+value	TravelDocumentsBuilder::basisChain.styles.excluded	excludedBasisText
+value	TravelDocumentsBuilder::basisChain.styles.checkbox	personnelCheckbox
 value	TravelDocumentsBuilder::basisChain.acting.text	тимчасово виконуючого обов’язки
 value	TravelDocumentsBuilder::basisChain.acting.option	Тимчасове виконання обов’язків
-value	TravelDocumentsBuilder::basisChain.acting.options	Без ТВО,Тимчасове виконання обов’язків
+value	TravelDocumentsBuilder::basisChain.acting.options	Тимчасове виконання обов’язків,Без ТВО
 value	TravelDocumentsBuilder::basisChain.fields	BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate|BasisInstitutionKey|BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisActing|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope|BasisRequiredFields|BasisInstitutionGroup|BasisRenderedText
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.sheet	Військові частини
@@ -662,6 +681,13 @@ value	TravelDocumentsBuilder::basisChain.lookup.maxResults	50
 value	TravelDocumentsBuilder::basisChain.lookup.columnSpans	2|5
 value	TravelDocumentsBuilder::basisChain.lookup.columnOffset	1
 value	TravelDocumentsBuilder::basisChain.lookup.sourceFields	Key|Name|Genitive|Group
+value	TravelDocumentsBuilder::basisChain.reorder.gap	1
+value	TravelDocumentsBuilder::basisChain.reorder.style	formIconButton
+value	TravelDocumentsBuilder::basisChain.reorder.upGlyph	↑
+value	TravelDocumentsBuilder::basisChain.reorder.downGlyph	↓
+value	TravelDocumentsBuilder::basisChain.reorder.disabledColor	{ThemeResource MutedText}
+value	TravelDocumentsBuilder::basisChain.afterAdd.clearFields	BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate
+value	TravelDocumentsBuilder::basisChain.defaults.includeOrder	True
 value	TravelDocumentsBuilder::basisChain.maxItems	20
 value	TravelDocumentsBuilder::basisChain.separator	;
 value	TravelDocumentsBuilder::basisChain.dateFields	BasisDate|BasisIncomingDate|BasisRefDate
@@ -681,7 +707,7 @@ value	TravelDocumentsBuilder::basisChain.terminator	.
 value	TravelDocumentsBuilder::basisChain.draftFields	BasisInstitution|BasisInstitutionName|BasisType|BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope
 value	TravelDocumentsBuilder::basisChain.dateTemplate	від {date}
 value	TravelDocumentsBuilder::basisChain.editorFields	BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope
-value	TravelDocumentsBuilder::basisChain.institutions	Unit~Військова частина|Hospital~Госпіталь|Command~Орган військового управління|Court~Суд
+value	TravelDocumentsBuilder::basisChain.institutions	Command~Орган військового управління|Unit~Військова частина|Hospital~Госпіталь|Court~Суд
 value	TravelDocumentsBuilder::basisChain.numberFields	BasisNumber|BasisIncomingNumber|BasisRefNumber|BasisProceedingNumber
 value	TravelDocumentsBuilder::basisChain.scopeTemplate	({scope})
 value	TravelDocumentsBuilder::basisChain.textTemplates.text.Invalid	Некоректний або недоступний XML-шаблон підстави: {value}.
@@ -708,7 +734,9 @@ value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.document.scope.
 value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.reference.scope.mode	open
 value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.reference.scope.items	Без уточнення~
 value	TravelDocumentsBuilder::basisChain.textTemplates.ownUnitGenitive	військової частини А7383
+value	TravelDocumentsBuilder::basisChain.itemTemplate	{index}. {text}
 value	TravelDocumentsBuilder::basisChain.numberTemplate	№ {number}
+value	TravelDocumentsBuilder::basisChain.pendingFields	BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate
 value	TravelDocumentsBuilder::basisChain.snapshotFields	BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisRequiredFields|BasisRenderedText
 value	TravelDocumentsBuilder::basisChain.documentTemplate	{BasisType} {BasisIssuer} {BasisInstitutionName} № {BasisNumber} від {BasisDate}
 value	TravelDocumentsBuilder::basisChain.incomingTemplate	(вх. № {number} від {date})
@@ -744,10 +772,10 @@ value	TravelDocumentsBuilder::generation.kind.treatmentMedical.word	у відп�
 value	TravelDocumentsBuilder::generation.kind.treatmentMedical.event	Відпустка для лікування (медична рота А7383)
 value	TravelDocumentsBuilder::generation.kind.treatmentMedical.input	Відпустка для лікування (медична рота А7383)
 value	TravelDocumentsBuilder::generation.items.TripKinds	Звичайне,СЗЧ
-value	TravelDocumentsBuilder::generation.items.PlaceKinds	Населений пункт,Військова частина
+value	TravelDocumentsBuilder::generation.items.PlaceKinds	Військова частина,Населений пункт
 value	TravelDocumentsBuilder::generation.items.AbroadOptions	Так,Ні
-value	TravelDocumentsBuilder::generation.items.StatusOptions	Активна,Скасовано
-value	TravelDocumentsBuilder::generation.items.VacationKinds	Щорічна відпустка|Щорічна відпустка (медична рота А7383)|Відпустка для лікування|Відпустка для лікування (медична рота А7383)|Відпустка по догляду за дитиною|Відпустка за сімейними обставинами|Відпустка у зв'язку з вагітністю та пологами
+value	TravelDocumentsBuilder::generation.items.StatusOptions	Скасовано,Активна
+value	TravelDocumentsBuilder::generation.items.VacationKinds	Відпустка у зв'язку з вагітністю та пологами|Відпустка для лікування (медична рота А7383)|Щорічна відпустка (медична рота А7383)|Відпустка за сімейними обставинами|Відпустка по догляду за дитиною|Відпустка для лікування|Щорічна відпустка
 value	TravelDocumentsBuilder::generation.abroad.no	Ні
 value	TravelDocumentsBuilder::generation.abroad.yes	Так
 value	TravelDocumentsBuilder::generation.abroad.word	Дозволено виїзд за кордон
@@ -773,6 +801,7 @@ value	TravelDocumentsBuilder::generation.defaults.VacationKind	Щорічна в
 value	TravelDocumentsBuilder::generation.defaults.VacationAbroad	Ні
 value	TravelDocumentsBuilder::generation.defaults.VacationStatus	Активна
 value	TravelDocumentsBuilder::generation.defaults.OutputFolderPath	.\Результати
+value	TravelDocumentsBuilder::generation.defaults.AutoFillPersonnel	True
 value	TravelDocumentsBuilder::generation.donation.event	Відпочинок за донацію крові
 value	TravelDocumentsBuilder::generation.donation.orderPrefix	(?)
 value	TravelDocumentsBuilder::generation.donation.orderMissing	NNN
@@ -797,16 +826,40 @@ value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
 value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
 value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId|PositionName|VacationKind|Destination|OrderNumber|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|TicketNumber|PositionCode|DutyPositionCode|UnitName|Status|Basis|ReportNumber
 value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (DSL).docx
+value	TravelDocumentsBuilder::generation.templates.AwolCoverLetter	Шаблони\Супровід СЗЧ (DSL).docx
 value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (DSL).docx
 value	TravelDocumentsBuilder::generation.tableNames.VacationTicket	Ticket
+value	TravelDocumentsBuilder::generation.tableNames.AwolCoverLetter	AwolCoverLetter
 value	TravelDocumentsBuilder::generation.tableNames.BusinessTripCertificate	BusinessTrip
 value	TravelDocumentsBuilder::generation.tablePaths.VacationTicket	VacationTicketTable.xml
+value	TravelDocumentsBuilder::generation.tablePaths.AwolCoverLetter	AwolCoverLetterTable.xml
 value	TravelDocumentsBuilder::generation.tablePaths.BusinessTripCertificate	BusinessTripTable.xml
 value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
 value	TravelDocumentsBuilder::generation.businessTrip.kind	Відрядження
 value	TravelDocumentsBuilder::generation.businessTrip.awolKind	СЗЧ
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Body	На {notification}, згідно з Тимчасовим алгоритмом дій посадових осіб стосовно прийому військовослужбовців, які повернулися для проходження військової служби до Збройних Сил України, надсилаю відповідні документи на {rank} {name}.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Header	МІНІСТЕРСТВО ОБОРОНИ|УКРАЇНИ|ЗБРОЙНІ СИЛИ УКРАЇНИ|ВІЙСЬКОВА ЧАСТИНА|А7383
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Address	м. Харків, 61121
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Delivery	Передати засобами СЕДО
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Recipient	Командиру військової частини {unit}
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.CopyNotice	(до відома)
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.LetterNumber	№ __________
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.CopyRecipient	Командиру {institution}
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.FoodAttachment	2. Атестат військовослужбовця на продовольство на 1 арк. у 1 прим.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.AttachmentsTitle	Додаток:
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.OrganizationCode	Код ЄДРПОУ 26630678
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.MovementAttachment	3. Облікові дані на план переміщення на 1 арк. у 1 прим.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.DestinationRequired	Для супровідного листа СЗЧ вкажіть військову частину як кінцеве місце відрядження.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.NotificationRequired	Для супровідного листа СЗЧ додайте повідомлення з військовою частиною, номером і датою документа до ланцюга підстав.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.CertificateAttachment	1. Посвідчення про відрядження № {number} від {date} на 1 арк. у 1 прим.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.NotificationAmbiguous	Для супровідного листа СЗЧ потрібне одне повідомлення у ланцюгу підстав. Уточніть документи-підстави.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.documentId	AwolCoverLetter
+value	TravelDocumentsBuilder::generation.businessTrip.companion.textFields	Header|Address|Delivery|CopyNotice|LetterNumber|FoodAttachment|AttachmentsTitle|OrganizationCode|MovementAttachment
+value	TravelDocumentsBuilder::generation.businessTrip.companion.notificationTypes	notification
 value	TravelDocumentsBuilder::generation.businessTrip.indefinite	з {from} до окремого розпорядження.
+value	TravelDocumentsBuilder::generation.businessTrip.awolPurpose	для подальшого проходження військової служби
 value	TravelDocumentsBuilder::generation.businessTrip.durationError	Вкажіть ціле число днів більше 0 (не більше {max}) або фразу «{phrase}».
+value	TravelDocumentsBuilder::generation.businessTrip.purposeCaption	(мета відрядження)
 value	TravelDocumentsBuilder::generation.businessTrip.durationPattern	{duration}, з {from} по {to}
 value	TravelDocumentsBuilder::generation.businessTrip.indefiniteInput	до о/р
 value	TravelDocumentsBuilder::generation.medicalCompany.destination	Медична рота А7383
@@ -875,5 +928,5 @@ value	TravelDocumentsBuilder::declensions.positions.officerPattern	^\s*(моло
 value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
 value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
-value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
+value	TravelDocumentsBuilder::documentTypes.items	Посвідчення про відрядження,Відпускний квиток
 value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток

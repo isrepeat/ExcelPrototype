@@ -308,6 +308,20 @@
           </paragraph>
         </cell>
       </row>
+      <if test="[TripPurpose]">
+        <row allowBreakAcrossPages="false">
+          <cell columnSpan="6"
+                style="Centered">
+            <text>{[TripPurpose]}</text>
+          </cell>
+        </row>
+        <row allowBreakAcrossPages="false">
+          <cell columnSpan="6"
+                style="Caption">
+            <text>{[TripPurposeCaption]}</text>
+          </cell>
+        </row>
+      </if>
       <row allowBreakAcrossPages="false">
         <cell columnSpan="6"
               style="Body">

@@ -1,5 +1,8 @@
 Option Explicit
 
+Private m_resetRunning As Boolean
+Private m_resetValues As Object
+
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
@@ -163,6 +166,108 @@ Public Function fn_IsTreatment(ByVal vacationKind As String) As Boolean
     fn_IsTreatment = VBA.StrComp(vacationKind, fn_Config("generation.kind.treatment.input"), VBA.vbTextCompare) = 0 Or _
         VBA.StrComp(vacationKind, fn_Config("generation.kind.treatmentMedical.input"), VBA.vbTextCompare) = 0
 End Function
+
+Public Function fn_IsResetting() As Boolean
+    fn_IsResetting = m_resetRunning
+End Function
+
+Public Function fn_ResetForm(ByVal restoreValues As Object) As Boolean
+    Dim previousScreenUpdating As Boolean
+    Dim previousEvents As Boolean
+    Dim startedAt As Double
+    Dim diagnostic As String
+    Dim snapshotActive As Boolean
+
+    If m_resetRunning Then Exit Function
+    m_resetRunning = True
+    startedAt = VBA.Timer
+    previousScreenUpdating = Application.ScreenUpdating
+    previousEvents = Application.EnableEvents
+    On Error GoTo Failed
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    ex_Core.fn_BeginConfigReadSnapshot
+    snapshotActive = True
+    Set m_resetValues = restoreValues
+    ex_Core.fn_Diagnostic_WriteLog "TDB_RESET_STARTED"
+    fn_ResetForm = fn_Initialize()
+Cleanup:
+    On Error Resume Next
+    Set m_resetValues = Nothing
+    If snapshotActive Then ex_Core.fn_EndConfigReadSnapshot
+    Application.EnableEvents = previousEvents
+    Application.ScreenUpdating = previousScreenUpdating
+    m_resetRunning = False
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Reset.Total | Success=" & VBA.CStr(fn_ResetForm), startedAt
+    On Error GoTo 0
+    Exit Function
+Failed:
+    diagnostic = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteLog "TDB_RESET_FAILED | " & diagnostic
+    Application.ScreenUpdating = previousScreenUpdating
+    Application.EnableEvents = previousEvents
+    ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
+    Resume Cleanup
+End Function
+
+Public Function fn_ApplyResetValues(ByVal bindingContext As obj_UiBindingContext) As Boolean
+    Dim field As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim handlers As Object
+    Dim command As Object
+    Dim value As Variant
+    Dim isObject As Boolean
+    Dim startedAt As Double
+
+    fn_ApplyResetValues = True
+    If m_resetValues Is Nothing Then Exit Function
+    startedAt = VBA.Timer
+    On Error GoTo Failed
+    Set handlers = VBA.CreateObject("Scripting.Dictionary")
+    For Each mapping In VBA.Split(fn_Config("forms.reset.restoreHandlers"), "|")
+        pair = VBA.Split(VBA.CStr(mapping), "=")
+        If UBound(pair) <> 1 Then VBA.Err.Raise 5, , "Invalid forms.reset.restoreHandlers mapping."
+        handlers.Add pair(0), pair(1)
+    Next mapping
+    ' Restore selectors before the first render, using the normal selection commands.
+    If Not bindingContext.SetValue("Form", "ResetInProgress", True) Then VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+    For Each field In VBA.Split(fn_Config("forms.reset.deepPreserve"), "|")
+        ex_Core.fn_Diagnostic_WriteLog "TDB_RESET_RESTORE_STARTED | Field=" & VBA.CStr(field)
+        If Not m_resetValues.Exists(VBA.CStr(field)) Or Not handlers.Exists(VBA.CStr(field)) Then
+            VBA.Err.Raise 5, , "Missing reset value or handler: " & VBA.CStr(field)
+        End If
+        If Not bindingContext.SetValue("Form", VBA.CStr(field), m_resetValues(VBA.CStr(field))) Then
+            VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+        End If
+        If VBA.Len(VBA.CStr(handlers(VBA.CStr(field)))) > 0 Then
+            If Not bindingContext.TryGetValue("Commands", VBA.CStr(handlers(VBA.CStr(field))), value, command, isObject) Then
+                VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+            End If
+            If Not isObject Or command Is Nothing Then VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+            If Not command.Execute() Then VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+        End If
+        ex_Core.fn_Diagnostic_WriteLog "TDB_RESET_RESTORE_COMPLETED | Field=" & VBA.CStr(field)
+    Next field
+    If Not bindingContext.SetValue("Form", "ResetInProgress", False) Then VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Reset.RestoreSelectors", startedAt
+    Exit Function
+Failed:
+    VBA.Err.Raise VBA.Err.Number, "TDB.Reset.RestoreSelectors", VBA.Err.Description
+End Function
+
+Public Sub fn_FocusBasisCell(ByVal target As Range)
+    Dim context As obj_UiRenderContext
+    Dim value As Variant
+    Dim command As Object
+    Dim isObject As Boolean
+
+    If target Is Nothing Then Exit Sub
+    If Not ex_UiRuntime.fn_TryGetContext(target.Worksheet, context) Then Exit Sub
+    If Not context.BindingContext.TryGetValue("Commands", "FocusBasisCell", value, command, isObject) Then Exit Sub
+    If Not isObject Or command Is Nothing Then Exit Sub
+    command.ExecuteWithPayload target
+End Sub
 
 ' } // namespace API
 ' --------------------------------------

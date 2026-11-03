@@ -26,7 +26,6 @@ Private m_shapeNames As Collection
 Private m_items As Collection
 Private m_selectedValue As String
 Private m_placeholder As String
-Private m_placeholderDismissed As Boolean
 Private m_uiCellBinding As obj_UiCellBinding
 Private m_isExpanded As Boolean
 Private m_editable As Boolean
@@ -116,7 +115,6 @@ Public Function Initialize( _
     Set m_items = items
     m_selectedValue = selectedValue
     m_placeholder = placeholder
-    m_placeholderDismissed = (VBA.Len(selectedValue) > 0)
     Set m_uiCellBinding = uiCellBinding
     m_isExpanded = False
     m_editable = editable
@@ -285,7 +283,6 @@ Private Function private_SelectItem(ByVal itemIndex As Long) As Boolean
     End If
     m_selectedValue = selectedValue
     m_isExpanded = False
-    m_placeholderDismissed = True
     private_UpdateHeader
     If m_dropdownCreated Then
         If Not private_ApplyVisibility() Then Exit Function
@@ -357,7 +354,7 @@ Private Sub private_UpdateHeader()
     Set headerShape = m_worksheet.Shapes(m_headerShapeName)
     If headerShape Is Nothing Then Exit Sub
     headerText = m_selectedValue
-    If VBA.Len(headerText) = 0 And Not m_placeholderDismissed Then headerText = m_placeholder
+    If VBA.Len(headerText) = 0 Then headerText = m_placeholder
     If m_isExpanded Then
         arrowText = VBA.ChrW(&H25B2)
     Else
@@ -369,7 +366,7 @@ Private Sub private_UpdateHeader()
         headerShape.TextFrame2.TextRange.Text = headerText & " " & arrowText
     End If
     If Not m_uiFieldControl Is Nothing And Not m_editable Then
-        m_uiFieldControl.ApplySelectHeaderStyle (VBA.Len(m_selectedValue) = 0 And Not m_placeholderDismissed)
+        m_uiFieldControl.ApplySelectHeaderStyle (VBA.Len(m_selectedValue) = 0)
     End If
     On Error GoTo 0
 End Sub
@@ -381,6 +378,5 @@ End Sub
 Private Sub private_uiCellBinding_ValueRefreshed()
     If m_isDisposed Or m_targetCell Is Nothing Then Exit Sub
     m_selectedValue = VBA.CStr(m_targetCell.Value2)
-    If VBA.Len(m_selectedValue) > 0 Then m_placeholderDismissed = True
     private_UpdateHeader
 End Sub

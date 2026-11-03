@@ -154,12 +154,20 @@ Private Function private_RefreshCaption() As Boolean
     Dim caption As String
     Dim glyph As String
     Dim rawGlyph As String
+    Dim visibility As String
+    Dim rawVisibility As String
     Dim indeterminate As Variant
     Dim checked As Variant
     Dim resolvedObject As Object
     Dim isObject As Boolean
 
     If m_buttonShape Is Nothing Then Exit Function
+    visibility = "Visible"
+    rawVisibility = private_ReadAttribute(m_uiControlBase.ControlNode, "visibility")
+    If VBA.Len(rawVisibility) > 0 Then
+        If Not ex_UiBindingRuntime.fn_TryResolveText(rawVisibility, m_renderContext.BindingContext, visibility) Then Exit Function
+    End If
+    m_buttonShape.Visible = (visibility = "Visible")
     If Not m_uiControlBase.TryGetCaption(m_renderContext.BindingContext, caption) Then Exit Function
     If Not m_renderContext.BindingContext.TryGetValue( _
             m_valueSource, m_valuePath, checked, resolvedObject, isObject) Then Exit Function
@@ -183,9 +191,16 @@ Private Function private_RefreshCaption() As Boolean
             rawGlyph, _
             m_renderContext.BindingContext, glyph) Then Exit Function
     If VBA.Len(glyph) = 0 Then Exit Function
-    caption = glyph & "  " & caption
+    If VBA.Len(caption) = 0 Then
+        caption = glyph
+    Else
+        caption = glyph & "  " & caption
+    End If
     If caption <> m_renderedCaption Then
         m_buttonShape.TextFrame2.TextRange.Text = caption
+        m_renderContext.Styles.ApplyButtonCaption m_buttonShape, caption
+        m_renderContext.Styles.ApplyControlStyle m_targetRange, m_buttonShape, _
+            m_uiControlBase.ControlNode, m_renderContext.BindingContext
         m_buttonShape.TextFrame2.WordWrap = msoFalse
         m_buttonShape.TextFrame2.AutoSize = msoAutoSizeNone
         m_renderedCaption = caption
