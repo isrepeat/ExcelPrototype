@@ -558,9 +558,10 @@
                            placeholderStyle="formSelectPlaceholder"
                            selectionStyle="formSelectValue"
                            panelStyle="formSelectPanel"
-                           itemStyle="formSelectItem"/>
+                           itemStyle="formSelectItem"
+                           onChange="{Binding Path=Commands.BasisTypeChanged}"/>
         </grid>
-        <grid>
+        <grid visibility="{Binding Path=Form.BasisIssuerVisibility}">
           <controls:label name="BasisIssuerLabel"
                           row="1"
                           column="1"
@@ -576,9 +577,10 @@
                            placeholderStyle="formSelectPlaceholder"
                            selectionStyle="formSelectValue"
                            panelStyle="formSelectPanel"
-                           itemStyle="formSelectItem"/>
+                           itemStyle="formSelectItem"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
         </grid>
-        <grid>
+        <grid visibility="{Binding Path=Form.BasisNumberVisibility}">
           <controls:label name="BasisNumberLabel"
                           row="1"
                           column="1"
@@ -588,9 +590,10 @@
                           row="1"
                           column="2"
                           style="formField"
-                          value="{Binding Path=Form.BasisNumber}"/>
+                          value="{Binding Path=Form.BasisNumber}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
         </grid>
-        <grid>
+        <grid visibility="{Binding Path=Form.BasisDateVisibility}">
           <controls:label name="BasisDateLabel"
                           row="1"
                           column="1"
@@ -600,7 +603,199 @@
                           row="1"
                           column="2"
                           style="formField"
-                          value="{Binding Path=Form.BasisDate}"/>
+                          value="{Binding Path=Form.BasisDate}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisActingVisibility}">
+          <controls:label name="BasisActingLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisActing}"/>
+          <controls:select name="BasisActing"
+                           itemsSource="{Binding Path=Data.BasisActingOptions}"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisActing}"
+                          placeholder="{Binding Path=Text.BasisActing}"
+                          placeholderStyle="formSelectPlaceholder"
+                          selectionStyle="formSelectValue"
+                          panelStyle="formSelectPanel"
+                          itemStyle="formSelectItem"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisIncomingNumberVisibility}">
+          <controls:label name="BasisIncomingNumberLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisIncomingNumber}"/>
+          <controls:input name="BasisIncomingNumber"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisIncomingNumber}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisIncomingDateVisibility}">
+          <controls:label name="BasisIncomingDateLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisIncomingDate}"/>
+          <controls:input name="BasisIncomingDate"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisIncomingDate}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisFormVisibility}">
+          <controls:label name="BasisFormLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisForm}"/>
+          <controls:select name="BasisForm"
+                           itemsSource="{Binding Path=Data.BasisForms}"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisForm}"
+                          placeholder="{Binding Path=Text.BasisForm}"
+                          placeholderStyle="formSelectPlaceholder"
+                          selectionStyle="formSelectValue"
+                          panelStyle="formSelectPanel"
+                          itemStyle="formSelectItem"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisScopeVisibility}">
+          <controls:label name="BasisScopeLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisScope}"/>
+          <controls:select name="BasisScope"
+                           itemsSource="{Binding Path=Data.BasisScopes}"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisScope}"
+                          placeholder="{Binding Path=Text.BasisScope}"
+                          placeholderStyle="formSelectPlaceholder"
+                          selectionStyle="formSelectValue"
+                          panelStyle="formSelectPanel"
+                          itemStyle="formSelectItem"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisCaseNumberVisibility}">
+          <controls:label name="BasisCaseNumberLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisCaseNumber}"/>
+          <controls:input name="BasisCaseNumber"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisCaseNumber}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisProceedingNumberVisibility}">
+          <controls:label name="BasisProceedingNumberLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisProceedingNumber}"/>
+          <controls:input name="BasisProceedingNumber"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisProceedingNumber}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisAuthorVisibility}">
+          <controls:label name="BasisAuthorLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisAuthor}"/>
+          <controls:input name="BasisAuthor"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisAuthor}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisRefIssuerVisibility}">
+          <controls:label name="BasisRefIssuerLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisRefIssuer}"/>
+          <controls:input name="BasisRefIssuer"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisRefIssuer}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisRefNumberVisibility}">
+          <controls:label name="BasisRefNumberLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisRefNumber}"/>
+          <controls:input name="BasisRefNumber"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisRefNumber}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisRefDateVisibility}">
+          <controls:label name="BasisRefDateLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisRefDate}"/>
+          <controls:input name="BasisRefDate"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisRefDate}"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid visibility="{Binding Path=Form.BasisRefScopeVisibility}">
+          <controls:label name="BasisRefScopeLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisRefScope}"/>
+          <controls:select name="BasisRefScope"
+                          itemsSource="{Binding Path=Data.BasisScopes}"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisRefScope}"
+                          placeholder="{Binding Path=Text.BasisRefScope}"
+                          placeholderStyle="formSelectPlaceholder"
+                          selectionStyle="formSelectValue"
+                          panelStyle="formSelectPanel"
+                          itemStyle="formSelectItem"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
+        <grid>
+          <controls:label name="BasisPreview"
+                          row="1"
+                          column="1"
+                          rowSpan="2"
+                          columnSpan="2"
+                          style="statusText"
+                          text="{Binding Path=Form.BasisPreview}"
+                          readOnly="true"/>
           <controls:button name="AddBasis"
                            row="1"
                            column="3"

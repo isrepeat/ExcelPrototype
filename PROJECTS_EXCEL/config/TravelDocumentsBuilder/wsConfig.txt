@@ -23,6 +23,7 @@ value	TravelDocumentsBuilder::text.ReportNo	Номер рапорта
 value	TravelDocumentsBuilder::text.RoadDays	Дні на дорогу
 value	TravelDocumentsBuilder::text.TicketNo	Номер квитка
 value	TravelDocumentsBuilder::text.BasisDate	Дата документа
+value	TravelDocumentsBuilder::text.BasisForm	Форма документа
 value	TravelDocumentsBuilder::text.BasisType	Тип документа
 value	TravelDocumentsBuilder::text.ClearForm	↺ Нова подія
 value	TravelDocumentsBuilder::text.PlaceKind	Тип місця
@@ -30,6 +31,7 @@ value	TravelDocumentsBuilder::text.PlaceName	Місто / селище
 value	TravelDocumentsBuilder::text.PlaceType	Тип населеного пункту
 value	TravelDocumentsBuilder::text.RemoveTvo	−
 value	TravelDocumentsBuilder::text.StyleSpan	Некоректний інтервал стилів: {value}
+value	TravelDocumentsBuilder::text.BasisScope	Різновид наказу
 value	TravelDocumentsBuilder::text.BasisTitle	Документи-підстави
 value	TravelDocumentsBuilder::text.ExportWord	Експорт WORD — весь наказ
 value	TravelDocumentsBuilder::text.LastStatus	Статус останньої дії
@@ -38,8 +40,11 @@ value	TravelDocumentsBuilder::text.ReloadPage	↻
 value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
 value	TravelDocumentsBuilder::text.WeaponLine	Зброя
+value	TravelDocumentsBuilder::text.BasisActing	Виконання обов’язків
+value	TravelDocumentsBuilder::text.BasisAuthor	Автор (звання, ПІБ у родовому)
 value	TravelDocumentsBuilder::text.BasisIssuer	Посадова особа
 value	TravelDocumentsBuilder::text.BasisNumber	Номер документа
+value	TravelDocumentsBuilder::text.BasisTypeId	Тип документа
 value	TravelDocumentsBuilder::text.DeleteEvent	Видалити подію
 value	TravelDocumentsBuilder::text.LoadHistory	Редагувати історію
 value	TravelDocumentsBuilder::text.PlaceNameEn	Місце (EN)
@@ -52,6 +57,7 @@ value	TravelDocumentsBuilder::text.TaxIdHeader	ІПН
 value	TravelDocumentsBuilder::text.ThemeFailed	Не вдалося змінити тему: {detail}
 value	TravelDocumentsBuilder::text.ToggleTheme	[[color={ThemeResource ThemeLightText}]]Світла[[/color]] / [[color={ThemeResource ThemeDarkText}]]темна[[/color]]
 value	TravelDocumentsBuilder::text.TvoPosition	ТВО Код посади
+value	TravelDocumentsBuilder::text.BasisRefDate	Дата наказу
 value	TravelDocumentsBuilder::text.ChangeReason	Причина зміни
 value	TravelDocumentsBuilder::text.CloseHistory	×
 value	TravelDocumentsBuilder::text.DonationDays	Дні за донацію
@@ -61,6 +67,9 @@ value	TravelDocumentsBuilder::text.TemplatePath	Шаблон DOCX
 value	TravelDocumentsBuilder::text.ThemeUnknown	Невідома тема: {name}
 value	TravelDocumentsBuilder::text.VacationDays	Дні відпустки
 value	TravelDocumentsBuilder::text.VacationKind	Вид відпустки
+value	TravelDocumentsBuilder::text.BasisIssuerId	Посадова особа
+value	TravelDocumentsBuilder::text.BasisRefScope	Уточнення наказу
+value	TravelDocumentsBuilder::text.BasisTemplate	Шаблон підстави
 value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
 value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
 value	TravelDocumentsBuilder::text.PlaceDistrict	Район
@@ -73,6 +82,8 @@ value	TravelDocumentsBuilder::text.StyleSelector	Некоректний селе
 value	TravelDocumentsBuilder::text.TvoChainTitle	ТВО Ланцюг
 value	TravelDocumentsBuilder::text.UpdateHistory	Оновити подію
 value	TravelDocumentsBuilder::text.ActionsSection	ДІЇ
+value	TravelDocumentsBuilder::text.BasisRefIssuer	Автор наказу (у родовому)
+value	TravelDocumentsBuilder::text.BasisRefNumber	Номер наказу
 value	TravelDocumentsBuilder::text.FullNameHeader	ПІБ
 value	TravelDocumentsBuilder::text.OrderDuplicate	Номер наказу має різні дати в межах року: {key}. Виправте джерело наказів.
 value	TravelDocumentsBuilder::text.OrderReference	Номер / дата наказу
@@ -92,6 +103,8 @@ value	TravelDocumentsBuilder::text.VacationTicket.ReturnDateLabel	Дата по�
 value	TravelDocumentsBuilder::text.VacationTicket.DocumentFormTitle	Відпускний квиток
 value	TravelDocumentsBuilder::text.VacationTicket.DepartureDateLabel	Дата вибуття
 value	TravelDocumentsBuilder::text.VacationTicket.DocumentTargetLabel	Місце відпустки
+value	TravelDocumentsBuilder::text.BasisCaseNumber	Номер справи
+value	TravelDocumentsBuilder::text.BasisIssuerText	Посадова особа
 value	TravelDocumentsBuilder::text.CheckboxChecked	☑
 value	TravelDocumentsBuilder::text.DocumentSection	ДАНІ ДОКУМЕНТА
 value	TravelDocumentsBuilder::text.GenerationTitle	Генерація відпускного квитка
@@ -119,6 +132,8 @@ value	TravelDocumentsBuilder::text.StylePaletteLoad	Не вдалося зава
 value	TravelDocumentsBuilder::text.StylePaletteName	Не вказано назву палітри: {value}
 value	TravelDocumentsBuilder::text.StylePaletteRoot	У файлі палітри немає кореневого елемента: {value}
 value	TravelDocumentsBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
+value	TravelDocumentsBuilder::text.BasisIncomingDate	Дата реєстрації
+value	TravelDocumentsBuilder::text.BasisTypeGenitive	Тип документа
 value	TravelDocumentsBuilder::text.CheckboxUnchecked	☐
 value	TravelDocumentsBuilder::text.DependenciesReady	Дані завантажено. Виконайте пошук військовослужбовця.
 value	TravelDocumentsBuilder::text.DocumentTypeLabel	Тип документа
@@ -138,6 +153,8 @@ value	TravelDocumentsBuilder::text.StyleBoundSelector	Для стилю layoutBo
 value	TravelDocumentsBuilder::text.StylePropertyEmpty	Порожнє значення властивості стилю: {value}
 value	TravelDocumentsBuilder::text.StyleRangeSelector	Для стилю діапазону потрібен address.
 value	TravelDocumentsBuilder::text.TreatmentLeaveDays	Потребує днів відпустки для лікування
+value	TravelDocumentsBuilder::text.BasisIncomingNumber	Вхідний номер
+value	TravelDocumentsBuilder::text.BasisInstitutionKey	Код установи
 value	TravelDocumentsBuilder::text.DependenciesLoading	Завантаження довідників і наказів...
 value	TravelDocumentsBuilder::text.PersonPositionLabel	Посада
 value	TravelDocumentsBuilder::text.StyleOverlayBinding	Не вдалося визначити стиль виділення.
@@ -156,6 +173,7 @@ value	TravelDocumentsBuilder::text.StylePaletteContract	Палітри мают�
 value	TravelDocumentsBuilder::text.StylePaletteElements	У палітрі дозволені лише елементи color: {value}
 value	TravelDocumentsBuilder::text.StylePaletteResource	Некоректне посилання на колір теми: {value}
 value	TravelDocumentsBuilder::text.BasisInstitutionQuery	Пошук установи
+value	TravelDocumentsBuilder::text.BasisProceedingNumber	Номер провадження
 value	TravelDocumentsBuilder::text.StylePaletteColorName	Некоректна назва кольору палітри: {value}
 value	TravelDocumentsBuilder::text.StylePaletteDuplicate	Назва палітри повторюється: {value}
 value	TravelDocumentsBuilder::text.StylePaletteFileEmpty	Порожній шлях до файлу в paletteSources.
@@ -398,12 +416,12 @@ value	TravelDocumentsBuilder::history.text.ProtectionNotApplied	Excel не за�
 value	TravelDocumentsBuilder::history.text.ProtectionUnavailable	Механізм захисту TicketsHistory не ініціалізовано.
 value	TravelDocumentsBuilder::history.sheet	Tickets
 value	TravelDocumentsBuilder::history.table	tbTickets
-value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceKind|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate
+value	TravelDocumentsBuilder::history.columns	RowId|ParentRowId|RowType|Revision|Status|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceKind|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate|BasisInstitutionKey|BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisActing|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope|BasisRequiredFields|BasisInstitutionGroup|BasisRenderedText
 value	TravelDocumentsBuilder::history.recovery.suffix	.recovery.xml.log
 value	TravelDocumentsBuilder::history.versions.sheet	TicketRevisions
 value	TravelDocumentsBuilder::history.versions.table	tbTicketRevisions
-value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.FoodDepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays|Snapshot.RankGenitive|Snapshot.RankDative|Snapshot.FIOAccusative|Snapshot.FIODative|Snapshot.FIOInitialsGenitive|Snapshot.PositionGenitive|Snapshot.PlaceKind|Snapshot.PlaceRegion|Snapshot.PlaceType|Snapshot.PlaceName|Snapshot.PlaceDistrict|Snapshot.PlaceAbroad|Snapshot.PlaceCountry|Snapshot.PlaceCountryEn|Snapshot.PlaceRegionEn|Snapshot.PlaceNameEn|Snapshot.WeaponLine|Snapshot.BasisType|Snapshot.BasisInstitution|Snapshot.BasisInstitutionName|Snapshot.BasisIssuer|Snapshot.BasisNumber|Snapshot.BasisDate
-value	TravelDocumentsBuilder::history.dateFields	FoodDepartureDate|DepartureDate|PlannedReturnDate|OrderDate|BasisDate
+value	TravelDocumentsBuilder::history.versions.columns	ChangeId|EventRowId|Revision|ChangedAt|ChangedBy|ChangeType|Reason|ChangedFields|Status|Snapshot.RowId|Snapshot.ParentRowId|Snapshot.RowType|Snapshot.Rank|Snapshot.FullName|Snapshot.TaxId|Snapshot.PositionName|Snapshot.PositionCode|Snapshot.UnitName|Snapshot.DutyPositionCode|Snapshot.VacationKind|Snapshot.VacationAbroad|Snapshot.OrderNumber|Snapshot.OrderDate|Snapshot.Destination|Snapshot.DepartureDate|Snapshot.VacationDays|Snapshot.RoadDays|Snapshot.PlannedReturnDate|Snapshot.ReportNumber|Snapshot.Basis|Snapshot.TicketNumber|Snapshot.DocumentPath|Snapshot.DocumentRevision|Snapshot.DocumentGeneratedAt|Snapshot.VlkNo|Snapshot.VlkDate|Snapshot.LongTreatmentDays|Snapshot.TreatmentLeaveDays|Snapshot.RankGenitive|Snapshot.RankDative|Snapshot.FIOAccusative|Snapshot.FIODative|Snapshot.FIOInitialsGenitive|Snapshot.PositionGenitive|Snapshot.PlaceKind|Snapshot.PlaceRegion|Snapshot.PlaceType|Snapshot.PlaceName|Snapshot.PlaceDistrict|Snapshot.PlaceAbroad|Snapshot.PlaceCountry|Snapshot.PlaceCountryEn|Snapshot.PlaceRegionEn|Snapshot.PlaceNameEn|Snapshot.WeaponLine|Snapshot.BasisType|Snapshot.BasisInstitution|Snapshot.BasisInstitutionName|Snapshot.BasisIssuer|Snapshot.BasisNumber|Snapshot.BasisDate|Snapshot.BasisInstitutionKey|Snapshot.BasisTypeId|Snapshot.BasisTypeGenitive|Snapshot.BasisIssuerId|Snapshot.BasisIssuerText|Snapshot.BasisTemplate|Snapshot.BasisActing|Snapshot.BasisIncomingNumber|Snapshot.BasisIncomingDate|Snapshot.BasisForm|Snapshot.BasisScope|Snapshot.BasisCaseNumber|Snapshot.BasisProceedingNumber|Snapshot.BasisAuthor|Snapshot.BasisRefIssuer|Snapshot.BasisRefNumber|Snapshot.BasisRefDate|Snapshot.BasisRefScope|Snapshot.BasisRequiredFields|Snapshot.BasisInstitutionGroup|Snapshot.BasisRenderedText
+value	TravelDocumentsBuilder::history.dateFields	DepartureDate|PlannedReturnDate|OrderDate|BasisDate|BasisIncomingDate|BasisRefDate
 value	TravelDocumentsBuilder::history.formFields	PersonName=FullName|PersonRank=Rank|PersonId=TaxId|PersonPosition=PositionName|PersonPositionCode=PositionCode|PersonUnit=UnitName|DocumentTarget=Destination|VacationDays=VacationDays|RoadDays=RoadDays|VacationKind=VacationKind|VacationAbroad=VacationAbroad|ReportNo=ReportNumber|Purpose=Basis|TicketNo=TicketNumber|DocumentPath=DocumentPath|VlkNo=VlkNo|VlkDate=VlkDate|LongTreatmentDays=LongTreatmentDays|TreatmentLeaveDays=TreatmentLeaveDays|PlaceRegion=PlaceRegion|PlaceType=PlaceType|PlaceName=PlaceName|PlaceDistrict=PlaceDistrict|PlaceAbroad=PlaceAbroad|PlaceCountry=PlaceCountry|PlaceCountryEn=PlaceCountryEn|PlaceRegionEn=PlaceRegionEn|PlaceNameEn=PlaceNameEn|WeaponLine=WeaponLine
 value	TravelDocumentsBuilder::history.listFields	FullName=Name|TicketNumber=Ticket|DepartureDate=Departure|Revision=Revision|RowId=RowId
 value	TravelDocumentsBuilder::history.actorFields	Personnel.FullName=FullName|Personnel.TaxId=TaxId|Personnel.Rank=Rank|Personnel.Position=PositionName|Personnel.PositionCode=PositionCode|Personnel.Unit=UnitName
@@ -412,10 +430,10 @@ value	TravelDocumentsBuilder::history.durationField	VacationDays
 value	TravelDocumentsBuilder::history.personIdField	TaxId
 value	TravelDocumentsBuilder::history.dateFormFields	DepartureDate=DepartureDate|ReturnDate=PlannedReturnDate
 value	TravelDocumentsBuilder::history.departureField	DepartureDate
-value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|FoodDepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceKind|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate
+value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceKind|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate|BasisInstitutionKey|BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisActing|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope|BasisRequiredFields|BasisInstitutionGroup|BasisRenderedText
 value	TravelDocumentsBuilder::history.personNameField	FullName
 value	TravelDocumentsBuilder::history.orderNumberField	OrderNumber
-value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source|declensions.sources.Alf|declensions.sources.Ranks|declensions.sources.Positions|basisChain.lookup.Unit.source|basisChain.lookup.Hospital.source
+value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source|declensions.sources.Alf|declensions.sources.Ranks|declensions.sources.Positions|basisChain.lookup.Unit.source|basisChain.lookup.Hospital.source|basisChain.lookup.Command.source|basisChain.lookup.Court.source|basisChain.references.Officials.source|basisChain.references.OfficialRules.source|basisChain.references.Documents.source|basisChain.references.DocumentRules.source|basisChain.references.Fields.source|basisChain.references.Fragments.source|basisChain.references.Contract.source
 value	TravelDocumentsBuilder::snapshots.progress.Table	Читання таблиці: {source}
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
 value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
@@ -426,48 +444,153 @@ value	TravelDocumentsBuilder::basisChain.text.InvalidDate	Вкажіть кор�
 value	TravelDocumentsBuilder::basisChain.text.InvalidIssuer	Оберіть посадову особу зі списку, допустимого для цієї установи.
 value	TravelDocumentsBuilder::basisChain.text.OrderDatePending	__.__.____
 value	TravelDocumentsBuilder::basisChain.text.OrderNumberPending	___
-value	TravelDocumentsBuilder::basisChain.items.Types.Unit	повідомлення,розпорядження,наказ,рапорт
-value	TravelDocumentsBuilder::basisChain.items.Types.Hospital	повідомлення,лист
-value	TravelDocumentsBuilder::basisChain.roles.Unit	командир,заступник командира,начальник штабу
-value	TravelDocumentsBuilder::basisChain.roles.Hospital	начальник,заступник начальника
-value	TravelDocumentsBuilder::basisChain.fields	BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate
+value	TravelDocumentsBuilder::basisChain.text.InvalidRequiredSpec	Некоректна умова обов’язкових полів: {value}. Групуйте різні оператори дужками.
+value	TravelDocumentsBuilder::basisChain.forms.copy	Копія
+value	TravelDocumentsBuilder::basisChain.forms.extract	Витяг
+value	TravelDocumentsBuilder::basisChain.forms.copyText	копія
+value	TravelDocumentsBuilder::basisChain.forms.extractText	витяг із
+value	TravelDocumentsBuilder::basisChain.scope.none	Без уточнення
+value	TravelDocumentsBuilder::basisChain.scope.values	по особовому складу|по стройовій частині|Без уточнення
+value	TravelDocumentsBuilder::basisChain.acting.text	тимчасово виконуючого обов’язки
+value	TravelDocumentsBuilder::basisChain.acting.option	Тимчасове виконання обов’язків
+value	TravelDocumentsBuilder::basisChain.acting.options	Без ТВО,Тимчасове виконання обов’язків
+value	TravelDocumentsBuilder::basisChain.fields	BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate|BasisInstitutionKey|BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisActing|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope|BasisRequiredFields|BasisInstitutionGroup|BasisRenderedText
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.sheet	Військові частини
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.source.table	tbMilitaries
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.columns.Key	Військова частина
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.lookup.Unit.columns.Group	Група установи
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.columns.Genitive	Родовий
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.searchField	Key
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.nameTemplate	військова частина {Key}
 value	TravelDocumentsBuilder::basisChain.lookup.Unit.genitiveTemplate	військової частини {Key}
 value	TravelDocumentsBuilder::basisChain.lookup.text.Empty	Установ не знайдено.
-value	TravelDocumentsBuilder::basisChain.lookup.text.Query	Введіть номер військової частини або назву госпіталю.
+value	TravelDocumentsBuilder::basisChain.lookup.text.Query	Введіть номер військової частини або назву установи.
 value	TravelDocumentsBuilder::basisChain.lookup.text.Choose	Оберіть установу з таблиці кандидатів.
 value	TravelDocumentsBuilder::basisChain.lookup.text.Minimum	Введіть щонайменше {minChars} символи для пошуку установи.
 value	TravelDocumentsBuilder::basisChain.lookup.text.Required	Оберіть конкретну установу з таблиці кандидатів.
 value	TravelDocumentsBuilder::basisChain.lookup.text.Selected	Установу обрано.
+value	TravelDocumentsBuilder::basisChain.lookup.text.MissingGroup	Для установи не заповнено «Група установи» у довіднику.
 value	TravelDocumentsBuilder::basisChain.lookup.text.MissingGenitive	Для установи «{key}» у довіднику не заповнено колонку «Родовий».
+value	TravelDocumentsBuilder::basisChain.lookup.Court.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.lookup.Court.source.sheet	Суди
+value	TravelDocumentsBuilder::basisChain.lookup.Court.source.table	tbCourts
+value	TravelDocumentsBuilder::basisChain.lookup.Court.columns.Key	Назва
+value	TravelDocumentsBuilder::basisChain.lookup.Court.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.lookup.Court.columns.Group	Група установи
+value	TravelDocumentsBuilder::basisChain.lookup.Court.columns.Genitive	Родовий
+value	TravelDocumentsBuilder::basisChain.lookup.Court.searchField	Name
 value	TravelDocumentsBuilder::basisChain.lookup.fields	Key|Name
+value	TravelDocumentsBuilder::basisChain.lookup.Command.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.lookup.Command.source.sheet	Органи управління
+value	TravelDocumentsBuilder::basisChain.lookup.Command.source.table	tbCommands
+value	TravelDocumentsBuilder::basisChain.lookup.Command.columns.Key	Назва
+value	TravelDocumentsBuilder::basisChain.lookup.Command.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.lookup.Command.columns.Group	Група установи
+value	TravelDocumentsBuilder::basisChain.lookup.Command.columns.Genitive	Родовий
+value	TravelDocumentsBuilder::basisChain.lookup.Command.searchField	Name
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.source.sheet	Лікувальні Заклади
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.source.table	ЛЗК
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.columns.Key	Позначення
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.lookup.Hospital.columns.Group	Група установи
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.columns.Genitive	Родовий
 value	TravelDocumentsBuilder::basisChain.lookup.Hospital.searchField	Name
 value	TravelDocumentsBuilder::basisChain.lookup.minChars	2
 value	TravelDocumentsBuilder::basisChain.lookup.maxResults	50
 value	TravelDocumentsBuilder::basisChain.lookup.columnSpans	2|5
 value	TravelDocumentsBuilder::basisChain.lookup.columnOffset	1
-value	TravelDocumentsBuilder::basisChain.lookup.sourceFields	Key|Name|Genitive
+value	TravelDocumentsBuilder::basisChain.lookup.sourceFields	Key|Name|Genitive|Group
+value	TravelDocumentsBuilder::basisChain.contract.text.InvalidType	Несумісний тип або призначення поля документа: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.UnknownField	Невідоме поле документа в Установи: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.UnknownToken	Невідомий або некоректний плейсхолдер в Установи: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.InvalidSchema	Пошкоджений опис контракту Установи: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.InvalidBinding	Некоректна відповідність поля Установи для TDB: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.InvalidProfile	Некоректний профіль документа в Установи: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.MissingBinding	Не задано відповідність поля Установи для TDB: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.InvalidFragment	Некоректний, неоднозначний або циклічний фрагмент тексту: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.UnsupportedFeature	Непідтримувана можливість контракту Установи: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.text.UnsupportedVersion	Непідтримувана версія контракту Установи: {value}.
+value	TravelDocumentsBuilder::basisChain.contract.version	1
+value	TravelDocumentsBuilder::basisChain.contract.bindings	document.type=Form.BasisType|document.type.genitive=Form.BasisTypeGenitive|institution.genitive=Form.BasisInstitutionName|issuer.role=Form.BasisIssuer|issuer.role.genitive=Form.BasisIssuerText|issuer.acting=Form.BasisActing|document.number=Form.BasisNumber|document.date=Form.BasisDate|registration.number=Form.BasisIncomingNumber|registration.date=Form.BasisIncomingDate|document.form=Form.BasisForm|document.scope=Form.BasisScope|court.caseNumber=Form.BasisCaseNumber|court.proceedingNumber=Form.BasisProceedingNumber|document.author=Form.BasisAuthor|reference.issuer=Form.BasisRefIssuer|reference.number=Form.BasisRefNumber|reference.date=Form.BasisRefDate|reference.scope=Form.BasisRefScope
+value	TravelDocumentsBuilder::basisChain.contract.features	fields.v1|fragments.v1|conditions.v1
+value	TravelDocumentsBuilder::basisChain.contract.bindingTypes	Form.BasisType=choice|Form.BasisTypeGenitive=text|Form.BasisInstitutionName=text|Form.BasisIssuer=choice|Form.BasisIssuerText=text|Form.BasisActing=choice|Form.BasisNumber=text|Form.BasisDate=date|Form.BasisIncomingNumber=text|Form.BasisIncomingDate=date|Form.BasisForm=choice|Form.BasisScope=choice|Form.BasisCaseNumber=text|Form.BasisProceedingNumber=text|Form.BasisAuthor=text|Form.BasisRefIssuer=text|Form.BasisRefNumber=text|Form.BasisRefDate=date|Form.BasisRefScope=choice
+value	TravelDocumentsBuilder::basisChain.contract.legacyTokens	BasisType=document.typeText|BasisIssuer=issuer.role.genitive|BasisIssuerText=issuer.role.genitive|BasisInstitutionName=institution.genitive|Form=document.formText|Acting=issuer.actingText|Scope=document.scopeText|Number=document.numberText|Date=document.dateText|Incoming=registration.text|RefScope=reference.scopeText|BasisProceedingNumber=court.proceedingText
 value	TravelDocumentsBuilder::basisChain.maxItems	20
 value	TravelDocumentsBuilder::basisChain.separator	;
+value	TravelDocumentsBuilder::basisChain.dateFields	BasisDate|BasisIncomingDate|BasisRefDate
+value	TravelDocumentsBuilder::basisChain.references.Fields.fields	Code|Name|Description|Type|Usage
+value	TravelDocumentsBuilder::basisChain.references.Fields.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.Fields.source.sheet	Поля документів
+value	TravelDocumentsBuilder::basisChain.references.Fields.source.table	tbBasisFields
+value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Code	Код
+value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Type	Тип
+value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Usage	Використання
+value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Description	Опис
+value	TravelDocumentsBuilder::basisChain.references.Contract.fields	Version|Features|Description
+value	TravelDocumentsBuilder::basisChain.references.Contract.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.Contract.source.sheet	Контракт
+value	TravelDocumentsBuilder::basisChain.references.Contract.source.table	tbBasisContract
+value	TravelDocumentsBuilder::basisChain.references.Contract.columns.Version	Версія
+value	TravelDocumentsBuilder::basisChain.references.Contract.columns.Features	Можливості
+value	TravelDocumentsBuilder::basisChain.references.Contract.columns.Description	Опис
+value	TravelDocumentsBuilder::basisChain.references.Documents.fields	Id|Name|Genitive|Template|Required|Fields|Forms
+value	TravelDocumentsBuilder::basisChain.references.Documents.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.Documents.source.sheet	Типи документів
+value	TravelDocumentsBuilder::basisChain.references.Documents.source.table	tbBasisDocumentTypes
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Id	Id
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Forms	Форми
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Fields	Поля
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Genitive	Родовий
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Required	Обов’язкові поля
+value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Template	Шаблон
+value	TravelDocumentsBuilder::basisChain.references.Fragments.fields	Code|Name|Description|Mode|Source|Value|Template
+value	TravelDocumentsBuilder::basisChain.references.Fragments.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.Fragments.source.sheet	Фрагменти тексту
+value	TravelDocumentsBuilder::basisChain.references.Fragments.source.table	tbBasisFragments
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Code	Код
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Mode	Умова
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Value	Значення
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Source	Поле
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Template	Шаблон
+value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Description	Опис
+value	TravelDocumentsBuilder::basisChain.references.Officials.fields	Id|Name|Text
+value	TravelDocumentsBuilder::basisChain.references.Officials.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.Officials.source.sheet	Посадові особи
+value	TravelDocumentsBuilder::basisChain.references.Officials.source.table	tbBasisOfficials
+value	TravelDocumentsBuilder::basisChain.references.Officials.columns.Id	Id
+value	TravelDocumentsBuilder::basisChain.references.Officials.columns.Name	Назва
+value	TravelDocumentsBuilder::basisChain.references.Officials.columns.Text	Родовий
+value	TravelDocumentsBuilder::basisChain.references.DocumentRules.fields	Group|DocumentId
+value	TravelDocumentsBuilder::basisChain.references.DocumentRules.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.DocumentRules.source.sheet	Документи установ
+value	TravelDocumentsBuilder::basisChain.references.DocumentRules.source.table	tbBasisDocumentRules
+value	TravelDocumentsBuilder::basisChain.references.DocumentRules.columns.Group	Група установи
+value	TravelDocumentsBuilder::basisChain.references.DocumentRules.columns.DocumentId	Id документа
+value	TravelDocumentsBuilder::basisChain.references.OfficialRules.fields	Group|OfficialId
+value	TravelDocumentsBuilder::basisChain.references.OfficialRules.source.path	../Dependencies/Установи.xlsx
+value	TravelDocumentsBuilder::basisChain.references.OfficialRules.source.sheet	Посади установ
+value	TravelDocumentsBuilder::basisChain.references.OfficialRules.source.table	tbBasisOfficialRules
+value	TravelDocumentsBuilder::basisChain.references.OfficialRules.columns.Group	Група установи
+value	TravelDocumentsBuilder::basisChain.references.OfficialRules.columns.OfficialId	Id посадової особи
 value	TravelDocumentsBuilder::basisChain.terminator	.
-value	TravelDocumentsBuilder::basisChain.issuerForms.Unit	командира,заступника командира,начальника штабу
-value	TravelDocumentsBuilder::basisChain.issuerForms.Hospital	начальника,заступника начальника
-value	TravelDocumentsBuilder::basisChain.institutions	Unit~Військова частина|Hospital~Госпіталь
+value	TravelDocumentsBuilder::basisChain.draftFields	BasisInstitution|BasisInstitutionName|BasisType|BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope
+value	TravelDocumentsBuilder::basisChain.dateTemplate	від {date}
+value	TravelDocumentsBuilder::basisChain.editorFields	BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope
+value	TravelDocumentsBuilder::basisChain.institutions	Unit~Військова частина|Hospital~Госпіталь|Command~Орган військового управління|Court~Суд
+value	TravelDocumentsBuilder::basisChain.numberFields	BasisNumber|BasisIncomingNumber|BasisRefNumber|BasisProceedingNumber
 value	TravelDocumentsBuilder::basisChain.orderTemplate	наказ командира військової частини А7383 (по стройовій частині) від {date} № {number}
+value	TravelDocumentsBuilder::basisChain.scopeTemplate	({scope})
+value	TravelDocumentsBuilder::basisChain.numberTemplate	№ {number}
+value	TravelDocumentsBuilder::basisChain.snapshotFields	BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisRequiredFields|BasisRenderedText
 value	TravelDocumentsBuilder::basisChain.documentTemplate	{BasisType} {BasisIssuer} {BasisInstitutionName} № {BasisNumber} від {BasisDate}
+value	TravelDocumentsBuilder::basisChain.incomingTemplate	(вх. № {number} від {date})
+value	TravelDocumentsBuilder::basisChain.proceedingTemplate	провадження № {number}
 value	TravelDocumentsBuilder::candidates.layout.columns	8
 value	TravelDocumentsBuilder::candidates.layout.overflowMessage	Таблиця кандидатів не вміщується в робочу область: ширина {columns} колонок, відступ зліва {offset}, доступно {available}. Перевірте налаштування розташування та ширини колонок.
 value	TravelDocumentsBuilder::candidates.personnel.columnSpans	1|2|1|1|2|1
@@ -545,7 +668,7 @@ value	TravelDocumentsBuilder::generation.position.removedText	СПИС
 value	TravelDocumentsBuilder::generation.position.reservedText	РОЗП
 value	TravelDocumentsBuilder::generation.position.removedPrefix	A1B
 value	TravelDocumentsBuilder::generation.position.reservedPrefix	A1A
-value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId|PositionName|VacationKind|Destination|OrderNumber|FoodDepartureDate|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|TicketNumber|PositionCode|DutyPositionCode|UnitName|Status|Basis|ReportNumber
+value	TravelDocumentsBuilder::generation.registry.fieldOrder	Rank|FullName|TaxId|PositionName|VacationKind|Destination|OrderNumber|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|TicketNumber|PositionCode|DutyPositionCode|UnitName|Status|Basis|ReportNumber
 value	TravelDocumentsBuilder::generation.templates.VacationTicket	Шаблони\Відпустка (DSL).docx
 value	TravelDocumentsBuilder::generation.templates.BusinessTripCertificate	Шаблони\Відрядження (DSL).docx
 value	TravelDocumentsBuilder::generation.tableNames.VacationTicket	Ticket

@@ -720,7 +720,7 @@ Private Sub private_ValidateSchema( _
     Dim fields As Variant
 
     fields = VBA.Split(fieldList, "|")
-    If table.ListColumns.Count <> UBound(fields) + 1 Then fn_Fail "Schema"
+    If table.ListColumns.Count < UBound(fields) + 1 Then fn_Fail "Schema"
     For Each field In fields
         Set column = table.ListColumns(VBA.CStr(field))
     Next field

@@ -379,6 +379,11 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         Set updates = VBA.CreateObject("Scripting.Dictionary")
         If Not selected.TryGetValue("Key", placeValue) Then Exit Function
         updates("Form.BasisInstitutionQuery") = placeValue
+        updates("Form.BasisInstitutionKey") = placeValue
+        If Not selected.TryGetValue("Group", placeValue) Then
+            Exit Function
+        End If
+        updates("Form.BasisInstitutionGroup") = placeValue
         If Not selected.TryGetValue("Genitive", placeValue) Then Exit Function
         If VBA.Len(VBA.Trim$(VBA.CStr(placeValue))) = 0 Then
             diagnostic = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.MissingGenitive"), _
@@ -389,6 +394,9 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         End If
         updates("Form.BasisInstitutionName") = placeValue
         If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then VBA.Err.Raise 5, , diagnostic
+        If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
+            Exit Function
+        End If
         SelectPersonnelHandler = private_SetActionStatus(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Selected"), False)
         Exit Function
     End If
@@ -445,6 +453,9 @@ Public Function RefreshPersonnelHandler() As Boolean
     On Error GoTo Failed
     If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then
         GoTo Failed
+    End If
+    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
+        Exit Function
     End If
     m_lookupService.InvalidateCache
     m_orderResolver.InvalidateCache
@@ -992,6 +1003,12 @@ Public Function BasisInstitutionChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionGroup", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionKey", VBA.vbNullString) Then
+        Exit Function
+    End If
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then Exit Function
@@ -1016,7 +1033,16 @@ Public Function BasisInstitutionQueryChangedHandler() As Boolean
         Exit Function
     End If
     query = ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitutionQuery")
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionGroup", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionKey", VBA.vbNullString) Then
+        Exit Function
+    End If
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
+    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
+        Exit Function
+    End If
     Set result = ex_TDB_BasisChain.fn_SearchInstitutions(institution, query)
     If Not private_ValidateCandidateBounds(result, "basisChain.lookup.columnOffset") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
@@ -1038,6 +1064,32 @@ Public Function BasisInstitutionQueryChangedHandler() As Boolean
         status = ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Empty")
     End If
     BasisInstitutionQueryChangedHandler = private_SetActionStatus(status, False)
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function BasisTypeChangedHandler() As Boolean
+    Dim field As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo Failed
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.snapshotFields"), "|")
+        If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
+    Next field
+    If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
+        Exit Function
+    End If
+    BasisTypeChangedHandler = ex_TDB_BasisChain.fn_Preview(m_pageBase.BindingContext)
+    Exit Function
+Failed:
+    private_SetActionStatus VBA.Err.Description, True
+End Function
+
+Public Function BasisDraftChangedHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo Failed
+    BasisDraftChangedHandler = ex_TDB_BasisChain.fn_Preview(m_pageBase.BindingContext)
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True
@@ -1080,7 +1132,7 @@ Public Function RemoveBasisHandler() As Boolean
         RemoveBasisHandler = True
         Exit Function
     End If
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.draftFields"), "|")
         If VBA.Len(ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, VBA.CStr(field))) > 0 Then
             VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.Pending")
         End If
@@ -1088,7 +1140,11 @@ Public Function RemoveBasisHandler() As Boolean
     Set row = chain(chain.Count)
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     updates.Add "Form.BasisDraftId", row("RowId")
-    updates.Add "Form.BasisInstitutionQuery", row("BasisInstitutionName")
+    If VBA.Len(VBA.CStr(row("BasisInstitutionKey"))) > 0 Then
+        updates.Add "Form.BasisInstitutionQuery", row("BasisInstitutionKey")
+    Else
+        updates.Add "Form.BasisInstitutionQuery", row("BasisInstitutionName")
+    End If
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.fields"), "|")
         updates.Add "Form." & field, row(field)
     Next field

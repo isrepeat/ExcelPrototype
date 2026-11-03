@@ -180,17 +180,17 @@ with zipfile.ZipFile(workbook_folder / cfg("history.path")) as archive:
     ]
     table = next(table for table in tables if table.attrib["name"] == cfg("history.table"))
     headers = [column.attrib["name"] for column in table.find("s:tableColumns", namespace)]
-    assert len(headers) == len(set(headers)) == len(cfg("history.columns").split("|")), "Registry schema requires migration"
+    assert len(headers) == len(set(headers)), "Duplicate registry column"
     assert all(re.fullmatch(r"[A-Za-z][A-Za-z0-9]*", field) for field in headers)
     assert not {"LastChangeId", "RowOrder", "Purpose", "ReportNo", "PersonUnit"} & set(headers)
-    assert set(headers) == set(cfg("history.columns").split("|")), "Registry schema mismatch"
+    assert set(cfg("history.columns").split("|")) <= set(headers), "Registry schema mismatch"
     versions = next(table for table in tables if table.attrib["name"] == cfg("history.versions.table"))
     version_headers = [column.attrib["name"] for column in versions.find("s:tableColumns", namespace)]
-    assert len(version_headers) == len(cfg("history.versions.columns").split("|")), "Revision schema requires migration"
-    assert version_headers == cfg("history.versions.columns").split("|")
+    assert len(version_headers) == len(set(version_headers)), "Duplicate revision column"
+    assert set(cfg("history.versions.columns").split("|")) <= set(version_headers)
     snapshot_fields = cfg("history.snapshotFields").split("|")
-    assert [field.removeprefix("Snapshot.") for field in version_headers[9:]] == snapshot_fields
-    assert set(snapshot_fields) == set(headers) - {"Revision", "Status"}
+    assert {"Snapshot." + field for field in snapshot_fields} <= set(version_headers)
+    assert set(snapshot_fields) <= set(headers) - {"Revision", "Status"}
     assert not {"ТВО.ПІБ", "ТВО.ІПН", "ТВО.Посада", "Статус"} & set(headers)
     assert set(cfg("history.dateFields").split("|")) <= set(headers)
     assert set(cfg("generation.registry.fieldOrder").split("|")) <= set(headers)

@@ -268,21 +268,21 @@ Public Function TrySave( _
         If historyRow("RowType") = "Event" And historyRow("RowId") <> identifier Then
             If VBA.CStr(historyRow(private_Header(2))) = m_form("PersonId") And _
                     VBA.CStr(historyRow(private_Header(6))) = orderNo And ex_TDB_History.fn_Date(historyRow("OrderDate")) = orderDate And _
-                    VBA.CStr(historyRow(private_Header(4))) = m_form("VacationKind") And ex_TDB_History.fn_Date(historyRow(private_Header(8))) = departureDate Then
+                    VBA.CStr(historyRow(private_Header(4))) = m_form("VacationKind") And ex_TDB_History.fn_Date(historyRow(private_Header(7))) = departureDate Then
                 ex_TDB_History.fn_Fail "Duplicate"
             End If
         End If
     Next key
     If isUpdate Then
         Set mainRow = ex_TDB_History.fn_Find(ticketsTable, identifier)
-        ticketNo = private_Cell(mainRow, ticketsTable, 12)
+        ticketNo = private_Cell(mainRow, ticketsTable, 11)
         revision = VBA.CLng(mainRow.Range.Cells(1, ticketsTable.ListColumns("Revision").Index).Value2)
     Else
         identifier = ex_TDB_History.fn_NewId()
         ticketNo = private_NextNumber(ticketsTable, orderNo, orderDate)
         revision = 1
     End If
-    If VBA.Len(ticketNo) = 0 Then private_Fail "Invalid", private_Header(12)
+    If VBA.Len(ticketNo) = 0 Then private_Fail "Invalid", private_Header(11)
     For Each key In historyRows.Keys
         Set historyRow = historyRows(key)
         If historyRow("ParentRowId") = identifier And historyRow("RowType") = "Donation" Then
@@ -311,7 +311,7 @@ Public Function TrySave( _
     tableChanged = True
     private_LogStage "WriteRegistry"
     If mainRow Is Nothing Then Set mainRow = private_AddRow(ticketsTable, donationRow)
-    private_WriteRow ticketsTable, mainRow, m_form("VacationKind"), m_form("DocumentTarget"), orderNo, orderDate, _
+    private_WriteRow ticketsTable, mainRow, m_form("VacationKind"), m_form("DocumentTarget"), orderNo, _
         departureDate, vacationDays, roadDays, ticketNo, finalReturn
     Set metadata = VBA.CreateObject("Scripting.Dictionary")
     metadata.Add "RowId", identifier
@@ -347,7 +347,7 @@ Public Function TrySave( _
     If donationDays > 0 Then
         If donationRow Is Nothing Then Set donationRow = private_AddRow(ticketsTable, mainRow)
         private_WriteRow ticketsTable, donationRow, m_form("VacationKind"), VBA.vbNullString, donationOrder, _
-            finalReturn, mainReturn, donationDays, 0, ticketNo, finalReturn
+            mainReturn, donationDays, 0, ticketNo, finalReturn
         metadata("RowType") = "Donation"
         metadata("ParentRowId") = identifier
         metadata("RowId") = VBA.CStr(donationRow.Range.Cells(1, ticketsTable.ListColumns("RowId").Index).Value2)
@@ -878,7 +878,7 @@ Private Function private_Header(ByVal index As Long) As String
     Dim headers As Variant
 
     headers = VBA.Split(m_config("registry.fieldOrder"), "|")
-    If UBound(headers) <> 18 Then private_Fail "Invalid", "generation.registry.fieldOrder"
+    If UBound(headers) <> 17 Then private_Fail "Invalid", "generation.registry.fieldOrder"
     private_Header = headers(index)
 End Function
 
@@ -919,8 +919,8 @@ Private Function private_NextNumber( _
     prefix = VBA.CStr(VBA.Year(orderDate)) & "/" & orderNo & "/"
     For Each row In table.ListRows
         If VBA.CStr(row.Range.Cells(1, table.ListColumns("RowType").Index).Value2) = "Event" Then
-            If VBA.Left$(private_Cell(row, table, 12), VBA.Len(prefix)) = prefix Then
-                number = private_Cell(row, table, 12)
+            If VBA.Left$(private_Cell(row, table, 11), VBA.Len(prefix)) = prefix Then
+                number = private_Cell(row, table, 11)
                 sequence = VBA.Mid$(number, VBA.Len(prefix) + 1)
                 If VBA.Len(sequence) = 0 Or sequence Like "*[!0-9]*" Then private_Fail "Invalid", number
                 If VBA.CDbl(sequence) >= 2147483647# Then private_Fail "Invalid", number
@@ -960,7 +960,6 @@ Private Sub private_WriteRow( _
     ByVal eventText As String, _
     ByVal destination As String, _
     ByVal orderNo As String, _
-    ByVal foodDate As Date, _
     ByVal departure As Date, _
     ByVal duration As Long, _
     ByVal road As Long, _
@@ -975,9 +974,9 @@ Private Sub private_WriteRow( _
 
     status = "Active"
     If m_form("VacationStatus") = m_config("status.cancelled") Then status = "Cancelled"
-    indexes = VBA.Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 17, 11)
+    indexes = VBA.Array(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 15, 16, 10)
     values = VBA.Array(m_form("PersonRank"), m_form("PersonName"), m_form("PersonId"), _
-        m_form("PersonPosition"), eventText, destination, orderNo, foodDate, departure, _
+        m_form("PersonPosition"), eventText, destination, orderNo, departure, _
         duration, road, ticketNo, status, m_form("Purpose"), plannedReturn)
     Set fields = VBA.CreateObject("Scripting.Dictionary")
     For index = 0 To UBound(indexes)
@@ -987,13 +986,13 @@ Private Sub private_WriteRow( _
             " | IntendedValue=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
     Next index
     If plannedReturn = 0 Then
-        fields(private_Header(11)) = VBA.vbNullString
+        fields(private_Header(10)) = VBA.vbNullString
     End If
     If private_IsIndefinite(duration) Then
-        fields(private_Header(9)) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")
+        fields(private_Header(8)) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")
     End If
     ex_TDB_History.fn_Write table, row, fields
-    row.Range.Cells(1, private_Column(table, private_Header(17))).WrapText = True
+    row.Range.Cells(1, private_Column(table, private_Header(16))).WrapText = True
 End Sub
 
 Private Function private_WordDate(ByVal dateValue As Date) As String

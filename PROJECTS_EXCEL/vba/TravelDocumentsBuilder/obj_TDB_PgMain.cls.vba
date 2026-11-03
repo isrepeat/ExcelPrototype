@@ -126,7 +126,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not ex_TDB_BasisChain.fn_RefreshInstitutions(bindingContext) Then
         Exit Function
     End If
-    For Each key In VBA.Array("BasisType", "BasisInstitution", "BasisIssuer", "BasisNumber", "BasisDate", "AddBasis", "RemoveBasis", "BasisTitle")
+    For Each key In VBA.Split("BasisType|BasisInstitution|AddBasis|RemoveBasis|BasisTitle|" & ex_TravelDocumentsBuilder.fn_Config("basisChain.editorFields"), "|")
         If Not bindingContext.SetValue("Text", VBA.CStr(key), ex_TravelDocumentsBuilder.fn_Config("text." & key)) Then
             Exit Function
         End If
@@ -360,6 +360,12 @@ Private Function private_TryRegisterCommands() As Boolean
         Exit Function
     End If
     If Not private_TryRegisterCommand(bindingContext, "BasisInstitutionQueryChanged", "BasisInstitutionQueryChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "BasisTypeChanged", "BasisTypeChangedHandler") Then
+        Exit Function
+    End If
+    If Not private_TryRegisterCommand(bindingContext, "BasisDraftChanged", "BasisDraftChangedHandler") Then
+        Exit Function
+    End If
     If Not private_TryRegisterCommand(bindingContext, "DeleteEvent", "DeleteEventHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "AddBasis", "AddBasisHandler") Then
         Exit Function

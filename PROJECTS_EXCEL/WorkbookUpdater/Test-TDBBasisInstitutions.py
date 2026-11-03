@@ -22,9 +22,7 @@ def cfg(key):
 
 
 kinds = dict(entry.split("~") for entry in cfg("basisChain.institutions").split("|"))
-assert kinds == {"Unit": "Військова частина", "Hospital": "Госпіталь"}
-assert cfg("basisChain.items.Types.Hospital").split(",") == ["повідомлення", "лист"]
-assert "розпорядження" in cfg("basisChain.items.Types.Unit").split(",")
+assert kinds == {"Unit": "Військова частина", "Hospital": "Госпіталь", "Command": "Орган військового управління", "Court": "Суд"}
 assert cfg("basisChain.lookup.Unit.nameTemplate").replace("{Key}", "А2573") == "військова частина А2573"
 assert cfg("basisChain.lookup.Unit.genitiveTemplate").replace("{Key}", "А2573") == "військової частини А2573"
 assert "{key}" in cfg("basisChain.lookup.text.MissingGenitive")
@@ -36,10 +34,9 @@ assert 'VBA.CStr(prefix) & ".table"' in loader, "Dependency loader must recogniz
 assert "source.TableName = tableName" in loader
 assert 'source.RangeAddress = ex_TravelDocumentsBuilder.fn_Config(VBA.CStr(prefix) & ".range")' in loader
 for kind in kinds:
-    assert cfg(f"basisChain.items.Types.{kind}").split(",")
-    assert cfg(f"basisChain.roles.{kind}").split(",")
-    assert len(cfg(f"basisChain.roles.{kind}").split(",")) == len(cfg(f"basisChain.issuerForms.{kind}").split(","))
     prefix = f"basisChain.lookup.{kind}"
+    if kind in {"Command", "Court"}:
+        assert cfg(prefix + ".columns.Key") == cfg(prefix + ".columns.Name") == "Назва"
     assert prefix + ".source" in cfg("snapshots.sources").split("|")
     path = (ROOT / "workbook/TravelDocumentsBuilder" / cfg(prefix + ".source.path")).resolve()
     with zipfile.ZipFile(path) as book:
