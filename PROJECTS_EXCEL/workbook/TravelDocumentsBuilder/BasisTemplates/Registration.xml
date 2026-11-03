@@ -1,0 +1,10 @@
+<textTemplate version="1">
+  <ifFilled field="registration.number">
+    <group prefix="(вх. № "
+           suffix=")">
+      <value field="registration.number"/>
+      <text>від</text>
+      <value field="registration.date"/>
+    </group>
+  </ifFilled>
+</textTemplate>

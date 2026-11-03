@@ -1,17 +1,16 @@
-Attribute VB_Name = "ex_TDB_BasisContract"
+Attribute VB_Name = "ex_TDB_BasisConfig"
 Option Explicit
 
-Private Const CONTRACT_VERSION As String = "1"
-Private Const CONTRACT_FEATURES As String = "fields.v1|fragments.v1|conditions.v1"
-
 Private m_snapshot As obj_TableSnapshotSet
-Private m_contract As Object
+Private m_configuration As Object
+Private m_orderTemplates As Object
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
-    Set m_contract = Nothing
+    Set m_orderTemplates = Nothing
+    Set m_configuration = Nothing
     Set m_snapshot = Nothing
 End Sub
 ' --------------------------------------
@@ -22,45 +21,117 @@ End Sub
 ' namespace API {
 ' --------------------------------------
 Public Sub fn_Validate(ByVal snapshot As obj_TableSnapshotSet)
-    Dim contract As Object
+    Dim configuration As Object
 
-    Set contract = private_Build(snapshot)
-    Set m_contract = contract
+    Set configuration = private_Build(snapshot)
+    Set m_configuration = configuration
     Set m_snapshot = snapshot
 End Sub
 
 Public Sub fn_AdaptDefinition(ByVal definition As Object)
-    Dim contract As Object
+    Dim configuration As Object
     Dim field As Variant
     Dim text As String
 
-    Set contract = private_Active()
+    Set configuration = private_Active()
     For Each field In VBA.Split(VBA.CStr(definition("Fields")), "|")
         If VBA.Len(text) > 0 Then
             text = text & "|"
         End If
-        text = text & private_Field(contract, VBA.CStr(field), True)
+        text = text & private_Field(configuration, VBA.CStr(field), True)
     Next field
     definition("Fields") = text
-    definition("Required") = private_Condition(contract, VBA.CStr(definition("Required")))
+    definition("Required") = private_Condition(configuration, VBA.CStr(definition("Required")))
 End Sub
 
-Public Function fn_Template( _
-    ByVal text As String, _
+Public Function fn_Render( _
+    ByVal profileId As String, _
     ByVal row As Object _
 ) As String
-    fn_Template = private_Expand(private_Active(), text, row, 0)
+    Dim configuration As Object
+    Dim values As Object
+    Dim bindings As Object
+    Dim code As Variant
+    Dim entry As Variant
+    Dim parts As Variant
+    Dim mode As String
+    Dim matched As Boolean
+    Dim original As String
+
+    Set configuration = private_Active()
+    Set bindings = configuration("Bindings")
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    For Each code In bindings.Keys
+        values.Add VBA.CStr(code), VBA.CStr(row(bindings(code)))
+    Next code
+    For Each code In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.valueMaps.fields"), "|")
+        If Not values.Exists(code) Then
+            private_Fail "UnknownField", VBA.CStr(code)
+        End If
+        mode = ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.valueMaps." & code & ".mode")
+        If mode <> "closed" And mode <> "open" Then
+            private_Fail "InvalidBinding", VBA.CStr(code)
+        End If
+        original = VBA.CStr(values(code))
+        matched = False
+        For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.valueMaps." & code & ".items"), "|")
+            parts = VBA.Split(VBA.CStr(entry), "~")
+            If UBound(parts) <> 1 Then
+                private_Fail "InvalidBinding", VBA.CStr(code)
+            End If
+            If VBA.CStr(parts(0)) = original Then
+                If matched Then
+                    private_Fail "InvalidBinding", VBA.CStr(code)
+                End If
+                values(code) = VBA.CStr(parts(1))
+                matched = True
+            End If
+        Next entry
+        If Not matched And mode = "closed" Then
+            private_Fail "InvalidBinding", VBA.CStr(code) & "=" & original
+        End If
+    Next code
+    fn_Render = ex_TDB_BasisText.fn_Render(configuration("Templates"), _
+        ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.profiles." & profileId), values)
+End Function
+
+Public Function fn_Order( _
+    ByVal number As String, _
+    ByVal dateText As String _
+) As String
+    Dim values As Object
+    Dim fields As Object
+    Dim profiles As New Collection
+    Dim templates As Object
+    Dim snapshot As obj_TableSnapshotSet
+
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    values.Add "order.number", number
+    values.Add "order.date", dateText
+    values.Add "ownUnit.genitive", ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.ownUnitGenitive")
+    Set snapshot = ex_TableSnapshots.fn_Active()
+    If Not m_configuration Is Nothing And m_snapshot Is snapshot Then
+        Set templates = m_configuration("Templates")
+    Else
+        If m_orderTemplates Is Nothing Then
+            Set fields = VBA.CreateObject("Scripting.Dictionary")
+            Set m_orderTemplates = ex_TDB_BasisText.fn_Prepare(fields, profiles)
+        End If
+        Set templates = m_orderTemplates
+    End If
+    fn_Order = ex_TDB_BasisText.fn_Render(templates, _
+        ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.ownOrder"), values)
 End Function
 
 Public Function fn_Caption(ByVal internalField As String) As String
-    Dim contract As Object
+    Dim configuration As Object
     Dim fields As Object
     Dim bindings As Object
     Dim code As Variant
 
-    Set contract = private_Active()
-    Set fields = contract("Fields")
-    Set bindings = contract("Bindings")
+    Set configuration = private_Active()
+    Set fields = configuration("Fields")
+    Set bindings = configuration("Bindings")
     For Each code In bindings.Keys
         If VBA.CStr(bindings(code)) = internalField Then
             fn_Caption = fields(code)("Name")
@@ -70,6 +141,13 @@ Public Function fn_Caption(ByVal internalField As String) As String
     private_Fail "MissingBinding", internalField
 End Function
 ' --------------------------------------
+
+Public Function fn_Reference(ByVal name As String) As Collection
+    Dim configuration As Object
+
+    Set configuration = private_Active()
+    Set fn_Reference = private_Read(name, m_snapshot)
+End Function
 ' } // namespace API
 ' --------------------------------------
 
@@ -83,68 +161,39 @@ Private Function private_Active() As Object
     If Not m_snapshot Is snapshot Then
         fn_Validate snapshot
     End If
-    Set private_Active = m_contract
+    Set private_Active = m_configuration
 End Function
 
 Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
-    Dim contract As Object
+    Dim configuration As Object
     Dim fields As Object
-    Dim fragments As Object
     Dim bindings As Object
     Dim seenBindings As Object
     Dim bindingTypes As Object
-    Dim cases As Object
-    Dim group As Collection
-    Dim metadata As Collection
     Dim row As Object
     Dim profile As Object
     Dim tokens As Collection
     Dim code As String
-    Dim feature As Variant
     Dim entry As Variant
     Dim parts As Variant
     Dim token As Variant
     Dim internalField As String
     Dim condition As String
-    Dim signature As String
     Dim visible As String
     Dim key As Variant
+    Dim profiles As New Collection
+    Dim identifiers As Object
+    Dim mapMode As String
+    Dim mapInputs As Object
+    Dim mapOutputs As Object
+    Dim officialIds As Object
+    Dim rule As Object
 
-    Set contract = VBA.CreateObject("Scripting.Dictionary")
+    Set configuration = VBA.CreateObject("Scripting.Dictionary")
     Set fields = VBA.CreateObject("Scripting.Dictionary")
-    Set fragments = VBA.CreateObject("Scripting.Dictionary")
     Set bindings = VBA.CreateObject("Scripting.Dictionary")
     Set seenBindings = VBA.CreateObject("Scripting.Dictionary")
     Set bindingTypes = VBA.CreateObject("Scripting.Dictionary")
-    Set cases = VBA.CreateObject("Scripting.Dictionary")
-    Set metadata = private_Read("Contract", snapshot)
-    If metadata.Count <> 1 Then
-        private_Fail "InvalidSchema", "Contract"
-    End If
-    If ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.version") <> CONTRACT_VERSION Then
-        private_Fail "UnsupportedVersion", ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.version")
-    End If
-    If metadata(1)("Version") <> CONTRACT_VERSION Then
-        private_Fail "UnsupportedVersion", VBA.CStr(metadata(1)("Version"))
-    End If
-    For Each feature In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.features"), "|")
-        If Not private_Has(CONTRACT_FEATURES, VBA.CStr(feature)) Then
-            private_Fail "UnsupportedFeature", VBA.CStr(feature)
-        End If
-    Next feature
-    For Each feature In VBA.Split(VBA.CStr(metadata(1)("Features")), "|")
-        If Not private_Has(CONTRACT_FEATURES, VBA.CStr(feature)) Then
-            private_Fail "UnsupportedFeature", VBA.CStr(feature)
-        End If
-    Next feature
-    For Each feature In VBA.Split(CONTRACT_FEATURES, "|")
-        If Not private_Has(VBA.CStr(metadata(1)("Features")), VBA.CStr(feature)) Then
-            private_Fail "UnsupportedFeature", VBA.CStr(feature)
-        End If
-        If Not private_Has(ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.features"), VBA.CStr(feature)) Then
-            private_Fail "UnsupportedFeature", VBA.CStr(feature)
-        End If
-    Next feature
     For Each row In private_Read("Fields", snapshot)
         code = VBA.CStr(row("Code"))
         If Not private_Code(code) Or fields.Exists(code) Then
@@ -161,7 +210,7 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
         End If
         fields.Add code, row
     Next row
-    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.bindingTypes"), "|")
+    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.model.bindingTypes"), "|")
         parts = VBA.Split(VBA.CStr(entry), "=")
         If UBound(parts) <> 1 Then
             private_Fail "InvalidBinding", VBA.CStr(entry)
@@ -175,7 +224,7 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
         End If
         bindingTypes.Add internalField, VBA.CStr(parts(1))
     Next entry
-    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.bindings"), "|")
+    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.model.bindings"), "|")
         parts = VBA.Split(VBA.CStr(entry), "=")
         If UBound(parts) <> 1 Then
             private_Fail "InvalidBinding", VBA.CStr(entry)
@@ -217,49 +266,48 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
             private_Fail "MissingBinding", VBA.CStr(key)
         End If
     Next key
-    contract.Add "Fields", fields
-    contract.Add "Bindings", bindings
-    contract.Add "Fragments", fragments
-    For Each row In private_Read("Fragments", snapshot)
-        code = VBA.CStr(row("Code"))
-        If Not private_Code(code) Or fields.Exists(code) Then
-            private_Fail "InvalidFragment", code
+    configuration.Add "Fields", fields
+    configuration.Add "Bindings", bindings
+    For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.valueMaps.fields"), "|")
+        code = VBA.CStr(key)
+        If Not fields.Exists(code) Then
+            private_Fail "UnknownField", code
         End If
-        If Not private_Has("default|nonempty|equals|except", VBA.CStr(row("Mode"))) Then
-            private_Fail "InvalidFragment", code
+        mapMode = ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.valueMaps." & code & ".mode")
+        If mapMode <> "closed" And mapMode <> "open" Then
+            private_Fail "InvalidBinding", code
         End If
-        If VBA.Len(VBA.CStr(row("Name"))) = 0 Or VBA.Len(VBA.CStr(row("Description"))) = 0 Then
-            private_Fail "InvalidFragment", code
-        End If
-        If row("Mode") = "default" Then
-            If VBA.Len(VBA.CStr(row("Source"))) > 0 Or VBA.Len(VBA.CStr(row("Value"))) > 0 Then
-                private_Fail "InvalidFragment", code
+        Set mapInputs = VBA.CreateObject("Scripting.Dictionary")
+        Set mapOutputs = VBA.CreateObject("Scripting.Dictionary")
+        For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.textTemplates.valueMaps." & code & ".items"), "|")
+            parts = VBA.Split(VBA.CStr(entry), "~")
+            If UBound(parts) <> 1 Then
+                private_Fail "InvalidBinding", code
             End If
-        Else
-            internalField = private_Field(contract, VBA.CStr(row("Source")), False)
+            If mapInputs.Exists(VBA.CStr(parts(0))) Then
+                private_Fail "InvalidBinding", code
+            End If
+            mapInputs.Add VBA.CStr(parts(0)), True
+            mapOutputs(VBA.CStr(parts(1))) = True
+        Next entry
+        If mapMode = "closed" Then
+            fields(code).Add "AllowedValues", mapOutputs
         End If
-        signature = code & "|" & row("Mode") & "|" & row("Source") & "|" & row("Value")
-        If cases.Exists(signature) Then
-            private_Fail "InvalidFragment", signature
-        End If
-        cases.Add signature, True
-        If Not fragments.Exists(code) Then
-            Set group = New Collection
-            fragments.Add code, group
-        End If
-        fragments(code).Add row
-    Next row
-    For Each key In fragments.Keys
-        private_CheckCases fragments(key), VBA.CStr(key)
-        private_CheckTemplate contract, "{" & VBA.CStr(key) & "}", "|", 0
     Next key
+    Set identifiers = VBA.CreateObject("Scripting.Dictionary")
     For Each profile In private_Read("Documents", snapshot)
+        code = VBA.CStr(profile("Id"))
+        If VBA.Len(code) = 0 Or identifiers.Exists(code) Then
+            private_Fail "InvalidProfile", code
+        End If
+        identifiers.Add code, True
+        profiles.Add code
         visible = VBA.vbNullString
         For Each token In VBA.Split(VBA.CStr(profile("Fields")), "|")
-            internalField = private_Field(contract, VBA.CStr(token), True)
+            internalField = private_Field(configuration, VBA.CStr(token), True)
             visible = visible & "|" & VBA.CStr(token)
         Next token
-        condition = private_Condition(contract, VBA.CStr(profile("Required")))
+        condition = private_Condition(configuration, VBA.CStr(profile("Required")))
         ex_TDB_BasisChain.fn_CheckRequiredSyntax condition
         Set tokens = private_Identifiers(VBA.CStr(profile("Required")))
         For Each token In tokens
@@ -267,174 +315,39 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
                 private_Fail "InvalidProfile", VBA.CStr(profile("Id")) & ": " & VBA.CStr(token)
             End If
         Next token
-        private_CheckTemplate contract, VBA.CStr(profile("Template")), "|", 0
     Next profile
-    Set private_Build = contract
-End Function
-
-Private Sub private_CheckCases( _
-    ByVal rows As Collection, _
-    ByVal code As String _
-)
-    Dim values As Object
-    Dim row As Object
-    Dim source As String
-    Dim candidate As Variant
-    Dim sentinel As String
-    Dim matches As Long
-
-    Set values = VBA.CreateObject("Scripting.Dictionary")
-    values.Add VBA.vbNullString, True
-    For Each row In rows
-        If row("Mode") <> "default" Then
-            If VBA.Len(source) = 0 Then
-                source = VBA.CStr(row("Source"))
-            ElseIf source <> VBA.CStr(row("Source")) Then
-                private_Fail "InvalidFragment", code
-            End If
-            If row("Mode") = "nonempty" And VBA.Len(VBA.CStr(row("Value"))) > 0 Then
-                private_Fail "InvalidFragment", code
-            End If
-            values(VBA.CStr(row("Value"))) = True
+    For Each rule In private_Read("DocumentRules", snapshot)
+        If Not identifiers.Exists(VBA.CStr(rule("DocumentId"))) Then
+            private_Fail "InvalidProfile", VBA.CStr(rule("DocumentId"))
         End If
+    Next rule
+    Set officialIds = VBA.CreateObject("Scripting.Dictionary")
+    For Each row In private_Read("Officials", snapshot)
+        code = VBA.CStr(row("Id"))
+        If VBA.Len(code) = 0 Or officialIds.Exists(code) Or VBA.Len(VBA.CStr(row("Text"))) = 0 Then
+            private_Fail "InvalidSchema", "Officials: " & code
+        End If
+        officialIds.Add code, True
     Next row
-    sentinel = "_"
-    Do While values.Exists(sentinel)
-        sentinel = sentinel & "_"
-    Loop
-    values.Add sentinel, True
-    For Each candidate In values.Keys
-        matches = 0
-        For Each row In rows
-            If private_Matches(VBA.CStr(row("Mode")), VBA.CStr(candidate), VBA.CStr(row("Value"))) Then
-                matches = matches + 1
-            End If
-        Next row
-        If matches > 1 Then
-            private_Fail "InvalidFragment", code
+    For Each rule In private_Read("OfficialRules", snapshot)
+        If Not officialIds.Exists(VBA.CStr(rule("OfficialId"))) Then
+            private_Fail "InvalidProfile", VBA.CStr(rule("OfficialId"))
         End If
-    Next candidate
-End Sub
-
-Private Function private_Matches( _
-    ByVal mode As String, _
-    ByVal value As String, _
-    ByVal target As String _
-) As Boolean
-    Select Case mode
-        Case "nonempty"
-            private_Matches = (VBA.Len(value) > 0)
-        Case "equals"
-            private_Matches = (value = target)
-        Case "except"
-            private_Matches = (VBA.Len(value) > 0 And value <> target)
-    End Select
-End Function
-
-Private Sub private_CheckTemplate( _
-    ByVal contract As Object, _
-    ByVal text As String, _
-    ByVal trail As String, _
-    ByVal depth As Long _
-)
-    Dim token As Variant
-    Dim row As Object
-    Dim fields As Object
-    Dim fragments As Object
-
-    If depth > 64 Then
-        private_Fail "InvalidFragment", trail
-    End If
-    Set fields = contract("Fields")
-    Set fragments = contract("Fragments")
-    For Each token In private_Tokens(text)
-        If Not fields.Exists(token) Then
-            If Not fragments.Exists(token) Then
-                private_Fail "UnknownToken", VBA.CStr(token)
-            End If
-            If private_Has(trail, VBA.CStr(token)) Then
-                private_Fail "InvalidFragment", VBA.CStr(token)
-            End If
-            For Each row In fragments(token)
-                private_CheckTemplate contract, VBA.CStr(row("Template")), trail & token & "|", depth + 1
-            Next row
-        End If
-    Next token
-End Sub
-
-Private Function private_Expand( _
-    ByVal contract As Object, _
-    ByVal text As String, _
-    ByVal values As Object, _
-    ByVal depth As Long _
-) As String
-    Dim token As Variant
-    Dim fields As Object
-    Dim fragments As Object
-    Dim row As Object
-    Dim selected As Object
-    Dim fallback As Object
-    Dim source As String
-    Dim value As String
-    Dim matches As Boolean
-    Dim replacement As String
-
-    If depth > 64 Then
-        private_Fail "InvalidFragment", text
-    End If
-    Set fields = contract("Fields")
-    Set fragments = contract("Fragments")
-    For Each token In private_Tokens(text)
-        If fields.Exists(token) Then
-            replacement = "{Value." & private_Field(contract, VBA.CStr(token), False) & "}"
-        Else
-            If Not fragments.Exists(token) Then
-                private_Fail "UnknownToken", VBA.CStr(token)
-            End If
-            Set selected = Nothing
-            Set fallback = Nothing
-            For Each row In fragments(token)
-                matches = False
-                If row("Mode") = "default" Then
-                    If Not fallback Is Nothing Then
-                        private_Fail "InvalidFragment", VBA.CStr(token)
-                    End If
-                    Set fallback = row
-                Else
-                    source = private_Field(contract, VBA.CStr(row("Source")), False)
-                    value = VBA.CStr(values(source))
-                    matches = private_Matches(VBA.CStr(row("Mode")), value, VBA.CStr(row("Value")))
-                End If
-                If matches Then
-                    If Not selected Is Nothing Then
-                        private_Fail "InvalidFragment", VBA.CStr(token)
-                    End If
-                    Set selected = row
-                End If
-            Next row
-            If selected Is Nothing Then
-                Set selected = fallback
-            End If
-            replacement = VBA.vbNullString
-            If Not selected Is Nothing Then
-                replacement = private_Expand(contract, VBA.CStr(selected("Template")), values, depth + 1)
-            End If
-        End If
-        text = VBA.Replace$(text, "{" & token & "}", replacement)
-    Next token
-    private_Expand = text
+    Next rule
+    configuration.Add "Templates", ex_TDB_BasisText.fn_Prepare(fields, profiles)
+    Set private_Build = configuration
 End Function
 
 Private Function private_Field( _
-    ByVal contract As Object, _
+    ByVal configuration As Object, _
     ByVal code As String, _
     ByVal requireInput As Boolean _
 ) As String
     Dim fields As Object
     Dim bindings As Object
 
-    Set fields = contract("Fields")
-    Set bindings = contract("Bindings")
+    Set fields = configuration("Fields")
+    Set bindings = configuration("Bindings")
     If Not fields.Exists(code) Then
         private_Fail "UnknownField", code
     End If
@@ -447,7 +360,7 @@ Private Function private_Field( _
 End Function
 
 Private Function private_Condition( _
-    ByVal contract As Object, _
+    ByVal configuration As Object, _
     ByVal text As String _
 ) As String
     Dim token As Variant
@@ -467,7 +380,7 @@ Private Function private_Condition( _
                 End If
                 position = position + 1
             Loop
-            output = output & private_Field(contract, VBA.Mid$(text, start, position - start), True)
+            output = output & private_Field(configuration, VBA.Mid$(text, start, position - start), True)
         Else
             If VBA.InStr("()&|/ " & VBA.vbTab, character) = 0 Then
                 private_Fail "InvalidProfile", text
@@ -491,36 +404,6 @@ Private Function private_Identifiers(ByVal text As String) As Collection
         result.Add match.Value
     Next match
     Set private_Identifiers = result
-End Function
-
-Private Function private_Tokens(ByVal text As String) As Collection
-    Dim result As New Collection
-    Dim position As Long
-    Dim closing As Long
-    Dim character As String
-    Dim code As String
-
-    position = 1
-    Do While position <= VBA.Len(text)
-        character = VBA.Mid$(text, position, 1)
-        If character = "{" Then
-            closing = VBA.InStr(position + 1, text, "}")
-            If closing = 0 Then
-                private_Fail "UnknownToken", text
-            End If
-            code = VBA.Mid$(text, position + 1, closing - position - 1)
-            If Not private_Code(code) Then
-                private_Fail "UnknownToken", code
-            End If
-            result.Add code
-            position = closing + 1
-        ElseIf character = "}" Then
-            private_Fail "UnknownToken", text
-        Else
-            position = position + 1
-        End If
-    Loop
-    Set private_Tokens = result
 End Function
 
 Private Function private_Code(ByVal value As String) As Boolean
@@ -551,10 +434,10 @@ Private Sub private_Fail( _
     ByVal key As String, _
     ByVal value As String _
 )
-    VBA.Err.Raise 5, "Basis.Contract", VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.contract.text." & key), "{value}", value)
+    VBA.Err.Raise 5, "Basis.Config", VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.model.text." & key), "{value}", value)
 End Sub
 
-Private Function private_Read( _
+Private Function private_SourceRows( _
     ByVal name As String, _
     ByVal snapshot As obj_TableSnapshotSet _
 ) As Collection
@@ -607,7 +490,7 @@ Private Function private_Read( _
             result.Add row
         End If
     Next index
-    Set private_Read = result
+    Set private_SourceRows = result
 Cleanup:
     If Not table Is Nothing Then
         table.Dispose
@@ -615,11 +498,83 @@ Cleanup:
     query.Dispose
     source.Dispose
     If errorNumber <> 0 Then
-        VBA.Err.Raise errorNumber, "Basis.Contract", errorDescription
+        VBA.Err.Raise errorNumber, "Basis.Config", errorDescription
     End If
     Exit Function
 Failed:
     errorNumber = VBA.Err.Number
     errorDescription = VBA.Err.Description
     Resume Cleanup
+End Function
+
+Private Function private_Read( _
+    ByVal name As String, _
+    ByVal snapshot As obj_TableSnapshotSet _
+) As Collection
+    Dim result As New Collection
+    Dim sourceRows As Collection
+    Dim sourceRow As Object
+    Dim row As Object
+    Dim key As Variant
+    Dim field As Variant
+    Dim identifier As Variant
+    Dim prefix As String
+    Dim fieldNames As String
+    Dim idField As String
+    Dim matches As Long
+
+    prefix = "basisChain.model." & name
+    Select Case name
+        Case "Fields"
+            fieldNames = "Name|Description|Type|Usage"
+            For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".keys"), "|")
+                Set row = VBA.CreateObject("Scripting.Dictionary")
+                row.Add "Code", VBA.CStr(key)
+                For Each field In VBA.Split(fieldNames, "|")
+                    row.Add VBA.CStr(field), ex_TravelDocumentsBuilder.fn_Config(prefix & "." & key & "." & field)
+                Next field
+                result.Add row
+            Next key
+        Case "DocumentRules", "OfficialRules"
+            If name = "DocumentRules" Then
+                idField = "DocumentId"
+            Else
+                idField = "OfficialId"
+            End If
+            For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".keys"), "|")
+                For Each identifier In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & "." & key), "|")
+                    Set row = VBA.CreateObject("Scripting.Dictionary")
+                    row.Add "Group", VBA.CStr(key)
+                    row.Add idField, VBA.CStr(identifier)
+                    result.Add row
+                Next identifier
+            Next key
+        Case "Documents", "Officials"
+            Set sourceRows = private_SourceRows(name, snapshot)
+            For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".keys"), "|")
+                matches = 0
+                For Each sourceRow In sourceRows
+                    If VBA.StrComp(VBA.CStr(sourceRow("Name")), ex_TravelDocumentsBuilder.fn_Config(prefix & "." & key & ".Name"), VBA.vbTextCompare) = 0 Then
+                        matches = matches + 1
+                        Set row = VBA.CreateObject("Scripting.Dictionary")
+                        For Each field In sourceRow.Keys
+                            row.Add VBA.CStr(field), sourceRow(field)
+                        Next field
+                    End If
+                Next sourceRow
+                If matches <> 1 Then
+                    private_Fail "InvalidSchema", name & ": " & VBA.CStr(key)
+                End If
+                row.Add "Id", VBA.CStr(key)
+                If name = "Documents" Then
+                    For Each field In VBA.Split("Required|Fields|Forms", "|")
+                        row.Add VBA.CStr(field), ex_TravelDocumentsBuilder.fn_Config(prefix & "." & key & "." & field)
+                    Next field
+                End If
+                result.Add row
+            Next key
+        Case Else
+            private_Fail "InvalidSchema", name
+    End Select
+    Set private_Read = result
 End Function

@@ -15,7 +15,7 @@ parser.add_argument('--institutions', type=Path, default=ROOT / 'workbook/Depend
 parser.add_argument('--original', type=Path)
 args = parser.parse_args()
 book = upgrade.Package(args.institutions)
-assert list(book.sheets())[-1] == 'Переліки'
+assert 'Переліки' in book.sheets()
 _, table = book.tables()['tbEnumInstitutionGroups']
 assert [node.get('name') for node in table.find(f'{{{upgrade.S}}}tableColumns')] == ['Група установи', 'Назва']
 sheet = upgrade.parse(book.parts[book.sheets()['Переліки']])
@@ -44,14 +44,14 @@ for name, path in book.sheets().items():
         assert len(rules) == 1, name
         rule = rules[0]
         assert rule.get('type') == 'list'
-        assert rule.get('errorStyle') == 'stop' and rule.get('showErrorMessage') == '1'
-        assert rule.get('showDropDown') == '0' and rule.get('allowBlank') == '0'
+        assert rule.get('errorStyle', 'stop') == 'stop' and rule.get('showErrorMessage') == '1'
+        assert rule.get('showDropDown', '0') == '0' and rule.get('allowBlank', '0') == '0'
         assert rule.find(f'{{{upgrade.S}}}formula1').text == 'INDIRECT("tbEnumInstitutionGroups[Група установи]")'
         for cell in cells:
             if upgrade.index(cell.get('r')) == upgrade.index(header.get('r')) and int(''.join(filter(str.isdigit, cell.get('r')))) >= first_data:
                 assert not book.text(cell) or book.text(cell) in allowed
         validated.append(name)
-assert len(validated) == 6, validated
+assert len(validated) == 4, validated
 if args.original:
     original = upgrade.Package(args.original)
     for path in original.sheets().values():

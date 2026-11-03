@@ -433,7 +433,7 @@ value	TravelDocumentsBuilder::history.departureField	DepartureDate
 value	TravelDocumentsBuilder::history.snapshotFields	RowId|ParentRowId|RowType|Rank|FullName|TaxId|PositionName|PositionCode|UnitName|DutyPositionCode|VacationKind|VacationAbroad|OrderNumber|OrderDate|Destination|DepartureDate|VacationDays|RoadDays|PlannedReturnDate|ReportNumber|Basis|TicketNumber|DocumentPath|DocumentRevision|DocumentGeneratedAt|VlkNo|VlkDate|LongTreatmentDays|TreatmentLeaveDays|RankGenitive|RankDative|FIOAccusative|FIODative|FIOInitialsGenitive|PositionGenitive|PlaceKind|PlaceRegion|PlaceType|PlaceName|PlaceDistrict|PlaceAbroad|PlaceCountry|PlaceCountryEn|PlaceRegionEn|PlaceNameEn|WeaponLine|BasisType|BasisInstitution|BasisInstitutionName|BasisIssuer|BasisNumber|BasisDate|BasisInstitutionKey|BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisActing|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope|BasisRequiredFields|BasisInstitutionGroup|BasisRenderedText
 value	TravelDocumentsBuilder::history.personNameField	FullName
 value	TravelDocumentsBuilder::history.orderNumberField	OrderNumber
-value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source|declensions.sources.Alf|declensions.sources.Ranks|declensions.sources.Positions|basisChain.lookup.Unit.source|basisChain.lookup.Hospital.source|basisChain.lookup.Command.source|basisChain.lookup.Court.source|basisChain.references.Officials.source|basisChain.references.OfficialRules.source|basisChain.references.Documents.source|basisChain.references.DocumentRules.source|basisChain.references.Fields.source|basisChain.references.Fragments.source|basisChain.references.Contract.source
+value	TravelDocumentsBuilder::snapshots.sources	lookup.Personnel.source|orders.source|declensions.sources.Alf|declensions.sources.Ranks|declensions.sources.Positions|basisChain.lookup.Unit.source|basisChain.lookup.Hospital.source|basisChain.lookup.Command.source|basisChain.lookup.Court.source|basisChain.references.Officials.source|basisChain.references.Documents.source
 value	TravelDocumentsBuilder::snapshots.progress.Table	Читання таблиці: {source}
 value	TravelDocumentsBuilder::snapshots.progress.Orders	Підготовка наказів
 value	TravelDocumentsBuilder::snapshots.progress.Verify	Перевірка джерел
@@ -449,6 +449,162 @@ value	TravelDocumentsBuilder::basisChain.forms.copy	Копія
 value	TravelDocumentsBuilder::basisChain.forms.extract	Витяг
 value	TravelDocumentsBuilder::basisChain.forms.copyText	копія
 value	TravelDocumentsBuilder::basisChain.forms.extractText	витяг із
+value	TravelDocumentsBuilder::basisChain.model.text.InvalidType	Несумісний тип або призначення поля документа: {value}.
+value	TravelDocumentsBuilder::basisChain.model.text.UnknownField	Невідоме поле документа у конфігурації: {value}.
+value	TravelDocumentsBuilder::basisChain.model.text.InvalidSchema	Пошкоджений опис конфігурації документів: {value}.
+value	TravelDocumentsBuilder::basisChain.model.text.InvalidBinding	Некоректна відповідність поля для TDB: {value}.
+value	TravelDocumentsBuilder::basisChain.model.text.InvalidProfile	Некоректний профіль документа у конфігурації: {value}.
+value	TravelDocumentsBuilder::basisChain.model.text.MissingBinding	Не задано відповідність поля для TDB: {value}.
+value	TravelDocumentsBuilder::basisChain.model.Fields.keys	document.type|document.type.genitive|institution.genitive|issuer.role|issuer.role.genitive|issuer.acting|document.number|document.date|registration.number|registration.date|document.form|document.scope|court.caseNumber|court.proceedingNumber|document.author|reference.issuer|reference.number|reference.date|reference.scope
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.caseNumber.Name	Номер справи
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.caseNumber.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.caseNumber.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.caseNumber.Description	Номер судової справи без службового префікса.
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.proceedingNumber.Name	Номер провадження
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.proceedingNumber.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.proceedingNumber.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.court.proceedingNumber.Description	Номер судового провадження без знака № та слова «провадження».
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.Name	Посадова особа
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.Type	choice
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.genitive.Name	Посада у підставі
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.genitive.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.genitive.Usage	computed
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.genitive.Description	Збережений родовий відмінок посади автора.
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.role.Description	Посада автора документа в називному відмінку.
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.acting.Name	Виконання обов’язків
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.acting.Type	choice
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.acting.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.issuer.acting.Description	Ознака тимчасового виконання обов’язків.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.date.Name	Дата документа
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.date.Type	date
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.date.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.date.Description	Дата підписання документа у форматі дд.мм.рррр.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.form.Name	Форма документа
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.form.Type	choice
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.form.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.form.Description	Оригінал, копія або витяг відповідно до профілю документа.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.Name	Тип документа
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.Type	choice
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.Usage	computed
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.genitive.Name	Тип документа (родовий)
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.genitive.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.genitive.Usage	computed
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.genitive.Description	Родовий відмінок назви для копії або витягу.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.type.Description	Назва вибраного типу документа без зміни відмінка.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.scope.Name	Різновид наказу
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.scope.Type	choice
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.scope.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.scope.Description	Уточнення: по особовому складу, по стройовій частині тощо.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.author.Name	Автор (у родовому)
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.author.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.author.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.author.Description	Повна фраза про автора: посада, звання та ПІБ у родовому відмінку.
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.number.Name	Номер документа
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.number.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.number.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.document.number.Description	Власний номер документа без знака №.
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.date.Name	Дата наказу
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.date.Type	date
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.date.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.date.Description	Дата наказу, на який посилається документ.
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.scope.Name	Уточнення наказу
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.scope.Type	choice
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.scope.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.scope.Description	Різновид наказу, на який посилається документ.
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.issuer.Name	Автор наказу (у родовому)
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.issuer.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.issuer.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.issuer.Description	Повна фраза про автора наказу, на який посилається повідомлення.
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.number.Name	Номер наказу
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.number.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.number.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.reference.number.Description	Номер наказу, на який посилається документ.
+value	TravelDocumentsBuilder::basisChain.model.Fields.institution.genitive.Name	Установа (родовий)
+value	TravelDocumentsBuilder::basisChain.model.Fields.institution.genitive.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.institution.genitive.Usage	computed
+value	TravelDocumentsBuilder::basisChain.model.Fields.institution.genitive.Description	Назва вибраної установи в родовому відмінку.
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.date.Name	Дата реєстрації
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.date.Type	date
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.date.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.date.Description	Дата вхідної реєстрації у форматі дд.мм.рррр.
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Name	Вхідний номер
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Type	text
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Usage	input
+value	TravelDocumentsBuilder::basisChain.model.Fields.registration.number.Description	Номер реєстрації отриманого документа без знака №.
+value	TravelDocumentsBuilder::basisChain.model.bindings	document.type=Form.BasisType|document.type.genitive=Form.BasisTypeGenitive|institution.genitive=Form.BasisInstitutionName|issuer.role=Form.BasisIssuer|issuer.role.genitive=Form.BasisIssuerText|issuer.acting=Form.BasisActing|document.number=Form.BasisNumber|document.date=Form.BasisDate|registration.number=Form.BasisIncomingNumber|registration.date=Form.BasisIncomingDate|document.form=Form.BasisForm|document.scope=Form.BasisScope|court.caseNumber=Form.BasisCaseNumber|court.proceedingNumber=Form.BasisProceedingNumber|document.author=Form.BasisAuthor|reference.issuer=Form.BasisRefIssuer|reference.number=Form.BasisRefNumber|reference.date=Form.BasisRefDate|reference.scope=Form.BasisRefScope
+value	TravelDocumentsBuilder::basisChain.model.Documents.keys	notification|letter|order|instruction|separate_instruction|report|briefing|travel_certificate|court_order|certificate|personnel_notification
+value	TravelDocumentsBuilder::basisChain.model.Documents.order.Name	наказ
+value	TravelDocumentsBuilder::basisChain.model.Documents.order.Forms	Оригінал,Копія,Витяг
+value	TravelDocumentsBuilder::basisChain.model.Documents.order.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form|document.scope
+value	TravelDocumentsBuilder::basisChain.model.Documents.order.Required	(document.number&document.date)
+value	TravelDocumentsBuilder::basisChain.model.Documents.letter.Name	лист
+value	TravelDocumentsBuilder::basisChain.model.Documents.letter.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.letter.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.letter.Required	((document.number&document.date)/(registration.number&registration.date))
+value	TravelDocumentsBuilder::basisChain.model.Documents.report.Name	рапорт
+value	TravelDocumentsBuilder::basisChain.model.Documents.report.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.report.Fields	document.author|document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.report.Required	(document.author&((document.number&document.date)/(registration.number&registration.date)))
+value	TravelDocumentsBuilder::basisChain.model.Documents.briefing.Name	доповідь
+value	TravelDocumentsBuilder::basisChain.model.Documents.briefing.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.briefing.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.briefing.Required	((document.number&document.date)/(registration.number&registration.date))
+value	TravelDocumentsBuilder::basisChain.model.Documents.certificate.Name	довідка
+value	TravelDocumentsBuilder::basisChain.model.Documents.certificate.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.certificate.Fields	document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.certificate.Required	(document.number&document.date)
+value	TravelDocumentsBuilder::basisChain.model.Documents.court_order.Name	ухвала
+value	TravelDocumentsBuilder::basisChain.model.Documents.court_order.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.court_order.Fields	document.date|court.caseNumber|court.proceedingNumber|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.court_order.Required	(document.date&court.caseNumber)
+value	TravelDocumentsBuilder::basisChain.model.Documents.instruction.Name	розпорядження
+value	TravelDocumentsBuilder::basisChain.model.Documents.instruction.Forms	Оригінал,Копія,Витяг
+value	TravelDocumentsBuilder::basisChain.model.Documents.instruction.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.instruction.Required	(document.number&document.date)
+value	TravelDocumentsBuilder::basisChain.model.Documents.notification.Name	повідомлення
+value	TravelDocumentsBuilder::basisChain.model.Documents.notification.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.notification.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.notification.Required	((document.number&document.date)/(registration.number&registration.date))
+value	TravelDocumentsBuilder::basisChain.model.Documents.travel_certificate.Name	посвідчення про відрядження
+value	TravelDocumentsBuilder::basisChain.model.Documents.travel_certificate.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.travel_certificate.Fields	document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.travel_certificate.Required	(document.number&document.date)
+value	TravelDocumentsBuilder::basisChain.model.Documents.separate_instruction.Name	окреме доручення
+value	TravelDocumentsBuilder::basisChain.model.Documents.separate_instruction.Forms	Оригінал,Копія,Витяг
+value	TravelDocumentsBuilder::basisChain.model.Documents.separate_instruction.Fields	issuer.role|issuer.acting|document.number|document.date|registration.number|registration.date|document.form
+value	TravelDocumentsBuilder::basisChain.model.Documents.separate_instruction.Required	(document.number&document.date)
+value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Name	повідомлення про прийняття кадрових рішень
+value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Forms	Оригінал,Копія
+value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Fields	document.number|document.date|registration.number|registration.date|document.form|reference.issuer|reference.number|reference.date|reference.scope
+value	TravelDocumentsBuilder::basisChain.model.Documents.personnel_notification.Required	(reference.issuer&reference.number&reference.date)
+value	TravelDocumentsBuilder::basisChain.model.Officials.keys	commander|deputy_commander|chief|deputy_chief|chief_of_staff|chief_of_staff_deputy|personnel_chief|administrative_chief|commander_in_chief|forces_commander
+value	TravelDocumentsBuilder::basisChain.model.Officials.chief.Name	Начальник
+value	TravelDocumentsBuilder::basisChain.model.Officials.commander.Name	Командир
+value	TravelDocumentsBuilder::basisChain.model.Officials.deputy_chief.Name	Заступник начальника
+value	TravelDocumentsBuilder::basisChain.model.Officials.chief_of_staff.Name	Начальник штабу
+value	TravelDocumentsBuilder::basisChain.model.Officials.personnel_chief.Name	Начальник відділення персоналу штабу
+value	TravelDocumentsBuilder::basisChain.model.Officials.deputy_commander.Name	Заступник командира
+value	TravelDocumentsBuilder::basisChain.model.Officials.forces_commander.Name	Командувач
+value	TravelDocumentsBuilder::basisChain.model.Officials.commander_in_chief.Name	Головнокомандувач
+value	TravelDocumentsBuilder::basisChain.model.Officials.administrative_chief.Name	Начальник адміністративної групи штабу
+value	TravelDocumentsBuilder::basisChain.model.Officials.chief_of_staff_deputy.Name	Начальник штабу — заступник командира
+value	TravelDocumentsBuilder::basisChain.model.bindingTypes	Form.BasisType=choice|Form.BasisTypeGenitive=text|Form.BasisInstitutionName=text|Form.BasisIssuer=choice|Form.BasisIssuerText=text|Form.BasisActing=choice|Form.BasisNumber=text|Form.BasisDate=date|Form.BasisIncomingNumber=text|Form.BasisIncomingDate=date|Form.BasisForm=choice|Form.BasisScope=choice|Form.BasisCaseNumber=text|Form.BasisProceedingNumber=text|Form.BasisAuthor=text|Form.BasisRefIssuer=text|Form.BasisRefNumber=text|Form.BasisRefDate=date|Form.BasisRefScope=choice
+value	TravelDocumentsBuilder::basisChain.model.officialGroupOverrides	Unit~Unit
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.Unit	notification|letter|order|instruction|separate_instruction|report|briefing|travel_certificate|personnel_notification
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.keys	Unit|Hospital|ChiefCommand|GeneralStaff|LandCommand|Court
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.Court	court_order
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.Hospital	notification|letter|certificate
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.LandCommand	notification|letter|order|instruction|separate_instruction|personnel_notification
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.ChiefCommand	notification|letter|order|instruction|separate_instruction|personnel_notification
+value	TravelDocumentsBuilder::basisChain.model.DocumentRules.GeneralStaff	notification|letter|order|instruction|separate_instruction|personnel_notification
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.TCC	chief|deputy_chief
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.Unit	commander|deputy_commander|chief_of_staff|chief_of_staff_deputy|personnel_chief|administrative_chief
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.keys	Unit|TCC|Hospital|ChiefCommand|GeneralStaff|LandCommand
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.Hospital	chief|deputy_chief
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.LandCommand	forces_commander
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.ChiefCommand	commander_in_chief
+value	TravelDocumentsBuilder::basisChain.model.OfficialRules.GeneralStaff	chief
 value	TravelDocumentsBuilder::basisChain.scope.none	Без уточнення
 value	TravelDocumentsBuilder::basisChain.scope.values	по особовому складу|по стройовій частині|Без уточнення
 value	TravelDocumentsBuilder::basisChain.acting.text	тимчасово виконуючого обов’язки
@@ -503,94 +659,60 @@ value	TravelDocumentsBuilder::basisChain.lookup.maxResults	50
 value	TravelDocumentsBuilder::basisChain.lookup.columnSpans	2|5
 value	TravelDocumentsBuilder::basisChain.lookup.columnOffset	1
 value	TravelDocumentsBuilder::basisChain.lookup.sourceFields	Key|Name|Genitive|Group
-value	TravelDocumentsBuilder::basisChain.contract.text.InvalidType	Несумісний тип або призначення поля документа: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.UnknownField	Невідоме поле документа в Установи: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.UnknownToken	Невідомий або некоректний плейсхолдер в Установи: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.InvalidSchema	Пошкоджений опис контракту Установи: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.InvalidBinding	Некоректна відповідність поля Установи для TDB: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.InvalidProfile	Некоректний профіль документа в Установи: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.MissingBinding	Не задано відповідність поля Установи для TDB: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.InvalidFragment	Некоректний, неоднозначний або циклічний фрагмент тексту: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.UnsupportedFeature	Непідтримувана можливість контракту Установи: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.text.UnsupportedVersion	Непідтримувана версія контракту Установи: {value}.
-value	TravelDocumentsBuilder::basisChain.contract.version	1
-value	TravelDocumentsBuilder::basisChain.contract.bindings	document.type=Form.BasisType|document.type.genitive=Form.BasisTypeGenitive|institution.genitive=Form.BasisInstitutionName|issuer.role=Form.BasisIssuer|issuer.role.genitive=Form.BasisIssuerText|issuer.acting=Form.BasisActing|document.number=Form.BasisNumber|document.date=Form.BasisDate|registration.number=Form.BasisIncomingNumber|registration.date=Form.BasisIncomingDate|document.form=Form.BasisForm|document.scope=Form.BasisScope|court.caseNumber=Form.BasisCaseNumber|court.proceedingNumber=Form.BasisProceedingNumber|document.author=Form.BasisAuthor|reference.issuer=Form.BasisRefIssuer|reference.number=Form.BasisRefNumber|reference.date=Form.BasisRefDate|reference.scope=Form.BasisRefScope
-value	TravelDocumentsBuilder::basisChain.contract.features	fields.v1|fragments.v1|conditions.v1
-value	TravelDocumentsBuilder::basisChain.contract.bindingTypes	Form.BasisType=choice|Form.BasisTypeGenitive=text|Form.BasisInstitutionName=text|Form.BasisIssuer=choice|Form.BasisIssuerText=text|Form.BasisActing=choice|Form.BasisNumber=text|Form.BasisDate=date|Form.BasisIncomingNumber=text|Form.BasisIncomingDate=date|Form.BasisForm=choice|Form.BasisScope=choice|Form.BasisCaseNumber=text|Form.BasisProceedingNumber=text|Form.BasisAuthor=text|Form.BasisRefIssuer=text|Form.BasisRefNumber=text|Form.BasisRefDate=date|Form.BasisRefScope=choice
-value	TravelDocumentsBuilder::basisChain.contract.legacyTokens	BasisType=document.typeText|BasisIssuer=issuer.role.genitive|BasisIssuerText=issuer.role.genitive|BasisInstitutionName=institution.genitive|Form=document.formText|Acting=issuer.actingText|Scope=document.scopeText|Number=document.numberText|Date=document.dateText|Incoming=registration.text|RefScope=reference.scopeText|BasisProceedingNumber=court.proceedingText
 value	TravelDocumentsBuilder::basisChain.maxItems	20
 value	TravelDocumentsBuilder::basisChain.separator	;
 value	TravelDocumentsBuilder::basisChain.dateFields	BasisDate|BasisIncomingDate|BasisRefDate
-value	TravelDocumentsBuilder::basisChain.references.Fields.fields	Code|Name|Description|Type|Usage
-value	TravelDocumentsBuilder::basisChain.references.Fields.source.path	../Dependencies/Установи.xlsx
-value	TravelDocumentsBuilder::basisChain.references.Fields.source.sheet	Поля документів
-value	TravelDocumentsBuilder::basisChain.references.Fields.source.table	tbBasisFields
-value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Code	Код
-value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Name	Назва
-value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Type	Тип
-value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Usage	Використання
-value	TravelDocumentsBuilder::basisChain.references.Fields.columns.Description	Опис
-value	TravelDocumentsBuilder::basisChain.references.Contract.fields	Version|Features|Description
-value	TravelDocumentsBuilder::basisChain.references.Contract.source.path	../Dependencies/Установи.xlsx
-value	TravelDocumentsBuilder::basisChain.references.Contract.source.sheet	Контракт
-value	TravelDocumentsBuilder::basisChain.references.Contract.source.table	tbBasisContract
-value	TravelDocumentsBuilder::basisChain.references.Contract.columns.Version	Версія
-value	TravelDocumentsBuilder::basisChain.references.Contract.columns.Features	Можливості
-value	TravelDocumentsBuilder::basisChain.references.Contract.columns.Description	Опис
-value	TravelDocumentsBuilder::basisChain.references.Documents.fields	Id|Name|Genitive|Template|Required|Fields|Forms
+value	TravelDocumentsBuilder::basisChain.references.Documents.fields	Name|Genitive
 value	TravelDocumentsBuilder::basisChain.references.Documents.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::basisChain.references.Documents.source.sheet	Типи документів
 value	TravelDocumentsBuilder::basisChain.references.Documents.source.table	tbBasisDocumentTypes
-value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Id	Id
 value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Name	Назва
-value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Forms	Форми
-value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Fields	Поля
 value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Genitive	Родовий
-value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Required	Обов’язкові поля
-value	TravelDocumentsBuilder::basisChain.references.Documents.columns.Template	Шаблон
-value	TravelDocumentsBuilder::basisChain.references.Fragments.fields	Code|Name|Description|Mode|Source|Value|Template
-value	TravelDocumentsBuilder::basisChain.references.Fragments.source.path	../Dependencies/Установи.xlsx
-value	TravelDocumentsBuilder::basisChain.references.Fragments.source.sheet	Фрагменти тексту
-value	TravelDocumentsBuilder::basisChain.references.Fragments.source.table	tbBasisFragments
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Code	Код
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Mode	Умова
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Name	Назва
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Value	Значення
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Source	Поле
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Template	Шаблон
-value	TravelDocumentsBuilder::basisChain.references.Fragments.columns.Description	Опис
-value	TravelDocumentsBuilder::basisChain.references.Officials.fields	Id|Name|Text
+value	TravelDocumentsBuilder::basisChain.references.Officials.fields	Name|Text
 value	TravelDocumentsBuilder::basisChain.references.Officials.source.path	../Dependencies/Установи.xlsx
 value	TravelDocumentsBuilder::basisChain.references.Officials.source.sheet	Посадові особи
 value	TravelDocumentsBuilder::basisChain.references.Officials.source.table	tbBasisOfficials
-value	TravelDocumentsBuilder::basisChain.references.Officials.columns.Id	Id
 value	TravelDocumentsBuilder::basisChain.references.Officials.columns.Name	Назва
 value	TravelDocumentsBuilder::basisChain.references.Officials.columns.Text	Родовий
-value	TravelDocumentsBuilder::basisChain.references.DocumentRules.fields	Group|DocumentId
-value	TravelDocumentsBuilder::basisChain.references.DocumentRules.source.path	../Dependencies/Установи.xlsx
-value	TravelDocumentsBuilder::basisChain.references.DocumentRules.source.sheet	Документи установ
-value	TravelDocumentsBuilder::basisChain.references.DocumentRules.source.table	tbBasisDocumentRules
-value	TravelDocumentsBuilder::basisChain.references.DocumentRules.columns.Group	Група установи
-value	TravelDocumentsBuilder::basisChain.references.DocumentRules.columns.DocumentId	Id документа
-value	TravelDocumentsBuilder::basisChain.references.OfficialRules.fields	Group|OfficialId
-value	TravelDocumentsBuilder::basisChain.references.OfficialRules.source.path	../Dependencies/Установи.xlsx
-value	TravelDocumentsBuilder::basisChain.references.OfficialRules.source.sheet	Посади установ
-value	TravelDocumentsBuilder::basisChain.references.OfficialRules.source.table	tbBasisOfficialRules
-value	TravelDocumentsBuilder::basisChain.references.OfficialRules.columns.Group	Група установи
-value	TravelDocumentsBuilder::basisChain.references.OfficialRules.columns.OfficialId	Id посадової особи
 value	TravelDocumentsBuilder::basisChain.terminator	.
 value	TravelDocumentsBuilder::basisChain.draftFields	BasisInstitution|BasisInstitutionName|BasisType|BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope
 value	TravelDocumentsBuilder::basisChain.dateTemplate	від {date}
 value	TravelDocumentsBuilder::basisChain.editorFields	BasisIssuer|BasisActing|BasisNumber|BasisDate|BasisIncomingNumber|BasisIncomingDate|BasisForm|BasisScope|BasisCaseNumber|BasisProceedingNumber|BasisAuthor|BasisRefIssuer|BasisRefNumber|BasisRefDate|BasisRefScope
 value	TravelDocumentsBuilder::basisChain.institutions	Unit~Військова частина|Hospital~Госпіталь|Command~Орган військового управління|Court~Суд
 value	TravelDocumentsBuilder::basisChain.numberFields	BasisNumber|BasisIncomingNumber|BasisRefNumber|BasisProceedingNumber
-value	TravelDocumentsBuilder::basisChain.orderTemplate	наказ командира військової частини А7383 (по стройовій частині) від {date} № {number}
 value	TravelDocumentsBuilder::basisChain.scopeTemplate	({scope})
+value	TravelDocumentsBuilder::basisChain.textTemplates.text.Invalid	Некоректний або недоступний XML-шаблон підстави: {value}.
+value	TravelDocumentsBuilder::basisChain.textTemplates.folder	BasisTemplates
+value	TravelDocumentsBuilder::basisChain.textTemplates.ownOrder	OwnOrder.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.order	Common.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.letter	Common.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.report	Report.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.briefing	Common.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.certificate	Certificate.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.court_order	CourtOrder.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.instruction	Common.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.notification	Common.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.travel_certificate	TravelCertificate.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.separate_instruction	Common.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.profiles.personnel_notification	PersonnelNotification.xml
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.fields	document.form|issuer.acting|document.scope|reference.scope
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.issuer.acting.mode	closed
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.issuer.acting.items	~false|Без ТВО~false|Тимчасове виконання обов’язків~true
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.document.form.mode	closed
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.document.form.items	~original|Оригінал~original|Копія~copy|Витяг~extract
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.document.scope.mode	open
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.document.scope.items	Без уточнення~
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.reference.scope.mode	open
+value	TravelDocumentsBuilder::basisChain.textTemplates.valueMaps.reference.scope.items	Без уточнення~
+value	TravelDocumentsBuilder::basisChain.textTemplates.ownUnitGenitive	військової частини А7383
 value	TravelDocumentsBuilder::basisChain.numberTemplate	№ {number}
 value	TravelDocumentsBuilder::basisChain.snapshotFields	BasisTypeId|BasisTypeGenitive|BasisIssuerId|BasisIssuerText|BasisTemplate|BasisRequiredFields|BasisRenderedText
 value	TravelDocumentsBuilder::basisChain.documentTemplate	{BasisType} {BasisIssuer} {BasisInstitutionName} № {BasisNumber} від {BasisDate}
 value	TravelDocumentsBuilder::basisChain.incomingTemplate	(вх. № {number} від {date})
 value	TravelDocumentsBuilder::basisChain.proceedingTemplate	провадження № {number}
+value	TravelDocumentsBuilder::candidates.browse.text.InvalidLimit	Некоректне обмеження кількості кандидатів: candidates.browse.limit.
+value	TravelDocumentsBuilder::candidates.browse.limit	50
+value	TravelDocumentsBuilder::candidates.browse.token	*
 value	TravelDocumentsBuilder::candidates.layout.columns	8
 value	TravelDocumentsBuilder::candidates.layout.overflowMessage	Таблиця кандидатів не вміщується в робочу область: ширина {columns} колонок, відступ зліва {offset}, доступно {available}. Перевірте налаштування розташування та ширини колонок.
 value	TravelDocumentsBuilder::candidates.personnel.columnSpans	1|2|1|1|2|1

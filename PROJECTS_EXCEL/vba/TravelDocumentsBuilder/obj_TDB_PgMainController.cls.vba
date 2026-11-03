@@ -220,7 +220,7 @@ Public Function SearchPersonnelHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Exit Function
     End If
-    If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic) Then
+    If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic, ex_TDB_Candidates.fn_BrowseLimit(VBA.CStr(searchText))) Then
         ex_Core.fn_Diagnostic_WriteLog "TDB_PERSONNEL_SEARCH_FAILED | " & diagnostic
         private_SetActionStatus diagnostic, True
         Exit Function
@@ -334,7 +334,7 @@ Public Function PlaceChangedHandler() As Boolean
     m_lookupIsBasis = False
     If Not m_placeResult Is Nothing Then m_placeResult.Dispose
     Set m_placeResult = result
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
+    If Not ex_TDB_Candidates.fn_IsBrowse(VBA.CStr(query)) And VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(query))) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
         If isMilitary Then
             status = ex_TravelDocumentsBuilder.fn_Config("lookup.Militaries.text.Minimum")
         Else
@@ -620,7 +620,7 @@ Public Function ClearFormHandler() As Boolean
             "PlaceAbroad", "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "ReturnDate", "Purpose", "ReportNo", "OrderReference", "TvoName", "TvoIpn", "TvoPosition", _
-            "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason")
+            "TicketNo", "DocumentPath", "GenerationStatus", "HistoryRowId", "HistoryStamp", "ChangeReason", "BasisOwnText")
         updates("Form." & VBA.CStr(key)) = VBA.vbNullString
     Next key
     For Each key In VBA.Array("PlaceKind", "VacationKind", "VacationAbroad", "VacationStatus", _
@@ -1057,7 +1057,7 @@ Public Function BasisInstitutionQueryChangedHandler() As Boolean
     If Not m_placeResult Is Nothing Then m_placeResult.Dispose
     Set m_placeResult = result
     status = ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Choose")
-    If VBA.Len(query) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars")) Then
+    If Not ex_TDB_Candidates.fn_IsBrowse(query) And VBA.Len(query) < VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars")) Then
         status = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.text.Minimum"), _
             "{minChars}", ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars"))
     ElseIf result.RowCount = 0 Then
@@ -1748,7 +1748,7 @@ Private Function private_BuildPersonnelStatus( _
         private_BuildPersonnelStatus = ex_TDB_History.fn_Config("text.ChooseOrder")
         Exit Function
     End If
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) < m_lookupProfile.MinChars Then
+    If Not ex_TDB_Candidates.fn_IsBrowse(searchText) And VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) < m_lookupProfile.MinChars Then
         private_BuildPersonnelStatus = VBA.Replace$( _
             m_messages("PersonnelMinimum"), "{minChars}", VBA.CStr(m_lookupProfile.MinChars))
     ElseIf result.RowCount = 0 Then

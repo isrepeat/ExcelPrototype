@@ -177,10 +177,10 @@ def rename_rule_sheets(book):
 
 def style_reference_sheets(target):
     # Reuse the workbook's native custom style instead of approximating its palette.
-    template = parse(target.parts[target.sheets()['Посади установ']])
+    template = parse(target.parts[target.sheets()['Органи управління']])
     template_cells = {cell.get('r'): cell for cell in template.findall('.//s:c', NS)}
     template_rows = {int(row.get('r')): row for row in template.find(f'{{{S}}}sheetData')}
-    template_table = target.tables()['tbBasisOfficialRules'][1]
+    template_table = target.tables()['tbCommands'][1]
     for table_name, sheet_name in [('tbBasisDocumentTypes', 'Типи документів'),
                                    ('tbBasisDocumentRules', 'Документи установ'),
                                    ('tbCommands', 'Органи управління'), ('tbCourts', 'Суди'),
@@ -287,14 +287,17 @@ def upgrade_references(target, source):
             existing_styles = {index(cell.get('r')): cell.get('s') for cell in last_existing_row} if last_existing_row is not None else {}
             row_height = last_existing_row.get('ht', '30') if last_existing_row is not None else '30'
             keys = set()
+            key_offsets = ([target_headers.index('Назва')] if name in ['tbCommands', 'tbCourts'] else
+                           [0, 3, 4, 5] if name == 'tbBasisFragments' else [0, 1] if name.endswith('Rules') else [0])
             for number in range(first_row + 1, last_row + 1):
                 row = rows_by_number.get(number)
                 cells = {index(cell.get('r')): cell for cell in row} if row is not None else {}
-                key_offsets = ([target_headers.index('Назва')] if name in ['tbCommands', 'tbCourts'] else
-                               [0, 3, 4, 5] if name == 'tbBasisFragments' else [0, 1] if name.endswith('Rules') else [0])
                 keys.add(tuple(target.text(cells.get(first_column + offset)) for offset in key_offsets))
             for row in incoming.find(f'{{{S}}}sheetData'):
                 if int(row.get('r')) <= 5:
+                    continue
+                if name == 'tbBasisContract':
+                    # The explicit architecture migration updates the single metadata record.
                     continue
                 cells = {index(cell.get('r')): cell for cell in row}
                 values = [source.text(cells.get(2 + source_offsets[header])) if header in source_offsets else '' for header in target_headers]
@@ -441,59 +444,6 @@ def explicit_reference_requirements(book):
     book.parts[sheet_path] = xml(sheet)
 
 
-def public_reference_contract(book, config):
-    """Translate only document-profile tokens; preserve data and history schemas."""
-    pairs = dict(entry.split('=', 1) for entry in config['basisChain.contract.bindings'].split('|'))
-    inverse = {value.removeprefix('Form.'): code for code, value in pairs.items()}
-    legacy = dict(entry.split('=', 1) for entry in config['basisChain.contract.legacyTokens'].split('|'))
-    allowed = set(pairs) | set(legacy.values())
-    fragment_sheet = parse(book.parts[book.sheets()['Фрагменти тексту']])
-    for row in fragment_sheet.find(f'{{{S}}}sheetData'):
-        if int(row.get('r')) > 5:
-            cell = next((cell for cell in row if index(cell.get('r')) == 2), None)
-            if cell is not None:
-                allowed.add(book.text(cell))
-    _, table = book.tables()['tbBasisDocumentTypes']
-    headers = [node.get('name') for node in table.find(f'{{{S}}}tableColumns')]
-    start, end = table.get('ref').split(':')
-    first_row = int(''.join(filter(str.isdigit, start)))
-    last_row = int(''.join(filter(str.isdigit, end)))
-    columns = {index(start) + headers.index(name): name for name in ['Шаблон', 'Обов’язкові поля', 'Поля']}
-    sheet_path = book.sheets()['Типи документів']
-    sheet = parse(book.parts[sheet_path])
-
-    def field(match):
-        code = match.group(0)
-        if code in pairs:
-            return code
-        if code not in inverse:
-            raise ValueError(f'Unknown document field: {code}')
-        return inverse[code]
-
-    def token(match):
-        code = match.group(1)
-        public = legacy.get(code, inverse.get(code, code))
-        if public not in allowed:
-            raise ValueError(f'Unknown document token: {code}')
-        return '{' + public + '}'
-
-    for row in sheet.find(f'{{{S}}}sheetData'):
-        if not first_row < int(row.get('r')) <= last_row:
-            continue
-        for cell in row:
-            name = columns.get(index(cell.get('r')))
-            if name is None:
-                continue
-            previous = book.text(cell)
-            value = re.sub(r'\{([^}]+)\}', token, previous) if name == 'Шаблон' else re.sub(r'[A-Za-z][A-Za-z0-9_.]*', field, previous)
-            if value != previous:
-                for child in list(cell):
-                    cell.remove(child)
-                cell.set('t', 'inlineStr')
-                ET.SubElement(ET.SubElement(cell, f'{{{S}}}is'), f'{{{S}}}t').text = value
-    book.parts[sheet_path] = xml(sheet)
-
-
 def institution_group_validation(book):
     table_name = 'tbEnumInstitutionGroups'
     sheet_name = 'Переліки'
@@ -503,9 +453,9 @@ def institution_group_validation(book):
     if table_name not in book.tables():
         if sheet_name in book.sheets():
             raise ValueError('The enumeration sheet exists but its institution-group table is missing')
-        template = parse(book.parts[book.sheets()['Посади установ']])
+        template = parse(book.parts[book.sheets()['Органи управління']])
         style_cells = {cell.get('r'): cell.get('s') for cell in template.findall('.//s:c', NS)}
-        template_table = book.tables()['tbBasisOfficialRules'][1]
+        template_table = book.tables()['tbCommands'][1]
         workbook = parse(book.parts['xl/workbook.xml'])
         sheets = workbook.find(f'{{{S}}}sheets')
         relationships = parse(book.parts['xl/_rels/workbook.xml.rels'])
@@ -623,6 +573,15 @@ def institution_group_validation(book):
     book.parts['xl/workbook.xml'] = xml(workbook)
 
 
+def xml_basis_architecture(book, config):
+    # Keep the legacy command-line switch as an alias for the source-only migration.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('source_only', Path(__file__).with_name('SourceOnly-TDBInstitutions.py'))
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    migration.migrate(book, config)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--references', type=Path)
@@ -633,19 +592,23 @@ def main():
     parser.add_argument('--explicit-required-only', action='store_true')
     parser.add_argument('--rename-rule-sheets-only', action='store_true')
     parser.add_argument('--group-enums-only', action='store_true')
+    parser.add_argument('--xml-basis-only', action='store_true')
     args = parser.parse_args()
-    if sum([args.explicit_required_only, args.rename_rule_sheets_only, args.group_enums_only]) > 1:
+    focused = args.explicit_required_only or args.rename_rule_sheets_only or args.group_enums_only or args.xml_basis_only
+    if sum([args.explicit_required_only, args.rename_rule_sheets_only, args.group_enums_only, args.xml_basis_only]) > 1:
         parser.error('Choose only one focused upgrade mode')
-    if not args.explicit_required_only and not args.rename_rule_sheets_only and not args.group_enums_only and args.references is None:
+    if not focused and args.references is None:
         parser.error('--references is required unless a focused upgrade mode is specified')
-    if (args.explicit_required_only or args.rename_rule_sheets_only or args.group_enums_only) and args.history:
+    if focused and args.history:
         parser.error('Focused upgrade modes do not alter history snapshots')
     args.output_dir.mkdir(parents=True, exist_ok=True)
     config_path = Path(__file__).resolve().parents[1] / 'config/TravelDocumentsBuilder/wsConfig.txt'
     config = {fields[1].split('::', 1)[1]: fields[2] for line in config_path.read_text(encoding='utf-8-sig').splitlines()
               if line.strip() for fields in [line.split('\t')] if fields[0] == 'value'}
     institutions = Package(args.institutions)
-    if args.group_enums_only:
+    if args.xml_basis_only:
+        xml_basis_architecture(institutions, config)
+    elif args.group_enums_only:
         institution_group_validation(institutions)
     elif args.rename_rule_sheets_only:
         rename_rule_sheets(institutions)
@@ -653,9 +616,8 @@ def main():
         explicit_reference_requirements(institutions)
     else:
         rename_rule_sheets(institutions)
+        xml_basis_architecture(institutions, config)
         upgrade_references(institutions, Package(args.references))
-        explicit_reference_requirements(institutions)
-        public_reference_contract(institutions, config)
         institution_group_validation(institutions)
     outputs = [(institutions, args.institutions)]
     if args.history:

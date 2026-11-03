@@ -65,7 +65,8 @@ End Function
 Public Function TrySearch( _
     ByVal text As String, _
     ByRef result As obj_LookupResult, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal browseLimit As Long = 0 _
 ) As Boolean
     Dim query As obj_TableQuery
     Dim group As obj_QueryGroup
@@ -76,6 +77,7 @@ Public Function TrySearch( _
     Dim hasMore As Boolean
     Dim startedAt As Double
     Dim stageStartedAt As Double
+    Dim resultLimit As Long
 
     On Error GoTo EH
     startedAt = VBA.Timer
@@ -85,38 +87,47 @@ Public Function TrySearch( _
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Lookup service is not initialized."
     text = ex_TableQuery.fn_NormalizeText(text)
     Set records = New Collection
-    If VBA.Len(text) >= m_profile.MinChars Then
+    resultLimit = m_profile.MaxResults
+    If browseLimit < 0 Then Err.Raise 5, , "Invalid lookup browse limit."
+    If browseLimit > 0 Then
+        resultLimit = browseLimit
+    End If
+    If browseLimit > 0 Or VBA.Len(text) >= m_profile.MinChars Then
         stageStartedAt = VBA.Timer
         If Not private_LoadCache(diagnostic) Then GoTo Cleanup
         ex_Core.fn_Diagnostic_WritePerf "Lookup.LoadCache", stageStartedAt
         Set query = New obj_TableQuery
         If Not query.Initialize() Then Err.Raise 5, , "Cannot initialize lookup query."
-        Set group = New obj_QueryGroup
-        If Not group.Initialize() Then Err.Raise 5, , "Cannot initialize lookup filter."
-        group.MatchAny = True
-        For Each search In m_profile.SearchFields
-            Set condition = New obj_QueryCondition
-            If Not condition.Initialize() Then Err.Raise 5, , "Cannot initialize lookup condition."
-            condition.ColumnName = m_profile.HeaderFor(search("name"))
-            condition.Operation = QueryContains
-            If search("match") = "startsWith" Then condition.Operation = QueryStartsWith
-            condition.Value = text
-            condition.ValueType = QueryText
-            condition.NormalizeText = True
-            group.AddCondition condition
-        Next search
-        query.Filter.AddGroup group
+        If browseLimit = 0 Then
+            Set group = New obj_QueryGroup
+            If Not group.Initialize() Then Err.Raise 5, , "Cannot initialize lookup filter."
+            group.MatchAny = True
+            For Each search In m_profile.SearchFields
+                Set condition = New obj_QueryCondition
+                If Not condition.Initialize() Then Err.Raise 5, , "Cannot initialize lookup condition."
+                condition.ColumnName = m_profile.HeaderFor(search("name"))
+                condition.Operation = QueryContains
+                If search("match") = "startsWith" Then condition.Operation = QueryStartsWith
+                condition.Value = text
+                condition.ValueType = QueryText
+                condition.NormalizeText = True
+                group.AddCondition condition
+            Next search
+            query.Filter.AddGroup group
+        End If
         query.AddCondition m_profile.HeaderFor(m_profile.KeyField), QueryIsNotEmpty, Empty, QueryText, True
-        Set search = m_profile.SearchFields(1)
-        query.AddOrderBy m_profile.HeaderFor(search("name")), False, QueryText, True
-        query.AddOrderBy m_profile.HeaderFor(m_profile.KeyField), False, QueryText, True
-        query.Limit = m_profile.MaxResults + 1
+        If browseLimit = 0 Then
+            Set search = m_profile.SearchFields(1)
+            query.AddOrderBy m_profile.HeaderFor(search("name")), False, QueryText, True
+            query.AddOrderBy m_profile.HeaderFor(m_profile.KeyField), False, QueryText, True
+        End If
+        query.Limit = resultLimit + 1
         stageStartedAt = VBA.Timer
         If Not ex_TableQuery.fn_TryApply(m_cache, query, data, diagnostic) Then GoTo Cleanup
         ex_Core.fn_Diagnostic_WritePerf "Lookup.ApplySearch", stageStartedAt
-        hasMore = (data.RowCount > m_profile.MaxResults)
+        hasMore = (data.RowCount > resultLimit)
         stageStartedAt = VBA.Timer
-        If Not private_ReadRecords(data, records, diagnostic) Then GoTo Cleanup
+        If Not private_ReadRecords(data, records, diagnostic, resultLimit) Then GoTo Cleanup
         ex_Core.fn_Diagnostic_WritePerf "Lookup.BuildRecords | Rows=" & VBA.CStr(records.Count), stageStartedAt
     End If
     stageStartedAt = VBA.Timer
@@ -412,7 +423,8 @@ End Function
 Private Function private_ReadRecords( _
     ByVal data As obj_DataTable, _
     ByRef records As Collection, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    ByVal resultLimit As Long _
 ) As Boolean
     Dim fields As Object
     Dim column As Object
@@ -423,7 +435,7 @@ Private Function private_ReadRecords( _
 
     On Error GoTo EH
     count = data.RowCount
-    If count > m_profile.MaxResults Then count = m_profile.MaxResults
+    If count > resultLimit Then count = resultLimit
     Set records = New Collection
     For rowIndex = 1 To count
         Set fields = VBA.CreateObject("Scripting.Dictionary")

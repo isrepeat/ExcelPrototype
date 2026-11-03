@@ -1,0 +1,16 @@
+<textTemplate version="1">
+  <include file="DocumentTitle.xml"/>
+  <text>наказом</text>
+  <value field="reference.issuer"/>
+  <ifFilled field="reference.scope">
+    <group prefix="("
+           suffix=")">
+      <value field="reference.scope"/>
+    </group>
+  </ifFilled>
+  <text>від</text>
+  <value field="reference.date"/>
+  <text>№</text>
+  <value field="reference.number"/>
+  <include file="Requisites.xml"/>
+</textTemplate>

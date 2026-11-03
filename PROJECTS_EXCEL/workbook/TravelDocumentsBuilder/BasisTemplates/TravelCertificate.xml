@@ -1,0 +1,4 @@
+<textTemplate version="1">
+  <include file="DocumentTitle.xml"/>
+  <include file="Requisites.xml"/>
+</textTemplate>

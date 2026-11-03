@@ -83,17 +83,22 @@ Public Function fn_Search( _
     Next field
     If columnIndex <> UBound(spans) + 1 Then VBA.Err.Raise 5, , "Places column span count mismatch."
     limit = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".maxResults"))
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
+    If ex_TDB_Candidates.fn_IsBrowse(searchText) Then
+        limit = ex_TDB_Candidates.fn_BrowseLimit(searchText)
+    End If
+    If ex_TDB_Candidates.fn_IsBrowse(searchText) Or VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= VBA.CLng(ex_TravelDocumentsBuilder.fn_Config(prefix & ".minChars")) Then
         Set tableSource = fn_Source(isAbroad, isMilitary)
         Set tableQuery = New obj_TableQuery
         If Not tableQuery.Initialize() Then VBA.Err.Raise 5, , "Cannot initialize places query."
         For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".sourceFields"), "|")
             tableQuery.AddColumn ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
         Next field
-        If isMilitary Then
-            tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Unit"), QueryContains, searchText, QueryText, True
-        Else
-            tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name"), QueryContains, searchText, QueryText, True
+        If Not ex_TDB_Candidates.fn_IsBrowse(searchText) Then
+            If isMilitary Then
+                tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Unit"), QueryContains, searchText, QueryText, True
+            Else
+                tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns.Name"), QueryContains, searchText, QueryText, True
+            End If
         End If
         tableQuery.Limit = limit + 1
         If Not snapshot.TryQuery(tableSource, tableQuery, dataTable, diagnostic) Then VBA.Err.Raise 5, , diagnostic

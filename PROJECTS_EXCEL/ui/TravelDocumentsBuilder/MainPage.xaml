@@ -580,6 +580,25 @@
                            itemStyle="formSelectItem"
                           onChange="{Binding Path=Commands.BasisDraftChanged}"/>
         </grid>
+        <grid visibility="{Binding Path=Form.BasisActingVisibility}">
+          <controls:label name="BasisActingLbl"
+                          row="1"
+                          column="1"
+                          style="formLabel"
+                          text="{Binding Path=Text.BasisActing}"/>
+          <controls:select name="BasisActing"
+                           itemsSource="{Binding Path=Data.BasisActingOptions}"
+                          row="1"
+                          column="2"
+                          style="formField"
+                          value="{Binding Path=Form.BasisActing}"
+                          placeholder="{Binding Path=Text.BasisActing}"
+                          placeholderStyle="formSelectPlaceholder"
+                          selectionStyle="formSelectValue"
+                          panelStyle="formSelectPanel"
+                          itemStyle="formSelectItem"
+                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
+        </grid>
         <grid visibility="{Binding Path=Form.BasisNumberVisibility}">
           <controls:label name="BasisNumberLabel"
                           row="1"
@@ -606,25 +625,6 @@
                           value="{Binding Path=Form.BasisDate}"
                           onChange="{Binding Path=Commands.BasisDraftChanged}"/>
 
-        </grid>
-        <grid visibility="{Binding Path=Form.BasisActingVisibility}">
-          <controls:label name="BasisActingLbl"
-                          row="1"
-                          column="1"
-                          style="formLabel"
-                          text="{Binding Path=Text.BasisActing}"/>
-          <controls:select name="BasisActing"
-                           itemsSource="{Binding Path=Data.BasisActingOptions}"
-                          row="1"
-                          column="2"
-                          style="formField"
-                          value="{Binding Path=Form.BasisActing}"
-                          placeholder="{Binding Path=Text.BasisActing}"
-                          placeholderStyle="formSelectPlaceholder"
-                          selectionStyle="formSelectValue"
-                          panelStyle="formSelectPanel"
-                          itemStyle="formSelectItem"
-                          onChange="{Binding Path=Commands.BasisDraftChanged}"/>
         </grid>
         <grid visibility="{Binding Path=Form.BasisIncomingNumberVisibility}">
           <controls:label name="BasisIncomingNumberLbl"

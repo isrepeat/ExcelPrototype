@@ -68,8 +68,6 @@ Public Function fn_Draft(ByVal bindingContext As obj_UiBindingContext) As Object
         row(field) = fn_Value(bindingContext, VBA.CStr(field))
     Next field
     fn_Validate row, True
-    row("BasisRenderedText") = VBA.vbNullString
-    row("BasisRenderedText") = fn_Format(row)
     Set fn_Draft = row
 End Function
 
@@ -85,6 +83,9 @@ Public Sub fn_Validate( _
         copy.Add VBA.CStr(key), row(key)
     Next key
     If Not capture And VBA.Len(VBA.CStr(copy("BasisTemplate"))) > 0 Then
+        If copy("BasisTemplate") = "xml.v1" And VBA.Len(VBA.CStr(copy("BasisRenderedText"))) = 0 Then
+            ex_TDB_History.fn_Fail "InvalidChain"
+        End If
         private_ValidateRequired copy, VBA.CStr(copy("BasisRequiredFields"))
         If VBA.Len(VBA.CStr(copy("BasisTypeId"))) = 0 Then
             ex_TDB_History.fn_Fail "InvalidChain"
@@ -123,7 +124,7 @@ Private Sub private_Validate(ByVal row As Object)
         private_Required "BasisType"
     End If
     row("BasisTypeId") = definition("Id")
-    row("BasisTemplate") = definition("Template")
+    row("BasisTemplate") = "xml.v1"
     row("BasisRequiredFields") = definition("Required")
     row("BasisTypeGenitive") = definition("Genitive")
     fields = VBA.CStr(definition("Fields"))
@@ -170,7 +171,7 @@ Private Sub private_Validate(ByVal row As Object)
     row("BasisIssuerText") = VBA.vbNullString
     If VBA.Len(VBA.CStr(row("BasisIssuer"))) > 0 Then
         Set official = private_Definition("Officials", "Name", VBA.CStr(row("BasisIssuer")))
-        If Not private_Allowed("OfficialRules", group, "OfficialId", VBA.CStr(official("Id"))) Then
+        If Not private_Allowed("OfficialRules", private_OfficialGroup(VBA.CStr(row("BasisInstitution")), group), "OfficialId", VBA.CStr(official("Id"))) Then
             VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.InvalidIssuer")
         End If
         row("BasisIssuerId") = official("Id")
@@ -200,7 +201,7 @@ Private Sub private_Validate(ByVal row As Object)
             private_Required "BasisRefScope"
         End If
     End If
-    row("BasisTemplate") = ex_TDB_BasisContract.fn_Template(VBA.CStr(row("BasisTemplate")), row)
+    row("BasisRenderedText") = ex_TDB_BasisConfig.fn_Render(VBA.CStr(row("BasisTypeId")), row)
     Exit Sub
 InvalidDate:
     VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.InvalidDate")
@@ -238,19 +239,39 @@ End Function
 Public Function fn_Join( _
     ByVal chain As Collection, _
     ByVal orderNumber As String, _
-    ByVal orderDate As Date _
+    ByVal orderDate As Date, _
+    Optional ByVal ownText As String = VBA.vbNullString _
 ) As String
     Dim row As Object
     Dim text As String
     Dim field As Variant
 
-    fn_Join = VBA.Replace$(VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.orderTemplate"), _
-        "{number}", orderNumber), "{date}", VBA.Format$(orderDate, "dd.mm.yyyy"))
+    fn_Join = ownText
+    If VBA.Len(fn_Join) = 0 Then
+        fn_Join = ex_TDB_BasisConfig.fn_Order(orderNumber, VBA.Format$(orderDate, "dd.mm.yyyy"))
+    End If
     For Each row In chain
         text = fn_Format(row)
         fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.separator") & VBA.Space$(1) & text
     Next row
     fn_Join = fn_Join & ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
+End Function
+
+Public Function fn_SavedOwnText( _
+    ByVal chain As Collection, _
+    ByVal approved As String _
+) As String
+    Dim ending As String
+    Dim index As Long
+
+    ending = ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
+    For index = chain.Count To 1 Step -1
+        ending = ex_TravelDocumentsBuilder.fn_Config("basisChain.separator") & VBA.Space$(1) & fn_Format(chain(index)) & ending
+    Next index
+    If VBA.Len(approved) <= VBA.Len(ending) Or VBA.Right$(approved, VBA.Len(ending)) <> ending Then
+        ex_TDB_History.fn_Fail "InvalidChain"
+    End If
+    fn_SavedOwnText = VBA.Left$(approved, VBA.Len(approved) - VBA.Len(ending))
 End Function
 
 Public Function fn_FromGroup(ByVal group As Collection) As Collection
@@ -335,7 +356,7 @@ Public Function fn_RefreshInstitutions( _
     Set snapshot = ex_TableSnapshots.fn_Active()
     If VBA.Len(group) > 0 And Not snapshot Is Nothing Then
         types = private_Options("Documents", "DocumentRules", "DocumentId", group)
-        roles = private_Options("Officials", "OfficialRules", "OfficialId", group)
+        roles = private_Options("Officials", "OfficialRules", "OfficialId", private_OfficialGroup(fn_Value(bindingContext, "BasisInstitution"), group))
     End If
     If Not private_Contains(types, fn_Value(bindingContext, "BasisType")) Then
         If Not bindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then
@@ -381,7 +402,7 @@ Public Function fn_RefreshInstitutions( _
     End If
     For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.editorFields"), "|")
         If Not snapshot Is Nothing And VBA.Len(fields) > 0 Then
-            If Not bindingContext.SetValue("Text", VBA.CStr(field), ex_TDB_BasisContract.fn_Caption(VBA.CStr(field))) Then
+            If Not bindingContext.SetValue("Text", VBA.CStr(field), ex_TDB_BasisConfig.fn_Caption(VBA.CStr(field))) Then
                 Exit Function
             End If
         End If
@@ -428,6 +449,9 @@ Public Function fn_Format(ByVal row As Object) As String
         Exit Function
     End If
     text = VBA.CStr(row("BasisTemplate"))
+    If text = "xml.v1" Then
+        ex_TDB_History.fn_Fail "InvalidChain"
+    End If
     If VBA.Len(text) = 0 Then
         text = ex_TravelDocumentsBuilder.fn_Config("basisChain.documentTemplate")
     End If
@@ -497,10 +521,13 @@ Public Function fn_SearchInstitutions( _
     Next field
     If columnIndex <> UBound(spans) + 1 Then ex_TDB_History.fn_Fail "InvalidChain"
     limit = VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.maxResults"))
+    If ex_TDB_Candidates.fn_IsBrowse(searchText) Then
+        limit = ex_TDB_Candidates.fn_BrowseLimit(searchText)
+    End If
     If ex_TravelDocumentsBuilder.fn_Config(prefix & ".searchField") = "Key" Then
         searchText = VBA.Trim$(VBA.Replace$(searchText, "A", "А", 1, -1, VBA.vbTextCompare))
     End If
-    If VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= _
+    If ex_TDB_Candidates.fn_IsBrowse(searchText) Or VBA.Len(ex_TableQuery.fn_NormalizeText(searchText)) >= _
             VBA.CLng(ex_TravelDocumentsBuilder.fn_Config("basisChain.lookup.minChars")) Then
         Set snapshot = ex_TableSnapshots.fn_Active()
         If snapshot Is Nothing Then VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
@@ -522,8 +549,10 @@ Public Function fn_SearchInstitutions( _
                 tableQuery.AddColumn header
             End If
         Next field
-        tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & _
-            ex_TravelDocumentsBuilder.fn_Config(prefix & ".searchField")), QueryContains, searchText, QueryText, True
+        If Not ex_TDB_Candidates.fn_IsBrowse(searchText) Then
+            tableQuery.AddCondition ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & _
+                ex_TravelDocumentsBuilder.fn_Config(prefix & ".searchField")), QueryContains, searchText, QueryText, True
+        End If
         tableQuery.Limit = limit + 1
         If Not snapshot.TryQuery(tableSource, tableQuery, dataTable, diagnostic) Then VBA.Err.Raise 5, , diagnostic
         hasMore = (dataTable.RowCount > limit)
@@ -594,12 +623,13 @@ Public Function fn_Publish(ByVal bindingContext As obj_UiBindingContext) As Bool
     Set chain = fn_Read(bindingContext)
     number = fn_Value(bindingContext, "AcceptedOrderNumber")
     dateText = fn_Value(bindingContext, "AcceptedOrderDate")
-    If VBA.Len(number) > 0 And VBA.Len(dateText) > 0 Then
+    If VBA.Len(fn_Value(bindingContext, "BasisOwnText")) > 0 Then
+        text = fn_Value(bindingContext, "BasisOwnText") & ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
+    ElseIf VBA.Len(number) > 0 And VBA.Len(dateText) > 0 Then
         text = fn_Join(emptyChain, number, ex_TDB_History.fn_Date(dateText))
     Else
-        text = VBA.Replace$(VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("basisChain.orderTemplate"), _
-            "{number}", ex_TravelDocumentsBuilder.fn_Config("basisChain.text.OrderNumberPending")), _
-            "{date}", ex_TravelDocumentsBuilder.fn_Config("basisChain.text.OrderDatePending")) & _
+        text = ex_TDB_BasisConfig.fn_Order(ex_TravelDocumentsBuilder.fn_Config("basisChain.text.OrderNumberPending"), _
+            ex_TravelDocumentsBuilder.fn_Config("basisChain.text.OrderDatePending")) & _
             ex_TravelDocumentsBuilder.fn_Config("basisChain.terminator")
     End If
     Set column = VBA.CreateObject("Scripting.Dictionary")
@@ -919,6 +949,27 @@ Private Sub private_Append( _
     values = values & value
 End Sub
 
+Private Function private_OfficialGroup( _
+    ByVal institution As String, _
+    ByVal sourceGroup As String _
+) As String
+    Dim entry As Variant
+    Dim parts As Variant
+    Dim kind As String
+
+    kind = private_Group(institution)
+    private_OfficialGroup = sourceGroup
+    For Each entry In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("basisChain.model.officialGroupOverrides"), "|")
+        parts = VBA.Split(VBA.CStr(entry), "~")
+        If UBound(parts) <> 1 Then
+            ex_TDB_History.fn_Fail "InvalidChain"
+        End If
+        If VBA.CStr(parts(0)) = kind Then
+            private_OfficialGroup = VBA.CStr(parts(1))
+        End If
+    Next entry
+End Function
+
 Private Function private_Allowed( _
     ByVal rulesName As String, _
     ByVal group As String, _
@@ -955,7 +1006,7 @@ Private Function private_Definition( _
         ex_TDB_History.fn_Fail "InvalidChain"
     End If
     If sourceName = "Documents" Then
-        ex_TDB_BasisContract.fn_AdaptDefinition result
+        ex_TDB_BasisConfig.fn_AdaptDefinition result
     End If
     Set private_Definition = result
 End Function
@@ -976,73 +1027,5 @@ Private Function private_Options( _
 End Function
 
 Private Function private_Reference(ByVal name As String) As Collection
-    Dim source As New obj_TableSource
-    Dim query As New obj_TableQuery
-    Dim snapshot As obj_TableSnapshotSet
-    Dim table As obj_DataTable
-    Dim rows As New Collection
-    Dim row As Object
-    Dim field As Variant
-    Dim fields As Variant
-    Dim prefix As String
-    Dim diagnostic As String
-    Dim fileSystem As Object
-    Dim path As String
-    Dim index As Long
-    Dim value As Variant
-    Dim errorNumber As Long
-    Dim errorDescription As String
-
-    On Error GoTo Failed
-    prefix = "basisChain.references." & name
-    Set snapshot = ex_TableSnapshots.fn_Active()
-    If snapshot Is Nothing Then
-        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
-    End If
-    If Not source.Initialize() Or Not query.Initialize() Then
-        ex_TDB_History.fn_Fail "InvalidChain"
-    End If
-    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
-    path = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.path")
-    If fileSystem.GetDriveName(path) = VBA.vbNullString And VBA.Left$(path, 2) <> "\\" Then
-        path = fileSystem.BuildPath(ThisWorkbook.Path, path)
-    End If
-    source.WorkbookPath = fileSystem.GetAbsolutePathName(path)
-    source.SheetName = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.sheet")
-    source.TableName = ex_TravelDocumentsBuilder.fn_Config(prefix & ".source.table")
-    fields = VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & ".fields"), "|")
-    For Each field In fields
-        query.AddColumn ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)
-    Next field
-    If Not snapshot.TryQuery(source, query, table, diagnostic) Then
-        VBA.Err.Raise 5, , diagnostic
-    End If
-    For index = 1 To table.RowCount
-        Set row = VBA.CreateObject("Scripting.Dictionary")
-        For Each field In fields
-            value = table.ValueAt(index, ex_TableQuery.fn_HeaderIndex(table.Headers, ex_TravelDocumentsBuilder.fn_Config(prefix & ".columns." & field)))
-            If VBA.IsError(value) Or VBA.IsNull(value) Then
-                ex_TDB_History.fn_Fail "InvalidChain"
-            End If
-            row.Add VBA.CStr(field), VBA.Trim$(VBA.CStr(value))
-        Next field
-        If VBA.Len(VBA.CStr(row(fields(0)))) > 0 Then
-            rows.Add row
-        End If
-    Next index
-    Set private_Reference = rows
-Cleanup:
-    If Not table Is Nothing Then
-        table.Dispose
-    End If
-    query.Dispose
-    source.Dispose
-    If errorNumber <> 0 Then
-        VBA.Err.Raise errorNumber, "Basis.Reference", errorDescription
-    End If
-    Exit Function
-Failed:
-    errorNumber = VBA.Err.Number
-    errorDescription = VBA.Err.Description
-    Resume Cleanup
+    Set private_Reference = ex_TDB_BasisConfig.fn_Reference(name)
 End Function

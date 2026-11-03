@@ -1,0 +1,5 @@
+<textTemplate version="1">
+  <include file="DocumentTitle.xml"/>
+  <value field="institution.genitive"/>
+  <include file="Requisites.xml"/>
+</textTemplate>

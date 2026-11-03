@@ -1,0 +1,7 @@
+<textTemplate version="1">
+  <if field="issuer.acting">
+    <text>тимчасово виконуючого обов’язки</text>
+  </if>
+  <value field="issuer.role.genitive"/>
+  <value field="institution.genitive"/>
+</textTemplate>

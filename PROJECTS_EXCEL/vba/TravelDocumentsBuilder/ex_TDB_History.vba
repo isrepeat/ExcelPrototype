@@ -556,8 +556,10 @@ Public Function fn_Load( _
     Next mapping
     updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(root)
     Set basisChain = ex_TDB_BasisChain.fn_FromGroup(group)
+    updates("Form.BasisOwnText") = VBA.vbNullString
     If ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) = "BusinessTripCertificate" Then
         updates("Form.Purpose") = VBA.vbNullString
+        updates("Form.BasisOwnText") = ex_TDB_BasisChain.fn_SavedOwnText(basisChain, VBA.CStr(root("Basis")))
     End If
     For Each mapping In VBA.Split(fn_Config("dateFormFields"), "|")
         pair = VBA.Split(mapping, "=")

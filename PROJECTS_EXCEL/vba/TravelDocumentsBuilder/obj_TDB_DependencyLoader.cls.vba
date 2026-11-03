@@ -124,7 +124,7 @@ Public Function TryBuild( _
     If Not orders.PrepareSnapshot(snapshot, diagnostic) Then GoTo Cleanup
 
     ' Validate the public document contract before publishing the staged generation.
-    ex_TDB_BasisContract.fn_Validate snapshot
+    ex_TDB_BasisConfig.fn_Validate snapshot
 
     ' Publish only a consistent set of saved files.
     private_Progress progressStep, progressTotal, "Verify"

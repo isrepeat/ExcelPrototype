@@ -1,0 +1,13 @@
+<textTemplate version="1">
+  <include file="DocumentTitle.xml"/>
+  <value field="institution.genitive"/>
+  <text>від</text>
+  <value field="document.date"/>
+  <text>у справі №</text>
+  <value field="court.caseNumber"/>
+  <ifFilled field="court.proceedingNumber">
+    <text>провадження №</text>
+    <value field="court.proceedingNumber"/>
+  </ifFilled>
+  <include file="Registration.xml"/>
+</textTemplate>

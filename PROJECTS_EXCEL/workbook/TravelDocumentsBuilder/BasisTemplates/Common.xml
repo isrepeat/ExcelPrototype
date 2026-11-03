@@ -1,0 +1,11 @@
+<textTemplate version="1">
+  <include file="DocumentTitle.xml"/>
+  <include file="Issuer.xml"/>
+  <ifFilled field="document.scope">
+    <group prefix="("
+           suffix=")">
+      <value field="document.scope"/>
+    </group>
+  </ifFilled>
+  <include file="Requisites.xml"/>
+</textTemplate>

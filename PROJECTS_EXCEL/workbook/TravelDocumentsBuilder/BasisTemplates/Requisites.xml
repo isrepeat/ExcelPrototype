@@ -1,0 +1,11 @@
+<textTemplate version="1">
+  <ifFilled field="document.number">
+    <text>№</text>
+    <value field="document.number"/>
+  </ifFilled>
+  <ifFilled field="document.date">
+    <text>від</text>
+    <value field="document.date"/>
+  </ifFilled>
+  <include file="Registration.xml"/>
+</textTemplate>

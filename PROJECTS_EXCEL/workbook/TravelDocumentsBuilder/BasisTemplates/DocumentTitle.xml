@@ -1,0 +1,15 @@
+<textTemplate version="1">
+  <choose field="document.form">
+    <case value="copy">
+      <text>копія</text>
+      <value field="document.type.genitive"/>
+    </case>
+    <case value="extract">
+      <text>витяг із</text>
+      <value field="document.type.genitive"/>
+    </case>
+    <otherwise>
+      <value field="document.type"/>
+    </otherwise>
+  </choose>
+</textTemplate>

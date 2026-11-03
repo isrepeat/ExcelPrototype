@@ -242,7 +242,8 @@ Public Function TrySave( _
     Set m_basis = New Collection
     If m_documentId = "BusinessTripCertificate" Then
         Set m_basis = ex_TDB_BasisChain.fn_Build(m_bindingContext)
-        m_form("Purpose") = ex_TDB_BasisChain.fn_Join(m_basis, orderNo, orderDate)
+        m_form("Purpose") = ex_TDB_BasisChain.fn_Join(m_basis, orderNo, orderDate, _
+            ex_TDB_BasisChain.fn_Value(m_bindingContext, "BasisOwnText"))
     End If
     If Not private_IsIndefinite(vacationDays) Then
         mainReturn = ex_TDB_History.fn_ReturnDate(departureDate, vacationDays, roadDays)
@@ -442,6 +443,7 @@ Public Function TrySave( _
     m_bindingContext.SetValue "Form", "TicketNo", ticketNo
     If m_documentId = "BusinessTripCertificate" Then
         m_bindingContext.SetObject "Data", "BasisChain", m_basis
+        m_bindingContext.SetValue "Form", "BasisOwnText", ex_TDB_BasisChain.fn_SavedOwnText(m_basis, m_form("Purpose"))
         ex_TDB_BasisChain.fn_ClearDraft m_bindingContext
         m_bindingContext.SetValue "Form", "Purpose", VBA.vbNullString
         m_bindingContext.SetValue "Form", "BasisTextVisibility", "Collapsed"
@@ -544,7 +546,8 @@ Public Function TryRender( _
     Set m_basis = ex_TDB_BasisChain.fn_FromGroup(group)
     m_wordValues.Add "BasisDocuments", m_basis
     If m_documentId = "BusinessTripCertificate" Then
-        If VBA.CStr(root("Basis")) <> ex_TDB_BasisChain.fn_Join(m_basis, VBA.CStr(root("OrderNumber")), ex_TDB_History.fn_Date(root("OrderDate"))) Then
+        ' Historical exports use the approved text, not today's template definitions.
+        If VBA.Len(ex_TDB_BasisChain.fn_SavedOwnText(m_basis, VBA.CStr(root("Basis")))) = 0 Then
             ex_TDB_History.fn_Fail "InvalidChain"
         End If
     End If

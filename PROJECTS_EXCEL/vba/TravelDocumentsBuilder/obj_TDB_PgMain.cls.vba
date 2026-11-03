@@ -120,6 +120,7 @@ Private Function private_TryRegisterBindings() As Boolean
         Exit Function
     End If
     If Not bindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
+    If Not bindingContext.SetValue("Form", "BasisOwnText", VBA.vbNullString) Then Exit Function
     If Not bindingContext.SetValue("Form", "DeleteEventVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Text", "DeleteEvent", ex_TravelDocumentsBuilder.fn_Config("text.DeleteEvent")) Then Exit Function
     If Not bindingContext.SetValue("Data", "BasisTypes", VBA.vbNullString) Then Exit Function

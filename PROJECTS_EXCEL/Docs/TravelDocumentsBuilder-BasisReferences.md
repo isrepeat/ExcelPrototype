@@ -1,76 +1,79 @@
-# Travel document basis references
+# Travel document basis architecture
 
-## Runtime contract
+## Responsibilities
 
-The institution workbook owns the reusable institution names, grammatical forms, officials, document types and compatibility rules. `wsConfig` owns source descriptors, column mappings and application messages. XAML owns the form layout and styles.
+- The institution workbook contains source information only: institutions, groups, names and declensions.
+- wsConfig owns source/column descriptors, technical identifiers, field definitions, document profiles, allowed relationships, validation rules and choice-value mappings.
+- BasisTemplates XML owns wording, punctuation, grammatical choices and optional text blocks.
+- VBA validates the data and executes the text templates. The resulting string is shared by the form preview and Word export.
 
-The editor first selects a source category, then an institution from the candidate table. The selected record supplies its actual group. A numbered military hospital therefore uses Hospital rules even when found through the military-unit source. Command institutions use separate ChiefCommand, GeneralStaff and LandCommand groups to prevent incompatible titles.
+There is no workbook contract or capability record. Configuration and XML are validated by the consuming code before publishing a dependency generation. No historical ticket or revision columns are removed.
 
-Reference tables:
+## Reference workbook
 
-| Table | Contract |
+| Table | Purpose |
 | --- | --- |
-| tbBasisOfficials | Stable Id, nominative display name and text used in a basis |
-| tbBasisOfficialRules (Посади установ) | Allowed institution group and official Id pairs |
-| tbBasisDocumentTypes | Stable Id, display name, genitive form, template, required fields, visible fields and available document forms |
-| tbBasisDocumentRules (Документи установ) | Allowed institution group and document Id pairs |
-| tbCommands | Group, unique name used as the lookup key, and genitive name of a military authority |
-| tbCourts | Group, unique name used as the lookup key, and genitive name of a court |
-| tbBasisFields | Public field code, readable name, description, data type and input/computed usage |
-| tbBasisFragments | Public fragment code, readable explanation, source-field condition and output template |
-| tbBasisContract | Contract version, required capabilities and a human-readable syntax legend |
-| tbEnumInstitutionGroups (Переліки) | Editable list of permitted institution groups used by Excel data validation |
+| tbBasisOfficials | Nominative name and genitive text |
+| tbBasisDocumentTypes | Document name and genitive form |
+| tbCommands, tbCourts | Institution group, unique name used as key, genitive name |
+| tbEnumInstitutionGroups (Переліки) | Allowed institution groups for native Excel validation |
 
-Keep Id and display names unique in each definition table. Do not change existing Id values. Rules refer to Id, not the display text. The original institution tables and their declensions retain their existing schema.
+Military units use their unit designation as the key; medical facilities use their designation. Courts, authorities, officials and document names use unique names as source keys. Stable technical document and official identifiers exist only in configuration and historical snapshots.
 
-Command and court lookup keys use `Назва`; their separate `Id` columns are no longer required. Names must be unique within each of those institution tables. Existing history keeps its saved keys and text; newly selected institutions capture their name as the key. Lookup queries select a physical source column once even when both Key and Name map to it. Definition Ids for document types and officials remain unchanged.
+Configured profile `Fields` lists input-field codes separated by pipes. `Required` expressions use AND (`&`), OR (`/`) and explicit parentheses: `((document.number&document.date)/(registration.number&registration.date))`. Mixed operators at one nesting level are rejected. Registration pairs are also checked for partial entry. Legacy snapshots retain the original separator interpretation.
 
-## Document fields
+The selected institution's actual group controls available documents. Officials follow that group unless `basisChain.model.officialGroupOverrides` overrides it for the selected institution kind. The configured `Unit~Unit` override gives every numbered military unit the military-unit official list, including medical units whose source group is Hospital. Selecting a hospital keeps its hospital official list. Both selection and save validation apply the same override. Search projects each physical column once when Key and Name share a header.
 
-`Поля` is a pipe-separated list of public input-field codes. Other editor fields are hidden and cleared when the document type changes. `Обов’язкові поля` uses `&` for AND, `/` for OR and explicit parentheses for grouping. For example, `((document.number&document.date)/(registration.number&registration.date))` requires either the document's own registration pair or an incoming registration pair. A report requires `(document.author&((document.number&document.date)/(registration.number&registration.date)))`. Mixed operators at the same nesting level are rejected rather than assigned precedence. Partially filled registration pairs are still rejected independently.
+## Configuration adapter
 
-`|` is also accepted as AND for compatibility. Saved history snapshots without parentheses retain the original separator-based interpretation. New drafts use the parenthesis-aware parser and never rely on legacy precedence. The parser reads every branch, rejects unknown fields, empty groups and unbalanced parentheses, and limits nesting to 64 groups.
+`basisChain.model.bindings` maps template data to local form/storage fields, for example `document.number=Form.BasisNumber`. `bindingTypes` declares the target types. `model.Fields.<code>` supplies the caption, description, type and usage.
 
-Templates reference only public field or fragment codes. A field such as `{document.number}` inserts its raw value; the fragment `{document.numberText}` includes the optional number prefix. Fields have `text`, `date` or `choice` types and `input` or `computed` usage. The field dictionary provides the captions used by the dynamic TDB editor.
+`model.Documents.<id>.Name` and `model.Officials.<id>.Name` select a unique source row by its name; the remaining grammatical text comes from that row. Document profile `Fields`, `Required` and `Forms` live in this configuration branch. `model.DocumentRules.<group>` and `model.OfficialRules.<group>` list permitted configuration identifiers. Every branch has an explicit `keys` list; unknown references, missing source names and duplicate source matches stop loading. Renaming a configured source key requires updating its configured `Name`.
 
-Fragments use `nonempty`, `equals`, `except` or `default` conditions. `except` requires a nonempty source value different from the configured value. A default applies only when no conditional case matches; if no case or default matches, the fragment is empty. Conditional cases for one code share one source field and must be mutually exclusive. Fragments may reference other fragments; cycles are rejected. Wording, including prefixes and optional grammatical phrases, is owned by these tables.
+`ex_TDB_BasisConfig` combines source names/declensions with those settings in memory. Neither a technical-field dictionary nor a contract is loaded from the source workbook.
 
-`basisChain.contract.bindings` is the TDB adapter: for example, `document.number=Form.BasisNumber`. `basisChain.contract.bindingTypes` declares the types of the local adapter targets, so a choice cannot be mapped to a plain text or date target accidentally. Those internal paths never appear in the shared field dictionary or document profiles. `basisChain.contract.legacyTokens` is used only to migrate previously authored profiles. Other consumers provide their own mappings and supported capabilities. The implementation also pins the version and feature set it actually supports; changing a configuration declaration does not add engine capabilities.
+`basisChain.textTemplates.profiles.<document Id>` selects a root XML file. Several profiles share Common.xml. `folder` is resolved relative to the TDB workbook directory; `ownOrder` selects the automatic first basis document.
 
-The dependency loader validates the staged contract before publication: supported version and capabilities, unique codes, all mappings and data types, input-field usage, visible versus required fields, template tokens, fragment cases and cycles. Unknown tokens are errors, not literal text or silent empty values. Existing history retains its compiled internal field names; newly captured templates compile public fragments into frozen `{Value.<internal field>}` substitutions and continue to store final rendered text. No history schema change or revision rewrite is needed.
+`valueMaps` converts UI captions to stable template values. The current form still displays localized choices. XML receives `original/copy/extract` for document.form and `true/false` for issuer.acting. The "no scope" UI choice becomes an empty scope. Closed mappings reject unknown UI values; open mappings preserve unmatched text. Renaming a choice caption requires updating its adapter mapping, not XML conditions.
 
-The acting-duty selector is independent of the official. Copy/extract selection switches the document type to its stored genitive form. Incoming registration is separate from the original document number and date. A report author and the issuer of a referenced personnel order are entered as complete grammatical phrases in the genitive; they are not automatically declined from a person's name.
+## XML language
 
-The personnel-notification profile supports one referenced order with issuer, number, date and optional scope. It does not create an unrestricted recursive document graph. A previously issued travel certificate can be added as a basis; the newly generated certificate is not added automatically.
+Each file has a `<textTemplate version="1">` root. Formatting whitespace between elements is ignored. Literal prose must be inside `<text>`. Nonempty rendered parts are joined with one space; final CR/LF/tab and repeated ASCII spaces are normalized. Field values are inserted as data and are not parsed as templates.
 
-Each added basis stores its institution key/group, definition Ids, grammatical text, template, required-field specification and final rendered text. Reading history validates copies instead of rewriting saved rows. Existing records without the new snapshots retain the legacy formatting path. Editing and adding a basis captures the current definitions again. Each new field is also included in revision snapshots.
+| Element | Meaning |
+| --- | --- |
+| text | Literal wording |
+| value field="code" | Raw public value |
+| ifFilled field="code" | Include children when the value is nonempty |
+| if field="code" | Include children for the normalized Boolean value true |
+| choose / case value / otherwise | Exact choice matching, then optional default |
+| group prefix / suffix | Attach punctuation to nonempty rendered children |
+| include file="Name.xml" | Reuse another file in the same template folder |
 
-Indefinite business trips keep the existing duration mechanism. Notes such as arrival, unauthorized absence or exclusion do not create a different trip kind in this implementation.
+DocumentTitle.xml chooses nominative or genitive names for original/copy/extract. Requisites.xml and Registration.xml supply optional labels and punctuation. Issuer.xml supplies the optional acting-duty phrase. Root profiles arrange these reusable blocks.
 
-## Workbook upgrade
+Only declared fields, elements and attributes are allowed. Choice cases must belong to the declared closed value map where available. Missing files, malformed XML, DTDs, external entities, path traversal, include cycles, duplicate cases and unsupported versions are rejected. Templates are cached as part of the staged dependency generation; file stamps are verified before publication.
 
-`Build-TDBBasisReferences.mjs` creates an artifact-tool seed workbook. Run it with the bundled Node runtime and `@oai/artifact-tool` available through a temporary directory's `node_modules` junction. Pass the output directory as its only argument.
+The automatic own-order template has a separate context: order.number, order.date and ownUnit.genitive. Pending number/date placeholders are supplied as data for the initial form preview.
 
-`Upgrade-TDBBasisWorkbooks.py` merges those authored tables into the institution workbook without re-exporting unrelated sheets. Existing definitions and custom rows are retained; only missing Ids and rule pairs are appended. Original institution and place worksheets remain byte-for-byte intact. New reference-sheet styles are imported with remapped style indexes.
+## History and Word
 
-Example arguments for the bundled Python runtime:
+Each captured document stores its structured fields, required specification, definition Ids and final BasisRenderedText. BasisTemplate is marked `xml.v1` for new documents; old compiled templates and legacy snapshots remain readable. A marked XML snapshot without rendered text is invalid.
 
-```text
-Upgrade-TDBBasisWorkbooks.py --references <seed.xlsx> --institutions <Установи.xlsx> --history <TicketsHistory.xlsx> --output-dir <upgrade-directory>
-```
+Saved events are rendered from approved text, not current XML assets. The automatic first document is recovered by removing the exact saved child-document suffix from the approved basis string. It is held in Form.BasisOwnText for preview and subsequent edits. Clearing the event clears that state. No history schema migration is needed.
 
-Without `--apply`, only upgraded copies are written. With `--apply`, timestamped backups are created before replacing the source files. Close the source workbooks before applying, so a later save from an old Excel session cannot overwrite the upgrade. The utility does not import or execute VBA.
+Word uses the approved root Basis value. Historical consistency checks compare saved child text to the saved root rather than regenerating text through today's templates. New or explicitly edited documents use the current loaded XML generation.
 
-`--explicit-required-only` updates only the required-field expressions in the institution workbook, using their previous grouping to insert parentheses. This mode does not need a seed workbook and never modifies history snapshots. Existing parenthesized expressions are preserved.
+The report author and referenced order issuer are still entered as complete genitive phrases; automatic personal-name declension is outside this change. Indefinite trips retain their existing duration mechanism.
 
-`--rename-rule-sheets-only` renames the legacy rule tabs and their titles to `Посади установ` and `Документи установ`. Stable table names and rule data do not change. This focused mode does not need a seed workbook and does not touch history. Full upgrades also recognize and rename legacy tabs before merging their data.
+## Upgrade and verification
 
-`--group-enums-only` adds the final `Переліки` sheet and the `tbEnumInstitutionGroups` table, then installs stop-style Excel list validation in every other `Група установи` column. The validation uses `INDIRECT("tbEnumInstitutionGroups[Група установи]")` and covers the data column down to the last worksheet row so new rows are covered. Existing unrelated validations remain intact. The enumeration table itself stays editable and is not validated against itself. Existing nonempty group values must already belong to the enumeration; the upgrade reports unknown values instead of silently admitting them. Full upgrades also refresh this validation.
+`Build-TDBBasisReferences.mjs` authors information-only seed reference tables using the bundled artifact library; execute from the repository root. It does not emit technical fields, rules, profiles or contract metadata.
 
-The history upgrade appends missing configured columns to both tables. It preserves all existing rows, revisions and retired column values. Runtime requires every configured column but tolerates surplus columns. `FoodDepartureDate` remains unsupported even if a legacy workbook still contains it.
+`SourceOnly-TDBInstitutions.py --institutions <book> --output-dir <directory>` writes an information-only copy. Add `--apply` to create a timestamped backup and replace the source. Close the workbook first to avoid a later save from an old session overwriting the upgrade. The migration checks that settings match configuration before deleting technical columns and the rule/field/contract sheets. It preserves the retained source values, styles and group validation and does not touch TicketsHistory.
 
-After applying the workbook upgrade, reload the TDB configuration and modules, then reload dependencies. A stale configuration cannot address the new tables and fields.
+The legacy `--xml-basis-only` switch delegates to the information-only migration. The group enumeration uses dynamic structured-reference list validation with stop errors; unrelated validations are preserved.
 
-## Validation
+Run Test-TDBBasisInstitutions.py, Test-TDBBasisDocuments.py, Test-TDBBasisContract.py and Test-TDBGroupEnums.py with the bundled Python runtime. XML tests exercise actual assets with an independent fixture reader, all profile families and malformed inputs. They do not execute or compile VBA.
 
-Run `Test-TDBBasisInstitutions.py` and `Test-TDBBasisDocuments.py` with the bundled Python runtime. The second test accepts explicit upgraded and original workbook paths to check preservation before applying. It checks reference integrity, incompatibilities, sample document phrases, history schemas, frozen-text source contracts and XAML bindings. These are static/data checks; Excel interaction and Word export still require runtime verification.
+After upgrading, reload TDB configuration/modules and then dependencies. Excel interaction and Word export require separate runtime verification.

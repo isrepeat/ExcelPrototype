@@ -1,0 +1,8 @@
+<textTemplate version="1">
+  <text>наказ командира</text>
+  <value field="ownUnit.genitive"/>
+  <text>(по стройовій частині) від</text>
+  <value field="order.date"/>
+  <text>№</text>
+  <value field="order.number"/>
+</textTemplate>
