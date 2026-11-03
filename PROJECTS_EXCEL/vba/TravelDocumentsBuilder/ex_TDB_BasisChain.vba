@@ -119,8 +119,8 @@ Private Sub private_Validate(ByVal row As Object)
     If VBA.Len(group) = 0 Then
         group = private_Group(VBA.CStr(row("BasisInstitution")))
     End If
-    Set definition = private_Definition("Documents", "Name", VBA.CStr(row("BasisType")))
-    If Not private_Allowed("DocumentRules", group, "DocumentId", VBA.CStr(definition("Id"))) Then
+    Set definition = ex_TDB_BasisConfig.fn_Definition("Documents", VBA.CStr(row("BasisType")))
+    If Not ex_TDB_BasisConfig.fn_Allowed("DocumentRules", group, VBA.CStr(definition("Id"))) Then
         private_Required "BasisType"
     End If
     row("BasisTypeId") = definition("Id")
@@ -170,8 +170,8 @@ Private Sub private_Validate(ByVal row As Object)
     row("BasisIssuerId") = VBA.vbNullString
     row("BasisIssuerText") = VBA.vbNullString
     If VBA.Len(VBA.CStr(row("BasisIssuer"))) > 0 Then
-        Set official = private_Definition("Officials", "Name", VBA.CStr(row("BasisIssuer")))
-        If Not private_Allowed("OfficialRules", private_OfficialGroup(VBA.CStr(row("BasisInstitution")), group), "OfficialId", VBA.CStr(official("Id"))) Then
+        Set official = ex_TDB_BasisConfig.fn_Definition("Officials", VBA.CStr(row("BasisIssuer")))
+        If Not ex_TDB_BasisConfig.fn_Allowed("OfficialRules", private_OfficialGroup(VBA.CStr(row("BasisInstitution")), group), VBA.CStr(official("Id"))) Then
             VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("basisChain.text.InvalidIssuer")
         End If
         row("BasisIssuerId") = official("Id")
@@ -324,10 +324,7 @@ Public Sub fn_ClearDraft(ByVal bindingContext As obj_UiBindingContext)
     End If
 End Sub
 
-Public Function fn_RefreshInstitutions( _
-    ByVal bindingContext As obj_UiBindingContext, _
-    Optional ByVal institutionChanged As Boolean = False _
-) As Boolean
+Public Function fn_RefreshInstitutions(ByVal bindingContext As obj_UiBindingContext) As Boolean
     Dim entry As Variant
     Dim parts As Variant
     Dim institutions As String
@@ -355,8 +352,8 @@ Public Function fn_RefreshInstitutions( _
     End If
     Set snapshot = ex_TableSnapshots.fn_Active()
     If VBA.Len(group) > 0 And Not snapshot Is Nothing Then
-        types = private_Options("Documents", "DocumentRules", "DocumentId", group)
-        roles = private_Options("Officials", "OfficialRules", "OfficialId", private_OfficialGroup(fn_Value(bindingContext, "BasisInstitution"), group))
+        types = ex_TDB_BasisConfig.fn_Options("DocumentRules", group)
+        roles = ex_TDB_BasisConfig.fn_Options("OfficialRules", private_OfficialGroup(fn_Value(bindingContext, "BasisInstitution"), group))
     End If
     If Not private_Contains(types, fn_Value(bindingContext, "BasisType")) Then
         If Not bindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then
@@ -382,7 +379,7 @@ Public Function fn_RefreshInstitutions( _
         Exit Function
     End If
     If VBA.Len(fn_Value(bindingContext, "BasisType")) > 0 Then
-        Set definition = private_Definition("Documents", "Name", fn_Value(bindingContext, "BasisType"))
+        Set definition = ex_TDB_BasisConfig.fn_Definition("Documents", fn_Value(bindingContext, "BasisType"))
         fields = VBA.CStr(definition("Fields"))
         forms = VBA.CStr(definition("Forms"))
     End If
@@ -722,7 +719,7 @@ Private Function private_DocumentField( _
         Case "BasisIssuer", "BasisIssuerText"
             private_DocumentField = VBA.CStr(row("BasisIssuerText"))
             If VBA.Len(private_DocumentField) = 0 And VBA.Len(VBA.CStr(row("BasisIssuer"))) > 0 Then
-                Set definition = private_Definition("Officials", "Name", VBA.CStr(row("BasisIssuer")))
+                Set definition = ex_TDB_BasisConfig.fn_Definition("Officials", VBA.CStr(row("BasisIssuer")))
                 private_DocumentField = VBA.CStr(definition("Text"))
             End If
         Case Else
@@ -968,64 +965,4 @@ Private Function private_OfficialGroup( _
             private_OfficialGroup = VBA.CStr(parts(1))
         End If
     Next entry
-End Function
-
-Private Function private_Allowed( _
-    ByVal rulesName As String, _
-    ByVal group As String, _
-    ByVal idField As String, _
-    ByVal identifier As String _
-) As Boolean
-    Dim rule As Object
-
-    For Each rule In private_Reference(rulesName)
-        If VBA.CStr(rule("Group")) = group And VBA.CStr(rule(idField)) = identifier Then
-            private_Allowed = True
-            Exit Function
-        End If
-    Next rule
-End Function
-
-Private Function private_Definition( _
-    ByVal sourceName As String, _
-    ByVal field As String, _
-    ByVal value As String _
-) As Object
-    Dim row As Object
-    Dim result As Object
-
-    For Each row In private_Reference(sourceName)
-        If VBA.StrComp(VBA.CStr(row(field)), value, VBA.vbTextCompare) = 0 Then
-            If Not result Is Nothing Then
-                ex_TDB_History.fn_Fail "InvalidChain"
-            End If
-            Set result = row
-        End If
-    Next row
-    If result Is Nothing Then
-        ex_TDB_History.fn_Fail "InvalidChain"
-    End If
-    If sourceName = "Documents" Then
-        ex_TDB_BasisConfig.fn_AdaptDefinition result
-    End If
-    Set private_Definition = result
-End Function
-
-Private Function private_Options( _
-    ByVal definitions As String, _
-    ByVal rulesName As String, _
-    ByVal idField As String, _
-    ByVal group As String _
-) As String
-    Dim row As Object
-
-    For Each row In private_Reference(definitions)
-        If private_Allowed(rulesName, group, idField, VBA.CStr(row("Id"))) Then
-            private_Append private_Options, VBA.CStr(row("Name"))
-        End If
-    Next row
-End Function
-
-Private Function private_Reference(ByVal name As String) As Collection
-    Set private_Reference = ex_TDB_BasisConfig.fn_Reference(name)
 End Function

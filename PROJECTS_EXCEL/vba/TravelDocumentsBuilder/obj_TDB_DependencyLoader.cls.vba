@@ -123,9 +123,6 @@ Public Function TryBuild( _
     private_Progress progressStep, progressTotal, "Orders"
     If Not orders.PrepareSnapshot(snapshot, diagnostic) Then GoTo Cleanup
 
-    ' Validate the public document contract before publishing the staged generation.
-    ex_TDB_BasisConfig.fn_Validate snapshot
-
     ' Publish only a consistent set of saved files.
     private_Progress progressStep, progressTotal, "Verify"
     For Each path In signatures.Keys
@@ -133,6 +130,8 @@ Public Function TryBuild( _
             Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("text.DependenciesSourceChanged"), "{path}", VBA.CStr(path))
         End If
     Next path
+    ' Prepare the document contract and indexes only after the source files are verified.
+    ex_TDB_BasisConfig.fn_Validate snapshot
     TryBuild = True
 Cleanup:
     If Not source Is Nothing Then source.Dispose

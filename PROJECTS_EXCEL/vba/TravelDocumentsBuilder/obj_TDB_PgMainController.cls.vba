@@ -1012,8 +1012,11 @@ Public Function BasisInstitutionChangedHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionName", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisInstitutionQuery", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "BasisType", VBA.vbNullString) Then Exit Function
-    BasisInstitutionChangedHandler = ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext, True)
-    If BasisInstitutionChangedHandler Then BasisInstitutionChangedHandler = Me.BasisInstitutionQueryChangedHandler()
+    If VBA.Len(ex_TDB_BasisChain.fn_Value(m_pageBase.BindingContext, "BasisInstitution")) = 0 Then
+        BasisInstitutionChangedHandler = ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext)
+    Else
+        BasisInstitutionChangedHandler = Me.BasisInstitutionQueryChangedHandler()
+    End If
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True
@@ -1080,7 +1083,7 @@ Public Function BasisTypeChangedHandler() As Boolean
     If Not ex_TDB_BasisChain.fn_RefreshInstitutions(m_pageBase.BindingContext) Then
         Exit Function
     End If
-    BasisTypeChangedHandler = ex_TDB_BasisChain.fn_Preview(m_pageBase.BindingContext)
+    BasisTypeChangedHandler = True
     Exit Function
 Failed:
     private_SetActionStatus VBA.Err.Description, True

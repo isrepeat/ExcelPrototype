@@ -28,22 +28,6 @@ Public Sub fn_Validate(ByVal snapshot As obj_TableSnapshotSet)
     Set m_snapshot = snapshot
 End Sub
 
-Public Sub fn_AdaptDefinition(ByVal definition As Object)
-    Dim configuration As Object
-    Dim field As Variant
-    Dim text As String
-
-    Set configuration = private_Active()
-    For Each field In VBA.Split(VBA.CStr(definition("Fields")), "|")
-        If VBA.Len(text) > 0 Then
-            text = text & "|"
-        End If
-        text = text & private_Field(configuration, VBA.CStr(field), True)
-    Next field
-    definition("Fields") = text
-    definition("Required") = private_Condition(configuration, VBA.CStr(definition("Required")))
-End Sub
-
 Public Function fn_Render( _
     ByVal profileId As String, _
     ByVal row As Object _
@@ -142,11 +126,49 @@ Public Function fn_Caption(ByVal internalField As String) As String
 End Function
 ' --------------------------------------
 
-Public Function fn_Reference(ByVal name As String) As Collection
+Public Function fn_Definition( _
+    ByVal sourceName As String, _
+    ByVal value As String _
+) As Object
     Dim configuration As Object
+    Dim definitions As Object
 
     Set configuration = private_Active()
-    Set fn_Reference = private_Read(name, m_snapshot)
+    Set definitions = configuration("Definitions")(sourceName)
+    If Not definitions.Exists(value) Then
+        ex_TDB_History.fn_Fail "InvalidChain"
+    End If
+    Set fn_Definition = definitions(value)
+End Function
+
+Public Function fn_Options( _
+    ByVal rulesName As String, _
+    ByVal group As String _
+) As String
+    Dim configuration As Object
+    Dim options As Object
+
+    Set configuration = private_Active()
+    Set options = configuration("Options")(rulesName)
+    If options.Exists(group) Then
+        fn_Options = VBA.CStr(options(group))
+    End If
+End Function
+
+Public Function fn_Allowed( _
+    ByVal rulesName As String, _
+    ByVal group As String, _
+    ByVal identifier As String _
+) As Boolean
+    Dim configuration As Object
+    Dim groups As Object
+    Dim identifiers As Object
+
+    Set configuration = private_Active()
+    Set groups = configuration("Allowed")(rulesName)
+    If Not groups.Exists(group) Then Exit Function
+    Set identifiers = groups(group)
+    fn_Allowed = identifiers.Exists(identifier)
 End Function
 ' } // namespace API
 ' --------------------------------------
@@ -159,10 +181,27 @@ Private Function private_Active() As Object
         VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     End If
     If Not m_snapshot Is snapshot Then
-        fn_Validate snapshot
+        VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
     End If
     Set private_Active = m_configuration
 End Function
+
+Private Sub private_AdaptDefinition( _
+    ByVal configuration As Object, _
+    ByVal definition As Object _
+)
+    Dim field As Variant
+    Dim text As String
+
+    For Each field In VBA.Split(VBA.CStr(definition("Fields")), "|")
+        If VBA.Len(text) > 0 Then
+            text = text & "|"
+        End If
+        text = text & private_Field(configuration, VBA.CStr(field), True)
+    Next field
+    definition("Fields") = text
+    definition("Required") = private_Condition(configuration, VBA.CStr(definition("Required")))
+End Sub
 
 Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
     Dim configuration As Object
@@ -188,13 +227,20 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
     Dim mapOutputs As Object
     Dim officialIds As Object
     Dim rule As Object
+    Dim references As Object
+    Dim name As Variant
 
     Set configuration = VBA.CreateObject("Scripting.Dictionary")
     Set fields = VBA.CreateObject("Scripting.Dictionary")
     Set bindings = VBA.CreateObject("Scripting.Dictionary")
     Set seenBindings = VBA.CreateObject("Scripting.Dictionary")
     Set bindingTypes = VBA.CreateObject("Scripting.Dictionary")
-    For Each row In private_Read("Fields", snapshot)
+    Set references = VBA.CreateObject("Scripting.Dictionary")
+    For Each name In VBA.Array("Fields", "Documents", "Officials", "DocumentRules", "OfficialRules")
+        references.Add VBA.CStr(name), private_Read(VBA.CStr(name), snapshot)
+    Next name
+    configuration.Add "References", references
+    For Each row In references("Fields")
         code = VBA.CStr(row("Code"))
         If Not private_Code(code) Or fields.Exists(code) Then
             private_Fail "InvalidSchema", code
@@ -295,7 +341,7 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
         End If
     Next key
     Set identifiers = VBA.CreateObject("Scripting.Dictionary")
-    For Each profile In private_Read("Documents", snapshot)
+    For Each profile In references("Documents")
         code = VBA.CStr(profile("Id"))
         If VBA.Len(code) = 0 Or identifiers.Exists(code) Then
             private_Fail "InvalidProfile", code
@@ -316,27 +362,103 @@ Private Function private_Build(ByVal snapshot As obj_TableSnapshotSet) As Object
             End If
         Next token
     Next profile
-    For Each rule In private_Read("DocumentRules", snapshot)
+    For Each rule In references("DocumentRules")
         If Not identifiers.Exists(VBA.CStr(rule("DocumentId"))) Then
             private_Fail "InvalidProfile", VBA.CStr(rule("DocumentId"))
         End If
     Next rule
     Set officialIds = VBA.CreateObject("Scripting.Dictionary")
-    For Each row In private_Read("Officials", snapshot)
+    For Each row In references("Officials")
         code = VBA.CStr(row("Id"))
         If VBA.Len(code) = 0 Or officialIds.Exists(code) Or VBA.Len(VBA.CStr(row("Text"))) = 0 Then
             private_Fail "InvalidSchema", "Officials: " & code
         End If
         officialIds.Add code, True
     Next row
-    For Each rule In private_Read("OfficialRules", snapshot)
+    For Each rule In references("OfficialRules")
         If Not officialIds.Exists(VBA.CStr(rule("OfficialId"))) Then
             private_Fail "InvalidProfile", VBA.CStr(rule("OfficialId"))
         End If
     Next rule
     configuration.Add "Templates", ex_TDB_BasisText.fn_Prepare(fields, profiles)
+    For Each profile In references("Documents")
+        private_AdaptDefinition configuration, profile
+    Next profile
+    private_PrepareIndexes configuration
     Set private_Build = configuration
 End Function
+
+Private Sub private_PrepareIndexes(ByVal configuration As Object)
+    Dim definitions As Object
+    Dim options As Object
+    Dim allowed As Object
+    Dim names As Object
+    Dim groups As Object
+    Dim identifiers As Object
+    Dim groupOptions As Object
+    Dim references As Object
+    Dim sourceName As Variant
+    Dim rulesName As String
+    Dim idField As String
+    Dim row As Object
+    Dim rule As Object
+    Dim group As Variant
+    Dim text As String
+    Dim name As String
+
+    Set definitions = VBA.CreateObject("Scripting.Dictionary")
+    Set options = VBA.CreateObject("Scripting.Dictionary")
+    Set allowed = VBA.CreateObject("Scripting.Dictionary")
+    Set references = configuration("References")
+    For Each sourceName In VBA.Array("Documents", "Officials")
+        Set names = VBA.CreateObject("Scripting.Dictionary")
+        names.CompareMode = VBA.vbTextCompare
+        For Each row In references(sourceName)
+            name = VBA.CStr(row("Name"))
+            If names.Exists(name) Then
+                ex_TDB_History.fn_Fail "InvalidChain"
+            End If
+            names.Add name, row
+        Next row
+        definitions.Add VBA.CStr(sourceName), names
+        If sourceName = "Documents" Then
+            rulesName = "DocumentRules"
+            idField = "DocumentId"
+        Else
+            rulesName = "OfficialRules"
+            idField = "OfficialId"
+        End If
+        Set groups = VBA.CreateObject("Scripting.Dictionary")
+        For Each rule In references(rulesName)
+            group = VBA.CStr(rule("Group"))
+            If Not groups.Exists(group) Then
+                Set identifiers = VBA.CreateObject("Scripting.Dictionary")
+                groups.Add group, identifiers
+            End If
+            Set identifiers = groups(group)
+            identifiers(VBA.CStr(rule(idField))) = True
+        Next rule
+        allowed.Add rulesName, groups
+        Set groupOptions = VBA.CreateObject("Scripting.Dictionary")
+        For Each group In groups.Keys
+            Set identifiers = groups(group)
+            text = VBA.vbNullString
+            For Each row In references(sourceName)
+                If identifiers.Exists(VBA.CStr(row("Id"))) Then
+                    If VBA.Len(text) > 0 Then
+                        text = text & ","
+                    End If
+                    text = text & VBA.CStr(row("Name"))
+                End If
+            Next row
+            groupOptions.Add group, text
+        Next group
+        options.Add rulesName, groupOptions
+    Next sourceName
+    configuration.Add "Definitions", definitions
+    configuration.Add "Options", options
+    configuration.Add "Allowed", allowed
+End Sub
 
 Private Function private_Field( _
     ByVal configuration As Object, _

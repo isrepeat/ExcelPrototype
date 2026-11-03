@@ -527,40 +527,8 @@ Public Sub CompleteControlRender( _
 End Sub
 
 Public Function FlushLayout(ByRef diagnostic As String) As Boolean
-    Dim previousEvents As Boolean
-    Dim previousScreenUpdating As Boolean
-    Dim previousShapeSeed As Long
-
-    If Not m_needsMeasure Then
-        FlushLayout = Me.FlushUpdates(diagnostic)
-        Exit Function
-    End If
-    If m_rendering Then
-        FlushLayout = True
-        Exit Function
-    End If
-    previousEvents = Application.EnableEvents
-    previousScreenUpdating = Application.ScreenUpdating
-    On Error GoTo EH_LAYOUT
-    Application.ScreenUpdating = False
-    Application.EnableEvents = False
-    m_needsMeasure = False
-    ' Old controls are disposed during rendering; never reuse their shape names.
-    previousShapeSeed = m_router.NextId()
-    m_router.Dispose
-    Set m_router = New obj_UiEventRouter
-    m_router.Initialize previousShapeSeed
-    If m_rows > 0 And m_columns > 0 Then
-        ex_UiTables.fn_ClearRange m_targetWorksheet.Cells(1, 1).Resize(m_rows, m_columns), True
-    End If
-    FlushLayout = Me.RenderTree(diagnostic)
-CleanLayout:
-    Application.ScreenUpdating = previousScreenUpdating
-    Application.EnableEvents = previousEvents
-    Exit Function
-EH_LAYOUT:
-    diagnostic = VBA.Err.Description
-    Resume CleanLayout
+    ' Visibility changes share the dirty pipeline and retain unchanged controls and routes.
+    FlushLayout = Me.FlushUpdates(diagnostic)
 End Function
 
 Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
@@ -605,14 +573,11 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
         FlushUpdates = True
         Exit Function
     End If
-    If m_needsMeasure Then
-        FlushUpdates = Me.FlushLayout(diagnostic)
-        Exit Function
-    End If
-    If m_dirty.Count = 0 Then
+    If m_dirty.Count = 0 And Not m_needsMeasure Then
         FlushUpdates = True
         Exit Function
     End If
+    needsLayout = m_needsMeasure
     For Each layoutChanged In m_dirty.Items
         If layoutChanged Then
             needsLayout = True
@@ -654,7 +619,7 @@ Public Function FlushUpdates(ByRef diagnostic As String) As Boolean
                 End If
             End If
         Next key
-        needsLayout = False
+        needsLayout = m_needsMeasure
         For Each layoutChanged In pending.Items
             If layoutChanged Then
                 needsLayout = True
@@ -749,6 +714,9 @@ NextStructure:
                             pending(key) = True
                             private_UnionArea scope, oldArea
                         End If
+                    Else
+                        m_styles.ForgetControl VBA.CStr(key)
+                        private_UnionArea scope, oldArea
                     End If
                 Else
                     private_UnionArea scope, oldAreas(key)
@@ -836,6 +804,7 @@ NextOldArea:
     phaseStartedAt = VBA.Timer
     private_ArrangeShapes
     ex_Core.fn_Diagnostic_WritePerf "Page.DirtyShapes", phaseStartedAt
+    m_needsMeasure = False
     FlushUpdates = True
     ex_Core.fn_Diagnostic_WritePerf "Page.FlushDirty | Sheet=" & m_targetWorksheet.Name & " | Count=" & VBA.CStr(pending.Count), startedAt
 CleanExit:
@@ -923,7 +892,10 @@ Public Function RenderTree(ByRef diagnostic As String) As Boolean
         ex_Core.fn_Diagnostic_WritePerf "Page.CompleteRender | Sheet=" & m_targetWorksheet.Name, stageStartedAt
     End If
     m_hasRendered = RenderTree
-    If RenderTree Then m_dirty.RemoveAll
+    If RenderTree Then
+        m_dirty.RemoveAll
+        m_needsMeasure = False
+    End If
 CleanExit:
     m_rendering = False
     Application.AutoCorrect.AutoExpandListRange = previousExpand
