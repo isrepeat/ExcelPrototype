@@ -526,6 +526,48 @@ Public Function VacationKindChangedHandler() As Boolean
     VacationKindChangedHandler = private_UpdatePlaceFields()
 End Function
 
+Public Function TripKindChangedHandler() As Boolean
+    Dim documentType As Variant
+    Dim tripKind As Variant
+    Dim duration As Variant
+    Dim wasReadOnly As Variant
+    Dim prefix As String
+    Dim isAwol As Boolean
+    Dim visibility As String
+    Dim emptyChain As New Collection
+
+    If Not private_TryReadFormValue("DocumentType", documentType) Then Exit Function
+    If Not ex_TravelDocumentsBuilder.fn_TryGetDocumentPrefix(VBA.CStr(documentType), prefix) Then Exit Function
+    If Not private_TryReadFormValue("TripKind", tripKind) Then Exit Function
+    isAwol = prefix = "BusinessTripCertificate" And VBA.CStr(tripKind) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolKind")
+    visibility = "Visible"
+    If isAwol Then visibility = "Collapsed"
+    If Not m_pageBase.BindingContext.SetValue("Form", "TripEditableVisibility", visibility) Then Exit Function
+    If Not private_TryReadFormValue("VacationDaysReadOnly", wasReadOnly) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysReadOnly", isAwol) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysLabelStyle", _
+            ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.label")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysStyle", _
+            ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then Exit Function
+    If isAwol Then
+        If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysLabelStyle", _
+                ex_TravelDocumentsBuilder.fn_Config("forms.preparedStyles.label")) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysStyle", _
+                ex_TravelDocumentsBuilder.fn_Config("forms.preparedStyles.value")) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "VacationDays", ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput")) Then Exit Function
+        If Not m_pageBase.BindingContext.SetValue("Form", "RoadDays", ex_TravelDocumentsBuilder.fn_Config("generation.defaults.RoadDays")) Then Exit Function
+        If Not private_ClearTvo() Then Exit Function
+        If Not m_pageBase.BindingContext.SetObject("Data", "TvoChain", emptyChain) Then Exit Function
+        If Not private_PublishChain(emptyChain) Then Exit Function
+    Else
+        If Not private_TryReadFormValue("VacationDays", duration) Then Exit Function
+        If VBA.CBool(wasReadOnly) And VBA.CStr(duration) = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefiniteInput") Then
+            If Not m_pageBase.BindingContext.SetValue("Form", "VacationDays", ex_TravelDocumentsBuilder.fn_Config("generation.defaults.VacationDays")) Then Exit Function
+        End If
+    End If
+    TripKindChangedHandler = True
+End Function
+
 Public Function DocumentTypeChangedHandler() As Boolean
     Dim documentType As Variant
     Dim prefix As String
@@ -599,6 +641,7 @@ Public Function DocumentTypeChangedHandler() As Boolean
     If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
         Exit Function
     End If
+    If Not Me.TripKindChangedHandler() Then Exit Function
     DocumentTypeChangedHandler = Me.VacationKindChangedHandler()
 End Function
 
@@ -624,7 +667,7 @@ Public Function ClearFormHandler() As Boolean
         updates("Form." & VBA.CStr(key)) = VBA.vbNullString
     Next key
     For Each key In VBA.Array("PlaceKind", "VacationKind", "VacationAbroad", "VacationStatus", _
-            "VacationDays", "RoadDays", "DonationDays")
+            "VacationDays", "RoadDays", "DonationDays", "TripKind")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig( _
                 "generation.defaults." & VBA.CStr(key), valueText) Then Exit Function
         updates("Form." & VBA.CStr(key)) = valueText
@@ -840,6 +883,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
             Exit Function
         End If
     End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "VacationDaysReadOnly", False) Then Exit Function
     Set chain = ex_TDB_History.fn_Load(VBA.CStr(identifier), m_pageBase.BindingContext, VBA.CStr(stamp))
     If VBA.IsEmpty(m_previousAutoFill) Then
         m_previousAutoFill = savedAutoFill
@@ -1664,7 +1708,7 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
     For Each key In VBA.Array("DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPositionCode", _
             "PersonPosition", "PersonUnit", "PersonnelQuery", "AutoFillPersonnel", "LookupIsTvo", _
             "DocumentTarget", "DepartureDate", "ReturnDate", "OrderReference", "Purpose", "ReportNo", "VacationKind", _
-            "VacationDays", "RoadDays", "DonationDays", "VacationAbroad", "VacationStatus", _
+            "VacationDays", "RoadDays", "DonationDays", "TripKind", "VacationAbroad", "VacationStatus", _
             "TvoName", "TvoIpn", "TvoPosition", "TicketNo", "DocumentPath")
         If m_pageBase.BindingContext.TryGetValue("Form", VBA.CStr(key), value, objectValue, isObject) Then
             ex_Core.fn_Diagnostic_WriteLog "TDB_FORM_RAW | Operation=" & operationId & " | Field=" & key & _

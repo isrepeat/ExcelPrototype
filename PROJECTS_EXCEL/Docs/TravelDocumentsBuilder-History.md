@@ -1,5 +1,7 @@
 # TicketsHistory persistence
 
+Business trips expose `TripKind` before status, with configured ordinary and AWOL choices. AWOL trips clear the TVO chain and road days, hide those fields, and lock the configured indefinite duration. History stores the choice in `TripKind` and `Snapshot.TripKind`. Before deploying this schema, upgrade the history workbook with `WorkbookUpdater/Upgrade-TDBBasisWorkbooks.py`, which reads both column sets from wsConfig. Existing rows have an empty TripKind and retain ordinary behavior until explicitly changed.
+
 TravelDocumentsBuilder stores events in the open `TicketsHistory.xlsx` next to the application workbook. `history.path`, `history.sheet`, `history.table` and `history.versions` configure the target. The writer requires the exact configured workbook path, a writable workbook, and the configured column sets. It never opens, closes or saves the history workbook automatically. Deploy `ex_TDB_History`, the TDB generator, controller and page together with MainPage.xaml and wsConfig. The existing source profile includes the new module through `TravelDocumentsBuilder/*.vba`.
 
 ## Editing workflow

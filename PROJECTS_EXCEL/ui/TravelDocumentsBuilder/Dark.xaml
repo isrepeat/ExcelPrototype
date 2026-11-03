@@ -28,6 +28,8 @@
          value="#999999"/>
   <color name="PopupBackground"
          value="#383838"/>
+  <color name="PreparedValueBackground"
+         value="#292929"/>
   <color name="ReadOnlyFieldText"
          value="#AE7A55"/>
   <color name="ReadOnlyOrderText"

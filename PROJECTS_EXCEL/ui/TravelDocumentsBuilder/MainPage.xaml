@@ -2,6 +2,7 @@
 <page xmlns="urn:excelprototype:profiles"
       xmlns:controls="urn:excelprototype:controls"
       version="1"
+      styleSources="CommonControlStyles.xaml"
       paletteSources="Dark.xaml;Light.xaml"
       palette="{Binding Path=Settings.Theme}">
   <grid row="2"
@@ -42,6 +43,22 @@
                          onChange="{Binding Path=Commands.VacationKindChanged}"
                          panelStyle="formSelectPanel"
                          itemStyle="formSelectItem"/>
+      </grid>
+      <grid visibility="{Binding Path=Form.TripVisibility}">
+        <controls:label name="TripKindLabel"
+                        row="1"
+                        column="1"
+                        style="formLabel"
+                        text="{Binding Path=Text.TripKind}"/>
+        <controls:select name="TripKind"
+                         itemsSource="{Binding Path=Data.TripKinds}"
+                         row="1"
+                         column="2"
+                         style="formField"
+                         value="{Binding Path=Form.TripKind}"
+                         panelStyle="formSelectPanel"
+                         itemStyle="formSelectItem"
+                         onChange="{Binding Path=Commands.TripKindChanged}"/>
       </grid>
       <grid>
         <controls:label name="VacationStatusLabel"
@@ -325,15 +342,16 @@
         <controls:label name="VacationDaysLabel"
                         row="1"
                         column="1"
-                        style="formLabel"
+                        style="{Binding Path=Form.VacationDaysLabelStyle}"
                         text="{Binding Path=Text.VacationDays}"/>
         <controls:input name="VacationDays"
                         row="1"
                         column="2"
-                        style="formField"
-                        value="{Binding Path=Form.VacationDays}"/>
+                        style="{Binding Path=Form.VacationDaysStyle}"
+                        value="{Binding Path=Form.VacationDays}"
+                        readOnly="{Binding Path=Form.VacationDaysReadOnly}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.TripEditableVisibility}">
         <controls:label name="RoadDaysLabel"
                         row="1"
                         column="1"
@@ -425,7 +443,7 @@
                           value="{Binding Path=Form.TreatmentLeaveDays}"/>
         </grid>
       </stackPanel>
-      <grid>
+      <grid visibility="{Binding Path=Form.TripEditableVisibility}">
         <controls:label name="TvoNameLabel"
                         row="1"
                         column="1"
@@ -444,7 +462,7 @@
                          caption="{Binding Path=Text.AddTvo}"
                          command="{Binding Path=Commands.AddTvo}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.TripEditableVisibility}">
         <controls:label name="TvoIpnLabel"
                         row="1"
                         column="1"
@@ -457,7 +475,7 @@
                         value="{Binding Path=Form.TvoIpn}"
                         readOnly="{Binding Path=Form.TvoIpnReadOnly}"/>
       </grid>
-      <grid>
+      <grid visibility="{Binding Path=Form.TripEditableVisibility}">
         <controls:label name="TvoPositionLabel"
                         row="1"
                         column="1"

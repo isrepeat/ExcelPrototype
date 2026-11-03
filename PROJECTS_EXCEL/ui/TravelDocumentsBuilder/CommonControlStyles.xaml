@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<styleCatalog xmlns="urn:excelprototype:profiles"
+              version="1">
+  <controlStyle name="preparedValue"
+                cellType="text"
+                paddingLeft="10"
+                paddingRight="10"
+                backColor="{ThemeResource PreparedValueBackground}"
+                textColor="{ThemeResource MutedText}"
+                fontName="Calibri"
+                fontSize="11"
+                fontBold="false"
+                borderColor="{ThemeResource Border}"
+                borderWeight="thin"
+                horizontal="left"
+                vertical="center"/>
+  <controlStyle name="preparedValueLabel"
+                paddingLeft="10"
+                paddingRight="10"
+                backColor="{ThemeResource LabelBackground}"
+                textColor="{ThemeResource MutedText}"
+                fontName="Calibri"
+                fontSize="11"
+                fontBold="false"
+                borderColor="{ThemeResource Border}"
+                borderWeight="thin"
+                horizontal="right"
+                vertical="center"/>
+</styleCatalog>

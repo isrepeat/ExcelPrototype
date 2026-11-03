@@ -646,7 +646,7 @@ Private Sub private_ReadForm()
 
     Set m_form = VBA.CreateObject("Scripting.Dictionary")
     For Each key In VBA.Array("HistoryRowId", "HistoryStamp", "ChangeReason", "PersonUnit", "DocumentType", "PersonName", "PersonId", "PersonRank", "PersonPosition", "PersonPositionCode", _
-            "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "VacationDays", "RoadDays", _
+            "DocumentTarget", "DepartureDate", "OrderReference", "VacationKind", "TripKind", "VacationDays", "RoadDays", _
             "DonationDays", "VacationAbroad", "VacationStatus", "ReportNo", "Purpose", "TvoName", "TvoIpn", "TvoPosition", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "WeaponLine", "PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", "AutoFillPersonnel", _

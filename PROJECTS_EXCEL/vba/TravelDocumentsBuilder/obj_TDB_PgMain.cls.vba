@@ -247,7 +247,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Form", "DomesticPlaceFieldsVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Form", "ForeignPlaceFieldsVisibility", "Collapsed") Then Exit Function
     For Each key In VBA.Array("PlaceKind", "VacationKind", "VacationAbroad", "VacationStatus", "VacationDays", _
-            "RoadDays", "DonationDays")
+            "RoadDays", "DonationDays", "TripKind")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.defaults." & VBA.CStr(key), valueText) Then
             Exit Function
         End If
@@ -262,10 +262,12 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not bindingContext.SetValue("Form", "VacationVisibility", "Visible") Then
         Exit Function
     End If
+    If Not bindingContext.SetValue("Form", "VacationDaysReadOnly", False) Then Exit Function
+    If Not bindingContext.SetValue("Form", "TripEditableVisibility", "Visible") Then Exit Function
     If Not bindingContext.SetValue("Form", "TripVisibility", "Collapsed") Then
         Exit Function
     End If
-    For Each key In VBA.Array("PlaceKinds", "VacationKinds", "AbroadOptions", "StatusOptions")
+    For Each key In VBA.Array("PlaceKinds", "VacationKinds", "AbroadOptions", "StatusOptions", "TripKinds")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("generation.items." & VBA.CStr(key), valueText) Then
             Exit Function
         End If
@@ -282,7 +284,7 @@ Private Function private_TryRegisterBindings() As Boolean
     Next key
     For Each key In VBA.Array("WeaponLine", "PlaceKind", "PlaceRegion", "PlaceType", "PlaceName", "PlaceDistrict", _
             "PlaceCountry", "PlaceCountryEn", "PlaceRegionEn", "PlaceNameEn", _
-            "VacationKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
+            "VacationKind", "TripKind", "OrderReference", "VacationDays", "RoadDays", "DonationDays", _
             "VlkNo", "VlkDate", "LongTreatmentDays", "TreatmentLeaveDays", _
             "VacationAbroad", "VacationStatus", "TvoName", "TvoIpn", "TvoPosition", _
             "SaveHistory", "ExportWord", "ClearForm", "ReportNo", "TicketNo", "LastStatus", _
@@ -338,6 +340,8 @@ Private Function private_TryRegisterCommands() As Boolean
             bindingContext, "RefreshPersonnel", "RefreshPersonnelHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "DocumentTypeChanged", "DocumentTypeChangedHandler") Then Exit Function
+    If Not private_TryRegisterCommand( _
+            bindingContext, "TripKindChanged", "TripKindChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "SaveHistory", "SaveHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand( _

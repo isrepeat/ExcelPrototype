@@ -555,6 +555,9 @@ Public Function fn_Load( _
         updates.Add "Form." & pair(0), root(pair(1))
     Next mapping
     updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(root)
+    If VBA.Len(private_Text(root("TripKind"))) = 0 Then
+        updates("Form.TripKind") = ex_TravelDocumentsBuilder.fn_Config("generation.defaults.TripKind")
+    End If
     Set basisChain = ex_TDB_BasisChain.fn_FromGroup(group)
     updates("Form.BasisOwnText") = VBA.vbNullString
     If ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) = "BusinessTripCertificate" Then
