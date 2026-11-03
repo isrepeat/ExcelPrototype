@@ -150,6 +150,11 @@ Public Sub Dispose()
     Set m_pageBase = Nothing
 End Sub
 
+Public Function ReloadPageHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    ReloadPageHandler = ex_UiPageManager.fn_RenderPage()
+End Function
+
 Public Function ToggleThemeHandler() As Boolean
     Dim currentTheme As Variant
     Dim objectValue As Object
@@ -168,8 +173,7 @@ Public Function ToggleThemeHandler() As Boolean
             diagnostic = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("text.ThemeUnknown"), "{name}", VBA.CStr(currentTheme))
             GoTo Failed
     End Select
-    If Not m_pageBase.ApplyTheme(nextTheme, diagnostic) Then GoTo Failed
-    ToggleThemeHandler = m_pageBase.BindingContext.SetValue("Settings", "Theme", nextTheme)
+    ToggleThemeHandler = private_ApplyTheme(nextTheme)
     Exit Function
 Failed:
     ex_WindowsUi.fn_ShowMessage VBA.Replace$( _
@@ -1700,6 +1704,20 @@ Private Function private_BuildPersonnelStatus( _
         private_BuildPersonnelStatus = VBA.Replace$(m_messages("PersonnelCount"), _
             "{count}", VBA.CStr(result.RowCount))
     End If
+End Function
+
+Private Function private_ApplyTheme(ByVal name As String) As Boolean
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.ApplyTheme(name, diagnostic) Then
+        ex_WindowsUi.fn_ShowMessage VBA.Replace$( _
+            ex_TravelDocumentsBuilder.fn_Config("text.ThemeFailed"), "{detail}", diagnostic), VBA.vbExclamation
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Settings", "Theme", name) Then Exit Function
+    If Not ex_Core.fn_TrySetWorkbookConfigValue("TravelDocumentsBuilder::ui.theme", name) Then Exit Function
+    private_ApplyTheme = True
 End Function
 
 Private Function private_TryReadFormValue( _

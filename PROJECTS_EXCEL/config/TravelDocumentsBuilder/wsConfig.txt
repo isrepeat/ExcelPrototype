@@ -34,6 +34,7 @@ value	TravelDocumentsBuilder::text.BasisTitle	Документи-підстав�
 value	TravelDocumentsBuilder::text.ExportWord	Експорт WORD — весь наказ
 value	TravelDocumentsBuilder::text.LastStatus	Статус останньої дії
 value	TravelDocumentsBuilder::text.RankHeader	Звання
+value	TravelDocumentsBuilder::text.ReloadPage	↻
 value	TravelDocumentsBuilder::text.StyleWidth	Некоректне обмеження ширини.
 value	TravelDocumentsBuilder::text.UnitHeader	Підрозділ
 value	TravelDocumentsBuilder::text.WeaponLine	Зброя
@@ -64,7 +65,7 @@ value	TravelDocumentsBuilder::text.PersonIdLabel	ІПН
 value	TravelDocumentsBuilder::text.PersonnelMore	Показано перші {count}. Уточніть пошук.
 value	TravelDocumentsBuilder::text.PlaceDistrict	Район
 value	TravelDocumentsBuilder::text.PlaceRegionEn	Регіон (EN)
-value	TravelDocumentsBuilder::text.SearchSection	ПОШУК ВІЙСЬКОВОСЛУЖБОВЦЯ
+value	TravelDocumentsBuilder::text.SearchSection	ПОШУК
 value	TravelDocumentsBuilder::text.StyleCellType	Непідтримуване значення cellType.
 value	TravelDocumentsBuilder::text.StyleProperty	Непідтримувана властивість стилю: {value}
 value	TravelDocumentsBuilder::text.StyleRangeKey	Селектор не підтримується для діапазону: {value}
@@ -622,6 +623,6 @@ value	TravelDocumentsBuilder::declensions.positions.characters	А=A|В=B|С=C
 value	TravelDocumentsBuilder::declensions.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)
 value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	TravelDocumentsBuilder::configRefresh.text.Success	Конфігурацію оновлено: {path}
-value	TravelDocumentsBuilder::documentTypes.ids	BusinessTripCertificate,VacationTicket
-value	TravelDocumentsBuilder::documentTypes.items	Посвідчення про відрядження,Відпускний квиток
+value	TravelDocumentsBuilder::documentTypes.ids	VacationTicket,BusinessTripCertificate
+value	TravelDocumentsBuilder::documentTypes.items	Відпускний квиток,Посвідчення про відрядження
 value	TravelDocumentsBuilder::documentTypes.default	Відпускний квиток

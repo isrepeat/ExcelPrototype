@@ -304,7 +304,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonIdLabel", "PersonRankLabel", "PersonPositionLabel", "PersonUnitLabel", _
             "RefreshPersonnel", "AutoFillPersonnelLabel", "Title", "PersonnelSection", _
             "DocumentSection", "SearchSection", "PersonPositionCodeLabel", _
-            "CheckboxChecked", "CheckboxUnchecked", "ActionsSection", "ToggleTheme")
+            "CheckboxChecked", "CheckboxUnchecked", "ActionsSection", "ToggleTheme", "ReloadPage")
         If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then
             Exit Function
         End If
@@ -328,6 +328,7 @@ Private Function private_TryRegisterCommands() As Boolean
     Set bindingContext = m_pageBase.BindingContext
     If bindingContext Is Nothing Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "ToggleTheme", "ToggleThemeHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "ReloadPage", "ReloadPageHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "PersonNameChanged", "PersonNameChangedHandler") Then Exit Function
     If Not private_TryRegisterCommand( _

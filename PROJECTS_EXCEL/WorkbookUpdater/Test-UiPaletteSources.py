@@ -68,6 +68,8 @@ for line in (ROOT / "config/TravelDocumentsBuilder/wsConfig.txt").read_text(enco
     assert key not in config, ("Duplicate config key", key)
     config[key] = value
 assert config["TravelDocumentsBuilder::ui.theme"] in {"Dark", "Light"}
+assert page.attrib["paletteSources"] == "Dark.xaml;Light.xaml"
+assert {ET.parse(path).getroot().attrib["name"] for path in tdb.parent.glob("*.xaml") if path.name != "MainPage.xaml"} == {"Dark", "Light"}
 assert config["TravelDocumentsBuilder::text.ToggleTheme"]
 assert "{detail}" in config["TravelDocumentsBuilder::text.ThemeFailed"]
 assert page.attrib["palette"] == "{Binding Path=Settings.Theme}"
@@ -91,6 +93,10 @@ for name in ("Dark", "Light"):
     light_level = sum(bytes.fromhex(colors["ThemeLightText"][1:]))
     dark_level = sum(bytes.fromhex(colors["ThemeDarkText"][1:]))
     assert light_level < dark_level
+    if name == "Light":
+        assert colors["StatusHeadingBackground"] != colors["FieldBackground"]
+        assert colors["StatusBackground"] != colors["PageBackground"]
+        assert colors["TableStripeBackground"] != colors["FieldBackground"]
 palette_source = (ROOT / "vba/common/[2] classes/obj_UiPalette.cls.vba").read_text(encoding="utf-8-sig")
 for diagnostic in re.findall(r'fn_Raise "([^"]+)"', palette_source):
     assert config.get("TravelDocumentsBuilder::text.Style" + diagnostic), diagnostic

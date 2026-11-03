@@ -66,4 +66,12 @@
          value="#858585"/>
   <color name="TodayBackground"
          value="#375D7A"/>
+  <color name="StatusHeadingBackground"
+         value="#2D2D2D"/>
+  <color name="StatusBackground"
+         value="#262626"/>
+  <color name="PopupBorder"
+         value="#000000"/>
+  <color name="PopupText"
+         value="#F4A46B"/>
 </palette>

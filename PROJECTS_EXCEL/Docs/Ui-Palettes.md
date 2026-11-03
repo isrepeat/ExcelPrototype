@@ -31,6 +31,8 @@ Inline caption colors accept palette references, for example `[[color={ThemeReso
 
 Modes that opt into palettes must provide the `text.StylePalette*` diagnostic templates used by `obj_UiPalette`, plus `text.StyleThemeContext`, in wsConfig. TDB includes these templates; the generic engine does not supply hardcoded user-facing fallback messages.
 
-TDB exposes `Commands.ToggleTheme` and a button replacing the actions heading at the top of the right panel. Its initial theme comes from `TravelDocumentsBuilder::ui.theme` in wsConfig; switching lasts for the current page session and does not save a preference into the workbook. Button text and the failure template also come from wsConfig.
+TDB exposes `Commands.ToggleTheme` and a button replacing the actions heading at the top of the right panel. Its initial theme comes from `TravelDocumentsBuilder::ui.theme` in wsConfig. After switching, the same key is updated through the workbook configuration API. Saving the workbook persists the preference for reopening; switching does not automatically save unrelated workbook edits or rewrite the source wsConfig.txt file. Explicitly importing configuration from that source can replace the saved preference. Button text and the failure template also come from wsConfig.
+
+TDB has two palettes: `Dark` and `Light`. The light palette uses a gray-beige canvas, warm walnut accents and a darker popup surface with a separate border and text color. Status headings and bodies use independent `StatusHeadingBackground` and `StatusBackground` resources. Experimental palette buttons and their settings are removed; the theme toggle switches directly between Dark and Light.
 
 Run `python PROJECTS_EXCEL/WorkbookUpdater/Test-UiPaletteSources.py` and `pwsh -File Scripts/PowerShell/Test-UiStyleSources.ps1` for static palette and style-source checks. These checks do not execute or compile VBA and do not establish Excel runtime correctness.
