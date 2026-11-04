@@ -51,11 +51,13 @@ End Function
 
 Public Function fn_CertificatePosition( _
     ByVal positionCode As String, _
-    ByVal positionName As String, _
-    ByVal personRank As String _
+    ByVal personRank As String, _
+    Optional ByVal required As Boolean = True _
 ) As String
     Dim key As String
     Dim specialPosition As String
+    Dim values As Object
+    Dim position As String
 
     key = private_PositionKey(positionCode)
     If key = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.spis.code") Then
@@ -63,8 +65,17 @@ Public Function fn_CertificatePosition( _
     Else
         specialPosition = private_SpecialPosition(key, personRank)
     End If
-    fn_CertificatePosition = specialPosition
-    If VBA.Len(specialPosition) = 0 Then fn_CertificatePosition = positionName
+    If VBA.Len(specialPosition) > 0 Then
+        fn_CertificatePosition = specialPosition
+        Exit Function
+    End If
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    values.Add "PersonPositionCode", key
+    If VBA.Len(key) > 0 Then position = private_Lookup("declensions.certificate", values)
+    If required And VBA.Len(position) = 0 Then
+        VBA.Err.Raise 5, , VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("declensions.certificate.missing"), "{code}", positionCode)
+    End If
+    fn_CertificatePosition = position
 End Function
 ' } // namespace API
 ' --------------------------------------

@@ -229,6 +229,10 @@ Public Function TrySave( _
     Next key
     private_LogStage "EnrichDeclensions"
     ex_TDB_Declensions.fn_Enrich m_form
+    m_form("PositionDative") = ex_TDB_Declensions.fn_CertificatePosition( _
+        VBA.CStr(m_form("PersonPositionCode")), _
+        VBA.CStr(m_form("PersonRank")), _
+        m_documentId = "BusinessTripCertificate")
     m_form("PersonPosition") = ex_TDB_Declensions.fn_HistoryPosition( _
         VBA.CStr(m_form("PersonPositionCode")), VBA.CStr(m_form("PersonPosition")))
     private_LogStage "ValidateDurationAndKind"
@@ -361,6 +365,7 @@ Public Function TrySave( _
     metadata.Add "FIODative", m_form("FIODative")
     metadata.Add "FIOInitialsGenitive", m_form("FIOInitialsGenitive")
     metadata.Add "PositionGenitive", m_form("PositionGenitive")
+    metadata.Add "PositionDative", m_form("PositionDative")
     metadata.Add "OrderDate", orderDate
     metadata.Add "ReportNumber", m_form("ReportNo")
     metadata.Add "Basis", m_form("Purpose")
@@ -606,7 +611,7 @@ Public Function TryRender( _
         m_form(pair(0)) = VBA.CStr(root(pair(1)))
     Next mapping
     For Each key In VBA.Array("RankGenitive", "RankDative", "FIOAccusative", "FIODative", _
-            "FIOInitialsGenitive", "PositionGenitive")
+            "FIOInitialsGenitive", "PositionGenitive", "PositionDative")
         m_form(key) = VBA.CStr(root(key))
     Next key
     private_ValidateTreatment
@@ -1272,9 +1277,9 @@ Private Sub private_GenerateWord( _
     If UBound(parts) < 2 Then
         private_Fail "Invalid", private_FieldCaption("PersonName")
     End If
-    initials = m_form("PersonRank") & " " & parts(0) & VBA.ChrW$(160) & _
-        VBA.Left$(parts(1), 1) & "." & VBA.Left$(parts(2), 1) & "."
     If m_wordMode = "markers" Then
+        initials = m_form("PersonRank") & " " & parts(0) & VBA.ChrW$(160) & _
+            VBA.Left$(parts(1), 1) & "." & VBA.Left$(parts(2), 1) & "."
         duration = private_CountForm(vacationDays, "vacation")
         If donationDays > 0 Then
             duration = duration & " " & m_config("duration.connector") & " " & _
@@ -1290,11 +1295,12 @@ Private Sub private_GenerateWord( _
     End If
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
         "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer")
-    values = VBA.Array(VBA.vbNullString, ticketNo, m_form("RankDative") & " " & m_form("FIODative"), _
+    values = VBA.Array(VBA.vbNullString, ticketNo, VBA.vbNullString, _
         kindWord, m_form("DocumentTarget"), duration, VBA.vbNullString, VBA.vbNullString, _
         initials, VBA.vbNullString, abroad, VBA.vbNullString)
     If m_wordMode = "markers" Then
         values(0) = private_WordDate(orderDate)
+        values(2) = m_form("RankDative") & " " & m_form("FIODative")
         values(6) = private_WordDate(departure)
         values(7) = private_WordDate(finalReturn)
     End If
@@ -1307,7 +1313,13 @@ Private Sub private_GenerateWord( _
         m_wordValues("DateArrival") = values(9)
     End If
     If m_wordMode = "table" Then
+        m_wordValues("ReturnSurname") = parts(0)
+        m_wordValues("ReturnFirstInitial") = VBA.Left$(parts(1), 1)
+        m_wordValues("ReturnMiddleInitial") = VBA.Left$(parts(2), 1)
         m_wordValues("SignatoryPosition") = signatory("SignatoryPosition")
+        m_wordValues("SignatoryUnitSuffix") = ex_TravelDocumentsBuilder.fn_Config("word.signatory.unitSuffix")
+        m_wordValues("SignatoryHasUnit") = VBA.InStr(1, ex_TableQuery.fn_NormalizeText(VBA.CStr(signatory("SignatoryPosition"))), _
+            m_wordValues("SignatoryUnitSuffix"), VBA.vbTextCompare) > 0
         m_wordValues("SignatoryRank") = signatory("SignatoryRank")
         m_wordValues("SignatoryName") = signatory("SignatoryName")
         private_SetWordDate "TicketDate", orderDate
@@ -1331,8 +1343,11 @@ Private Sub private_GenerateWord( _
         If donationDays <> 0 Then
             private_Fail "Invalid", private_FieldCaption("DonationDays")
         End If
-        m_wordValues("Position") = ex_TDB_Declensions.fn_CertificatePosition( _
-            VBA.CStr(m_form("PersonPositionCode")), VBA.CStr(m_form("PersonPosition")), VBA.CStr(m_form("PersonRank")))
+        m_wordValues("Position") = m_form("PositionDative")
+        If VBA.Len(m_wordValues("Position")) = 0 Then
+            m_wordValues("Position") = ex_TDB_Declensions.fn_CertificatePosition( _
+                VBA.CStr(m_form("PersonPositionCode")), VBA.CStr(m_form("PersonRank")))
+        End If
         m_wordValues("TravelPlace") = m_form("DocumentTarget")
         m_wordValues("TripIndefinite") = private_IsIndefinite(vacationDays)
         m_wordValues("TripDeparture") = VBA.Format$(departure, "dd.mm.yyyy")

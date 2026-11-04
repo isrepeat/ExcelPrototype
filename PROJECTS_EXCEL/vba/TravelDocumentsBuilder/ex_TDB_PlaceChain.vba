@@ -67,7 +67,9 @@ Public Function fn_FromValues(ByVal values As Object) As Object
     address = ex_TDB_Places.fn_RowAddress(row)
     If VBA.CBool(values("AutoFillPersonnel")) Then
         If VBA.StrComp(address, row("Destination"), VBA.vbBinaryCompare) <> 0 Then
-            VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
+            If Not isAbroad Or VBA.StrComp(ex_TDB_Places.fn_RowAddress(row, True), row("Destination"), VBA.vbBinaryCompare) <> 0 Then
+                VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Stale")
+            End If
         End If
     ElseIf isAbroad Then
         row("Destination") = address

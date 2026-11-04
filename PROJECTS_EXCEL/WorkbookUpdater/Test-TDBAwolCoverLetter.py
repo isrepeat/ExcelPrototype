@@ -53,7 +53,8 @@ class AwolCoverLetterTests(unittest.TestCase):
                   'CompanionNotification', 'CompanionRank', 'CompanionName',
                   'CompanionTicketNumber', 'CompanionOrderDate', 'TicketDateDay',
                   'TicketDateMonth', 'TicketDateYear',
-                  'SignatoryPosition', 'SignatoryRank', 'SignatoryName'}
+                  'SignatoryPosition', 'SignatoryRank', 'SignatoryName',
+                  'SignatoryHasUnit', 'SignatoryUnitSuffix'}
         referenced = set(re.findall(r'\[(\w+)\]', ''.join(self.catalog.itertext())))
         self.assertEqual(referenced, fields)
         for type_id in self.config[PREFIX + 'notificationTypes'].split('|'):

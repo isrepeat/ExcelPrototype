@@ -226,9 +226,12 @@ with zipfile.ZipFile(template) as archive:
         assert text.count("{\\exportTable:" + table_name + "_Begin}") == 1
         assert text.count("{\\exportTable:" + table_name + "_End}") == 1
         assert all("{[" + field + "]}" in table_text for field in signature_fields)
-    for marker in markers:
-        if marker != "FooterSpacer":
-            assert "{" + marker + "}" in text or "{[" + marker + "]}" in table_text, f"Template placeholder missing: {marker}"
+        assert "{[RankDative]} {[FIODative]}" in table_text
+        assert "{[ReturnFirstInitial]}.{[ReturnMiddleInitial]}." in table_text
+    else:
+        for marker in markers:
+            if marker != "FooterSpacer":
+                assert "{" + marker + "}" in text, f"Template placeholder missing: {marker}"
 
 # Validate explicit dependency ranges and source headers against saved XLSX files.
 def source_headers(prefix):

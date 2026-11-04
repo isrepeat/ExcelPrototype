@@ -161,7 +161,8 @@ End Function
 
 Public Function fn_Address( _
     ByVal fields As Object, _
-    ByVal isAbroad As Boolean _
+    ByVal isAbroad As Boolean, _
+    Optional ByVal includeForeignRegion As Boolean = False _
 ) As String
     Dim address As String
     Dim field As Variant
@@ -189,8 +190,10 @@ Public Function fn_Address( _
         en = VBA.CStr(fields("CountryEn"))
     Else
         If VBA.Len(fields("Type")) > 0 Then ua = fields("Type") & VBA.Space$(1) & ua
-        If VBA.Len(fields("Region")) > 0 And fields("Region") <> fields("Name") Then ua = ua & separator & fields("Region")
-        If VBA.Len(fields("RegionEn")) > 0 And fields("RegionEn") <> fields("NameEn") Then en = en & separator & fields("RegionEn")
+        If includeForeignRegion Then
+            If VBA.Len(fields("Region")) > 0 And fields("Region") <> fields("Name") Then ua = ua & separator & fields("Region")
+            If VBA.Len(fields("RegionEn")) > 0 And fields("RegionEn") <> fields("NameEn") Then en = en & separator & fields("RegionEn")
+        End If
         ua = ua & separator & fields("Country")
         en = en & separator & fields("CountryEn")
     End If
@@ -203,7 +206,10 @@ Public Function fn_FormFields() As Variant
     fn_FormFields = VBA.Split(ex_TravelDocumentsBuilder.fn_Config("placeChain.fields"), "|")
 End Function
 
-Public Function fn_RowAddress(ByVal row As Object) As String
+Public Function fn_RowAddress( _
+    ByVal row As Object, _
+    Optional ByVal includeForeignRegion As Boolean = False _
+) As String
     Dim fields As Object
     Dim mapping As Variant
     Dim pair As Variant
@@ -215,7 +221,7 @@ Public Function fn_RowAddress(ByVal row As Object) As String
         pair = VBA.Split(mapping, "=")
         fields(pair(0)) = row(pair(1))
     Next mapping
-    fn_RowAddress = fn_Address(fields, isAbroad)
+    fn_RowAddress = fn_Address(fields, isAbroad, includeForeignRegion)
 End Function
 ' --------------------------------------
 ' } // namespace API

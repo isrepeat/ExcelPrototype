@@ -82,7 +82,7 @@ Technical DSL validation errors use `Err.Raise` and are returned to the export b
           <text>Виданий</text>
         </cell>
         <cell style="Body">
-          <text>{[PersonalLine]}</text>
+          <text>{[RankDative]} {[FIODative]}</text>
         </cell>
       </row>
     </table>
@@ -168,7 +168,7 @@ History loading restores multiple places into the ordered chain and clears the d
 
 `Шаблони/Відрядження (DSL).docx` is the business-trip scaffold. Its unique top-level markers are `{\exportTable:BusinessTrip_Begin}` and `{\exportTable:BusinessTrip_End}`. The separate `BusinessTripTable.xml` catalog contains the matching `BusinessTrip` template. It preserves the original six-column front grid without the duplicate receiving-unit rows and appendix 29, using the same font styles, emblem and signature layout as vacation tickets. The validity notice and optional weapon line follow the original grid inside the DSL table. The reverse-side form is retained from `Відрядження (Шаблон).docx`; an explicit page break before its continuation heading keeps both reverse headings together on page two. The original DOCX is unchanged.
 
-The front table requires `TicketDate`, `TicketNum`, `PersonalLine`, `Position`, `TravelPlace`, `Duration`, `Basis` and `WeaponLine`. Basis is assembled from the selected order and structured additional documents; the sample course purpose and its separate form field are removed. `WeaponLine` contains optional weapon details supplied by the form: an empty string omits the entire row; a nonempty string is printed after the fixed prefix «Слідує зі зброєю: ». The final table rows use `{[SignatoryPosition]}`, `{[SignatoryRank]}` and `{[SignatoryName]}`. The existing destination input and ordered place chain supply TravelPlace for towns, military units and institutions; there is no separate receiving-unit input or duplicate destination row.
+The front table requires `TicketDate`, `TicketNum`, `RankDative`, `FIODative`, `Position`, `TravelPlace`, `Duration`, `Basis` and `WeaponLine`. Basis is assembled from the selected order and structured additional documents; the sample course purpose and its separate form field are removed. `WeaponLine` contains optional weapon details supplied by the form: an empty string omits the entire row; a nonempty string is printed after the fixed prefix «Слідує зі зброєю: ». The final table rows use `{[SignatoryPosition]}`, `{[SignatoryRank]}` and `{[SignatoryName]}`. The existing destination input and ordered place chain supply TravelPlace for towns, military units and institutions; there is no separate receiving-unit input or duplicate destination row.
 
 Both document types are enabled. The form shows the optional `WeaponLine` (weapon details) for business trips. The business-trip basis is generated from the selected order and additional documents and stored as `Basis`; the free-text `Purpose` control is visible only for vacation tickets. Main-form captions have no required-field stars. `VacationDays` is displayed as trip days; road days are added to a positive inclusive duration. The configured generation.businessTrip.indefiniteInput phrase (currently «до о/р») means «до окремого розпорядження.» and leaves the planned return date blank, even when road days are nonzero. The canonical configured phrase is stored directly in VacationDays and its revision snapshots. Empty, zero, negative or malformed main durations fail with the configured durationError hint, which includes the accepted phrase. Vacation days must be strictly positive. Blank main duration inputs are errors in both modes. Input validation and return-date calculation occur only when saving to TicketsHistory; there are no duration/date cell-change handlers. Export reads saved durations and checks persisted-data integrity; old zero-day trip records must be corrected explicitly rather than silently treated as indefinite. Donation days are zero and VLK fields are cleared in this mode. Vacation controls retain their previous behavior.
 
@@ -196,7 +196,7 @@ Saving an event resolves grammatical forms from the loaded SHPO dictionaries, us
 
 TicketsHistory requires six additional columns in `tbTickets`: `RankGenitive`, `RankDative`, `FIOAccusative`, `FIODative`, `FIOInitialsGenitive`, and `PositionGenitive`. Add the corresponding `Snapshot.<field>` columns to `tbTicketRevisions`. They are independent of the four VLK columns. Saving records these forms in the event and revision snapshots. Events with missing grammatical forms remain exportable with blank values in the corresponding slots; opening and saving an event again can populate forms after the dictionaries are completed.
 
-Word export uses the saved forms without consulting current dictionaries. `PersonalLine` combines `RankDative` and `FIODative`; all six saved fields are also available as table DSL placeholders. The existing nominative `PersonalInitials` remains appropriate for the return acknowledgement.
+The table catalogs combine the saved `RankDative` and `FIODative` in the recipient line. The vacation return line uses the saved nominative rank and the separately supplied surname and initial letters. The legacy marker renderer formats `PersonalLine` and `PersonalInitials` for scalar DOCX placeholders.
 
 ## Rendering and verification
 

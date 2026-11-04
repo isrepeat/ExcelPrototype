@@ -171,7 +171,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="4"
               style="Body">
-          <text>{[SignatoryPosition]}</text>
+          <text>{[SignatoryPosition]}{#if #not [SignatoryHasUnit]} {[SignatoryUnitSuffix]}{#endif}</text>
         </cell>
         <cell/>
       </row>

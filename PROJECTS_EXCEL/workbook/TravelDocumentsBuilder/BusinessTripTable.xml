@@ -18,7 +18,8 @@
                spaceAfter="0pt"/>
     <cellStyle name="SignatureName"
                basedOn="Body"
-               horizontal="right"/>
+               horizontal="right"
+               borderBottom="single"/>
     <cellStyle name="Centered"
                basedOn="Body"
                horizontal="center"/>
@@ -55,6 +56,7 @@
                basedOn="Body"
                borderBottom="single"/>
     <cellStyle name="Basis"
+               horizontal="justify"
                spaceBefore="4pt"/>
   </styles>
   <template name="BusinessTrip">
@@ -227,7 +229,7 @@
         <cell columnSpan="4"
               style="Underlined">
           <paragraph>
-            <text>{[PersonalLine]}</text>
+            <text>{[RankDative]} {[FIODative]}</text>
           </paragraph>
         </cell>
       </row>
@@ -367,13 +369,13 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="5"
               style="Body">
-          <text>{[SignatoryPosition]}</text>
+          <text>{[SignatoryPosition]}{#if #not [SignatoryHasUnit]} {[SignatoryUnitSuffix]}{#endif}</text>
         </cell>
         <cell/>
       </row>
       <row allowBreakAcrossPages="false">
         <cell columnSpan="5"
-              style="Body">
+              style="UnderlinedLeft">
           <text>{[SignatoryRank]}</text>
         </cell>
         <cell style="SignatureName">

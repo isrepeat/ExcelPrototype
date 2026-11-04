@@ -18,7 +18,8 @@
                spaceAfter="0pt"/>
     <cellStyle name="SignatureName"
                basedOn="Body"
-               horizontal="right"/>
+               horizontal="right"
+               borderBottom="single"/>
     <cellStyle name="Centered"
                basedOn="Body"
                horizontal="center"/>
@@ -236,7 +237,7 @@
         <cell columnSpan="11"
               style="Underlined">
           <paragraph style="MainLine">
-            <text>{[PersonalLine]}</text>
+            <text>{[RankDative]} {[FIODative]}</text>
           </paragraph>
         </cell>
       </row>
@@ -338,7 +339,7 @@
         <cell columnSpan="4"
               style="Underlined">
           <paragraph style="MainLine">
-            <text>{[PersonalInitials]}</text>
+            <text>{[Rank]} {[ReturnSurname]} {[ReturnFirstInitial]}.{[ReturnMiddleInitial]}.</text>
           </paragraph>
         </cell>
       </row>
@@ -471,13 +472,13 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="9"
               style="Body">
-          <text>{[SignatoryPosition]}</text>
+          <text>{[SignatoryPosition]}{#if #not [SignatoryHasUnit]} {[SignatoryUnitSuffix]}{#endif}</text>
         </cell>
         <cell columnSpan="2"/>
       </row>
       <row allowBreakAcrossPages="false">
         <cell columnSpan="9"
-              style="Body">
+              style="UnderlinedLeft">
           <text>{[SignatoryRank]}</text>
         </cell>
         <cell columnSpan="2"

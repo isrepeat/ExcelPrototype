@@ -15,7 +15,7 @@ template = catalog.find('p:template[@name="BusinessTrip"]', NS)
 assert template is not None
 table = template.find('p:table', NS)
 fields = set(re.findall(r'\{\[([^]]+)\]\}', ''.join(table.itertext())))
-assert {'TicketDateDay', 'TicketNum', 'PersonalLine', 'TravelPlace', 'TripDays', 'Basis', 'WeaponLine',
+assert {'TicketDateDay', 'TicketNum', 'RankDative', 'FIODative', 'TravelPlace', 'TripDays', 'Basis', 'WeaponLine',
         'SignatoryPosition', 'SignatoryRank', 'SignatoryName'} <= fields
 context = dict(IsAwolTrip=False, WeaponLine='АК-47')
 columns, rows, cells, occupied = grid(table, context)

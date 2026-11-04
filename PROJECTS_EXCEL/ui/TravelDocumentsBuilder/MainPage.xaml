@@ -194,7 +194,7 @@
         <stackPanel name="PlaceFields"
                     orientation="vertical"
                     visibility="{Binding Path=Form.PlaceFieldsVisibility}">
-          <grid>
+          <grid visibility="{Binding Path=Form.DomesticPlaceFieldsVisibility}">
             <controls:label name="PlaceRegionLabel"
                             row="1"
                             column="1"
@@ -269,18 +269,6 @@
                             column="2"
                             style="formField"
                             value="{Binding Path=Form.PlaceCountryEn}"/>
-          </grid>
-          <grid>
-            <controls:label name="PlaceRegionEnLabel"
-                            row="1"
-                            column="1"
-                            style="manualPlaceLabel"
-                            text="{Binding Path=Text.PlaceRegionEn}"/>
-            <controls:input name="PlaceRegionEn"
-                            row="1"
-                            column="2"
-                            style="formField"
-                            value="{Binding Path=Form.PlaceRegionEn}"/>
           </grid>
           <grid>
             <controls:label name="PlaceNameEnLabel"
@@ -998,7 +986,7 @@
           <controls:label name="SignerReplacedIdLabel"
                           row="1"
                           column="2"
-                          style="manualPlaceLabel"
+                          style="manualSignerLabel"
                           text="{Binding Path=Text.TvoIpn}"/>
           <controls:input name="SignerReplacedId"
                           row="1"
@@ -1011,7 +999,7 @@
           <controls:label name="SignerReplacedCodeLabel"
                           row="1"
                           column="2"
-                          style="manualPlaceLabel"
+                          style="manualSignerLabel"
                           text="{Binding Path=Text.TvoPosition}"/>
           <controls:input name="SignerReplacedCode"
                           row="1"
@@ -1330,6 +1318,18 @@
                   borderColor="{ThemeResource Border}"
                   borderWeight="thin"
                   horizontal="right"
+                  vertical="center"/>
+    <controlStyle name="manualSignerLabel"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="{ThemeResource LabelBackground}"
+                  textColor="{ThemeResource ManualText}"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="{ThemeResource Border}"
+                  borderWeight="thin"
+                  horizontal="left"
                   vertical="center"/>
     <controlStyle name="readOnlyFormLabel"
                   paddingLeft="10"
