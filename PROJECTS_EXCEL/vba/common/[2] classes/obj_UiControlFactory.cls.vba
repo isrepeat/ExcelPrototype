@@ -230,6 +230,7 @@ Private Function private_CreateSchema() As obj_UiMarkupSchema
             schema.AddAttribute "selectionStyle", "string", False, "", True, 0
             schema.AddAttribute "readOnly", "boolean", False, "", True, 0
             schema.AddAttribute "partStylesEnabled", "boolean", False, "", False, 0
+            schema.AddAttribute "styleBackingCell", "boolean", False, "", False, 0
             schema.AddAttribute "editable", "boolean", False, "", False, 0
             schema.AddAttribute "arrowColumnSpan", "positive", False, "", False, 0
             schema.AddAttribute "onFocus", "string", False, "", True, 0

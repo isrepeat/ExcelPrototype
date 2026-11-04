@@ -289,6 +289,7 @@
                          style="{Binding Path=Settings.ExtendedModeStyle}"
                          value="{Binding Path=Form.ExtendedMode}"
                          placeholder="{Binding Path=Text.ExtendedModes}"
+                         styleBackingCell="false"
                          panelStyle="formSelectPanel"
                          itemStyle="formSelectItem"
                          itemHeight="30"
@@ -524,10 +525,11 @@
                         showHeaders="true"/>
         <stackPanel name="ReportSearchPanel"
                     orientation="vertical">
-          <stackPanel orientation="horizontal">
+          <stackPanel column="7"
+                      orientation="horizontal">
             <controls:form name="ReportSearchForm"
                            dataContext="{Binding Path=Form}"
-                           columnSpan="8"
+                           columnSpan="4"
                            orientation="horizontal"
                            style="candidateTable"
                            visibility="{Binding Path=Form.ReportSearchVisible}"
@@ -538,32 +540,27 @@
                            fieldStyle="formField">
               <field name="ReportSearchFrom"
                      type="text"
-                     columnSpan="2"
                      value="{Binding Path=ReportSearchFrom}"
                      label="{Binding Path=Text.ReportSearchFrom}"
                      numberFormat="@"/>
               <field name="ReportSearchTo"
                      type="text"
-                     columnSpan="2"
                      value="{Binding Path=ReportSearchTo}"
                      label="{Binding Path=Text.ReportSearchTo}"
                      numberFormat="@"/>
               <field name="ReportSearchName"
                      type="text"
-                     columnSpan="2"
                      value="{Binding Path=ReportSearchName}"
                      label="{Binding Path=Text.ReportSearchName}"
                      numberFormat="@"/>
               <field name="ReportSearchDate"
                      type="text"
-                     columnSpan="2"
                      value="{Binding Path=ReportSearchDate}"
                      label="{Binding Path=Text.ReportSearchDate}"
                      numberFormat="@"/>
             </controls:form>
             <controls:button name="RunReportSearch"
                              rowSpan="2"
-                             columnSpan="2"
                              style="secondaryButton"
                              caption="{Binding Path=Text.ReportSearchRun}"
                              command="{Binding Path=Commands.RunReportSearch}"

@@ -33,6 +33,7 @@ Private m_changeCommandRaw As String
 Private m_changeCommand As obj_UiCommand
 Private m_isSelect As Boolean
 Private m_editable As Boolean
+Private m_styleBackingCell As Boolean
 Private m_isCheckbox As Boolean
 Private m_readOnly As Boolean
 Private m_appliedReadOnly As Boolean
@@ -135,8 +136,10 @@ Private Function obj_IUiBindingTarget_RefreshBindings( _
     End If
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
         ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), context.BindingContext, nextStyle) Then Exit Function
-    If Not context.Styles.TryApplyFontOnly(m_targetRange, m_appliedStyleName, nextStyle) Then
-        context.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, context.BindingContext
+    If m_styleBackingCell Then
+        If Not context.Styles.TryApplyFontOnly(m_targetRange, m_appliedStyleName, nextStyle) Then
+            context.Styles.RestoreControlArea m_targetRange, m_uiControlBase.ControlNode, context.BindingContext
+        End If
     End If
     m_appliedStyleName = nextStyle
     private_RegisterStatePart
@@ -559,6 +562,7 @@ End Function
 Private Sub private_RegisterStatePart(Optional ByVal applyStyles As Boolean = True)
     Dim tags As String
 
+    If Not m_styleBackingCell Then Exit Sub
     If private_ReadAttribute(m_uiControlBase.ControlNode, "partStylesEnabled") = "false" Then Exit Sub
     If m_targetRange Is Nothing Then Exit Sub
     tags = m_appliedStyleName
@@ -587,6 +591,7 @@ Private Function private_Configure(ByVal controlNode As Object) As Boolean
     If readOnlyValue <> "true" And readOnlyValue <> "false" Then Err.Raise 5, , "Invalid input readOnly value."
     m_readOnly = (readOnlyValue = "true")
     m_editable = m_isSelect And (VBA.LCase$(private_ReadAttribute(controlNode, "editable")) = "true")
+    m_styleBackingCell = (VBA.LCase$(private_ReadAttribute(controlNode, "styleBackingCell")) <> "false")
     m_items = private_ReadAttribute(controlNode, "items")
     m_itemsSourceRaw = private_ReadAttribute(controlNode, "itemsSource")
     If m_isSelect And VBA.Len(VBA.Trim$(m_items)) = 0 And _
@@ -695,8 +700,10 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     ex_Core.fn_Diagnostic_WriteLog "UI_FIELD_VALUE_WRITE_STARTED | Name=" & m_uiControlBase.ControlName
 #End If
     ' Apply the configured cell format before Excel receives the bound value.
-    uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
-        m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    If m_styleBackingCell Then
+        uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, _
+            m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    End If
     If Not ex_UiBindingRuntime.fn_TryResolveText( _
         ex_UiElementFactory.fn_Attribute(m_uiControlBase.ControlNode, "style"), _
         uiRenderContext.BindingContext, m_appliedStyleName) Then Exit Function

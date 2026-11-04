@@ -18,7 +18,10 @@ $form = $panels.LastChild.SelectSingleNode(".//*[local-name()='form']")
 if ($form.GetAttribute('visibility') -ne '{Binding Path=Form.ReportSearchVisible}' -or
     $form.SelectNodes("*[local-name()='field']").Count -ne 4) { throw 'Expected a collapsible search form with four fields.' }
 foreach ($field in $form.SelectNodes("*[local-name()='field']")) {
-    if ($field.GetAttribute('columnSpan') -ne '2') { throw 'Search fields must each span two columns.' }
+    if ($field.HasAttribute('columnSpan') -or $field.HasAttribute('rowSpan')) { throw 'Each search field must occupy one cell.' }
+}
+if ($form.GetAttribute('columnSpan') -ne '4' -or $form.ParentNode.GetAttribute('column') -ne '7') {
+    throw 'The four-column search form must be centered with its search button.'
 }
 if ($tables.GetAttribute('titleColumnSpan') -ne '3') { throw 'Result titles must span the first three columns.' }
 $run = $form.ParentNode.SelectSingleNode("*[local-name()='button' and @name='RunReportSearch']")
