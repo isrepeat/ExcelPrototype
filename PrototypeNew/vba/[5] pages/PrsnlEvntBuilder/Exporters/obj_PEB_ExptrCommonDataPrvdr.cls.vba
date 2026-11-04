@@ -74,6 +74,9 @@ Private Const SPECIAL_POSITION_PREFIX_ROZP As String = "A1A"
 Private Const SPECIAL_POSITION_PREFIX_SPIS As String = "A1B"
 Private Const SPECIAL_POSITION_CODE_ROZP As String = "РОЗП"
 Private Const SPECIAL_POSITION_CODE_SPIS As String = "СПИС"
+Private Const SPECIAL_POSITION_CODE_TP As String = "ТП"
+Private Const SPECIAL_POSITION_NAME_SPIS As String = "який зарахований до списків особового складу військової частини А7383"
+Private Const SPECIAL_POSITION_NAME_TP As String = "який зарахований до тимчасово прибулого особового складу військової частини А7383"
 Private Const SPECIAL_POSITION_NAME_ROZP_OFFICER As String = "який перебуває у розпорядженні командира військової частини А3369"
 Private Const SPECIAL_POSITION_NAME_ROZP_OTHER As String = "який перебуває у розпорядженні командира військової частини А7383"
 Private Const SPECIAL_POSITION_UNIT_ROZP_OFFICER As String = "А3369"
@@ -1016,7 +1019,11 @@ Public Function TryResolvePositionGenitive( _
 
     If m_IsDisposed Then Exit Function
     positionText = private_NormalizePositionCodeForLookup(positionText)
-    outPositionGenitive = VBA.vbNullString
+    outPositionGenitive = private_SpecialWordPosition(positionText, rankText)
+    If VBA.Len(outPositionGenitive) > 0 Then
+        TryResolvePositionGenitive = True
+        Exit Function
+    End If
     If VBA.Len(positionText) = 0 Then
         TryResolvePositionGenitive = True
         Exit Function
@@ -1070,8 +1077,12 @@ Public Function TryResolvePositionGenitiveOptional( _
     ' code has not yet been added to the declension dictionary.
     If m_IsDisposed Then Exit Function
     positionText = private_NormalizePositionCodeForLookup(positionText)
-    outPositionGenitive = VBA.vbNullString
-    outFound = False
+    outPositionGenitive = private_SpecialWordPosition(positionText, rankText)
+    outFound = VBA.Len(outPositionGenitive) > 0
+    If outFound Then
+        TryResolvePositionGenitiveOptional = True
+        Exit Function
+    End If
     If VBA.Len(positionText) = 0 Then
         TryResolvePositionGenitiveOptional = True
         Exit Function
@@ -1139,6 +1150,14 @@ Public Function TryResolvePositionFormsOptional( _
     outPositionGenitive = VBA.vbNullString
     outPositionDative = VBA.vbNullString
     outFound = False
+    outPositionGenitive = private_SpecialWordPosition(positionCodeText, rankText)
+    If VBA.Len(outPositionGenitive) > 0 Then
+        outPositionDefault = outPositionGenitive
+        outPositionDative = outPositionGenitive
+        outFound = True
+        TryResolvePositionFormsOptional = True
+        Exit Function
+    End If
     If VBA.Len(positionCodeText) = 0 Then
         TryResolvePositionFormsOptional = True
         Exit Function
@@ -1204,6 +1223,30 @@ End Function
 ' //
 ' // Internal
 ' //
+Private Function private_SpecialWordPosition( _
+    ByVal positionCode As String, _
+    ByVal rankText As String _
+) As String
+    Dim normalizedPrefix As String
+
+    Select Case positionCode
+        Case SPECIAL_POSITION_CODE_ROZP
+            If private_IsOfficerRank(rankText) Then
+                private_SpecialWordPosition = SPECIAL_POSITION_NAME_ROZP_OFFICER
+            Else
+                private_SpecialWordPosition = SPECIAL_POSITION_NAME_ROZP_OTHER
+            End If
+        Case SPECIAL_POSITION_CODE_SPIS
+            private_SpecialWordPosition = SPECIAL_POSITION_NAME_SPIS
+        Case SPECIAL_POSITION_CODE_TP
+            private_SpecialWordPosition = SPECIAL_POSITION_NAME_TP
+        Case Else
+            normalizedPrefix = VBA.Left$(VBA.Replace$(positionCode, " ", VBA.vbNullString), 3)
+            normalizedPrefix = VBA.Replace$(VBA.Replace$(normalizedPrefix, "А", "A"), "С", "C")
+            If normalizedPrefix = "A1C" Then private_SpecialWordPosition = SPECIAL_POSITION_NAME_TP
+    End Select
+End Function
+
 Private Sub private_EnsureRozpUnitSuffix( _
     ByVal normalizedPositionCode As String, _
     ByVal rankText As String, _

@@ -49,16 +49,13 @@ class AwolCoverLetterTests(unittest.TestCase):
         self.assertEqual(page.get('{' + NS['w'] + '}h'), '16838')
 
     def test_dsl_fields_are_supplied(self):
-        fields = {'Companion' + name for name in self.config[PREFIX + 'textFields'].split('|')}
-        for name in self.config[PREFIX + 'textFields'].split('|'):
-            self.assertTrue(self.config[PREFIX + 'text.' + name])
-        fields.update({'CompanionBody', 'CompanionRecipient', 'CompanionCopyRecipient',
-                       'CompanionCertificateAttachment', 'TicketDate', 'SignatoryPosition',
-                       'SignatoryRank', 'SignatoryName'})
-        referenced = set(re.findall(r'\{\[([^\]]+)\]\}', ''.join(self.catalog.itertext())))
+        fields = {'CompanionDestinationUnit', 'CompanionHasCopy', 'CompanionSenderInstitution',
+                  'CompanionNotification', 'CompanionRank', 'CompanionName',
+                  'CompanionTicketNumber', 'CompanionOrderDate', 'TicketDateDay',
+                  'TicketDateMonth', 'TicketDateYear',
+                  'SignatoryPosition', 'SignatoryRank', 'SignatoryName'}
+        referenced = set(re.findall(r'\[(\w+)\]', ''.join(self.catalog.itertext())))
         self.assertEqual(referenced, fields)
-        self.assertEqual(set(re.findall(r'\{(\w+)\}', self.config[PREFIX + 'text.Body'])), {'notification', 'rank', 'name'})
-        self.assertEqual(set(re.findall(r'\{(\w+)\}', self.config[PREFIX + 'text.CertificateAttachment'])), {'number', 'date'})
         for type_id in self.config[PREFIX + 'notificationTypes'].split('|'):
             self.assertIn('basisChain.model.Documents.' + type_id + '.Name', self.config)
 
@@ -68,8 +65,20 @@ class AwolCoverLetterTests(unittest.TestCase):
         styles = {node.get('name') for node in self.catalog.find('p:styles', NS)}
         columns = table.find('p:columns', NS)
         self.assertEqual(sum(Decimal(node.get('width').removesuffix('mm')) for node in columns), Decimal(160))
+        spans = [0] * len(columns)
         for row in table.findall('p:row', NS):
-            self.assertEqual(sum(int(cell.get('columnSpan', '1')) for cell in row), len(columns))
+            index = 0
+            for cell in row:
+                while index < len(spans) and spans[index]:
+                    index += 1
+                end = index + int(cell.get('columnSpan', '1'))
+                self.assertLessEqual(end, len(spans))
+                self.assertFalse(any(spans[index:end]))
+                spans[index:end] = [int(cell.get('rowSpan', '1'))] * (end - index)
+                index = end
+            self.assertTrue(all(spans))
+            spans = [span - 1 for span in spans]
+        self.assertFalse(any(spans))
         for node in self.catalog.iter():
             for attribute in ['style', 'basedOn']:
                 if attribute in node.attrib:

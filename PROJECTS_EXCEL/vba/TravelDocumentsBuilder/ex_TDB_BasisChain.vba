@@ -126,6 +126,12 @@ Private Sub private_Validate(ByVal row As Object)
     Dim incomingDate As String
     Dim numberField As Variant
 
+    If VBA.Len(VBA.CStr(row("BasisInstitution"))) = 0 Then
+        private_Required "BasisInstitution"
+    End If
+    If VBA.Len(VBA.CStr(row("BasisType"))) = 0 Then
+        private_Required "BasisType"
+    End If
     group = VBA.CStr(row("BasisInstitutionGroup"))
     If VBA.Len(group) = 0 Then
         group = private_Group(VBA.CStr(row("BasisInstitution")))

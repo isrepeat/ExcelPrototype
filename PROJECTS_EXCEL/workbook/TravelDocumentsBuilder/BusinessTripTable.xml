@@ -150,7 +150,7 @@
         <cell columnSpan="3"
               style="TicketDetails">
           <paragraph>
-            <text>{[TicketDate]}</text>
+            <text>"{[TicketDateDay]}" {[TicketDateMonth]} {[TicketDateYear]} р.</text>
           </paragraph>
         </cell>
       </row>
@@ -244,7 +244,7 @@
         <cell columnSpan="6"
               style="Centered">
           <paragraph>
-            <text>{[Position]}</text>
+            <text>{[Position]|regexreplace:"^який перебуває ",""}</text>
           </paragraph>
         </cell>
       </row>
@@ -294,7 +294,7 @@
         <cell columnSpan="6"
               style="Centered">
           <paragraph>
-            <text>Термін відрядження: {[Duration]}</text>
+            <text>Термін відрядження: {#if [TripIndefinite]}з {[TripDeparture]} до окремого розпорядження.{#else}{[TripDays]} {#if [TripDaysOne]}доба{#else}{#if [TripDaysFew]}доби{#else}діб{#endif}{#endif}, з "{[DateFromDay]}" {[DateFromMonth]} {[DateFromYear]} р. по "{[DateToDay]}" {[DateToMonth]} {[DateToYear]} р.{#endif}</text>
           </paragraph>
         </cell>
       </row>
@@ -308,17 +308,17 @@
           </paragraph>
         </cell>
       </row>
-      <if test="[TripPurpose]">
+      <if test="[IsAwolTrip]">
         <row allowBreakAcrossPages="false">
           <cell columnSpan="6"
                 style="Centered">
-            <text>{[TripPurpose]}</text>
+            <text>для подальшого проходження військової служби</text>
           </cell>
         </row>
         <row allowBreakAcrossPages="false">
           <cell columnSpan="6"
                 style="Caption">
-            <text>{[TripPurposeCaption]}</text>
+            <text>(мета відрядження)</text>
           </cell>
         </row>
       </if>
@@ -326,7 +326,7 @@
         <cell columnSpan="6"
               style="Body">
           <paragraph>
-            <text>Підстава відрядження: {[Basis]}</text>
+            <text>Підстава: {[Basis]}</text>
           </paragraph>
         </cell>
       </row>

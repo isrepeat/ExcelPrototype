@@ -166,18 +166,29 @@ End Function
 Public Function fn_Read(ByVal table As ListObject) As Object
     Dim rows As Object
     Dim row As Object
-    Dim target As ListRow
     Dim field As Variant
     Dim identifier As String
     Dim hasData As Boolean
+    Dim values As Variant
+    Dim rowIndex As Long
+    Dim columns As Object
+    Dim dateFields As String
+    Dim fields As Variant
 
     Set rows = VBA.CreateObject("Scripting.Dictionary")
-    For Each target In table.ListRows
-        Set row = fn_NewRow()
+    If table.ListRows.Count = 0 Then
+        Set fn_Read = rows
+        Exit Function
+    End If
+    values = table.DataBodyRange.Value2
+    Set columns = private_ColumnIndices(table)
+    dateFields = "|" & fn_Config("dateFields") & "|"
+    fields = VBA.Split(fn_Config("columns"), "|")
+    For rowIndex = 1 To UBound(values, 1)
+        Set row = VBA.CreateObject("Scripting.Dictionary")
         hasData = False
-        For Each field In row.Keys
-            row(field) = private_FieldText(VBA.CStr(field), target.Range.Cells(1, table.ListColumns(VBA.CStr(field)).Index).Value2)
-            If VBA.IsError(row(field)) Then fn_Fail "InvalidRows"
+        For Each field In fields
+            row.Add field, private_FieldText(VBA.CStr(field), values(rowIndex, columns(field)), dateFields)
             If VBA.Len(private_Text(row(field))) > 0 Then hasData = True
         Next field
         If hasData Then
@@ -185,7 +196,7 @@ Public Function fn_Read(ByVal table As ListObject) As Object
             If VBA.Len(identifier) = 0 Or rows.Exists(identifier) Then fn_Fail "InvalidRows"
             rows.Add identifier, row
         End If
-    Next target
+    Next rowIndex
     private_ValidateGraph rows
     Set fn_Read = rows
 End Function
@@ -269,6 +280,7 @@ Public Function fn_Begin( _
     End If
     Set transaction = VBA.CreateObject("Scripting.Dictionary")
     transaction.Add "Previous", group
+    transaction.Add "Rows", rows
     transaction.Add "TicketsCount", tickets.ListRows.Count
     transaction.Add "RevisionsCount", revisions.ListRows.Count
     transaction.Add "Stamp", private_TableStamp(tickets) & private_TableStamp(revisions)
@@ -296,24 +308,57 @@ Public Sub fn_Write( _
     ByVal row As Object _
 )
     Dim field As Variant
-    Dim cell As Range
+    Dim targetRange As Range
+    Dim columns As Object
+    Dim dateFields As String
+    Dim values() As Variant
+    Dim included() As Boolean
+    Dim block() As Variant
+    Dim column As Long
+    Dim first As Long
+    Dim offset As Long
+    Dim count As Long
     Dim errorNumber As Long
     Dim errorSource As String
     Dim errorDescription As String
     Dim address As String
 
     On Error GoTo Failed
-    target.Range.NumberFormat = "@"
+    Set targetRange = target.Range
+    Set columns = private_ColumnIndices(table)
+    dateFields = "|" & fn_Config("dateFields") & "|"
+    count = targetRange.Columns.Count
+    ReDim values(1 To count)
+    ReDim included(1 To count)
     For Each field In row.Keys
-        address = VBA.vbNullString
-        Set cell = target.Range.Cells(1, table.ListColumns(VBA.CStr(field)).Index)
-        address = cell.Address(External:=True)
-        If VBA.Len(private_FieldText(VBA.CStr(field), row(field))) = 0 Then
-            cell.ClearContents
-        Else
-            cell.Value2 = private_FieldText(VBA.CStr(field), row(field))
-        End If
+        If Not columns.Exists(field) Then fn_Fail "InvalidRows"
+        column = columns(field)
+        values(column) = private_FieldText(VBA.CStr(field), row(field), dateFields)
+        If VBA.Len(values(column)) = 0 Then values(column) = Empty
+        included(column) = True
     Next field
+    targetRange.NumberFormat = "@"
+    field = VBA.vbNullString
+    column = 1
+    Do While column <= count
+        If included(column) Then
+            first = column
+            Do While column <= count
+                If Not included(column) Then Exit Do
+                column = column + 1
+            Loop
+            ReDim block(1 To 1, 1 To column - first)
+            For offset = 1 To column - first
+                block(1, offset) = values(first + offset - 1)
+            Next offset
+            With targetRange.Cells(1, first).Resize(1, column - first)
+                address = .Address(External:=True)
+                .Value2 = block
+            End With
+        Else
+            column = column + 1
+        End If
+    Loop
     Exit Sub
 Failed:
     errorNumber = VBA.Err.Number
@@ -338,13 +383,14 @@ Public Function fn_Find( _
     Next row
 End Function
 
-Public Sub fn_Commit( _
+Public Function fn_Commit( _
     ByVal tickets As ListObject, _
     ByVal revisions As ListObject, _
     ByVal identifier As String, _
     ByVal transaction As Object, _
-    ByVal reason As String _
-)
+    ByVal reason As String, _
+    ByVal operationId As String _
+) As Collection
     Dim rows As Object
     Dim group As Collection
     Dim previous As Collection
@@ -359,9 +405,15 @@ Public Sub fn_Commit( _
     Dim snapshot As Object
     Dim versionRow As ListRow
     Dim capturedAt As String
+    Dim startedAt As Double
+    Dim changedFields As String
+    Dim snapshotFields As Variant
+    Dim currentFields As Object
 
+    startedAt = VBA.Timer
     Set rows = fn_Read(tickets)
     Set group = fn_Group(rows, identifier)
+    private_CommitPhase "ReadGroup", operationId, startedAt
     Set previous = transaction("Previous")
     Set root = group(1)
     changed = (private_ContentStamp(group) <> private_ContentStamp(previous))
@@ -379,18 +431,30 @@ Public Sub fn_Commit( _
     If changed Then revision = revision + 1
     changeId = identifier & "/R" & VBA.CStr(revision)
     capturedAt = VBA.Format$(VBA.Now, "yyyy-mm-dd hh:nn:ss")
+    private_CommitPhase "CompareAndResolve", operationId, startedAt
+    Set currentFields = VBA.CreateObject("Scripting.Dictionary")
+    currentFields.Add "Revision", revision
+    currentFields.Add "Status", root("Status")
     For Each row In group
-        Set target = fn_Find(tickets, VBA.CStr(row("RowId")))
-        row("Revision") = revision
-        row("Status") = root("Status")
-        fn_Write tickets, target, row
+        If VBA.CStr(row("Revision")) <> VBA.CStr(revision) Or row("Status") <> root("Status") Then
+            Set target = fn_Find(tickets, VBA.CStr(row("RowId")))
+            fn_Write tickets, target, currentFields
+            row("Revision") = revision
+            row("Status") = root("Status")
+        End If
     Next row
-    If Not changed Then Exit Sub
+    private_CommitPhase "WriteCurrentRows", operationId, startedAt
+    Set fn_Commit = group
+    If Not changed Then Exit Function
 
     ' A revision owns a complete immutable snapshot, including every child.
     For Each versionRow In revisions.ListRows
         If private_Text(versionRow.Range.Cells(1, revisions.ListColumns("ChangeId").Index).Value2) = changeId Then fn_Fail "InvalidRevision"
     Next versionRow
+    private_CommitPhase "CheckRevisionId", operationId, startedAt
+    changedFields = private_ChangedFields(group, previous)
+    snapshotFields = VBA.Split(fn_Config("snapshotFields"), "|")
+    private_CommitPhase "PrepareSnapshotFields", operationId, startedAt
     For Each row In group
         Set snapshot = VBA.CreateObject("Scripting.Dictionary")
         snapshot.Add "ChangeId", changeId
@@ -400,15 +464,16 @@ Public Sub fn_Commit( _
         snapshot.Add "ChangedBy", Application.UserName & " / " & VBA.Environ$("USERNAME")
         snapshot.Add "ChangeType", changeType
         snapshot.Add "Reason", reason
-        snapshot.Add "ChangedFields", private_ChangedFields(group, previous)
+        snapshot.Add "ChangedFields", changedFields
         snapshot.Add "Status", root("Status")
-        For Each field In VBA.Split(fn_Config("snapshotFields"), "|")
+        For Each field In snapshotFields
             snapshot.Add "Snapshot." & field, row(field)
         Next field
         Set target = revisions.ListRows.Add
         fn_Write revisions, target, snapshot
     Next row
-End Sub
+    private_CommitPhase "WriteSnapshotRows", operationId, startedAt
+End Function
 
 Public Sub fn_Rollback( _
     ByVal tickets As ListObject, _
@@ -426,6 +491,24 @@ Public Sub fn_Rollback( _
     On Error GoTo 0
     If VBA.Len(errors) > 0 Then VBA.Err.Raise 5, "TicketsHistory.Rollback", errors
 End Sub
+
+Public Function fn_DeletePrompt( _
+    ByVal identifier As String, _
+    ByVal expectedStamp As String _
+) As String
+    Dim tickets As ListObject
+    Dim revisions As ListObject
+    Dim group As Collection
+    Dim root As Object
+    Dim prompt As String
+
+    fn_Open tickets, revisions
+    Set group = fn_Group(fn_Read(tickets), identifier)
+    If VBA.Len(expectedStamp) = 0 Or fn_Stamp(group) <> expectedStamp Then fn_Fail "Stale"
+    Set root = group(1)
+    prompt = VBA.Replace$(fn_Config("text.DeleteConfirm"), "{event}", VBA.CStr(root("VacationKind")))
+    fn_DeletePrompt = VBA.Replace$(prompt, "{name}", VBA.CStr(root("FullName")))
+End Function
 
 Public Sub fn_DeleteEvent( _
     ByVal identifier As String, _
@@ -527,6 +610,23 @@ Public Function fn_Load( _
     Dim revisions As ListObject
     Dim rows As Object
     Dim group As Collection
+
+    fn_Open tickets, revisions
+    Set rows = fn_Read(tickets)
+    Set group = fn_Group(rows, identifier)
+    private_CheckRevision revisions, group
+    If VBA.Len(expectedStamp) > 0 Then
+        If fn_Stamp(group) <> expectedStamp Then fn_Fail "Stale"
+    End If
+    Set fn_Load = fn_PublishGroup(identifier, group, bindingContext)
+End Function
+
+Public Function fn_PublishGroup( _
+    ByVal identifier As String, _
+    ByVal group As Collection, _
+    ByVal bindingContext As obj_UiBindingContext, _
+    Optional ByVal afterSave As Boolean = False _
+) As Collection
     Dim root As Object
     Dim row As Object
     Dim mapping As Variant
@@ -540,13 +640,6 @@ Public Function fn_Load( _
     Dim placeField As Variant
     Dim basisChain As Collection
 
-    fn_Open tickets, revisions
-    Set rows = fn_Read(tickets)
-    Set group = fn_Group(rows, identifier)
-    private_CheckRevision revisions, group
-    If VBA.Len(expectedStamp) > 0 Then
-        If fn_Stamp(group) <> expectedStamp Then fn_Fail "Stale"
-    End If
     Set root = group(1)
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     updates("Form.DocumentType") = ex_TravelDocumentsBuilder.fn_Config("text." & ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind"))) & ".DocumentFormTitle")
@@ -613,12 +706,18 @@ Public Function fn_Load( _
     If Not bindingContext.SetObject("Data", "BasisChain", basisChain) Then
         fn_Fail "InvalidRows"
     End If
-    ex_TDB_BasisChain.fn_ClearDraft bindingContext
+    If afterSave Then
+        ' Keep the editor values and mark the saved draft as already included in the chain.
+        If Not bindingContext.SetValue("Form", "BasisDraftId", VBA.vbNullString) Then fn_Fail "InvalidRows"
+        ex_TDB_BasisChain.fn_MarkDraftBaseline bindingContext
+    Else
+        ex_TDB_BasisChain.fn_ClearDraft bindingContext
+    End If
     If Not ex_TDB_BasisChain.fn_Publish(bindingContext) Then
         fn_Fail "InvalidRows"
     End If
     If places.Count > 0 Then ex_TDB_PlaceChain.fn_ClearDraft bindingContext
-    Set fn_Load = chain
+    Set fn_PublishGroup = chain
 End Function
 
 Public Function fn_List( _
@@ -707,6 +806,15 @@ End Function
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
+Private Sub private_CommitPhase( _
+    ByVal phase As String, _
+    ByVal operationId As String, _
+    ByRef startedAt As Double _
+)
+    ex_Core.fn_Diagnostic_WritePerf "TDB.Save.CommitHistoryRevision." & phase & " | Operation=" & operationId, startedAt
+    startedAt = VBA.Timer
+End Sub
+
 Private Function private_GetTable( _
     ByVal book As Workbook, _
     ByVal sheetName As String, _
@@ -740,18 +848,32 @@ End Function
 
 Private Function private_FieldText( _
     ByVal field As String, _
-    ByVal value As Variant _
+    ByVal value As Variant, _
+    Optional ByVal dateFields As String = VBA.vbNullString _
 ) As String
     Dim text As String
 
     text = private_Text(value)
     If VBA.Len(text) > 0 Then
         field = VBA.Replace$(field, "Snapshot.", VBA.vbNullString)
-        If VBA.InStr(1, "|" & fn_Config("dateFields") & "|", "|" & field & "|", VBA.vbBinaryCompare) > 0 Then
+        If VBA.Len(dateFields) = 0 Then dateFields = "|" & fn_Config("dateFields") & "|"
+        If VBA.InStr(1, dateFields, "|" & field & "|", VBA.vbBinaryCompare) > 0 Then
             text = VBA.Format$(fn_Date(value), "dd.mm.yyyy")
         End If
     End If
     private_FieldText = text
+End Function
+
+Private Function private_ColumnIndices(ByVal table As ListObject) As Object
+    Dim columns As Object
+    Dim column As ListColumn
+
+    Set columns = VBA.CreateObject("Scripting.Dictionary")
+    columns.CompareMode = VBA.vbTextCompare
+    For Each column In table.ListColumns
+        columns.Add column.Name, column.Index
+    Next column
+    Set private_ColumnIndices = columns
 End Function
 
 Private Sub private_ValidateGraph(ByVal rows As Object)

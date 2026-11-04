@@ -417,7 +417,7 @@ value	TravelDocumentsBuilder::history.text.InvalidRows	Пошкоджена ст
 value	TravelDocumentsBuilder::history.text.NewRequired	Для нової події натисніть «Нова подія». Для зміни завантаженої події натисніть «Оновити подію».
 value	TravelDocumentsBuilder::history.text.InvalidChain	Невірний ланцюг ТВО: перевірте ІПН, власні посади, заміщення, дублікати та цикли.
 value	TravelDocumentsBuilder::history.text.OpenRequired	Відкрийте TicketsHistory.xlsx з папки TravelDocumentsBuilder перед виконанням операції.
-value	TravelDocumentsBuilder::history.text.DeleteConfirm	Видалити подію {id} разом із ланцюгами ТВО, місць, документів-підстав та всіма ревізіями?
+value	TravelDocumentsBuilder::history.text.DeleteConfirm	Видалити подію «{event}» для {name} разом із ланцюгами ТВО, місць, документів-підстав та всіма ревізіями?
 value	TravelDocumentsBuilder::history.text.ManualChanges	Дані події або дочірні рядки відрізняються від останньої ревізії. Відновіть їх за знімком перед редагуванням.
 value	TravelDocumentsBuilder::history.text.OrderAccepted	Вибрано наказ: {order}. Можна редагувати історію його подій.
 value	TravelDocumentsBuilder::history.text.OrderRequired	Спочатку знайдіть та виберіть наказ за номером і датою.
@@ -809,9 +809,6 @@ value	TravelDocumentsBuilder::generation.duration.road.few	доби
 value	TravelDocumentsBuilder::generation.duration.road.one	добу
 value	TravelDocumentsBuilder::generation.duration.road.many	діб
 value	TravelDocumentsBuilder::generation.duration.road.suffix	на дорогу
-value	TravelDocumentsBuilder::generation.duration.trip.few	доби
-value	TravelDocumentsBuilder::generation.duration.trip.one	доба
-value	TravelDocumentsBuilder::generation.duration.trip.many	діб
 value	TravelDocumentsBuilder::generation.duration.donation.few	додаткові дні
 value	TravelDocumentsBuilder::generation.duration.donation.one	додатковий день
 value	TravelDocumentsBuilder::generation.duration.donation.many	додаткових днів
@@ -834,33 +831,14 @@ value	TravelDocumentsBuilder::generation.tableNames.BusinessTripCertificate	Busi
 value	TravelDocumentsBuilder::generation.tablePaths.VacationTicket	VacationTicketTable.xml
 value	TravelDocumentsBuilder::generation.tablePaths.AwolCoverLetter	AwolCoverLetterTable.xml
 value	TravelDocumentsBuilder::generation.tablePaths.BusinessTripCertificate	BusinessTripTable.xml
-value	TravelDocumentsBuilder::generation.datePattern	"{dd}" {month} {yyyy} р.
 value	TravelDocumentsBuilder::generation.businessTrip.kind	Відрядження
 value	TravelDocumentsBuilder::generation.businessTrip.awolKind	СЗЧ
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Body	На {notification}, згідно з Тимчасовим алгоритмом дій посадових осіб стосовно прийому військовослужбовців, які повернулися для проходження військової служби до Збройних Сил України, надсилаю відповідні документи на {rank} {name}.
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Header	МІНІСТЕРСТВО ОБОРОНИ|УКРАЇНИ|ЗБРОЙНІ СИЛИ УКРАЇНИ|ВІЙСЬКОВА ЧАСТИНА|А7383
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Address	м. Харків, 61121
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Delivery	Передати засобами СЕДО
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.Recipient	Командиру військової частини {unit}
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.CopyNotice	(до відома)
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.LetterNumber	№ __________
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.CopyRecipient	Командиру {institution}
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.FoodAttachment	2. Атестат військовослужбовця на продовольство на 1 арк. у 1 прим.
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.AttachmentsTitle	Додаток:
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.OrganizationCode	Код ЄДРПОУ 26630678
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.MovementAttachment	3. Облікові дані на план переміщення на 1 арк. у 1 прим.
 value	TravelDocumentsBuilder::generation.businessTrip.companion.text.DestinationRequired	Для супровідного листа СЗЧ вкажіть військову частину як кінцеве місце відрядження.
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.NotificationRequired	Для супровідного листа СЗЧ додайте повідомлення з військовою частиною, номером і датою документа до ланцюга підстав.
-value	TravelDocumentsBuilder::generation.businessTrip.companion.text.CertificateAttachment	1. Посвідчення про відрядження № {number} від {date} на 1 арк. у 1 прим.
+value	TravelDocumentsBuilder::generation.businessTrip.companion.text.NotificationRequired	Для супровідного листа СЗЧ додайте до документів-підстав один документ типу «повідомлення». Вкажіть військову частину, номер і дату самого документа та збережіть подію перед експортом.
 value	TravelDocumentsBuilder::generation.businessTrip.companion.text.NotificationAmbiguous	Для супровідного листа СЗЧ потрібне одне повідомлення у ланцюгу підстав. Уточніть документи-підстави.
 value	TravelDocumentsBuilder::generation.businessTrip.companion.documentId	AwolCoverLetter
-value	TravelDocumentsBuilder::generation.businessTrip.companion.textFields	Header|Address|Delivery|CopyNotice|LetterNumber|FoodAttachment|AttachmentsTitle|OrganizationCode|MovementAttachment
 value	TravelDocumentsBuilder::generation.businessTrip.companion.notificationTypes	notification
-value	TravelDocumentsBuilder::generation.businessTrip.indefinite	з {from} до окремого розпорядження.
-value	TravelDocumentsBuilder::generation.businessTrip.awolPurpose	для подальшого проходження військової служби
 value	TravelDocumentsBuilder::generation.businessTrip.durationError	Вкажіть ціле число днів більше 0 (не більше {max}) або фразу «{phrase}».
-value	TravelDocumentsBuilder::generation.businessTrip.purposeCaption	(мета відрядження)
-value	TravelDocumentsBuilder::generation.businessTrip.durationPattern	{duration}, з {from} по {to}
 value	TravelDocumentsBuilder::generation.businessTrip.indefiniteInput	до о/р
 value	TravelDocumentsBuilder::generation.medicalCompany.destination	Медична рота А7383
 value	TravelDocumentsBuilder::placeChain.text.Fixed	Для медичної роти використовується фіксоване місце; ланцюг місць недоступний.
@@ -914,15 +892,16 @@ value	TravelDocumentsBuilder::declensions.lookups.6.valueHeader	Родовий
   ref	TravelDocumentsBuilder::declensions.sources.Positions.range	__cfgDependencies.source.PersonnelPositions.range
   ref	TravelDocumentsBuilder::declensions.sources.Positions.sheet	__cfgDependencies.source.PersonnelPositions.sheet
 value	TravelDocumentsBuilder::declensions.positions.tp.code	ТП
-value	TravelDocumentsBuilder::declensions.positions.tp.text	який зарахований до тимчасово прибулого особового складу військової частини А7383
+  ref	TravelDocumentsBuilder::declensions.positions.tp.text	__cfgDependencies.common::position.tp.word_text
 value	TravelDocumentsBuilder::declensions.positions.tp.prefix	A1C
 value	TravelDocumentsBuilder::declensions.positions.rozp.code	РОЗП
-value	TravelDocumentsBuilder::declensions.positions.rozp.text	який перебуває у розпорядженні командира військової частини {unit}
+  ref	TravelDocumentsBuilder::declensions.positions.rozp.text	__cfgDependencies.common::position.rozp.word_text
   ref	TravelDocumentsBuilder::declensions.positions.rozp.prefix	__cfgDependencies.common::position.rozp.prefix
   ref	TravelDocumentsBuilder::declensions.positions.rozp.otherUnit	__cfgDependencies.common::position.rozp.other_unit
   ref	TravelDocumentsBuilder::declensions.positions.rozp.officerUnit	__cfgDependencies.common::position.rozp.officer_unit
   ref	TravelDocumentsBuilder::declensions.positions.spis.code	__cfgDependencies.common::position.spis.short
   ref	TravelDocumentsBuilder::declensions.positions.spis.prefix	__cfgDependencies.common::position.spis.prefix
+  ref	TravelDocumentsBuilder::declensions.positions.spis.text	__cfgDependencies.common::position.spis.word_text
 value	TravelDocumentsBuilder::declensions.positions.characters	А=A|В=B|С=C
 value	TravelDocumentsBuilder::declensions.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)
 value	TravelDocumentsBuilder::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}

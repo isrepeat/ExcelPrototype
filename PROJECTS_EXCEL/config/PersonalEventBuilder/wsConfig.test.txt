@@ -1527,15 +1527,16 @@ value	PersonalEventBuilder::export.shared.lookups.7.keyHeader	Код
 value	PersonalEventBuilder::export.shared.lookups.7.valueHeader	Родовий
 value	PersonalEventBuilder::export.shared.lookups.count	7
 value	PersonalEventBuilder::export.shared.positions.tp.code	ТП
-value	PersonalEventBuilder::export.shared.positions.tp.text	який зарахований до тимчасово прибулого особового складу військової частини А7383
+  ref	PersonalEventBuilder::export.shared.positions.tp.text	__cfgDependencies.common::position.tp.word_text
 value	PersonalEventBuilder::export.shared.positions.tp.prefix	A1C
 value	PersonalEventBuilder::export.shared.positions.rozp.code	РОЗП
-value	PersonalEventBuilder::export.shared.positions.rozp.text	який перебуває у розпорядженні командира військової частини {unit}
+  ref	PersonalEventBuilder::export.shared.positions.rozp.text	__cfgDependencies.common::position.rozp.word_text
   ref	PersonalEventBuilder::export.shared.positions.rozp.prefix	__cfgDependencies.common::position.rozp.prefix
   ref	PersonalEventBuilder::export.shared.positions.rozp.otherUnit	__cfgDependencies.common::position.rozp.other_unit
   ref	PersonalEventBuilder::export.shared.positions.rozp.officerUnit	__cfgDependencies.common::position.rozp.officer_unit
   ref	PersonalEventBuilder::export.shared.positions.spis.code	__cfgDependencies.common::position.spis.short
   ref	PersonalEventBuilder::export.shared.positions.spis.prefix	__cfgDependencies.common::position.spis.prefix
+  ref	PersonalEventBuilder::export.shared.positions.spis.text	__cfgDependencies.common::position.spis.word_text
 value	PersonalEventBuilder::export.shared.positions.inputs	PositionCode=PersonRank|ReportPositionCode=ReportRank
 value	PersonalEventBuilder::export.shared.positions.characters	А=A|В=B|С=C
 value	PersonalEventBuilder::export.shared.positions.officerPattern	^\s*(молодший лейтенант|лейтенант|старший лейтенант|капітан|майор|підполковник|полковник)(\s|$)

@@ -19,6 +19,9 @@ value	common::position.rozp.word_prefix	у розпорядженні коман
 value	common::position.rozp.officer_unit	А3369
 value	common::position.spis.short	СПИС
 value	common::position.spis.prefix	A1B
+value	common::position.spis.word_text	який зарахований до списків особового складу військової частини А7383
+value	common::position.tp.word_text	який зарахований до тимчасово прибулого особового складу військової частини А7383
+value	common::position.rozp.word_text	який перебуває у розпорядженні командира військової частини {unit}
 value	common::personnel.header.fio	ПІБ
 value	common::personnel.header.ipn	ІПН
 value	common::personnel.header.code	Код

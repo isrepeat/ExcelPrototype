@@ -75,11 +75,10 @@ Public Function Initialize( _
     Set m_wordTemplates = VBA.CreateObject("Scripting.Dictionary")
     keys = "registry.fieldOrder," & _
         "kind.ids,abroad.yes,abroad.no,abroad.word,status.active,status.cancelled," & _
-        "donation.event,donation.orderMissing,donation.orderPrefix,months,datePattern," & _
+        "donation.event,donation.orderMissing,donation.orderPrefix,months," & _
         "duration.connector,duration.vacation.one,duration.vacation.few,duration.vacation.many," & _
         "duration.donation.one,duration.donation.few,duration.donation.many,duration.donation.suffix," & _
         "duration.road.one,duration.road.few,duration.road.many,duration.road.suffix," & _
-        "duration.trip.one,duration.trip.few,duration.trip.many," & _
         "position.reservedPrefix,position.removedPrefix,position.reservedText,position.removedText," & _
         "message.Required,message.Invalid,message.Column,message.Marker,message.Order,message.Unsupported," & _
         "message.Success,message.Failed,message.Rollback,limits.maxDays"
@@ -173,6 +172,7 @@ Public Function TrySave( _
     Dim guarded As Boolean
     Dim revisions As ListObject
     Dim transaction As Object
+    Dim committedGroup As Collection
     Dim recoveryToken As String
     Dim protection As obj_TDB_HistoryProtection
     Dim protectionDiagnostic As String
@@ -228,6 +228,8 @@ Public Function TrySave( _
     Next key
     private_LogStage "EnrichDeclensions"
     ex_TDB_Declensions.fn_Enrich m_form
+    m_form("PersonPosition") = ex_TDB_Declensions.fn_HistoryPosition( _
+        VBA.CStr(m_form("PersonPositionCode")), VBA.CStr(m_form("PersonPosition")))
     private_LogStage "ValidateDurationAndKind"
     private_ValidateTreatment
     departureDate = private_Date(m_form("DepartureDate"))
@@ -281,7 +283,7 @@ Public Function TrySave( _
     private_LogStage "BeginHistoryTransaction"
     Set transaction = ex_TDB_History.fn_Begin(ticketsTable, revisions, identifier, m_form("HistoryStamp"))
     private_LogStage "ReadAndValidateHistory"
-    Set historyRows = ex_TDB_History.fn_Read(ticketsTable)
+    Set historyRows = transaction("Rows")
     For Each key In historyRows.Keys
         Set historyRow = historyRows(key)
         If historyRow("RowType") = "Event" And historyRow("RowId") <> identifier Then
@@ -449,7 +451,7 @@ Public Function TrySave( _
         parentId = metadata("RowId")
     Next metadata
     private_LogStage "CommitHistoryRevision"
-    ex_TDB_History.fn_Commit ticketsTable, revisions, identifier, transaction, m_form("ChangeReason")
+    Set committedGroup = ex_TDB_History.fn_Commit(ticketsTable, revisions, identifier, transaction, m_form("ChangeReason"), m_operationId)
     If revisions.ListRows.Count > VBA.CLng(transaction("RevisionsCount")) Then
         private_LogStage "WriteHistoryRecovery"
         recoveryToken = ex_TDB_HistoryRecovery.fn_Prepare(ticketsTable, revisions, identifier, transaction)
@@ -468,25 +470,14 @@ Public Function TrySave( _
     Application.ScreenUpdating = updatingBefore
     guarded = False
     private_LogStage "PublishSavedForm"
-    m_bindingContext.SetValue "Form", "HistoryRowId", identifier
+    Set m_chain = ex_TDB_History.fn_PublishGroup(identifier, committedGroup, m_bindingContext, afterSave:=True)
     If finalReturn = 0 Then
         m_bindingContext.SetValue "Form", "ReturnDate", VBA.vbNullString
     Else
         m_bindingContext.SetValue "Form", "ReturnDate", VBA.Format$(finalReturn, "dd.mm.yyyy")
     End If
     m_bindingContext.SetValue "Form", "TicketNo", ticketNo
-    If m_documentId = "BusinessTripCertificate" Then
-        m_bindingContext.SetObject "Data", "BasisChain", m_basis
-        m_bindingContext.SetValue "Form", "BasisOwnText", ex_TDB_BasisChain.fn_SavedOwnText(m_basis, m_form("Purpose"))
-        ex_TDB_BasisChain.fn_ClearDraft m_bindingContext
-        m_bindingContext.SetValue "Form", "Purpose", VBA.vbNullString
-        m_bindingContext.SetValue "Form", "BasisTextVisibility", "Collapsed"
-        ex_TDB_BasisChain.fn_Publish m_bindingContext
-    Else
-        m_bindingContext.SetObject "Data", "BasisChain", m_basis
-        ex_TDB_BasisChain.fn_ClearDraft m_bindingContext
-        ex_TDB_BasisChain.fn_Publish m_bindingContext
-    End If
+    If m_documentId = "BusinessTripCertificate" Then m_bindingContext.SetValue "Form", "BasisTextVisibility", "Collapsed"
     m_bindingContext.SetValue "Form", "GenerationStatusStyle", "generationSuccess"
     m_bindingContext.SetValue "Form", "GenerationStatus", private_Message("Success", ticketNo)
     If Len(filterError) > 0 Then
@@ -862,7 +853,11 @@ Private Sub private_MapKind( _
     End If
     For Each kind In VBA.Split(m_config("kind.ids"), ",")
         If VBA.StrComp(m_form("VacationKind"), m_config("kind." & kind & ".input"), VBA.vbTextCompare) = 0 Then
-            word = m_config("kind." & kind & ".word")
+            If m_wordMode = "table" Then
+                word = VBA.CStr(kind)
+            Else
+                word = m_config("kind." & kind & ".word")
+            End If
             eventText = m_config("kind." & kind & ".event")
             Exit Sub
         End If
@@ -1070,22 +1065,24 @@ End Sub
 
 Private Function private_WordDate(ByVal dateValue As Date) As String
     Dim months As Variant
-    Dim result As String
 
     If dateValue = 0 Then
         Exit Function
     End If
     months = VBA.Split(m_config("months"), "|")
     If UBound(months) <> 11 Then private_Fail "Invalid", "generation.months"
-    result = VBA.Replace$(m_config("datePattern"), "{dd}", VBA.Format$(dateValue, "dd"))
-    result = VBA.Replace$(result, "{month}", months(VBA.Month(dateValue) - 1))
-    private_WordDate = VBA.Replace$(result, "{yyyy}", VBA.Format$(dateValue, "yyyy"))
+    private_WordDate = """" & VBA.Format$(dateValue, "dd") & """ " & _
+        months(VBA.Month(dateValue) - 1) & " " & VBA.Format$(dateValue, "yyyy") & " р."
 End Function
 
 Private Function private_CountForm( _
     ByVal count As Long, _
     ByVal category As String _
 ) As String
+    private_CountForm = VBA.CStr(count) & " " & m_config("duration." & category & "." & private_CountClass(count))
+End Function
+
+Private Function private_CountClass(ByVal count As Long) As String
     Dim suffix As String
 
     suffix = "many"
@@ -1093,8 +1090,37 @@ Private Function private_CountForm( _
         If count Mod 10 = 1 Then suffix = "one"
         If count Mod 10 >= 2 And count Mod 10 <= 4 Then suffix = "few"
     End If
-    private_CountForm = VBA.CStr(count) & " " & m_config("duration." & category & "." & suffix)
+    private_CountClass = suffix
 End Function
+
+Private Sub private_SetWordCount( _
+    ByVal field As String, _
+    ByVal count As Long _
+)
+    Dim countClass As String
+
+    countClass = private_CountClass(count)
+    m_wordValues(field) = count
+    m_wordValues(field & "One") = (countClass = "one")
+    m_wordValues(field & "Few") = (countClass = "few")
+End Sub
+
+Private Sub private_SetWordDate( _
+    ByVal field As String, _
+    ByVal dateValue As Date _
+)
+    Dim months As Variant
+
+    m_wordValues(field & "Day") = VBA.vbNullString
+    m_wordValues(field & "Month") = VBA.vbNullString
+    m_wordValues(field & "Year") = VBA.vbNullString
+    If dateValue = 0 Then Exit Sub
+    months = VBA.Split(m_config("months"), "|")
+    If UBound(months) <> 11 Then private_Fail "Invalid", "generation.months"
+    m_wordValues(field & "Day") = VBA.Format$(dateValue, "dd")
+    m_wordValues(field & "Month") = months(VBA.Month(dateValue) - 1)
+    m_wordValues(field & "Year") = VBA.Format$(dateValue, "yyyy")
+End Sub
 
 Private Sub private_PrepareCompanion( _
     ByVal orderDate As Date, _
@@ -1105,9 +1131,10 @@ Private Sub private_PrepareCompanion( _
     Dim basis As Object
     Dim notification As Object
     Dim field As Variant
-    Dim text As String
     Dim prefix As String
     Dim notificationTypes As String
+    Dim senderUnit As String
+    Dim destinationUnit As String
 
     prefix = "generation.businessTrip.companion."
     Set places = m_wordValues("PlaceChain")
@@ -1115,7 +1142,9 @@ Private Sub private_PrepareCompanion( _
         VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.DestinationRequired")
     End If
     Set place = places(places.Count)
-    If Not VBA.CBool(place("IsMilitary")) Or VBA.Len(VBA.Trim$(VBA.CStr(place("PlaceName")))) = 0 Then
+    destinationUnit = VBA.UCase$(VBA.Trim$(VBA.CStr(place("Destination"))))
+    destinationUnit = VBA.Replace$(VBA.Replace$(destinationUnit, "A", "А"), "T", "Т")
+    If Not VBA.CBool(place("IsMilitary")) Or Not (destinationUnit Like "[АТ]####") Then
         VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.DestinationRequired")
     End If
     notificationTypes = "|" & ex_TravelDocumentsBuilder.fn_Config(prefix & "notificationTypes") & "|"
@@ -1135,21 +1164,17 @@ Private Sub private_PrepareCompanion( _
             VBA.Err.Raise 5, , ex_TravelDocumentsBuilder.fn_Config(prefix & "text.NotificationRequired")
         End If
     Next field
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config(prefix & "textFields"), "|")
-        m_wordValues("Companion" & VBA.CStr(field)) = VBA.Replace$( _
-            ex_TravelDocumentsBuilder.fn_Config(prefix & "text." & VBA.CStr(field)), "|", VBA.vbLf)
-    Next field
-    m_wordValues("CompanionRecipient") = VBA.Replace$( _
-        ex_TravelDocumentsBuilder.fn_Config(prefix & "text.Recipient"), "{unit}", VBA.CStr(place("PlaceName")))
-    m_wordValues("CompanionCopyRecipient") = VBA.Replace$( _
-        ex_TravelDocumentsBuilder.fn_Config(prefix & "text.CopyRecipient"), "{institution}", VBA.CStr(notification("BasisInstitutionName")))
-    text = ex_TravelDocumentsBuilder.fn_Config(prefix & "text.Body")
-    text = VBA.Replace$(text, "{notification}", VBA.CStr(notification("BasisRenderedText")))
-    text = VBA.Replace$(text, "{rank}", m_form("RankGenitive"))
-    m_wordValues("CompanionBody") = VBA.Replace$(text, "{name}", m_form("FIOAccusative"))
-    text = ex_TravelDocumentsBuilder.fn_Config(prefix & "text.CertificateAttachment")
-    text = VBA.Replace$(text, "{number}", ticketNo)
-    m_wordValues("CompanionCertificateAttachment") = VBA.Replace$(text, "{date}", VBA.Format$(orderDate, "dd.mm.yyyy"))
+    m_wordValues("CompanionDestinationUnit") = destinationUnit
+    senderUnit = VBA.Trim$(VBA.CStr(notification("BasisInstitutionKey")))
+    m_wordValues("CompanionHasCopy") = (notification("BasisInstitutionGroup") = "Unit" And VBA.Len(senderUnit) > 0 And _
+            VBA.StrComp(VBA.Replace$(senderUnit, "A", "А", 1, -1, VBA.vbTextCompare), _
+                VBA.Replace$(destinationUnit, "A", "А", 1, -1, VBA.vbTextCompare), VBA.vbTextCompare) <> 0)
+    m_wordValues("CompanionSenderInstitution") = VBA.CStr(notification("BasisInstitutionName"))
+    m_wordValues("CompanionNotification") = VBA.CStr(notification("BasisRenderedText"))
+    m_wordValues("CompanionRank") = m_form("RankGenitive")
+    m_wordValues("CompanionName") = m_form("FIOAccusative")
+    m_wordValues("CompanionTicketNumber") = ticketNo
+    m_wordValues("CompanionOrderDate") = VBA.Format$(orderDate, "dd.mm.yyyy")
 End Sub
 
 Private Sub private_InitializeWordTable(ByVal documentId As String)
@@ -1218,6 +1243,7 @@ Private Sub private_GenerateWord( _
     Dim initials As String
     Dim duration As String
     Dim abroad As String
+    Dim kind As Variant
     Dim index As Long
     Dim bookmarkName As Variant
     Dim target As Object
@@ -1240,33 +1266,54 @@ Private Sub private_GenerateWord( _
     End If
     initials = m_form("PersonRank") & " " & parts(0) & VBA.ChrW$(160) & _
         VBA.Left$(parts(1), 1) & "." & VBA.Left$(parts(2), 1) & "."
-    duration = private_CountForm(vacationDays, "vacation")
-    If donationDays > 0 Then
-        duration = duration & " " & m_config("duration.connector") & " " & _
-            private_CountForm(donationDays, "donation") & " " & m_config("duration.donation.suffix")
-    End If
-    If roadDays > 0 Then
-        duration = duration & " " & m_config("duration.connector") & " " & _
-            private_CountForm(roadDays, "road") & " " & m_config("duration.road.suffix")
-    End If
-    abroad = VBA.vbNullString
-    If m_form("VacationAbroad") = m_config("abroad.yes") Then
-        abroad = m_config("abroad.word")
+    If m_wordMode = "markers" Then
+        duration = private_CountForm(vacationDays, "vacation")
+        If donationDays > 0 Then
+            duration = duration & " " & m_config("duration.connector") & " " & _
+                private_CountForm(donationDays, "donation") & " " & m_config("duration.donation.suffix")
+        End If
+        If roadDays > 0 Then
+            duration = duration & " " & m_config("duration.connector") & " " & _
+                private_CountForm(roadDays, "road") & " " & m_config("duration.road.suffix")
+        End If
+        If m_form("VacationAbroad") = m_config("abroad.yes") Then
+            abroad = m_config("abroad.word")
+        End If
     End If
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
         "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer", _
         "SignatoryPosition", "SignatoryRank", "SignatoryName")
-    values = VBA.Array(private_WordDate(orderDate), ticketNo, m_form("RankDative") & " " & m_form("FIODative"), _
-        kindWord, m_form("DocumentTarget"), duration, private_WordDate(departure), private_WordDate(finalReturn), _
+    values = VBA.Array(VBA.vbNullString, ticketNo, m_form("RankDative") & " " & m_form("FIODative"), _
+        kindWord, m_form("DocumentTarget"), duration, VBA.vbNullString, VBA.vbNullString, _
         initials, VBA.vbNullString, abroad, VBA.vbNullString, _
         signatory("SignatoryPosition"), signatory("SignatoryRank"), signatory("SignatoryName"))
+    If m_wordMode = "markers" Then
+        values(0) = private_WordDate(orderDate)
+        values(6) = private_WordDate(departure)
+        values(7) = private_WordDate(finalReturn)
+    End If
     For index = 0 To UBound(names)
         private_Log "TDB_DOCX_VALUE", "Marker=" & names(index) & " | Value=" & ex_TravelDocumentsBuilder.fn_LogValue(values(index))
         m_wordValues(VBA.CStr(names(index))) = values(index)
     Next index
-    If finalReturn <> 0 Then
+    If m_wordMode = "markers" And finalReturn <> 0 Then
         values(9) = private_WordDate(VBA.DateAdd("d", 1, finalReturn))
         m_wordValues("DateArrival") = values(9)
+    End If
+    If m_wordMode = "table" Then
+        private_SetWordDate "TicketDate", orderDate
+        private_SetWordDate "DateFrom", departure
+        private_SetWordDate "DateTo", finalReturn
+        If finalReturn <> 0 Then private_SetWordDate "DateArrival", VBA.DateAdd("d", 1, finalReturn)
+        For Each kind In VBA.Split(m_config("kind.ids"), ",")
+            m_wordValues("Leave_" & VBA.CStr(kind)) = (kindWord = VBA.CStr(kind))
+        Next kind
+        private_SetWordCount "LeaveDays", vacationDays
+        private_SetWordCount "DonationDays", donationDays
+        private_SetWordCount "RoadDays", roadDays
+        m_wordValues("HasDonationDays") = (donationDays > 0)
+        m_wordValues("HasRoadDays") = (roadDays > 0)
+        m_wordValues("IsAbroad") = (m_form("VacationAbroad") = m_config("abroad.yes"))
     End If
     If m_documentId = "BusinessTripCertificate" Then
         If m_wordMode <> "table" Then
@@ -1275,26 +1322,18 @@ Private Sub private_GenerateWord( _
         If donationDays <> 0 Then
             private_Fail "Invalid", private_FieldCaption("DonationDays")
         End If
-        m_wordValues("Position") = m_form("PersonPosition")
+        m_wordValues("Position") = ex_TDB_Declensions.fn_CertificatePosition( _
+            VBA.CStr(m_form("PersonPositionCode")), VBA.CStr(m_form("PersonPosition")), VBA.CStr(m_form("PersonRank")))
         m_wordValues("TravelPlace") = m_form("DocumentTarget")
-        If private_IsIndefinite(vacationDays) Then
-            m_wordValues("Duration") = VBA.Replace$( _
-                ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.indefinite"), _
-                "{from}", VBA.Format$(departure, "dd.mm.yyyy"))
-        Else
-            m_wordValues("Duration") = VBA.Replace$(VBA.Replace$(VBA.Replace$( _
-            ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.durationPattern"), _
-            "{duration}", private_CountForm(vacationDays + roadDays, "trip")), "{from}", private_WordDate(departure)), _
-            "{to}", private_WordDate(VBA.DateAdd("d", -1, finalReturn)))
+        m_wordValues("TripIndefinite") = private_IsIndefinite(vacationDays)
+        m_wordValues("TripDeparture") = VBA.Format$(departure, "dd.mm.yyyy")
+        If Not m_wordValues("TripIndefinite") Then
+            private_SetWordCount "TripDays", vacationDays + roadDays
+            private_SetWordDate "DateTo", VBA.DateAdd("d", -1, finalReturn)
         End If
         m_wordValues("Basis") = m_form("Purpose")
         m_wordValues("WeaponLine") = m_form("WeaponLine")
-        m_wordValues("TripPurpose") = VBA.vbNullString
-        m_wordValues("TripPurposeCaption") = VBA.vbNullString
-        If m_form("TripKind") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolKind") Then
-            m_wordValues("TripPurpose") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolPurpose")
-            m_wordValues("TripPurposeCaption") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.purposeCaption")
-        End If
+        m_wordValues("IsAwolTrip") = (m_form("TripKind") = ex_TravelDocumentsBuilder.fn_Config("generation.businessTrip.awolKind"))
     End If
     If m_wordMode = "table" Then
         private_InitializeWordTable renderDocumentId

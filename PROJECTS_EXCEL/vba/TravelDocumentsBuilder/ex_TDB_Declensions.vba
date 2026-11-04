@@ -32,6 +32,40 @@ Failed:
         ex_TravelDocumentsBuilder.fn_Config("declensions.error"), "{field}", output), "{detail}", detail)
 End Sub
 ' --------------------------------------
+Public Function fn_HistoryPosition( _
+    ByVal positionCode As String, _
+    ByVal positionName As String _
+) As String
+    Dim key As String
+    Dim kind As Variant
+
+    key = private_PositionKey(positionCode)
+    For Each kind In VBA.Array("rozp", "spis", "tp")
+        If key = ex_TravelDocumentsBuilder.fn_Config("declensions.positions." & kind & ".code") Then
+            fn_HistoryPosition = key
+            Exit Function
+        End If
+    Next kind
+    fn_HistoryPosition = positionName
+End Function
+
+Public Function fn_CertificatePosition( _
+    ByVal positionCode As String, _
+    ByVal positionName As String, _
+    ByVal personRank As String _
+) As String
+    Dim key As String
+    Dim specialPosition As String
+
+    key = private_PositionKey(positionCode)
+    If key = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.spis.code") Then
+        specialPosition = ex_TravelDocumentsBuilder.fn_Config("declensions.positions.spis.text")
+    Else
+        specialPosition = private_SpecialPosition(key, personRank)
+    End If
+    fn_CertificatePosition = specialPosition
+    If VBA.Len(specialPosition) = 0 Then fn_CertificatePosition = positionName
+End Function
 ' } // namespace API
 ' --------------------------------------
 

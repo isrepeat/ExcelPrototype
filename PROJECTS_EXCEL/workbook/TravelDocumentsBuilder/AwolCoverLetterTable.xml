@@ -22,12 +22,6 @@
     <cellStyle name="Requisites"
                basedOn="Letterhead"
                fontBold="false"/>
-    <cellStyle name="SpacedRequisites"
-               basedOn="Requisites"
-               spaceBefore="8pt"/>
-    <cellStyle name="Recipient"
-               basedOn="Body"
-               spaceBefore="12pt"/>
     <cellStyle name="BodyParagraph"
                basedOn="Body"
                horizontal="justify"
@@ -39,87 +33,114 @@
   <template name="AwolCoverLetter">
     <table style="Letter">
       <columns>
+        <column name="RequisiteGutter"
+                width="4mm"/>
         <column name="Letterhead"
-                width="65mm"/>
+                width="61mm"/>
         <column name="Gap"
                 width="15mm"/>
         <column name="Addressee"
                 width="80mm"/>
       </columns>
       <row allowBreakAcrossPages="false">
-        <cell style="Letterhead">
+        <cell columnSpan="2"
+              style="Letterhead">
           <paragraph>
             <image source="Emblem"
                    width="9mm"
                    height="12mm"/>
           </paragraph>
           <paragraph>
-            <text>{[CompanionHeader]}</text>
+            <text>МІНІСТЕРСТВО ОБОРОНИ{#newline}УКРАЇНИ{#newline}ЗБРОЙНІ СИЛИ УКРАЇНИ{#newline}ВІЙСЬКОВА ЧАСТИНА{#newline}А7383</text>
           </paragraph>
           <paragraph style="Requisites">
-            <text>{[CompanionOrganizationCode]}</text>
-          </paragraph>
-          <paragraph style="SpacedRequisites">
-            <text>{[TicketDate]}</text>
-          </paragraph>
-          <paragraph style="SpacedRequisites">
-            <text>{[CompanionLetterNumber]}</text>
-          </paragraph>
-          <paragraph style="SpacedRequisites">
-            <text>{[CompanionAddress]}</text>
+            <text>Код ЄДРПОУ 26630678</text>
           </paragraph>
         </cell>
-        <cell/>
+        <cell rowSpan="4"/>
         <cell style="Body">
           <paragraph>
-            <text>{[CompanionDelivery]}</text>
+            <text>Передати засобами СЕДО</text>
           </paragraph>
-          <paragraph style="Recipient">
-            <text>{[CompanionRecipient]}</text>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell/>
+        <cell style="Requisites">
+          <paragraph>
+            <text>"{[TicketDateDay]}" {[TicketDateMonth]} {[TicketDateYear]} р.</text>
           </paragraph>
-          <paragraph style="Recipient">
-            <text>{[CompanionCopyRecipient]}{#newline}{[CompanionCopyNotice]}</text>
+        </cell>
+        <cell style="Body">
+          <paragraph>
+            <text>Командиру військової частини {[CompanionDestinationUnit]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell/>
+        <cell style="Requisites">
+          <paragraph>
+            <text>№ 1656/__________</text>
+          </paragraph>
+        </cell>
+        <cell style="Body">
+          <paragraph>
+            <text>{#if [CompanionHasCopy]}Командиру {[CompanionSenderInstitution]}{#endif}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell/>
+        <cell style="Requisites">
+          <paragraph>
+            <text>м. Харків, 61121</text>
+          </paragraph>
+        </cell>
+        <cell style="Body">
+          <paragraph>
+            <text>{#if [CompanionHasCopy]}(до відома){#endif}</text>
           </paragraph>
         </cell>
       </row>
       <row allowBreakAcrossPages="false"
            height="15mm"
            heightRule="atLeast">
-        <cell columnSpan="3"/>
+        <cell columnSpan="4"/>
       </row>
       <row allowBreakAcrossPages="false">
-        <cell columnSpan="3"
+        <cell columnSpan="4"
               style="Body">
           <paragraph style="BodyParagraph">
-            <text>{[CompanionBody]}</text>
+            <text>На {[CompanionNotification]}, згідно з Тимчасовим алгоритмом дій посадових осіб стосовно прийому військовослужбовців, які повернулися для проходження військової служби до Збройних Сил України, надсилаю відповідні документи на {[CompanionRank]} {[CompanionName]}.</text>
           </paragraph>
           <paragraph>
-            <text>{[CompanionAttachmentsTitle]}</text>
+            <text>Додаток:</text>
           </paragraph>
           <paragraph>
-            <text>{[CompanionCertificateAttachment]}</text>
+            <text>1. Посвідчення про відрядження № {[CompanionTicketNumber]} від {[CompanionOrderDate]} на 1 арк. у 1 прим.</text>
           </paragraph>
           <paragraph>
-            <text>{[CompanionFoodAttachment]}</text>
+            <text>2. Атестат військовослужбовця на продовольство на 1 арк. у 1 прим.</text>
           </paragraph>
           <paragraph>
-            <text>{[CompanionMovementAttachment]}</text>
+            <text>3. Облікові дані на план переміщення на 1 арк. у 1 прим.</text>
           </paragraph>
         </cell>
       </row>
       <row allowBreakAcrossPages="false"
            height="15mm"
            heightRule="atLeast">
-        <cell columnSpan="3"/>
+        <cell columnSpan="4"/>
       </row>
       <row allowBreakAcrossPages="false">
-        <cell columnSpan="3"
+        <cell columnSpan="4"
               style="Body">
           <text>{[SignatoryPosition]}</text>
         </cell>
       </row>
       <row allowBreakAcrossPages="false">
-        <cell columnSpan="2"
+        <cell columnSpan="3"
               style="Body">
           <text>{[SignatoryRank]}</text>
         </cell>

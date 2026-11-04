@@ -864,7 +864,7 @@ Public Function DeleteEventHandler() As Boolean
     If Not private_TryReadFormValue("HistoryRowId", identifier) Then Exit Function
     If VBA.Len(VBA.CStr(identifier)) = 0 Then ex_TDB_History.fn_Fail "Stale"
     If Not private_TryReadFormValue("HistoryStamp", stamp) Then Exit Function
-    prompt = VBA.Replace$(ex_TDB_History.fn_Config("text.DeleteConfirm"), "{id}", VBA.CStr(identifier))
+    prompt = ex_TDB_History.fn_DeletePrompt(VBA.CStr(identifier), VBA.CStr(stamp))
     If ex_WindowsUi.fn_ShowMessage(prompt, VBA.vbYesNo Or VBA.vbQuestion Or VBA.vbDefaultButton2, _
             ex_TravelDocumentsBuilder.fn_Config("text.DeleteEvent")) <> VBA.vbYes Then
         DeleteEventHandler = True
@@ -1955,8 +1955,8 @@ Private Function private_SaveEvent(ByVal isUpdate As Boolean) As Boolean
     private_SavePhase "DisposeGenerator", phaseStartedAt, operationId
     If private_SaveEvent Then
         If private_TryReadFormValue("HistoryRowId", value) Then
-            Set objectValue = ex_TDB_History.fn_Load(VBA.CStr(value), m_pageBase.BindingContext)
-            private_SavePhase "ReloadSavedEvent", phaseStartedAt, operationId
+            If Not m_pageBase.BindingContext.TryGetValue("Data", "TvoChain", value, objectValue, isObject) Then Exit Function
+            If Not isObject Then Exit Function
             private_PublishChain objectValue
             If Not private_PublishPlaces() Then Exit Function
             private_SavePhase "PublishLoadedChains", phaseStartedAt, operationId

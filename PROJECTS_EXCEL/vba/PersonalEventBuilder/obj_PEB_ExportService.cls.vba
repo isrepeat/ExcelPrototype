@@ -1426,6 +1426,10 @@ Private Sub private_Enrich( _
         If inputField = pair(0) Then
             rankField = pair(1)
             lookupInput = private_PositionKey(lookupInput)
+            If lookupInput = ex_PEB_Export.fn_Config("export.shared.positions.spis.code") Then
+                values.Add outputField, ex_PEB_Export.fn_Config("export.shared.positions.spis.text")
+                GoTo Cleanup
+            End If
             If lookupInput = ex_PEB_Export.fn_Config("export.shared.positions.tp.code") Then
                 values.Add outputField, ex_PEB_Export.fn_Config("export.shared.positions.tp.text")
                 GoTo Cleanup

@@ -165,7 +165,7 @@
         <cell columnSpan="3"
               style="TicketDetails">
           <paragraph>
-            <text>{[TicketDate]}</text>
+            <text>"{[TicketDateDay]}" {[TicketDateMonth]} {[TicketDateYear]} р.</text>
           </paragraph>
         </cell>
       </row>
@@ -251,7 +251,7 @@
         <cell columnSpan="9"
               style="Underlined">
           <paragraph>
-            <text>{[VacationKind]}</text>
+            <text>{#if [Leave_annual]}у частину щорічної основної відпустки{#endif}{#if [Leave_family]}у відпустку за сімейними обставинами{#endif}{#if [Leave_childcare]}у відпустку по догляду за дитиною{#endif}{#if [Leave_maternity]}у відпустку у зв'язку з вагітністю та пологами{#endif}{#if [Leave_treatment]}у відпустку для лікування після поранення (контузії, травми або каліцтва){#endif}{#if [Leave_annualMedical]}у частину щорічної основної відпустки{#endif}{#if [Leave_treatmentMedical]}у відпустку для лікування після поранення (контузії, травми або каліцтва){#endif}</text>
           </paragraph>
         </cell>
       </row>
@@ -295,7 +295,7 @@
         <cell columnSpan="8"
               style="Underlined">
           <paragraph>
-            <text>{[VacationDuration]}</text>
+            <text>{[LeaveDays]} {#if [LeaveDaysOne]}календарний день{#else}{#if [LeaveDaysFew]}календарні дні{#else}календарних днів{#endif}{#endif}{#if [HasDonationDays]} та {[DonationDays]} {#if [DonationDaysOne]}додатковий день{#else}{#if [DonationDaysFew]}додаткові дні{#else}додаткових днів{#endif}{#endif} відпочинку за донацію донорської крові та/або компонентів крові{#endif}{#if [HasRoadDays]} та {[RoadDays]} {#if [RoadDaysOne]}добу{#else}{#if [RoadDaysFew]}доби{#else}діб{#endif}{#endif} на дорогу{#endif}</text>
           </paragraph>
         </cell>
       </row>
@@ -317,7 +317,7 @@
         <cell columnSpan="11"
               style="Centered">
           <paragraph>
-            <text>      з {[DateFrom]} по {[DateTo]}</text>
+            <text>      з "{[DateFromDay]}" {[DateFromMonth]} {[DateFromYear]} р. по "{[DateToDay]}" {[DateToMonth]} {[DateToYear]} р.</text>
           </paragraph>
         </cell>
       </row>
@@ -400,7 +400,7 @@
         <cell columnSpan="11"
               style="Body">
           <paragraph>
-            <text>{[DateArrival]} до 08:00 год.</text>
+            <text>"{[DateArrivalDay]}" {[DateArrivalMonth]} {[DateArrivalYear]} р. до 08:00 год.</text>
           </paragraph>
         </cell>
       </row>
@@ -448,11 +448,11 @@
           <text>Дійсний у разі пред’явлення документа, який засвідчує особу.</text>
         </cell>
       </row>
-      <if test="[VacationAbroadText]">
+      <if test="[IsAbroad]">
         <row allowBreakAcrossPages="false">
           <cell columnSpan="11"
                 style="Body">
-            <text>{[VacationAbroadText]}</text>
+            <text>Дозволено виїзд за кордон</text>
           </cell>
         </row>
       </if>
