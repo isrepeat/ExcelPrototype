@@ -135,13 +135,16 @@ Public Function fn_TryExpand( _
     Next row
 
     Set output = New Collection
-    For Each key In entries.Keys
+    For Each key In localKeys.Keys
         row = entries(key)
         If VBA.StrComp(row(0), "importCfg", VBA.vbTextCompare) = 0 Then
-            output.Add VBA.Array("importCfg", key, private_Path(baseFolder, VBA.CStr(row(2))))
+            output.Add VBA.Array("importCfg", key, VBA.CStr(row(2)))
         Else
             output.Add VBA.Array("value", key, private_Resolve(VBA.CStr(key), entries, resolved, visiting))
         End If
+    Next key
+    For Each key In resolved.Keys
+        If Not localKeys.Exists(key) Then output.Add VBA.Array("value", key, resolved(key))
     Next key
     fn_TryExpand = True
     Exit Function

@@ -9,6 +9,12 @@ value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
 importCfg	Import::workbooks.__cfgDependencies	../cfgDependencies.xlsx
+ref	common::medicalCatalog.flag.header	__cfgDependencies.common::medicalCatalog.flag.header
+ref	common::medicalCatalog.flag.value	__cfgDependencies.common::medicalCatalog.flag.value
+ref	common::medicalCatalog.tables.units	__cfgDependencies.common::medicalCatalog.tables.units
+ref	common::medicalCatalog.tables.institutions	__cfgDependencies.common::medicalCatalog.tables.institutions
+ref	common::medicalCatalog.headers	__cfgDependencies.common::medicalCatalog.headers
+ref	common::medicalCatalog.unitHeaders	__cfgDependencies.common::medicalCatalog.unitHeaders
 file	__cfgDependencies.fileEjos	../../tests/PersonalEventBuilder/Dependencies/test_ЕЖОС.xlsx
 file	__cfgDependencies.filePersonnelShpo	../../tests/PersonalEventBuilder/Dependencies/test_ШПО.xlsx
 file	__cfgDependencies.fileMovementExport	../../tests/PersonalEventBuilder/Dependencies/test_РУХ.xlsx
@@ -2162,7 +2168,7 @@ value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
 value	PersonalEventBuilder::validation.Movement.source.range	B6:AD20000
 value	PersonalEventBuilder::validation.Movement.enabled	true
-value	PersonalEventBuilder::validation.MedicalReports.root	C:\WORK\Windows\Строевые приказы\Documents\PersonnelMedicalReports
+ref	PersonalEventBuilder::validation.MedicalReports.root	__cfgDependencies.fileMedicalReportsRoot
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Until	 Планове повернення: {date}.
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Hospital	Уже на стаціонарному лікуванні з {from}.
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Recorded	Внесено в EventsHistory: наказ №{number} від {date}.

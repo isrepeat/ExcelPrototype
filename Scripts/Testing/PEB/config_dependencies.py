@@ -79,7 +79,9 @@ def expand(local, base, loader):
         resolved[key] = value
         return value
 
-    return {entry[3]: resolve(key) for key, entry in entries.items()}
+    for key in local_keys:
+        resolve(key)
+    return {entries[key][3]: value for key, value in resolved.items()}
 
 
 def shared_rows(path):

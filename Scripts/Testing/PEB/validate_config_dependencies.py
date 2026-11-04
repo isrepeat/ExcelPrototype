@@ -72,6 +72,10 @@ def main():
         assert result["Consumer"] == str((WORKBOOK / "test/source.xlsx").resolve())
     result = expand(imports + [["ref", "Consumer", "__Shared.Data"]], WORKBOOK, loader)
     assert result["Consumer"] == str((shared.parent / "Dependencies/source.xlsx").resolve())
+    assert "__Shared.Range" not in result
+    unused_loader = lambda path: loader(path) + [["ref", "Unused", "Missing"]]
+    assert expand(imports + [["ref", "Consumer", "__Shared.Data"]], WORKBOOK, unused_loader) == result
+    reject(imports + [["ref", "Consumer", "__Shared.Unused"]], unused_loader, "not found")
     padded = expand(imports + [["  ref", "Consumer", "__Shared.Data"]], WORKBOOK, loader)
     assert padded["Consumer"] == result["Consumer"]
     reject([["ref", "A", "missing"]], loader, "not found")
@@ -86,7 +90,13 @@ def main():
     reject(imports + [["ref", "A", "Data"]], loader, "not found")
     other = [["importCfg", "Import::workbooks.__Other", "../Other/cfg.xlsx"]]
     multi_loader = lambda _: loader(_) + [["ref", "Alias", "Data"]]
-    result = expand(imports + other, WORKBOOK, multi_loader)
+    consumers = [
+        ["ref", "SharedRange", "__Shared.Range"],
+        ["ref", "OtherRange", "__Other.Range"],
+        ["ref", "SharedAlias", "__Shared.Alias"],
+        ["ref", "OtherAlias", "__Other.Alias"],
+    ]
+    result = expand(imports + other + consumers, WORKBOOK, multi_loader)
     assert result["__Shared.Range"] == result["__Other.Range"] == "A1:C20"
     assert result["__Shared.Alias"] == result["__Shared.Data"]
     assert result["__Other.Alias"] == result["__Other.Data"]

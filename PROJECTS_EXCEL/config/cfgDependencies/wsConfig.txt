@@ -92,5 +92,6 @@ column	rangePersonnelAlf::column.fio	ПІБ
 column	rangePersonnelAlf::column.ipn	ІПН
 file	fileMovementExport	Dependencies/РУХ.xlsx
 file	fileMovementHistory	C:\Users\isrepeat\Desktop\РУХ_last.xlsx
+file	fileMedicalReportsRoot	C:\WORK\Windows\Строевые приказы\Documents\PersonnelMedicalReports
 range	rangePersonnelRanks	[Звання$A1:E12000]
 range	rangePersonnelPositions	[Посади$A1:E12000]

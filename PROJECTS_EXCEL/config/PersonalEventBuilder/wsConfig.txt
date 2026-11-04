@@ -1,5 +1,11 @@
 value	ThisWorkbook::id	PersonalEventBuilder
 importCfg	Import::workbooks.__cfgDependencies	../cfgDependencies.xlsx
+ref	common::medicalCatalog.flag.header	__cfgDependencies.common::medicalCatalog.flag.header
+ref	common::medicalCatalog.flag.value	__cfgDependencies.common::medicalCatalog.flag.value
+ref	common::medicalCatalog.tables.units	__cfgDependencies.common::medicalCatalog.tables.units
+ref	common::medicalCatalog.tables.institutions	__cfgDependencies.common::medicalCatalog.tables.institutions
+ref	common::medicalCatalog.headers	__cfgDependencies.common::medicalCatalog.headers
+ref	common::medicalCatalog.unitHeaders	__cfgDependencies.common::medicalCatalog.unitHeaders
 value	ThisWorkbook::ui.pageMappings	MainPage=MainPage.xaml
 value	ThisWorkbook::ui.confirmSelectionKey	^{RETURN}
 value	ThisWorkbook::config.source	../../config/PersonalEventBuilder/wsConfig.txt
@@ -1918,7 +1924,7 @@ value	PersonalEventBuilder::validation.Movement.source.table	ТВ
   ref	PersonalEventBuilder::validation.Movement.source.sheet	__cfgDependencies.source.MovementHistory.sheet
 value	PersonalEventBuilder::validation.Movement.source.range	B6:AD20000
 value	PersonalEventBuilder::validation.Movement.enabled	true
-value	PersonalEventBuilder::validation.MedicalReports.root	C:\WORK\Windows\Строевые приказы\Documents\PersonnelMedicalReports
+ref	PersonalEventBuilder::validation.MedicalReports.root	__cfgDependencies.fileMedicalReportsRoot
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Until	 Планове повернення: {date}.
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Hospital	Уже на стаціонарному лікуванні з {from}.
 value	PersonalEventBuilder::validation.MedicalReports.text.State.Recorded	Внесено в EventsHistory: наказ №{number} від {date}.
