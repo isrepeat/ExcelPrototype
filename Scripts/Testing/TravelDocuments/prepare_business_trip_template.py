@@ -128,7 +128,7 @@ def build_scaffold():
     document = ET.fromstring(package['word/document.xml'])
     body = document.find('w:body', NS)
     original = list(body)
-    # Replace the generated front table and move its signature to the first-page footer.
+    # Replace the front table with the insertion markers.
     for child in original[:15]:
         body.remove(child)
     for index, marker in enumerate((r'{\exportTable:BusinessTrip_Begin}', r'{\exportTable:BusinessTrip_End}')):
@@ -142,7 +142,7 @@ def build_scaffold():
         properties = ET.Element(f'{{{W}}}pPr')
         continuation.insert(0, properties)
     ET.SubElement(properties, f'{{{W}}}pageBreakBefore')
-    # Reuse the exact vacation page geometry and first-page signature footer.
+    # Reuse the vacation page geometry and empty first-page footer.
     old_section = body.find('w:sectPr', NS)
     body.remove(old_section)
     section = deepcopy(ET.fromstring(vacation['word/document.xml']).find('.//w:sectPr', NS))

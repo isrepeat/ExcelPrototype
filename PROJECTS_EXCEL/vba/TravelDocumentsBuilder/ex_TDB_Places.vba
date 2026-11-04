@@ -170,7 +170,11 @@ Public Function fn_Address( _
     Dim separator As String
 
     If Not isAbroad Then
-        address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressTemplate")
+        If VBA.Len(ex_TableQuery.fn_NormalizeText(VBA.CStr(fields("District")))) = 0 Then
+            address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressWithoutDistrict")
+        Else
+            address = ex_TravelDocumentsBuilder.fn_Config("lookup.Places.addressTemplate")
+        End If
         For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.sourceFields"), "|")
             address = VBA.Replace$(address, "{" & field & "}", VBA.CStr(fields(field)))
         Next field

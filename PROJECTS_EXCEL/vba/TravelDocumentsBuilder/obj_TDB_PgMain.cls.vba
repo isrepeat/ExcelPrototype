@@ -315,6 +315,19 @@ Private Function private_TryRegisterBindings() As Boolean
             Exit Function
         End If
     Next key
+    For Each key In VBA.Array("SignerHeading", "SignerReplaced", "SignerPreview")
+        If Not ex_TravelDocumentsBuilder.fn_TryGetConfig("text." & VBA.CStr(key), valueText) Then Exit Function
+        If Not bindingContext.SetValue("Text", VBA.CStr(key), valueText) Then Exit Function
+    Next key
+    For Each key In VBA.Array("SignatoryName", "SignatoryRank", "SignatoryPosition", "SignerId", "SignerCode", "SignerReplaced", "SignerReplacedCode", "SignerReplacedId")
+        If Not bindingContext.SetValue("Settings", VBA.CStr(key), VBA.vbNullString) Then Exit Function
+    Next key
+    For Each key In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.signerFields"), "|")
+        If Not bindingContext.SetValue("Settings", VBA.CStr(key) & "ReadOnly", False) Then Exit Function
+        If Not bindingContext.SetValue("Settings", VBA.CStr(key) & "LabelStyle", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.signerLabel")) Then Exit Function
+        If Not bindingContext.SetValue("Settings", VBA.CStr(key) & "Style", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then Exit Function
+    Next key
+    If Not bindingContext.SetValue("Settings", "SignerPreview", ex_TravelDocumentsBuilder.fn_Config("word.text.SignerEmpty")) Then Exit Function
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Exit Function
     End If
@@ -365,6 +378,9 @@ Private Function private_TryRegisterCommands() As Boolean
             bindingContext, "SaveHistory", "SaveHistoryHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "ExportWord", "ExportWordHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "SearchSigner", "SearchSignerHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "SearchReplaced", "SearchReplacedHandler") Then Exit Function
+    If Not private_TryRegisterCommand(bindingContext, "PreviewSigner", "PreviewSignerHandler") Then Exit Function
     If Not private_TryRegisterCommand( _
             bindingContext, "ClearForm", "NewEventHandler") Then Exit Function
     If Not private_TryRegisterCommand(bindingContext, "LoadHistory", "LoadHistoryHandler") Then Exit Function

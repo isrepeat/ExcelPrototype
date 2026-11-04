@@ -76,11 +76,14 @@ class WordTableDslTests(unittest.TestCase):
 
     def test_ticket_geometry_matches_existing_word_table(self):
         table = ET.parse(str(CATALOG)).find("p:template/p:table", NS)
-        columns, rows, cells, occupied = grid(table, {"VacationAbroadText": ""})
+        context = {name: False for name in ("IsAbroad", "HasDonationDays", "HasRoadDays")}
+        columns, rows, cells, occupied = grid(table, context)
         with ZipFile(SOURCE) as package:
             original = ET.fromstring(package.read("word/document.xml")).find(".//w:tbl", NS)
-        self.assertEqual(len(rows), 32)
-        self.assertEqual(len(grid(table, {"VacationAbroadText": "Дозволено виїзд за кордон."})[1]), 33)
+        self.assertEqual(len(grid(table, dict(context, IsAbroad=True))[1]), len(rows) + 1)
+        signature = "".join("".join(row.itertext()) for row, _ in rows[-5:])
+        for field in ("Position", "Rank", "Name"):
+            self.assertIn("{[Signatory" + field + "]}", signature)
         self.assertEqual(len(columns), 11)
         expected = [int(node.get(f"{{{W}}}w")) for node in original.findall("w:tblGrid/w:gridCol", NS)]
         self.assertEqual([round(width * 20) for width in columns], expected)
@@ -113,11 +116,21 @@ class WordTableDslTests(unittest.TestCase):
                     original_body.remove(paragraph)
             begin, end = marker_bounds(scaffold_body, "Ticket")
             self.assertEqual(end, begin + 1)
+            self.assertIsNotNone(scaffold_body[end + 1].find(".//w:br[@w:type='page']", NS))
+            original_break = next(i for i, item in enumerate(original_body)
+                                  if item.find(".//w:br[@w:type='page']", NS) is not None)
+            blank = original_body[original_break - 1]
+            self.assertTrue(all(ET.QName(child).localname == "pPr" for child in blank))
+            original_body.remove(blank)
             for item in list(scaffold_body)[begin:end + 1]:
                 scaffold_body.remove(item)
             self.assertEqual(ET.tostring(original), ET.tostring(scaffold))
             for name in source.namelist():
-                if name != "word/document.xml":
+                if name == "word/footer1.xml":
+                    footer = ET.fromstring(target.read(name))
+                    self.assertFalse(footer.findall(".//w:tbl", NS))
+                    self.assertFalse("".join(footer.itertext()).strip())
+                elif name != "word/document.xml":
                     self.assertEqual(source.read(name), target.read(name), name)
 
     def test_dynamic_rows_empty_single_many_and_condition(self):

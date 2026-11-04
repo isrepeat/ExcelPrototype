@@ -16,6 +16,9 @@
                vertical="center"
                spaceBefore="0pt"
                spaceAfter="0pt"/>
+    <cellStyle name="SignatureName"
+               basedOn="Body"
+               horizontal="right"/>
     <cellStyle name="Centered"
                basedOn="Body"
                horizontal="center"/>
@@ -353,6 +356,39 @@
           </cell>
         </row>
       </if>
+      <row allowBreakAcrossPages="false"
+           height="6pt"
+           heightRule="exact">
+        <cell columnSpan="6"/>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="5"
+              style="Body">
+          <text>{[SignatoryPosition]}</text>
+        </cell>
+        <cell/>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="5"
+              style="Body">
+          <text>{[SignatoryRank]}</text>
+        </cell>
+        <cell style="SignatureName">
+          <text>{[SignatoryName]}</text>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="6"
+              style="Caption">
+          <text>(військове звання, підпис, ініціали (ініціал імені) та прізвище)</text>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="6"
+              style="Body">
+          <text>М.П.</text>
+        </cell>
+      </row>
     </table>
   </template>
 </wordTableTemplates>

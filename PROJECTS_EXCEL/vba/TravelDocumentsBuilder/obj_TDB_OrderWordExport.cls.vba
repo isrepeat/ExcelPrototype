@@ -121,6 +121,8 @@ Public Function TryExport( _
     Dim previousWindow As Window
     Dim previousSheet As Object
     Dim signatory As Object
+    Dim signatories As Object
+    Dim missingSigners As String
     Dim templatePaths As Object
     Dim templateStamps As Object
     Dim frozenTemplates As Object
@@ -150,6 +152,24 @@ Public Function TryExport( _
     ex_TDB_History.fn_Open tickets, revisions
     Set transaction = ex_TDB_History.fn_Begin(tickets, revisions, VBA.vbNullString, VBA.vbNullString)
     Set groups = ex_TDB_History.fn_OrderGroups(tickets, revisions, orderNumber, orderDate)
+    Set signatories = VBA.CreateObject("Scripting.Dictionary")
+    For Each group In groups
+        Set root = group(1)
+        If root("Status") = "Active" Then
+            Set signatory = ex_TDB_Signatory.fn_FromHistory(root)
+            If signatory Is Nothing Then
+                If VBA.Len(missingSigners) > 0 Then missingSigners = missingSigners & VBA.vbCrLf
+                missingSigners = missingSigners & root("FullName") & " (" & root("TicketNumber") & ")"
+            Else
+                signatories.Add root("RowId"), signatory
+            End If
+        End If
+    Next group
+    If VBA.Len(missingSigners) > 0 Then
+        diagnostic = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.text.SignerMissing"), "{details}", VBA.vbCrLf & missingSigners)
+        ex_WindowsUi.fn_ShowMessage diagnostic, VBA.vbExclamation
+        GoTo Cleanup
+    End If
     Set wanted = VBA.CreateObject("Scripting.Dictionary")
     wanted.CompareMode = VBA.vbTextCompare
     Set staged = VBA.CreateObject("Scripting.Dictionary")
@@ -244,7 +264,6 @@ Public Function TryExport( _
     Next group
 
     ' Render a complete frozen set before replacing or removing any existing document.
-    If wanted.Count > 0 Then Set signatory = ex_TDB_Signatory.fn_Resolve(orderNumber, orderDate)
     ex_Core.fn_Diagnostic_WritePerf "TDB.Word.Export.Prepare", phaseStartedAt
     phaseStartedAt = VBA.Timer
     busyEntered = ex_UiBusy.fn_Begin(private_Config("text.Loading"))
@@ -252,6 +271,7 @@ Public Function TryExport( _
         Set root = group(1)
         If root("Status") = "Active" Then
             progress = progress + 1
+            Set signatory = signatories(root("RowId"))
             documentId = ex_TravelDocumentsBuilder.fn_DocumentId(VBA.CStr(root("VacationKind")))
             frozenTemplate = frozenTemplates(documentId)
             activePath = m_fileSystem.BuildPath(stage, staged(root("RowId")))

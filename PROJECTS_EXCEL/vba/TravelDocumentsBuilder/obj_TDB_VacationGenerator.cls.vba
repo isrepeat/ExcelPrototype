@@ -178,6 +178,7 @@ Public Function TrySave( _
     Dim protectionDiagnostic As String
     Dim historyRows As Object
     Dim historyRow As Object
+    Dim signerFields As Object
     Dim identifier As String
     Dim metadata As Object
     Dim parentId As String
@@ -281,6 +282,7 @@ Public Function TrySave( _
     If isUpdate And VBA.Len(identifier) = 0 Then ex_TDB_History.fn_Fail "SelectRequired"
     If Not isUpdate And VBA.Len(identifier) > 0 Then ex_TDB_History.fn_Fail "NewRequired"
     private_LogStage "BeginHistoryTransaction"
+    Set signerFields = ex_TDB_Signatory.fn_Capture(m_bindingContext, m_form("PersonName"), m_form("VacationStatus") <> m_config("status.cancelled"))
     Set transaction = ex_TDB_History.fn_Begin(ticketsTable, revisions, identifier, m_form("HistoryStamp"))
     private_LogStage "ReadAndValidateHistory"
     Set historyRows = transaction("Rows")
@@ -369,8 +371,14 @@ Public Function TrySave( _
     For Each key In ex_TDB_Places.fn_FormFields()
         metadata.Add VBA.CStr(key), m_form(key)
     Next key
+    For Each key In signerFields.Keys
+        metadata.Add key, signerFields(key)
+    Next key
     private_LogStage "WriteEventMetadata"
     ex_TDB_History.fn_Write ticketsTable, mainRow, metadata
+    For Each key In signerFields.Keys
+        metadata(key) = VBA.vbNullString
+    Next key
     private_LogStage "WriteDonation"
     If donationDays > 0 Then
         If donationRow Is Nothing Then Set donationRow = private_AddRow(ticketsTable, mainRow)
@@ -1281,12 +1289,10 @@ Private Sub private_GenerateWord( _
         End If
     End If
     names = VBA.Array("TicketDate", "TicketNum", "PersonalLine", "VacationKind", "VacationPlace", _
-        "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer", _
-        "SignatoryPosition", "SignatoryRank", "SignatoryName")
+        "VacationDuration", "DateFrom", "DateTo", "PersonalInitials", "DateArrival", "VacationAbroadText", "FooterSpacer")
     values = VBA.Array(VBA.vbNullString, ticketNo, m_form("RankDative") & " " & m_form("FIODative"), _
         kindWord, m_form("DocumentTarget"), duration, VBA.vbNullString, VBA.vbNullString, _
-        initials, VBA.vbNullString, abroad, VBA.vbNullString, _
-        signatory("SignatoryPosition"), signatory("SignatoryRank"), signatory("SignatoryName"))
+        initials, VBA.vbNullString, abroad, VBA.vbNullString)
     If m_wordMode = "markers" Then
         values(0) = private_WordDate(orderDate)
         values(6) = private_WordDate(departure)
@@ -1301,6 +1307,9 @@ Private Sub private_GenerateWord( _
         m_wordValues("DateArrival") = values(9)
     End If
     If m_wordMode = "table" Then
+        m_wordValues("SignatoryPosition") = signatory("SignatoryPosition")
+        m_wordValues("SignatoryRank") = signatory("SignatoryRank")
+        m_wordValues("SignatoryName") = signatory("SignatoryName")
         private_SetWordDate "TicketDate", orderDate
         private_SetWordDate "DateFrom", departure
         private_SetWordDate "DateTo", finalReturn
@@ -1407,6 +1416,12 @@ Private Sub private_GenerateWord( _
         Next bookmarkName
     Next index
     private_WordPerf stage, stageStartedAt
+    If m_wordMode = "table" And (renderDocumentId = "VacationTicket" Or renderDocumentId = "BusinessTripCertificate") Then
+        stage = "Document.FitSignatureGap"
+        stageStartedAt = VBA.Timer
+        private_FitSignatureGap document
+        private_WordPerf stage, stageStartedAt
+    End If
     stage = "Document.Save"
     stageStartedAt = VBA.Timer
     private_Log "TDB_DOCX_SAVE", "PathLength=" & VBA.CStr(VBA.Len(path)) & " | Path=" & path
@@ -1458,6 +1473,45 @@ Private Function private_OpenWordDocument( _
         Visible:=False _
     )
 End Function
+
+Private Sub private_FitSignatureGap(ByVal document As Object)
+    Const WD_ACTIVE_END_PAGE_NUMBER As Long = 3
+    Const WD_STATISTIC_PAGES As Long = 2
+    Const WD_ROW_HEIGHT_EXACTLY As Long = 2
+    Const SIGNATURE_CELL_COUNT As Long = 6
+    Const PREFERRED_GAP As Single = 36
+    Const GAP_STEP As Single = 6
+    Dim table As Object
+    Dim cells As Object
+    Dim spacer As Object
+    Dim tableEnd As Object
+    Dim minimumGap As Single
+    Dim gap As Single
+    Dim baselinePages As Long
+
+    Set table = document.Tables(1)
+    Set cells = table.Range.Cells
+    If cells.Count <= SIGNATURE_CELL_COUNT Then Exit Sub
+    ' The final four signature rows have six cells. Their preceding cell is the spacer.
+    Set spacer = cells(cells.Count - SIGNATURE_CELL_COUNT)
+    If spacer.HeightRule <> WD_ROW_HEIGHT_EXACTLY Or spacer.Range.Text <> VBA.vbCr & VBA.Chr$(7) Then Exit Sub
+    minimumGap = spacer.Height
+    If minimumGap >= PREFERRED_GAP Then Exit Sub
+    Set tableEnd = table.Range.Duplicate
+    tableEnd.SetRange tableEnd.End - 1, tableEnd.End - 1
+    document.Repaginate
+    If tableEnd.Information(WD_ACTIVE_END_PAGE_NUMBER) <> 1 Then Exit Sub
+    baselinePages = document.ComputeStatistics(WD_STATISTIC_PAGES)
+    For gap = PREFERRED_GAP To minimumGap Step -GAP_STEP
+        If gap <= minimumGap Then Exit For
+        spacer.Height = gap
+        document.Repaginate
+        If tableEnd.Information(WD_ACTIVE_END_PAGE_NUMBER) = 1 And _
+                document.ComputeStatistics(WD_STATISTIC_PAGES) = baselinePages Then Exit Sub
+    Next gap
+    spacer.Height = minimumGap
+    document.Repaginate
+End Sub
 
 Private Sub private_IndexWordMarkers( _
     ByVal document As Object, _

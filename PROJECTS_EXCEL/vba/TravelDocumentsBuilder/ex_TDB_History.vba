@@ -647,6 +647,13 @@ Public Function fn_PublishGroup( _
         pair = VBA.Split(mapping, "=")
         updates.Add "Form." & pair(0), root(pair(1))
     Next mapping
+    For Each mapping In VBA.Split(fn_Config("signerFields"), "|")
+        pair = VBA.Split(mapping, "=")
+        updates.Add "Settings." & pair(0), root(pair(1))
+    Next mapping
+    If VBA.Len(private_Text(root("SignerReplaced"))) = 0 Then
+        updates("Settings.SignerReplaced") = root("SignerReplacedCode")
+    End If
     updates("Form.PlaceKind") = ex_TDB_PlaceChain.fn_Kind(root)
     If VBA.Len(private_Text(root("TripKind"))) = 0 Then
         updates("Form.TripKind") = ex_TravelDocumentsBuilder.fn_Config("generation.defaults.TripKind")

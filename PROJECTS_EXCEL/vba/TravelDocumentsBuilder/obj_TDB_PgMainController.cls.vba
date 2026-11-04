@@ -24,6 +24,7 @@ Private m_placeChainView As obj_LookupResult
 Private m_tvoChainView As obj_LookupResult
 Private m_lookupIsPlace As Boolean
 Private m_lookupIsBasis As Boolean
+Private m_signerLookup As String
 Private m_messages As Object
 Private m_historyResult As obj_LookupResult
 Private m_orderResolver As obj_OrderResolver
@@ -259,58 +260,10 @@ End Function
 
 Public Function SearchPersonnelHandler() As Boolean
     Dim searchText As Variant
-    Dim result As obj_LookupResult
-    Dim diagnostic As String
-    Dim statusText As String
-    Dim isTvo As Variant
 
-    If Not m_isInitialized Or m_isDisposed Then
-        Exit Function
-    End If
-    m_lookupIsPlace = False
-    m_lookupIsBasis = False
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("PersonnelQuery", searchText) Then Exit Function
-    If VBA.Len(VBA.Trim$(VBA.CStr(searchText))) = 0 Then
-        SearchPersonnelHandler = private_HideCandidates()
-        Exit Function
-    End If
-    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
-            ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
-            ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
-        Exit Function
-    End If
-    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then
-        Exit Function
-    End If
-    If ex_TableSnapshots.fn_Active() Is Nothing Then
-        private_SetActionStatus ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired"), True
-        Exit Function
-    End If
-    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then
-        Exit Function
-    End If
-    If VBA.CBool(isTvo) Then
-        If Not private_ClearTvo(True) Then
-            Exit Function
-        End If
-    End If
-    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
-        Exit Function
-    End If
-    If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic, ex_TDB_Candidates.fn_BrowseLimit(VBA.CStr(searchText))) Then
-        ex_Core.fn_Diagnostic_WriteLog "TDB_PERSONNEL_SEARCH_FAILED | " & diagnostic
-        private_SetActionStatus diagnostic, True
-        Exit Function
-    End If
-    Set m_lookupResult = result
-    If Not private_ValidateCandidateBounds(result, "candidates.personnel.columnOffset") Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then
-        Exit Function
-    End If
-    statusText = private_BuildPersonnelStatus(VBA.CStr(searchText), result)
-    SearchPersonnelHandler = private_SetActionStatus(statusText, False)
+    SearchPersonnelHandler = private_SearchPersonnel(VBA.CStr(searchText), VBA.vbNullString)
 End Function
 
 Public Function PersonNameChangedHandler() As Boolean
@@ -507,6 +460,17 @@ Public Function SelectPersonnelHandler(ByVal selected As Object) As Boolean
         SelectPersonnelHandler = private_SetActionStatus(ex_TravelDocumentsBuilder.fn_Config("lookup.Places.text.Selected"), False)
         Exit Function
     End If
+    If VBA.Len(m_signerLookup) > 0 Then
+        If m_signerLookup = "person" Then
+            If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then Exit Function
+            If Not VBA.CBool(autoFillPersonnel) Then
+                SelectPersonnelHandler = private_HideCandidates()
+                Exit Function
+            End If
+        End If
+        SelectPersonnelHandler = private_ApplySigner(selected)
+        Exit Function
+    End If
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFillPersonnel) Then
         Exit Function
     End If
@@ -561,6 +525,7 @@ Public Function RefreshPersonnelHandler() As Boolean
         m_lookupResult.Dispose
     End If
     Set m_lookupResult = emptyResult
+    m_signerLookup = VBA.vbNullString
     m_lookupIsPlace = False
     If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
             ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
@@ -789,6 +754,8 @@ Public Function ClearFormHandler() As Boolean
     Dim emptyBasis As New Collection
     Dim preserved As Object
     Dim current As Variant
+    Dim mapping As Variant
+    Dim pair As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     private_UpdateResetCaption
@@ -799,6 +766,10 @@ Public Function ClearFormHandler() As Boolean
     Next key
     m_basisReorder.ClearFocus
     Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each mapping In VBA.Split(ex_TDB_History.fn_Config("signerFields"), "|")
+        pair = VBA.Split(mapping, "=")
+        updates("Settings." & pair(0)) = VBA.vbNullString
+    Next mapping
     updates("Form.BasisIncludeOrder") = VBA.CBool(ex_TravelDocumentsBuilder.fn_Config("basisChain.defaults.includeOrder"))
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "PlaceKind", _
@@ -841,6 +812,7 @@ Public Function ClearFormHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedHistory", VBA.vbNullString) Then Exit Function
     m_previousAutoFill = Empty
     If Not private_UpdateFieldState() Then Exit Function
+    If Not Me.PreviewSignerHandler() Then Exit Function
     If Not Me.DocumentTypeChangedHandler() Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "TvoChain", emptyChain) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "PlaceChain", emptyPlaces) Then Exit Function
@@ -893,6 +865,42 @@ Public Function SaveHistoryHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("HistoryRowId", identifier) Then Exit Function
     SaveHistoryHandler = private_SaveEvent(VBA.Len(VBA.CStr(identifier)) > 0)
+End Function
+
+Public Function SearchSignerHandler() As Boolean
+    Dim autoFill As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If Not VBA.CBool(autoFill) Then
+        If Not private_HideCandidates() Then Exit Function
+        SearchSignerHandler = Me.PreviewSignerHandler()
+        Exit Function
+    End If
+    SearchSignerHandler = private_SearchSigner("person", "SignatoryName", "SignatoryRank|SignatoryPosition|SignerId|SignerCode")
+End Function
+
+Public Function SearchReplacedHandler() As Boolean
+    SearchReplacedHandler = private_SearchSigner("replaced", "SignerReplaced", "SignerReplacedCode|SignerReplacedId")
+End Function
+
+Public Function PreviewSignerHandler() As Boolean
+    Dim signatory As Object
+    Dim preview As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    On Error GoTo Failed
+    Set signatory = ex_TDB_Signatory.fn_ResolveChoice(m_pageBase.BindingContext)
+    If signatory Is Nothing Then
+        preview = ex_TravelDocumentsBuilder.fn_Config("word.text.SignerEmpty")
+    Else
+        preview = signatory("SignatoryPosition") & VBA.vbLf & signatory("SignatoryRank") & VBA.vbLf & signatory("SignatoryName")
+    End If
+    PreviewSignerHandler = m_pageBase.BindingContext.SetValue("Settings", "SignerPreview", preview)
+    Exit Function
+Failed:
+    preview = VBA.Err.Description
+    PreviewSignerHandler = m_pageBase.BindingContext.SetValue("Settings", "SignerPreview", preview)
 End Function
 
 Public Function ExportWordHandler() As Boolean
@@ -1059,6 +1067,7 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
     If Not private_UpdateFieldState() Then
         Exit Function
     End If
+    If Not Me.PreviewSignerHandler() Then Exit Function
     SelectHistoryHandler = private_SetActionStatus(ex_TDB_History.fn_Config("text.Loaded"), False)
     Exit Function
 Failed:
@@ -1126,6 +1135,7 @@ Public Function SearchOrdersHandler() As Boolean
     If VBA.Len(VBA.CStr(query)) = 0 Or VBA.CStr(query) Like "*[!0-9]*" Then year = VBA.vbNullString
     m_acceptedOrderNumber = VBA.vbNullString
     m_acceptedOrderDate = 0
+    If Not Me.PreviewSignerHandler() Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "AcceptedOrderNumber", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "AcceptedOrderDate", VBA.vbNullString) Then Exit Function
     If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
@@ -1448,7 +1458,124 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_SearchPersonnel( _
+    ByVal searchText As String, _
+    ByVal signerTarget As String _
+) As Boolean
+    Dim result As obj_LookupResult
+    Dim diagnostic As String
+    Dim statusText As String
+    Dim isTvo As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    m_signerLookup = VBA.vbNullString
+    m_lookupIsPlace = False
+    m_lookupIsBasis = False
+    If VBA.Len(VBA.Trim$(VBA.CStr(searchText))) = 0 Then
+        private_SearchPersonnel = private_HideCandidates()
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateColumnOffset", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.personnel.columnOffset")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "CandidateSelectionMode", _
+            ex_TravelDocumentsBuilder.fn_Config("candidates.selectionMode")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Visible") Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then
+        Exit Function
+    End If
+    If ex_TableSnapshots.fn_Active() Is Nothing Then
+        private_SetActionStatus ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired"), True
+        Exit Function
+    End If
+    If Not private_TryReadFormValue("LookupIsTvo", isTvo) Then
+        Exit Function
+    End If
+    If VBA.Len(signerTarget) = 0 And VBA.CBool(isTvo) Then
+        If Not private_ClearTvo(True) Then
+            Exit Function
+        End If
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
+        Exit Function
+    End If
+    If Not m_lookupService.TrySearch(VBA.CStr(searchText), result, diagnostic, ex_TDB_Candidates.fn_BrowseLimit(VBA.CStr(searchText))) Then
+        ex_Core.fn_Diagnostic_WriteLog "TDB_PERSONNEL_SEARCH_FAILED | " & diagnostic
+        private_SetActionStatus diagnostic, True
+        Exit Function
+    End If
+    Set m_lookupResult = result
+    If Not private_ValidateCandidateBounds(result, "candidates.personnel.columnOffset") Then Exit Function
+    If Not m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", result) Then
+        Exit Function
+    End If
+    m_signerLookup = signerTarget
+    statusText = private_BuildPersonnelStatus(searchText, result, VBA.Len(signerTarget) = 0)
+    private_SearchPersonnel = private_SetActionStatus(statusText, False)
+End Function
+
+Private Function private_SearchSigner( _
+    ByVal signerTarget As String, _
+    ByVal nameField As String, _
+    ByVal clearFields As String _
+) As Boolean
+    Dim bindingContext As obj_UiBindingContext
+    Dim field As Variant
+    Dim searchText As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+    Dim updates As Object
+    Dim diagnostic As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    Set bindingContext = m_pageBase.BindingContext
+    If Not bindingContext.TryGetValue("Settings", nameField, searchText, objectValue, isObject) Then Exit Function
+    If isObject Or VBA.IsError(searchText) Or VBA.IsNull(searchText) Then Exit Function
+    If Not private_HideCandidates() Then Exit Function
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each field In VBA.Split(clearFields, "|")
+        updates.Add "Settings." & VBA.CStr(field), VBA.vbNullString
+    Next field
+    If Not bindingContext.TryApplyValues(updates, diagnostic) Then
+        private_SetActionStatus diagnostic, True
+        Exit Function
+    End If
+    If Not Me.PreviewSignerHandler() Then Exit Function
+    If Not private_UpdateFieldState() Then Exit Function
+    private_SearchSigner = private_SearchPersonnel(VBA.CStr(searchText), signerTarget)
+End Function
+
+Private Function private_ApplySigner(ByVal record As obj_LookupRecord) As Boolean
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim value As Variant
+    Dim updates As Object
+    Dim diagnostic As String
+
+    Set updates = VBA.CreateObject("Scripting.Dictionary")
+    For Each mapping In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("word.signatory.apply." & m_signerLookup), "|")
+        pair = VBA.Split(VBA.CStr(mapping), "=")
+        If Not record.TryGetValue(VBA.CStr(pair(0)), value) Then
+            diagnostic = VBA.Replace$(ex_TravelDocumentsBuilder.fn_Config("word.text.SignerLookup"), "{details}", VBA.CStr(pair(0)))
+            private_SetActionStatus diagnostic, True
+            Exit Function
+        End If
+        updates.Add "Settings." & VBA.CStr(pair(1)), value
+    Next mapping
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then
+        private_SetActionStatus diagnostic, True
+        Exit Function
+    End If
+    If Not private_HideCandidates() Then Exit Function
+    If Not private_UpdateFieldState() Then Exit Function
+    private_ApplySigner = Me.PreviewSignerHandler()
+End Function
+
 Private Function private_HideCandidates() As Boolean
+    m_signerLookup = VBA.vbNullString
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     private_HideCandidates = m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed")
 End Function
@@ -1540,6 +1667,7 @@ Private Function private_AcceptOrder( _
     If Not ex_TDB_BasisChain.fn_Publish(m_pageBase.BindingContext) Then
         Exit Function
     End If
+    If Not Me.PreviewSignerHandler() Then Exit Function
     private_AcceptOrder = private_UpdateFieldState()
 End Function
 
@@ -1602,10 +1730,6 @@ End Function
 Private Function private_UpdateFieldState() As Boolean
     Dim autoFill As Variant
     Dim value As Variant
-    Dim field As Variant
-    Dim readOnly As Boolean
-    Dim labelStyle As String
-    Dim style As String
     Dim updates As Object
     Dim diagnostic As String
 
@@ -1619,21 +1743,44 @@ Private Function private_UpdateFieldState() As Boolean
         updates("Form.ChangeReasonVisibility") = "Visible"
         updates("Form.DeleteEventVisibility") = "Visible"
     End If
-    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.fields"), "|")
-        If Not private_TryReadFormValue(VBA.CStr(field), value) Then Exit Function
-        readOnly = VBA.CBool(autoFill) And VBA.Len(VBA.CStr(value)) > 0
-        labelStyle = ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.label")
-        style = ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")
-        If readOnly Then
-            labelStyle = ex_TravelDocumentsBuilder.fn_Config("forms.readOnly.labelStyle")
-            style = ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.Personnel")
-        End If
-        updates("Form." & field & "LabelStyle") = labelStyle
-        updates("Form." & field & "ReadOnly") = readOnly
-        updates("Form." & field & "Style") = style
-    Next field
+    If Not private_AddSourceFieldStates(updates, "Form", VBA.CBool(autoFill), "fields", "label", "labelStyle") Then Exit Function
+    If Not private_AddSourceFieldStates(updates, "Settings", VBA.CBool(autoFill), "signerFields", "signerLabel", "signerLabelStyle") Then Exit Function
     private_UpdateFieldState = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
     If Not private_UpdateFieldState Then VBA.Err.Raise 5, , diagnostic
+End Function
+
+Private Function private_AddSourceFieldStates( _
+    ByVal updates As Object, _
+    ByVal sourceName As String, _
+    ByVal autoFill As Boolean, _
+    ByVal fieldsKey As String, _
+    ByVal labelKey As String, _
+    ByVal readOnlyLabelKey As String _
+) As Boolean
+    Dim field As Variant
+    Dim value As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+    Dim readOnly As Boolean
+    Dim labelStyle As String
+    Dim style As String
+    Dim path As String
+
+    For Each field In VBA.Split(ex_TravelDocumentsBuilder.fn_Config("forms.readOnly." & fieldsKey), "|")
+        If Not m_pageBase.BindingContext.TryGetValue(sourceName, VBA.CStr(field), value, objectValue, isObject) Then Exit Function
+        path = sourceName & "." & VBA.CStr(field)
+        readOnly = autoFill And VBA.Len(VBA.CStr(value)) > 0
+        labelStyle = ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles." & labelKey)
+        style = ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")
+        If readOnly Then
+            labelStyle = ex_TravelDocumentsBuilder.fn_Config("forms.readOnly." & readOnlyLabelKey)
+            style = ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.Personnel")
+        End If
+        updates(path & "LabelStyle") = labelStyle
+        updates(path & "ReadOnly") = readOnly
+        updates(path & "Style") = style
+    Next field
+    private_AddSourceFieldStates = True
 End Function
 
 Private Function private_PublishPlaces() As Boolean
@@ -2028,13 +2175,14 @@ End Sub
 
 Private Function private_BuildPersonnelStatus( _
     ByVal searchText As String, _
-    ByVal result As obj_LookupResult _
+    ByVal result As obj_LookupResult, _
+    Optional ByVal requireOrder As Boolean = True _
 ) As String
     If ex_TableSnapshots.fn_Active() Is Nothing Then
         private_BuildPersonnelStatus = ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
         Exit Function
     End If
-    If VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderDate = 0 Then
+    If requireOrder And (VBA.Len(m_acceptedOrderNumber) = 0 Or m_acceptedOrderDate = 0) Then
         private_BuildPersonnelStatus = ex_TDB_History.fn_Config("text.ChooseOrder")
         Exit Function
     End If

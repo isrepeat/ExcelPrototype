@@ -214,8 +214,10 @@ with zipfile.ZipFile(template) as archive:
     text = "".join("".join(ET.fromstring(archive.read(name)).itertext()) for name in parts)
     placeholders = re.search(r"    names = VBA.Array\((.*?)\)\n    values", generator, re.S)[1]
     markers = re.findall(r'"(\w+)"', placeholders)
-    assert len(markers) == 15
-    assert {"SignatoryPosition", "SignatoryRank", "SignatoryName"} <= set(markers)
+    assert len(markers) == 12
+    signature_fields = {"SignatoryPosition", "SignatoryRank", "SignatoryName"}
+    assert signature_fields.isdisjoint(markers)
+    assert all("{" + field + "}" not in text for field in signature_fields)
     table_text = ""
     if cfg("word.tables.mode") == "table":
         table_catalog = ET.parse(workbook_folder / cfg("generation.tablePaths.VacationTicket"))
@@ -223,6 +225,7 @@ with zipfile.ZipFile(template) as archive:
         table_name = cfg("generation.tableNames.VacationTicket")
         assert text.count("{\\exportTable:" + table_name + "_Begin}") == 1
         assert text.count("{\\exportTable:" + table_name + "_End}") == 1
+        assert all("{[" + field + "]}" in table_text for field in signature_fields)
     for marker in markers:
         if marker != "FooterSpacer":
             assert "{" + marker + "}" in text or "{[" + marker + "]}" in table_text, f"Template placeholder missing: {marker}"
@@ -425,19 +428,11 @@ assert 'staged.Add identifier, VBA.CStr(wanted.Count) & ".docx"' in exporter
 assert 'm_fileSystem.BuildPath(backupFolder, VBA.CStr(backups.Count + 1) & ".docx")' in exporter
 assert 'TryRender(root, group, frozenTemplate, activePath, signatory, diagnostic)' in exporter
 signatory = (sources / "ex_TDB_Signatory.vba").read_text(encoding="utf-8-sig")
-assert 'ex_TableSnapshots.fn_Active()' in signatory
-assert 'snapshot.TryQuery(source, query, table, diagnostic)' in signatory
-assert 'sourceDate = orderDate' in signatory
-assert 'VBA.CStr(VBA.CDec(number)) = orderNumber' in signatory
-assert 'private_Fail "SignatoryAmbiguous"' in signatory
-assert 'private_Fail "SignatoryRequired"' in signatory
-assert exporter.count('ex_TDB_Signatory.fn_Resolve(orderNumber, orderDate)') == 1
-assert exporter.index('ex_TDB_Signatory.fn_Resolve') < exporter.index('m_vacationGenerator.TryRender')
-for key in ('SignatorySource', 'SignatoryRequired', 'SignatoryAmbiguous'):
-    assert '{details}' in cfg('word.text.' + key)
-assert cfg('word.signatory.actingPrefix') == 'ТВО'
-assert cfg('word.signatory.position') == 'Командир військової частини А7383'
-assert cfg('word.signatory.actingPosition') == 'Тимчасово виконуючий обов’язки командира військової частини А7383'
+assert 'fn_Capture' in signatory and 'fn_Capture(m_bindingContext' in generator
+assert exporter.index('ex_TDB_Signatory.fn_FromHistory(root)') < exporter.index('m_fileSystem.CreateFolder folder')
+assert 'Set signatory = signatories(root("RowId"))' in exporter
+assert 'ex_TDB_Signatory.fn_ResolveChoice' not in exporter
+assert '{details}' in cfg('word.text.SignerMissing')
 assert 'VBA.Len(frozenTemplate)' in exporter
 long_folder = PureWindowsPath("C:/" + "r" * 92) / "TDB_20261026_309"
 stage_folder = long_folder / "._TDB-stage-T-01234567-89AB-4CDE-8F01-23456789ABCD"

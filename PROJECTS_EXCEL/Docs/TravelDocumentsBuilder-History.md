@@ -18,6 +18,10 @@ Confirm a history row with Ctrl+Enter to load its form, RowId, concurrency stamp
 
 The form uses the shared input control's readOnly binding and editor state tags, as PersonalEventBuilder does. With autofill enabled, populated rank, tax ID, own position code, position description, unit and TVO dependent fields are read-only. The accepted order is selected in the action block; the form has no duplicate order editor. These fields use PEB's personnel/current-order styles and muted read-only colors. Personnel and TVO name lookup keys remain editable. Disabling autofill unlocks the dependent fields for manual editing. Empty dependent fields are not locked. The field list and source-style names are configured under forms.readOnly and forms.sourceStyles; no new protection mechanism is added to the common engine.
 
+Each active event saves its signer selection and the resolved Word position, rank and name. Revision snapshots include both sets of fields. Order export uses the saved text and preflights every active event before creating the staging folder. The certificate and its companion letter use the same saved signature.
+
+To add the columns to an older registry, close it in Excel and run `WorkbookUpdater/Upgrade-TDBBasisWorkbooks.py --history-only --history <registry.xlsx> --output-dir <backup-directory> --apply`. The migration appends columns to both tables, retains existing data and leaves the signer fields blank for older events.
+
 The TVO controls select an actor from the personnel lookup. Add appends that actor to the end of the chain and clears the selection fields. Remove drops the last actor. To replace an intermediate actor, remove the suffix and rebuild it. A single selected actor can also be saved directly when the chain is empty. Pending actor fields beside an existing chain must be added or cleared explicitly.
 
 ## Current rows and revisions

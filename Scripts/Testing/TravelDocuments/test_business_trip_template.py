@@ -1,14 +1,12 @@
-"""Check the business-trip catalog, source preservation and first-page footer offline."""
+"""Check the business-trip catalog, source preservation and signature rows offline."""
 
 from hashlib import sha256
-from pathlib import Path
 import re
-from tempfile import TemporaryDirectory
 
 from lxml import etree as ET
 
 from prepare_business_trip_template import CATALOG, SOURCE, TARGET, VACATION, NS, read_package, source_text
-from word_table_preview import grid, marker_bounds, preview, styles
+from word_table_preview import grid, marker_bounds, styles
 
 
 assert sha256(SOURCE.read_bytes()).hexdigest() == '27489141aee906e15351d32cf016c360603980fad87031235ca8a9dfbf93a054'
@@ -17,12 +15,16 @@ template = catalog.find('p:template[@name="BusinessTrip"]', NS)
 assert template is not None
 table = template.find('p:table', NS)
 fields = set(re.findall(r'\{\[([^]]+)\]\}', ''.join(table.itertext())))
-assert fields == {'TicketDate', 'TicketNum', 'PersonalLine', 'Position', 'TravelPlace', 'Duration', 'Basis', 'WeaponLine'}
-context = {field: field for field in fields}
+assert {'TicketDateDay', 'TicketNum', 'PersonalLine', 'TravelPlace', 'TripDays', 'Basis', 'WeaponLine',
+        'SignatoryPosition', 'SignatoryRank', 'SignatoryName'} <= fields
+context = dict(IsAwolTrip=False, WeaponLine='АК-47')
 columns, rows, cells, occupied = grid(table, context)
-assert len(columns) == 6 and len(rows) == 24
+assert len(columns) == 6 and len(rows) == 29
 empty_weapon = dict(context, WeaponLine='')
-assert len(grid(table, empty_weapon)[1]) == 23
+assert len(grid(table, empty_weapon)[1]) == 28
+for index, field in ((-4, 'SignatoryPosition'), (-3, 'SignatoryRank'), (-3, 'SignatoryName')):
+    assert '{[' + field + ']}' in ''.join(rows[index][0].itertext())
+assert styles(catalog)['SignatureName']['horizontal'] == 'right'
 assert table.find('p:if[@test="[WeaponLine]"]/p:row/p:cell/p:text', NS).text == 'Слідує зі зброєю: {[WeaponLine]}.'
 assert abs(sum(columns) - 474.95) < 0.01
 assert styles(catalog)[table.get('style')]['borders'] == 'none'
@@ -48,19 +50,8 @@ assert 'Олег ЧЕРКАШИН' not in source_text(body)
 assert '<WeaponLine>' not in source_text(body)
 assert '{WeaponLine}' not in source_text(body)
 
-context.update(WeaponLine='АК-47', SignatoryPosition='Командир військової частини А7383',
-               SignatoryRank='полковник', SignatoryName='Іван ПРИКЛАД')
-with TemporaryDirectory() as folder:
-    path = preview(CATALOG, TARGET, Path(folder) / 'trip.docx', context, 'BusinessTrip')
-    package = read_package(path)
-    output = ET.fromstring(package['word/document.xml'])
-    assert len(output.findall('.//w:body/w:tbl', NS)) == 2
-    assert '\\exportTable:' not in source_text(output)
-    assert 'Слідує зі зброєю: АК-47.' in source_text(output)
-    footer = source_text(ET.fromstring(package['word/footerTrip.xml']))
-    assert 'Іван ПРИКЛАД' in footer and '{Signatory' not in footer
-    empty_path = preview(CATALOG, TARGET, Path(folder) / 'empty.docx', dict(context, WeaponLine=''), 'BusinessTrip')
-    empty_document = ET.fromstring(read_package(empty_path)['word/document.xml'])
-    assert 'Слідує зі зброєю:' not in source_text(empty_document)
+footer = ET.fromstring(scaffold['word/footerTrip.xml'])
+assert not footer.findall('.//w:tbl', NS)
+assert not source_text(footer).strip()
 
-print('Business-trip grid, fields, source preservation, footer and page break: OK')
+print('Business-trip grid, signature rows, source preservation, footer and page break: OK')

@@ -5,10 +5,12 @@ import copy
 from datetime import datetime
 import io
 import math
+import os
 from pathlib import Path
 import posixpath
 import re
 import shutil
+from tempfile import TemporaryDirectory
 import xml.etree.ElementTree as ET
 import zipfile
 
@@ -585,7 +587,7 @@ def xml_basis_architecture(book, config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--references', type=Path)
-    parser.add_argument('--institutions', type=Path, required=True)
+    parser.add_argument('--institutions', type=Path)
     parser.add_argument('--history', type=Path)
     parser.add_argument('--output-dir', type=Path, required=True)
     parser.add_argument('--apply', action='store_true')
@@ -593,11 +595,16 @@ def main():
     parser.add_argument('--rename-rule-sheets-only', action='store_true')
     parser.add_argument('--group-enums-only', action='store_true')
     parser.add_argument('--xml-basis-only', action='store_true')
+    parser.add_argument('--history-only', action='store_true')
     args = parser.parse_args()
     focused = args.explicit_required_only or args.rename_rule_sheets_only or args.group_enums_only or args.xml_basis_only
     if sum([args.explicit_required_only, args.rename_rule_sheets_only, args.group_enums_only, args.xml_basis_only]) > 1:
         parser.error('Choose only one focused upgrade mode')
-    if not focused and args.references is None:
+    if args.history_only and (focused or args.history is None or args.institutions is not None or args.references is not None):
+        parser.error('--history-only requires --history and cannot be combined with an institution upgrade')
+    if not args.history_only and args.institutions is None:
+        parser.error('--institutions is required unless --history-only is specified')
+    if not args.history_only and not focused and args.references is None:
         parser.error('--references is required unless a focused upgrade mode is specified')
     if focused and args.history:
         parser.error('Focused upgrade modes do not alter history snapshots')
@@ -605,6 +612,35 @@ def main():
     config_path = Path(__file__).resolve().parents[1] / 'config/TravelDocumentsBuilder/wsConfig.txt'
     config = {fields[1].split('::', 1)[1]: fields[2] for line in config_path.read_text(encoding='utf-8-sig').splitlines()
               if line.strip() for fields in [line.split('\t')] if fields[0] == 'value'}
+    if args.history_only:
+        original = args.history.resolve()
+        lock = original.with_name('~$' + original.name)
+        if args.apply and lock.exists():
+            parser.error('Save and close the history workbook in Excel before applying the migration')
+        original_bytes = original.read_bytes()
+        history = Package(original)
+        previous_parts = dict(history.parts)
+        upgrade_history(history, config)
+        if previous_parts == history.parts:
+            print(f'History schema already current: {original.name}')
+            return
+        output = (args.output_dir / original.name).resolve()
+        if output == original:
+            parser.error('Output must differ from the working workbook')
+        history.save(output)
+        if args.apply:
+            timestamp = datetime.now().strftime('%Y%m%d-%H%M%S-%f')
+            backup = args.output_dir / (original.stem + '.' + timestamp + '.backup.xlsx')
+            with TemporaryDirectory(dir=original.parent) as folder:
+                staged = Path(folder) / original.name
+                shutil.copy2(output, staged)
+                if lock.exists() or original.read_bytes() != original_bytes:
+                    parser.error('History workbook changed during migration. Close it and run again')
+                backup.write_bytes(original_bytes)
+                os.replace(staged, original)
+            print(f'Backup: {backup}')
+        print(f'Upgraded: {output}')
+        return
     institutions = Package(args.institutions)
     if args.xml_basis_only:
         xml_basis_architecture(institutions, config)

@@ -905,6 +905,103 @@
                      caption="{Binding Path=Text.ExportWord}"
                      command="{Binding Path=Commands.ExportWord}"/>
 
+    <controls:label name="SignerHeading"
+                    row="17"
+                    column="13"
+                    columnSpan="2"
+                    style="statusHeading"
+                    text="{Binding Path=Text.SignerHeading}"/>
+
+    <controls:label name="SignatoryRankLabel"
+                    row="18"
+                    column="14"
+                    style="{Binding Path=Settings.SignatoryRankLabelStyle}"
+                    text="{Binding Path=Text.PersonRankLabel}"/>
+    <controls:input name="SignatoryRank"
+                    row="18"
+                    column="13"
+                    style="{Binding Path=Settings.SignatoryRankStyle}"
+                    value="{Binding Path=Settings.SignatoryRank}"
+                    readOnly="{Binding Path=Settings.SignatoryRankReadOnly}"
+                    onChange="{Binding Path=Commands.PreviewSigner}"/>
+
+    <controls:label name="SignatoryNameLabel"
+                    row="19"
+                    column="14"
+                    style="signerLabel"
+                    text="{Binding Path=Text.PersonNameLabel}"/>
+    <controls:input name="SignatoryName"
+                    row="19"
+                    column="13"
+                    style="lookupKeyField"
+                    value="{Binding Path=Settings.SignatoryName}"
+                    onChange="{Binding Path=Commands.SearchSigner}"/>
+
+    <controls:label name="SignerIdLabel"
+                    row="20"
+                    column="14"
+                    style="{Binding Path=Settings.SignerIdLabelStyle}"
+                    text="{Binding Path=Text.PersonIdLabel}"/>
+    <controls:input name="SignerId"
+                    row="20"
+                    column="13"
+                    style="{Binding Path=Settings.SignerIdStyle}"
+                    value="{Binding Path=Settings.SignerId}"
+                    readOnly="{Binding Path=Settings.SignerIdReadOnly}"
+                    onChange="{Binding Path=Commands.PreviewSigner}"/>
+
+    <controls:label name="SignerCodeLabel"
+                    row="21"
+                    column="14"
+                    style="{Binding Path=Settings.SignerCodeLabelStyle}"
+                    text="{Binding Path=Text.PersonPositionCodeLabel}"/>
+    <controls:input name="SignerCode"
+                    row="21"
+                    column="13"
+                    style="{Binding Path=Settings.SignerCodeStyle}"
+                    value="{Binding Path=Settings.SignerCode}"
+                    readOnly="{Binding Path=Settings.SignerCodeReadOnly}"
+                    onChange="{Binding Path=Commands.PreviewSigner}"/>
+
+    <controls:label name="SignatoryPositionLabel"
+                    row="22"
+                    column="14"
+                    style="{Binding Path=Settings.SignatoryPositionLabelStyle}"
+                    text="{Binding Path=Text.PersonPositionLabel}"/>
+    <controls:input name="SignatoryPosition"
+                    row="22"
+                    column="13"
+                    style="{Binding Path=Settings.SignatoryPositionStyle}"
+                    value="{Binding Path=Settings.SignatoryPosition}"
+                    readOnly="{Binding Path=Settings.SignatoryPositionReadOnly}"
+                    onChange="{Binding Path=Commands.PreviewSigner}"/>
+
+    <controls:label name="SignerReplacedLabel"
+                    row="23"
+                    column="14"
+                    style="signerLabel"
+                    text="{Binding Path=Text.SignerReplaced}"/>
+    <controls:input name="SignerReplaced"
+                    row="23"
+                    column="13"
+                    style="lookupKeyField"
+                    value="{Binding Path=Settings.SignerReplaced}"
+                    onChange="{Binding Path=Commands.SearchReplaced}"/>
+
+    <controls:label name="SignerPreviewLabel"
+                    row="24"
+                    column="13"
+                    columnSpan="2"
+                    style="statusHeading"
+                    text="{Binding Path=Text.SignerPreview}"/>
+    <controls:label name="SignerPreview"
+                    row="25"
+                    column="13"
+                    rowSpan="4"
+                    columnSpan="2"
+                    style="statusText"
+                    text="{Binding Path=Settings.SignerPreview}"/>
+
     <controls:button name="ClearForm"
                      row="2"
                      column="7"
@@ -951,7 +1048,7 @@
                     style="statusHeading"
                     text="{Binding Path=Text.HistoryEditMode}"/>
     <controls:button name="DeleteEvent"
-                     row="17"
+                     row="16"
                      column="13"
                      columnSpan="2"
                      style="secondaryButton"
@@ -1161,6 +1258,30 @@
                   borderColor="{ThemeResource Border}"
                   borderWeight="thin"
                   horizontal="right"
+                  vertical="center"/>
+    <controlStyle name="signerLabel"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="{ThemeResource LabelBackground}"
+                  textColor="{ThemeResource TextPrimary}"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="{ThemeResource Border}"
+                  borderWeight="thin"
+                  horizontal="left"
+                  vertical="center"/>
+    <controlStyle name="readOnlySignerLabel"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="{ThemeResource LabelBackground}"
+                  textColor="{ThemeResource MutedText}"
+                  fontName="Calibri"
+                  fontSize="11"
+                  fontBold="false"
+                  borderColor="{ThemeResource Border}"
+                  borderWeight="thin"
+                  horizontal="left"
                   vertical="center"/>
     <controlStyle name="manualPlaceLabel"
                   paddingLeft="10"
