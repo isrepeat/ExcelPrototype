@@ -2,7 +2,7 @@
                     version="1">
   <styles>
     <tableStyle name="Letter"
-                width="160mm"
+                width="474.95pt"
                 alignment="left"
                 layout="fixed"
                 borders="none"
@@ -16,16 +16,26 @@
                spaceAfter="0pt"/>
     <cellStyle name="Letterhead"
                basedOn="Body"
-               fontSize="12"
+               fontSize="11"
                fontBold="true"
                horizontal="center"/>
     <cellStyle name="Requisites"
                basedOn="Letterhead"
-               fontBold="false"/>
+               fontSize="12"
+               fontBold="false"
+               spaceAfter="3pt"/>
+    <cellStyle name="OrganizationCode"
+               basedOn="Requisites"
+               fontSize="9"
+               spaceAfter="4pt"/>
     <cellStyle name="BodyParagraph"
                basedOn="Body"
                horizontal="justify"
+               firstLineIndent="12.5mm"
                spaceAfter="10pt"/>
+    <cellStyle name="AttachmentParagraph"
+               basedOn="Body"
+               firstLineIndent="12.5mm"/>
     <cellStyle name="SignatureName"
                basedOn="Body"
                horizontal="right"/>
@@ -34,33 +44,71 @@
     <table style="Letter">
       <columns>
         <column name="RequisiteGutter"
-                width="4mm"/>
+                width="11.85pt"/>
         <column name="Letterhead"
-                width="61mm"/>
+                width="183.6pt"/>
         <column name="Gap"
-                width="15mm"/>
+                width="38.2pt"/>
+        <column name="AddresseeExtension"
+                width="60pt"/>
         <column name="Addressee"
-                width="80mm"/>
+                width="181.3pt"/>
       </columns>
       <row allowBreakAcrossPages="false">
-        <cell columnSpan="2"
+        <cell rowSpan="6"
+              columnSpan="2"
               style="Letterhead">
           <paragraph>
             <image source="Emblem"
-                   width="9mm"
-                   height="12mm"/>
+                   width="7mm"
+                   height="9mm"/>
           </paragraph>
           <paragraph>
             <text>МІНІСТЕРСТВО ОБОРОНИ{#newline}УКРАЇНИ{#newline}ЗБРОЙНІ СИЛИ УКРАЇНИ{#newline}ВІЙСЬКОВА ЧАСТИНА{#newline}А7383</text>
           </paragraph>
-          <paragraph style="Requisites">
+          <paragraph style="OrganizationCode">
             <text>Код ЄДРПОУ 26630678</text>
           </paragraph>
         </cell>
-        <cell rowSpan="4"/>
-        <cell style="Body">
+        <cell rowSpan="9"/>
+        <cell columnSpan="2"
+              style="Body">
           <paragraph>
             <text>Передати засобами СЕДО</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="14pt"
+           heightRule="exact">
+        <cell columnSpan="2"/>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Body">
+          <paragraph>
+            <text>Командиру військової частини {[CompanionDestinationUnit]}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false"
+           height="14pt"
+           heightRule="exact">
+        <cell columnSpan="2"/>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Body">
+          <paragraph>
+            <text>{#if [CompanionHasCopy]}Командиру {[CompanionSenderInstitution]}{#endif}</text>
+          </paragraph>
+        </cell>
+      </row>
+      <row allowBreakAcrossPages="false">
+        <cell columnSpan="2"
+              style="Body">
+          <paragraph>
+            <text>{#if [CompanionHasCopy]}(до відома){#endif}</text>
           </paragraph>
         </cell>
       </row>
@@ -71,22 +119,14 @@
             <text>"{[TicketDateDay]}" {[TicketDateMonth]} {[TicketDateYear]} р.</text>
           </paragraph>
         </cell>
-        <cell style="Body">
-          <paragraph>
-            <text>Командиру військової частини {[CompanionDestinationUnit]}</text>
-          </paragraph>
-        </cell>
+        <cell rowSpan="3"
+              columnSpan="2"/>
       </row>
       <row allowBreakAcrossPages="false">
         <cell/>
         <cell style="Requisites">
           <paragraph>
             <text>№ 1656/__________</text>
-          </paragraph>
-        </cell>
-        <cell style="Body">
-          <paragraph>
-            <text>{#if [CompanionHasCopy]}Командиру {[CompanionSenderInstitution]}{#endif}</text>
           </paragraph>
         </cell>
       </row>
@@ -97,19 +137,14 @@
             <text>м. Харків, 61121</text>
           </paragraph>
         </cell>
-        <cell style="Body">
-          <paragraph>
-            <text>{#if [CompanionHasCopy]}(до відома){#endif}</text>
-          </paragraph>
-        </cell>
       </row>
       <row allowBreakAcrossPages="false"
            height="15mm"
            heightRule="atLeast">
-        <cell columnSpan="4"/>
+        <cell columnSpan="5"/>
       </row>
       <row allowBreakAcrossPages="false">
-        <cell columnSpan="4"
+        <cell columnSpan="5"
               style="Body">
           <paragraph style="BodyParagraph">
             <text>На {[CompanionNotification]}, згідно з Тимчасовим алгоритмом дій посадових осіб стосовно прийому військовослужбовців, які повернулися для проходження військової служби до Збройних Сил України, надсилаю відповідні документи на {[CompanionRank]} {[CompanionName]}.</text>
@@ -117,13 +152,13 @@
           <paragraph>
             <text>Додаток:</text>
           </paragraph>
-          <paragraph>
+          <paragraph style="AttachmentParagraph">
             <text>1. Посвідчення про відрядження № {[CompanionTicketNumber]} від {[CompanionOrderDate]} на 1 арк. у 1 прим.</text>
           </paragraph>
-          <paragraph>
+          <paragraph style="AttachmentParagraph">
             <text>2. Атестат військовослужбовця на продовольство на 1 арк. у 1 прим.</text>
           </paragraph>
-          <paragraph>
+          <paragraph style="AttachmentParagraph">
             <text>3. Облікові дані на план переміщення на 1 арк. у 1 прим.</text>
           </paragraph>
         </cell>
@@ -131,16 +166,17 @@
       <row allowBreakAcrossPages="false"
            height="15mm"
            heightRule="atLeast">
-        <cell columnSpan="4"/>
+        <cell columnSpan="5"/>
       </row>
       <row allowBreakAcrossPages="false">
         <cell columnSpan="4"
               style="Body">
           <text>{[SignatoryPosition]}</text>
         </cell>
+        <cell/>
       </row>
       <row allowBreakAcrossPages="false">
-        <cell columnSpan="3"
+        <cell columnSpan="4"
               style="Body">
           <text>{[SignatoryRank]}</text>
         </cell>

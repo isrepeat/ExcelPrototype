@@ -401,7 +401,7 @@ Private Function private_StyleKeys(ByVal kind As String) As String
     If kind = "tableStyle" Then
         private_StyleKeys = "width|alignment|layout|borders|cellPadding|cellPaddingTop|cellPaddingLeft|cellPaddingBottom|cellPaddingRight"
     Else
-        private_StyleKeys = "fontName|fontSize|fontBold|fontItalic|horizontal|vertical|spaceBefore|spaceAfter|lineSpacing|borderBottom"
+        private_StyleKeys = "fontName|fontSize|fontBold|fontItalic|horizontal|vertical|spaceBefore|spaceAfter|lineSpacing|firstLineIndent|borderBottom"
     End If
 End Function
 
@@ -511,7 +511,7 @@ Private Sub private_ValidateStyle( _
         Select Case VBA.CStr(key)
             Case "width"
                 number = private_Length(properties(key), False)
-            Case "cellPadding", "cellPaddingTop", "cellPaddingLeft", "cellPaddingBottom", "cellPaddingRight", "spaceBefore", "spaceAfter"
+            Case "cellPadding", "cellPaddingTop", "cellPaddingLeft", "cellPaddingBottom", "cellPaddingRight", "spaceBefore", "spaceAfter", "firstLineIndent"
                 number = private_Length(properties(key), True)
             Case "fontSize"
                 number = private_FontSize(properties(key))

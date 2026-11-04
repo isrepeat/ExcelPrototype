@@ -42,7 +42,8 @@
                fontBold="true"/>
     <cellStyle name="LogoCode"
                basedOn="Centered"
-               fontSize="9"/>
+               fontSize="9"
+               spaceAfter="4pt"/>
     <cellStyle name="Underlined"
                basedOn="Centered"
                borderBottom="single"/>

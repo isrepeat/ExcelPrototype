@@ -317,6 +317,10 @@ Private Sub private_Paragraph( _
             private_Attribute node, "line", VBA.CStr(VBA.CLng(private_Points(properties("lineSpacing")) * 20))
             private_Attribute node, "lineRule", "atLeast"
         End If
+        If properties.Exists("firstLineIndent") Then
+            Set node = private_W(pPr, "ind")
+            private_Attribute node, "firstLine", VBA.CStr(VBA.CLng(private_Points(properties("firstLineIndent")) * 20))
+        End If
         Set node = private_W(pPr, "jc")
         private_Attribute node, "val", VBA.Replace$(private_Value(properties, "horizontal", "left"), "justify", "both")
         Set run = private_W(p, "r")

@@ -64,7 +64,7 @@ class AwolCoverLetterTests(unittest.TestCase):
         table = template.find('p:table', NS)
         styles = {node.get('name') for node in self.catalog.find('p:styles', NS)}
         columns = table.find('p:columns', NS)
-        self.assertEqual(sum(Decimal(node.get('width').removesuffix('mm')) for node in columns), Decimal(160))
+        self.assertEqual(sum(Decimal(node.get('width').removesuffix('pt')) for node in columns), Decimal('474.95'))
         spans = [0] * len(columns)
         for row in table.findall('p:row', NS):
             index = 0

@@ -42,7 +42,8 @@
                fontBold="true"/>
     <cellStyle name="LogoCode"
                basedOn="Centered"
-               fontSize="9"/>
+               fontSize="9"
+               spaceAfter="4pt"/>
     <cellStyle name="Underlined"
                basedOn="Centered"
                borderBottom="single"/>
@@ -54,17 +55,17 @@
     <table style="Ticket">
       <columns>
         <column name="C1"
-                width="11.8pt"/>
+                width="11.85pt"/>
         <column name="C2"
                 width="51.95pt"/>
         <column name="C3"
                 width="63.9pt"/>
         <column name="C4"
-                width="67.7pt"/>
+                width="67.75pt"/>
         <column name="C5"
                 width="98.2pt"/>
         <column name="C6"
-                width="181.4pt"/>
+                width="181.3pt"/>
       </columns>
       <row allowBreakAcrossPages="false"
            height="7.25pt"
