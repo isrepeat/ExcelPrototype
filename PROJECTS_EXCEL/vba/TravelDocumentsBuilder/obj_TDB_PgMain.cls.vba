@@ -327,6 +327,7 @@ Private Function private_TryRegisterBindings() As Boolean
         If Not bindingContext.SetValue("Settings", VBA.CStr(key) & "LabelStyle", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.signerLabel")) Then Exit Function
         If Not bindingContext.SetValue("Settings", VBA.CStr(key) & "Style", ex_TravelDocumentsBuilder.fn_Config("forms.sourceStyles.default")) Then Exit Function
     Next key
+    If Not bindingContext.SetValue("Settings", "SignerManualVisibility", "Collapsed") Then Exit Function
     If Not bindingContext.SetValue("Settings", "SignerPreview", ex_TravelDocumentsBuilder.fn_Config("word.text.SignerEmpty")) Then Exit Function
     If Not bindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then
         Exit Function

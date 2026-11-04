@@ -141,7 +141,7 @@ Public Function fn_ParseDuration( _
         If VBA.Len(VBA.Trim$(phrase)) = 0 Then
             VBA.Err.Raise 5, , "Empty configuration key: TravelDocumentsBuilder::generation.businessTrip.indefiniteInput"
         End If
-        If VBA.StrComp(value, phrase, VBA.vbTextCompare) = 0 Then
+        If value = "?" Or VBA.StrComp(value, phrase, VBA.vbTextCompare) = 0 Then
             Exit Function
         End If
         diagnostic = VBA.Replace$(VBA.Replace$(fn_Config("generation.businessTrip.durationError"), _
@@ -249,6 +249,12 @@ Public Function fn_ApplyResetValues(ByVal bindingContext As obj_UiBindingContext
         End If
         ex_Core.fn_Diagnostic_WriteLog "TDB_RESET_RESTORE_COMPLETED | Field=" & VBA.CStr(field)
     Next field
+    For Each mapping In VBA.Split(ex_TDB_History.fn_Config("signerFields"), "|")
+        pair = VBA.Split(mapping, "=")
+        If Not bindingContext.SetValue("Settings", VBA.CStr(pair(0)), m_resetValues("Settings." & pair(0))) Then
+            VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
+        End If
+    Next mapping
     If Not bindingContext.SetValue("Form", "ResetInProgress", False) Then VBA.Err.Raise 5, , fn_Config("text.ResetFailed")
     ex_Core.fn_Diagnostic_WritePerf "TDB.Reset.RestoreSelectors", startedAt
     Exit Function

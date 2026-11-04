@@ -988,19 +988,55 @@
                     value="{Binding Path=Settings.SignerReplaced}"
                     onChange="{Binding Path=Commands.SearchReplaced}"/>
 
-    <controls:label name="SignerPreviewLabel"
-                    row="24"
-                    column="13"
-                    columnSpan="2"
-                    style="statusHeading"
-                    text="{Binding Path=Text.SignerPreview}"/>
-    <controls:label name="SignerPreview"
-                    row="25"
-                    column="13"
-                    rowSpan="4"
-                    columnSpan="2"
-                    style="statusText"
-                    text="{Binding Path=Settings.SignerPreview}"/>
+    <stackPanel name="SignerDetails"
+                row="24"
+                column="13"
+                orientation="vertical">
+      <stackPanel orientation="vertical"
+                  visibility="{Binding Path=Settings.SignerManualVisibility}">
+        <grid>
+          <controls:label name="SignerReplacedIdLabel"
+                          row="1"
+                          column="2"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.TvoIpn}"/>
+          <controls:input name="SignerReplacedId"
+                          row="1"
+                          column="1"
+                          style="formField"
+                          value="{Binding Path=Settings.SignerReplacedId}"
+                          onChange="{Binding Path=Commands.PreviewSigner}"/>
+        </grid>
+        <grid>
+          <controls:label name="SignerReplacedCodeLabel"
+                          row="1"
+                          column="2"
+                          style="manualPlaceLabel"
+                          text="{Binding Path=Text.TvoPosition}"/>
+          <controls:input name="SignerReplacedCode"
+                          row="1"
+                          column="1"
+                          style="formField"
+                          value="{Binding Path=Settings.SignerReplacedCode}"
+                          onChange="{Binding Path=Commands.PreviewSigner}"/>
+        </grid>
+      </stackPanel>
+      <grid>
+        <controls:label name="SignerPreviewLabel"
+                        row="1"
+                        column="1"
+                        columnSpan="2"
+                        style="statusHeading"
+                        text="{Binding Path=Text.SignerPreview}"/>
+        <controls:label name="SignerPreview"
+                        row="2"
+                        column="1"
+                        rowSpan="4"
+                        columnSpan="2"
+                        style="statusText"
+                        text="{Binding Path=Settings.SignerPreview}"/>
+      </grid>
+    </stackPanel>
 
     <controls:button name="ClearForm"
                      row="2"

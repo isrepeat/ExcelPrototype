@@ -31,6 +31,7 @@
                spaceAfter="3pt"/>
     <cellStyle name="Caption"
                basedOn="Centered"
+               vertical="top"
                fontSize="12"/>
     <cellStyle name="Title"
                basedOn="Centered"
@@ -53,6 +54,8 @@
     <cellStyle name="UnderlinedLeft"
                basedOn="Body"
                borderBottom="single"/>
+    <cellStyle name="Basis"
+               spaceBefore="4pt"/>
   </styles>
   <template name="BusinessTrip">
     <table style="Ticket">
@@ -329,7 +332,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="6"
               style="Body">
-          <paragraph>
+          <paragraph style="Basis">
             <text>Підстава: {[Basis]}</text>
           </paragraph>
         </cell>

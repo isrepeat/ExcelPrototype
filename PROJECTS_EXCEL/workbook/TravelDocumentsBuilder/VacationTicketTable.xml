@@ -31,6 +31,7 @@
                spaceAfter="3pt"/>
     <cellStyle name="Caption"
                basedOn="Centered"
+               vertical="top"
                fontSize="12"/>
     <cellStyle name="Title"
                basedOn="Centered"
@@ -53,6 +54,8 @@
     <cellStyle name="UnderlinedLeft"
                basedOn="Body"
                borderBottom="single"/>
+    <cellStyle name="MainLine"
+               spaceBefore="2pt"/>
   </styles>
   <template name="Ticket">
     <table style="Ticket">
@@ -232,7 +235,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="11"
               style="Underlined">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>{[PersonalLine]}</text>
           </paragraph>
         </cell>
@@ -248,13 +251,13 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="2"
               style="Body">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>звільнений</text>
           </paragraph>
         </cell>
         <cell columnSpan="9"
               style="Underlined">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>{#if [Leave_annual]}у частину щорічної основної відпустки{#endif}{#if [Leave_family]}у відпустку за сімейними обставинами{#endif}{#if [Leave_childcare]}у відпустку по догляду за дитиною{#endif}{#if [Leave_maternity]}у відпустку у зв'язку з вагітністю та пологами{#endif}{#if [Leave_treatment]}у відпустку для лікування після поранення (контузії, травми або каліцтва){#endif}{#if [Leave_annualMedical]}у частину щорічної основної відпустки{#endif}{#if [Leave_treatmentMedical]}у відпустку для лікування після поранення (контузії, травми або каліцтва){#endif}</text>
           </paragraph>
         </cell>
@@ -276,7 +279,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="11"
               style="Underlined">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>{[VacationPlace]}</text>
           </paragraph>
         </cell>
@@ -292,13 +295,13 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="3"
               style="Body">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>терміном на </text>
           </paragraph>
         </cell>
         <cell columnSpan="8"
               style="Underlined">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>{[LeaveDays]} {#if [LeaveDaysOne]}календарний день{#else}{#if [LeaveDaysFew]}календарні дні{#else}календарних днів{#endif}{#endif}{#if [HasDonationDays]} та {[DonationDays]} {#if [DonationDaysOne]}додатковий день{#else}{#if [DonationDaysFew]}додаткові дні{#else}додаткових днів{#endif}{#endif} відпочинку за донацію донорської крові та/або компонентів крові{#endif}{#if [HasRoadDays]} та {[RoadDays]} {#if [RoadDaysOne]}добу{#else}{#if [RoadDaysFew]}доби{#else}діб{#endif}{#endif} на дорогу{#endif}</text>
           </paragraph>
         </cell>
@@ -320,7 +323,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="11"
               style="Centered">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>      з "{[DateFromDay]}" {[DateFromMonth]} {[DateFromYear]} р. по "{[DateToDay]}" {[DateToMonth]} {[DateToYear]} р.</text>
           </paragraph>
         </cell>
@@ -328,13 +331,13 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="7"
               style="Body">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>Після закінчення строку відпустки</text>
           </paragraph>
         </cell>
         <cell columnSpan="4"
               style="Underlined">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>{[PersonalInitials]}</text>
           </paragraph>
         </cell>
@@ -356,7 +359,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="8"
               style="Body">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>зобов’язаний прибути до місця служби у </text>
           </paragraph>
         </cell>
@@ -384,7 +387,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="11"
               style="Underlined">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>військову частину А7383 </text>
           </paragraph>
         </cell>
@@ -403,7 +406,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="11"
               style="Body">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>"{[DateArrivalDay]}" {[DateArrivalMonth]} {[DateArrivalYear]} р. до 08:00 год.</text>
           </paragraph>
         </cell>
@@ -428,7 +431,7 @@
       <row allowBreakAcrossPages="false">
         <cell columnSpan="10"
               style="Body">
-          <paragraph>
+          <paragraph style="MainLine">
             <text>Для проїзду видано військові перевізні документи за №</text>
           </paragraph>
         </cell>

@@ -255,6 +255,8 @@ Public Function RestorePersonnelCandidatesHandler() As Boolean
     If Not m_pageBase.BindingContext.SetValue("Form", "GenerationStatus", VBA.vbNullString) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "CandidatesVisibility", "Collapsed") Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
+    If Not private_UpdateFieldState() Then Exit Function
+    If Not Me.PreviewSignerHandler() Then Exit Function
     RestorePersonnelCandidatesHandler = m_pageBase.BindingContext.SetObject("Data", "PersonnelCandidates", m_lookupResult)
 End Function
 
@@ -343,6 +345,14 @@ Public Function PlaceChangedHandler() As Boolean
     If Not private_TryReadFormValue("PlaceKind", scalarPlaceKind) Then Exit Function
     isMilitary = scalarPlaceKind = ex_TravelDocumentsBuilder.fn_Config("placeChain.military.kind")
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
+    If VBA.CBool(autoFill) And VBA.Len(VBA.Trim$(VBA.CStr(query))) > 0 Then
+        If ex_TableSnapshots.fn_Active() Is Nothing Then
+            status = ex_TravelDocumentsBuilder.fn_Config("text.DependenciesRequired")
+            If Not private_HideCandidates() Then Exit Function
+            PlaceChangedHandler = private_SetActionStatus(status, True)
+            Exit Function
+        End If
+    End If
     If VBA.CBool(autoFill) Then
         For Each field In ex_TDB_Places.fn_FormFields()
             If Not m_pageBase.BindingContext.SetValue("Form", VBA.CStr(field), VBA.vbNullString) Then Exit Function
@@ -712,6 +722,10 @@ Public Function NewEventHandler() As Boolean
     Dim value As Variant
     Dim snapshotActive As Boolean
     Dim startedAt As Double
+    Dim mapping As Variant
+    Dim pair As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
 
     If Not m_isInitialized Or m_isDisposed Or m_resetting Then Exit Function
     On Error GoTo Failed
@@ -723,6 +737,12 @@ Public Function NewEventHandler() As Boolean
             If Not private_TryReadFormValue(VBA.CStr(field), value) Then Exit Function
             restoreValues.Add VBA.CStr(field), value
         Next field
+        For Each mapping In VBA.Split(ex_TDB_History.fn_Config("signerFields"), "|")
+            pair = VBA.Split(mapping, "=")
+            If Not m_pageBase.BindingContext.TryGetValue("Settings", VBA.CStr(pair(0)), value, objectValue, isObject) Then Exit Function
+            If isObject Then Exit Function
+            restoreValues.Add "Settings." & pair(0), value
+        Next mapping
         NewEventHandler = ex_TravelDocumentsBuilder.fn_ResetForm(restoreValues)
         Exit Function
     End If
@@ -754,8 +774,6 @@ Public Function ClearFormHandler() As Boolean
     Dim emptyBasis As New Collection
     Dim preserved As Object
     Dim current As Variant
-    Dim mapping As Variant
-    Dim pair As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     private_UpdateResetCaption
@@ -766,10 +784,6 @@ Public Function ClearFormHandler() As Boolean
     Next key
     m_basisReorder.ClearFocus
     Set updates = VBA.CreateObject("Scripting.Dictionary")
-    For Each mapping In VBA.Split(ex_TDB_History.fn_Config("signerFields"), "|")
-        pair = VBA.Split(mapping, "=")
-        updates("Settings." & pair(0)) = VBA.vbNullString
-    Next mapping
     updates("Form.BasisIncludeOrder") = VBA.CBool(ex_TravelDocumentsBuilder.fn_Config("basisChain.defaults.includeOrder"))
     For Each key In VBA.Array("PersonName", "PersonId", "PersonRank", "PersonPosition", _
             "PersonUnit", "PersonPositionCode", "PersonnelQuery", "DocumentTarget", "DepartureDate", "PlaceKind", _
@@ -1745,6 +1759,8 @@ Private Function private_UpdateFieldState() As Boolean
     End If
     If Not private_AddSourceFieldStates(updates, "Form", VBA.CBool(autoFill), "fields", "label", "labelStyle") Then Exit Function
     If Not private_AddSourceFieldStates(updates, "Settings", VBA.CBool(autoFill), "signerFields", "signerLabel", "signerLabelStyle") Then Exit Function
+    updates("Settings.SignerManualVisibility") = "Collapsed"
+    If Not VBA.CBool(autoFill) Then updates("Settings.SignerManualVisibility") = "Visible"
     private_UpdateFieldState = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
     If Not private_UpdateFieldState Then VBA.Err.Raise 5, , diagnostic
 End Function
