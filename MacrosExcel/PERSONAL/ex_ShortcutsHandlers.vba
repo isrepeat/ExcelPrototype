@@ -441,6 +441,7 @@ Private Function private_Filter_ResetSheetTables( _
     Dim stageName As String
     Dim paneIndex As Long
     Dim stageStartedAt As Double
+    Dim tableAutoFilter As Excel.AutoFilter
 
     stageStartedAt = VBA.Timer
     On Error GoTo EH
@@ -456,7 +457,7 @@ Private Function private_Filter_ResetSheetTables( _
     ex_Core.fn_Diagnostic_WriteLog "TABLE_NAV_TABLE | Context=" & context & _
         " | Rows=" & VBA.CStr(tableObj.ListRows.Count) & _
         " | Columns=" & VBA.CStr(tableObj.ListColumns.Count) & _
-        " | Filtered=" & VBA.CStr(tableObj.AutoFilter.FilterMode)
+        " | ShowAutoFilter=" & VBA.CStr(tableObj.ShowAutoFilter)
     stageStartedAt = VBA.Timer
     stageName = "ShowHeaders"
     tableObj.ShowHeaders = True
@@ -465,7 +466,15 @@ Private Function private_Filter_ResetSheetTables( _
     tableObj.ShowAutoFilter = True
     private_Filter_LogTiming stageName, stageStartedAt, context
     stageName = "ClearFilters"
-    If tableObj.AutoFilter.FilterMode Then tableObj.AutoFilter.ShowAllData
+    ' Read AutoFilter only after enabling it; disabled tables can return Nothing.
+    Set tableAutoFilter = tableObj.AutoFilter
+    If tableAutoFilter Is Nothing Then
+        VBA.Err.Raise 91, "PERSONAL.Table.AutoFilterUnavailable"
+    End If
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_NAV_FILTER | Context=" & context & _
+        " | Filtered=" & VBA.CStr(tableAutoFilter.FilterMode)
+    stageStartedAt = VBA.Timer
+    If tableAutoFilter.FilterMode Then tableAutoFilter.ShowAllData
     private_Filter_LogTiming stageName, stageStartedAt, context
     stageName = "ResolveFocusCell"
     Set focusCell = tableObj.HeaderRowRange.Cells(1, 1)
