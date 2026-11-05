@@ -1,430 +1,754 @@
-const searchInput = document.querySelector('input');
-const changeFilter = document.querySelector('select');
+const searchInput = document.querySelector('.report-toolbar input[type="search"]');
+const changeFilter = document.querySelector('.report-toolbar select');
+const toolbar = document.querySelector('.report-toolbar');
+const toolbarControls = document.getElementById('toolbar-controls');
+const showUnchangedFormulas = document.getElementById('show-unchanged-formulas');
+const pageSections = [...document.querySelectorAll('main > section')];
+const hideUnchangedColumns = document.getElementById('hide-unchanged-columns');
+const pageSize = 100;
+let liveColumnResize = document.getElementById('live-column-resize').checked;
+const kinds = ['change', 'add', 'delete'];
+const states = new Map();
+const widthStoreKey = 'excel-diff-column-widths-v1';
+let savedWidths = Object.create(null);
+let activeState = null;
+let searchTimer = null;
+let filterVersion = 0;
+let boundaryUpdatePending = false;
+let cancelActiveResize = null;
+let columnScale = 1;
+const columnScaleInput = document.getElementById('column-scale');
+const columnScaleValue = document.getElementById('column-scale-value');
 
-function filter() {
-    for (const article of document.querySelectorAll('article')) {
-        const matchesText = article.textContent.toLowerCase().includes(searchInput.value.toLowerCase());
-        const matchesKind = !changeFilter.value || article.dataset.kind === changeFilter.value;
-        article.hidden = !(matchesText && matchesKind);
+columnScaleInput.addEventListener('input', () => {
+    cancelActiveResize?.();
+    columnScale = Number(columnScaleInput.value) / 100;
+    columnScaleValue.value = columnScaleInput.value + '%';
+    const section = activeState?.section;
+    if (!section) {
+        return;
     }
-}
-
-searchInput.oninput = filter;
-changeFilter.onchange = filter;
-
-const dialog = document.createElement('dialog');
-dialog.className = 'cell-dialog';
-dialog.innerHTML =
-    '<div class="dialog-top"><h3 id="cell-dialog-title"></h3>' +
-    '<button type="button" class="dialog-close" aria-label="Закрыть">×</button></div>' +
-    '<p class="dialog-context"></p><div class="dialog-body"></div>';
-dialog.setAttribute('aria-labelledby', 'cell-dialog-title');
-document.body.append(dialog);
-
-dialog.querySelector('.dialog-close').onclick = () => dialog.close();
-dialog.addEventListener('click', event => {
-    const bounds = dialog.getBoundingClientRect();
-    const outsideBounds =
-        event.clientX < bounds.left ||
-        event.clientX > bounds.right ||
-        event.clientY < bounds.top ||
-        event.clientY > bounds.bottom;
-
-    if (event.target === dialog && outsideBounds) {
-        dialog.close();
-    }
+    const columns = dataColumns(section);
+    const headers = [...section.querySelectorAll('th[data-column-name]')];
+    const handles = [...section.querySelectorAll('.column-resizer')];
+    let total = 134 + section.querySelectorAll('col[data-collapsed]').length * 24;
+    columns.forEach((column, index) => {
+        const width = storedWidth(section, headers[index].dataset.columnName) * columnScale;
+        column.style.width = width + 'px';
+        total += width;
+        handles[index].setAttribute('aria-valuemin', String(60 * columnScale));
+        handles[index].setAttribute('aria-valuemax', String(600 * columnScale));
+        handles[index].setAttribute('aria-valuenow', String(width));
+    });
+    section.querySelector('.diff-table').style.width = total + 'px';
+    scheduleBoundaryUpdate();
 });
 
-function openCell(cell) {
-    const article = cell.closest('article');
-    dialog.querySelector('h3').textContent = cell.querySelector('.cell-heading b').textContent;
-    dialog.querySelector('.dialog-context').textContent =
-        article.querySelector('header').textContent +
-        ' · ' +
-        article.closest('section').querySelector('h2').textContent;
+let navigationFrame = null;
 
-    const body = dialog.querySelector('.dialog-body');
-    body.replaceChildren();
-
-    for (const child of cell.children) {
-        if (child.tagName !== 'TEMPLATE') {
-            body.append(child.cloneNode(true));
-        }
-    }
-
-    const original = cell.querySelector('template.original-value');
-    if (original) {
-        body.querySelector('.current').replaceChildren(original.content.cloneNode(true));
-    }
-
-    for (const detail of body.querySelectorAll('details')) {
-        detail.open = true;
-    }
-
-    dialog.showModal();
+function cancelNavigation() {
+    cancelAnimationFrame(navigationFrame);
+    navigationFrame = null;
 }
 
-for (const cell of document.querySelectorAll('.cell')) {
-    cell.setAttribute('role', 'button');
-    cell.tabIndex = 0;
-    cell.setAttribute('aria-haspopup', 'dialog');
-    cell.setAttribute(
-        'aria-label',
-        cell.querySelector('.cell-heading b').textContent + ' — открыть подробности'
-    );
+window.addEventListener('wheel', cancelNavigation, { passive: true });
+window.addEventListener('touchstart', cancelNavigation, { passive: true });
+window.addEventListener('pointerdown', cancelNavigation, { passive: true });
+window.addEventListener('keydown', cancelNavigation);
 
-    cell.addEventListener('click', event => {
-        event.preventDefault();
-        openCell(cell);
-    });
+function scrollToTableEdge(bottom) {
+    cancelNavigation();
+    const table = activeState?.section.querySelector('.diff-table');
+    if (!table) {
+        return;
+    }
+    const bounds = table.getBoundingClientRect();
+    const top = bottom
+        ? window.scrollY + bounds.bottom - window.innerHeight + pageFooter.offsetHeight + 8
+        : window.scrollY + bounds.top - toolbar.offsetHeight;
+    const target = Math.max(0, Math.min(top, document.documentElement.scrollHeight - window.innerHeight));
+    const left = window.scrollX;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        window.scrollTo({ left, top: target, behavior: 'instant' });
+        return;
+    }
+    const start = window.scrollY;
+    const started = performance.now();
+    const duration = 250;
+    function animate(now) {
+        const progress = Math.min(1, (now - started) / duration);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        window.scrollTo({ left, top: start + (target - start) * eased, behavior: 'instant' });
+        navigationFrame = progress < 1 ? requestAnimationFrame(animate) : null;
+    }
+    navigationFrame = requestAnimationFrame(animate);
+}
 
-    cell.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            openCell(cell);
-        }
-    });
+document.getElementById('table-top').addEventListener('click', () => scrollToTableEdge(false));
+document.getElementById('table-bottom').addEventListener('click', () => scrollToTableEdge(true));
+
+
+try {
+    const stored = JSON.parse(localStorage.getItem(widthStoreKey) || '{}');
+    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+        savedWidths = Object.assign(Object.create(null), stored);
+    }
+}
+catch (error) {
+    savedWidths = Object.create(null);
 }
 
 const pageFooter = document.createElement('footer');
 pageFooter.className = 'page-footer';
 pageFooter.setAttribute('aria-label', 'Листы отчёта');
-
-const pageSections = [...document.querySelectorAll('main>section')];
-const pageNames = pageSections.map(section => {
-    const name = section.querySelector('h2').firstChild.textContent.trim();
-    return [name, name];
-});
-
-function selectPage(section, button) {
-    for (const item of pageSections) {
-        item.hidden = item !== section;
-    }
-
-    for (const tab of pageFooter.querySelectorAll('button')) {
-        const active = tab === button;
-        tab.classList.toggle('active', active);
-        tab.setAttribute('aria-pressed', String(active));
-    }
-
-    history.replaceState(null, '', '#' + section.id);
-    window.scrollTo(0, 0);
-}
-
-for (const [sheet, label] of pageNames) {
-    const section = pageSections.find(
-        section => section.querySelector('h2').firstChild.textContent.trim() === sheet
-    );
-
-    if (!section) {
-        continue;
-    }
-
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = label;
-    button.onclick = () => selectPage(section, button);
-    pageFooter.append(button);
-}
-
+const footerTabs = document.createElement('div');
+footerTabs.className = 'footer-tabs';
+pageFooter.append(footerTabs);
 document.body.append(pageFooter);
 
-const initial =
-    pageSections.find(section =>
-        '#' + section.id === location.hash &&
-        pageNames.some(([name]) => section.querySelector('h2').firstChild.textContent.trim() === name)
-    ) ||
-    pageSections.find(section => section.querySelector('h2').firstChild.textContent.trim() === 'Список') ||
-    pageSections.find(section =>
-        pageNames.some(([name]) => section.querySelector('h2').firstChild.textContent.trim() === name)
-    );
+const resetWidths = document.createElement('button');
+resetWidths.type = 'button';
+resetWidths.textContent = 'Сбросить ширины';
+resetWidths.hidden = true;
+toolbarControls.append(resetWidths);
 
-if (initial) {
-    const index = pageNames.findIndex(
-        ([name]) => initial.querySelector('h2').firstChild.textContent.trim() === name
-    );
-    const button = [...pageFooter.querySelectorAll('button')].find(
-        button => button.textContent === pageNames[index][1]
-    );
+const settingsActions = document.createElement('div');
+settingsActions.className = 'settings-actions';
+const exportWidths = document.createElement('button');
+exportWidths.type = 'button';
+exportWidths.textContent = 'Экспорт JSON';
+const importWidths = document.createElement('button');
+importWidths.type = 'button';
+importWidths.textContent = 'Импорт JSON';
+const settingsMessage = document.createElement('span');
+settingsMessage.setAttribute('role', 'status');
+const settingsFile = document.createElement('input');
+settingsFile.type = 'file';
+settingsFile.accept = '.json,application/json';
+settingsFile.hidden = true;
+settingsActions.append(exportWidths, importWidths, settingsMessage, settingsFile);
+document.querySelector('.report-summary').append(settingsActions);
 
-    selectPage(initial, button);
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    })[character]);
 }
 
-const sizing = document.createElement('details');
-sizing.className = 'column-settings';
-sizing.innerHTML =
-    '<summary>Ширина столбцов</summary><div class="column-controls"></div>' +
-    '<button type="button" class="reset-widths">Сбросить размеры листа</button>';
-document.querySelector('nav').before(sizing);
-
-const widthStoreKey = 'excel-diff-column-widths-v1';
-let savedWidths = Object.create(null);
-
-try {
-    savedWidths = JSON.parse(localStorage.getItem(widthStoreKey) || '{}');
-    if (!savedWidths || typeof savedWidths !== 'object') {
-        savedWidths = {};
+function getState(section) {
+    if (!states.has(section.id)) {
+        const source = document.getElementById('data-' + section.id);
+        const data = JSON.parse(source.textContent);
+        source.remove();
+        states.set(section.id, {
+            section,
+            data,
+            page: 0,
+            filtered: null,
+            query: null,
+            kind: null,
+            searchCache: new Array(data.rows.length),
+            lowerStrings: null
+        });
     }
-}
-catch (error) {
-    savedWidths = {};
+    return states.get(section.id);
 }
 
 function sheetName(section) {
-    return section.querySelector('h2').firstChild.textContent.trim();
+    return section.dataset.sheetName;
 }
 
 function columnNames(section) {
-    return [...(section.querySelector('article .row-cells')?.children || [])].map(
-        cell => cell.querySelector('.cell-heading b').textContent
-    );
+    return getState(section).data.columns.map(column => column[1]);
 }
 
-function applyWidth(section, index, width) {
-    for (const article of section.querySelectorAll('article')) {
-        const cell = article.querySelector('.row-cells')?.children[index];
-        if (cell) {
-            cell.style.width = width + 'px';
-            cell.style.flexBasis = width + 'px';
-        }
-    }
+function dataColumns(section) {
+    return [...section.querySelectorAll('.diff-table col[data-column-index]')];
 }
 
-for (const section of pageSections) {
-    const values = savedWidths[sheetName(section)] || {};
-    columnNames(section).forEach((name, index) => {
-        const value = Number(values[name]);
-        if (Number.isFinite(value) && value >= 60 && value <= 600) {
-            applyWidth(section, index, value);
-        }
-    });
-}
-
-function currentSection() {
-    return pageSections.find(section => !section.hidden);
+function storedWidth(section, name) {
+    const value = Number(savedWidths[sheetName(section)]?.[name]);
+    return Number.isFinite(value) && value >= 60 && value <= 600 ? value : 170;
 }
 
 function saveWidths() {
     try {
         localStorage.setItem(widthStoreKey, JSON.stringify(savedWidths));
-        sizing.removeAttribute('data-save-error');
+        settingsMessage.textContent = '';
     }
     catch (error) {
-        sizing.setAttribute('data-save-error', 'Браузер запретил сохранение размеров');
+        settingsMessage.textContent = 'Браузер запретил сохранение размеров';
     }
 }
 
-function renderSizing() {
-    const section = currentSection();
-    const controls = sizing.querySelector('.column-controls');
-    controls.replaceChildren();
+function updateResetButton() {
+    const section = activeState?.section;
+    const values = section ? savedWidths[sheetName(section)] || {} : {};
+    resetWidths.hidden = !section || !columnNames(section).some(name => Object.hasOwn(values, name));
+}
 
-    if (!section) {
+function rememberWidth(section, name, width) {
+    width /= columnScale;
+    const sheet = sheetName(section);
+    if (width === 170 && !Object.hasOwn(savedWidths, sheet)) {
+        return;
+    }
+    if (!Object.hasOwn(savedWidths, sheet)) {
+        savedWidths[sheet] = Object.create(null);
+    }
+    savedWidths[sheet][name] = width;
+    saveWidths();
+    updateResetButton();
+}
+
+function applyWidth(section, index, width) {
+    const columns = dataColumns(section);
+    if (!columns[index]) {
+        return;
+    }
+    columns[index].style.width = width + 'px';
+    section.querySelector('.diff-table').style.width =
+        (134 + columns.reduce((total, column) => total + parseFloat(column.style.width), 0)
+            + section.querySelectorAll('col[data-collapsed]').length * 24) + 'px';
+    const handle = section.querySelectorAll('.column-resizer')[index];
+    handle?.setAttribute('aria-valuenow', String(width));
+    scheduleBoundaryUpdate();
+}
+
+function columnLetter(number) {
+    let result = '';
+    while (number > 0) {
+        number--;
+        result = String.fromCharCode(65 + number % 26) + result;
+        number = Math.floor(number / 26);
+    }
+    return result;
+}
+
+function cellValue(value) {
+    return '<span class="cell-value">' + escapeHtml(value) + '</span>';
+}
+
+function renderRow(state, row) {
+    const kind = kinds[row[0]];
+    const beforeNumber = row[1] || '—';
+    const afterNumber = row[2] || '—';
+    const location = beforeNumber === afterNumber ? afterNumber : beforeNumber + ' → ' + afterNumber;
+    const status = ['~', '+', '−'][row[0]];
+    const label = ['Изменена строка', 'Добавлена строка', 'Удалена строка'][row[0]];
+    const warning = 'Несколько записей имеют одинаковую близость: проверьте сопоставление.';
+    let html = '<tr class="diff-row ' + kind + '" data-kind="' + kind + '"><td class="status-column" aria-label="' + label + '">' + status;
+
+    if (row[3]) {
+        html += '<span class="ambiguity" title="' + warning + '" aria-label="' + warning + '">?</span>';
+    }
+    html += '</td><td class="row-column">' + location + '</td>';
+
+    state.displayColumns.forEach(entry => {
+        if (entry.collapsed) {
+            html += '<td class="collapsed-columns" title="' + escapeHtml(entry.title) + '">…</td>';
+            return;
+        }
+        const index = entry.index;
+        const column = state.data.columns[index];
+        const x = state.data.strings[row[4]?.[index] ?? 0];
+        const y = state.data.strings[row[5]?.[index] ?? 0];
+        const unchanged = (kind === 'change' && x === y) || (!x && !y);
+        const status = unchanged ? 'unchanged' : x && y ? 'replacement' : y ? 'insertion' : 'removal';
+        const oldAddress = row[1] ? columnLetter(state.data.offsets[0] + column[0] + 1) + row[1] : '—';
+        const newAddress = row[2] ? columnLetter(state.data.offsets[1] + column[0] + 1) + row[2] : '—';
+        html += '<td class="' + status + '" title="Было: ' + oldAddress + ' · Стало: ' + newAddress + '">';
+
+        if (unchanged) {
+            if (x.startsWith('=')) {
+                html += '<span class="formula-marker">= без изменений</span><span class="unchanged-formula">' + cellValue(x) + '</span>';
+            }
+            else {
+                html += x ? cellValue(x) : '<span class="empty-cell">—</span>';
+            }
+        }
+        else {
+            if (x) {
+                html += '<del aria-label="Было">' + cellValue(x) + '</del>';
+            }
+            if (y) {
+                html += '<ins aria-label="Стало">' + cellValue(y) + '</ins>';
+            }
+        }
+        html += '</td>';
+    });
+    return html + '</tr>';
+}
+
+function displayColumns(state, rowIndices) {
+    const columns = state.data.columns;
+    if (!hideUnchangedColumns.checked || rowIndices.length === 0) {
+        return columns.map((column, index) => ({ index }));
+    }
+
+    const changed = columns.map((column, index) =>
+        rowIndices.some(rowIndex => {
+            const row = state.data.rows[rowIndex];
+            return (row[4]?.[index] ?? 0) !== (row[5]?.[index] ?? 0);
+        })
+    );
+    const result = [];
+    for (let index = 0; index < columns.length;) {
+        if (changed[index]) {
+            result.push({ index });
+            index++;
+            continue;
+        }
+
+        const start = index;
+        while (index < columns.length && !changed[index]) {
+            index++;
+        }
+        const count = index - start;
+        result.push({
+            collapsed: true,
+            start,
+            count,
+            title: 'Неизменённые колонки (' + count + '): ' + columns.slice(start, index).map(column => column[1]).join(' · ')
+        });
+    }
+    return result;
+}
+
+function mountTable(state, layout = null) {
+    cancelActiveResize?.();
+    boundaryObserver.disconnect();
+    const section = state.section;
+    state.displayColumns = layout || state.data.columns.map((column, index) => ({ index }));
+    state.layoutKey = state.displayColumns.map(entry => entry.collapsed ? 'g' + entry.start + ':' + entry.count : String(entry.index)).join(',');
+    const widths = state.displayColumns.map(entry => entry.collapsed ? 24 : storedWidth(section, state.data.columns[entry.index][1]) * columnScale);
+    let html = '<table class="diff-table" aria-label="' + escapeHtml(sheetName(section)) + '" style="width:'
+        + (134 + widths.reduce((sum, width) => sum + width, 0)) + 'px"><colgroup><col style="width:44px"><col style="width:90px">';
+
+    state.displayColumns.forEach((entry, index) => {
+        html += entry.collapsed
+            ? '<col data-collapsed="true" style="width:24px">'
+            : '<col data-column-index="' + state.data.columns[entry.index][0] + '" style="width:' + widths[index] + 'px">';
+    });
+    html += '</colgroup><thead><tr><th class="status-column" scope="col">Δ</th><th class="row-column" scope="col">Строка</th>';
+
+    for (const entry of state.displayColumns) {
+        if (entry.collapsed) {
+            html += '<th class="collapsed-columns" scope="col" title="' + escapeHtml(entry.title)
+                + '" aria-label="' + escapeHtml(entry.title) + '">…</th>';
+        }
+        else {
+            const column = state.data.columns[entry.index];
+            html += '<th scope="col" data-column-name="' + escapeHtml(column[1]) + '">' + escapeHtml(column[1]) + '</th>';
+        }
+    }
+    html += '</tr></thead><tbody></tbody></table>';
+    section.querySelector('.table-host').innerHTML = html;
+    initializeResizers(section);
+    boundaryObserver.observe(section.querySelector('.diff-table'));
+}
+
+function renderPage(state, scroll = false) {
+    if (state !== activeState || state.filtered === null) {
+        return;
+    }
+    const count = state.filtered.length;
+    const pages = Math.max(1, Math.ceil(count / pageSize));
+    state.page = Math.min(Math.max(0, state.page), pages - 1);
+    const start = state.page * pageSize;
+    const visible = state.filtered.slice(start, start + pageSize);
+    const layout = displayColumns(state, visible);
+    const layoutKey = layout.map(entry => entry.collapsed ? 'g' + entry.start + ':' + entry.count : String(entry.index)).join(',');
+    if (layoutKey !== state.layoutKey) {
+        mountTable(state, layout);
+    }
+    state.section.querySelector('tbody').innerHTML = visible.map(index => renderRow(state, state.data.rows[index])).join('');
+    state.section.querySelector('.page-status').textContent = count
+        ? (start + 1) + '–' + (start + visible.length) + ' из ' + count + ' · страница ' + (state.page + 1) + '/' + pages
+        : '0 из ' + state.data.rows.length;
+    const message = state.section.querySelector('.empty-message');
+    message.textContent = state.data.rows.length ? 'Нет строк, соответствующих фильтру.' : 'Изменений данных и формул нет.';
+    message.hidden = count > 0;
+
+    for (const button of state.section.querySelectorAll('[data-page-action]')) {
+        const backwards = ['first', 'previous'].includes(button.dataset.pageAction);
+        button.disabled = backwards ? state.page === 0 : state.page === pages - 1;
+    }
+    scheduleBoundaryUpdate();
+    if (scroll) {
+        window.scrollTo(window.scrollX, 0);
+    }
+}
+
+function rowSearchText(state, index) {
+    if (state.searchCache[index] !== undefined) {
+        return state.searchCache[index];
+    }
+    if (!state.lowerStrings) {
+        state.lowerStrings = state.data.strings.map(value => value.toLowerCase());
+    }
+    const row = state.data.rows[index];
+    const strings = new Set([...(row[4] || []), ...(row[5] || [])]);
+    const parts = [...strings].map(id => state.lowerStrings[id]);
+    parts.push(String(row[1] || ''), String(row[2] || ''));
+
+    state.data.columns.forEach((column, position) => {
+        if (row[0] !== 0 || (row[4]?.[position] ?? 0) !== (row[5]?.[position] ?? 0)) {
+            parts.push(column[1].toLowerCase());
+        }
+    });
+    state.searchCache[index] = parts.join('\u0000');
+    return state.searchCache[index];
+}
+
+async function filterCurrent() {
+    clearTimeout(searchTimer);
+    const state = activeState;
+    if (!state) {
+        return;
+    }
+    const request = ++filterVersion;
+    const query = searchInput.value.toLowerCase();
+    const kind = changeFilter.value;
+    if (state.filtered !== null && state.query === query && state.kind === kind) {
+        renderPage(state);
         return;
     }
 
-    const sheet = sheetName(section);
-    const values = savedWidths[sheet] || {};
-
-    columnNames(section).forEach((name, index) => {
-        const label = document.createElement('label');
-        const title = document.createElement('span');
-        title.textContent = name;
-
-        const slider = document.createElement('input');
-        slider.type = 'range';
-        slider.min = '60';
-        slider.max = '600';
-        slider.step = '1';
-        slider.value = values[name] || 170;
-        slider.setAttribute('aria-label', 'Ширина ' + name);
-
-        const number = document.createElement('input');
-        number.type = 'number';
-        number.min = '60';
-        number.max = '600';
-        number.step = '1';
-        number.value = slider.value;
-        number.setAttribute('aria-label', 'Ширина ' + name + ' в пикселях');
-
-        function update(value) {
-            const width = Math.min(600, Math.max(60, Number(value)));
-            if (!Number.isFinite(width)) {
+    state.section.querySelector('.page-status').textContent = 'Поиск…';
+    const matched = [];
+    for (let index = 0; index < state.data.rows.length; index++) {
+        const row = state.data.rows[index];
+        if ((!kind || kinds[row[0]] === kind) && (!query || rowSearchText(state, index).includes(query))) {
+            matched.push(index);
+        }
+        if (query && index % 500 === 499) {
+            await new Promise(resolve => setTimeout(resolve, 0));
+            if (state !== activeState || request !== filterVersion) {
                 return;
             }
-
-            slider.value = width;
-            number.value = width;
-            applyWidth(section, index, width);
-
-            if (!Object.hasOwn(savedWidths, sheet)) {
-                savedWidths[sheet] = Object.create(null);
-            }
-
-            savedWidths[sheet][name] = width;
-            saveWidths();
         }
+    }
+    if (state !== activeState || request !== filterVersion) {
+        return;
+    }
+    state.filtered = matched;
+    state.query = query;
+    state.kind = kind;
+    state.page = 0;
+    renderPage(state);
+}
 
-        slider.oninput = () => update(slider.value);
-        number.oninput = () => {
-            if (number.value !== '' && Number(number.value) >= 60 && Number(number.value) <= 600) {
-                update(number.value);
-            }
-        };
-        number.onchange = () => update(number.value);
+function selectPage(section, updateHistory = true) {
+    cancelActiveResize?.();
+    filterVersion++;
+    boundaryObserver.disconnect();
+    if (activeState) {
+        activeState.section.querySelector('.table-host').replaceChildren();
+    }
+    for (const item of pageSections) {
+        item.hidden = item !== section;
+    }
+    activeState = getState(section);
+    mountTable(activeState);
 
-        label.append(title, slider, number);
-        controls.append(label);
+    for (const button of footerTabs.querySelectorAll('button')) {
+        const active = button.dataset.sectionId === section.id;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', String(active));
+    }
+    if (updateHistory) {
+        history.replaceState(null, '', '#' + section.id);
+    }
+    window.scrollTo(0, 0);
+    updateResetButton();
+    filterCurrent();
+}
+
+for (const section of pageSections) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = sheetName(section);
+    button.dataset.sectionId = section.id;
+    button.onclick = () => selectPage(section);
+    footerTabs.append(button);
+
+    section.querySelector('.pagination').addEventListener('click', event => {
+        const button = event.target.closest('[data-page-action]');
+        if (!button || !activeState || section !== activeState.section || activeState.filtered === null) {
+            return;
+        }
+        const action = button.dataset.pageAction;
+        const last = Math.max(0, Math.ceil(activeState.filtered.length / pageSize) - 1);
+        activeState.page = action === 'first' ? 0 : action === 'last' ? last
+            : activeState.page + (action === 'previous' ? -1 : 1);
+        renderPage(activeState, true);
     });
 }
 
-sizing.querySelector('.reset-widths').onclick = () => {
-    const section = currentSection();
-    if (!section) {
-        return;
-    }
-
-    delete savedWidths[sheetName(section)];
-    columnNames(section).forEach((name, index) => applyWidth(section, index, 170));
-    saveWidths();
-    renderSizing();
-};
-
-pageFooter.addEventListener('click', event => {
-    if (event.target.closest('.footer-tabs button')) {
-        renderSizing();
+searchInput.addEventListener('input', () => {
+    filterVersion++;
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(filterCurrent, 200);
+});
+changeFilter.addEventListener('change', filterCurrent);
+hideUnchangedColumns.addEventListener('change', () => {
+    cancelActiveResize?.();
+    if (activeState) {
+        renderPage(activeState);
     }
 });
-renderSizing();
 
-const footerTabs = document.createElement('div');
-footerTabs.className = 'footer-tabs';
+showUnchangedFormulas.addEventListener('change', () => {
+    document.body.classList.toggle('show-unchanged-formulas', showUnchangedFormulas.checked);
+});
+document.getElementById('live-column-resize').addEventListener('change', event => {
+    cancelActiveResize?.();
+    liveColumnResize = event.target.checked;
+});
 
-for (const button of [...pageFooter.children]) {
-    if (button.tagName === 'BUTTON') {
-        footerTabs.append(button);
+function updateResizeBoundaries() {
+    if (!activeState) {
+        return;
     }
+    const table = activeState.section.querySelector('.diff-table');
+    if (!table) {
+        return;
+    }
+    const bottom = table.getBoundingClientRect().bottom;
+    const headers = [...table.querySelectorAll('th[data-column-name]')];
+    const geometry = headers.map(header => {
+        const bounds = header.getBoundingClientRect();
+        return {
+            height: Math.max(bounds.height, bottom - bounds.top),
+            hidden: bounds.right <= 134
+        };
+    });
+    headers.forEach((header, index) => {
+        const handle = header.querySelector('.column-resizer');
+        handle.style.height = geometry[index].height + 'px';
+        handle.hidden = geometry[index].hidden;
+    });
 }
 
-pageFooter.prepend(footerTabs);
-
-const footerSizing = sizing;
-pageFooter.append(footerSizing);
-
-function updateFooterSpace() {
-    document.body.style.paddingBottom = (pageFooter.offsetHeight + 10) + 'px';
+function scheduleBoundaryUpdate() {
+    if (boundaryUpdatePending) {
+        return;
+    }
+    boundaryUpdatePending = true;
+    requestAnimationFrame(() => {
+        boundaryUpdatePending = false;
+        updateResizeBoundaries();
+    });
 }
 
-footerSizing.addEventListener('toggle', updateFooterSpace);
-new ResizeObserver(updateFooterSpace).observe(pageFooter);
-updateFooterSpace();
+const boundaryObserver = new ResizeObserver(scheduleBoundaryUpdate);
+window.addEventListener('scroll', scheduleBoundaryUpdate, { passive: true });
+window.addEventListener('resize', scheduleBoundaryUpdate);
 
-const settingsActions = document.createElement('div');
-settingsActions.className = 'settings-actions';
+function initializeResizers(section) {
+    section.querySelectorAll('th[data-column-name]').forEach((header, index) => {
+        const handle = document.createElement('span');
+        handle.className = 'column-resizer';
+        handle.tabIndex = 0;
+        handle.setAttribute('role', 'separator');
+        handle.setAttribute('aria-orientation', 'vertical');
+        handle.setAttribute('aria-label', 'Ширина колонки ' + header.dataset.columnName);
+        handle.setAttribute('aria-valuemin', String(60 * columnScale));
+        handle.setAttribute('aria-valuemax', String(600 * columnScale));
+        handle.setAttribute('aria-valuenow', String(parseFloat(dataColumns(section)[index].style.width)));
+        handle.title = 'Перетащите границу. Двойной щелчок — сброс ширины.';
+        header.append(handle);
+        let drag = null;
 
-const exportWidths = document.createElement('button');
-exportWidths.type = 'button';
-exportWidths.textContent = 'Экспорт JSON';
+        function setWidth(value) {
+            const width = Math.min(600 * columnScale, Math.max(60 * columnScale, Math.round(value)));
+            applyWidth(section, index, width);
+            return width;
+        }
 
-const importWidths = document.createElement('button');
-importWidths.type = 'button';
-importWidths.textContent = 'Импорт JSON';
+        function finish(cancelled) {
+            if (!drag) {
+                return;
+            }
+            const active = drag;
+            drag = null;
+            cancelActiveResize = null;
+            active.guide?.remove();
+            document.body.classList.remove('column-resizing');
+            if (cancelled && liveColumnResize) {
+                setWidth(active.width);
+            }
+            else if (!cancelled) {
+                rememberWidth(section, header.dataset.columnName, setWidth(active.proposed));
+            }
+            if (handle.hasPointerCapture(active.pointerId)) {
+                handle.releasePointerCapture(active.pointerId);
+            }
+        }
 
-const settingsMessage = document.createElement('span');
-settingsMessage.setAttribute('role', 'status');
+        handle.addEventListener('pointerdown', event => {
+            if (event.button !== 0 || drag) {
+                return;
+            }
+            event.preventDefault();
+            handle.focus({ preventScroll: true });
+            const table = section.querySelector('.diff-table').getBoundingClientRect();
+            const bounds = header.getBoundingClientRect();
+            let guide = null;
+            if (!liveColumnResize) {
+                guide = document.createElement('div');
+                guide.className = 'resize-guide';
+                guide.style.left = (bounds.right - 0.5) + 'px';
+                guide.style.top = bounds.top + 'px';
+                guide.style.height = Math.max(bounds.height, Math.min(table.bottom, window.innerHeight - pageFooter.offsetHeight) - bounds.top) + 'px';
+                document.body.append(guide);
+            }
+            const width = parseFloat(dataColumns(section)[index].style.width);
+            drag = { pointerId: event.pointerId, x: event.clientX, scrollX: window.scrollX, width, proposed: width, guide };
+            cancelActiveResize = () => finish(true);
+            handle.setPointerCapture(event.pointerId);
+            document.body.classList.add('column-resizing');
+        });
 
-const settingsFile = document.createElement('input');
-settingsFile.type = 'file';
-settingsFile.accept = '.json,application/json';
-settingsFile.hidden = true;
+        handle.addEventListener('pointermove', event => {
+            if (drag && event.pointerId === drag.pointerId) {
+                drag.proposed = Math.min(600 * columnScale, Math.max(60 * columnScale,
+                    Math.round(drag.width + event.clientX - drag.x + window.scrollX - drag.scrollX)));
+                if (liveColumnResize) {
+                    setWidth(drag.proposed);
+                }
+                else {
+                    drag.guide.style.transform = 'translateX(' + (drag.proposed - drag.width - window.scrollX + drag.scrollX) + 'px)';
+                }
+            }
+        });
+        handle.addEventListener('pointerup', event => {
+            if (drag && event.pointerId === drag.pointerId) {
+                finish(false);
+            }
+        });
+        handle.addEventListener('pointercancel', () => finish(true));
+        handle.addEventListener('lostpointercapture', () => finish(true));
+        handle.addEventListener('dblclick', event => {
+            event.preventDefault();
+            rememberWidth(section, header.dataset.columnName, setWidth(170 * columnScale));
+        });
+        handle.addEventListener('keydown', event => {
+            const current = parseFloat(dataColumns(section)[index].style.width);
+            const step = event.shiftKey ? 50 : 10;
+            let target;
+            if (event.key === 'ArrowLeft') {
+                target = current - step;
+            }
+            else if (event.key === 'ArrowRight') {
+                target = current + step;
+            }
+            else if (event.key === 'Home') {
+                target = 60 * columnScale;
+            }
+            else if (event.key === 'End') {
+                target = 600 * columnScale;
+            }
+            else if (event.key === 'Escape' && drag) {
+                finish(true);
+            }
+            else {
+                return;
+            }
+            event.preventDefault();
+            if (target !== undefined) {
+                rememberWidth(section, header.dataset.columnName, setWidth(target));
+            }
+        });
+    });
+}
 
-settingsActions.append(exportWidths, importWidths, settingsMessage, settingsFile);
-footerSizing.append(settingsActions);
+resetWidths.onclick = () => {
+    if (!activeState) {
+        return;
+    }
+    cancelActiveResize?.();
+    const section = activeState.section;
+    delete savedWidths[sheetName(section)];
+    saveWidths();
+    boundaryObserver.disconnect();
+    mountTable(activeState);
+    renderPage(activeState);
+    updateResetButton();
+};
+
+function updateLayoutSpace() {
+    document.body.style.paddingBottom = (pageFooter.offsetHeight + 8) + 'px';
+    document.documentElement.style.setProperty('--toolbar-height', toolbar.offsetHeight + 'px');
+    scheduleBoundaryUpdate();
+}
+const layoutObserver = new ResizeObserver(updateLayoutSpace);
+layoutObserver.observe(pageFooter);
+layoutObserver.observe(toolbar);
+updateLayoutSpace();
 
 exportWidths.onclick = () => {
     const allWidths = Object.create(null);
-
     for (const section of pageSections) {
-        const sheet = sheetName(section);
-        allWidths[sheet] = Object.create(null);
-
-        const cells = section.querySelector('article .row-cells')?.children || [];
-        columnNames(section).forEach((name, index) => {
-            const width =
-                Number.parseFloat(cells[index]?.style.width) ||
-                Number(savedWidths[sheet]?.[name]) ||
-                170;
-
-            allWidths[sheet][name] = width;
-        });
+        const columns = Object.create(null);
+        for (const name of columnNames(section)) {
+            columns[name] = storedWidth(section, name);
+        }
+        allWidths[sheetName(section)] = columns;
     }
-
     const payload = { version: 1, columnWidths: allWidths };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' }));
     const link = document.createElement('a');
-
     link.href = url;
     link.download = 'excel-column-widths.json';
     document.body.append(link);
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-
     settingsMessage.textContent = 'Настройки экспортированы';
 };
-
 importWidths.onclick = () => settingsFile.click();
-
 settingsFile.onchange = async () => {
     const file = settingsFile.files[0];
     if (!file) {
         return;
     }
-
     try {
         if (file.size > 1048576) {
             throw new Error('Файл настроек слишком большой');
         }
-
         const payload = JSON.parse(await file.text());
-        if (
-            payload.version !== 1 ||
-            !payload.columnWidths ||
-            typeof payload.columnWidths !== 'object' ||
-            Array.isArray(payload.columnWidths)
-        ) {
+        if (!payload || payload.version !== 1 || !payload.columnWidths
+            || typeof payload.columnWidths !== 'object' || Array.isArray(payload.columnWidths)) {
             throw new Error('Неверный формат настроек');
         }
-
         const validated = Object.create(null);
-
         for (const [sheet, columns] of Object.entries(payload.columnWidths)) {
             if (!columns || typeof columns !== 'object' || Array.isArray(columns)) {
                 throw new Error('Неверные настройки листа');
             }
-
             validated[sheet] = Object.create(null);
-
             for (const [name, width] of Object.entries(columns)) {
                 if (typeof width !== 'number' || !Number.isFinite(width) || width < 60 || width > 600) {
                     throw new Error('Ширина должна быть числом от 60 до 600');
                 }
-
                 validated[sheet][name] = width;
             }
         }
-
+        cancelActiveResize?.();
         savedWidths = validated;
-
-        for (const section of pageSections) {
-            const values = savedWidths[sheetName(section)] || {};
-            columnNames(section).forEach((name, index) => applyWidth(section, index, values[name] ?? 170));
-        }
-
         saveWidths();
-        renderSizing();
-        updateFooterSpace();
+        if (activeState) {
+            boundaryObserver.disconnect();
+            mountTable(activeState);
+            renderPage(activeState);
+        }
+        updateResetButton();
         settingsMessage.textContent = 'Настройки импортированы';
     }
     catch (error) {
@@ -434,3 +758,9 @@ settingsFile.onchange = async () => {
         settingsFile.value = '';
     }
 };
+
+const initial = pageSections.find(section => '#' + section.id === location.hash) || pageSections[0];
+if (initial) {
+    selectPage(initial, false);
+}
+window.addEventListener('load', () => window.scrollTo(0, 0), { once: true });

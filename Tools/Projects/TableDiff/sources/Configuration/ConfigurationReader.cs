@@ -11,6 +11,7 @@ namespace ExcelTools.TableDiff {
     internal sealed class Configuration {
         public string Path;
         public string Profile;
+        public bool IsDefault;
         public string Old;
         public string New;
         public string Output;
@@ -62,6 +63,10 @@ namespace ExcelTools.TableDiff {
                 }
                 profiles.Add(profile);
             }
+            if (profiles.Count(p => p.IsDefault) > 1) {
+                throw new InvalidDataException("Only one profile may have default=\"true\".");
+            }
+            var defaultProfile = profiles.FirstOrDefault(p => p.IsDefault);
 
             Configuration selected;
             if (profileName != null) {
@@ -86,11 +91,14 @@ namespace ExcelTools.TableDiff {
                     throw new InvalidDataException("No profile matches the ordered file pair: " + oldPath + " -> " + newPath);
                 }
             }
+            else if (defaultProfile != null) {
+                selected = defaultProfile;
+            }
             else if (profiles.Count == 1) {
                 selected = profiles[0];
             }
             else {
-                throw new ArgumentException("Multiple profiles configured. Specify --profile or two workbook paths. Available profiles: "
+                throw new ArgumentException("No default profile configured. Set default=\"true\", specify --profile or two workbook paths. Available profiles: "
                     + String.Join(", ", profiles.Select(p => p.Profile)));
             }
             ValidatePaths(selected);
@@ -106,6 +114,10 @@ namespace ExcelTools.TableDiff {
                 New = ToolPaths.Resolve(directory, Required(element.Element("new"), "file")),
                 Output = ToolPaths.Resolve(directory, Required(element, "output"))
             };
+            var defaultAttribute = element.Attribute("default");
+            if (defaultAttribute != null && !Boolean.TryParse(defaultAttribute.Value, out config.IsDefault)) {
+                throw new InvalidDataException("Invalid default attribute in profile '" + config.Profile + "': expected true or false.");
+            }
             if (element.Attribute("key") != null || element.Attribute("threshold") != null) {
                 throw new InvalidDataException("Specify key and threshold on each comparison in profile: " + config.Profile);
             }

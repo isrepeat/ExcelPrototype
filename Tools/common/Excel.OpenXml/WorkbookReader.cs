@@ -40,7 +40,7 @@ namespace ExcelTools.OpenXml {
 
         public static WorkbookSnapshot Read(string path, IEnumerable<string> sheetNames) {
             var selectedSheets = sheetNames == null ? null : new HashSet<string>(sheetNames, StringComparer.Ordinal);
-            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) {
                 using (var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read)) {
                     var workbook = ReadPart(zipArchive, "xl/workbook.xml");
                     if (workbook.Root.Name.Namespace != S) {

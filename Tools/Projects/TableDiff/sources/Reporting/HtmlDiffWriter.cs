@@ -26,104 +26,153 @@ namespace ExcelTools.TableDiff {
             }
         }
 
-        private static string Content(string text) {
-            if (text.StartsWith("=", StringComparison.Ordinal) || text.Length > 350 || text.Count(c => c == '\n') > 3) {
-                var first = text.Split('\n')[0];
-                var shortText = first.Substring(0, Math.Min(100, first.Length));
-                return "<details class=\"formula\"><summary>" + Escape(shortText) + "…</summary><pre>" + Escape(text) + "</pre></details>";
-            }
-            return "<pre>" + Escape(text) + "</pre>";
-        }
-
         public static string Generate(Configuration configuration, List<SheetDiff> differences) {
             var sections = new StringBuilder();
-            var table = new StringBuilder("<table><tr><th>Старый лист</th><th>Новый лист</th><th>Ключ</th><th>Порог</th><th>Изменено</th><th>Добавлено</th><th>Удалено</th><th>Было строк</th><th>Стало строк</th></tr>");
-            var nav = new StringBuilder();
+            var payloads = new StringBuilder();
+            var summary = new StringBuilder("<table class=\"summary-table\"><thead><tr><th>Старый лист</th><th>Новый лист</th><th>Ключ</th><th>Порог</th><th>Изменено</th><th>Добавлено</th><th>Удалено</th><th>Было строк</th><th>Стало строк</th></tr></thead><tbody>");
             for (var index = 0; index < differences.Count; index++) {
                 var sheetDiff = differences[index];
-                var id = "s" + index;
-                table.Append("<tr><td>").Append(Escape(sheetDiff.OldSheet)).Append("</td><td>")
+                summary.Append("<tr><td>").Append(Escape(sheetDiff.OldSheet)).Append("</td><td>")
                     .Append(Escape(sheetDiff.NewSheet)).Append("</td><td>").Append(Escape(sheetDiff.Key))
-                    .Append("</td><td>").Append((sheetDiff.Threshold * 100).ToString("0.##", CultureInfo.InvariantCulture)).Append("%</td>");
+                    .Append("</td><td>").Append(Percent(sheetDiff.Threshold)).Append("</td>");
                 foreach (var count in new[] { sheetDiff.Count("change"), sheetDiff.Count("add"), sheetDiff.Count("delete"), sheetDiff.OldCount, sheetDiff.NewCount }) {
-                    table.Append("<td>").Append(count).Append("</td>");
+                    summary.Append("<td>").Append(count).Append("</td>");
                 }
-                table.Append("</tr>");
-                nav.Append("<a href=\"#").Append(id).Append("\">").Append(Escape(sheetDiff.Name)).Append("</a>");
-                sections.Append("<section id=\"").Append(id).Append("\"><h2>").Append(Escape(sheetDiff.Name))
-                    .Append(" <small>~").Append(sheetDiff.Count("change")).Append(" / +").Append(sheetDiff.Count("add"))
-                    .Append(" / −").Append(sheetDiff.Count("delete")).Append("</small></h2>");
-                sections.Append("<p class=\"muted\">Ключ: ").Append(Escape(sheetDiff.Key)).Append(" · Порог: ")
-                    .Append((sheetDiff.Threshold * 100).ToString("0.##", CultureInfo.InvariantCulture)).Append("%</p>");
-                if (sheetDiff.Changes.Count == 0) {
-                    sections.Append("<p class=\"muted\">Изменений данных и формул нет.</p>");
-                }
-                foreach (var change in sheetDiff.Changes) {
-                    AppendChange(sections, sheetDiff, change, sheetDiff.Key);
-                }
-                sections.Append("</section>");
+                summary.Append("</tr>");
+                AppendSheet(sections, payloads, sheetDiff, "s" + index);
             }
-            table.Append("</table>");
+            summary.Append("</tbody></table>");
             return "<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                + "<title>Сравнение Excel</title><style>" + Asset("report.css") + "</style><main><h1>Excel · изменения между версиями</h1>"
-                + "<p class=\"muted\">Профиль: " + Escape(configuration.Profile) + "</p>"
-                + "<p class=\"muted\">" + Escape(Path.GetFileName(configuration.Old)) + " → " + Escape(Path.GetFileName(configuration.New))
-                + " · − старая версия / + новая версия</p><div class=\"stats\"><b>~ " + differences.Sum(s => s.Count("change"))
-                + " изменено</b><b>+ " + differences.Sum(s => s.Count("add")) + " добавлено</b><b>− "
-                + differences.Sum(s => s.Count("delete")) + " удалено</b></div>"
-                + "<div class=\"legend\"><span class=\"green\">Добавлено значение</span><span class=\"purple\">Заменено значение · внутри показано «Было»</span><span class=\"red\">Удалено значение</span></div>"
-                + "<details><summary>Сводка и способ сравнения</summary>" + table
-                + "<p>Сравниваются сохранённые значения и тексты формул только в указанных парах листов. Читаются все строки, включая скрытые и исключённые фильтрами Excel; сохранённые фильтры не ограничивают сравнение. Ключ и порог каждой пары приведены в сводке. Оформление и кэшированные результаты вычислений не сравниваются. Пустые строки и пустые оформленные столбцы не считаются записями. При разных заголовках распознанной таблицы сравнение останавливается.</p>"
-                + "<p>Границы колонок определяются по непрерывным непустым заголовкам слева и справа от ключевого поля. Колонки за этими границами исключены. Диапазоны определяются независимо в обеих версиях, поэтому горизонтальный сдвиг таблицы не считается изменением.</p>"
-                + "<p>Сначала сопоставляются полностью одинаковые строки независимо от позиции с учётом повторов. Остальные записи сопоставляются по ключу своей пары и наибольшей доле совпадающих заполненных полей, не ниже заданного для этой пары порога. Равные по близости кандидаты отмечены для проверки. Строки вне таблиц сопоставляются по номеру. Перестановки одинаковых записей не показаны как изменения.</p></details><nav>"
-                + nav + "<input placeholder=\"Поиск по ФИО, полю или значению\"><select><option value=\"\">Все изменения</option><option value=\"change\">Изменённые</option><option value=\"add\">Добавленные</option><option value=\"delete\">Удалённые</option></select></nav>"
-                + sections + "</main><script>" + Asset("report.js") + "</script></html>";
+                + "<title>Сравнение Excel</title><style>" + Asset("report.css") + "</style>"
+                + "<header class=\"report-header\"><h1>Сравнение Excel</h1><span class=\"profile\">" + Escape(configuration.Profile)
+                + "</span><div class=\"stats\" aria-label=\"Итоги сравнения\"><span>~ " + differences.Sum(s => s.Count("change"))
+                + " изменено</span><span>+ " + differences.Sum(s => s.Count("add"))
+                + " добавлено</span><span>− " + differences.Sum(s => s.Count("delete")) + " удалено</span></div></header>"
+                + "<p class=\"source-files\">" + Escape(Path.GetFileName(configuration.Old)) + " → " + Escape(Path.GetFileName(configuration.New)) + "</p>"
+                + "<details class=\"report-summary\"><summary>Сводка и способ сравнения</summary><div class=\"summary-scroll\">" + summary + "</div>"
+                + "<p>Сравниваются сохранённые значения и тексты формул только в указанных парах листов. Скрытые и отфильтрованные строки включены; оформление и кэшированные результаты формул не сравниваются.</p>"
+                + "<p>Границы колонок определяются по непрерывным непустым заголовкам вокруг ключевого поля независимо в каждой версии. При разных заголовках сравнение останавливается.</p>"
+                + "<p>Сначала исключаются точные совпадения с учётом повторов. Остальные записи сопоставляются по ключу и порогу своей пары; равные по близости кандидаты отмечаются знаком ?. Строки вне таблиц сопоставляются по номеру.</p>"
+                + "<p>Старое значение зачёркнуто, новое расположено ниже. Каждое значение ограничено тремя видимыми строками с многоточием независимо от другого значения. Поиск учитывает полный текст. Неизменённые формулы можно показать переключателем в панели поиска. Адреса ячеек доступны во всплывающей подсказке.</p></details>"
+                + "<nav class=\"report-toolbar\" aria-label=\"Поиск и фильтр\"><div class=\"toolbar-controls\" id=\"toolbar-controls\"><input type=\"search\" aria-label=\"Поиск по значению или изменённому полю\" placeholder=\"Поиск по значению или полю\">"
+                + "<select aria-label=\"Тип изменений\"><option value=\"\">Все изменения</option><option value=\"change\">Изменённые</option><option value=\"add\">Добавленные</option><option value=\"delete\">Удалённые</option></select>"
+                + "<label class=\"formula-toggle\"><input type=\"checkbox\" id=\"show-unchanged-formulas\">Неизменённые формулы</label>"
+                + "<label class=\"formula-toggle\"><input type=\"checkbox\" id=\"live-column-resize\" checked>Изменять ширину сразу</label>"
+                + "<label class=\"formula-toggle\"><input type=\"checkbox\" id=\"hide-unchanged-columns\">Скрывать неизменённые колонки</label>"
+                + "<span class=\"legend\"><span class=\"legend-add\">+ добавлено</span><span class=\"legend-change\">~ заменено</span><span class=\"legend-delete\">− удалено</span></span></div>"
+                + "<div class=\"table-navigation\" role=\"group\" aria-label=\"Навигация по таблице\">"
+                + "<label class=\"column-scale\">Ширина <input type=\"range\" id=\"column-scale\" aria-label=\"Масштаб ширины колонок\" min=\"55\" max=\"190\" step=\"15\" value=\"100\"><output id=\"column-scale-value\" for=\"column-scale\">100%</output></label>"
+                + "<button type=\"button\" id=\"table-top\" title=\"К началу таблицы\" aria-label=\"К началу таблицы\">↑</button>"
+                + "<button type=\"button\" id=\"table-bottom\" title=\"К концу таблицы\" aria-label=\"К концу таблицы\">↓</button></div></nav>"
+                + "<main>" + sections + "</main>" + payloads + "<noscript>Для просмотра отчёта включите JavaScript.</noscript><script>" + Asset("report.js") + "</script></html>";
         }
 
-        private static void AppendChange(StringBuilder output, SheetDiff sheetDiff, RowChange rowChange, string key) {
+        private static string Percent(double value) {
+            return (value * 100).ToString("0.##", CultureInfo.InvariantCulture) + "%";
+        }
+
+        private static void AppendSheet(StringBuilder output, StringBuilder payloads, SheetDiff sheetDiff, string id) {
             var header = sheetDiff.NewHeader ?? sheetDiff.OldHeader;
-            var row = rowChange.After ?? rowChange.Before;
-            var columnOffset = rowChange.After == null ? sheetDiff.OldColumnOffset : sheetDiff.NewColumnOffset;
-            var keyColumn = sheetDiff.OldHeader == null ? -1 : Array.IndexOf(sheetDiff.OldHeader.Values, key);
-            var identity = keyColumn < 0 ? sheetDiff.Name : row.ValueAt(keyColumn);
-            var labels = Enumerable.Range(0, sheetDiff.Width)
-                .Select(c => header == null || header.ValueAt(c).Length == 0 ? CellAddress.ColumnName(columnOffset + c + 1) : header.ValueAt(c)).ToArray();
-            output.Append("<article data-kind=\"").Append(rowChange.Kind).Append("\"><header><b>").Append(Escape(identity))
-                .Append("</b><span class=\"row-context\">");
-            output.Append(String.Join(" · ", Enumerable.Range(0, sheetDiff.Width)
-                .Where(c => labels[c] == "Подія" && row.ValueAt(c).Length > 0).Select(c => Escape(row.ValueAt(c)))));
-            output.Append("</span><span class=\"row-location\">")
-                .Append(rowChange.Before == null ? "—" : rowChange.Before.Number.ToString())
-                .Append(" → ").Append(rowChange.After == null ? "—" : rowChange.After.Number.ToString()).Append("</span></header>");
-            if (rowChange.Ambiguous) {
-                output.Append("<p class=\"warning\">Несколько записей имеют одинаковую близость: проверьте сопоставление.</p>");
+            var offset = sheetDiff.NewHeader == null ? sheetDiff.OldColumnOffset : sheetDiff.NewColumnOffset;
+            var columns = Enumerable.Range(0, sheetDiff.Width)
+                .Where(c => header == null || header.ValueAt(c).Length > 0).ToList();
+            output.Append("<section id=\"").Append(id).Append("\" data-sheet-name=\"").Append(Escape(sheetDiff.Name))
+                .Append("\"><div class=\"sheet-heading\"><h2>").Append(Escape(sheetDiff.Name)).Append("</h2><span>Ключ: ")
+                .Append(Escape(sheetDiff.Key)).Append(" · ").Append(Percent(sheetDiff.Threshold))
+                .Append(" · ~").Append(sheetDiff.Count("change")).Append(" / +").Append(sheetDiff.Count("add"))
+                .Append(" / −").Append(sheetDiff.Count("delete")).Append("</span></div>")
+                .Append("<nav class=\"pagination\" aria-label=\"Страницы различий\">")
+                .Append("<button type=\"button\" data-page-action=\"first\" aria-label=\"Первая страница\">«</button>")
+                .Append("<button type=\"button\" data-page-action=\"previous\" aria-label=\"Предыдущая страница\">‹</button>")
+                .Append("<span class=\"page-status\" role=\"status\" aria-live=\"polite\"></span>")
+                .Append("<button type=\"button\" data-page-action=\"next\" aria-label=\"Следующая страница\">›</button>")
+                .Append("<button type=\"button\" data-page-action=\"last\" aria-label=\"Последняя страница\">»</button></nav>")
+                .Append("<div class=\"table-host\"></div><p class=\"empty-message\" hidden></p></section>");
+
+            // Intern cell strings once per sheet instead of repeating full HTML for every cell.
+            var strings = new List<string> { "" };
+            var indices = new Dictionary<string, int>(StringComparer.Ordinal) { { "", 0 } };
+            var rows = new StringBuilder("[");
+            var first = true;
+            foreach (var change in sheetDiff.Changes) {
+                if (!first) {
+                    rows.Append(',');
+                }
+                first = false;
+                rows.Append('[').Append(change.Kind == "change" ? 0 : change.Kind == "add" ? 1 : 2)
+                    .Append(',').Append(change.Before == null ? 0 : change.Before.Number)
+                    .Append(',').Append(change.After == null ? 0 : change.After.Number)
+                    .Append(',').Append(change.Ambiguous ? 1 : 0).Append(',');
+                AppendValues(rows, change.Before, columns, strings, indices);
+                rows.Append(',');
+                AppendValues(rows, change.After, columns, strings, indices);
+                rows.Append(']');
             }
-            output.Append("<div class=\"row-scroll\"><div class=\"row-cells\">");
-            for (var column = 0; column < sheetDiff.Width; column++) {
-                if (header != null && header.ValueAt(column).Length == 0) {
-                    continue;
+            rows.Append(']');
+            payloads.Append("<script type=\"application/json\" id=\"data-").Append(id).Append("\">{\"columns\":[");
+            for (var index = 0; index < columns.Count; index++) {
+                if (index > 0) {
+                    payloads.Append(',');
                 }
-                var x = rowChange.Before == null ? "" : rowChange.Before.ValueAt(column);
-                var y = rowChange.After == null ? "" : rowChange.After.ValueAt(column);
-                var unchanged = (rowChange.Kind == "change" && x == y) || (x.Length == 0 && y.Length == 0);
-                var status = unchanged ? "unchanged" : x.Length > 0 && y.Length > 0 ? "replacement" : y.Length > 0 ? "insertion" : "removal";
-                var tag = unchanged ? "Без изменений" : status == "replacement" ? "Заменено" : status == "insertion" ? "Добавлено" : "Удалено";
-                output.Append("<div class=\"cell ").Append(status).Append("\"><div class=\"cell-heading\"><b>")
-                    .Append(Escape(labels[column])).Append("</b><span>").Append(CellAddress.ColumnName(columnOffset + column + 1)).Append(row.Number)
-                    .Append("</span></div><span class=\"cell-tag\">").Append(tag).Append("</span>");
-                if (status == "replacement") {
-                    output.Append("<div class=\"previous\"><span>Было · ").Append(CellAddress.ColumnName(sheetDiff.OldColumnOffset + column + 1))
-                        .Append(rowChange.Before.Number).Append("</span>").Append(Content(x)).Append("</div>");
-                }
-                var value = y.Length > 0 ? y : x;
-                output.Append("<div class=\"current\">").Append(unchanged ? "<pre>-- // --</pre>" : Content(value)).Append("</div>");
-                if (unchanged) {
-                    output.Append("<template class=\"original-value\">")
-                        .Append(value.Length > 0 ? Content(value) : "<pre>Пустая ячейка</pre>").Append("</template>");
-                }
-                output.Append("</div>");
+                var column = columns[index];
+                payloads.Append('[').Append(column).Append(',');
+                AppendJsonString(payloads, header == null ? CellAddress.ColumnName(offset + column + 1) : header.ValueAt(column));
+                payloads.Append(']');
             }
-            output.Append("</div></div></article>");
+            payloads.Append("],\"offsets\":[").Append(sheetDiff.OldColumnOffset).Append(',').Append(sheetDiff.NewColumnOffset)
+                .Append("],\"strings\":[");
+            for (var index = 0; index < strings.Count; index++) {
+                if (index > 0) {
+                    payloads.Append(',');
+                }
+                AppendJsonString(payloads, strings[index]);
+            }
+            payloads.Append("],\"rows\":").Append(rows).Append("}</script>");
+        }
+
+        private static void AppendValues(
+            StringBuilder output,
+            RowSnapshot rowSnapshot,
+            List<int> columns,
+            List<string> strings,
+            Dictionary<string, int> indices) {
+            if (rowSnapshot == null) {
+                output.Append("null");
+                return;
+            }
+            output.Append('[');
+            for (var index = 0; index < columns.Count; index++) {
+                if (index > 0) {
+                    output.Append(',');
+                }
+                var value = rowSnapshot.ValueAt(columns[index]);
+                int stringIndex;
+                if (!indices.TryGetValue(value, out stringIndex)) {
+                    stringIndex = strings.Count;
+                    indices.Add(value, stringIndex);
+                    strings.Add(value);
+                }
+                output.Append(stringIndex);
+            }
+            output.Append(']');
+        }
+
+        private static void AppendJsonString(StringBuilder output, string value) {
+            output.Append('"');
+            foreach (var character in value) {
+                if (character == '"' || character == '\\') {
+                    output.Append('\\').Append(character);
+                }
+                else if (character < 32 || character == '<' || character == '>' || character == '&'
+                    || character == '\u2028' || character == '\u2029') {
+                    // Escape script delimiters as well as control characters without changing the data.
+                    output.Append("\\u").Append(((int)character).ToString("x4", CultureInfo.InvariantCulture));
+                }
+                else {
+                    output.Append(character);
+                }
+            }
+            output.Append('"');
         }
     }
 }
