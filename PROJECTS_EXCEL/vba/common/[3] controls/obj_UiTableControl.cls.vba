@@ -635,16 +635,27 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
     Dim readOnlyRaw As String
     Dim readOnlyValue As String
     Dim cell As Range
+    Dim renderStage As String
+    Dim renderAddress As String
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
 
+    On Error GoTo RenderError
+    renderStage = "Measure"
     startedAt = VBA.Timer
     If m_targetRange Is Nothing Then Set m_targetRange = private_Measure(uiRenderContext)
     If m_targetRange Is Nothing Then Exit Function
+    renderAddress = m_targetRange.Address(External:=True)
+    renderStage = "PrepareBuffer"
     If m_table Is Nothing Then
         ex_Core.fn_Diagnostic_WriteLog "UI_TABLE_RENDER_SKIPPED_NO_SOURCE | Source=" & m_sourceRaw
         Exit Function
     End If
     If Not m_cellTemplates Is Nothing Then m_cellTemplates.Clear
+    renderStage = "UnregisterReadOnly"
     private_UnregisterReadOnly
+    renderStage = "BuildBuffer"
     ReDim buffer(1 To m_targetRange.Rows.Count, 1 To m_targetRange.Columns.Count)
     targetRow = 1
     Set rawTable = m_table
@@ -666,6 +677,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             For columnIndex = 1 To rawTable.ColumnCount: buffer(targetRow, columnIndex) = rawTable.ValueAt(rowIndex, columnIndex): Next columnIndex
             targetRow = targetRow + 1
         Next rowIndex
+    renderStage = "RegisterSelection"
     uiRenderContext.Router.UnregisterSelection m_uiControlBase.ControlName
     Set m_bodyRange = Nothing
     m_selectedRow = 0
@@ -684,7 +696,13 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         If TypeOf m_source Is obj_IUiColumnLayout Then Set columnLayout = m_source
     End If
     If Not columnLayout Is Nothing Then
-        m_targetRange.UnMerge
+        renderStage = "Unmerge"
+        ' Excel rejects UnMerge on ListObject cells even when they are not merged.
+        For Each cell In m_targetRange.Cells
+            If cell.MergeCells Then
+                cell.MergeArea.UnMerge
+            End If
+        Next cell
     End If
     ' Shape templates own the visible cell; keep their backing values in memory only.
     displayBuffer = buffer
@@ -695,7 +713,9 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             Next rowIndex
         End If
     Next columnIndex
+    renderStage = "WriteValues"
     m_targetRange.Value2 = displayBuffer
+    renderStage = "MergeTitle"
     If VBA.Len(rawTable.Title) > 0 Then
         If private_ReadLong(m_uiControlBase.ControlNode, "titleColumnSpan", 1) > rawTable.ColumnCount Then
             Err.Raise 5, , "Table titleColumnSpan exceeds table width"
@@ -705,6 +725,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             m_uiControlBase.ControlName
     End If
     If Not columnLayout Is Nothing Then
+        renderStage = "MergeColumns"
         targetRow = 1
         If VBA.Len(rawTable.Title) > 0 Then targetRow = targetRow + 1
         For columnIndex = 1 To rawTable.ColumnCount
@@ -722,8 +743,11 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             End If
         Next columnIndex
     End If
+    renderStage = "ApplyTablePlan"
     If Not m_tablePlan Is Nothing Then ex_UiTables.fn_Apply m_tablePlan
+    renderStage = "ApplyControlStyle"
     uiRenderContext.Styles.ApplyControlStyle m_targetRange, Nothing, m_uiControlBase.ControlNode, uiRenderContext.BindingContext
+    renderStage = "RegisterPartStyles"
     If m_partStylesEnabled Then
         targetRow = 1
         If VBA.Len(rawTable.Title) > 0 Then
@@ -829,6 +853,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             End If
         End If
     End If
+    renderStage = "RestoreSelection"
     If Not m_selectionSource Is Nothing And Not m_bodyRange Is Nothing And VBA.Len(m_selectedSource) > 0 Then
         If uiRenderContext.BindingContext.TryGetValue(m_selectedSource, m_selectedPath, _
                 selectedValue, selected, selectedIsObject) Then
@@ -844,6 +869,7 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             End If
         End If
     End If
+    renderStage = "RememberRenderedState"
     m_renderedSchema = private_SourceSchema(m_source, rawTable)
     m_renderedValues = buffer
     Set m_renderedSelection = m_selectionSource
@@ -853,12 +879,14 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
         If Not ex_UiBindingRuntime.fn_TryResolveText( _
                 readOnlyRaw, uiRenderContext.BindingContext, readOnlyValue) Then Exit Function
     End If
+    renderStage = "RegisterReadOnlyCells"
     If VBA.LCase$(readOnlyValue) = "true" Then
         Set m_readOnlyRange = m_targetRange
         For Each cell In m_readOnlyRange.Cells
             uiRenderContext.Router.RegisterCell cell, Me
         Next cell
     End If
+    renderStage = "RenderCellTemplates"
     If m_uiControlBase.ControlNode.SelectNodes("*[local-name()='table.cellTemplates']").Length > 0 Then
         If m_cellTemplates Is Nothing Then
             Set m_cellTemplates = New obj_UiTableCellTemplates
@@ -868,9 +896,24 @@ Private Function private_Render(ByVal uiRenderContext As obj_UiRenderContext) As
             Err.Raise 5, , templateDiagnostic
         End If
     End If
+    renderStage = "UpdateTextWarning"
     private_UpdateTextWarning rawTable
     private_Render = True
     ex_Core.fn_Diagnostic_WritePerf "Control.Table.Render", startedAt
+    Exit Function
+RenderError:
+    errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
+    errorDescription = VBA.Err.Description
+    On Error Resume Next
+    ex_Core.fn_Diagnostic_WriteLog "UI_TABLE_RENDER_ERROR | Control=" & m_uiControlBase.ControlName & _
+        " | Stage=" & renderStage & " | Range=" & renderAddress & _
+        " | Row=" & VBA.CStr(rowIndex) & " | Column=" & VBA.CStr(columnIndex) & _
+        " | Number=" & VBA.CStr(errorNumber) & " | Source=" & errorSource & _
+        " | Description=" & errorDescription
+    On Error GoTo 0
+    VBA.Err.Raise errorNumber, errorSource, errorDescription & _
+        " [Table=" & m_uiControlBase.ControlName & "; Stage=" & renderStage & "; Range=" & renderAddress & "]"
 End Function
 
 ' //
