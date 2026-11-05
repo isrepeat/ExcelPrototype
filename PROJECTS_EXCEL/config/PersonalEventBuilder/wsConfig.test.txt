@@ -1963,13 +1963,17 @@ value	PersonalEventBuilder::returnTvo.table.headers.Duration	Термін
 value	PersonalEventBuilder::returnTvo.table.headers.EndBasis	Здавання.Підстава
 value	PersonalEventBuilder::returnTvo.table.headers.EndOrder	Здавання.Наказ
 value	PersonalEventBuilder::returnTvo.table.headers.PersonId	ІПН
+value	PersonalEventBuilder::returnTvo.table.headers.ClosingId	PEB.ClosingId
+value	PersonalEventBuilder::returnTvo.table.headers.OpeningId	PEB.OpeningId
 value	PersonalEventBuilder::returnTvo.table.headers.StartDate	Прийняття
 value	PersonalEventBuilder::returnTvo.table.headers.PersonName	ПІБ
 value	PersonalEventBuilder::returnTvo.table.headers.PersonRank	Звання
 value	PersonalEventBuilder::returnTvo.table.headers.StartBasis	Прийняття.Підстава
 value	PersonalEventBuilder::returnTvo.table.headers.StartOrder	Прийняття.Наказ
 value	PersonalEventBuilder::returnTvo.table.headers.AccessOrder	Доступ.Наказ
+value	PersonalEventBuilder::returnTvo.table.headers.ClosingHash	PEB.ClosingHash
 value	PersonalEventBuilder::returnTvo.table.headers.Information	Додаткова інформація
+value	PersonalEventBuilder::returnTvo.table.headers.OpeningHash	PEB.OpeningHash
 value	PersonalEventBuilder::returnTvo.table.headers.PositionCode	Посада.Заміщує
 value	PersonalEventBuilder::returnTvo.table.headers.PlannedEndDate	Здавання.План
 value	PersonalEventBuilder::returnTvo.table.headers.OwnPositionCode	Посада.Своя

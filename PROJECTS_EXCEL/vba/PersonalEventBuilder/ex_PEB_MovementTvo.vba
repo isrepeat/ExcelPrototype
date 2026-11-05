@@ -187,6 +187,9 @@ Public Sub fn_Prepare( _
     Dim existingStartDate As Double
     Dim requested As Collection
     Dim replacedPerson As String
+    Dim linked As Collection
+    Dim linkedRow As Object
+    Dim replayOpening As Boolean
 
     Set table = private_Target(target.Parent.Parent)
     If table.Parent.ProtectContents Or Not table.ShowHeaders Then
@@ -212,6 +215,7 @@ Public Sub fn_Prepare( _
         If Not action.Exists("TvoValues") Then
             GoTo NextAction
         End If
+        replayOpening = False
         Set values = action("TvoValues")
         Set requested = private_HistoryDuties(values("MetaTvoTables"))
         operation = action("Operation")
@@ -227,7 +231,40 @@ Public Sub fn_Prepare( _
         ex_Core.fn_Diagnostic_WriteLog "MOVEMENT_TVO_EVENT | RowId=" & CStr(action("RowId")) & _
             " | Person=" & CStr(values("PersonName")) & " | Position=" & CStr(values("PositionCode")) & _
             " | Operation=" & operation & " | Date=" & Format$(eventDate, "yyyy-mm-dd")
+        Set linked = private_LinkedRows(model, CStr(action("RowId")), "Opening")
+        If operation = "append" And linked.Count > 0 Then
+            ' Rebuild only owned, unchanged and unclosed segments in the in-memory transaction.
+            For Each linkedRow In linked
+                private_CheckStamp linkedRow, "Opening", CStr(action("RowId"))
+                If Len(ex_PEB_Export.fn_Text(linkedRow("EndDate"))) > 0 Or _
+                        Len(ex_PEB_Export.fn_Text(linkedRow("EndOrder"))) > 0 Or _
+                        Len(ex_PEB_Export.fn_Text(linkedRow("ClosingId"))) > 0 Then
+                    ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                End If
+            Next linkedRow
+            For Each linkedRow In linked
+                For Each field In private_Fields()
+                    linkedRow(field) = vbNullString
+                Next field
+                linkedRow("Blank") = True
+                Set linkedRow("Action") = action
+            Next linkedRow
+            replayOpening = True
+            If action("EventStatus") = "Cancelled" Then GoTo NextAction
+        End If
         Set chain = private_Chain(model, CStr(values("PositionCode")), eventDate, CStr(values("AcceptedOrderNumber")), lowerDate, found, operation = "close")
+        If operation = "close" Then
+            Set linked = private_LinkedRows(model, CStr(action("RowId")), "Closing")
+            If linked.Count > 0 Then
+                Set chain = linked
+                For Each linkedRow In chain
+                    private_CheckStamp linkedRow, "Closing", CStr(action("RowId"))
+                    If ex_PEB_MovementSource.fn_OrderDate(linkedRow("EndDate")) <> CDbl(eventDate) Then
+                        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                    End If
+                Next linkedRow
+            End If
+        End If
         If action("EventStatus") = "Cancelled" Then
             If chain.Count > 0 Then
                 ex_PEB_MovementLinks.fn_Fail "TvoCancellationRequiresReview", action("RowId")
@@ -241,12 +278,17 @@ Public Sub fn_Prepare( _
                 GoTo NextAction
             End If
         End If
-        If action("Status") = "AlreadyApplied" Then
-            GoTo NextAction
+        If action("Status") = "AlreadyApplied" And Not replayOpening Then
+            ' An exported absence may acquire its first duty chain in a later revision.
+            If operation <> "close" And (operation <> "append" Or requested.Count = 0 Or chain.Count > 0) Then
+                GoTo NextAction
+            End If
         End If
         ' A repeated export must not close a replacement segment opened by the same transition.
         If action("IsUpdate") And chain.Count > 0 Then
-            ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+            If operation <> "close" Or linked.Count = 0 Then
+                ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+            End If
         End If
         If operation = "append" And chain.Count > 0 Then
             If Not private_Matches(chain, requested, model, eventDate) Then
@@ -257,12 +299,20 @@ Public Sub fn_Prepare( _
         If operation = "close" Or operation = "transition" Then
             basis = private_Basis(action, "ClosingWrites", "ArrivalBasis")
             For Each row In chain
+                private_CheckStamp row, "Opening", CStr(action("RowId"))
+                private_CheckStamp row, "Closing", CStr(action("RowId"))
+                If Len(ex_PEB_Export.fn_Text(row("ClosingId"))) > 0 And _
+                        CStr(row("ClosingId")) <> CStr(action("RowId")) Then
+                    ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                End If
                 If ex_PEB_MovementSource.fn_OrderDate(row("EndDate")) > CDbl(eventDate) Then
                     ex_PEB_MovementLinks.fn_Fail "TvoHasLaterHandover", action("RowId")
                 End If
                 row("EndDate") = eventDate
                 row("EndOrder") = CStr(values("AcceptedOrderNumber"))
                 row("EndBasis") = basis
+                row("ClosingId") = action("RowId")
+                row("ClosingHash") = private_Stamp(row, "Closing")
                 Set row("Action") = action
             Next row
         End If
@@ -321,6 +371,8 @@ Public Sub fn_Prepare( _
                     End If
                 End If
                 private_RenderTexts row, values, replacedPerson
+                row("OpeningId") = action("RowId")
+                row("OpeningHash") = private_Stamp(row, "Opening")
                 Set row("Action") = action
 NextDuty:
                 replacedPerson = CStr(item("PersonName"))
@@ -594,10 +646,66 @@ Private Function private_Fields(Optional ByVal includeDetails As Boolean = True)
 
     fields = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|EndDate|StartOrder|EndOrder|StartBasis|EndBasis|PlannedEndDate|AccessOrder"
     If includeDetails Then
-        fields = fields & "|Duration|Information"
+        fields = fields & "|Duration|Information|OpeningId|OpeningHash|ClosingId|ClosingHash"
     End If
     private_Fields = Split(fields, "|")
 End Function
+
+Private Function private_LinkedRows( _
+    ByVal model As Collection, _
+    ByVal identifier As String, _
+    ByVal side As String _
+) As Collection
+    Dim result As New Collection
+    Dim row As Object
+
+    For Each row In model
+        If ex_PEB_Export.fn_Text(row(side & "Id")) = identifier Then
+            result.Add row
+        End If
+    Next row
+    Set private_LinkedRows = result
+End Function
+
+Private Function private_Stamp( _
+    ByVal row As Object, _
+    ByVal side As String _
+) As String
+    Dim fields As Object
+    Dim names As String
+    Dim field As Variant
+
+    Set fields = CreateObject("Scripting.Dictionary")
+    If side = "Opening" Then
+        names = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|StartOrder|StartBasis|PlannedEndDate|AccessOrder|Duration|Information"
+    Else
+        names = "PersonId|PositionCode|EndDate|EndOrder|EndBasis"
+    End If
+    For Each field In Split(names, "|")
+        fields.Add CStr(field), row(field)
+    Next field
+    private_Stamp = ex_PEB_MovementLinks.fn_FieldsHash(fields)
+End Function
+
+Private Sub private_CheckStamp( _
+    ByVal row As Object, _
+    ByVal side As String, _
+    ByVal identifier As String _
+)
+    Dim linked As Boolean
+    Dim stamped As Boolean
+
+    linked = Len(ex_PEB_Export.fn_Text(row(side & "Id"))) > 0
+    stamped = Len(ex_PEB_Export.fn_Text(row(side & "Hash"))) > 0
+    If linked <> stamped Then
+        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", identifier
+    End If
+    If stamped Then
+        If CStr(row(side & "Hash")) <> private_Stamp(row, side) Then
+            ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", identifier
+        End If
+    End If
+End Sub
 
 Private Function private_HistoryDuties(ByVal source As Collection) As Collection
     Dim result As New Collection
@@ -839,6 +947,7 @@ Private Sub private_ReviseDeparture( _
         Exit Sub
     End If
     Set row = chain(1)
+    private_CheckStamp row, "Opening", CStr(action("RowId"))
     Set item = requested(1)
     If private_AdmissionOnly(model, item, eventDate) Then
         ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
@@ -905,6 +1014,8 @@ Private Sub private_ReviseDeparture( _
     For Each field In private_Fields()
         row(field) = desired(field)
     Next field
+    row("OpeningId") = action("RowId")
+    row("OpeningHash") = private_Stamp(row, "Opening")
     Set row("Action") = action
 End Sub
 

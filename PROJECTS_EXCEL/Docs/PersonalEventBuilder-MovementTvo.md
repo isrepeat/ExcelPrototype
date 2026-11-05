@@ -58,6 +58,10 @@ Preserve row and column formatting and workbook formulas; write only mapped valu
 
 ## Export implementation
 
+PEB writes `PEB.OpeningId` / `PEB.OpeningHash` and `PEB.ClosingId` / `PEB.ClosingHash` to the TVO table. Each ID is the EventsHistory root RowId; multiple chain segments may share it. Opening hashes cover actor, positions, acceptance, planned return and explanatory fields. Closing hashes cover actor, replaced position and handover fields. Metadata itself is excluded. Incomplete metadata or a changed hash stops rewriting with the TVO review diagnostic.
+
+An owned unclosed departure chain is rebuilt in memory from the latest history children, allowing additions, replacement and removal through the ordinary transactional write and rollback. Updating an owned closing basis is supported at the same handover date. Changing a handover date or revising an already closed departure requires review. Unlinked legacy departures retain conservative matching rules and are not bulk-adopted. EventsHistory requires no additional columns.
+
 History TVO children retain their actor's own `PositionCode`. During history loading, `DutyPositionCode` and `DutyPersonName` come from the immediate parent, including nested replacements. The Movement planner copies these rows and uses `DutyPositionCode` as the replaced post without altering the stored child or its Word context. Existing registry and return rows already contain the replaced post. Assignment comparison uses the same normalized metadata as insertion.
 
 New departure and transition segments render their text columns from `PersonalEventBuilderMovementTemplates.xml`. A `column` without `target`, or with `target="Absence"`, belongs to the absence table. A `column target="TVO"` belongs to the TVO table and is rendered once per assignment before planning the cell changes. `configKey` resolves the destination header through wsConfig; text content, conditions and reasons live in XML. Missing or invalid TVO templates stop the operation before writes. These fields participate in previews, conflict stamps, verification and rollback. Previously exported rows are not automatically repaired.

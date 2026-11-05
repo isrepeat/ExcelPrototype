@@ -98,7 +98,14 @@ def main():
     prepare_tvo = procedure(table, 'fn_Prepare')
     # Изменения ТВО проверяются до пропуска уже выгруженных данных отсутствующего.
     revise_call = prepare_tvo.index('private_ReviseDeparture model, chain, requested')
-    assert revise_call < prepare_tvo.index('If action("Status") = "AlreadyApplied" Then')
+    assert revise_call < prepare_tvo.index('If action("Status") = "AlreadyApplied" And Not replayOpening Then')
+    assert prepare_tvo.index('private_CheckStamp linkedRow, "Opening"') < prepare_tvo.index('linkedRow(field) = vbNullString')
+    assert 'row("OpeningHash") = private_Stamp(row, "Opening")' in prepare_tvo
+    assert 'row("ClosingHash") = private_Stamp(row, "Closing")' in prepare_tvo
+    stamp = procedure(table, 'private_Stamp')
+    assert 'fn_FieldsHash(fields)' in stamp
+    assert 'EndDate|EndOrder|EndBasis' in stamp
+    assert 'ClosingHash' not in stamp and 'OpeningHash' not in stamp
     assert 'row("Action")("Status") = "Planned"' in prepare_tvo
     assert 'row("Action")("IsUpdate") = True' in prepare_tvo
     revise = procedure(table, 'private_ReviseDeparture')
