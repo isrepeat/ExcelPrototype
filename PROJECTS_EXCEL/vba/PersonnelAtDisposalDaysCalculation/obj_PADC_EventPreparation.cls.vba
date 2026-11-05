@@ -73,7 +73,8 @@ Public Sub Dispose()
 End Sub
 
 Public Function Prepare( _
-    ByVal params As ListObject, _
+    ByVal params As obj_DataTable, _
+    ByVal parameters As obj_PADC_Parameters, _
     ByVal lastDay As Long _
 ) As Collection
     Dim source As ListObject
@@ -136,20 +137,20 @@ Public Function Prepare( _
 
     m_runContext.LogDebug m_configuration.GetText("text.RukhSource") & source.Parent.Parent.Name & " / " & source.Parent.Name & " / " & source.Name
 
-    pTax = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.TaxId"))
-    pName = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.FullName"))
-    pStart = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.StartDate"))
-    pTrip = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.IncludeBusinessTripDays"))
+    pTax = ex_TableQuery.fn_HeaderIndex(params.Headers, m_configuration.GetText("input.columns.TaxId"))
+    pName = ex_TableQuery.fn_HeaderIndex(params.Headers, m_configuration.GetText("input.columns.FullName"))
+    pStart = ex_TableQuery.fn_HeaderIndex(params.Headers, m_configuration.GetText("input.columns.StartDate"))
+    pTrip = ex_TableQuery.fn_HeaderIndex(params.Headers, m_configuration.GetText("input.columns.IncludeBusinessTripDays"))
     sourceNameCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.FullName"))
     taxCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.TaxId"))
     eventCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.Event"))
     fromCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.Departure"))
     toCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.Arrival"))
-    If params.DataBodyRange Is Nothing Then
+    If params.RowCount = 0 Then
         m_configuration.Fail m_configuration.GetText("text.ParametersEmpty")
     End If
     m_runContext.LogStage "ReadParameters.Started"
-    p = m_dataSource.ReadQueryTable(params)
+    p = params.Values
     m_runContext.LogStage "ReadParameters.Completed"
     m_runContext.LogStage "ReadMovement.Started"
     s = m_dataSource.ReadQueryTable(source)
@@ -178,18 +179,21 @@ Public Function Prepare( _
     Set people = VBA.CreateObject(DICTIONARY_PROG_ID)
     Set intervals = VBA.CreateObject(DICTIONARY_PROG_ID)
     For i = 1 To count
-        context = params.Parent.Name & m_configuration.GetText("text.WorksheetRow") & params.DataBodyRange.Row + parameterRows(i) - 1
+        context = parameters.SheetName & m_configuration.GetText("text.ParameterRow") & parameterRows(i)
         taxId = m_validation.RequiredText(p(i, pTax), context & m_configuration.GetText("text.TaxId"))
         If people.Exists(taxId) Then
             m_configuration.Fail context & m_configuration.GetText("text.DuplicateTaxId") & taxId
         End If
         people.Add taxId, i
-        starts(i) = m_validation.ReadDay(p(i, pStart), params.Parent.Parent.Date1904, context & m_configuration.GetText("text.TimePoint"))
+        starts(i) = m_validation.ReadDay(p(i, pStart), _
+            m_configuration.GetText("input.dateSystem") = "1904", context & m_configuration.GetText("text.TimePoint"))
         If starts(i) > lastDay Then
             m_configuration.Fail context & m_configuration.GetText("text.StartAfterEnd")
         End If
         trips(i) = m_validation.ReadFlag(p(i, pTrip), context)
-        resultTrips(i, 1) = p(i, pTrip)
+        If Not VBA.IsNull(p(i, pTrip)) Then
+            resultTrips(i, 1) = p(i, pTrip)
+        End If
         resultTaxIds(i, 1) = taxId
         resultNames(i, 1) = m_validation.RequiredText(p(i, pName), context & m_configuration.GetText("text.FullName"))
         Set rows = New Collection

@@ -67,6 +67,9 @@ Public Sub CreateWorkbook( _
     Dim errorNumber As Long
     Dim errorText As String
     Dim outputPath As String
+    Dim backgroundRows As Long
+    Dim backgroundColumns As Long
+    Dim computedColor As Long
 
     If Not m_isInitialized Or m_isDisposed Then
         VBA.Err.Raise vbObjectError + 2100, "obj_PADC_ResultExport", "Service is not initialized."
@@ -113,7 +116,13 @@ Public Sub CreateWorkbook( _
     table.ListColumns(10).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Include")
 
     ' Apply the warm dark palette, alternating rows and orange accents.
-    With sheet.Range("A1:L" & count + 9)
+    backgroundRows = VBA.CLng(m_configuration.GetText("export.padding.rows"))
+    backgroundColumns = VBA.CLng(m_configuration.GetText("export.padding.columns"))
+    computedColor = private_Color(m_configuration.GetText("export.computedColor"))
+    If backgroundRows < 0 Or backgroundColumns < 0 Then
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.padding"
+    End If
+    With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + backgroundRows, 11 + backgroundColumns))
         .Interior.Color = private_Color(VBA.CStr(palette(0)))
         .Font.Name = m_configuration.GetText("export.font")
         .Font.Size = VBA.CDbl(m_configuration.GetText("export.fontSize"))
@@ -138,15 +147,19 @@ Public Sub CreateWorkbook( _
         .RowHeight = 60
     End With
     table.DataBodyRange.WrapText = True
+    table.DataBodyRange.HorizontalAlignment = xlCenter
     For i = 1 To count
         table.DataBodyRange.Rows(i).Interior.Color = private_Color(VBA.CStr(palette(1 + ((i - 1) Mod 2))))
     Next i
     table.ListColumns(1).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
-    table.ListColumns(5).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
+    table.ListColumns(5).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(4)))
     For Each headerKeys In VBA.Array(3, 7, 8, 9)
         table.ListColumns(VBA.CLng(headerKeys)).DataBodyRange.NumberFormat = m_configuration.GetText("format.date")
     Next headerKeys
     table.ListColumns(6).DataBodyRange.NumberFormat = "0"
+    ' Muted labels and values distinguish calculated fields from source inputs.
+    sheet.Range("B4:C5").Font.Color = computedColor
+    sheet.Range("I7:K" & count + 7).Font.Color = computedColor
     table.DataBodyRange.Rows.AutoFit
     sheet.Calculate
     workbook.Activate

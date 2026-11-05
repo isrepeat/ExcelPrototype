@@ -73,7 +73,7 @@ End Sub
 
 Public Sub Calculate()
     Dim parameterSheet As Worksheet
-    Dim parameterTable As ListObject
+    Dim parameterTable As obj_DataTable
     Dim prepared As Collection
     Dim errorText As String
     Dim errorNumber As Long
@@ -108,16 +108,19 @@ Public Sub Calculate()
     End If
     m_runContext.CheckCancel 0
     m_runContext.LogDebug m_configuration.GetText("text.ParameterLoadingCompleted")
-    m_runContext.LogStage "OpenInput.Started"
-    Set parameterTable = m_dataSource.OpenParameterTable(m_parameters)
-    m_runContext.LogStage "OpenInput.Completed"
+    m_runContext.LogStage "ReadInputSql.Started"
+    Set parameterTable = m_dataSource.ReadParameters(m_parameters)
+    m_runContext.LogStage "ReadInputSql.Completed"
     m_runContext.LogStage "PrepareEvents.Started"
-    Set prepared = m_eventPreparation.Prepare(parameterTable, m_parameters.EndDay)
+    Set prepared = m_eventPreparation.Prepare(parameterTable, m_parameters, m_parameters.EndDay)
     m_runContext.LogStage "PrepareEvents.Completed"
     m_runContext.LogStage "CalculateAndPublish.Started"
     private_CalculatePreparedPeople prepared, m_parameters.EndDay
     m_runContext.LogStage "CalculateAndPublish.Completed"
 Cleanup:
+    If Not parameterTable Is Nothing Then
+        parameterTable.Dispose
+    End If
     ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=RunCleanup.Started"
     ex_Core.fn_Diagnostic_Flush
     private_DisposeServices

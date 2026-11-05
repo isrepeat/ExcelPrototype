@@ -18,7 +18,7 @@ Private m_validation As obj_PADC_Validation
 Private m_runContext As obj_PADC_RunContext
 Private m_inputPath As String
 Private m_sheetName As String
-Private m_headerAddress As String
+Private m_rangeAddress As String
 Private m_endDay As Long
 Private Const INPUT_REFERENCE_SEPARATOR As String = "|"
 Private Const INPUT_SHEET_SEPARATOR As String = "!"
@@ -49,9 +49,9 @@ Public Property Get SheetName() As String
     SheetName = m_sheetName
 End Property
 
-Public Property Get HeaderAddress() As String
+Public Property Get RangeAddress() As String
     private_EnsureReady
-    HeaderAddress = m_headerAddress
+    RangeAddress = m_rangeAddress
 End Property
 
 Public Property Get EndDay() As Long
@@ -132,9 +132,11 @@ Private Sub private_ParseInputReference()
     Dim location As String
     Dim separatorPosition As Long
     Dim address As String
-    Dim i As Long
-    Dim character As String
-    Dim digitsStarted As Boolean
+    Dim bounds As Variant
+    Dim firstRow As Long
+    Dim firstColumn As Long
+    Dim lastRow As Long
+    Dim lastColumn As Long
 
     parts = VBA.Split(m_inputPath, INPUT_REFERENCE_SEPARATOR)
     If UBound(parts) <> 1 Then
@@ -155,21 +157,50 @@ Private Sub private_ParseInputReference()
     If VBA.Len(m_inputPath) = 0 Or VBA.Len(m_sheetName) = 0 Then
         m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
-    If Not VBA.Left$(address, 1) Like "[A-Z]" Then
+    bounds = VBA.Split(address, ":")
+    If UBound(bounds) <> 1 Then
         m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
+    private_ParseCell VBA.CStr(bounds(0)), firstRow, firstColumn
+    private_ParseCell VBA.CStr(bounds(1)), lastRow, lastColumn
+    If lastRow <= firstRow Or lastColumn < firstColumn Then
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
+    End If
+    m_rangeAddress = address
+End Sub
+
+Private Sub private_ParseCell( _
+    ByVal address As String, _
+    ByRef rowNumber As Long, _
+    ByRef columnNumber As Long _
+)
+    Dim i As Long
+    Dim character As String
+    Dim digits As String
+
     For i = 1 To VBA.Len(address)
         character = VBA.Mid$(address, i, 1)
-        If character Like "[0-9]" Then
-            digitsStarted = True
-        ElseIf Not character Like "[A-Z]" Or digitsStarted Then
+        If character Like "[A-Z]" And VBA.Len(digits) = 0 Then
+            columnNumber = columnNumber * 26 + VBA.AscW(character) - VBA.AscW("A") + 1
+            If columnNumber > 16384 Then
+                m_configuration.Fail m_configuration.GetText("text.InvalidReference")
+            End If
+        ElseIf character Like "[0-9]" And columnNumber > 0 Then
+            digits = digits & character
+            If VBA.Len(digits) > 7 Then
+                m_configuration.Fail m_configuration.GetText("text.InvalidReference")
+            End If
+        Else
             m_configuration.Fail m_configuration.GetText("text.InvalidReference")
         End If
     Next i
-    If Not digitsStarted Then
+    If VBA.Len(digits) = 0 Then
         m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
-    m_headerAddress = address
+    rowNumber = VBA.CLng(digits)
+    If rowNumber < 1 Or rowNumber > 1048576 Or VBA.Left$(digits, 1) = "0" Then
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
+    End If
 End Sub
 
 Private Function private_ResolveInputPath(ByVal inputPath As String) As String

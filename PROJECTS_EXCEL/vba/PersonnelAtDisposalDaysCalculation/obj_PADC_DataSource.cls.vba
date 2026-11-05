@@ -14,9 +14,6 @@ Private m_isDisposed As Boolean
 
 Private m_configuration As obj_PADC_Configuration
 Private m_runContext As obj_PADC_RunContext
-Private m_parameterWorkbook As Workbook
-Private m_openedHere As Boolean
-Private Const INPUT_SHEET_SEPARATOR As String = "!"
 Private Const ERROR_SOURCE As String = "PersonnelAtDisposalDays"
 
 ' //
@@ -57,24 +54,67 @@ Public Sub Dispose()
     End If
     m_isInitialized = False
     m_isDisposed = True
-    If m_openedHere And Not m_parameterWorkbook Is Nothing Then
-        private_CloseParameterWorkbook m_parameterWorkbook
-    End If
-    Set m_parameterWorkbook = Nothing
     Set m_runContext = Nothing
     Set m_configuration = Nothing
 End Sub
 
-Public Function OpenParameterTable(ByVal parameters As obj_PADC_Parameters) As ListObject
+Public Function ReadParameters(ByVal parameters As obj_PADC_Parameters) As obj_DataTable
+    Dim tableSource As obj_TableSource
+    Dim tableQuery As obj_TableQuery
+    Dim service As obj_TableQueryService
+    Dim data As obj_DataTable
+    Dim diagnostic As String
+    Dim columnKey As Variant
+    Dim errorNumber As Long
+    Dim errorText As String
+
     private_EnsureReady
-    private_Trace "ParameterTable.Started"
-    Set m_parameterWorkbook = private_OpenParameterWorkbook(parameters.InputPath, m_openedHere)
-    private_Trace "ParameterWorkbook.Ready", "OpenedHere=" & VBA.CStr(m_openedHere)
+    On Error GoTo Failed
+    Set tableSource = New obj_TableSource
+    Set tableQuery = New obj_TableQuery
+    Set service = New obj_TableQueryService
+    If Not tableSource.Initialize() Then
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
+    End If
+    If Not tableQuery.Initialize() Then
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
+    End If
+    If Not service.Initialize() Then
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
+    End If
+    tableSource.WorkbookPath = parameters.InputPath
+    tableSource.SheetName = parameters.SheetName
+    tableSource.RangeAddress = parameters.RangeAddress
+    service.Backend = QueryAdo
+    For Each columnKey In VBA.Array("TaxId", "FullName", "StartDate", "IncludeBusinessTripDays")
+        tableQuery.AddColumn m_configuration.GetText("input.columns." & VBA.CStr(columnKey))
+    Next columnKey
     m_runContext.CheckCancel 0
-    private_Trace "ParameterTable.Lookup.Started", "Sheet=" & parameters.SheetName & _
-        " | Header=" & parameters.HeaderAddress
-    Set OpenParameterTable = private_ReadParameterTable(m_parameterWorkbook, parameters)
-    private_Trace "ParameterTable.Lookup.Completed", "Table=" & OpenParameterTable.Name
+    If Not service.TryExecute(tableSource, tableQuery, data, diagnostic, False) Then
+        m_configuration.Fail diagnostic
+    End If
+    Set ReadParameters = data
+Cleanup:
+    If Not service Is Nothing Then
+        service.Dispose
+    End If
+    If Not tableQuery Is Nothing Then
+        tableQuery.Dispose
+    End If
+    If Not tableSource Is Nothing Then
+        tableSource.Dispose
+    End If
+    If errorNumber <> 0 Then
+        If Not data Is Nothing Then
+            data.Dispose
+        End If
+        VBA.Err.Raise errorNumber, ERROR_SOURCE, errorText
+    End If
+    Exit Function
+Failed:
+    errorNumber = VBA.Err.Number
+    errorText = VBA.Err.Description
+    Resume Cleanup
 End Function
 
 Public Function FindSource() As ListObject
@@ -265,8 +305,10 @@ Public Function CompactParameterRows( _
         For j = 1 To UBound(data, 2)
             If VBA.IsError(data(i, j)) Then
                 hasValue = True
-            ElseIf VBA.Len(VBA.Trim$(VBA.CStr(data(i, j)))) > 0 Then
-                hasValue = True
+            ElseIf Not VBA.IsNull(data(i, j)) Then
+                If VBA.Len(VBA.Trim$(VBA.CStr(data(i, j)))) > 0 Then
+                    hasValue = True
+                End If
             End If
         Next j
         If hasValue Then
@@ -285,88 +327,6 @@ End Function
 ' //
 ' // Private
 ' //
-Private Function private_OpenParameterWorkbook( _
-    ByVal filePath As String, _
-    ByRef openedHere As Boolean _
-) As Workbook
-    Dim workbook As Workbook
-    Dim oldSecurity As Long
-    Dim errorNumber As Long
-    Dim errorText As String
-
-    private_Trace "ParameterWorkbook.SearchOpen.Started", "Path=" & filePath
-    For Each workbook In Application.Workbooks
-        private_Trace "ParameterWorkbook.SearchOpen.Candidate.Started"
-        private_Trace "ParameterWorkbook.SearchOpen.Candidate.Ready", "Path=" & workbook.FullName
-        If VBA.StrComp(workbook.FullName, filePath, vbTextCompare) = 0 Then
-            Set private_OpenParameterWorkbook = workbook
-            private_Trace "ParameterWorkbook.Reused", "Path=" & filePath
-            Exit Function
-        End If
-    Next workbook
-    oldSecurity = Application.AutomationSecurity
-    On Error GoTo Failed
-    private_Trace "ParameterWorkbook.Open.Started", "Path=" & filePath
-    Application.AutomationSecurity = msoAutomationSecurityForceDisable
-    Set private_OpenParameterWorkbook = Application.Workbooks.Open(Filename:=filePath, _
-        UpdateLinks:=0, ReadOnly:=True, AddToMru:=False, IgnoreReadOnlyRecommended:=True)
-    openedHere = True
-    Application.AutomationSecurity = oldSecurity
-    private_Trace "ParameterWorkbook.Open.Completed", "Path=" & filePath
-    Exit Function
-Failed:
-    errorNumber = VBA.Err.Number
-    errorText = VBA.Err.Description
-    Application.AutomationSecurity = oldSecurity
-    private_Trace "ParameterWorkbook.Open.Failed", "Number=" & errorNumber & " | Description=" & errorText
-    VBA.Err.Raise errorNumber, ERROR_SOURCE, errorText
-End Function
-
-Private Sub private_CloseParameterWorkbook(ByVal workbook As Workbook)
-    On Error GoTo Failed
-    private_Trace "ParameterWorkbook.Close.Started"
-    workbook.Close SaveChanges:=False
-    private_Trace "ParameterWorkbook.Close.Completed"
-    Exit Sub
-Failed:
-    ex_WindowsUi.fn_ShowMessage m_configuration.GetText("text.ParameterCloseFailed") & VBA.Err.Description, vbExclamation
-End Sub
-
-Private Function private_ReadParameterTable( _
-    ByVal workbook As Workbook, _
-    ByVal parameters As obj_PADC_Parameters _
-) As ListObject
-    Dim ws As Worksheet
-    Dim parameterSheet As Worksheet
-    Dim headerCell As Range
-    Dim table As ListObject
-
-    private_Trace "ParameterTable.EnumerateWorksheets.Started"
-    For Each ws In workbook.Worksheets
-        private_Trace "ParameterTable.Worksheet", "Sheet=" & ws.Name
-        If VBA.StrComp(ws.Name, parameters.SheetName, vbTextCompare) = 0 Then
-            Set parameterSheet = ws
-            Exit For
-        End If
-    Next ws
-    If parameterSheet Is Nothing Then
-        m_configuration.Fail m_configuration.GetText("text.ParameterSheetMissing") & parameters.SheetName
-    End If
-    private_Trace "ParameterTable.ResolveHeader.Started", "Address=" & parameters.HeaderAddress
-    Set headerCell = parameterSheet.Range(parameters.HeaderAddress)
-    private_Trace "ParameterTable.ResolveHeader.Completed"
-    For Each table In parameterSheet.ListObjects
-        private_Trace "ParameterTable.Candidate", "Table=" & table.Name
-        If Not table.HeaderRowRange Is Nothing Then
-            If table.HeaderRowRange.Cells(1, 1).Address = headerCell.Address Then
-                Set private_ReadParameterTable = table
-                Exit Function
-            End If
-        End If
-    Next table
-    m_configuration.Fail m_configuration.GetText("text.ParameterTableMissing") & parameters.SheetName & INPUT_SHEET_SEPARATOR & parameters.HeaderAddress
-End Function
-
 Private Sub private_Trace( _
     ByVal stageName As String, _
     Optional ByVal details As String = vbNullString _

@@ -56,6 +56,12 @@ Public Function Initialize() As Boolean
         m_values.Add VBA.CStr(suffix), value
     Next suffix
     key = "PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator"
+    value = m_values("input.dateSystem")
+    If value <> "1900" And value <> "1904" Then
+        ex_WindowsUi.fn_ShowMessage m_values("text.InvalidInputDateSystem"), vbExclamation
+        Me.Dispose
+        Exit Function
+    End If
     If VBA.Len(m_values("format.periodRangeSeparator")) = 0 Then
         GoTo Failed
     End If
@@ -105,11 +111,17 @@ Private Function private_RequiredKeys() As Collection
     Dim keys As Collection
 
     Set keys = New Collection
+    keys.Add "input.dateSystem"
+    keys.Add "text.ParameterRow"
+    keys.Add "text.InvalidInputDateSystem"
     keys.Add "text.ExportEmpty"
     keys.Add "text.Title"
     keys.Add "text.ExportFailed"
     keys.Add "format.date"
     keys.Add "export.font"
+    keys.Add "export.padding.rows"
+    keys.Add "export.padding.columns"
+    keys.Add "export.computedColor"
     keys.Add "export.fileName"
     keys.Add "export.versionSuffix"
     keys.Add "text.ExportFolderMissing"
@@ -164,8 +176,6 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "text.OperationStopped"
     keys.Add "text.CancellingOperation"
     keys.Add "text.RukhSource"
-    keys.Add "text.ParameterCloseFailed"
-    keys.Add "text.ParameterSheetMissing"
     keys.Add "text.ParametersEmpty"
     keys.Add "text.People"
     keys.Add "text.RukhEvents"
@@ -204,7 +214,6 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "text.InvalidTripFlag"
     keys.Add "text.InvalidDate"
     keys.Add "text.InvalidReference"
-    keys.Add "text.ParameterTableMissing"
     keys.Add "event.alwaysExcluded"
     keys.Add "event.optionalExcluded"
     keys.Add "header.FullName"

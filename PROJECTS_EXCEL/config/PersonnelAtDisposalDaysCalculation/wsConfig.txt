@@ -34,6 +34,7 @@ value	PersonnelAtDisposalDaysCalculation::text.OnWorksheet	' on worksheet '
 value	PersonnelAtDisposalDaysCalculation::text.RefreshPage	Оновити сторінку
 value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
 value	PersonnelAtDisposalDaysCalculation::text.ExportFailed	Не вдалося сформувати результат:
+value	PersonnelAtDisposalDaysCalculation::text.ParameterRow	, запис SQL №
 value	PersonnelAtDisposalDaysCalculation::text.WorksheetRow	, worksheet row
 value	PersonnelAtDisposalDaysCalculation::text.AmbiguousName	Full name matches multiple tax IDs:
 value	PersonnelAtDisposalDaysCalculation::text.AmbiguousPath	Use a full drive or UNC path, or a path relative to the tool workbook:
@@ -53,7 +54,7 @@ value	PersonnelAtDisposalDaysCalculation::text.MultipleSources	Multiple RUKH tab
 value	PersonnelAtDisposalDaysCalculation::text.ParametersEmpty	The parameter table is empty.
 value	PersonnelAtDisposalDaysCalculation::text.SelectToolSheet	Select the tool worksheet containing the input path and end date.
 value	PersonnelAtDisposalDaysCalculation::text.ArrivalCellError	: the arrival cell contains an error.
-value	PersonnelAtDisposalDaysCalculation::text.InvalidReference	Use file.xlsx|Worksheet!B2, where B2 is the first table header cell.
+value	PersonnelAtDisposalDaysCalculation::text.InvalidReference	Вкажіть файл.xlsx|Лист!B2:N10000: явний діапазон із заголовками в першому рядку та даними нижче.
 value	PersonnelAtDisposalDaysCalculation::text.OperationStopped	Operation stopped:
 value	PersonnelAtDisposalDaysCalculation::text.PersonUnverified	Person not found in events or the personnel roster:
 value	PersonnelAtDisposalDaysCalculation::text.RelativePathBase	Save the tool workbook in a local or network folder before using a relative input path.
@@ -64,10 +65,8 @@ value	PersonnelAtDisposalDaysCalculation::text.CancellingOperation	Cancelling op
 value	PersonnelAtDisposalDaysCalculation::text.ExportFolderMissing	Спочатку збережіть книгу інструмента в доступній локальній або мережевій папці.
 value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
 value	PersonnelAtDisposalDaysCalculation::text.TargetPrepareFailed	Unable to prepare the result table:
-value	PersonnelAtDisposalDaysCalculation::text.ParameterCloseFailed	Unable to close the parameter workbook:
-value	PersonnelAtDisposalDaysCalculation::text.ParameterSheetMissing	Parameter worksheet not found:
-value	PersonnelAtDisposalDaysCalculation::text.ParameterTableMissing	No table starts at the specified header cell:
 value	PersonnelAtDisposalDaysCalculation::text.ArrivalBeforeDeparture	: arrival is earlier than departure.
+value	PersonnelAtDisposalDaysCalculation::text.InvalidInputDateSystem	Параметр input.dateSystem має бути 1900 або 1904.
 value	PersonnelAtDisposalDaysCalculation::text.CheckTableConfiguration	'. Check the table and worksheet names in Configuration.
 value	PersonnelAtDisposalDaysCalculation::text.IncludeBusinessTripDays	: Count business trip days
 value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingStarted	Parameter loading started
@@ -81,6 +80,7 @@ value	PersonnelAtDisposalDaysCalculation::input.columns.TaxId	ІПН
 value	PersonnelAtDisposalDaysCalculation::input.columns.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::input.columns.StartDate	ДЗС
 value	PersonnelAtDisposalDaysCalculation::input.columns.IncludeBusinessTripDays	Зараховувати дні відрядження
+value	PersonnelAtDisposalDaysCalculation::input.dateSystem	1900
 value	PersonnelAtDisposalDaysCalculation::export.font	Arial
 value	PersonnelAtDisposalDaysCalculation::export.sheet	Результат
 value	PersonnelAtDisposalDaysCalculation::export.table	tbPersonnelAtDisposalDays
@@ -91,15 +91,18 @@ value	PersonnelAtDisposalDaysCalculation::export.header.Through	ПО
 value	PersonnelAtDisposalDaysCalculation::export.labels.End	Кінець періода
 value	PersonnelAtDisposalDaysCalculation::export.labels.Date	Дата обрахунку
 value	PersonnelAtDisposalDaysCalculation::export.labels.Start	Початок періода
-value	PersonnelAtDisposalDaysCalculation::export.widths	34|20|23|23|65|20|27|18|18|18
+value	PersonnelAtDisposalDaysCalculation::export.widths	34|20|23|15|40|20|27|18|18|18
 value	PersonnelAtDisposalDaysCalculation::export.formula.End	=EOMONTH(C3,-1)
 value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[2],R4C3,"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Start	=EOMONTH(C5,-1)+1
 value	PersonnelAtDisposalDaysCalculation::export.formula.Include	=OR(LEN(RC[-3])=0,RC[-3]>R4C3)
 value	PersonnelAtDisposalDaysCalculation::export.formula.Through	=IF(RC[1],IF(LEN(RC[-2])>0,MIN(R5C3,RC[-2]-1),R5C3),"")
+value	PersonnelAtDisposalDaysCalculation::export.padding.rows	30
+value	PersonnelAtDisposalDaysCalculation::export.padding.columns	10
 value	PersonnelAtDisposalDaysCalculation::export.palette	26241D|302D25|38342B|605542|FFFFFF|FFB74D
 value	PersonnelAtDisposalDaysCalculation::export.fileName	Кількість днів у розпорядженні
 value	PersonnelAtDisposalDaysCalculation::export.fontSize	11
+value	PersonnelAtDisposalDaysCalculation::export.computedColor	A6A39A
 value	PersonnelAtDisposalDaysCalculation::export.versionSuffix	_v{version}
 value	PersonnelAtDisposalDaysCalculation::format.date	dd.mm.yyyy
 value	PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator	–
@@ -124,7 +127,7 @@ value	PersonnelAtDisposalDaysCalculation::source.roster.sheet	Список
 value	PersonnelAtDisposalDaysCalculation::source.roster.table	Список
 value	PersonnelAtDisposalDaysCalculation::source.roster.columns.TaxId	ІПН
 value	PersonnelAtDisposalDaysCalculation::source.roster.columns.FullName	ПІБ
-value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\Д3.xlsx|Д3!B2
+value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\Д3.xlsx|Д3!B2:N10000
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}

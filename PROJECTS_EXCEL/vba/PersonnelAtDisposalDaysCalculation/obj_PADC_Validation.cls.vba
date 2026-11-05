@@ -78,6 +78,10 @@ Public Function ReadFlag( _
 
     private_EnsureReady
     ' Return whether business trip days are included in the calculation.
+    If VBA.IsNull(value) Then
+        ReadFlag = False
+        Exit Function
+    End If
     If VBA.VarType(value) = vbBoolean Then
         ReadFlag = value
         Exit Function
@@ -112,7 +116,9 @@ Public Function ReadDay( _
     If VBA.IsError(value) Or VBA.IsNull(value) Or VBA.IsEmpty(value) Then
         GoTo InvalidDate
     End If
-    If VBA.VarType(value) = vbString Then
+    If VBA.VarType(value) = vbDate Then
+        serial = VBA.Int(VBA.CDbl(value))
+    ElseIf VBA.VarType(value) = vbString Then
         text = VBA.Trim$(VBA.CStr(value))
         If Not text Like DATE_TEXT_PATTERN Then
             GoTo InvalidDate
