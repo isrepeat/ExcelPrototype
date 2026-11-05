@@ -1,0 +1,20 @@
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6B8056E1-10C0-4F89-91F0-000000000004}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AssemblyName>ExcelTools.Excel.Interop</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="Microsoft.CSharp" />
+    <Compile Include="ComObjects.cs" />
+    <Compile Include="ExcelSession.cs" />
+    <Compile Include="ExcelValues.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

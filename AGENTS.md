@@ -1,6 +1,20 @@
 # Agent Instructions
 
-Write all new or modified code comments and developer-facing documentation in English. Do not add Cyrillic comments. Keep technical identifiers, API names, and configuration keys in English. Store user-facing messages, labels, captions, table headers and status templates in wsConfig; do not hardcode them as VBA or markup string literals. Unicode is allowed in configuration values and in source identifiers such as workbook paths, worksheet names and source column headers. Existing comments can be translated in a separate change.
+## C# brace style
+
+- Put the opening brace on the same line as the declaration or control-flow statement, separated by one space (K&R style). Apply this to namespaces, types, methods, constructors, properties, accessors, lambdas and statement blocks.
+- For multiline signatures or conditions, put the opening brace after the closing parenthesis on the final line. Keep the existing indentation of block contents and closing braces.
+- Keep C# formatting settings in .editorconfig consistent with this rule.
+- Always use explicit braces for if/else, for, foreach, while, using and lock bodies, including a single statement, return, throw, break or continue. Keep else-if chains as `else if (...) {` and expand every body across multiple lines.
+- Expand every brace-delimited code block across multiple lines, even when it contains only one statement or is empty. Put statements inside the block on separate indented lines and the closing brace on its own line. This applies to try/catch/finally, control-flow blocks, methods, properties and accessors; do not write inline scopes such as `try { DoWork(); }`. Array and collection initializers are not statement blocks.
+
+## Language of comments and documentation
+
+- Write all new or modified code comments in English, including every comment in C# and scripts (such as .cmd, .bat, PowerShell, Python and shell scripts). Do not add Cyrillic code comments. Existing comments can be translated in a separate change.
+- Write README.md files predominantly in Russian. Keep technical identifiers, API names, commands, paths and configuration keys in their original form; English technical terms and necessary quotations are allowed. This README rule takes precedence over the default language for developer-facing documentation.
+- Write other developer-facing documentation in English unless a more specific instruction requires another language.
+
+Keep technical identifiers, API names, and configuration keys in English. Store user-facing messages, labels, captions, table headers and status templates in wsConfig; do not hardcode them as VBA or markup string literals. Unicode is allowed in configuration values and in source identifiers such as workbook paths, worksheet names and source column headers.
 
 Wrap public procedures in standard VBA modules in a comment-delimited namespace block, following the established format: `namespace API {` and `} // namespace API`. Group public procedures by a more specific namespace when the module already uses one. This rule does not apply to class modules or interface class modules; use the class section format below and do not leave namespace opening or closing comments in them.
 

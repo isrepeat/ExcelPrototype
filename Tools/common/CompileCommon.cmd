@@ -1,0 +1,51 @@
+@echo off
+setlocal
+rem Build reusable libraries into the destination supplied by the calling tool.
+if "%~1"=="" (
+    echo Error: specify the library output directory.
+    exit /b 1
+)
+set "commonOutput=%~f1"
+set "commonCompiler=%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+if not exist "%commonCompiler%" (
+    echo Error: .NET Framework 4.x x64 C# compiler not found.
+    exit /b 1
+)
+if not exist "%commonOutput%\" mkdir "%commonOutput%"
+if errorlevel 1 exit /b 1
+echo Building ExcelTools.Tooling.dll...
+"%commonCompiler%" /nologo /optimize+ /target:library /platform:x64 /codepage:65001 ^
+    /out:"%commonOutput%\ExcelTools.Tooling.dll" ^
+    /reference:System.dll ^
+    /reference:System.Core.dll ^
+    "%~dp0Tooling\ToolPaths.cs" ^
+    "%~dp0Tooling\OutputPublisher.cs"
+if errorlevel 1 exit /b 1
+
+echo Building ExcelTools.Tooling.Console.dll...
+"%commonCompiler%" /nologo /optimize+ /target:library /platform:x64 /codepage:65001 ^
+    /out:"%commonOutput%\ExcelTools.Tooling.Console.dll" ^
+    /reference:System.dll ^
+    /reference:System.Core.dll ^
+    "%~dp0Tooling.Console\ConsoleTool.cs"
+if errorlevel 1 exit /b 1
+
+echo Building ExcelTools.Excel.Tables.dll...
+"%commonCompiler%" /nologo /optimize+ /target:library /platform:x64 /codepage:65001 ^
+    /out:"%commonOutput%\ExcelTools.Excel.Tables.dll" ^
+    /reference:System.dll ^
+    /reference:System.Core.dll ^
+    "%~dp0Excel.Tables\WorkbookSource.cs"
+if errorlevel 1 exit /b 1
+
+echo Building ExcelTools.Excel.Interop.dll...
+"%commonCompiler%" /nologo /optimize+ /target:library /platform:x64 /codepage:65001 ^
+    /out:"%commonOutput%\ExcelTools.Excel.Interop.dll" ^
+    /reference:System.dll ^
+    /reference:System.Core.dll ^
+    /reference:Microsoft.CSharp.dll ^
+    "%~dp0Excel.Interop\ComObjects.cs" ^
+    "%~dp0Excel.Interop\ExcelSession.cs" ^
+    "%~dp0Excel.Interop\ExcelValues.cs"
+if errorlevel 1 exit /b 1
+exit /b 0

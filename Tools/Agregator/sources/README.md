@@ -1,38 +1,60 @@
-# Workbook snapshot aggregator
+# Агрегатор снимков книг Excel
 
-Requires 64-bit Windows, desktop Microsoft Excel and .NET Framework 4.5 or later. The build script uses the Windows .NET Framework C# compiler; no .NET SDK, PowerShell, Python or Node.js is required.
+Требуются 64-разрядная Windows, настольный Microsoft Excel и .NET Framework 4.5 или новее. Скрипт сборки использует штатный компилятор C# из Windows .NET Framework; .NET SDK, PowerShell, Python и Node.js для сборки не нужны.
 
-Run CompileAgregator.cmd in the parent directory. It only compiles sources/Agregator.cs and sources/SnapshotStyles.cs into Agregator.exe, reports the build result and pauses on success or failure. It never runs the program or aggregates workbooks. Source code and this documentation stay in sources; the build script, executable and runtime configuration Agregator.xml are top-level files. Run Agregator.exe separately after a successful build. The executable reports SUCCESS or FAILED and pauses before closing when console input is interactive. Use --no-pause for unattended runs; redirected input also disables the pause. Errors and stack traces are appended to UTF-8 Agregator.log beside the executable. Failure to write the log is reported in the console.
+## Сборка и запуск
+
+Запустите `CompileAgregator.cmd` в родительском каталоге. Скрипт вызывает `../common/CompileCommon.cmd` для сборки четырёх общих библиотек, затем компилирует агрегатор. Сборка выполняется в `build/.staging`; после успешной компиляции всех компонентов библиотеки копируются, а `Agregator.exe` заменяется в `build`. Этот же каталог используется для результатов сборки проекта в Visual Studio. В корне из файлов остаётся только `CompileAgregator.cmd`; исходники расположены в `sources`, XML-конфигурации — в `resources`. Скрипт сообщает результат и делает паузу при успехе или ошибке. Сам агрегатор при сборке не запускается.
+
+Развёртывайте каталог `build` с `Agregator.exe` и всеми четырьмя `ExcelTools.*.dll`, а рядом с ним — каталог `resources` с выбранной XML-конфигурацией. Перед повторной сборкой закройте работающие экземпляры: публикация исполняемого файла и библиотек не является атомарной операцией. Исходники и эта документация находятся в `sources`.
+
+После успешной сборки запустите `build/Agregator.exe` отдельно. Программа выводит `SUCCESS` или `FAILED` и делает паузу перед закрытием, если консольный ввод интерактивный. Для автоматического запуска используйте `--no-pause`; перенаправление ввода также отключает паузу. Ошибки и стеки вызовов дописываются в `Agregator.log` в UTF-8 рядом с исполняемым файлом. Если записать журнал не удалось, сообщение выводится в консоль.
+
+`Program.cs` обрабатывает аргументы агрегатора; `Configuration/ConfigurationReader.cs` проверяет XML-конфигурацию; `Aggregation/AggregationService.cs` создаёт снимки; `SnapshotStyles.cs` переносит XML-форматирование. Общие библиотеки обеспечивают консольное выполнение, разрешение путей, публикацию результата, описание источников, COM-сеансы и преобразование значений Excel. Зависимости и правила сборки описаны в [общем руководстве](../../README.md). Файлы `.csproj` и `../../ExcelTools.sln` описывают зависимости для IDE; основной способ сборки — `CompileAgregator.cmd` без .NET SDK.
 
 ```bat
 CompileAgregator.cmd
-Agregator.exe
-Agregator.exe "C:\Reports\Snapshot.xlsx"
-Agregator.exe --validate
-Agregator.exe --help
-Agregator.exe --no-pause
-Agregator.exe --config Agregator.Network.xml
-Agregator.exe --config Agregator.Network.xml --validate
+build\Agregator.exe
+build\Agregator.exe "C:\Reports\Snapshot.xlsx"
+build\Agregator.exe --validate
+build\Agregator.exe --help
+build\Agregator.exe --no-pause
+build\Agregator.exe --config Agregator.Network.xml
+build\Agregator.exe --config Agregator.Network.xml --validate
 ```
 
-The UTF-8 configuration is Agregator.xml beside the executable. The hierarchy is aggregator / sources / source / workbook / sheet. Each source has a dir attribute and contains explicitly selected workbooks and sheets. Source directories and the output path (including a command-line override) are resolved relative to the configuration directory, regardless of the caller's current directory. Workbook paths are resolved relative to their source directory. The default result is Aggregated.xlsx beside the executable. Multiple source directories are supported. Missing files, directories, selected sheets or required attributes cause an error. Input workbooks cannot be used as the output path. Close the result workbook in Excel before replacing it.
+## Конфигурация и пути
 
-Publication uses same-directory renames compatible with SMB, without File.Replace. An existing result is first renamed to a unique previous-copy file; the completed snapshot is then renamed to the output name. A publication failure triggers restoration of the previous result. If restoration also fails, the recovery path is printed and recorded in the error log, and the previous copy is retained. This two-step replacement is not atomic: avoid concurrent runs or changing the destination during publication. XML formatting only overwrites a private intermediate snapshot. Failed processing never intentionally overwrites the prior user result.
+Конфигурация `Agregator.xml` в UTF-8 хранится в `resources`. При запуске программа ищет её последовательно: рядом с EXE, в подпапке `resources` рядом с EXE, затем в папке `resources` родительского каталога. Используется первый найденный файл; ошибка его содержимого не вызывает переход к следующему. Если файл не найден, сообщение перечисляет проверенные пути. Иерархия элементов: `aggregator / sources / source / workbook / sheet`. Каждый `source` содержит атрибут `dir` и явно выбранные книги и листы. Каталоги источников и путь результата, включая переопределение через командную строку, разрешаются относительно каталога конфигурации независимо от текущего каталога запуска. Пути книг разрешаются относительно соответствующего каталога источника.
 
-The current selection is Накази.xlsx (Накази), Установи.xlsx (Військові установи, Лікувальні Заклади), and ШПО.xlsx (ОС). Original worksheet names are preserved. If a name is already used (case-insensitive), the workbook name is prefixed; further conflicts get numeric suffixes. Generated names are limited to 31 characters. Selected hidden worksheets become visible in the result.
+В поставляемых конфигурациях путь результата — `../build/Aggregated.xlsx` относительно каталога конфигурации, то есть `build/Aggregated.xlsx` при стандартной структуре каталогов. Поддерживается несколько каталогов источников. Отсутствующие файлы, каталоги, выбранные листы или обязательные атрибуты вызывают ошибку. Входная книга не может быть файлом результата. Перед заменой результата закройте его в Excel.
 
-Use --config to select another UTF-8 XML configuration; its path is relative to the executable, or absolute. Source directories and output paths are relative to the selected configuration directory. Without --config, Agregator.xml beside the executable is used. Agregator.Network.xml is prepared for deployment to \\athenaps\Облік\Tools\Agregator: its source dir ../.. resolves to \\athenaps\Облік. It selects ШПО.xlsx (ОС), Виплати.xlsx (Виплати) and Порушення.xlsx (Порушення), in that order. Its result is Aggregated.xlsx beside the network configuration. Keep the network configuration beside the deployed executable. Validate network access with --config Agregator.Network.xml --validate before aggregation; worksheet existence is checked during aggregation.
+Текущая конфигурация выбирает `Накази.xlsx` (лист `Накази`), `Установи.xlsx` (листы `Військові установи`, `Лікувальні Заклади`) и `ШПО.xlsx` (лист `ОС`). Исходные имена листов сохраняются. При совпадении имени без учёта регистра добавляется префикс из имени книги; дальнейшие совпадения разрешаются числовыми суффиксами. Длина сформированного имени ограничена 31 символом. Выбранные скрытые листы становятся видимыми в результате.
 
-The required copyMode attribute supports:
+Параметр `--config` выбирает другую XML-конфигурацию в UTF-8. Простое имя файла ищется в тех же трёх местах. Абсолютный путь или относительный путь с каталогами используется напрямую; относительный путь отсчитывается от EXE. Каталоги источников и путь результата разрешаются относительно выбранной конфигурации. Без `--config` выполняется поиск `Agregator.xml` в указанном порядке.
 
-- values: bulk UsedRange.Value2 transfer to blank sheets, preserving value types and long text, with smart tables recreated without source formatting. Dates appear as numeric Excel serial values. Literal strings beginning with '=' remain text. Source table names and active filter criteria are not preserved.
-- xmlStyles (configured): the same COM value transfer followed by direct ZIP/XML formatting. Fonts, fills, borders, alignment, number formats, row heights, column widths, hidden row/column states, merged cells, views, margins, headers/footers and smart table styles are restored without importing conditional rules or validation.
-- sheet: full Worksheet.Copy, followed by replacing formulas with results and deleting conditional formatting and validation. Smart tables remain intact. This can be very slow for worksheets with thousands of conditional rules. Charts, shapes, comments and workbook dependencies may be carried along; chart formulas and external references are not sanitized.
+Конфигурация `Agregator.Network.xml` подготовлена для развёртывания в `\\athenaps\Облік\Tools\Agregator`: каталог источника `../../..` разрешается в `\\athenaps\Облік`. В указанном порядке выбираются `ШПО.xlsx` (лист `ОС`), `Виплати.xlsx` (лист `Виплати`) и `Порушення.xlsx` (лист `Порушення`). Результат — `../build/Aggregated.xlsx` относительно сетевой конфигурации. Разместите её в `resources`, а EXE и DLL — в соседнем `build`. Перед агрегацией проверьте сетевые пути через `--config Agregator.Network.xml --validate`; наличие листов проверяется уже при агрегации.
 
-In xmlStyles mode, source theme colors and theme font names are resolved explicitly for imported ordinary and custom table styles. Column widths are adjusted for differing Normal fonts using Windows font metrics; source fonts should be installed. Built-in table styles follow the output workbook theme. This mode does not copy drawings, pictures, comments, named styles, named ranges, print areas, printer-specific page setup or active table filter criteria. Conditional formatting appearance is not frozen. Sources must be unencrypted .xlsx ZIP packages and must not change during aggregation.
+## Режимы копирования
 
-Sources are opened read-only in a separate Excel instance with macros and events disabled, external workbook link updates disabled and manual calculation selected. No explicit refresh or recalculation is requested. Connections set to refresh on open may still refresh. Sources are closed without saving. Generated snapshots are macro-free .xlsx files.
+Обязательный атрибут `copyMode` поддерживает три значения:
 
-The application builds a temporary snapshot beside the destination and publishes it only after successful processing and cleanup. Failed runs remove temporary snapshots. It reports opening, copying, XML processing and total application time, including Excel startup and cleanup. Compilation and the build script's pause are separate from aggregation. Exit codes are 0 for success and 1 for errors. The --validate option checks configuration and paths without starting Excel; it does not inspect workbook contents or selected worksheet existence.
+- `values`: пакетный перенос `UsedRange.Value2` на пустые листы с сохранением типов значений и длинного текста. Умные таблицы создаются заново без исходного форматирования. Даты отображаются как числовые серийные значения Excel. Строки с начальным `=` остаются текстом. Имена исходных таблиц и активные условия фильтрации не сохраняются.
+- `xmlStyles` (выбран в конфигурации): такой же перенос значений через COM с последующим форматированием через ZIP/XML. Восстанавливаются шрифты, заливки, границы, выравнивание, числовые форматы, высоты строк, ширины столбцов, скрытые строки и столбцы, объединённые ячейки, представления, поля страницы, колонтитулы и стили умных таблиц. Условное форматирование и проверка данных не импортируются.
+- `sheet`: полное копирование через `Worksheet.Copy` с последующей заменой формул результатами и удалением условного форматирования и проверки данных. Умные таблицы сохраняются. На листах с тысячами правил условного форматирования операция может быть очень медленной. Вместе с листом могут переноситься диаграммы, фигуры, примечания и зависимости книги; формулы диаграмм и внешние ссылки не очищаются.
 
-Console output and redirected logs use UTF-8 without a BOM, so Ukrainian workbook and sheet names are not restricted by the default Windows OEM code page. Use a console font with Cyrillic support.
+В режиме `xmlStyles` цвета и шрифты исходной темы явно разрешаются для переносимых обычных и пользовательских табличных стилей. Ширины столбцов корректируются с учётом различий шрифта `Normal` по метрикам Windows; исходные шрифты должны быть установлены. Встроенные стили таблиц используют тему результирующей книги.
+
+Этот режим не переносит рисунки, изображения, примечания, именованные стили и диапазоны, области печати, настройки конкретного принтера и активные условия фильтрации. Внешний вид условного форматирования не фиксируется. Источники должны быть незашифрованными ZIP-пакетами `.xlsx` и не должны изменяться во время агрегации.
+
+## Работа с Excel и публикация результата
+
+Источники открываются только для чтения в отдельном экземпляре Excel. Макросы, события и обновление внешних ссылок книг отключены; выбран ручной режим вычислений. Явное обновление данных или пересчёт не запрашиваются. Подключения с обновлением при открытии всё же могут обновляться. Источники закрываются без сохранения. Снимки создаются в формате `.xlsx` без макросов.
+
+Программа создаёт временный снимок рядом с назначением и публикует его только после успешной обработки и очистки ресурсов. При ошибке временные снимки удаляются. Публикация использует совместимое с SMB переименование в одном каталоге без `File.Replace`. Существующий результат сначала переименовывается в файл с уникальным именем предыдущей копии, затем готовый снимок получает имя результата.
+
+При ошибке публикации выполняется восстановление предыдущего результата. Если восстановление тоже не удалось, путь для восстановления выводится в консоль и записывается в журнал; предыдущая копия сохраняется. Такая замена в два этапа не является атомарной: избегайте одновременных запусков и изменения файла назначения во время публикации. XML-форматирование перезаписывает только внутренний промежуточный снимок. При ошибке обработки программа не должна намеренно перезаписывать предыдущий пользовательский результат.
+
+Программа сообщает время открытия книг, копирования, обработки XML и общее время работы, включая запуск Excel и очистку ресурсов. Компиляция и пауза скрипта сборки учитываются отдельно. Код завершения `0` означает успех, `1` — ошибку. Параметр `--validate` проверяет конфигурацию и пути без запуска Excel; содержимое книг и наличие выбранных листов при этом не проверяются.
+
+Консольный вывод и перенаправленные журналы используют UTF-8 без BOM, поэтому украинские имена книг и листов не ограничиваются стандартной OEM-кодовой страницей Windows. Используйте консольный шрифт с поддержкой кириллицы.

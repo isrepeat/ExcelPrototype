@@ -1,0 +1,48 @@
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6B8056E1-10C0-4F89-91F0-000000000005}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Agregator</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>..\build\</OutputPath>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="Microsoft.CSharp" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Configuration\ConfigurationReader.cs" />
+    <Compile Include="Aggregation\AggregationService.cs" />
+    <Compile Include="SnapshotStyles.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\common\Tooling\Tooling.csproj">
+      <Name>Tooling</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\common\Tooling.Console\Tooling.Console.csproj">
+      <Name>Tooling.Console</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000002}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\common\Excel.Tables\Excel.Tables.csproj">
+      <Name>Excel.Tables</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000003}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\common\Excel.Interop\Excel.Interop.csproj">
+      <Name>Excel.Interop</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000004}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="app.config" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
