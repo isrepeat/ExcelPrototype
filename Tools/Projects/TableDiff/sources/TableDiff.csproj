@@ -1,0 +1,53 @@
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6B8056E1-10C0-4F89-91F0-000000000007}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>TableDiff</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>..\build\</OutputPath>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.IO.Compression" />
+    <Reference Include="System.IO.Compression.FileSystem" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Configuration\ConfigurationReader.cs" />
+    <Compile Include="Comparison\TableComparer.cs" />
+    <Compile Include="Reporting\HtmlDiffWriter.cs" />
+    <EmbeddedResource Include="Reporting\report.css">
+      <LogicalName>report.css</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Reporting\report.js">
+      <LogicalName>report.js</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\common\Tooling\Tooling.csproj">
+      <Name>Tooling</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000001}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\common\Tooling.Console\Tooling.Console.csproj">
+      <Name>Tooling.Console</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000002}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\common\Excel.Tables\Excel.Tables.csproj">
+      <Name>Excel.Tables</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000003}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\..\common\Excel.OpenXml\Excel.OpenXml.csproj">
+      <Name>Excel.OpenXml</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000006}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\resources\TableDiff.xml">
+      <Link>resources\TableDiff.xml</Link>
+    </None>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

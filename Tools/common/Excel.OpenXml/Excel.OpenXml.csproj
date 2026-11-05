@@ -1,0 +1,24 @@
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6B8056E1-10C0-4F89-91F0-000000000006}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AssemblyName>ExcelTools.Excel.OpenXml</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Reference Include="System.IO.Compression" />
+    <Compile Include="WorkbookReader.cs" />
+    <Compile Include="FormulaTranslator.cs" />
+    <ProjectReference Include="..\Excel.Tables\Excel.Tables.csproj">
+      <Name>Excel.Tables</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000003}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

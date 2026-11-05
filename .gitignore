@@ -11,14 +11,15 @@ Codex/logs/
 Codex/sessions/
 
 Scripts/**/*.xlsx
-Tools/Agregator/*.exe
-Tools/Agregator/*.dll
-Tools/Agregator/.build/
-Tools/Agregator/build/
+Tools/Projects/Agregator/*.exe
+Tools/Projects/Agregator/*.dll
+Tools/Projects/Agregator/.build/
+Tools/Projects/Agregator/build/
+Tools/Projects/TableDiff/build/
 Tools/**/bin/
 Tools/**/obj/
-Tools/Agregator/**/*.xlsx
-Tools/Agregator/**/*.tmp
+Tools/Projects/Agregator/**/*.xlsx
+Tools/Projects/Agregator/**/*.tmp
 Scripts/Testing/PEB/node_modules/
 Scripts/Testing/PEB/__pycache__/
 Scripts/Testing/TravelDocuments/__pycache__/

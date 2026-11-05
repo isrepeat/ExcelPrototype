@@ -35,7 +35,8 @@ echo Building ExcelTools.Excel.Tables.dll...
     /out:"%commonOutput%\ExcelTools.Excel.Tables.dll" ^
     /reference:System.dll ^
     /reference:System.Core.dll ^
-    "%~dp0Excel.Tables\WorkbookSource.cs"
+    "%~dp0Excel.Tables\WorkbookSource.cs" ^
+    "%~dp0Excel.Tables\TableSnapshot.cs"
 if errorlevel 1 exit /b 1
 
 echo Building ExcelTools.Excel.Interop.dll...
@@ -47,5 +48,17 @@ echo Building ExcelTools.Excel.Interop.dll...
     "%~dp0Excel.Interop\ComObjects.cs" ^
     "%~dp0Excel.Interop\ExcelSession.cs" ^
     "%~dp0Excel.Interop\ExcelValues.cs"
+if errorlevel 1 exit /b 1
+echo Building ExcelTools.Excel.OpenXml.dll...
+"%commonCompiler%" /nologo /optimize+ /target:library /platform:x64 /codepage:65001 ^
+    /out:"%commonOutput%\ExcelTools.Excel.OpenXml.dll" ^
+    /reference:System.dll ^
+    /reference:System.Core.dll ^
+    /reference:System.Xml.dll ^
+    /reference:System.Xml.Linq.dll ^
+    /reference:System.IO.Compression.dll ^
+    /reference:"%commonOutput%\ExcelTools.Excel.Tables.dll" ^
+    "%~dp0Excel.OpenXml\WorkbookReader.cs" ^
+    "%~dp0Excel.OpenXml\FormulaTranslator.cs"
 if errorlevel 1 exit /b 1
 exit /b 0

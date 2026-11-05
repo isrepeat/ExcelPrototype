@@ -24,25 +24,31 @@
     <Compile Include="SnapshotStyles.cs" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\common\Tooling\Tooling.csproj">
+    <ProjectReference Include="..\..\..\common\Tooling\Tooling.csproj">
       <Name>Tooling</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000001}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\common\Tooling.Console\Tooling.Console.csproj">
+    <ProjectReference Include="..\..\..\common\Tooling.Console\Tooling.Console.csproj">
       <Name>Tooling.Console</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000002}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\common\Excel.Tables\Excel.Tables.csproj">
+    <ProjectReference Include="..\..\..\common\Excel.Tables\Excel.Tables.csproj">
       <Name>Excel.Tables</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000003}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\common\Excel.Interop\Excel.Interop.csproj">
+    <ProjectReference Include="..\..\..\common\Excel.Interop\Excel.Interop.csproj">
       <Name>Excel.Interop</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000004}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="..\resources\Agregator.xml">
+      <Link>resources\Agregator.xml</Link>
+    </None>
+    <None Include="..\resources\Agregator.Network.xml">
+      <Link>resources\Agregator.Network.xml</Link>
+    </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

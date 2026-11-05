@@ -2,7 +2,7 @@
 <aggregator output="../build/Aggregated.xlsx"
             copyMode="xmlStyles">
     <sources>
-        <source dir="../../..">
+        <source dir="../../../..">
             <workbook file="ШПО.xlsx">
                 <sheet name="ОС" />
             </workbook>

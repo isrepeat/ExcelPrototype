@@ -8,6 +8,14 @@
 - Always use explicit braces for if/else, for, foreach, while, using and lock bodies, including a single statement, return, throw, break or continue. Keep else-if chains as `else if (...) {` and expand every body across multiple lines.
 - Expand every brace-delimited code block across multiple lines, even when it contains only one statement or is empty. Put statements inside the block on separate indented lines and the closing brace on its own line. This applies to try/catch/finally, control-flow blocks, methods, properties and accessors; do not write inline scopes such as `try { DoWork(); }`. Array and collection initializers are not statement blocks.
 
+## CSS formatting
+
+- Keep CSS source files readable and unminified. Put each rule block and each declaration on separate lines, indent declarations by four spaces, and put closing braces on separate lines. Apply the same multiline formatting inside media queries. Do not collapse stylesheets into one line.
+
+## JavaScript formatting
+
+- Keep JavaScript source files readable and unminified. Use four-space indentation, one statement per line, spaces around operators and multiline bodies with explicit braces for conditions and loops. Expand callbacks and functions containing statements across multiple lines. Wrap long expressions and argument lists instead of compressing code into one line.
+
 ## Language of comments and documentation
 
 - Write all new or modified code comments in English, including every comment in C# and scripts (such as .cmd, .bat, PowerShell, Python and shell scripts). Do not add Cyrillic code comments. Existing comments can be translated in a separate change.
