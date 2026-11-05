@@ -2,7 +2,8 @@
 <tableDiff>
     <profiles>
         <profile name="Movement"
-                 output="../build/Movement.diff.html">
+                 default="true"
+                 output="../build/Movement.{date}.diff.html">
             <old file="C:\Users\isrepeat\Desktop\РУХ_2026.11.04.xlsx" />
             <new file="C:\Users\isrepeat\Desktop\РУХ_last.xlsx" />
             <comparisons>
@@ -11,11 +12,25 @@
                     <old sheet="Список" />
                     <new sheet="Список" />
                 </comparison>
+                <comparison key="УІД"
+                            threshold="0.65">
+                    <old sheet="Відсутні" />
+                    <new sheet="Відсутні" />
+                </comparison>
+                <comparison key="УІД"
+                            threshold="0.65">
+                    <old sheet="Прибулі" />
+                    <new sheet="Прибулі" />
+                </comparison>
+                <comparison key="УІД"
+                            threshold="0.65">
+                    <old sheet="ТВО" />
+                    <new sheet="ТВО" />
+                </comparison>
             </comparisons>
         </profile>
         <profile name="Shpo"
-                 default="true"
-                 output="../build/Shpo.diff.html">
+                 output="../build/Shpo.{date}.diff.html">
             <old file="C:\Users\isrepeat\Desktop\ШПО_old.xlsx" />
             <new file="C:\Users\isrepeat\Desktop\ШПО_new.xlsx" />
             <comparisons>

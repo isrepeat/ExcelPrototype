@@ -259,8 +259,8 @@ function renderRow(state, row) {
         const y = state.data.strings[row[5]?.[index] ?? 0];
         const unchanged = (kind === 'change' && x === y) || (!x && !y);
         const status = unchanged ? 'unchanged' : x && y ? 'replacement' : y ? 'insertion' : 'removal';
-        const oldAddress = row[1] ? columnLetter(state.data.offsets[0] + column[0] + 1) + row[1] : '—';
-        const newAddress = row[2] ? columnLetter(state.data.offsets[1] + column[0] + 1) + row[2] : '—';
+        const oldAddress = row[1] && column[2] >= 0 ? columnLetter(column[2] + 1) + row[1] : '—';
+        const newAddress = row[2] && column[3] >= 0 ? columnLetter(column[3] + 1) + row[2] : '—';
         html += '<td class="' + status + '" title="Было: ' + oldAddress + ' · Стало: ' + newAddress + '">';
 
         if (unchanged) {
@@ -291,7 +291,7 @@ function displayColumns(state, rowIndices) {
     }
 
     const changed = columns.map((column, index) =>
-        rowIndices.some(rowIndex => {
+        column[2] < 0 || column[3] < 0 || rowIndices.some(rowIndex => {
             const row = state.data.rows[rowIndex];
             return (row[4]?.[index] ?? 0) !== (row[5]?.[index] ?? 0);
         })
@@ -343,7 +343,10 @@ function mountTable(state, layout = null) {
         }
         else {
             const column = state.data.columns[entry.index];
-            html += '<th scope="col" data-column-name="' + escapeHtml(column[1]) + '">' + escapeHtml(column[1]) + '</th>';
+            const status = column[2] < 0 ? '+ ' : column[3] < 0 ? '− ' : '';
+            const title = column[2] < 0 ? 'Добавлена колонка' : column[3] < 0 ? 'Удалена колонка' : '';
+            html += '<th scope="col" title="' + title + '" data-column-name="' + escapeHtml(column[1]) + '">'
+                + status + escapeHtml(column[1]) + '</th>';
         }
     }
     html += '</tr></thead><tbody></tbody></table>';

@@ -51,7 +51,7 @@ namespace ExcelTools.TableDiff {
                 + "<p class=\"source-files\">" + Escape(Path.GetFileName(configuration.Old)) + " → " + Escape(Path.GetFileName(configuration.New)) + "</p>"
                 + "<details class=\"report-summary\"><summary>Сводка и способ сравнения</summary><div class=\"summary-scroll\">" + summary + "</div>"
                 + "<p>Сравниваются сохранённые значения и тексты формул только в указанных парах листов. Скрытые и отфильтрованные строки включены; оформление и кэшированные результаты формул не сравниваются.</p>"
-                + "<p>Границы колонок определяются по непрерывным непустым заголовкам вокруг ключевого поля независимо в каждой версии. При разных заголовках сравнение останавливается.</p>"
+                + "<p>Границы колонок определяются по непрерывным непустым заголовкам вокруг ключевого поля независимо в каждой версии. Колонки сопоставляются по точным названиям: + означает новую колонку, − удалённую. Порог близости рассчитывается только по общим колонкам.</p>"
                 + "<p>Сначала исключаются точные совпадения с учётом повторов. Остальные записи сопоставляются по ключу и порогу своей пары; равные по близости кандидаты отмечаются знаком ?. Строки вне таблиц сопоставляются по номеру.</p>"
                 + "<p>Старое значение зачёркнуто, новое расположено ниже. Каждое значение ограничено тремя видимыми строками с многоточием независимо от другого значения. Поиск учитывает полный текст. Неизменённые формулы можно показать переключателем в панели поиска. Адреса ячеек доступны во всплывающей подсказке.</p></details>"
                 + "<nav class=\"report-toolbar\" aria-label=\"Поиск и фильтр\"><div class=\"toolbar-controls\" id=\"toolbar-controls\"><input type=\"search\" aria-label=\"Поиск по значению или изменённому полю\" placeholder=\"Поиск по значению или полю\">"
@@ -75,7 +75,8 @@ namespace ExcelTools.TableDiff {
             var header = sheetDiff.NewHeader ?? sheetDiff.OldHeader;
             var offset = sheetDiff.NewHeader == null ? sheetDiff.OldColumnOffset : sheetDiff.NewColumnOffset;
             var columns = Enumerable.Range(0, sheetDiff.Width)
-                .Where(c => header == null || header.ValueAt(c).Length > 0).ToList();
+                .Where(c => header == null || header.ValueAt(c).Length > 0
+                    || (sheetDiff.OldHeader != null && sheetDiff.OldHeader.ValueAt(c).Length > 0)).ToList();
             output.Append("<section id=\"").Append(id).Append("\" data-sheet-name=\"").Append(Escape(sheetDiff.Name))
                 .Append("\"><div class=\"sheet-heading\"><h2>").Append(Escape(sheetDiff.Name)).Append("</h2><span>Ключ: ")
                 .Append(Escape(sheetDiff.Key)).Append(" · ").Append(Percent(sheetDiff.Threshold))
@@ -116,7 +117,14 @@ namespace ExcelTools.TableDiff {
                 }
                 var column = columns[index];
                 payloads.Append('[').Append(column).Append(',');
-                AppendJsonString(payloads, header == null ? CellAddress.ColumnName(offset + column + 1) : header.ValueAt(column));
+                var name = header == null ? CellAddress.ColumnName(offset + column + 1) : header.ValueAt(column);
+                if (name.Length == 0 && sheetDiff.OldHeader != null) {
+                    name = sheetDiff.OldHeader.ValueAt(column);
+                }
+                AppendJsonString(payloads, name);
+                var oldColumn = sheetDiff.OldColumns == null ? sheetDiff.OldColumnOffset + column : sheetDiff.OldColumns[column];
+                var newColumn = sheetDiff.NewColumns == null ? sheetDiff.NewColumnOffset + column : sheetDiff.NewColumns[column];
+                payloads.Append(',').Append(oldColumn).Append(',').Append(newColumn);
                 payloads.Append(']');
             }
             payloads.Append("],\"offsets\":[").Append(sheetDiff.OldColumnOffset).Append(',').Append(sheetDiff.NewColumnOffset)

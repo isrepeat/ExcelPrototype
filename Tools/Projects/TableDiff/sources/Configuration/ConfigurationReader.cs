@@ -101,6 +101,7 @@ namespace ExcelTools.TableDiff {
                 throw new ArgumentException("No default profile configured. Set default=\"true\", specify --profile or two workbook paths. Available profiles: "
                     + String.Join(", ", profiles.Select(p => p.Profile)));
             }
+            selected.Output = selected.Output.Replace("{date}", DateTime.Now.ToString("yyyy.MM.dd", CultureInfo.InvariantCulture));
             ValidatePaths(selected);
             return selected;
         }

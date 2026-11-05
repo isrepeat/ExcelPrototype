@@ -23,6 +23,8 @@ namespace ExcelTools.TableDiff {
         public int NewColumnOffset;
         public RowSnapshot OldHeader;
         public RowSnapshot NewHeader;
+        public int[] OldColumns;
+        public int[] NewColumns;
         public int OldCount;
         public int NewCount;
         public List<RowChange> Changes = new List<RowChange>();
@@ -86,9 +88,8 @@ namespace ExcelTools.TableDiff {
                 OldCount = before.Rows.Count,
                 NewCount = after.Rows.Count
             };
-            if (result.OldHeader != null && result.NewHeader != null
-                && Enumerable.Range(0, result.Width).Any(c => result.OldHeader.ValueAt(c) != result.NewHeader.ValueAt(c))) {
-                throw new InvalidOperationException("Changed column headers in sheet '" + result.Name + "': column mapping is required.");
+            if (result.OldHeader != null && result.NewHeader != null) {
+                AlignColumns(ref before, ref after, result);
             }
 
             // Remove exact matches first, including reordered and repeated rows.
@@ -146,6 +147,9 @@ namespace ExcelTools.TableDiff {
                         var active = 0;
                         var equal = 0;
                         for (var column = 0; column < result.Width; column++) {
+                            if (result.OldColumns != null && (result.OldColumns[column] < 0 || result.NewColumns[column] < 0)) {
+                                continue;
+                            }
                             var x = row.ValueAt(column);
                             var y = target.ValueAt(column);
                             if (x.Length > 0 || y.Length > 0) {
@@ -226,6 +230,39 @@ namespace ExcelTools.TableDiff {
                 end++;
             }
             return new TableRange { Start = start, Width = end - start + 1 };
+        }
+
+        private static void AlignColumns(ref SheetSnapshot before, ref SheetSnapshot after, SheetDiff difference) {
+            var oldNames = difference.OldHeader.Values;
+            var newNames = difference.NewHeader.Values;
+            if (oldNames.SequenceEqual(newNames)) {
+                return;
+            }
+            if (oldNames.Distinct(StringComparer.Ordinal).Count() != oldNames.Length
+                || newNames.Distinct(StringComparer.Ordinal).Count() != newNames.Length) {
+                throw new InvalidOperationException("Cannot map changed columns with duplicate headers in sheet '" + difference.Name + "'.");
+            }
+            var names = newNames.Concat(oldNames.Where(name => !newNames.Contains(name, StringComparer.Ordinal))).ToArray();
+            var oldMap = names.Select(name => Array.IndexOf(oldNames, name)).ToArray();
+            var newMap = names.Select(name => Array.IndexOf(newNames, name)).ToArray();
+            difference.OldColumns = oldMap.Select(index => index < 0 ? -1 : difference.OldColumnOffset + index).ToArray();
+            difference.NewColumns = newMap.Select(index => index < 0 ? -1 : difference.NewColumnOffset + index).ToArray();
+            before = ProjectColumns(before, oldMap);
+            after = ProjectColumns(after, newMap);
+            difference.Width = names.Length;
+            difference.OldHeader = before.Rows.First(row => row.Number == difference.OldHeader.Number);
+            difference.NewHeader = after.Rows.First(row => row.Number == difference.NewHeader.Number);
+        }
+
+        private static SheetSnapshot ProjectColumns(SheetSnapshot source, int[] columns) {
+            var result = new SheetSnapshot { Name = source.Name, Width = columns.Length };
+            foreach (var row in source.Rows) {
+                result.Rows.Add(new RowSnapshot {
+                    Number = row.Number,
+                    Values = columns.Select(column => column < 0 ? "" : row.ValueAt(column)).ToArray()
+                });
+            }
+            return result;
         }
 
         private static SheetSnapshot SelectRange(SheetSnapshot sheetSnapshot, TableRange tableRange) {
