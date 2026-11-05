@@ -220,13 +220,24 @@ Private Sub private_Filter_ResetWorkbookTables(ByVal scrollToEnd As Boolean)
     Dim failures As String
     Dim failure As String
     Dim restoreStage As String
+    Dim startedAt As Double
+    Dim stageStartedAt As Double
+    Dim sheetStartedAt As Double
+    Dim operationName As String
 
+    startedAt = VBA.Timer
     On Error GoTo EH
     Set targetWorkbook = Application.ActiveWorkbook
     If targetWorkbook Is Nothing Then Exit Sub
     Set originalSheet = Application.ActiveSheet
     Set targetWindow = Application.ActiveWindow
     If targetWindow Is Nothing Then Exit Sub
+    operationName = VBA.IIf(scrollToEnd, "AltEnd", "AltHome")
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_NAV_STARTED | Operation=" & operationName & _
+        " | Workbook=" & targetWorkbook.Name & " | Sheets=" & VBA.CStr(targetWorkbook.Worksheets.Count) & _
+        " | Calculation=" & VBA.CStr(Application.Calculation) & _
+        " | CalculationState=" & VBA.CStr(Application.CalculationState)
+    stageStartedAt = VBA.Timer
 
     ' Cancel pending input before moving focus or clearing table filters.
     previousEnableEvents = Application.EnableEvents
@@ -235,10 +246,13 @@ Private Sub private_Filter_ResetWorkbookTables(ByVal scrollToEnd As Boolean)
     Application.EnableEvents = False
     Application.ScreenUpdating = False
     private_Filter_CancelPendingFilterInput
+    private_Filter_LogTiming "Prepare", stageStartedAt, operationName
 
     ' Process hidden sheets too, but only activate visible worksheets.
     For Each ws In targetWorkbook.Worksheets
+        sheetStartedAt = VBA.Timer
         failure = private_Filter_ResetSheetTables(ws, targetWindow, scrollToEnd)
+        private_Filter_LogTiming "Sheet.Total", sheetStartedAt, operationName & " / " & ws.Name
         If VBA.Len(failure) > 0 Then
             If VBA.Len(failures) > 0 Then failures = failures & VBA.vbCrLf
             failures = failures & failure
@@ -248,25 +262,33 @@ Private Sub private_Filter_ResetWorkbookTables(ByVal scrollToEnd As Boolean)
 CleanExit:
     ' Restore the original sheet and application state even after an error.
     On Error GoTo RestoreError
+    stageStartedAt = VBA.Timer
     restoreStage = "RestoreOriginalSheet"
     If Not originalSheet Is Nothing Then originalSheet.Activate
+    private_Filter_LogTiming restoreStage, stageStartedAt, operationName
     If stateChanged And previousScreenUpdating And scrollToEnd Then
         ' Recompute and apply the final viewport with painting enabled.
         ' VisibleRange may still describe the old viewport while painting is suspended.
         Application.ScreenUpdating = True
+        private_Filter_LogTiming "EnablePainting", stageStartedAt, operationName
         If TypeOf originalSheet Is Worksheet Then
             Set ws = originalSheet
             If ws.ListObjects.Count = 1 Then
                 Set targetWindow = Application.ActiveWindow
                 private_Filter_ScrollTableEnd ws.ListObjects(1), targetWindow, restoreStage
+                private_Filter_LogTiming "FinalViewport", stageStartedAt, operationName
             End If
         End If
     End If
 RestoreState:
+    stageStartedAt = VBA.Timer
     If stateChanged Then
         Application.EnableEvents = previousEnableEvents
         Application.ScreenUpdating = previousScreenUpdating
     End If
+    private_Filter_LogTiming "RestoreApplicationState", stageStartedAt, operationName
+    private_Filter_LogTiming "Operation.Total", startedAt, operationName & _
+        " | HasErrors=" & VBA.CStr(VBA.Len(failures) > 0)
     If VBA.Len(failures) > 0 Then
         ex_Core.fn_Diagnostic_WriteLog failures
         ex_WindowsUi.fn_ShowMessage failures, VBA.vbExclamation
@@ -417,26 +439,34 @@ Private Function private_Filter_ResetSheetTables( _
     Dim context As String
     Dim paneObj As Excel.Pane
     Dim stageName As String
-    Dim fieldIndex As Long
     Dim paneIndex As Long
+    Dim stageStartedAt As Double
 
+    stageStartedAt = VBA.Timer
     On Error GoTo EH
     context = ws.Name
     stageName = "FindTable"
-    If ws.ListObjects.Count <> 1 Then Exit Function
+    If ws.ListObjects.Count <> 1 Then
+        ex_Core.fn_Diagnostic_WriteLog "TABLE_NAV_SKIPPED | Sheet=" & ws.Name & _
+            " | Tables=" & VBA.CStr(ws.ListObjects.Count)
+        Exit Function
+    End If
     Set tableObj = ws.ListObjects(1)
     context = ws.Name & " / " & tableObj.Name
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_NAV_TABLE | Context=" & context & _
+        " | Rows=" & VBA.CStr(tableObj.ListRows.Count) & _
+        " | Columns=" & VBA.CStr(tableObj.ListColumns.Count) & _
+        " | Filtered=" & VBA.CStr(tableObj.AutoFilter.FilterMode)
+    stageStartedAt = VBA.Timer
     stageName = "ShowHeaders"
     tableObj.ShowHeaders = True
+    private_Filter_LogTiming stageName, stageStartedAt, context
     stageName = "ShowAutoFilter"
     tableObj.ShowAutoFilter = True
+    private_Filter_LogTiming stageName, stageStartedAt, context
     stageName = "ClearFilters"
     If tableObj.AutoFilter.FilterMode Then tableObj.AutoFilter.ShowAllData
-    stageName = "ShowFilterButtons"
-    ' Enable each field button through Range.AutoFilter for Excel compatibility.
-    For fieldIndex = 1 To tableObj.ListColumns.Count
-        tableObj.Range.AutoFilter Field:=fieldIndex, VisibleDropDown:=True
-    Next fieldIndex
+    private_Filter_LogTiming stageName, stageStartedAt, context
     stageName = "ResolveFocusCell"
     Set focusCell = tableObj.HeaderRowRange.Cells(1, 1)
     If scrollToEnd Then
@@ -446,13 +476,16 @@ Private Function private_Filter_ResetSheetTables( _
     End If
 
     ' Hidden sheets retain their visibility and cannot receive focus.
+    private_Filter_LogTiming stageName, stageStartedAt, context
     If ws.Visible = xlSheetVisible Then
         stageName = "ActivateSheet"
         ws.Activate
+        private_Filter_LogTiming stageName, stageStartedAt, context
         stageName = "GetActiveWindow"
         Set targetWindow = Application.ActiveWindow
         stageName = "FocusCell"
         Application.Goto focusCell, False
+        private_Filter_LogTiming stageName, stageStartedAt, context
         If scrollToEnd Then
             private_Filter_ScrollTableEnd tableObj, targetWindow, stageName
         Else
@@ -475,6 +508,7 @@ Private Function private_Filter_ResetSheetTables( _
                 Next paneIndex
             End If
         End If
+        private_Filter_LogTiming "ScrollViewport", stageStartedAt, context
     End If
     Exit Function
 EH:
@@ -497,8 +531,14 @@ Private Sub private_Filter_ScrollTableEnd( _
     Dim availableHeight As Double
     Dim usedHeight As Double
     Dim rowHeight As Double
+    Dim stageStartedAt As Double
+    Dim scannedRows As Long
+    Dim context As String
 
+    stageStartedAt = VBA.Timer
     Set ws = tableObj.Parent
+    context = ws.Name & " / " & tableObj.Name & _
+        " | Painting=" & VBA.CStr(Application.ScreenUpdating)
     stageName = "End.GetActivePane"
     Set paneObj = targetWindow.ActivePane
     minimumRow = 1
@@ -511,19 +551,41 @@ Private Sub private_Filter_ScrollTableEnd( _
     paneObj.ScrollRow = VBA.IIf(lastRow < minimumRow, minimumRow, lastRow)
     stageName = "End.Pane.ScrollColumn"
     paneObj.ScrollColumn = 1
+    private_Filter_LogTiming "End.PositionForMeasurement", stageStartedAt, context
     stageName = "End.MeasureViewport"
     availableHeight = paneObj.VisibleRange.Height * (1 - BOTTOM_MARGIN)
+    private_Filter_LogTiming stageName, stageStartedAt, context
     topRow = lastRow
     usedHeight = ws.Rows(lastRow).Height
     Do While topRow > minimumRow
+        scannedRows = scannedRows + 1
         rowHeight = ws.Rows(topRow - 1).Height
         If usedHeight + rowHeight > availableHeight Then Exit Do
         usedHeight = usedHeight + rowHeight
         topRow = topRow - 1
     Loop
     If topRow < minimumRow Then topRow = minimumRow
+    private_Filter_LogTiming "End.ScanRowHeights", stageStartedAt, context & _
+        " | ScannedRows=" & VBA.CStr(scannedRows) & " | TopRow=" & VBA.CStr(topRow) & _
+        " | LastRow=" & VBA.CStr(lastRow)
     stageName = "End.Pane.FinalScrollRow"
     paneObj.ScrollRow = topRow
+    private_Filter_LogTiming stageName, stageStartedAt, context
+End Sub
+
+Private Sub private_Filter_LogTiming( _
+    ByVal stageName As String, _
+    ByRef startedAt As Double, _
+    ByVal context As String _
+)
+    Dim elapsedSeconds As Double
+
+    ' Timer wraps at midnight; exclude the log write from the next stage.
+    elapsedSeconds = VBA.Timer - startedAt
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_NAV_PERF | Stage=" & stageName & _
+        " | Context=" & context & " | ElapsedMs=" & VBA.Format$(elapsedSeconds * 1000#, "0.0")
+    startedAt = VBA.Timer
 End Sub
 
 Private Sub private_Filter_BeginFilterInput( _
