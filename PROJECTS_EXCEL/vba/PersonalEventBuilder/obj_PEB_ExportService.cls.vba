@@ -1499,6 +1499,8 @@ ReadValue:
 
 DecorateReporter:
     If reporterIsTvo Then
+        values(outputField) = VBA.Trim$(ex_PEB_Export.fn_Text(values(outputField)))
+        values(outputField) = VBA.LCase$(VBA.Left$(values(outputField), 1)) & VBA.Mid$(values(outputField), 2)
         values(outputField) = ex_PEB_Export.fn_Config("reporter.tvo.prefix") & " " & values(outputField)
     End If
 Cleanup:
