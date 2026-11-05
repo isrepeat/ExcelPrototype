@@ -118,12 +118,12 @@ Private Sub private_ReadCalculationParameters(ByVal ws As Worksheet)
     m_endDay = m_validation.ReadDay(private_ReadFormValue("EndDate"), ws.Parent.Date1904, "Form.EndDate")
     private_ParseInputReference
     m_inputPath = private_ResolveInputPath(m_inputPath)
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_INPUT_FILE") & m_inputPath
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_END_DATE") & VBA.Format$(VBA.CDate(m_endDay), FORMAT_DATE)
+    m_runContext.LogDebug m_configuration.GetText("text.InputFile") & m_inputPath
+    m_runContext.LogDebug m_configuration.GetText("text.EndDate") & VBA.Format$(VBA.CDate(m_endDay), FORMAT_DATE)
     m_runContext.CheckCancel 0
     Set fileSystem = VBA.CreateObject(FILE_SYSTEM_PROG_ID)
     If Not fileSystem.FileExists(m_inputPath) Then
-        m_configuration.Fail ws.Name & "!" & PARAM_INPUT_PATH_CELL & m_configuration.GetText("legacy.MSG_FILE_NOT_FOUND_OR_INACCESSIBLE") & m_inputPath
+        m_configuration.Fail ws.Name & "!" & PARAM_INPUT_PATH_CELL & m_configuration.GetText("text.FileNotFoundOrInaccessible") & m_inputPath
     End If
 End Sub
 
@@ -138,13 +138,13 @@ Private Sub private_ParseInputReference()
 
     parts = VBA.Split(m_inputPath, INPUT_REFERENCE_SEPARATOR)
     If UBound(parts) <> 1 Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_INVALID_REFERENCE")
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
     m_inputPath = VBA.Trim$(parts(0))
     location = VBA.Trim$(parts(1))
     separatorPosition = VBA.InStrRev(location, INPUT_SHEET_SEPARATOR)
     If separatorPosition <= 1 Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_INVALID_REFERENCE")
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
     m_sheetName = VBA.Trim$(VBA.Left$(location, separatorPosition - 1))
     If VBA.Left$(m_sheetName, 1) = "'" And VBA.Right$(m_sheetName, 1) = "'" Then
@@ -153,21 +153,21 @@ Private Sub private_ParseInputReference()
     End If
     address = VBA.UCase$(VBA.Replace(VBA.Trim$(VBA.Mid$(location, separatorPosition + 1)), "$", ""))
     If VBA.Len(m_inputPath) = 0 Or VBA.Len(m_sheetName) = 0 Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_INVALID_REFERENCE")
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
     If Not VBA.Left$(address, 1) Like "[A-Z]" Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_INVALID_REFERENCE")
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
     For i = 1 To VBA.Len(address)
         character = VBA.Mid$(address, i, 1)
         If character Like "[0-9]" Then
             digitsStarted = True
         ElseIf Not character Like "[A-Z]" Or digitsStarted Then
-            m_configuration.Fail m_configuration.GetText("legacy.MSG_INVALID_REFERENCE")
+            m_configuration.Fail m_configuration.GetText("text.InvalidReference")
         End If
     Next i
     If Not digitsStarted Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_INVALID_REFERENCE")
+        m_configuration.Fail m_configuration.GetText("text.InvalidReference")
     End If
     m_headerAddress = address
 End Sub
@@ -183,11 +183,11 @@ Private Function private_ResolveInputPath(ByVal inputPath As String) As String
         Exit Function
     End If
     If VBA.Left$(inputPath, 1) = "\" Or VBA.InStr(1, inputPath, ":", vbBinaryCompare) > 0 Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_AMBIGUOUS_PATH") & inputPath
+        m_configuration.Fail m_configuration.GetText("text.AmbiguousPath") & inputPath
     End If
     basePath = ThisWorkbook.Path
     If VBA.Len(basePath) = 0 Or VBA.InStr(1, basePath, "://", vbBinaryCompare) > 0 Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_RELATIVE_PATH_BASE")
+        m_configuration.Fail m_configuration.GetText("text.RelativePathBase")
     End If
     private_ResolveInputPath = fileSystem.GetAbsolutePathName(fileSystem.BuildPath(basePath, inputPath))
 End Function

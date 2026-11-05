@@ -28,6 +28,13 @@
                      caption="{Binding Path=Text.Cancel}"
                      command="{Binding Path=Commands.Cancel}"/>
 
+    <controls:button name="Export"
+                     row="5"
+                     column="6"
+                     style="refreshButton"
+                     caption="{Binding Path=Text.Export}"
+                     command="{Binding Path=Commands.Export}"/>
+
     <controls:form name="CalculationParameters"
                    dataContext="{Binding Path=Form}"
                    row="2"
@@ -132,7 +139,7 @@
               styles="{width:23;}"/>
         <rule target="column"
               selector="address=E:E"
-              styles="{width:15;}"/>
+              styles="{width:20;}"/>
         <rule target="column"
               selector="address=F:F"
               styles="{width:38;}"/>

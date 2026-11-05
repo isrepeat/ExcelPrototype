@@ -88,8 +88,8 @@ Public Function FindSource() As ListObject
 
     private_EnsureReady
     private_Trace "SourceSearch.Configuration.Started"
-    sourceSheetName = m_configuration.GetText("legacy.SOURCE_SHEET_NAME")
-    sourceTableName = m_configuration.GetText("legacy.SOURCE_TABLE_NAME")
+    sourceSheetName = m_configuration.GetText("source.events.sheet")
+    sourceTableName = m_configuration.GetText("source.events.table")
     private_Trace "SourceSearch.Started", "Sheet=" & sourceSheetName & " | Table=" & sourceTableName
     For Each wb In Application.Workbooks
         workbookIndex = workbookIndex + 1
@@ -106,7 +106,7 @@ Public Function FindSource() As ListObject
                     private_Trace "SourceSearch.Table.Ready", "Table=" & lo.Name
                     If lo.Name = sourceTableName Then
                         If Not FindSource Is Nothing Then
-                            m_configuration.Fail m_configuration.GetText("legacy.MSG_MULTIPLE_SOURCES")
+                            m_configuration.Fail m_configuration.GetText("text.MultipleSources")
                         End If
                         Set FindSource = lo
                         private_Trace "SourceSearch.Match", "Workbook=" & wb.Name & " | Table=" & lo.Name
@@ -117,7 +117,7 @@ Public Function FindSource() As ListObject
     Next wb
     private_Trace "SourceSearch.Completed", "Found=" & VBA.CStr(Not FindSource Is Nothing)
     If FindSource Is Nothing Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_OPEN_SOURCE") & m_configuration.GetText("legacy.SOURCE_SHEET_NAME") & m_configuration.GetText("legacy.MSG_TABLE") & m_configuration.GetText("legacy.SOURCE_TABLE_NAME") & "'."
+        m_configuration.Fail m_configuration.GetText("text.OpenSource") & m_configuration.GetText("source.events.sheet") & m_configuration.GetText("text.Table") & m_configuration.GetText("source.events.table") & "'."
     End If
 End Function
 
@@ -146,7 +146,7 @@ Public Function RequireTable( _
             Next lo
         End If
     Next ws
-    m_configuration.Fail m_configuration.GetText("legacy.MSG_TABLE_NOT_FOUND") & tableName & m_configuration.GetText("legacy.MSG_ON_WORKSHEET") & sheetName & m_configuration.GetText("legacy.MSG_CHECK_TABLE_CONFIGURATION")
+    m_configuration.Fail m_configuration.GetText("text.TableNotFound") & tableName & m_configuration.GetText("text.OnWorksheet") & sheetName & m_configuration.GetText("text.CheckTableConfiguration")
 End Function
 
 Public Function ColumnIndex( _
@@ -164,7 +164,7 @@ Public Function ColumnIndex( _
             Exit Function
         End If
     Next col
-    m_configuration.Fail m_configuration.GetText("legacy.MSG_TABLE_TEXT") & lo.Name & m_configuration.GetText("legacy.MSG_IS_MISSING_COLUMN") & header & "'."
+    m_configuration.Fail m_configuration.GetText("text.TableText") & lo.Name & m_configuration.GetText("text.IsMissingColumn") & header & "'."
 End Function
 
 Public Function ReadQueryTable(ByVal table As ListObject) As Variant
@@ -329,7 +329,7 @@ Private Sub private_CloseParameterWorkbook(ByVal workbook As Workbook)
     private_Trace "ParameterWorkbook.Close.Completed"
     Exit Sub
 Failed:
-    ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_PARAMETER_CLOSE_FAILED") & VBA.Err.Description, vbExclamation
+    ex_WindowsUi.fn_ShowMessage m_configuration.GetText("text.ParameterCloseFailed") & VBA.Err.Description, vbExclamation
 End Sub
 
 Private Function private_ReadParameterTable( _
@@ -350,7 +350,7 @@ Private Function private_ReadParameterTable( _
         End If
     Next ws
     If parameterSheet Is Nothing Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_PARAMETER_SHEET_MISSING") & parameters.SheetName
+        m_configuration.Fail m_configuration.GetText("text.ParameterSheetMissing") & parameters.SheetName
     End If
     private_Trace "ParameterTable.ResolveHeader.Started", "Address=" & parameters.HeaderAddress
     Set headerCell = parameterSheet.Range(parameters.HeaderAddress)
@@ -364,7 +364,7 @@ Private Function private_ReadParameterTable( _
             End If
         End If
     Next table
-    m_configuration.Fail m_configuration.GetText("legacy.MSG_PARAMETER_TABLE_MISSING") & parameters.SheetName & INPUT_SHEET_SEPARATOR & parameters.HeaderAddress
+    m_configuration.Fail m_configuration.GetText("text.ParameterTableMissing") & parameters.SheetName & INPUT_SHEET_SEPARATOR & parameters.HeaderAddress
 End Function
 
 Private Sub private_Trace( _

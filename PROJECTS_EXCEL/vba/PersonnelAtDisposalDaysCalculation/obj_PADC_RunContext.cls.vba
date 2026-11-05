@@ -15,7 +15,6 @@ Private m_isDisposed As Boolean
 Private m_configuration As obj_PADC_Configuration
 Private m_cancelled As Boolean
 Private m_lastUiYield As Single
-Private Const UI_YIELD_INTERVAL As Long = 100
 Private Const UI_YIELD_SECONDS As Single = 0.1
 Private Const CANCEL_ERROR As Long = vbObjectError + 2101
 Private Const ERROR_SOURCE As String = "PersonnelAtDisposalDays"
@@ -59,7 +58,7 @@ End Sub
 Public Sub RequestCancel()
     private_EnsureReady
     m_cancelled = True
-    ex_Core.fn_StatusBar_Show m_configuration.GetText("legacy.MSG_CANCELLING_OPERATION")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("text.CancellingOperation")
 End Sub
 
 Public Sub CheckCancel(ByVal index As Long)
@@ -67,10 +66,7 @@ Public Sub CheckCancel(ByVal index As Long)
 
     private_EnsureReady
     If m_cancelled Then
-        VBA.Err.Raise CANCEL_ERROR, ERROR_SOURCE, m_configuration.GetText("legacy.MSG_CANCELLED")
-    End If
-    If index Mod UI_YIELD_INTERVAL <> 0 Then
-        Exit Sub
+        VBA.Err.Raise CANCEL_ERROR, ERROR_SOURCE, m_configuration.GetText("text.Cancelled")
     End If
     currentTime = VBA.Timer
     If index <> 0 And currentTime >= m_lastUiYield Then
@@ -79,7 +75,7 @@ Public Sub CheckCancel(ByVal index As Long)
         End If
     End If
     m_lastUiYield = currentTime
-    ex_Core.fn_StatusBar_Show m_configuration.GetText("legacy.MSG_CALCULATING_DAYS") & index
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("text.CalculatingDays") & index
     If index = 0 Then
         Me.LogStage "Yield.Started"
     End If
@@ -88,7 +84,7 @@ Public Sub CheckCancel(ByVal index As Long)
         Me.LogStage "Yield.Completed"
     End If
     If m_cancelled Then
-        VBA.Err.Raise CANCEL_ERROR, ERROR_SOURCE, m_configuration.GetText("legacy.MSG_CANCELLED")
+        VBA.Err.Raise CANCEL_ERROR, ERROR_SOURCE, m_configuration.GetText("text.Cancelled")
     End If
 End Sub
 

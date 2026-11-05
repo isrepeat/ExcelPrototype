@@ -125,28 +125,28 @@ Public Function Prepare( _
     Set source = m_dataSource.FindSource()
     m_runContext.LogStage "FindMovementSource.Completed"
     m_runContext.LogStage "FindRoster.Started"
-    Set roster = m_dataSource.RequireTable(m_configuration.GetText("legacy.ROSTER_SHEET_NAME"), m_configuration.GetText("legacy.ROSTER_TABLE_NAME"), source.Parent.Parent)
+    Set roster = m_dataSource.RequireTable(m_configuration.GetText("source.roster.sheet"), m_configuration.GetText("source.roster.table"), source.Parent.Parent)
     m_runContext.LogStage "FindRoster.Completed"
-    rosterTaxCol = m_dataSource.ColumnIndex(roster, m_configuration.GetText("legacy.ROSTER_COL_TAX_ID"))
-    rosterNameCol = m_dataSource.ColumnIndex(roster, m_configuration.GetText("legacy.ROSTER_COL_NAME"))
+    rosterTaxCol = m_dataSource.ColumnIndex(roster, m_configuration.GetText("source.roster.columns.TaxId"))
+    rosterNameCol = m_dataSource.ColumnIndex(roster, m_configuration.GetText("source.roster.columns.FullName"))
     m_runContext.LogStage "ReadRoster.Started"
     rosterData = m_dataSource.ReadQueryTable(roster)
     m_runContext.LogStage "ReadRoster.Completed"
     m_runContext.CheckCancel 0
 
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_RUKH_SOURCE") & source.Parent.Parent.Name & " / " & source.Parent.Name & " / " & source.Name
+    m_runContext.LogDebug m_configuration.GetText("text.RukhSource") & source.Parent.Parent.Name & " / " & source.Parent.Name & " / " & source.Name
 
-    pTax = m_dataSource.ColumnIndex(params, m_configuration.GetText("legacy.PARAM_COL_TAX_ID"))
-    pName = m_dataSource.ColumnIndex(params, m_configuration.GetText("legacy.PARAM_COL_NAME"))
-    pStart = m_dataSource.ColumnIndex(params, m_configuration.GetText("legacy.PARAM_COL_START"))
-    pTrip = m_dataSource.ColumnIndex(params, m_configuration.GetText("legacy.PARAM_COL_TRIPS"))
-    sourceNameCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("legacy.SOURCE_COL_NAME"))
-    taxCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("legacy.SOURCE_COL_TAX_ID"))
-    eventCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("legacy.SOURCE_COL_EVENT"))
-    fromCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("legacy.SOURCE_COL_PERIOD_FROM"))
-    toCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("legacy.SOURCE_COL_PERIOD_TO"))
+    pTax = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.TaxId"))
+    pName = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.FullName"))
+    pStart = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.StartDate"))
+    pTrip = m_dataSource.ColumnIndex(params, m_configuration.GetText("input.columns.IncludeBusinessTripDays"))
+    sourceNameCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.FullName"))
+    taxCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.TaxId"))
+    eventCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.Event"))
+    fromCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.Departure"))
+    toCol = m_dataSource.ColumnIndex(source, m_configuration.GetText("source.events.columns.Arrival"))
     If params.DataBodyRange Is Nothing Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_PARAMETERS_EMPTY")
+        m_configuration.Fail m_configuration.GetText("text.ParametersEmpty")
     End If
     m_runContext.LogStage "ReadParameters.Started"
     p = m_dataSource.ReadQueryTable(params)
@@ -157,18 +157,18 @@ Public Function Prepare( _
     Set eventPersonIndex = New obj_PADC_PersonIndex
     If Not eventPersonIndex.Initialize(s, source.ListRows.Count, taxCol, sourceNameCol, _
             m_configuration, m_validation, m_runContext) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     Set rosterPersonIndex = New obj_PADC_PersonIndex
     If Not rosterPersonIndex.Initialize(rosterData, roster.ListRows.Count, rosterTaxCol, rosterNameCol, _
             m_configuration, m_validation, m_runContext) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     count = m_dataSource.CompactParameterRows(p, parameterRows)
     If count = 0 Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_PARAMETERS_EMPTY")
+        m_configuration.Fail m_configuration.GetText("text.ParametersEmpty")
     End If
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_PEOPLE") & count & m_configuration.GetText("legacy.MSG_RUKH_EVENTS") & source.ListRows.Count
+    m_runContext.LogDebug m_configuration.GetText("text.People") & count & m_configuration.GetText("text.RukhEvents") & source.ListRows.Count
     ReDim personErrors(1 To count)
     ReDim starts(1 To count)
     ReDim trips(1 To count)
@@ -178,20 +178,20 @@ Public Function Prepare( _
     Set people = VBA.CreateObject(DICTIONARY_PROG_ID)
     Set intervals = VBA.CreateObject(DICTIONARY_PROG_ID)
     For i = 1 To count
-        context = params.Parent.Name & m_configuration.GetText("legacy.MSG_WORKSHEET_ROW") & params.DataBodyRange.Row + parameterRows(i) - 1
-        taxId = m_validation.RequiredText(p(i, pTax), context & m_configuration.GetText("legacy.MSG_TAX_ID"))
+        context = params.Parent.Name & m_configuration.GetText("text.WorksheetRow") & params.DataBodyRange.Row + parameterRows(i) - 1
+        taxId = m_validation.RequiredText(p(i, pTax), context & m_configuration.GetText("text.TaxId"))
         If people.Exists(taxId) Then
-            m_configuration.Fail context & m_configuration.GetText("legacy.MSG_DUPLICATE_TAX_ID") & taxId
+            m_configuration.Fail context & m_configuration.GetText("text.DuplicateTaxId") & taxId
         End If
         people.Add taxId, i
-        starts(i) = m_validation.ReadDay(p(i, pStart), params.Parent.Parent.Date1904, context & m_configuration.GetText("legacy.MSG_TIME_POINT"))
+        starts(i) = m_validation.ReadDay(p(i, pStart), params.Parent.Parent.Date1904, context & m_configuration.GetText("text.TimePoint"))
         If starts(i) > lastDay Then
-            m_configuration.Fail context & m_configuration.GetText("legacy.MSG_START_AFTER_END")
+            m_configuration.Fail context & m_configuration.GetText("text.StartAfterEnd")
         End If
         trips(i) = m_validation.ReadFlag(p(i, pTrip), context)
         resultTrips(i, 1) = p(i, pTrip)
         resultTaxIds(i, 1) = taxId
-        resultNames(i, 1) = m_validation.RequiredText(p(i, pName), context & m_configuration.GetText("legacy.MSG_FULL_NAME"))
+        resultNames(i, 1) = m_validation.RequiredText(p(i, pName), context & m_configuration.GetText("text.FullName"))
         Set rows = New Collection
         intervals.Add taxId, rows
         m_runContext.CheckCancel i
@@ -213,7 +213,7 @@ Public Function Prepare( _
                 GoTo NextMatchedPerson
             End If
             If rosterMatches.Count = 0 Then
-                personErrors(person) = m_configuration.GetText("legacy.MSG_PERSON_UNVERIFIED") & resultNames(person, 1) & " / " & taxId
+                personErrors(person) = m_configuration.GetText("text.PersonUnverified") & resultNames(person, 1) & " / " & taxId
                 GoTo NextMatchedPerson
             End If
             resolvedTaxId = m_validation.MatchText(rosterData(rosterMatches(1), rosterTaxCol))
@@ -228,19 +228,19 @@ Public Function Prepare( _
         End If
         For Each rowNumber In matches
             m_runContext.CheckCancel VBA.CLng(rowNumber)
-            context = source.Parent.Parent.Name & " / " & m_configuration.GetText("legacy.SOURCE_SHEET_NAME") & _
-                m_configuration.GetText("legacy.MSG_WORKSHEET_ROW") & source.DataBodyRange.Row + VBA.CLng(rowNumber) - 1
-            eventName = m_validation.RequiredText(s(VBA.CLng(rowNumber), eventCol), context & m_configuration.GetText("legacy.MSG_EVENT"))
-            firstDay = m_validation.ReadDay(s(VBA.CLng(rowNumber), fromCol), source.Parent.Parent.Date1904, context & m_configuration.GetText("legacy.MSG_DEPARTURE"))
+            context = source.Parent.Parent.Name & " / " & m_configuration.GetText("source.events.sheet") & _
+                m_configuration.GetText("text.WorksheetRow") & source.DataBodyRange.Row + VBA.CLng(rowNumber) - 1
+            eventName = m_validation.RequiredText(s(VBA.CLng(rowNumber), eventCol), context & m_configuration.GetText("text.Event"))
+            firstDay = m_validation.ReadDay(s(VBA.CLng(rowNumber), fromCol), source.Parent.Parent.Date1904, context & m_configuration.GetText("text.Departure"))
             If VBA.IsError(s(VBA.CLng(rowNumber), toCol)) Then
-                m_configuration.Fail context & m_configuration.GetText("legacy.MSG_ARRIVAL_CELL_ERROR")
+                m_configuration.Fail context & m_configuration.GetText("text.ArrivalCellError")
             End If
             If VBA.Len(VBA.Trim$(VBA.CStr(s(VBA.CLng(rowNumber), toCol)))) = 0 Then
                 arrival = lastDay
             Else
-                arrival = m_validation.ReadDay(s(VBA.CLng(rowNumber), toCol), source.Parent.Parent.Date1904, context & m_configuration.GetText("legacy.MSG_ARRIVAL"))
+                arrival = m_validation.ReadDay(s(VBA.CLng(rowNumber), toCol), source.Parent.Parent.Date1904, context & m_configuration.GetText("text.Arrival"))
                 If arrival < firstDay Then
-                    m_configuration.Fail context & m_configuration.GetText("legacy.MSG_ARRIVAL_BEFORE_DEPARTURE")
+                    m_configuration.Fail context & m_configuration.GetText("text.ArrivalBeforeDeparture")
                 End If
             End If
             If firstDay < starts(person) Then
@@ -263,7 +263,7 @@ NextMatchedPerson:
         Set rows = intervals(VBA.CStr(resultTaxIds(i, 1)))
         If Not preparedPerson.Initialize(VBA.CStr(resultNames(i, 1)), VBA.CStr(resultTaxIds(i, 1)), _
                 starts(i), resultTrips(i, 1), rows, personErrors(i)) Then
-            m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
         End If
         prepared.Add preparedPerson
     Next i

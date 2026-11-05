@@ -96,14 +96,14 @@ Public Sub Publish( _
             End If
         Next i
         If Not resultTable.Initialize(values, headers) Then
-            m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
         End If
     Else
         If Not resultTable.InitializeEmpty(headers) Then
-            m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
         End If
     End If
-    errorHeaders = VBA.Array(m_configuration.GetText("legacy.ERROR_COL_NAME"), m_configuration.GetText("legacy.ERROR_COL_TAX_ID"), m_configuration.GetText("legacy.ERROR_COL_DESCRIPTION"))
+    errorHeaders = VBA.Array(m_configuration.GetText("header.errors.FullName"), m_configuration.GetText("header.errors.TaxId"), m_configuration.GetText("header.errors.Description"))
     Set errorTable = New obj_UiRawTable
     If failures.Count > 0 Then
         ReDim errorValues(1 To failures.Count, 1 To 3)
@@ -114,21 +114,21 @@ Public Sub Publish( _
             errorValues(i, 3) = item(2)
         Next i
         If Not errorTable.Initialize(errorValues, errorHeaders) Then
-            m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
         End If
     Else
         If Not errorTable.InitializeEmpty(errorHeaders) Then
-            m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
         End If
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "CalculationRows", resultTable) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     If Not m_pageBase.BindingContext.SetObject("Data", "Errors", errorTable) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     If Not m_pageBase.Render() Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
 End Sub
 

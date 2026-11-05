@@ -62,11 +62,11 @@ Public Function RequiredText( _
 ) As String
     private_EnsureReady
     If VBA.IsError(value) Or VBA.IsNull(value) Then
-        m_configuration.Fail context & m_configuration.GetText("legacy.MSG_CELL_ERROR")
+        m_configuration.Fail context & m_configuration.GetText("text.CellError")
     End If
     RequiredText = VBA.Trim$(VBA.Replace(VBA.CStr(value), VBA.ChrW(NBSP_CODE), " "))
     If VBA.Len(RequiredText) = 0 Then
-        m_configuration.Fail context & m_configuration.GetText("legacy.MSG_REQUIRED_VALUE")
+        m_configuration.Fail context & m_configuration.GetText("text.RequiredValue")
     End If
 End Function
 
@@ -77,19 +77,24 @@ Public Function ReadFlag( _
     Dim flagText As String
 
     private_EnsureReady
+    ' Return whether business trip days are included in the calculation.
+    If VBA.VarType(value) = vbBoolean Then
+        ReadFlag = value
+        Exit Function
+    End If
     If Not VBA.IsError(value) And Not VBA.IsNull(value) Then
         If VBA.Len(VBA.Trim$(VBA.Replace(VBA.CStr(value), VBA.ChrW(NBSP_CODE), " "))) = 0 Then
             ReadFlag = False
             Exit Function
         End If
     End If
-    flagText = VBA.LCase$(Me.RequiredText(value, context & m_configuration.GetText("legacy.MSG_SUBTRACT_BUSINESS_TRIPS")))
+    flagText = VBA.LCase$(Me.RequiredText(value, context & m_configuration.GetText("text.IncludeBusinessTripDays")))
     If private_IsEventInList(flagText, m_configuration.GetText("flag.includeTrips")) Then
-        ReadFlag = False
-    ElseIf private_IsEventInList(flagText, m_configuration.GetText("flag.excludeTrips")) Then
         ReadFlag = True
+    ElseIf private_IsEventInList(flagText, m_configuration.GetText("flag.excludeTrips")) Then
+        ReadFlag = False
     Else
-        m_configuration.Fail context & m_configuration.GetText("legacy.MSG_INVALID_TRIP_FLAG")
+        m_configuration.Fail context & m_configuration.GetText("text.InvalidTripFlag")
     End If
 End Function
 
@@ -132,7 +137,7 @@ Public Function ReadDay( _
     ReadDay = VBA.CLng(serial)
     Exit Function
 InvalidDate:
-    m_configuration.Fail context & m_configuration.GetText("legacy.MSG_INVALID_DATE")
+    m_configuration.Fail context & m_configuration.GetText("text.InvalidDate")
 End Function
 
 Public Function IsExcluded( _

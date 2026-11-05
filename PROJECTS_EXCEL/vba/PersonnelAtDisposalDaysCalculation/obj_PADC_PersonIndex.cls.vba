@@ -87,7 +87,7 @@ Public Function Find( _
         Set Find = m_nameIndex(fullName)
         Set ids = m_nameIds(fullName)
         If ids.Count > 1 Then
-            matchError = m_configuration.GetText("legacy.MSG_AMBIGUOUS_NAME") & fullName
+            matchError = m_configuration.GetText("text.AmbiguousName") & fullName
         End If
     Else
         Set Find = New Collection

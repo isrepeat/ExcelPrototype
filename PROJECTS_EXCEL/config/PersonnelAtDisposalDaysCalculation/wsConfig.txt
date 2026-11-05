@@ -1,133 +1,130 @@
 value	ThisWorkbook::id	PersonnelAtDisposalDaysCalculation
+value	ThisWorkbook::uiPath	..\..\ui
+value	ThisWorkbook::logMode	Immediate
+value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalculation
+value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_PADC.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PADC.fn_CreatePage
-value	ThisWorkbook::vbaPath	..\..\vba
-value	ThisWorkbook::uiPath	..\..\ui
-value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalculation
-value	ThisWorkbook::logMode	Immediate
-value	PersonnelAtDisposalDaysCalculation::text.Calculate	Розрахувати періоди
-value	PersonnelAtDisposalDaysCalculation::text.Cancel	Скасувати
-value	PersonnelAtDisposalDaysCalculation::text.RefreshPage	Оновити сторінку
-value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
-value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
-value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
+value	PersonnelAtDisposalDaysCalculation::flag.excludeTrips	ні|нет|false|0
+value	PersonnelAtDisposalDaysCalculation::flag.includeTrips	так|да|true|1
+value	PersonnelAtDisposalDaysCalculation::text.Rows	 rows
+value	PersonnelAtDisposalDaysCalculation::text.Event	: Event
+value	PersonnelAtDisposalDaysCalculation::text.Table	', table '
+value	PersonnelAtDisposalDaysCalculation::text.TaxId	: Tax ID
 value	PersonnelAtDisposalDaysCalculation::text.Title	Розрахунок днів у розпорядженні
-value	PersonnelAtDisposalDaysCalculation::text.CalculationNotReady	Читання вихідних таблиць і запуск розрахунку ще не підключені.
-value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
-value	PersonnelAtDisposalDaysCalculation::header.TaxId	ІПН
-value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
-value	PersonnelAtDisposalDaysCalculation::header.BusinessTrips	Враховувати відрядження
-value	PersonnelAtDisposalDaysCalculation::header.Periods	Періоди
-value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
-value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
-value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\100.Д3.xlsx|Д3.Списки!B2
+value	PersonnelAtDisposalDaysCalculation::text.Cancel	Скасувати
+value	PersonnelAtDisposalDaysCalculation::text.Export	Сформувати результат
+value	PersonnelAtDisposalDaysCalculation::text.People	People:
+value	PersonnelAtDisposalDaysCalculation::text.Arrival	: Arrival
+value	PersonnelAtDisposalDaysCalculation::text.EndDate	End date:
+value	PersonnelAtDisposalDaysCalculation::text.FullName	: Full name
+value	PersonnelAtDisposalDaysCalculation::text.Calculate	Розрахувати періоди
+value	PersonnelAtDisposalDaysCalculation::text.Cancelled	Cancelled
+value	PersonnelAtDisposalDaysCalculation::text.CellError	: the cell contains an error.
+value	PersonnelAtDisposalDaysCalculation::text.Departure	: Departure
+value	PersonnelAtDisposalDaysCalculation::text.InputFile	Input file:
+value	PersonnelAtDisposalDaysCalculation::text.TableText	Table '
+value	PersonnelAtDisposalDaysCalculation::text.TimePoint	: Start date
+value	PersonnelAtDisposalDaysCalculation::text.OpenSource	Open the RUKH workbook: worksheet '
+value	PersonnelAtDisposalDaysCalculation::text.RukhEvents	; RUKH events:
+value	PersonnelAtDisposalDaysCalculation::text.RukhSource	RUKH source:
+value	PersonnelAtDisposalDaysCalculation::text.ExportEmpty	Спочатку виконайте розрахунок із непорожнім результатом.
+value	PersonnelAtDisposalDaysCalculation::text.InvalidDate	: enter a valid Excel date or dd.mm.yyyy text (not earlier than 01.03.1900).
+value	PersonnelAtDisposalDaysCalculation::text.OnWorksheet	' on worksheet '
+value	PersonnelAtDisposalDaysCalculation::text.RefreshPage	Оновити сторінку
+value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
+value	PersonnelAtDisposalDaysCalculation::text.ExportFailed	Не вдалося сформувати результат:
+value	PersonnelAtDisposalDaysCalculation::text.WorksheetRow	, worksheet row
+value	PersonnelAtDisposalDaysCalculation::text.AmbiguousName	Full name matches multiple tax IDs:
+value	PersonnelAtDisposalDaysCalculation::text.AmbiguousPath	Use a full drive or UNC path, or a path relative to the tool workbook:
+value	PersonnelAtDisposalDaysCalculation::text.RequiredValue	: a required value is missing.
+value	PersonnelAtDisposalDaysCalculation::text.SkippedPeople	; skipped:
+value	PersonnelAtDisposalDaysCalculation::text.StartAfterEnd	: the start date is later than the end date.
+value	PersonnelAtDisposalDaysCalculation::text.TableNotFound	Table not found: '
+value	PersonnelAtDisposalDaysCalculation::text.WritingResult	Writing result:
+value	PersonnelAtDisposalDaysCalculation::text.WrongWorkbook	Run this command from a worksheet in the tool workbook.
+value	PersonnelAtDisposalDaysCalculation::text.AlreadyRunning	An operation is already running. Wait for completion or click Cancel.
+value	PersonnelAtDisposalDaysCalculation::text.DuplicateTaxId	: duplicate tax ID
+value	PersonnelAtDisposalDaysCalculation::text.WritingResults	Writing results...
+value	PersonnelAtDisposalDaysCalculation::text.CalculatingDays	Calculating days:
+value	PersonnelAtDisposalDaysCalculation::text.InvalidTripFlag	: the business trip flag must be TRUE / FALSE or 1 / 0 (Ukrainian and Russian equivalents are accepted).
+value	PersonnelAtDisposalDaysCalculation::text.IsMissingColumn	' is missing column '
+value	PersonnelAtDisposalDaysCalculation::text.MultipleSources	Multiple RUKH tables are open. Keep only one source workbook open.
+value	PersonnelAtDisposalDaysCalculation::text.ParametersEmpty	The parameter table is empty.
+value	PersonnelAtDisposalDaysCalculation::text.SelectToolSheet	Select the tool worksheet containing the input path and end date.
+value	PersonnelAtDisposalDaysCalculation::text.ArrivalCellError	: the arrival cell contains an error.
+value	PersonnelAtDisposalDaysCalculation::text.InvalidReference	Use file.xlsx|Worksheet!B2, where B2 is the first table header cell.
+value	PersonnelAtDisposalDaysCalculation::text.OperationStopped	Operation stopped:
+value	PersonnelAtDisposalDaysCalculation::text.PersonUnverified	Person not found in events or the personnel roster:
+value	PersonnelAtDisposalDaysCalculation::text.RelativePathBase	Save the tool workbook in a local or network folder before using a relative input path.
+value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
+value	PersonnelAtDisposalDaysCalculation::text.OperationCancelled	Operation cancelled.
+value	PersonnelAtDisposalDaysCalculation::text.ParameterWorksheet	Parameter worksheet:
+value	PersonnelAtDisposalDaysCalculation::text.CancellingOperation	Cancelling operation...
+value	PersonnelAtDisposalDaysCalculation::text.ExportFolderMissing	Спочатку збережіть книгу інструмента в доступній локальній або мережевій папці.
+value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
+value	PersonnelAtDisposalDaysCalculation::text.TargetPrepareFailed	Unable to prepare the result table:
+value	PersonnelAtDisposalDaysCalculation::text.ParameterCloseFailed	Unable to close the parameter workbook:
+value	PersonnelAtDisposalDaysCalculation::text.ParameterSheetMissing	Parameter worksheet not found:
+value	PersonnelAtDisposalDaysCalculation::text.ParameterTableMissing	No table starts at the specified header cell:
+value	PersonnelAtDisposalDaysCalculation::text.ArrivalBeforeDeparture	: arrival is earlier than departure.
+value	PersonnelAtDisposalDaysCalculation::text.CheckTableConfiguration	'. Check the table and worksheet names in Configuration.
+value	PersonnelAtDisposalDaysCalculation::text.IncludeBusinessTripDays	: Count business trip days
+value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingStarted	Parameter loading started
+value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingCompleted	Parameter loading completed
+value	PersonnelAtDisposalDaysCalculation::text.CalculationCompletedPeople	Calculation completed. People:
+value	PersonnelAtDisposalDaysCalculation::text.FileNotFoundOrInaccessible	: file not found or inaccessible:
+value	PersonnelAtDisposalDaysCalculation::event.present	В строю
 value	PersonnelAtDisposalDaysCalculation::event.alwaysExcluded	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Стаціонарне лікування|ВЛК за межами|Безвісти зниклий|Арешт|Полон
 value	PersonnelAtDisposalDaysCalculation::event.optionalExcluded	Відрядження
-value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
+value	PersonnelAtDisposalDaysCalculation::input.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::input.columns.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::input.columns.StartDate	ДЗС
+value	PersonnelAtDisposalDaysCalculation::input.columns.IncludeBusinessTripDays	Зараховувати дні відрядження
+value	PersonnelAtDisposalDaysCalculation::export.font	Arial
+value	PersonnelAtDisposalDaysCalculation::export.sheet	Результат
+value	PersonnelAtDisposalDaysCalculation::export.table	tbPersonnelAtDisposalDays
+value	PersonnelAtDisposalDaysCalculation::export.title	Дні перебування у розпорядженні
+value	PersonnelAtDisposalDaysCalculation::export.header.From	З
+value	PersonnelAtDisposalDaysCalculation::export.header.Include	ЗАЛУЧИТИ
+value	PersonnelAtDisposalDaysCalculation::export.header.Through	ПО
+value	PersonnelAtDisposalDaysCalculation::export.labels.End	Кінець періода
+value	PersonnelAtDisposalDaysCalculation::export.labels.Date	Дата обрахунку
+value	PersonnelAtDisposalDaysCalculation::export.labels.Start	Початок періода
+value	PersonnelAtDisposalDaysCalculation::export.widths	34|20|23|23|65|20|27|18|18|18
+value	PersonnelAtDisposalDaysCalculation::export.formula.End	=EOMONTH(C3,-1)
+value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[2],R4C3,"")
+value	PersonnelAtDisposalDaysCalculation::export.formula.Start	=EOMONTH(C5,-1)+1
+value	PersonnelAtDisposalDaysCalculation::export.formula.Include	=OR(LEN(RC[-3])=0,RC[-3]>R4C3)
+value	PersonnelAtDisposalDaysCalculation::export.formula.Through	=IF(RC[1],IF(LEN(RC[-2])>0,MIN(R5C3,RC[-2]-1),R5C3),"")
+value	PersonnelAtDisposalDaysCalculation::export.palette	26241D|302D25|38342B|605542|FFFFFF|FFB74D
+value	PersonnelAtDisposalDaysCalculation::export.fileName	Кількість днів у розпорядженні
+value	PersonnelAtDisposalDaysCalculation::export.fontSize	11
+value	PersonnelAtDisposalDaysCalculation::export.versionSuffix	_v{version}
+value	PersonnelAtDisposalDaysCalculation::format.date	dd.mm.yyyy
 value	PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator	–
-value	PersonnelAtDisposalDaysCalculation::flag.includeTrips	так|да|true|1
-value	PersonnelAtDisposalDaysCalculation::flag.excludeTrips	ні|нет|false|0
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_SHEET_NAME	Відсутні
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_TABLE_NAME	ТВ
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_NAME	ПІБ
-value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_SHEET_NAME	Список
-value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_TABLE_NAME	Список
-value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_COL_NAME	ПІБ
-value	PersonnelAtDisposalDaysCalculation::legacy.ROSTER_COL_TAX_ID	ІПН
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PERSON_UNVERIFIED	Person not found in events or the personnel roster:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_AMBIGUOUS_NAME	Full name matches multiple tax IDs:
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_TAX_ID	ІПН
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_EVENT	Подія
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_PERIOD_FROM	Вибуття
-value	PersonnelAtDisposalDaysCalculation::legacy.SOURCE_COL_PERIOD_TO	Прибуття
-value	PersonnelAtDisposalDaysCalculation::legacy.ERROR_COL_NAME	Full name
-value	PersonnelAtDisposalDaysCalculation::legacy.ERROR_COL_TAX_ID	Tax ID
-value	PersonnelAtDisposalDaysCalculation::legacy.ERROR_COL_DESCRIPTION	Error
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SKIPPED_PEOPLE	; skipped:
-value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_NAME	ПІБ
-value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_TAX_ID	ІПН
-value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_START	ДЗС
-value	PersonnelAtDisposalDaysCalculation::legacy.PARAM_COL_TRIPS	ВІДРЯДЖЕННЯ
-value	PersonnelAtDisposalDaysCalculation::legacy.PRESENT_EVENT_NAME	В строю
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ALREADY_RUNNING	An operation is already running. Wait for completion or click Cancel.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_LOADING_STARTED	Parameter loading started
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SELECT_TOOL_SHEET	Select the tool worksheet containing the input path and end date.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WRONG_WORKBOOK	Run this command from a worksheet in the tool workbook.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_WORKSHEET	Parameter worksheet:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_LOADING_COMPLETED	Parameter loading completed
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INPUT_FILE	Input file:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_END_DATE	End date:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPERATION_CANCELLED	Operation cancelled.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPERATION_STOPPED	Operation stopped:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CANCELLING_OPERATION	Cancelling operation...
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RUKH_SOURCE	RUKH source:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_CLOSE_FAILED	Unable to close the parameter workbook:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_SHEET_MISSING	Parameter worksheet not found:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETERS_EMPTY	The parameter table is empty.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SOURCE_FILTER_FAILED	Unable to clear filters in source table
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SOURCE_EMPTY	The source RUKH table is empty.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PEOPLE	People:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RUKH_EVENTS	; RUKH events:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WORKSHEET_ROW	, worksheet row
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TAX_ID	: Tax ID
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DUPLICATE_TAX_ID	: duplicate tax ID
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TIME_POINT	: Start date
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_START_AFTER_END	: the start date is later than the end date.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_FULL_NAME	: Full name
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EVENT	: Event
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DEPARTURE	: Departure
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ARRIVAL_CELL_ERROR	: the arrival cell contains an error.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ARRIVAL	: Arrival
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ARRIVAL_BEFORE_DEPARTURE	: arrival is earlier than departure.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TAX_ID_PREFIX	Tax ID
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PERSON_NOT_FOUND	 was not found in RUKH. Check the ID and source workbook.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WRITING_RESULT	Writing result:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ROWS	 rows
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TARGET_BODY_MISSING	The result table has no data rows after preparation.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TARGET_PREPARE_FAILED	Unable to prepare the result table:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TARGET_ROWS_READY	Result table rows prepared:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_WRITING_RESULTS	Writing results...
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CALCULATION_COMPLETED_PEOPLE	Calculation completed. People:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_NO_EXCLUSIONS	no exclusions
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OVERLAPS_DUPLICATES_ADJACENCY_AND_GAP	overlaps, duplicates, adjacency and gap
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_BUSINESS_TRIP_EXCLUDED	business trip excluded
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_BUSINESS_TRIP_INCLUDED	business trip included
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TREATMENT_EXCLUDED	treatment excluded
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TEST	test
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TEXT_DATE	text date
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_1904_DATE_SYSTEM	1904 date system
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EXAMPLE_EXCLUSIONS	example exclusions
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EXAMPLE_RESULT	example result
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ALGORITHM_CHECKS_PASSED	Algorithm checks passed.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CHECK_FAILED	Check failed:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RELATIVE_PATH_BASE	Save the tool workbook in a local or network folder before using a relative input path.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_AMBIGUOUS_PATH	Use a full drive or UNC path, or a path relative to the tool workbook:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_FILE_NOT_FOUND_OR_INACCESSIBLE	: file not found or inaccessible:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CANCELLED	Cancelled
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CALCULATING_DAYS	Calculating days:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_MULTIPLE_SOURCES	Multiple RUKH tables are open. Keep only one source workbook open.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPEN_SOURCE	Open the RUKH workbook: worksheet '
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TABLE	', table '
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TABLE_NOT_FOUND	Table not found: '
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ON_WORKSHEET	' on worksheet '
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CHECK_TABLE_CONFIGURATION	'. Check the table and worksheet names in Configuration.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_TABLE_TEXT	Table '
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_IS_MISSING_COLUMN	' is missing column '
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_RESULT_COLUMN_COUNT	The result table has an unexpected column count.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DISABLE_TOTALS	Disable the totals row in the result table.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_CELL_ERROR	: the cell contains an error.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_REQUIRED_VALUE	: a required value is missing.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SUBTRACT_BUSINESS_TRIPS	: Count business trip days
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_TRIP_FLAG	: the business trip flag must be TRUE / FALSE or 1 / 0 (Ukrainian and Russian equivalents are accepted).
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_DATE	: enter a valid Excel date or dd.mm.yyyy text (not earlier than 01.03.1900).
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_EXPECTED	: expected
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_ACTUAL	, actual
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_SAVE_BEFORE_LOGGING	Save the tool workbook before enabling logging.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_OPERATION_CANCELLED_BY_THE_USER	Operation cancelled by the user.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_NUMBER	Number=
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_DESCRIPTION	 | Description=
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_LOG_WRITE_FAILED	Unable to write the log:
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_INVALID_REFERENCE	Use file.xlsx|Worksheet!B2, where B2 is the first table header cell.
-value	PersonnelAtDisposalDaysCalculation::legacy.MSG_PARAMETER_TABLE_MISSING	No table starts at the specified header cell:
-value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}
+value	PersonnelAtDisposalDaysCalculation::header.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::header.errors.TaxId	Tax ID
+value	PersonnelAtDisposalDaysCalculation::header.errors.FullName	Full name
+value	PersonnelAtDisposalDaysCalculation::header.errors.Description	Error
+value	PersonnelAtDisposalDaysCalculation::header.Periods	Періоди
+value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
+value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
+value	PersonnelAtDisposalDaysCalculation::header.BusinessTrips	Зараховувати дні відрядження
+value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
+value	PersonnelAtDisposalDaysCalculation::source.events.sheet	Відсутні
+value	PersonnelAtDisposalDaysCalculation::source.events.table	ТВ
+value	PersonnelAtDisposalDaysCalculation::source.events.columns.Event	Подія
+value	PersonnelAtDisposalDaysCalculation::source.events.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::source.events.columns.Arrival	Прибуття
+value	PersonnelAtDisposalDaysCalculation::source.events.columns.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::source.events.columns.Departure	Вибуття
+value	PersonnelAtDisposalDaysCalculation::source.roster.sheet	Список
+value	PersonnelAtDisposalDaysCalculation::source.roster.table	Список
+value	PersonnelAtDisposalDaysCalculation::source.roster.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::source.roster.columns.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\Д3.xlsx|Д3!B2
+value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
+value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}

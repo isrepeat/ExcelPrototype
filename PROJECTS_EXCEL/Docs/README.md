@@ -29,6 +29,7 @@
 
 - [TravelDocumentsBuilder Word table DSL](TravelDocumentsBuilder-TableDSL.md) — table structure, dynamic rows, Word markers and generation settings.
 - [Обновление VBA-книги](../WorkbookUpdater/README.md) — установка, протокол обновления и восстановление.
-- [Генерация периодов](../vba/PeriodsGeneration/README.md) — структура, работа и подключение режима.
+- [PeriodsGeneration](../vba/PeriodsGeneration/README.md) — структура, работа и подключение режима.
+- [PersonnelAtDisposalDaysCalculation](../vba/PersonnelAtDisposalDaysCalculation/README.md) — входные данные, командировки, порог 60 дней и формулы месячного отбора.
 
 В каждой статье есть содержание и путь к родительскому разделу. Пояснения преимущественно на русском; имена API, ключи и кодовые примеры сохраняют синтаксис исходников.

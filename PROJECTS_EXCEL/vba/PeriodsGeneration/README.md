@@ -1,6 +1,6 @@
 # PeriodsGeneration
 
-**Навигация:** [Главная](../../../README.md) → [PROJECTS_EXCEL](../../README.md) → [Документация](../../Docs/README.md) → Генерация периодов
+**Навигация:** [Главная](../../../README.md) → [PROJECTS_EXCEL](../../README.md) → [Документация](../../Docs/README.md) → PeriodsGeneration
 
 ## Содержание
 

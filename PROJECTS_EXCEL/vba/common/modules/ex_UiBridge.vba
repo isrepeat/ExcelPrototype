@@ -30,8 +30,7 @@ Public Sub fn_OnShapeClick()
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
     busyEntered = ex_UiBusy.fn_Begin()
-    ' Hide intermediate changes until the command and layout refresh complete.
-    Application.ScreenUpdating = False
+    ' Keep long-running commands and their progress visible.
     shapeName = VBA.CStr(Application.Caller)
     If TypeOf Application.ActiveSheet Is Worksheet Then
         Set targetWorksheet = Application.ActiveSheet
@@ -43,6 +42,8 @@ Public Sub fn_OnShapeClick()
             Set context = Nothing
             If ex_UiRuntime.fn_TryGetContext(targetWorksheet, context) Then
                 stageStartedAt = VBA.Timer
+                ' Suppress intermediate layout changes only during the flush.
+                Application.ScreenUpdating = False
                 If Not context.FlushLayout(diagnostic) Then
                     VBA.Err.Raise VBA.vbObjectError + 2231, , diagnostic
                 End If

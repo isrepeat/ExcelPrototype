@@ -19,6 +19,7 @@ Private m_errorTable As obj_UiRawTable
 Private m_calculateCommand As obj_UiCommand
 Private m_cancelCommand As obj_UiCommand
 Private m_refreshCommand As obj_UiCommand
+Private m_exportCommand As obj_UiCommand
 Private m_title As String
 
 ' //
@@ -39,6 +40,9 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim textKey As Variant
     Dim configuredText As String
     Dim inputReference As String
+    Dim dateFormat As String
+    Dim currentDate As Date
+    Dim endDate As String
     Dim headers(0 To 6) As Variant
     Dim headerIndex As Long
     Dim errorCaption As String
@@ -58,7 +62,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If bindings Is Nothing Then
         GoTo Failed
     End If
-    For Each textKey In VBA.Array("Calculate", "Cancel", "RefreshPage", "InputReferenceLabel", "EndDateLabel")
+    For Each textKey In VBA.Array("Calculate", "Cancel", "RefreshPage", "Export", "InputReferenceLabel", "EndDateLabel")
         If Not private_TryReadConfiguration("text." & VBA.CStr(textKey), configuredText) Then
             GoTo Failed
         End If
@@ -75,7 +79,12 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not bindings.SetValue("Form", "InputReference", inputReference) Then
         GoTo Failed
     End If
-    If Not bindings.SetValue("Form", "EndDate", vbNullString) Then
+    If Not private_TryReadConfiguration("format.date", dateFormat) Then
+        GoTo Failed
+    End If
+    currentDate = VBA.Date
+    endDate = VBA.Format$(VBA.DateSerial(VBA.Year(currentDate), VBA.Month(currentDate), 1), dateFormat)
+    If Not bindings.SetValue("Form", "EndDate", endDate) Then
         GoTo Failed
     End If
 
@@ -95,7 +104,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         GoTo Failed
     End If
     Set m_errorTable = New obj_UiRawTable
-    If Not private_TryReadConfiguration("legacy.ERROR_COL_DESCRIPTION", errorCaption) Then
+    If Not private_TryReadConfiguration("header.errors.Description", errorCaption) Then
         GoTo Failed
     End If
     If Not m_errorTable.InitializeEmpty(VBA.Array(headers(0), headers(1), errorCaption)) Then
@@ -132,6 +141,14 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         GoTo Failed
     End If
 
+    Set m_exportCommand = New obj_UiCommand
+    If Not m_exportCommand.Initialize(Me, "ExportHandler") Then
+        GoTo Failed
+    End If
+    If Not bindings.SetObject("Commands", "Export", m_exportCommand) Then
+        GoTo Failed
+    End If
+
     ex_Core.fn_Diagnostic_WriteLog "PADC_BINDINGS_READY"
     Initialize = True
     m_isInitialized = Initialize
@@ -148,6 +165,10 @@ Public Sub Dispose()
 
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_exportCommand Is Nothing Then
+        m_exportCommand.Dispose
+    End If
+    Set m_exportCommand = Nothing
     If Not m_calculateCommand Is Nothing Then
         m_calculateCommand.Dispose
     End If
@@ -189,6 +210,14 @@ Public Function RefreshPageHandler() As Boolean
     End If
     ex_Core.fn_Diagnostic_WriteLog "PADC_PAGE_REFRESH_REQUESTED"
     RefreshPageHandler = m_pageBase.UpdatePage()
+End Function
+
+Public Function ExportHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    m_calculationRun.ExportResult
+    ExportHandler = True
 End Function
 
 Public Function CancelHandler() As Boolean

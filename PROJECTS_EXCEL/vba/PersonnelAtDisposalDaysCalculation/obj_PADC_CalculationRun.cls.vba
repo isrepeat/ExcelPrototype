@@ -24,6 +24,8 @@ Private m_calculationService As obj_PADC_CalculationService
 Private m_running As Boolean
 Private m_configurationReady As Boolean
 Private m_disposeRequested As Boolean
+Private m_exportValues As Variant
+Private m_exportEndDay As Long
 Private Const CANCEL_ERROR As Long = vbObjectError + 2101
 
 ' //
@@ -64,6 +66,7 @@ Public Sub Dispose()
     End If
     m_isInitialized = False
     m_isDisposed = True
+    m_exportValues = Empty
     private_DisposeServices
     Set m_pageBase = Nothing
 End Sub
@@ -77,31 +80,34 @@ Public Sub Calculate()
 
     private_EnsureReady
     If m_running Then
-        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_ALREADY_RUNNING"), vbExclamation
+        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("text.AlreadyRunning"), vbExclamation
         Exit Sub
     End If
     On Error GoTo Failed
     m_running = True
+    m_exportValues = Empty
     If Not private_InitializeServices() Then
         GoTo Cleanup
     End If
     m_runContext.ClearLog
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_PARAMETER_LOADING_STARTED")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("text.ParameterLoadingStarted")
+    VBA.DoEvents
+    m_runContext.LogDebug m_configuration.GetText("text.ParameterLoadingStarted")
     If Not TypeOf Application.ActiveSheet Is Worksheet Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_SELECT_TOOL_SHEET")
+        m_configuration.Fail m_configuration.GetText("text.SelectToolSheet")
     End If
     Set parameterSheet = Application.ActiveSheet
     If Not parameterSheet.Parent Is ThisWorkbook Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_WRONG_WORKBOOK")
+        m_configuration.Fail m_configuration.GetText("text.WrongWorkbook")
     End If
     m_runContext.CheckCancel 0
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_PARAMETER_WORKSHEET") & parameterSheet.Name
+    m_runContext.LogDebug m_configuration.GetText("text.ParameterWorksheet") & parameterSheet.Name
     Set m_parameters = New obj_PADC_Parameters
     If Not m_parameters.Initialize(m_pageBase, m_configuration, m_validation, m_runContext, parameterSheet) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     m_runContext.CheckCancel 0
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_PARAMETER_LOADING_COMPLETED")
+    m_runContext.LogDebug m_configuration.GetText("text.ParameterLoadingCompleted")
     m_runContext.LogStage "OpenInput.Started"
     Set parameterTable = m_dataSource.OpenParameterTable(m_parameters)
     m_runContext.LogStage "OpenInput.Completed"
@@ -132,9 +138,9 @@ Failed:
         ex_Core.fn_Diagnostic_WriteLog "PADC_FAILED | Number=" & errorNumber & " | " & errorText
     End If
     If errorNumber = CANCEL_ERROR Then
-        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_OPERATION_CANCELLED"), vbInformation
+        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("text.OperationCancelled"), vbInformation
     ElseIf m_configurationReady Then
-        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_OPERATION_STOPPED") & errorText, vbExclamation
+        ex_WindowsUi.fn_ShowMessage m_configuration.GetText("text.OperationStopped") & errorText, vbExclamation
     Else
         ex_WindowsUi.fn_ShowMessage errorText, vbExclamation
     End If
@@ -148,6 +154,40 @@ Public Sub RequestCancel()
     End If
 End Sub
 
+Public Sub ExportResult()
+    Dim configuration As obj_PADC_Configuration
+    Dim exporter As obj_PADC_ResultExport
+    Dim errorText As String
+
+    private_EnsureReady
+    If m_running Then
+        Exit Sub
+    End If
+    Set configuration = New obj_PADC_Configuration
+    If Not configuration.Initialize() Then
+        Exit Sub
+    End If
+    On Error GoTo Failed
+    If VBA.IsEmpty(m_exportValues) Then
+        configuration.Fail configuration.GetText("text.ExportEmpty")
+    End If
+    Set exporter = New obj_PADC_ResultExport
+    If Not exporter.Initialize(configuration) Then
+        configuration.Fail configuration.GetText("text.TargetPrepareFailed")
+    End If
+    exporter.CreateWorkbook m_exportValues, m_exportEndDay
+Cleanup:
+    If Not exporter Is Nothing Then
+        exporter.Dispose
+    End If
+    configuration.Dispose
+    Exit Sub
+Failed:
+    errorText = VBA.Err.Description
+    ex_WindowsUi.fn_ShowMessage configuration.GetText("text.ExportFailed") & errorText, vbExclamation
+    Resume Cleanup
+End Sub
+
 ' //
 ' // Private
 ' //
@@ -159,29 +199,29 @@ Private Function private_InitializeServices() As Boolean
     m_configurationReady = True
     Set m_runContext = New obj_PADC_RunContext
     If Not m_runContext.Initialize(m_configuration) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     Set m_validation = New obj_PADC_Validation
     If Not m_validation.Initialize(m_configuration) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     Set m_dataSource = New obj_PADC_DataSource
     If Not m_dataSource.Initialize(m_configuration, m_runContext) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     Set m_eventPreparation = New obj_PADC_EventPreparation
     If Not m_eventPreparation.Initialize(m_configuration, m_dataSource, m_validation, m_runContext) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     Set m_resultWriter = New obj_PADC_ResultWriter
     If Not m_resultWriter.Initialize(m_pageBase, m_configuration) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     Set m_calculationService = New obj_PADC_CalculationService
     If Not m_calculationService.Initialize(m_configuration.ThresholdDays, _
-            m_configuration.GetText("legacy.PRESENT_EVENT_NAME"), _
+            m_configuration.GetText("event.present"), _
             m_configuration.GetText("format.periodRangeSeparator")) Then
-        m_configuration.Fail m_configuration.GetText("legacy.MSG_TARGET_PREPARE_FAILED")
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     private_InitializeServices = True
 End Function
@@ -240,6 +280,7 @@ Private Sub private_CalculatePreparedPeople( _
     Dim thresholdDate As Variant
     Dim count As Long
     Dim i As Long
+    Dim exportValues() As Variant
 
     ReDim names(1 To prepared.Count, 1 To 1)
     ReDim ids(1 To prepared.Count, 1 To 1)
@@ -269,16 +310,30 @@ Private Sub private_CalculatePreparedPeople( _
         End If
     Next i
     m_runContext.CheckCancel 0
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_WRITING_RESULT") & count & _
-        m_configuration.GetText("legacy.MSG_ROWS")
-    ex_Core.fn_StatusBar_Show m_configuration.GetText("legacy.MSG_WRITING_RESULTS")
+    m_runContext.LogDebug m_configuration.GetText("text.WritingResult") & count & _
+        m_configuration.GetText("text.Rows")
+    ex_Core.fn_StatusBar_Show m_configuration.GetText("text.WritingResults")
     m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & failures.Count
     m_resultWriter.Publish names, ids, starts, trips, periods, days, thresholds, count, failures
+    If count > 0 Then
+        ReDim exportValues(1 To count, 1 To 7)
+        For i = 1 To count
+            exportValues(i, 1) = names(i, 1)
+            exportValues(i, 2) = ids(i, 1)
+            exportValues(i, 3) = starts(i, 1)
+            exportValues(i, 4) = trips(i, 1)
+            exportValues(i, 5) = periods(i, 1)
+            exportValues(i, 6) = days(i, 1)
+            exportValues(i, 7) = thresholds(i, 1)
+        Next i
+        m_exportValues = exportValues
+        m_exportEndDay = lastDay
+    End If
     m_runContext.LogStage "PublishResults.Completed"
-    m_runContext.LogDebug m_configuration.GetText("legacy.MSG_CALCULATION_COMPLETED_PEOPLE") & count & _
-        m_configuration.GetText("legacy.MSG_SKIPPED_PEOPLE") & failures.Count
-    ex_WindowsUi.fn_ShowMessage m_configuration.GetText("legacy.MSG_CALCULATION_COMPLETED_PEOPLE") & count & _
-        m_configuration.GetText("legacy.MSG_SKIPPED_PEOPLE") & failures.Count, vbInformation
+    m_runContext.LogDebug m_configuration.GetText("text.CalculationCompletedPeople") & count & _
+        m_configuration.GetText("text.SkippedPeople") & failures.Count
+    ex_WindowsUi.fn_ShowMessage m_configuration.GetText("text.CalculationCompletedPeople") & count & _
+        m_configuration.GetText("text.SkippedPeople") & failures.Count, vbInformation, m_configuration.GetText("text.Title")
 End Sub
 
 Private Sub private_EnsureReady()
