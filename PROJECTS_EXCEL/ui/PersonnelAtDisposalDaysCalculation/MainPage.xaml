@@ -12,14 +12,6 @@
                      caption="{Binding Path=Text.Calculate}"
                      command="{Binding Path=Commands.Calculate}"/>
 
-    <controls:button name="RefreshPage"
-                     row="2"
-                     column="6"
-                     rowSpan="2"
-                     style="refreshButton"
-                     caption="{Binding Path=Text.RefreshPage}"
-                     command="{Binding Path=Commands.RefreshPage}"/>
-
     <controls:button name="Cancel"
                      row="5"
                      column="2"
@@ -29,9 +21,10 @@
                      command="{Binding Path=Commands.Cancel}"/>
 
     <controls:button name="Export"
-                     row="5"
-                     column="6"
-                     style="refreshButton"
+                     row="2"
+                     column="4"
+                     rowSpan="2"
+                     style="exportButton"
                      caption="{Binding Path=Text.Export}"
                      command="{Binding Path=Commands.Export}"/>
 
@@ -50,12 +43,28 @@
              required="true"/>
     </controls:form>
 
+    <controls:label name="LastStatusLabel"
+                    row="2"
+                    column="11"
+                    columnSpan="2"
+                    style="statusHeading"
+                    text="{Binding Path=Text.LastStatus}"/>
+
+    <controls:label name="LastStatus"
+                    row="3"
+                    column="11"
+                    rowSpan="3"
+                    columnSpan="2"
+                    style="{Binding Path=Form.ActionStatusStyle}"
+                    text="{Binding Path=Form.ActionStatus}"/>
+
     <stackPanel row="7"
                 column="2"
                 orientation="vertical">
     <controls:table name="CalculationRows"
                     itemsSource="{Binding Path=Data.CalculationRows}"
                     style="resultTable"
+                    representation="Smart"
                     showHeaders="true"/>
     <stackPanel orientation="vertical"/>
     <controls:table name="CalculationErrors"
@@ -66,106 +75,109 @@
   </grid>
   <styles>
     <controlStyle name="calculateButton"
-                  backColor="#3F3F3F"
-                  textColor="#92D050"
+                  backColor="#3B3B3B"
+                  textColor="#F4A46B"
                   fontName="Calibri"
-                  fontSize="12"
-                  borderColor="#172B34"
+                  fontSize="11"
+                  borderColor="#000000"
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
-    <controlStyle name="refreshButton"
-                  backColor="#3F3F3F"
+    <controlStyle name="exportButton"
+                  backColor="#3B3B3B"
                   textColor="#FFFFFF"
                   fontName="Calibri"
-                  fontSize="12"
-                  borderColor="#172B34"
+                  fontSize="11"
+                  borderColor="#000000"
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="cancelButton"
-                  backColor="#A21919"
+                  backColor="#303030"
                   textColor="#FFFFFF"
                   fontName="Calibri"
-                  fontSize="12"
+                  fontSize="11"
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="parameterLabel"
-                  backColor="#262626"
+                  backColor="#333333"
                   textColor="#FFFFFF"
-                  fontName="Times New Roman"
-                  fontSize="12"
+                  fontName="Calibri"
+                  fontSize="11"
                   horizontal="center"
                   vertical="center"/>
     <controlStyle name="parameterField"
-                  backColor="#3B3B3B"
+                  backColor="#2D2D2D"
                   textColor="#FFFFFF"
-                  fontName="Times New Roman"
-                  fontSize="12"
+                  fontName="Calibri"
+                  fontSize="11"
                   borderColor="#000000"
                   borderWeight="thin"
-                  horizontal="left"
+                  horizontal="center"
                   vertical="center"/>
     <controlStyle name="resultTable"
                   backColor="#262626"
                   textColor="#FFFFFF"
-                  fontName="Times New Roman"
-                  fontSize="14"
+                  fontName="Calibri"
+                  fontSize="11"
                   borderColor="#000000"
                   borderWeight="thin"
                   horizontal="center"
                   vertical="center"/>
+    <controlStyle name="statusHeading"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#2D2D2D"
+                  textColor="#999999"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="right"
+                  vertical="center"/>
+    <controlStyle name="statusNormal"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#262626"
+                  textColor="#909090"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"/>
+    <controlStyle name="statusError"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#262626"
+                  textColor="#FFD966"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"/>
     <stylePipelineStage name="default">
       <layer name="sheet">
         <rule target="sheet"
-              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Times New Roman;fontSize:14;borderColor:#000000;borderWeight:thin;rowHeight:28;overflow:wrap;gridLines:false;zoom:85%;}"/>
+              styles="{backColor:#262626;fontColor:#FFFFFF;fontName:Calibri;fontSize:11;borderColor:#000000;borderWeight:thin;rowHeight:25;overflow:wrap;gridLines:false;zoom:90%;}"/>
         <rule target="column"
               selector="address=A:A"
               styles="{width:9;}"/>
         <rule target="column"
-              selector="address=B:B"
-              styles="{width:27;}"/>
-        <rule target="column"
-              selector="address=C:C"
-              styles="{width:22;}"/>
-        <rule target="column"
-              selector="address=D:D"
-              styles="{width:23;}"/>
-        <rule target="column"
-              selector="address=E:E"
-              styles="{width:20;}"/>
-        <rule target="column"
-              selector="address=F:F"
-              styles="{width:38;}"/>
-        <rule target="column"
-              selector="address=G:G"
-              styles="{width:19;}"/>
-        <rule target="column"
-              selector="address=H:H"
-              styles="{width:25;}"/>
-        <rule target="column"
-              selector="address=I:I"
-              styles="{width:48;}"/>
-        <rule target="row"
-              selector="address=7:7"
-              styles="{rowHeight:48;}"/>
+              selector="address=B:K"
+              styles="{width:18;}"/>
         <rule target="cell"
               selector="address=I2"
               styles="{cellType:text;}"/>
         <rule target="range"
               selector="address=H2:I2"
-              styles="{fontSize:12;}"/>
+              styles="{fontSize:11;}"/>
       </layer>
       <layer name="table">
         <rule target="controlPart"
               selector="type=table;part=header"
-              styles="{backColor:#0D0D0D;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;overflow:wrap;}"/>
+              styles="{backColor:#333333;fontColor:#FFFFFF;fontBold:true;horizontal:center;vertical:center;overflow:wrap;rowHeight:auto;}"/>
+        <rule target="controlPart"
+              selector="type=table;part=rows"
+              styles="{overflow:wrap;rowHeight:auto;}"/>
         <rule target="controlPart"
               selector="type=table;part=row;tags=even"
-              styles="{backColor:#3B3B3B;}"/>
-        <rule target="column"
-              selector="address=F:F"
-              styles="{fontColor:#F4A46B;}"/>
+              styles="{backColor:#383838;}"/>
       </layer>
     </stylePipelineStage>
   </styles>

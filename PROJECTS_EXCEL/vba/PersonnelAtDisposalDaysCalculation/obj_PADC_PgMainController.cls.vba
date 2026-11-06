@@ -18,7 +18,6 @@ Private m_resultTable As obj_UiRawTable
 Private m_errorTable As obj_UiRawTable
 Private m_calculateCommand As obj_UiCommand
 Private m_cancelCommand As obj_UiCommand
-Private m_refreshCommand As obj_UiCommand
 Private m_exportCommand As obj_UiCommand
 Private m_title As String
 
@@ -42,7 +41,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim dateFormat As String
     Dim currentDate As Date
     Dim endDate As String
-    Dim headers(0 To 5) As Variant
+    Dim headers(0 To 9) As Variant
     Dim headerIndex As Long
     Dim errorCaption As String
 
@@ -52,8 +51,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
 
     Set m_pageBase = pageBase
     If m_pageBase Is Nothing Then
-        ex_WindowsUi.fn_ShowMessage "The PersonnelAtDisposalDaysCalculation page controller requires a page base.", _
-            VBA.vbExclamation, "PersonnelAtDisposalDaysCalculation"
+        ex_Core.fn_StatusBar_Show "The PersonnelAtDisposalDaysCalculation page controller requires a page base."
         Exit Function
     End If
 
@@ -61,7 +59,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If bindings Is Nothing Then
         GoTo Failed
     End If
-    For Each textKey In VBA.Array("Calculate", "Cancel", "RefreshPage", "Export", "EndDateLabel")
+    For Each textKey In VBA.Array("Calculate", "Cancel", "Export", "EndDateLabel", "LastStatus")
         If Not private_TryReadConfiguration("text." & VBA.CStr(textKey), configuredText) Then
             GoTo Failed
         End If
@@ -69,6 +67,15 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
             GoTo Failed
         End If
     Next textKey
+    If Not private_TryReadConfiguration("status.Ready", configuredText) Then
+        GoTo Failed
+    End If
+    If Not bindings.SetValue("Form", "ActionStatus", configuredText) Then
+        GoTo Failed
+    End If
+    If Not bindings.SetValue("Form", "ActionStatusStyle", "statusNormal") Then
+        GoTo Failed
+    End If
     If Not private_TryReadConfiguration("text.Title", m_title) Then
         GoTo Failed
     End If
@@ -81,9 +88,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         GoTo Failed
     End If
 
-    For Each textKey In VBA.Array("FullName", "TaxId", "StartDate", _
-            "Periods", "CountedDays", "ThresholdDate")
-        If Not private_TryReadConfiguration("header." & VBA.CStr(textKey), configuredText) Then
+    For Each textKey In VBA.Array("header.FullName", "header.TaxId", "header.StartDate", _
+            "header.Periods", "header.CountedDays", "header.ThresholdDate", _
+            "export.header.From", "export.header.Through", "export.header.Period", "export.header.Include")
+        If Not private_TryReadConfiguration(VBA.CStr(textKey), configuredText) Then
             GoTo Failed
         End If
         headers(headerIndex) = configuredText
@@ -126,14 +134,6 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not bindings.SetObject("Commands", "Cancel", m_cancelCommand) Then
         GoTo Failed
     End If
-    Set m_refreshCommand = New obj_UiCommand
-    If Not m_refreshCommand.Initialize(Me, "RefreshPageHandler") Then
-        GoTo Failed
-    End If
-    If Not bindings.SetObject("Commands", "RefreshPage", m_refreshCommand) Then
-        GoTo Failed
-    End If
-
     Set m_exportCommand = New obj_UiCommand
     If Not m_exportCommand.Initialize(Me, "ExportHandler") Then
         GoTo Failed
@@ -168,9 +168,6 @@ Public Sub Dispose()
     If Not m_cancelCommand Is Nothing Then
         m_cancelCommand.Dispose
     End If
-    If Not m_refreshCommand Is Nothing Then
-        m_refreshCommand.Dispose
-    End If
     If Not m_resultTable Is Nothing Then
         m_resultTable.Dispose
     End If
@@ -184,7 +181,6 @@ Public Sub Dispose()
     Set m_errorTable = Nothing
     Set m_calculateCommand = Nothing
     Set m_cancelCommand = Nothing
-    Set m_refreshCommand = Nothing
     Set m_resultTable = Nothing
     Set m_pageBase = Nothing
 End Sub
@@ -195,14 +191,6 @@ Public Function CalculateHandler() As Boolean
     End If
     m_calculationRun.Calculate
     CalculateHandler = True
-End Function
-
-Public Function RefreshPageHandler() As Boolean
-    If Not m_isInitialized Or m_isDisposed Then
-        Exit Function
-    End If
-    ex_Core.fn_Diagnostic_WriteLog "PADC_PAGE_REFRESH_REQUESTED"
-    RefreshPageHandler = m_pageBase.UpdatePage()
 End Function
 
 Public Function ExportHandler() As Boolean
@@ -232,8 +220,7 @@ Private Function private_TryReadConfiguration( _
 
     key = "PersonnelAtDisposalDaysCalculation::" & suffix
     If Not ex_Core.fn_TryGetWorkbookConfigValue(key, value) Then
-        ex_WindowsUi.fn_ShowMessage "Required configuration key not found: " & key, _
-            vbExclamation, "Configuration"
+        ex_Core.fn_StatusBar_Show "Required configuration key not found: " & key
         Exit Function
     End If
     private_TryReadConfiguration = True

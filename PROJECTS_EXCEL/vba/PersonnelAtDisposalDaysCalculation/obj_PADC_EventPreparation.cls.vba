@@ -108,24 +108,32 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     cutoff = parameters.EndDay - 1
     disposalCode = m_configuration.GetText("source.personnel.disposalCode")
     rosterCode = m_configuration.GetText("source.personnel.rosterCode")
+    m_runContext.BeginStep m_configuration.GetText("progress.Personnel")
     Set personnel = m_dataSource.ReadConfiguredSource("source.personnel", parameters.InputPath, _
         VBA.Array("TaxId", "FullName", "Rank", "Code"), parameters.SheetName, parameters.RangeAddress)
+    m_runContext.CompleteStep
+    m_runContext.BeginStep m_configuration.GetText("progress.Orders")
     Set orders = m_dataSource.ReadConfiguredSource("source.orders", vbNullString, _
         VBA.Array("TaxId", "FullName", "Action", "Date"))
+    m_runContext.CompleteStep
+    m_runContext.BeginStep m_configuration.GetText("progress.Events")
     Set events = m_dataSource.ReadConfiguredSource("source.events", vbNullString, _
         VBA.Array("TaxId", "FullName", "Event", "Departure", "Arrival"))
+    m_runContext.CompleteStep
     Set dates = private_IndexDates(orders, cutoff)
     Set seen = VBA.CreateObject(DICTIONARY_PROG_ID)
     Set prepared = New Collection
     personnelValues = personnel.Values
     eventValues = events.Values
     Set eventIndex = New obj_PADC_PersonIndex
+    m_runContext.BeginStep m_configuration.GetText("progress.EventIndex"), events.RowCount
     If Not eventIndex.Initialize(eventValues, events.RowCount, 1, 2, m_configuration, m_validation, m_runContext) Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
+    m_runContext.CompleteStep
 
+    m_runContext.BeginStep m_configuration.GetText("progress.Preparation"), personnel.RowCount
     For rowIndex = 1 To personnel.RowCount
-        m_runContext.CheckCancel rowIndex
         status = m_validation.MatchText(personnelValues(rowIndex, 4))
         If VBA.StrComp(status, disposalCode, vbTextCompare) = 0 Or VBA.StrComp(status, rosterCode, vbTextCompare) = 0 Then
             context = parameters.SheetName & m_configuration.GetText("text.ParameterRow") & rowIndex
@@ -206,7 +214,9 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
             prepared.Add preparedPerson
         End If
 NextPersonnelRow:
+        m_runContext.ReportProgress rowIndex
     Next rowIndex
+    m_runContext.CompleteStep
     If prepared.Count = 0 Then
         m_configuration.Fail m_configuration.GetText("text.ParametersEmpty")
     End If
@@ -235,8 +245,8 @@ Private Function private_IndexDates( _
     nameOwners.CompareMode = vbTextCompare
     actionName = m_configuration.GetText("source.orders.action")
     values = orders.Values
+    m_runContext.BeginStep m_configuration.GetText("progress.OrderIndex"), orders.RowCount
     For rowIndex = 1 To orders.RowCount
-        m_runContext.CheckCancel rowIndex
         If VBA.StrComp(m_validation.MatchText(values(rowIndex, 3)), actionName, vbTextCompare) = 0 Then
             taxId = m_validation.MatchText(values(rowIndex, 1))
             fullName = m_validation.MatchText(values(rowIndex, 2))
@@ -255,7 +265,9 @@ Private Function private_IndexDates( _
                 End If
             End If
         End If
+        m_runContext.ReportProgress rowIndex
     Next rowIndex
+    m_runContext.CompleteStep
     Set private_IndexDates = dates
 End Function
 

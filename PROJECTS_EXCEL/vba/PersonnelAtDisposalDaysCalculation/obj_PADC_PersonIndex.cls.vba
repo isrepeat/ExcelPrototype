@@ -115,7 +115,6 @@ Private Sub private_BuildPersonIndex( _
     m_nameIndex.CompareMode = vbTextCompare
     m_nameIds.CompareMode = vbTextCompare
     For i = 1 To count
-        m_runContext.CheckCancel i
         taxId = m_validation.MatchText(data(i, taxColumn))
         fullName = m_validation.MatchText(data(i, nameColumn))
         If VBA.Len(taxId) > 0 Then
@@ -140,6 +139,7 @@ Private Sub private_BuildPersonIndex( _
                 ids(taxId) = True
             End If
         End If
+        m_runContext.ReportProgress i
     Next i
 End Sub
 

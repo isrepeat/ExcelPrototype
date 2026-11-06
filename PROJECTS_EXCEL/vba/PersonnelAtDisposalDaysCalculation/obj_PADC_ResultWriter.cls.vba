@@ -66,7 +66,8 @@ Public Sub Publish( _
     ByRef days() As Variant, _
     ByRef thresholds() As Variant, _
     ByVal count As Long, _
-    ByVal failures As Collection _
+    ByVal failures As Collection, _
+    ByVal lastDay As Long _
 )
     Dim values() As Variant
     Dim headers As Variant
@@ -76,22 +77,46 @@ Public Sub Publish( _
     Dim i As Long
     Dim resultTable As obj_UiRawTable
     Dim errorTable As obj_UiRawTable
+    Dim monthStart As Date
+    Dim monthEnd As Date
+    Dim through As Date
+    Dim threshold As Date
+    Dim include As Boolean
+    Dim separator As String
 
     private_EnsureReady
     headers = VBA.Array(m_configuration.GetText("header.FullName"), m_configuration.GetText("header.TaxId"), m_configuration.GetText("header.StartDate"), _
-        m_configuration.GetText("header.Periods"), m_configuration.GetText("header.CountedDays"), m_configuration.GetText("header.ThresholdDate"))
+        m_configuration.GetText("header.Periods"), m_configuration.GetText("header.CountedDays"), m_configuration.GetText("header.ThresholdDate"), _
+        m_configuration.GetText("export.header.From"), m_configuration.GetText("export.header.Through"), m_configuration.GetText("export.header.Period"), _
+        m_configuration.GetText("export.header.Include"))
     Set resultTable = New obj_UiRawTable
     If count > 0 Then
-        ReDim values(1 To count, 1 To 6)
+        monthStart = VBA.DateSerial(VBA.Year(VBA.CDate(lastDay)), VBA.Month(VBA.CDate(lastDay)) - 1, 1)
+        monthEnd = VBA.DateSerial(VBA.Year(VBA.CDate(lastDay)), VBA.Month(VBA.CDate(lastDay)), 0)
+        separator = " " & m_configuration.GetText("format.periodRangeSeparator") & " "
+        ReDim values(1 To count, 1 To 10)
         For i = 1 To count
             values(i, 1) = names(i, 1)
             values(i, 2) = ids(i, 1)
             values(i, 3) = VBA.Format$(starts(i, 1), FORMAT_DATE)
             values(i, 4) = periods(i, 1)
             values(i, 5) = days(i, 1)
+            include = True
+            through = monthEnd
             If Not VBA.IsEmpty(thresholds(i, 1)) Then
-                values(i, 6) = VBA.Format$(thresholds(i, 1), FORMAT_DATE)
+                threshold = VBA.CDate(thresholds(i, 1))
+                values(i, 6) = VBA.Format$(threshold, FORMAT_DATE)
+                include = threshold > monthStart
+                If threshold <= monthEnd Then
+                    through = threshold - 1
+                End If
             End If
+            If include Then
+                values(i, 7) = VBA.Format$(monthStart, FORMAT_DATE)
+                values(i, 8) = VBA.Format$(through, FORMAT_DATE)
+                values(i, 9) = values(i, 7) & separator & values(i, 8)
+            End If
+            values(i, 10) = include
         Next i
         If Not resultTable.Initialize(values, headers) Then
             m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")

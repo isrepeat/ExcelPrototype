@@ -36,7 +36,7 @@ End Property
 ' //
 ' // API
 ' //
-Public Function Initialize() As Boolean
+Public Function Initialize(ByRef diagnostic As String) As Boolean
     Dim suffix As Variant
     Dim key As String
     Dim value As String
@@ -72,7 +72,7 @@ Public Function Initialize() As Boolean
     Initialize = True
     Exit Function
 Failed:
-    ex_WindowsUi.fn_ShowMessage "Required configuration key is missing or invalid: " & key, vbExclamation
+    diagnostic = "Required configuration key is missing or invalid: " & key
     Me.Dispose
 End Function
 
@@ -105,6 +105,22 @@ Private Function private_RequiredKeys() As Collection
     Dim keys As Collection
 
     Set keys = New Collection
+    keys.Add "progress.Template"
+    keys.Add "progress.Parameters"
+    keys.Add "progress.Personnel"
+    keys.Add "progress.Orders"
+    keys.Add "progress.Events"
+    keys.Add "progress.OrderIndex"
+    keys.Add "progress.EventIndex"
+    keys.Add "progress.Preparation"
+    keys.Add "progress.Calculation"
+    keys.Add "progress.Publish"
+    keys.Add "status.Loading"
+    keys.Add "status.Calculating"
+    keys.Add "status.Completed"
+    keys.Add "status.Cancelled"
+    keys.Add "status.Cancelling"
+    keys.Add "status.Exported"
     keys.Add "source.personnel.columns.TaxId"
     keys.Add "source.personnel.columns.FullName"
     keys.Add "source.personnel.columns.Rank"
@@ -183,9 +199,7 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "text.ParameterLoadingCompleted"
     keys.Add "text.InputFile"
     keys.Add "text.EndDate"
-    keys.Add "text.OperationCancelled"
     keys.Add "text.OperationStopped"
-    keys.Add "text.CancellingOperation"
     keys.Add "text.RukhSource"
     keys.Add "text.ParametersEmpty"
     keys.Add "text.People"
@@ -204,13 +218,11 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "text.WritingResult"
     keys.Add "text.Rows"
     keys.Add "text.TargetPrepareFailed"
-    keys.Add "text.WritingResults"
     keys.Add "text.CalculationCompletedPeople"
     keys.Add "text.RelativePathBase"
     keys.Add "text.AmbiguousPath"
     keys.Add "text.FileNotFoundOrInaccessible"
     keys.Add "text.Cancelled"
-    keys.Add "text.CalculatingDays"
     keys.Add "text.MultipleSources"
     keys.Add "text.OpenSource"
     keys.Add "text.Table"

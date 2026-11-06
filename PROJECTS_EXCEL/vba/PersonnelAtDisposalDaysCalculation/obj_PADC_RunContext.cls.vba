@@ -15,6 +15,11 @@ Private m_isDisposed As Boolean
 Private m_configuration As obj_PADC_Configuration
 Private m_cancelled As Boolean
 Private m_lastUiYield As Single
+Private m_stage As String
+Private m_step As Long
+Private m_stageTotal As Long
+Private m_completed As Long
+Private Const STEP_COUNT As Long = 9
 Private Const UI_YIELD_SECONDS As Single = 0.1
 Private Const CANCEL_ERROR As Long = vbObjectError + 2101
 Private Const ERROR_SOURCE As String = "PersonnelAtDisposalDays"
@@ -58,7 +63,30 @@ End Sub
 Public Sub RequestCancel()
     private_EnsureReady
     m_cancelled = True
-    ex_Core.fn_StatusBar_Show m_configuration.GetText("text.CancellingOperation")
+End Sub
+
+Public Sub BeginStep( _
+    ByVal stage As String, _
+    Optional ByVal total As Long = 1 _
+)
+    private_EnsureReady
+    m_stage = stage
+    m_step = m_step + 1
+    m_stageTotal = total
+    m_completed = 0
+    Me.CheckCancel 0
+End Sub
+
+Public Sub ReportProgress(ByVal completed As Long)
+    private_EnsureReady
+    m_completed = completed
+    Me.CheckCancel completed
+End Sub
+
+Public Sub CompleteStep()
+    private_EnsureReady
+    m_completed = m_stageTotal
+    private_ShowProgress
 End Sub
 
 Public Sub CheckCancel(ByVal index As Long)
@@ -75,7 +103,9 @@ Public Sub CheckCancel(ByVal index As Long)
         End If
     End If
     m_lastUiYield = currentTime
-    ex_Core.fn_StatusBar_Show m_configuration.GetText("text.CalculatingDays") & index
+    If m_step > 0 Then
+        private_ShowProgress
+    End If
     If index = 0 Then
         Me.LogStage "Yield.Started"
     End If
@@ -128,6 +158,18 @@ End Sub
 ' //
 ' // Private
 ' //
+Private Sub private_ShowProgress()
+    Dim message As String
+
+    message = m_configuration.GetText("progress.Template")
+    message = VBA.Replace$(message, "{stage}", m_stage)
+    message = VBA.Replace$(message, "{completed}", VBA.CStr(m_completed))
+    message = VBA.Replace$(message, "{total}", VBA.CStr(m_stageTotal))
+    message = VBA.Replace$(message, "{step}", VBA.CStr(m_step))
+    message = VBA.Replace$(message, "{steps}", VBA.CStr(STEP_COUNT))
+    ex_Core.fn_StatusBar_Show message
+End Sub
+
 Private Sub private_EnsureReady()
     If Not m_isInitialized Or m_isDisposed Then
         VBA.Err.Raise vbObjectError + 2100, "obj_PADC_RunContext", "Service is not initialized."

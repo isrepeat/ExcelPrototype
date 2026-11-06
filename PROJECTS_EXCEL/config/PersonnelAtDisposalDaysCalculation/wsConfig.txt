@@ -23,13 +23,13 @@ value	PersonnelAtDisposalDaysCalculation::text.Departure	: Departure
 value	PersonnelAtDisposalDaysCalculation::text.InputFile	Input file:
 value	PersonnelAtDisposalDaysCalculation::text.TableText	Table '
 value	PersonnelAtDisposalDaysCalculation::text.TimePoint	: Start date
+value	PersonnelAtDisposalDaysCalculation::text.LastStatus	Статус останньої дії
 value	PersonnelAtDisposalDaysCalculation::text.OpenSource	Open the RUKH workbook: worksheet '
 value	PersonnelAtDisposalDaysCalculation::text.RukhEvents	; RUKH events:
 value	PersonnelAtDisposalDaysCalculation::text.RukhSource	RUKH source:
 value	PersonnelAtDisposalDaysCalculation::text.ExportEmpty	Спочатку виконайте розрахунок із непорожнім результатом.
 value	PersonnelAtDisposalDaysCalculation::text.InvalidDate	: enter a valid Excel date or dd.mm.yyyy text (not earlier than 01.03.1900).
 value	PersonnelAtDisposalDaysCalculation::text.OnWorksheet	' on worksheet '
-value	PersonnelAtDisposalDaysCalculation::text.RefreshPage	Оновити сторінку
 value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
 value	PersonnelAtDisposalDaysCalculation::text.ExportFailed	Не вдалося сформувати результат:
 value	PersonnelAtDisposalDaysCalculation::text.ParameterRow	, запис SQL №
@@ -44,8 +44,6 @@ value	PersonnelAtDisposalDaysCalculation::text.WritingResult	Writing result:
 value	PersonnelAtDisposalDaysCalculation::text.WrongWorkbook	Run this command from a worksheet in the tool workbook.
 value	PersonnelAtDisposalDaysCalculation::text.AlreadyRunning	An operation is already running. Wait for completion or click Cancel.
 value	PersonnelAtDisposalDaysCalculation::text.DuplicateTaxId	: duplicate tax ID
-value	PersonnelAtDisposalDaysCalculation::text.WritingResults	Writing results...
-value	PersonnelAtDisposalDaysCalculation::text.CalculatingDays	Calculating days:
 value	PersonnelAtDisposalDaysCalculation::text.IsMissingColumn	' is missing column '
 value	PersonnelAtDisposalDaysCalculation::text.MultipleSources	Multiple RUKH tables are open. Keep only one source workbook open.
 value	PersonnelAtDisposalDaysCalculation::text.ParametersEmpty	The parameter table is empty.
@@ -56,9 +54,7 @@ value	PersonnelAtDisposalDaysCalculation::text.OperationStopped	Operation stoppe
 value	PersonnelAtDisposalDaysCalculation::text.PersonUnverified	Person not found in events or the personnel roster:
 value	PersonnelAtDisposalDaysCalculation::text.RelativePathBase	Save the tool workbook in a local or network folder before using a relative input path.
 value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
-value	PersonnelAtDisposalDaysCalculation::text.OperationCancelled	Operation cancelled.
 value	PersonnelAtDisposalDaysCalculation::text.ParameterWorksheet	Parameter worksheet:
-value	PersonnelAtDisposalDaysCalculation::text.CancellingOperation	Cancelling operation...
 value	PersonnelAtDisposalDaysCalculation::text.DisposalDateMissing	Не знайдено дійсну дату наказу про виведення у розпорядження в Д2!Книга.
 value	PersonnelAtDisposalDaysCalculation::text.ExportFolderMissing	Спочатку збережіть книгу інструмента в доступній локальній або мережевій папці.
 value	PersonnelAtDisposalDaysCalculation::text.TargetPrepareFailed	Unable to prepare the result table:
@@ -93,7 +89,7 @@ value	PersonnelAtDisposalDaysCalculation::export.widths	16|34|20|12|28|17|20|27|
 value	PersonnelAtDisposalDaysCalculation::export.formula.End	=EOMONTH(C3,-1)
 value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[5],R4C3,"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Start	=EOMONTH(C5,-1)+1
-value	PersonnelAtDisposalDaysCalculation::export.formula.Period	=IF(RC[3],TEXT(RC[-2],"dd.mm.yyyy")&" – "&TEXT(RC[-1],"dd.mm.yyyy"),"")
+value	PersonnelAtDisposalDaysCalculation::export.formula.Period	=IF(RC[3],RIGHT("0"&DAY(RC[-2]),2)&"."&RIGHT("0"&MONTH(RC[-2]),2)&"."&YEAR(RC[-2])&" – "&RIGHT("0"&DAY(RC[-1]),2)&"."&RIGHT("0"&MONTH(RC[-1]),2)&"."&YEAR(RC[-1]),"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Include	=AND(ISNUMBER(RC[-7]),OR(LEN(RC[-6])=0,RC[-6]>R4C3))
 value	PersonnelAtDisposalDaysCalculation::export.formula.Through	=IF(RC[4],IF(LEN(RC[-2])>0,MIN(R5C3,RC[-2]-1),R5C3),"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Difference	=RC[-2]<>RC[-1]
@@ -138,6 +134,23 @@ value	PersonnelAtDisposalDaysCalculation::source.personnel.columns.FullName	Пр
 value	PersonnelAtDisposalDaysCalculation::source.personnel.reference	%USERPROFILE%\Desktop\ШПО_new.xlsx|ОС!A1:AB20000
 value	PersonnelAtDisposalDaysCalculation::source.personnel.rosterCode	СПИС
 value	PersonnelAtDisposalDaysCalculation::source.personnel.disposalCode	РОЗП
+value	PersonnelAtDisposalDaysCalculation::status.Ready	Вкажіть кінцеву дату та натисніть «Розрахувати періоди».
+value	PersonnelAtDisposalDaysCalculation::status.Loading	Завантаження даних із ШПО, Д2 та РУХ…
+value	PersonnelAtDisposalDaysCalculation::status.Exported	Книгу результатів збережено.
+value	PersonnelAtDisposalDaysCalculation::status.Cancelled	Розрахунок скасовано.
+value	PersonnelAtDisposalDaysCalculation::status.Completed	Розрахунок завершено. Оброблено: {count}. Рядків з помилками: {errors}.
+value	PersonnelAtDisposalDaysCalculation::status.Cancelling	Скасування розрахунку…
+value	PersonnelAtDisposalDaysCalculation::status.Calculating	Розрахунок днів перебування у розпорядженні…
+value	PersonnelAtDisposalDaysCalculation::progress.Events	Читання РУХ
+value	PersonnelAtDisposalDaysCalculation::progress.Orders	Читання Д2
+value	PersonnelAtDisposalDaysCalculation::progress.Publish	Виведення результатів
+value	PersonnelAtDisposalDaysCalculation::progress.Template	{stage} — {completed}/{total} · {step}/{steps}
+value	PersonnelAtDisposalDaysCalculation::progress.Personnel	Читання ШПО
+value	PersonnelAtDisposalDaysCalculation::progress.EventIndex	Індексація подій РУХ
+value	PersonnelAtDisposalDaysCalculation::progress.OrderIndex	Пошук дат ДЗС
+value	PersonnelAtDisposalDaysCalculation::progress.Parameters	Перевірка параметрів
+value	PersonnelAtDisposalDaysCalculation::progress.Calculation	Розрахунок днів
+value	PersonnelAtDisposalDaysCalculation::progress.Preparation	Підготовка записів ШПО
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}
