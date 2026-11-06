@@ -112,6 +112,65 @@ resetWidths.textContent = 'Сбросить ширины';
 resetWidths.hidden = true;
 toolbarControls.append(resetWidths);
 
+const columnFilter = document.createElement('details');
+const columnFilterSummary = document.createElement('summary');
+columnFilterSummary.textContent = 'Изменённые поля';
+const columnFilterOptions = document.createElement('div');
+const exportChanges = document.createElement('button');
+exportChanges.type = 'button';
+exportChanges.textContent = 'Скачать XML';
+exportChanges.disabled = true;
+columnFilter.append(columnFilterSummary, columnFilterOptions, exportChanges);
+toolbarControls.append(columnFilter);
+
+exportChanges.addEventListener('click', () => {
+    const state = activeState;
+    const xml = document.implementation.createDocument(null, 'tableDiff');
+    const root = xml.documentElement;
+    root.setAttribute('version', '1');
+    root.setAttribute('sheet', sheetName(state.section));
+
+    for (const rowIndex of state.filtered) {
+        const row = state.data.rows[rowIndex];
+        const record = xml.createElement('row');
+        record.setAttribute('oldRow', String(row[1]));
+        record.setAttribute('newRow', String(row[2]));
+        record.setAttribute('ambiguous', String(Boolean(row[3])));
+        for (const index of state.selectedColumns) {
+            const before = row[4]?.[index] ?? 0;
+            const after = row[5]?.[index] ?? 0;
+            if (before === after) {
+                continue;
+            }
+            const field = xml.createElement('field');
+            field.setAttribute('name', state.data.columns[index][1]);
+            const oldValue = xml.createElement('old');
+            oldValue.textContent = state.data.strings[before];
+            const newValue = xml.createElement('new');
+            newValue.textContent = state.data.strings[after];
+            field.append(oldValue, newValue);
+            record.append(field);
+        }
+        root.append(record);
+    }
+
+    const content = new XMLSerializer().serializeToString(xml).replaceAll('\r', '&#13;');
+    const parsed = new DOMParser().parseFromString(content, 'application/xml');
+    if (parsed.documentElement.localName !== 'tableDiff') {
+        window.alert('В срезе есть символы, недопустимые в XML.');
+        return;
+    }
+    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', content], { type: 'application/xml' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'table-diff-slice.xml';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
 const settingsActions = document.createElement('div');
 settingsActions.className = 'settings-actions';
 const exportWidths = document.createElement('button');
@@ -151,6 +210,8 @@ function getState(section) {
             filtered: null,
             query: null,
             kind: null,
+            selectedColumns: new Set(),
+            columnFilterKey: null,
             searchCache: new Array(data.rows.length),
             lowerStrings: null
         });
@@ -417,16 +478,24 @@ async function filterCurrent() {
     const request = ++filterVersion;
     const query = searchInput.value.toLowerCase();
     const kind = changeFilter.value;
-    if (state.filtered !== null && state.query === query && state.kind === kind) {
+    const selectedColumns = [...state.selectedColumns];
+    const columnFilterKey = selectedColumns.join(',');
+    if (state.filtered !== null && state.query === query && state.kind === kind
+        && state.columnFilterKey === columnFilterKey) {
+        exportChanges.disabled = selectedColumns.length === 0;
         renderPage(state);
         return;
     }
 
+    exportChanges.disabled = true;
     state.section.querySelector('.page-status').textContent = 'Поиск…';
     const matched = [];
     for (let index = 0; index < state.data.rows.length; index++) {
         const row = state.data.rows[index];
-        if ((!kind || kinds[row[0]] === kind) && (!query || rowSearchText(state, index).includes(query))) {
+        const matchesColumns = selectedColumns.length === 0 || (row[0] === 0 && selectedColumns.some(column =>
+            (row[4]?.[column] ?? 0) !== (row[5]?.[column] ?? 0)
+        ));
+        if (matchesColumns && (!kind || kinds[row[0]] === kind) && (!query || rowSearchText(state, index).includes(query))) {
             matched.push(index);
         }
         if (query && index % 500 === 499) {
@@ -442,6 +511,8 @@ async function filterCurrent() {
     state.filtered = matched;
     state.query = query;
     state.kind = kind;
+    state.columnFilterKey = columnFilterKey;
+    exportChanges.disabled = selectedColumns.length === 0;
     state.page = 0;
     renderPage(state);
 }
@@ -457,6 +528,30 @@ function selectPage(section, updateHistory = true) {
         item.hidden = item !== section;
     }
     activeState = getState(section);
+    columnFilterOptions.replaceChildren();
+    columnFilter.open = false;
+    const state = activeState;
+    state.data.columns.forEach((column, index) => {
+        const option = document.createElement('div');
+        const label = document.createElement('label');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = state.selectedColumns.has(index);
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                state.selectedColumns.add(index);
+            }
+            else {
+                state.selectedColumns.delete(index);
+            }
+            columnFilterSummary.textContent = 'Изменённые поля (' + state.selectedColumns.size + ')';
+            filterCurrent();
+        });
+        label.append(checkbox, ' ' + column[1]);
+        option.append(label);
+        columnFilterOptions.append(option);
+    });
+    columnFilterSummary.textContent = 'Изменённые поля (' + state.selectedColumns.size + ')';
     mountTable(activeState);
 
     for (const button of footerTabs.querySelectorAll('button')) {
@@ -494,6 +589,7 @@ for (const section of pageSections) {
 }
 
 searchInput.addEventListener('input', () => {
+    exportChanges.disabled = true;
     filterVersion++;
     clearTimeout(searchTimer);
     searchTimer = setTimeout(filterCurrent, 200);
