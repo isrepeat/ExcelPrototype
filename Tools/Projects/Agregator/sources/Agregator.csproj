@@ -43,6 +43,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
+    <None Include="..\CompileAgregator.cmd">
+      <Link>CompileAgregator.cmd</Link>
+    </None>
     <None Include="..\resources\Agregator.xml">
       <Link>resources\Agregator.xml</Link>
     </None>

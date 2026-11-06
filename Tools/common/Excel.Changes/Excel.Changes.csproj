@@ -1,0 +1,27 @@
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6B8056E1-10C0-4F89-91F0-000000000008}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AssemblyName>ExcelTools.Excel.Changes</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Xml.Linq" />
+    <Compile Include="ConfigurationReader.cs" />
+    <Compile Include="PreparedReport.cs" />
+    <ProjectReference Include="..\Excel.Tables\Excel.Tables.csproj">
+      <Name>Excel.Tables</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000003}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\Tooling\Tooling.csproj">
+      <Name>Tooling</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000001}</Project>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

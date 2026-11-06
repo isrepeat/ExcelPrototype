@@ -1,12 +1,10 @@
 using System;
 
-using ExcelTools.Tooling.Console;
-
 namespace ExcelTools.Agregator {
     internal static class Program {
         [STAThread]
         private static int Main(string[] args) {
-            return ConsoleTool.Run(args, "Agregator.log", delegate {
+            return ExcelTools.Tooling.Console.ConsoleTool.Run(args, "Agregator.log", delegate {
                     var validate = false;
                     string output = null;
                     string configFile = null;

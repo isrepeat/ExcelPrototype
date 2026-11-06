@@ -16,6 +16,7 @@ Tools/Projects/Agregator/*.dll
 Tools/Projects/Agregator/.build/
 Tools/Projects/Agregator/build/
 Tools/Projects/TableDiff/build/
+Tools/Projects/TableSync/build/
 Tools/**/bin/
 Tools/**/obj/
 Tools/Projects/Agregator/**/*.xlsx

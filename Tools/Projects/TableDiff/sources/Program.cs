@@ -1,16 +1,17 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Text;
-
-using ExcelTools.OpenXml;
-using ExcelTools.Tooling;
-using ExcelTools.Tooling.Console;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace ExcelTools.TableDiff {
     internal static class Program {
         private static int Main(string[] args) {
-            return ConsoleTool.Run(args, "TableDiff.log", delegate {
+            return ExcelTools.Tooling.Console.ConsoleTool.Run(args, "TableDiff.log", delegate {
+                if (args.Length == 3 && args[0] == "--prepared-report" && args[2] == "--no-pause") {
+                    WritePreparedReport(args[1]);
+                    return;
+                }
                 string configFile = null;
                 string profileName = null;
                 string oldFile = null;
@@ -53,7 +54,7 @@ namespace ExcelTools.TableDiff {
                         throw new ArgumentException("Specify only two workbook paths.");
                     }
                 }
-                var config = ConfigurationReader.Read(configFile, profileName, oldFile, newFile);
+                var config = ExcelTools.Changes.ConfigurationReader.Read(configFile, profileName, oldFile, newFile);
                 Console.WriteLine("Configuration: " + config.Path);
                 Console.WriteLine("Profile: " + config.Profile);
                 Console.WriteLine("Old: " + config.Old);
@@ -73,23 +74,15 @@ namespace ExcelTools.TableDiff {
                     return;
                 }
                 Console.WriteLine("Reading old workbook...");
-                var before = WorkbookReader.Read(config.Old, config.Comparisons.Select(c => c.OldSheet));
+                var before = ExcelTools.OpenXml.WorkbookReader.Read(config.Old, config.Comparisons.Select(c => c.OldSheet));
                 Console.WriteLine("Reading new workbook...");
-                var after = WorkbookReader.Read(config.New, config.Comparisons.Select(c => c.NewSheet));
+                var after = ExcelTools.OpenXml.WorkbookReader.Read(config.New, config.Comparisons.Select(c => c.NewSheet));
                 Console.WriteLine("Comparing...");
                 var differences = TableComparer.Compare(before, after, config.Comparisons);
-                var document = HtmlDiffWriter.Generate(config, differences);
-                Directory.CreateDirectory(Path.GetDirectoryName(config.Output));
-                var temporary = OutputPublisher.CreateTemporaryPath(config.Output, ".html");
-                try {
-                    File.WriteAllText(temporary, document, new UTF8Encoding(false));
-                    OutputPublisher.Publish(temporary, config.Output);
-                }
-                finally {
-                    if (File.Exists(temporary)) {
-                        File.Delete(temporary);
-                    }
-                }
+                var method = config.Comparisons.Any(comparison => comparison.MatchByRow)
+                    ? "В парах с match=\"row\" строки сопоставляются по номеру. Остальные пары сравниваются по ключу и порогу."
+                    : null;
+                HtmlDiffWriter.Write(config.Output, config.Profile, config.Old, config.New, differences, method);
                 Console.WriteLine(
                     "Changed: {0}; added: {1}; deleted: {2}",
                     differences.Sum(s => s.Count("change")),
@@ -98,6 +91,39 @@ namespace ExcelTools.TableDiff {
                 );
                 Console.WriteLine("Created: " + config.Output);
             });
+        }
+
+        private static void WritePreparedReport(string path) {
+            var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
+            var report = ExcelTools.Changes.PreparedReport.Read(path);
+            XDocument document;
+            using (var reader = XmlReader.Create(report.ConfigurationPath, settings)) {
+                document = XDocument.Load(reader);
+            }
+            var section = document.Root.Elements("profile").Where(profile => (string)profile.Attribute("name") == report.SyncProfile)
+                .Elements("externalTools").Elements("tool").Elements("tableDiff").Single();
+            var config = ExcelTools.Changes.ConfigurationReader.Read(section, report.ConfigurationPath, report.ReportProfile, false);
+            if (!String.Equals(config.Output, report.Output, StringComparison.OrdinalIgnoreCase)
+                && !report.Output.StartsWith(config.Output + ".", StringComparison.OrdinalIgnoreCase)) {
+                throw new InvalidDataException("Prepared report output does not match the configured report path.");
+            }
+            var differences = report.Differences;
+            if (report.StagedWorkbook != null) {
+                var before = ExcelTools.OpenXml.WorkbookReader.Read(config.Old, differences.Select(sheet => sheet.OldSheet));
+                var after = ExcelTools.OpenXml.WorkbookReader.Read(report.StagedWorkbook, differences.Select(sheet => sheet.NewSheet));
+                differences = differences.Select(sheet => {
+                    var difference = TableComparer.CompareByRowNumber(
+                        before.FindSheet(sheet.OldSheet),
+                        after.FindSheet(sheet.NewSheet),
+                        sheet.OldHeader
+                    );
+                    difference.Key = sheet.Key;
+                    difference.Threshold = sheet.Threshold;
+                    return difference;
+                }).ToList();
+            }
+            HtmlDiffWriter.Write(report.Output, config.Profile, config.Old, config.New, differences, report.Method);
+            Console.WriteLine("Created: " + report.Output);
         }
     }
 }

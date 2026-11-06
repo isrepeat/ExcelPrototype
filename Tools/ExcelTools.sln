@@ -3,6 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 18.11.12328.437 stable
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "common", "common", "{6B8056E1-10C0-4F89-91F0-000000000101}"
+	ProjectSection(SolutionItems) = preProject
+		common\CompileCommon.cmd = common\CompileCommon.cmd
+	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Agregator", "Agregator", "{6B8056E1-10C0-4F89-91F0-000000000102}"
 EndProject
@@ -23,6 +26,12 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableDiff", "Projects\TableDiff\sources\TableDiff.csproj", "{6B8056E1-10C0-4F89-91F0-000000000007}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Projects", "Projects", "{6B8056E1-10C0-4F89-91F0-000000000105}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Excel.Changes", "common\Excel.Changes\Excel.Changes.csproj", "{6B8056E1-10C0-4F89-91F0-000000000008}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "TableSync", "TableSync", "{6B8056E1-10C0-4F89-91F0-000000000106}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TableSync", "Projects\TableSync\sources\TableSync.csproj", "{6B8056E1-10C0-4F89-91F0-000000000009}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -58,6 +67,14 @@ Global
 		{6B8056E1-10C0-4F89-91F0-000000000007}.Debug|Any CPU.Build.0 = Debug|x86
 		{6B8056E1-10C0-4F89-91F0-000000000007}.Debug|x86.ActiveCfg = Debug|x86
 		{6B8056E1-10C0-4F89-91F0-000000000007}.Debug|x86.Build.0 = Debug|x86
+		{6B8056E1-10C0-4F89-91F0-000000000008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000008}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000008}.Debug|x86.Build.0 = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000009}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000009}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000009}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6B8056E1-10C0-4F89-91F0-000000000009}.Debug|x86.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -72,6 +89,9 @@ Global
 		{6B8056E1-10C0-4F89-91F0-000000000104} = {6B8056E1-10C0-4F89-91F0-000000000105}
 		{6B8056E1-10C0-4F89-91F0-000000000006} = {6B8056E1-10C0-4F89-91F0-000000000101}
 		{6B8056E1-10C0-4F89-91F0-000000000007} = {6B8056E1-10C0-4F89-91F0-000000000104}
+		{6B8056E1-10C0-4F89-91F0-000000000008} = {6B8056E1-10C0-4F89-91F0-000000000101}
+		{6B8056E1-10C0-4F89-91F0-000000000106} = {6B8056E1-10C0-4F89-91F0-000000000105}
+		{6B8056E1-10C0-4F89-91F0-000000000009} = {6B8056E1-10C0-4F89-91F0-000000000106}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {5E9E0EF3-20C8-4BEB-A941-888EFD36E1EA}

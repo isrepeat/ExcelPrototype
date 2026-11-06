@@ -22,7 +22,7 @@ if not exist "%tableDiffCompiler%" (
 echo Building TableDiff.exe...
 set "tableDiffOutputDirectory=%tableDiffDirectory%build"
 set "tableDiffBuildDirectory=%tableDiffOutputDirectory%\.staging"
-call "%tableDiffDirectory%..\..\common\CompileCommon.cmd" "%tableDiffBuildDirectory%"
+call "%tableDiffDirectory%..\..\common\CompileCommon.cmd" "%tableDiffBuildDirectory%" --no-pause
 if errorlevel 1 (
     set "tableDiffExitCode=1"
     goto finish
@@ -32,13 +32,13 @@ if errorlevel 1 (
     /reference:"%tableDiffBuildDirectory%\ExcelTools.Tooling.dll" ^
     /reference:"%tableDiffBuildDirectory%\ExcelTools.Tooling.Console.dll" ^
     /reference:"%tableDiffBuildDirectory%\ExcelTools.Excel.Tables.dll" ^
+    /reference:"%tableDiffBuildDirectory%\ExcelTools.Excel.Changes.dll" ^
     /reference:"%tableDiffBuildDirectory%\ExcelTools.Excel.OpenXml.dll" ^
     /reference:System.Core.dll ^
     /reference:System.Xml.Linq.dll ^
     /reference:System.IO.Compression.dll ^
     /reference:System.IO.Compression.FileSystem.dll ^
     "%tableDiffDirectory%sources\Program.cs" ^
-    "%tableDiffDirectory%sources\Configuration\ConfigurationReader.cs" ^
     "%tableDiffDirectory%sources\Comparison\TableComparer.cs" ^
     "%tableDiffDirectory%sources\Reporting\HtmlDiffWriter.cs" ^
     /resource:"%tableDiffDirectory%sources\Reporting\report.css",report.css ^
@@ -77,5 +77,5 @@ if "%tableDiffDirectoryPushed%"=="1" (
 rem Release the temporary network drive and restore the original directory.
 if "%tableDiffDirectoryPushed%"=="1" popd
 rem Preserve the build status across the interactive pause; do not run the program.
-pause
+if /i not "%~1"=="--no-pause" pause
 exit /b %tableDiffExitCode%

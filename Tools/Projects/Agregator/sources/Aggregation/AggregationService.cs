@@ -4,9 +4,6 @@ using System.Runtime.InteropServices;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-using ExcelTools.Interop;
-using ExcelTools.Tooling;
-
 namespace ExcelTools.Agregator {
     internal static class AggregationService {
         private static void CopyTables(dynamic source, dynamic destination) {
@@ -21,7 +18,7 @@ namespace ExcelTools.Agregator {
                 table.ShowAutoFilter = original.ShowAutoFilter;
                 if ((bool)original.ShowTotals) {
                     table.TotalsRowRange.NumberFormat = "@";
-                    table.TotalsRowRange.Value2 = ExcelValues.PrepareForWrite((object)original.TotalsRowRange.Value2);
+                    table.TotalsRowRange.Value2 = ExcelTools.Interop.ExcelValues.PrepareForWrite((object)original.TotalsRowRange.Value2);
                     table.TotalsRowRange.ClearFormats();
                 }
             }
@@ -83,7 +80,7 @@ namespace ExcelTools.Agregator {
                 try {
                     destination.NumberFormat = "@";
                     stage = "assigning values";
-                    destination.Value2 = ExcelValues.PrepareForWrite((object)used.Value2);
+                    destination.Value2 = ExcelTools.Interop.ExcelValues.PrepareForWrite((object)used.Value2);
                     stage = "clearing the temporary text format";
                     // Clear formatting without relying on the localized General format name.
                     destination.ClearFormats();
@@ -99,14 +96,14 @@ namespace ExcelTools.Agregator {
         }
 
         public static void Execute(Configuration config) {
-            ExcelSession excelSession = null;
+            ExcelTools.Interop.ExcelSession excelSession = null;
             dynamic excel = null;
             dynamic workbooks = null;
             dynamic source = null;
             dynamic result = null;
             var errors = new List<Exception>();
             // Prepare a temporary file beside the output.
-            var temporary = OutputPublisher.CreateTemporaryPath(config.Output, ".xlsx");
+            var temporary = ExcelTools.Tooling.OutputPublisher.CreateTemporaryPath(config.Output, ".xlsx");
             var count = 0;
             // Plan worksheet names before creating the temporary placeholder sheet.
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -122,7 +119,7 @@ namespace ExcelTools.Agregator {
             }
             try {
                 try {
-                    excelSession = new ExcelSession();
+                    excelSession = new ExcelTools.Interop.ExcelSession();
                     excel = excelSession.Application;
                     workbooks = excelSession.Workbooks;
                     result = workbooks.Add(-4167); // xlWBATWorksheet.
@@ -140,11 +137,11 @@ namespace ExcelTools.Agregator {
                             count++;
                         }
                         source.Close(false);
-                        ComObjects.Release((object)source);
+                        ExcelTools.Interop.ComObjects.Release((object)source);
                         source = null;
                     }
                     placeholder.Delete();
-                    ComObjects.Release((object)placeholder);
+                    ExcelTools.Interop.ComObjects.Release((object)placeholder);
                     Console.WriteLine("Saving output...");
                     result.SaveAs(temporary, 51); // xlOpenXMLWorkbook.
                 }
@@ -177,9 +174,9 @@ namespace ExcelTools.Agregator {
                     catch (Exception error) {
                         errors.Add(error);
                     }
-                    ComObjects.Release((object)source);
-                    ComObjects.Release((object)result);
-                    ComObjects.CollectReleasedObjects();
+                    ExcelTools.Interop.ComObjects.Release((object)source);
+                    ExcelTools.Interop.ComObjects.Release((object)result);
+                    ExcelTools.Interop.ComObjects.CollectReleasedObjects();
                 }
                 if (errors.Count > 0) {
                     throw new AggregateException(errors);
@@ -191,7 +188,7 @@ namespace ExcelTools.Agregator {
                     Console.WriteLine("XML formatting applied in {0:F3} s", watch.Elapsed.TotalSeconds);
                 }
                 Console.WriteLine("Publishing output: " + config.Output);
-                OutputPublisher.Publish(temporary, config.Output);
+                ExcelTools.Tooling.OutputPublisher.Publish(temporary, config.Output);
                 Console.WriteLine("Created: {0} (worksheets: {1})", config.Output, count);
             }
             finally {

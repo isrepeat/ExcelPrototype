@@ -14,6 +14,7 @@
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.IO.Compression" />
     <Compile Include="WorkbookReader.cs" />
+    <Compile Include="WorkbookWriter.cs" />
     <Compile Include="FormulaTranslator.cs" />
     <ProjectReference Include="..\Excel.Tables\Excel.Tables.csproj">
       <Name>Excel.Tables</Name>

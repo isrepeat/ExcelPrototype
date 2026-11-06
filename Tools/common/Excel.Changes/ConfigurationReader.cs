@@ -5,10 +5,8 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 
-using ExcelTools.Tooling;
-
-namespace ExcelTools.TableDiff {
-    internal sealed class Configuration {
+namespace ExcelTools.Changes {
+    public sealed class Configuration {
         public string Path;
         public string Profile;
         public bool IsDefault;
@@ -18,14 +16,15 @@ namespace ExcelTools.TableDiff {
         public List<SheetComparison> Comparisons = new List<SheetComparison>();
     }
 
-    internal sealed class SheetComparison {
+    public sealed class SheetComparison {
         public string OldSheet;
         public string NewSheet;
         public string Key;
         public double Threshold;
+        public bool MatchByRow;
     }
 
-    internal static class ConfigurationReader {
+    public static class ConfigurationReader {
         private static string Required(XElement element, string name) {
             if (element == null || String.IsNullOrWhiteSpace((string)element.Attribute(name))) {
                 throw new InvalidDataException("Missing configuration attribute: " + (element == null ? "source" : element.Name.LocalName) + "/@" + name);
@@ -34,8 +33,24 @@ namespace ExcelTools.TableDiff {
         }
 
         public static Configuration Read(string configFile, string profileName, string oldFile, string newFile) {
-            var path = ToolPaths.FindConfiguration(AppDomain.CurrentDomain.BaseDirectory, configFile ?? "TableDiff.xml");
+            var path = ExcelTools.Tooling.ToolPaths.FindConfiguration(AppDomain.CurrentDomain.BaseDirectory, configFile ?? "TableDiff.xml");
             var root = XDocument.Load(path).Root;
+            if (root != null && root.Name == "tableSync") {
+                var sections = root.Elements("profile").Elements("externalTools").Elements("tool").Elements("tableDiff").ToArray();
+                if (sections.Length != 1) {
+                    throw new InvalidDataException("Expected one embedded tableDiff section for standalone execution.");
+                }
+                root = sections[0];
+            }
+            return Read(root, path, profileName, oldFile, newFile, true);
+        }
+
+        public static Configuration Read(XElement root, string path, string profileName, bool checkInputFiles) {
+            return Read(root, path, profileName, null, null, checkInputFiles);
+        }
+
+        private static Configuration Read(
+            XElement root, string path, string profileName, string oldFile, string newFile, bool checkInputFiles) {
             if (root == null || root.Name != "tableDiff") {
                 throw new InvalidDataException("Expected tableDiff configuration root.");
             }
@@ -82,8 +97,8 @@ namespace ExcelTools.TableDiff {
                 if (oldFile == null || newFile == null) {
                     throw new ArgumentException("Specify both old and new workbook paths.");
                 }
-                var oldPath = ToolPaths.Resolve(Environment.CurrentDirectory, oldFile);
-                var newPath = ToolPaths.Resolve(Environment.CurrentDirectory, newFile);
+                var oldPath = ExcelTools.Tooling.ToolPaths.Resolve(Environment.CurrentDirectory, oldFile);
+                var newPath = ExcelTools.Tooling.ToolPaths.Resolve(Environment.CurrentDirectory, newFile);
                 selected = profiles.FirstOrDefault(p =>
                     String.Equals(p.Old, oldPath, StringComparison.OrdinalIgnoreCase)
                     && String.Equals(p.New, newPath, StringComparison.OrdinalIgnoreCase));
@@ -102,7 +117,7 @@ namespace ExcelTools.TableDiff {
                     + String.Join(", ", profiles.Select(p => p.Profile)));
             }
             selected.Output = selected.Output.Replace("{date}", DateTime.Now.ToString("yyyy.MM.dd", CultureInfo.InvariantCulture));
-            ValidatePaths(selected);
+            ValidatePaths(selected, checkInputFiles);
             return selected;
         }
 
@@ -111,9 +126,9 @@ namespace ExcelTools.TableDiff {
             var config = new Configuration {
                 Path = path,
                 Profile = Required(element, "name"),
-                Old = ToolPaths.Resolve(directory, Required(element.Element("old"), "file")),
-                New = ToolPaths.Resolve(directory, Required(element.Element("new"), "file")),
-                Output = ToolPaths.Resolve(directory, Required(element, "output"))
+                Old = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(element.Element("old"), "file")),
+                New = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(element.Element("new"), "file")),
+                Output = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(element, "output"))
             };
             var defaultAttribute = element.Attribute("default");
             if (defaultAttribute != null && !Boolean.TryParse(defaultAttribute.Value, out config.IsDefault)) {
@@ -133,6 +148,11 @@ namespace ExcelTools.TableDiff {
                     NewSheet = Required(comparisonElement.Element("new"), "sheet"),
                     Key = Required(comparisonElement, "key")
                 };
+                var match = (string)comparisonElement.Attribute("match") ?? "key";
+                if (match != "key" && match != "row") {
+                    throw new InvalidDataException("Expected match=\"key\" or match=\"row\" in profile: " + config.Profile);
+                }
+                comparison.MatchByRow = match == "row";
                 if (!Double.TryParse(Required(comparisonElement, "threshold"), NumberStyles.Float, CultureInfo.InvariantCulture, out comparison.Threshold)
                     || Double.IsNaN(comparison.Threshold) || comparison.Threshold <= 0 || comparison.Threshold > 1) {
                     throw new InvalidDataException("Invalid threshold in profile '" + config.Profile + "' for '" + comparison.OldSheet + "' -> '"
@@ -151,9 +171,9 @@ namespace ExcelTools.TableDiff {
             return config;
         }
 
-        private static void ValidatePaths(Configuration configuration) {
+        private static void ValidatePaths(Configuration configuration, bool checkInputFiles) {
             foreach (var input in new[] { configuration.Old, configuration.New }) {
-                if (!File.Exists(input)) {
+                if (checkInputFiles && !File.Exists(input)) {
                     throw new FileNotFoundException("Input workbook does not exist: " + input, input);
                 }
                 var extension = System.IO.Path.GetExtension(input);

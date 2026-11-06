@@ -13,6 +13,7 @@
     <Reference Include="System.Core" />
     <Compile Include="WorkbookSource.cs" />
     <Compile Include="TableSnapshot.cs" />
+    <Compile Include="TableMatching.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

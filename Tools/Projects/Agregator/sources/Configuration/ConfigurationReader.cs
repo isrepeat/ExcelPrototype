@@ -4,15 +4,12 @@ using System.Xml.Linq;
 using System.Linq;
 using System.Collections.Generic;
 
-using ExcelTools.Tables;
-using ExcelTools.Tooling;
-
 namespace ExcelTools.Agregator {
     internal sealed class Configuration {
         public string Path;
         public string Output;
         public string Mode;
-        public List<WorkbookSource> Sources = new List<WorkbookSource>();
+        public List<ExcelTools.Tables.WorkbookSource> Sources = new List<ExcelTools.Tables.WorkbookSource>();
     }
 
     internal static class ConfigurationReader {
@@ -27,14 +24,14 @@ namespace ExcelTools.Agregator {
         public static Configuration Read(string configFile, string outputOverride) {
             var directory = AppDomain.CurrentDomain.BaseDirectory;
             var config = new Configuration();
-            config.Path = ToolPaths.FindConfiguration(directory, configFile ?? "Agregator.xml");
+            config.Path = ExcelTools.Tooling.ToolPaths.FindConfiguration(directory, configFile ?? "Agregator.xml");
             directory = System.IO.Path.GetDirectoryName(config.Path);
             var document = XDocument.Load(config.Path);
             var root = document.Root;
             if (root == null || root.Name != "aggregator") {
                 throw new InvalidDataException("Expected aggregator configuration root.");
             }
-            config.Output = ToolPaths.Resolve(directory, outputOverride ?? Required(root, "output"));
+            config.Output = ExcelTools.Tooling.ToolPaths.Resolve(directory, outputOverride ?? Required(root, "output"));
             config.Mode = Required(root, "copyMode");
             if (config.Mode != "values" && config.Mode != "sheet" && config.Mode != "xmlStyles") {
                 throw new InvalidDataException("Invalid copyMode: " + config.Mode + ". Expected values, sheet or xmlStyles.");
@@ -44,13 +41,13 @@ namespace ExcelTools.Agregator {
                 throw new InvalidDataException("No source directories configured.");
             }
             foreach (var source in sources.Elements("source")) {
-                var sourceDirectory = ToolPaths.Resolve(directory, Required(source, "dir"));
+                var sourceDirectory = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(source, "dir"));
                 if (!source.Elements("workbook").Any()) {
                     throw new InvalidDataException("No source workbooks configured: " + sourceDirectory);
                 }
                 foreach (var workbook in source.Elements("workbook")) {
-                    var item = new WorkbookSource();
-                    item.Path = ToolPaths.Resolve(sourceDirectory, Required(workbook, "file"));
+                    var item = new ExcelTools.Tables.WorkbookSource();
+                    item.Path = ExcelTools.Tooling.ToolPaths.Resolve(sourceDirectory, Required(workbook, "file"));
                     item.Sheets.AddRange(workbook.Elements("sheet").Select(e => Required(e, "name")));
                     if (item.Sheets.Count == 0) {
                         throw new InvalidDataException("No worksheets selected: " + item.Path);

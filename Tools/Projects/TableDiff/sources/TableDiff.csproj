@@ -16,7 +16,6 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Compile Include="Program.cs" />
-    <Compile Include="Configuration\ConfigurationReader.cs" />
     <Compile Include="Comparison\TableComparer.cs" />
     <Compile Include="Reporting\HtmlDiffWriter.cs" />
     <EmbeddedResource Include="Reporting\report.css">
@@ -27,6 +26,10 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\common\Excel.Changes\Excel.Changes.csproj">
+      <Name>Excel.Changes</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000008}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\..\common\Tooling\Tooling.csproj">
       <Name>Tooling</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000001}</Project>
@@ -47,6 +50,9 @@
   <ItemGroup>
     <None Include="..\resources\TableDiff.xml">
       <Link>resources\TableDiff.xml</Link>
+    </None>
+    <None Include="..\CompileTableDiff.cmd">
+      <Link>CompileTableDiff.cmd</Link>
     </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

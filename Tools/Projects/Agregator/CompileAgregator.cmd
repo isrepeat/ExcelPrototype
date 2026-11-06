@@ -22,7 +22,7 @@ if not exist "%agregatorCompiler%" (
 echo Building Agregator.exe...
 set "agregatorOutputDirectory=%agregatorDirectory%build"
 set "agregatorBuildDirectory=%agregatorOutputDirectory%\.staging"
-call "%agregatorDirectory%..\..\common\CompileCommon.cmd" "%agregatorBuildDirectory%"
+call "%agregatorDirectory%..\..\common\CompileCommon.cmd" "%agregatorBuildDirectory%" --no-pause
 if errorlevel 1 (
     set "agregatorExitCode=1"
     goto finish

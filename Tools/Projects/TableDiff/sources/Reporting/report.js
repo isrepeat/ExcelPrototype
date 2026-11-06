@@ -301,7 +301,7 @@ function renderRow(state, row) {
     const location = beforeNumber === afterNumber ? afterNumber : beforeNumber + ' → ' + afterNumber;
     const status = ['~', '+', '−'][row[0]];
     const label = ['Изменена строка', 'Добавлена строка', 'Удалена строка'][row[0]];
-    const warning = 'Несколько записей имеют одинаковую близость: проверьте сопоставление.';
+    const warning = escapeHtml(row[6] ?? 'Несколько записей имеют одинаковую близость: проверьте сопоставление.');
     let html = '<tr class="diff-row ' + kind + '" data-kind="' + kind + '"><td class="status-column" aria-label="' + label + '">' + status;
 
     if (row[3]) {

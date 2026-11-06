@@ -8,6 +8,11 @@
 - Always use explicit braces for if/else, for, foreach, while, using and lock bodies, including a single statement, return, throw, break or continue. Keep else-if chains as `else if (...) {` and expand every body across multiple lines.
 - Expand every brace-delimited code block across multiple lines, even when it contains only one statement or is empty. Put statements inside the block on separate indented lines and the closing brace on its own line. This applies to try/catch/finally, control-flow blocks, methods, properties and accessors; do not write inline scopes such as `try { DoWork(); }`. Array and collection initializers are not statement blocks.
 
+## Visual Studio solution tree
+
+- Whenever you add, remove, rename or move a file in a Visual Studio project, update its project file and solution entries as needed in the same change. Keep explicit item paths and Solution Explorer folders in sync. For projects with automatic file inclusion, verify that the file is included or removed as intended.
+- When adding, removing or moving a project, also update its solution entry, build configurations, solution folder and affected project references. Verify the relevant solution or project builds after updating the tree.
+
 ## CSS formatting
 
 - Keep CSS source files readable and unminified. Put each rule block and each declaration on separate lines, indent declarations by four spaces, and put closing braces on separate lines. Apply the same multiline formatting inside media queries. Do not collapse stylesheets into one line.

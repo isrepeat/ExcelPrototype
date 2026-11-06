@@ -2,39 +2,8 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 
-using ExcelTools.Tables;
-
 namespace ExcelTools.TableDiff {
-    internal sealed class RowChange {
-        public string Kind;
-        public RowSnapshot Before;
-        public RowSnapshot After;
-        public bool Ambiguous;
-    }
-
-    internal sealed class SheetDiff {
-        public string Name;
-        public string OldSheet;
-        public string NewSheet;
-        public string Key;
-        public double Threshold;
-        public int Width;
-        public int OldColumnOffset;
-        public int NewColumnOffset;
-        public RowSnapshot OldHeader;
-        public RowSnapshot NewHeader;
-        public int[] OldColumns;
-        public int[] NewColumns;
-        public int OldCount;
-        public int NewCount;
-        public List<RowChange> Changes = new List<RowChange>();
-
-        public int Count(string kind) {
-            return Changes.Count(c => c.Kind == kind);
-        }
-    }
-
-    internal static class TableComparer {
+    public static class TableComparer {
         private sealed class TableRange {
             public int Start;
             public int Width;
@@ -46,8 +15,8 @@ namespace ExcelTools.TableDiff {
             public int Distance;
         }
 
-        public static List<SheetDiff> Compare(WorkbookSnapshot before, WorkbookSnapshot after, List<SheetComparison> comparisons) {
-            var result = new List<SheetDiff>();
+        internal static List<ExcelTools.Changes.SheetDiff> Compare(ExcelTools.Tables.WorkbookSnapshot before, ExcelTools.Tables.WorkbookSnapshot after, List<ExcelTools.Changes.SheetComparison> comparisons) {
+            var result = new List<ExcelTools.Changes.SheetDiff>();
             foreach (var comparison in comparisons) {
                 var oldSheet = before.FindSheet(comparison.OldSheet);
                 var newSheet = after.FindSheet(comparison.NewSheet);
@@ -55,7 +24,9 @@ namespace ExcelTools.TableDiff {
                     throw new InvalidOperationException("Selected worksheet not found in " + (oldSheet == null ? "old" : "new")
                         + " workbook: " + (oldSheet == null ? comparison.OldSheet : comparison.NewSheet));
                 }
-                var difference = CompareSheet(oldSheet, newSheet, comparison.Key, comparison.Threshold);
+                var difference = comparison.MatchByRow
+                    ? CompareByRowNumber(oldSheet, newSheet, ExcelTools.Tables.TableMatching.FindHeader(oldSheet, new[] { comparison.Key }, null))
+                    : CompareSheet(oldSheet, newSheet, comparison.Key, comparison.Threshold);
                 difference.OldSheet = comparison.OldSheet;
                 difference.NewSheet = comparison.NewSheet;
                 difference.Name = comparison.OldSheet == comparison.NewSheet ? comparison.OldSheet
@@ -67,7 +38,30 @@ namespace ExcelTools.TableDiff {
             return result;
         }
 
-        private static SheetDiff CompareSheet(SheetSnapshot before, SheetSnapshot after, string key, double threshold) {
+        public static ExcelTools.Changes.SheetDiff CompareByRowNumber(ExcelTools.Tables.SheetSnapshot before, ExcelTools.Tables.SheetSnapshot after, ExcelTools.Tables.RowSnapshot header) {
+            var difference = new ExcelTools.Changes.SheetDiff {
+                Name = before.Name, OldSheet = before.Name, NewSheet = after.Name, Width = header.Values.Length,
+                OldHeader = header, NewHeader = header, OldCount = before.Rows.Count, NewCount = after.Rows.Count
+            };
+            var oldRows = before.Rows.ToDictionary(row => row.Number);
+            var newRows = after.Rows.ToDictionary(row => row.Number);
+            foreach (var number in oldRows.Keys.Union(newRows.Keys).OrderBy(number => number)) {
+                ExcelTools.Tables.RowSnapshot oldRow;
+                ExcelTools.Tables.RowSnapshot newRow;
+                oldRows.TryGetValue(number, out oldRow);
+                newRows.TryGetValue(number, out newRow);
+                if (oldRow != null && newRow != null && oldRow.Values.SequenceEqual(newRow.Values, StringComparer.Ordinal)) {
+                    continue;
+                }
+                difference.Changes.Add(new ExcelTools.Changes.RowChange {
+                    Kind = oldRow == null ? "add" : newRow == null ? "delete" : "change",
+                    Before = oldRow, After = newRow
+                });
+            }
+            return difference;
+        }
+
+        private static ExcelTools.Changes.SheetDiff CompareSheet(ExcelTools.Tables.SheetSnapshot before, ExcelTools.Tables.SheetSnapshot after, string key, double threshold) {
             // Detect each table independently and compare columns relative to its left boundary.
             var oldRange = FindRange(before, key);
             var newRange = FindRange(after, key);
@@ -78,7 +72,7 @@ namespace ExcelTools.TableDiff {
                 before = SelectRange(before, oldRange ?? new TableRange { Width = newRange.Width });
                 after = SelectRange(after, newRange ?? new TableRange { Width = oldRange.Width });
             }
-            var result = new SheetDiff {
+            var result = new ExcelTools.Changes.SheetDiff {
                 Name = before.Name,
                 Width = Math.Max(before.Width, after.Width),
                 OldColumnOffset = oldRange == null ? 0 : oldRange.Start,
@@ -168,7 +162,7 @@ namespace ExcelTools.TableDiff {
                     ranked = ranked.OrderByDescending(c => c.Score).ThenBy(c => c.Distance).ThenByDescending(c => c.Index).ToList();
                     if (ranked.Count > 0 && ranked[0].Score >= threshold) {
                         var targetIndex = ranked[0].Index;
-                        result.Changes.Add(new RowChange {
+                        result.Changes.Add(new ExcelTools.Changes.RowChange {
                             Kind = "change",
                             Before = row,
                             After = after.Rows[targetIndex],
@@ -194,19 +188,19 @@ namespace ExcelTools.TableDiff {
                 }
                 int targetIndex;
                 if (remaining.TryGetValue(row.Number, out targetIndex)) {
-                    result.Changes.Add(new RowChange { Kind = "change", Before = row, After = after.Rows[targetIndex] });
+                    result.Changes.Add(new ExcelTools.Changes.RowChange { Kind = "change", Before = row, After = after.Rows[targetIndex] });
                     usedBefore.Add(index);
                     usedAfter.Add(targetIndex);
                 }
             }
             for (var index = 0; index < before.Rows.Count; index++) {
                 if (!usedBefore.Contains(index)) {
-                    result.Changes.Add(new RowChange { Kind = "delete", Before = before.Rows[index] });
+                    result.Changes.Add(new ExcelTools.Changes.RowChange { Kind = "delete", Before = before.Rows[index] });
                 }
             }
             for (var index = 0; index < after.Rows.Count; index++) {
                 if (!usedAfter.Contains(index)) {
-                    result.Changes.Add(new RowChange { Kind = "add", After = after.Rows[index] });
+                    result.Changes.Add(new ExcelTools.Changes.RowChange { Kind = "add", After = after.Rows[index] });
                 }
             }
             if (result.OldCount + result.Count("add") - result.Count("delete") != result.NewCount) {
@@ -216,7 +210,7 @@ namespace ExcelTools.TableDiff {
             return result;
         }
 
-        private static TableRange FindRange(SheetSnapshot sheetSnapshot, string key) {
+        private static TableRange FindRange(ExcelTools.Tables.SheetSnapshot sheetSnapshot, string key) {
             var header = sheetSnapshot.Rows.FirstOrDefault(r => r.Values.Contains(key, StringComparer.Ordinal));
             if (header == null) {
                 return null;
@@ -232,7 +226,7 @@ namespace ExcelTools.TableDiff {
             return new TableRange { Start = start, Width = end - start + 1 };
         }
 
-        private static void AlignColumns(ref SheetSnapshot before, ref SheetSnapshot after, SheetDiff difference) {
+        private static void AlignColumns(ref ExcelTools.Tables.SheetSnapshot before, ref ExcelTools.Tables.SheetSnapshot after, ExcelTools.Changes.SheetDiff difference) {
             var oldNames = difference.OldHeader.Values;
             var newNames = difference.NewHeader.Values;
             if (oldNames.SequenceEqual(newNames)) {
@@ -254,10 +248,10 @@ namespace ExcelTools.TableDiff {
             difference.NewHeader = after.Rows.First(row => row.Number == difference.NewHeader.Number);
         }
 
-        private static SheetSnapshot ProjectColumns(SheetSnapshot source, int[] columns) {
-            var result = new SheetSnapshot { Name = source.Name, Width = columns.Length };
+        private static ExcelTools.Tables.SheetSnapshot ProjectColumns(ExcelTools.Tables.SheetSnapshot source, int[] columns) {
+            var result = new ExcelTools.Tables.SheetSnapshot { Name = source.Name, Width = columns.Length };
             foreach (var row in source.Rows) {
-                result.Rows.Add(new RowSnapshot {
+                result.Rows.Add(new ExcelTools.Tables.RowSnapshot {
                     Number = row.Number,
                     Values = columns.Select(column => column < 0 ? "" : row.ValueAt(column)).ToArray()
                 });
@@ -265,18 +259,18 @@ namespace ExcelTools.TableDiff {
             return result;
         }
 
-        private static SheetSnapshot SelectRange(SheetSnapshot sheetSnapshot, TableRange tableRange) {
-            var result = new SheetSnapshot { Name = sheetSnapshot.Name, Width = tableRange.Width };
+        private static ExcelTools.Tables.SheetSnapshot SelectRange(ExcelTools.Tables.SheetSnapshot sheetSnapshot, TableRange tableRange) {
+            var result = new ExcelTools.Tables.SheetSnapshot { Name = sheetSnapshot.Name, Width = tableRange.Width };
             foreach (var row in sheetSnapshot.Rows) {
                 var values = Enumerable.Range(tableRange.Start, tableRange.Width).Select(row.ValueAt).ToArray();
                 if (values.Any(value => value.Length > 0)) {
-                    result.Rows.Add(new RowSnapshot { Number = row.Number, Values = values });
+                    result.Rows.Add(new ExcelTools.Tables.RowSnapshot { Number = row.Number, Values = values });
                 }
             }
             return result;
         }
 
-        private static string Signature(RowSnapshot rowSnapshot, int width) {
+        private static string Signature(ExcelTools.Tables.RowSnapshot rowSnapshot, int width) {
             // Length prefixes avoid collisions when cell text contains separator characters.
             return String.Concat(Enumerable.Range(0, width).Select(c => {
                 var value = rowSnapshot.ValueAt(c);

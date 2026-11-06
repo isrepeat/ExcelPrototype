@@ -8,14 +8,12 @@ using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Globalization;
 
-using ExcelTools.Tables;
-
 namespace ExcelTools.OpenXml {
     public static class WorkbookReader {
-        private static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        private static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        internal static readonly XNamespace S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        internal static readonly XNamespace R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
-        private static XDocument ReadPart(ZipArchive zipArchive, string path) {
+        internal static XDocument ReadPart(ZipArchive zipArchive, string path) {
             var entry = zipArchive.GetEntry(path);
             if (entry == null) {
                 throw new InvalidDataException("Missing workbook part: " + path);
@@ -34,11 +32,11 @@ namespace ExcelTools.OpenXml {
             return String.Concat(element.Descendants(S + "t").Where(t => !t.Ancestors(S + "rPh").Any()).Select(t => t.Value));
         }
 
-        public static WorkbookSnapshot Read(string path) {
+        public static ExcelTools.Tables.WorkbookSnapshot Read(string path) {
             return Read(path, null);
         }
 
-        public static WorkbookSnapshot Read(string path, IEnumerable<string> sheetNames) {
+        public static ExcelTools.Tables.WorkbookSnapshot Read(string path, IEnumerable<string> sheetNames) {
             var selectedSheets = sheetNames == null ? null : new HashSet<string>(sheetNames, StringComparer.Ordinal);
             using (var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)) {
                 using (var zipArchive = new ZipArchive(stream, ZipArchiveMode.Read)) {
@@ -54,7 +52,7 @@ namespace ExcelTools.OpenXml {
                     var formats = ReadFormats(zipArchive);
                     var properties = workbook.Root.Element(S + "workbookPr");
                     var date1904 = properties != null && new[] { "1", "true" }.Contains((string)properties.Attribute("date1904"));
-                    var result = new WorkbookSnapshot();
+                    var result = new ExcelTools.Tables.WorkbookSnapshot();
                     foreach (var sheet in workbook.Root.Element(S + "sheets").Elements(S + "sheet")) {
                         if (selectedSheets != null && !selectedSheets.Contains((string)sheet.Attribute("name"))) {
                             continue;
@@ -67,8 +65,7 @@ namespace ExcelTools.OpenXml {
                         if (!((string)relation.Attribute("Type") ?? "").EndsWith("/worksheet", StringComparison.Ordinal)) {
                             throw new InvalidDataException("Only worksheets are supported: " + (string)sheet.Attribute("name"));
                         }
-                        var uri = new Uri(new Uri("http://workbook/xl/workbook.xml"), (string)relation.Attribute("Target"));
-                        var part = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
+                        var part = ResolvePart(relation);
                         result.Sheets.Add(ReadSheet(zipArchive, part, (string)sheet.Attribute("name"), shared, formats, date1904));
                     }
                     if (selectedSheets != null) {
@@ -81,6 +78,11 @@ namespace ExcelTools.OpenXml {
                     return result;
                 }
             }
+        }
+
+        internal static string ResolvePart(XElement relation) {
+            var uri = new Uri(new Uri("http://workbook/xl/workbook.xml"), (string)relation.Attribute("Target"));
+            return Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
         }
 
         private static List<string> ReadFormats(ZipArchive zipArchive) {
@@ -111,14 +113,14 @@ namespace ExcelTools.OpenXml {
             return result;
         }
 
-        private static SheetSnapshot ReadSheet(
+        private static ExcelTools.Tables.SheetSnapshot ReadSheet(
             ZipArchive zipArchive,
             string part,
             string name,
             List<string> shared,
             List<string> formats,
             bool date1904) {
-            var result = new SheetSnapshot { Name = name };
+            var result = new ExcelTools.Tables.SheetSnapshot { Name = name };
             var rows = ReadPart(zipArchive, part).Root.Element(S + "sheetData");
             if (rows == null) {
                 return result;
@@ -144,7 +146,7 @@ namespace ExcelTools.OpenXml {
                     if (String.IsNullOrEmpty(address)) {
                         throw new InvalidDataException("Missing cell address in sheet: " + name);
                     }
-                    var column = CellAddress.ColumnNumber(address);
+                    var column = ExcelTools.Tables.CellAddress.ColumnNumber(address);
                     result.Width = Math.Max(result.Width, column);
                     while (values.Count < column) {
                         values.Add("");
@@ -152,7 +154,7 @@ namespace ExcelTools.OpenXml {
                     values[column - 1] = ReadValue(cell, shared, formats, date1904, sharedFormulas);
                 }
                 if (values.Any(v => v.Length > 0)) {
-                    result.Rows.Add(new RowSnapshot { Number = number, Values = values.ToArray() });
+                    result.Rows.Add(new ExcelTools.Tables.RowSnapshot { Number = number, Values = values.ToArray() });
                 }
             }
             return result;

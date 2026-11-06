@@ -7,10 +7,8 @@ using System.Reflection;
 using System.Collections.Generic;
 using System.Globalization;
 
-using ExcelTools.Tables;
-
 namespace ExcelTools.TableDiff {
-    internal static class HtmlDiffWriter {
+    public static class HtmlDiffWriter {
         private static string Escape(string text) {
             return WebUtility.HtmlEncode(text ?? "");
         }
@@ -26,7 +24,21 @@ namespace ExcelTools.TableDiff {
             }
         }
 
-        public static string Generate(Configuration configuration, List<SheetDiff> differences) {
+        public static void Write(string output, string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method) {
+            Directory.CreateDirectory(Path.GetDirectoryName(output));
+            var temporary = ExcelTools.Tooling.OutputPublisher.CreateTemporaryPath(output, ".html");
+            try {
+                File.WriteAllText(temporary, Generate(profile, oldFile, newFile, differences, method), new UTF8Encoding(false));
+                ExcelTools.Tooling.OutputPublisher.Publish(temporary, output);
+            }
+            finally {
+                if (File.Exists(temporary)) {
+                    File.Delete(temporary);
+                }
+            }
+        }
+
+        private static string Generate(string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method) {
             var sections = new StringBuilder();
             var payloads = new StringBuilder();
             var summary = new StringBuilder("<table class=\"summary-table\"><thead><tr><th>Старый лист</th><th>Новый лист</th><th>Ключ</th><th>Порог</th><th>Изменено</th><th>Добавлено</th><th>Удалено</th><th>Было строк</th><th>Стало строк</th></tr></thead><tbody>");
@@ -44,15 +56,16 @@ namespace ExcelTools.TableDiff {
             summary.Append("</tbody></table>");
             return "<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                 + "<title>Сравнение Excel</title><style>" + Asset("report.css") + "</style>"
-                + "<header class=\"report-header\"><h1>Сравнение Excel</h1><span class=\"profile\">" + Escape(configuration.Profile)
+                + "<header class=\"report-header\"><h1>Сравнение Excel</h1><span class=\"profile\">" + Escape(profile)
                 + "</span><div class=\"stats\" aria-label=\"Итоги сравнения\"><span>~ " + differences.Sum(s => s.Count("change"))
                 + " изменено</span><span>+ " + differences.Sum(s => s.Count("add"))
                 + " добавлено</span><span>− " + differences.Sum(s => s.Count("delete")) + " удалено</span></div></header>"
-                + "<p class=\"source-files\">" + Escape(Path.GetFileName(configuration.Old)) + " → " + Escape(Path.GetFileName(configuration.New)) + "</p>"
+                + "<p class=\"source-files\">" + Escape(Path.GetFileName(oldFile)) + " → " + Escape(Path.GetFileName(newFile)) + "</p>"
                 + "<details class=\"report-summary\"><summary>Сводка и способ сравнения</summary><div class=\"summary-scroll\">" + summary + "</div>"
                 + "<p>Сравниваются сохранённые значения и тексты формул только в указанных парах листов. Скрытые и отфильтрованные строки включены; оформление и кэшированные результаты формул не сравниваются.</p>"
-                + "<p>Границы колонок определяются по непрерывным непустым заголовкам вокруг ключевого поля независимо в каждой версии. Колонки сопоставляются по точным названиям: + означает новую колонку, − удалённую. Порог близости рассчитывается только по общим колонкам.</p>"
-                + "<p>Сначала исключаются точные совпадения с учётом повторов. Остальные записи сопоставляются по ключу и порогу своей пары; равные по близости кандидаты отмечаются знаком ?. Строки вне таблиц сопоставляются по номеру.</p>"
+                + (method != null ? "<p>" + Escape(method) + "</p>" :
+                "<p>Границы колонок определяются по непрерывным непустым заголовкам вокруг ключевого поля независимо в каждой версии. Колонки сопоставляются по точным названиям: + означает новую колонку, − удалённую. Порог близости рассчитывается только по общим колонкам.</p>"
+                + "<p>Сначала исключаются точные совпадения с учётом повторов. Остальные записи сопоставляются по ключу и порогу своей пары; равные по близости кандидаты отмечаются знаком ?. Строки вне таблиц сопоставляются по номеру.</p>")
                 + "<p>Старое значение зачёркнуто, новое расположено ниже. Каждое значение ограничено тремя видимыми строками с многоточием независимо от другого значения. Поиск учитывает полный текст. Неизменённые формулы можно показать переключателем в панели поиска. Адреса ячеек доступны во всплывающей подсказке.</p></details>"
                 + "<nav class=\"report-toolbar\" aria-label=\"Поиск и фильтр\"><div class=\"toolbar-controls\" id=\"toolbar-controls\"><input type=\"search\" aria-label=\"Поиск по значению или изменённому полю\" placeholder=\"Поиск по значению или полю\">"
                 + "<select aria-label=\"Тип изменений\"><option value=\"\">Все изменения</option><option value=\"change\">Изменённые</option><option value=\"add\">Добавленные</option><option value=\"delete\">Удалённые</option></select>"
@@ -71,7 +84,7 @@ namespace ExcelTools.TableDiff {
             return (value * 100).ToString("0.##", CultureInfo.InvariantCulture) + "%";
         }
 
-        private static void AppendSheet(StringBuilder output, StringBuilder payloads, SheetDiff sheetDiff, string id) {
+        private static void AppendSheet(StringBuilder output, StringBuilder payloads, ExcelTools.Changes.SheetDiff sheetDiff, string id) {
             var header = sheetDiff.NewHeader ?? sheetDiff.OldHeader;
             var offset = sheetDiff.NewHeader == null ? sheetDiff.OldColumnOffset : sheetDiff.NewColumnOffset;
             var columns = Enumerable.Range(0, sheetDiff.Width)
@@ -107,6 +120,10 @@ namespace ExcelTools.TableDiff {
                 AppendValues(rows, change.Before, columns, strings, indices);
                 rows.Append(',');
                 AppendValues(rows, change.After, columns, strings, indices);
+                if (change.ReviewNote != null) {
+                    rows.Append(',');
+                    AppendJsonString(rows, change.ReviewNote);
+                }
                 rows.Append(']');
             }
             rows.Append(']');
@@ -117,7 +134,7 @@ namespace ExcelTools.TableDiff {
                 }
                 var column = columns[index];
                 payloads.Append('[').Append(column).Append(',');
-                var name = header == null ? CellAddress.ColumnName(offset + column + 1) : header.ValueAt(column);
+                var name = header == null ? ExcelTools.Tables.CellAddress.ColumnName(offset + column + 1) : header.ValueAt(column);
                 if (name.Length == 0 && sheetDiff.OldHeader != null) {
                     name = sheetDiff.OldHeader.ValueAt(column);
                 }
@@ -140,7 +157,7 @@ namespace ExcelTools.TableDiff {
 
         private static void AppendValues(
             StringBuilder output,
-            RowSnapshot rowSnapshot,
+            ExcelTools.Tables.RowSnapshot rowSnapshot,
             List<int> columns,
             List<string> strings,
             Dictionary<string, int> indices) {

@@ -2,8 +2,6 @@ using System;
 using System.Text.RegularExpressions;
 using System.Globalization;
 
-using ExcelTools.Tables;
-
 namespace ExcelTools.OpenXml {
     internal static class FormulaTranslator {
         // Skip quoted strings, sheet names and structured references before translating A1 references.
@@ -12,7 +10,7 @@ namespace ExcelTools.OpenXml {
         );
 
         public static string Translate(string formula, string origin, string destination) {
-            var columnOffset = CellAddress.ColumnNumber(destination) - CellAddress.ColumnNumber(origin);
+            var columnOffset = ExcelTools.Tables.CellAddress.ColumnNumber(destination) - ExcelTools.Tables.CellAddress.ColumnNumber(origin);
             var rowOffset = Row(destination) - Row(origin);
             return References.Replace(formula, match => {
                 if (match.Groups["column"].Success) {
@@ -38,11 +36,11 @@ namespace ExcelTools.OpenXml {
             if (column.StartsWith("$", StringComparison.Ordinal)) {
                 return column;
             }
-            var number = CellAddress.ColumnNumber(column) + offset;
+            var number = ExcelTools.Tables.CellAddress.ColumnNumber(column) + offset;
             if (number < 1 || number > 16384) {
                 throw new InvalidOperationException("Shared formula column is outside the worksheet.");
             }
-            return CellAddress.ColumnName(number);
+            return ExcelTools.Tables.CellAddress.ColumnName(number);
         }
 
         private static string ShiftRow(string row, int offset) {
