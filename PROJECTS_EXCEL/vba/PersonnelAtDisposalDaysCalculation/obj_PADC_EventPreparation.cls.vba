@@ -82,6 +82,8 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Dim dates As Object
     Dim rosterDates As Object
     Dim disposalDates As Object
+    Dim dateOverrides As Object
+    Dim dateLookupKeys As Object
     Dim seen As Object
     Dim eventIndex As obj_PADC_PersonIndex
     Dim prepared As Collection
@@ -136,11 +138,15 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Set events = m_dataSource.ReadConfiguredSource("source.events", vbNullString, _
         VBA.Array("TaxId", "FullName", "Event", "Departure", "Arrival"))
     m_runContext.CompleteStep
-    Set disposalDates = private_IndexDates(orders, cutoff, False)
-    Set rosterDates = private_IndexDates(enrollment, cutoff, True)
+    personnelValues = personnel.Values
+    Set dateLookupKeys = private_DateLookupKeys(personnelValues, personnel.RowCount, disposalCode, rosterCode)
+    Set disposalDates = private_IndexDates(orders, cutoff, False, dateLookupKeys)
+    Set rosterDates = private_IndexDates(enrollment, cutoff, True, dateLookupKeys)
+    m_runContext.BeginStep m_configuration.GetText("progress.DateOverrides")
+    Set dateOverrides = private_ReadDateOverrides()
+    m_runContext.CompleteStep
     Set seen = VBA.CreateObject(DICTIONARY_PROG_ID)
     Set prepared = New Collection
-    personnelValues = personnel.Values
     eventValues = events.Values
     Set eventIndex = New obj_PADC_PersonIndex
     m_runContext.BeginStep m_configuration.GetText("progress.EventIndex"), events.RowCount
@@ -178,7 +184,10 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                 Else
                     Set dates = disposalDates
                 End If
-                If dates.Exists("I|" & taxId) Then
+                If dateOverrides.Exists(fullName) Then
+                    startDay = dateOverrides(fullName)
+                    note = m_configuration.GetText("text.OverrideDateUsed")
+                ElseIf dates.Exists("I|" & taxId) Then
                     startDay = dates("I|" & taxId)
                 ElseIf dates.Exists("N|" & fullName) Then
                     startDay = dates("N|" & fullName)
@@ -186,9 +195,9 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                 If startDay <= 0 Then
                     startDay = fallbackDay
                     note = m_configuration.GetText("text.FallbackDateUsed")
-                    If startDay > cutoff Then
-                        errorText = m_configuration.GetText("text.StartAfterEnd")
-                    End If
+                End If
+                If startDay > cutoff Then
+                    errorText = m_configuration.GetText("text.StartAfterEnd")
                 End If
 
                 Set matches = eventIndex.Find(taxId, fullName, matchError)
@@ -268,10 +277,80 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_ReadDateOverrides() As Object
+    Dim fileSystem As Object
+    Dim workbookPath As String
+    Dim data As obj_DataTable
+    Dim overrides As Object
+    Dim values As Variant
+    Dim rowIndex As Long
+    Dim fullName As String
+    Dim startDay As Long
+    Dim context As String
+
+    Set overrides = VBA.CreateObject(DICTIONARY_PROG_ID)
+    overrides.CompareMode = vbTextCompare
+    Set private_ReadDateOverrides = overrides
+    Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
+    workbookPath = fileSystem.BuildPath(ThisWorkbook.Path, m_configuration.GetText("source.dateOverrides.fileName"))
+    If Not fileSystem.FileExists(workbookPath) Then
+        Exit Function
+    End If
+
+    Set data = m_dataSource.ReadConfiguredSource("source.dateOverrides", workbookPath, VBA.Array("FullName", "Date"))
+    values = data.Values
+    For rowIndex = 1 To data.RowCount
+        m_runContext.CheckCancel rowIndex
+        fullName = m_validation.MatchText(values(rowIndex, 1))
+        If VBA.Len(fullName) > 0 Or VBA.Len(m_validation.MatchText(values(rowIndex, 2))) > 0 _
+                Or VBA.IsError(values(rowIndex, 1)) Or VBA.IsError(values(rowIndex, 2)) Then
+            context = workbookPath & m_configuration.GetText("text.ParameterRow") & rowIndex
+            fullName = m_validation.RequiredText(values(rowIndex, 1), context & m_configuration.GetText("text.FullName"))
+            startDay = m_validation.ReadDay(values(rowIndex, 2), False, context & m_configuration.GetText("text.TimePoint"))
+            If overrides.Exists(fullName) Then
+                If overrides(fullName) <> startDay Then
+                    m_configuration.Fail context & " | " & m_configuration.GetText("text.OverrideDateConflict") & " " & fullName
+                End If
+            Else
+                overrides.Add fullName, startDay
+            End If
+        End If
+    Next rowIndex
+End Function
+
+Private Function private_DateLookupKeys( _
+    ByRef personnelValues As Variant, _
+    ByVal rowCount As Long, _
+    ByVal disposalCode As String, _
+    ByVal rosterCode As String _
+) As Object
+    Dim keys As Object
+    Dim rowIndex As Long
+    Dim code As String
+    Dim taxId As String
+    Dim fullName As String
+
+    Set keys = VBA.CreateObject(DICTIONARY_PROG_ID)
+    keys.CompareMode = vbTextCompare
+    For rowIndex = 1 To rowCount
+        code = m_validation.MatchText(personnelValues(rowIndex, 4))
+        If VBA.StrComp(code, disposalCode, vbTextCompare) = 0 Or VBA.StrComp(code, rosterCode, vbTextCompare) = 0 Then
+            taxId = m_validation.MatchText(personnelValues(rowIndex, 1))
+            fullName = m_validation.MatchText(personnelValues(rowIndex, 2))
+            If VBA.Len(taxId) > 0 And VBA.Len(fullName) > 0 Then
+                keys(code & "|I|" & taxId) = True
+                keys(code & "|N|" & fullName) = True
+            End If
+        End If
+    Next rowIndex
+    Set private_DateLookupKeys = keys
+End Function
+
 Private Function private_IndexDates( _
     ByVal orders As obj_DataTable, _
     ByVal cutoff As Long, _
-    ByVal isEnrollment As Boolean _
+    ByVal isEnrollment As Boolean, _
+    ByVal dateLookupKeys As Object _
 ) As Object
     Dim dates As Object
     Dim nameOwners As Object
@@ -283,6 +362,9 @@ Private Function private_IndexDates( _
     Dim rowIndex As Long
     Dim datePattern As Object
     Dim stageKey As String
+    Dim startedAt As Double
+    Dim parsedRows As Long
+    Dim targetCode As String
 
     Set dates = VBA.CreateObject(DICTIONARY_PROG_ID)
     dates.CompareMode = vbTextCompare
@@ -290,18 +372,26 @@ Private Function private_IndexDates( _
     nameOwners.CompareMode = vbTextCompare
     actionName = m_configuration.GetText("source.orders.action")
     stageKey = "progress.OrderIndex"
+    targetCode = m_configuration.GetText("source.personnel.disposalCode")
     If isEnrollment Then
         stageKey = "progress.EnrollmentIndex"
+        targetCode = m_configuration.GetText("source.personnel.rosterCode")
         Set datePattern = VBA.CreateObject("VBScript.RegExp")
         datePattern.Global = True
         datePattern.Pattern = "(^|[^0-9])([0-9]{1,2})[./]([0-9]{1,2})[./]([0-9]{4})(?![0-9])"
     End If
     values = orders.Values
+    startedAt = VBA.Timer
     m_runContext.BeginStep m_configuration.GetText(stageKey), orders.RowCount
     For rowIndex = 1 To orders.RowCount
         If isEnrollment Or VBA.StrComp(m_validation.MatchText(values(rowIndex, 3)), actionName, vbTextCompare) = 0 Then
             taxId = m_validation.MatchText(values(rowIndex, 1))
             fullName = m_validation.MatchText(values(rowIndex, 2))
+            If Not dateLookupKeys.Exists(targetCode & "|I|" & taxId) _
+                    And Not dateLookupKeys.Exists(targetCode & "|N|" & fullName) Then
+                GoTo NextOrderRow
+            End If
+            parsedRows = parsedRows + 1
             If isEnrollment Then
                 day = private_EnrollmentDay(values(rowIndex, 3), cutoff, datePattern)
             Else
@@ -321,9 +411,11 @@ Private Function private_IndexDates( _
                 End If
             End If
         End If
+NextOrderRow:
         m_runContext.ReportProgress rowIndex
     Next rowIndex
     m_runContext.CompleteStep
+    ex_Core.fn_Diagnostic_WritePerf "PADC." & stageKey & " | ParsedRows=" & parsedRows, startedAt
     Set private_IndexDates = dates
 End Function
 

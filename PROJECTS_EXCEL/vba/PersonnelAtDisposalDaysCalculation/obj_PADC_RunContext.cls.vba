@@ -19,7 +19,7 @@ Private m_stage As String
 Private m_step As Long
 Private m_stageTotal As Long
 Private m_completed As Long
-Private Const STEP_COUNT As Long = 11
+Private Const STEP_COUNT As Long = 12
 Private Const UI_YIELD_SECONDS As Single = 0.1
 Private Const CANCEL_ERROR As Long = vbObjectError + 2101
 Private Const ERROR_SOURCE As String = "PersonnelAtDisposalDays"

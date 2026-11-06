@@ -98,11 +98,11 @@ Public Sub Publish( _
                 values(i, 5) = VBA.Format$(exportValues(i, 6), FORMAT_DATE)
             End If
             values(i, 6) = periods(i, 1)
-            values(i, 7) = exportValues(i, 7)
-            include = Not VBA.IsEmpty(exportValues(i, 7))
+            values(i, 7) = exportValues(i, 8)
+            include = Not VBA.IsEmpty(exportValues(i, 8))
             through = monthEnd
-            If Not VBA.IsEmpty(exportValues(i, 8)) Then
-                threshold = VBA.CDate(exportValues(i, 8))
+            If Not VBA.IsEmpty(exportValues(i, 9)) Then
+                threshold = VBA.CDate(exportValues(i, 9))
                 values(i, 8) = VBA.Format$(threshold, FORMAT_DATE)
                 include = include And threshold > monthStart
                 If threshold <= monthEnd Then
@@ -115,7 +115,7 @@ Public Sub Publish( _
                 values(i, 11) = values(i, 9) & separator & values(i, 10)
             End If
             values(i, 12) = include
-            values(i, 13) = exportValues(i, 15)
+            values(i, 13) = exportValues(i, 16)
         Next i
         If Not resultTable.Initialize(values, headers) Then
             m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
@@ -131,8 +131,7 @@ Public Sub Publish( _
     If Not m_pageBase.Render() Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
-    ex_PADC.fn_MarkFallbackDates parameterSheet.ListObjects("tbPADCCalculationRows"), 5, 13, _
-        m_configuration.GetText("text.FallbackDateUsed")
+    ex_PADC.fn_MarkDateSources parameterSheet.ListObjects("tbPADCCalculationRows"), 1, 5, 13, m_configuration
 End Sub
 
 ' //

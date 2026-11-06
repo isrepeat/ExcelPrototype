@@ -13,24 +13,35 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
-Public Sub fn_MarkFallbackDates( _
+Public Sub fn_MarkDateSources( _
     ByVal table As ListObject, _
+    ByVal nameColumn As Long, _
     ByVal dateColumn As Long, _
     ByVal notesColumn As Long, _
-    ByVal marker As String _
+    ByVal configuration As obj_PADC_Configuration _
 )
     Dim noteCell As Range
     Dim dates As Range
+    Dim names As Range
     Dim rowIndex As Long
+    Dim note As String
+    Dim fallbackMarker As String
+    Dim overrideMarker As String
 
     If table.DataBodyRange Is Nothing Then
         Exit Sub
     End If
     Set dates = table.ListColumns(dateColumn).DataBodyRange
+    Set names = table.ListColumns(nameColumn).DataBodyRange
+    fallbackMarker = configuration.GetText("text.FallbackDateUsed")
+    overrideMarker = configuration.GetText("text.OverrideDateUsed")
     For Each noteCell In table.ListColumns(notesColumn).DataBodyRange.Cells
         rowIndex = rowIndex + 1
-        If VBA.Left$(VBA.CStr(noteCell.Value2), VBA.Len(marker)) = marker Then
+        note = VBA.CStr(noteCell.Value2)
+        If VBA.Left$(note, VBA.Len(fallbackMarker)) = fallbackMarker Then
             dates.Cells(rowIndex, 1).Font.Color = VBA.RGB(255, 217, 102)
+        ElseIf VBA.Left$(note, VBA.Len(overrideMarker)) = overrideMarker Then
+            names.Cells(rowIndex, 1).Interior.Color = VBA.RGB(45, 76, 99)
         End If
     Next noteCell
 End Sub

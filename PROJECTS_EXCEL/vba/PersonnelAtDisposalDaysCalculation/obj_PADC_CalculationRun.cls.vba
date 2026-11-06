@@ -301,7 +301,7 @@ Private Sub private_CalculatePreparedPeople( _
     Dim exportValues() As Variant
 
     ReDim periods(1 To prepared.Count, 1 To 1)
-    ReDim exportValues(1 To prepared.Count, 1 To 15)
+    ReDim exportValues(1 To prepared.Count, 1 To 16)
     m_runContext.BeginStep m_configuration.GetText("progress.Calculation"), prepared.Count
     For i = 1 To prepared.Count
         Set preparedPerson = prepared(i)
@@ -322,12 +322,13 @@ Private Sub private_CalculatePreparedPeople( _
         Else
             Set rows = preparedPerson.Intervals
             count = count + 1
-            exportValues(i, 7) = m_calculationService.Calculate(rows, VBA.CLng(preparedPerson.StartDay), lastDay, _
+            exportValues(i, 8) = m_calculationService.Calculate(rows, VBA.CLng(preparedPerson.StartDay), lastDay, _
                 periodsText, thresholdDate, m_runContext)
             periods(i, 1) = periodsText
-            exportValues(i, 8) = thresholdDate
+            exportValues(i, 7) = periodsText
+            exportValues(i, 9) = thresholdDate
         End If
-        exportValues(i, 15) = note
+        exportValues(i, 16) = note
         If VBA.Len(note) > 0 Then
             issueCount = issueCount + 1
             m_runContext.LogWarning note

@@ -135,6 +135,14 @@ Private Function private_RequiredKeys() As Collection
     Dim keys As Collection
 
     Set keys = New Collection
+    keys.Add "source.dateOverrides.fileName"
+    keys.Add "source.dateOverrides.sheet"
+    keys.Add "source.dateOverrides.range"
+    keys.Add "source.dateOverrides.columns.FullName"
+    keys.Add "source.dateOverrides.columns.Date"
+    keys.Add "progress.DateOverrides"
+    keys.Add "text.OverrideDateUsed"
+    keys.Add "text.OverrideDateConflict"
     keys.Add "event.tripChain.label"
     keys.Add "event.tripChain.target"
     keys.Add "event.tripChain.predecessors"

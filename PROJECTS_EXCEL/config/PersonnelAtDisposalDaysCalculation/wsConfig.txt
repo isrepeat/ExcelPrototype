@@ -53,6 +53,7 @@ value	PersonnelAtDisposalDaysCalculation::text.ArrivalCellError	: the arrival ce
 value	PersonnelAtDisposalDaysCalculation::text.FallbackDateUsed	Дату ДЗС у Д2 не знайдено. Використано дату за замовчуванням.
 value	PersonnelAtDisposalDaysCalculation::text.InvalidReference	Вкажіть файл.xlsx|Лист!B2:N10000: явний діапазон із заголовками в першому рядку та даними нижче.
 value	PersonnelAtDisposalDaysCalculation::text.OperationStopped	Operation stopped:
+value	PersonnelAtDisposalDaysCalculation::text.OverrideDateUsed	ДЗС взято з таблиці ручних дат.
 value	PersonnelAtDisposalDaysCalculation::text.PersonUnverified	Person not found in events or the personnel roster:
 value	PersonnelAtDisposalDaysCalculation::text.RelativePathBase	Save the tool workbook in a local or network folder before using a relative input path.
 value	PersonnelAtDisposalDaysCalculation::text.EventRuleConflict	Правила «{first}» і «{second}» задають різні операції для події «{event}».
@@ -60,6 +61,7 @@ value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлік�
 value	PersonnelAtDisposalDaysCalculation::text.ParameterWorksheet	Parameter worksheet:
 value	PersonnelAtDisposalDaysCalculation::text.ExportFolderMissing	Спочатку збережіть книгу інструмента в доступній локальній або мережевій папці.
 value	PersonnelAtDisposalDaysCalculation::text.TargetPrepareFailed	Unable to prepare the result table:
+value	PersonnelAtDisposalDaysCalculation::text.OverrideDateConflict	Для одного ПІБ задано різні ручні дати ДЗС.
 value	PersonnelAtDisposalDaysCalculation::text.PersonIdentityMissing	У записі ШПО відсутній ІПН або ПІБ.
 value	PersonnelAtDisposalDaysCalculation::text.ArrivalBeforeDeparture	: arrival is earlier than departure.
 value	PersonnelAtDisposalDaysCalculation::text.CheckTableConfiguration	'. Check the table and worksheet names in Configuration.
@@ -99,7 +101,7 @@ value	PersonnelAtDisposalDaysCalculation::export.header.UnitPeriod	Підрод�
 value	PersonnelAtDisposalDaysCalculation::export.labels.End	Кінець періода
 value	PersonnelAtDisposalDaysCalculation::export.labels.Date	Дата обрахунку
 value	PersonnelAtDisposalDaysCalculation::export.labels.Start	Початок періода
-value	PersonnelAtDisposalDaysCalculation::export.widths	16|34|20|12|28|17|20|27|18|18|29|29|16|18|36
+value	PersonnelAtDisposalDaysCalculation::export.widths	16|34|20|12|28|17|40|20|27|18|18|29|29|16|18|36
 value	PersonnelAtDisposalDaysCalculation::export.formula.End	=EOMONTH(C3,-1)
 value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[5],R4C3,"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Start	=EOMONTH(C5,-1)+1
@@ -151,6 +153,11 @@ value	PersonnelAtDisposalDaysCalculation::source.enrollment.sheet	Особови
 value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.Date	Номер та дата внутрішнього наказу по стройовій щодо зарахування
 value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.TaxId	ІПН
 value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.FullName	Прізвище, ім’я, по батькові
+value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.range	C7:F1000
+value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.sheet	Excepts
+value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.columns.Date	ДЗС
+value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.columns.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.fileName	Ecxepts.xlsx
 value	PersonnelAtDisposalDaysCalculation::status.Ready	Вкажіть кінцеву дату та натисніть «Розрахувати періоди».
 value	PersonnelAtDisposalDaysCalculation::status.Loading	Завантаження даних із ШПО, Д2 та РУХ…
 value	PersonnelAtDisposalDaysCalculation::status.Exported	Книгу результатів збережено.
@@ -169,6 +176,7 @@ value	PersonnelAtDisposalDaysCalculation::progress.OrderIndex	Пошук дат 
 value	PersonnelAtDisposalDaysCalculation::progress.Parameters	Перевірка параметрів
 value	PersonnelAtDisposalDaysCalculation::progress.Calculation	Розрахунок днів
 value	PersonnelAtDisposalDaysCalculation::progress.Preparation	Підготовка записів ШПО
+value	PersonnelAtDisposalDaysCalculation::progress.DateOverrides	Читання ручних дат ДЗС
 value	PersonnelAtDisposalDaysCalculation::progress.EnrollmentIndex	Пошук дат зарахування
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
 value	PersonnelAtDisposalDaysCalculation::calculation.fallbackStartDate	21.07.2025
