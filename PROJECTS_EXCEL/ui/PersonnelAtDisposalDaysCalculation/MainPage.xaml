@@ -65,11 +65,7 @@
                     itemsSource="{Binding Path=Data.CalculationRows}"
                     style="resultTable"
                     representation="Smart"
-                    showHeaders="true"/>
-    <stackPanel orientation="vertical"/>
-    <controls:table name="CalculationErrors"
-                    itemsSource="{Binding Path=Data.Errors}"
-                    style="resultTable"
+                    excelTableName="tbPADCCalculationRows"
                     showHeaders="true"/>
     </stackPanel>
   </grid>
@@ -159,7 +155,7 @@
               selector="address=A:A"
               styles="{width:9;}"/>
         <rule target="column"
-              selector="address=B:K"
+              selector="address=B:L"
               styles="{width:18;}"/>
         <rule target="cell"
               selector="address=I2"

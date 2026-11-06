@@ -57,7 +57,7 @@ Public Sub CreateWorkbook( _
     Dim workbook As Workbook
     Dim sheet As Worksheet
     Dim table As ListObject
-    Dim headers(1 To 1, 1 To 14) As Variant
+    Dim headers(1 To 1, 1 To 15) As Variant
     Dim headerKeys As Variant
     Dim widths As Variant
     Dim palette As Variant
@@ -85,27 +85,27 @@ Public Sub CreateWorkbook( _
         "export.header.Status", "export.header.OpenStatus", _
         "export.header.StartDate", "header.CountedDays", "header.ThresholdDate", _
         "export.header.From", "export.header.Through", "export.header.Period", _
-        "export.header.UnitPeriod", "export.header.Difference", "export.header.Include")
-    For i = 1 To 14
+        "export.header.UnitPeriod", "export.header.Difference", "export.header.Include", "header.Notes")
+    For i = 1 To 15
         headers(1, i) = m_configuration.GetText(VBA.CStr(headerKeys(i - 1)))
     Next i
     widths = VBA.Split(m_configuration.GetText("export.widths"), "|")
     palette = VBA.Split(m_configuration.GetText("export.palette"), "|")
-    If UBound(widths) <> 13 Or UBound(palette) <> 5 Then
+    If UBound(widths) <> 14 Or UBound(palette) <> 5 Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.widths / export.palette"
     End If
     Set workbook = Application.Workbooks.Add(xlWBATWorksheet)
     Set sheet = workbook.Worksheets(1)
     sheet.Name = m_configuration.GetText("export.sheet")
-    sheet.Range("B7:O7").Value2 = headers
+    sheet.Range("B7:P7").Value2 = headers
     sheet.Range("D8").Resize(count, 1).NumberFormat = "@"
-    sheet.Range("B8").Resize(count, 14).Value = values
-    Set table = sheet.ListObjects.Add(xlSrcRange, sheet.Range("B7").Resize(count + 1, 14), , xlYes)
+    sheet.Range("B8").Resize(count, 15).Value = values
+    Set table = sheet.ListObjects.Add(xlSrcRange, sheet.Range("B7").Resize(count + 1, 15), , xlYes)
     table.Name = m_configuration.GetText("export.table")
     table.TableStyle = ""
 
     ' Leave rows without a valid calculation outside the monthly selection.
-    sheet.Range("B2:O2").Merge
+    sheet.Range("B2:P2").Merge
     sheet.Range("B2").Value2 = m_configuration.GetText("export.title")
     sheet.Range("B3").Value2 = m_configuration.GetText("export.labels.Date")
     sheet.Range("B4").Value2 = m_configuration.GetText("export.labels.Start")
@@ -126,14 +126,14 @@ Public Sub CreateWorkbook( _
     If backgroundRows < 0 Or backgroundColumns < 0 Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.padding"
     End If
-    With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + backgroundRows, 15 + backgroundColumns))
+    With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + backgroundRows, 16 + backgroundColumns))
         .Interior.Color = private_Color(VBA.CStr(palette(0)))
         .Font.Name = m_configuration.GetText("export.font")
         .Font.Size = VBA.CDbl(m_configuration.GetText("export.fontSize"))
         .Font.Color = private_Color(VBA.CStr(palette(4)))
         .VerticalAlignment = xlCenter
     End With
-    For i = 1 To 14
+    For i = 1 To 15
         sheet.Columns(i + 1).ColumnWidth = VBA.CDbl(widths(i - 1))
     Next i
     sheet.Columns(1).ColumnWidth = 3
@@ -165,6 +165,7 @@ Public Sub CreateWorkbook( _
     sheet.Range("B4:C5").Font.Color = computedColor
     sheet.Range("J7:L" & count + 7).Font.Color = computedColor
     sheet.Range("N7:O" & count + 7).Font.Color = computedColor
+    ex_PADC.fn_MarkFallbackDates table, 6, 15, m_configuration.GetText("text.FallbackDateUsed")
     table.DataBodyRange.Rows.AutoFit
     sheet.Calculate
     workbook.Activate

@@ -65,18 +65,15 @@ Public Sub Publish( _
     ByRef periods() As Variant, _
     ByRef days() As Variant, _
     ByRef thresholds() As Variant, _
+    ByRef notes() As Variant, _
     ByVal count As Long, _
-    ByVal failures As Collection, _
-    ByVal lastDay As Long _
+    ByVal lastDay As Long, _
+    ByVal parameterSheet As Worksheet _
 )
     Dim values() As Variant
     Dim headers As Variant
-    Dim errorValues() As Variant
-    Dim errorHeaders As Variant
-    Dim item As Variant
     Dim i As Long
     Dim resultTable As obj_UiRawTable
-    Dim errorTable As obj_UiRawTable
     Dim monthStart As Date
     Dim monthEnd As Date
     Dim through As Date
@@ -88,25 +85,27 @@ Public Sub Publish( _
     headers = VBA.Array(m_configuration.GetText("header.FullName"), m_configuration.GetText("header.TaxId"), m_configuration.GetText("header.StartDate"), _
         m_configuration.GetText("header.Periods"), m_configuration.GetText("header.CountedDays"), m_configuration.GetText("header.ThresholdDate"), _
         m_configuration.GetText("export.header.From"), m_configuration.GetText("export.header.Through"), m_configuration.GetText("export.header.Period"), _
-        m_configuration.GetText("export.header.Include"))
+        m_configuration.GetText("export.header.Include"), m_configuration.GetText("header.Notes"))
     Set resultTable = New obj_UiRawTable
     If count > 0 Then
         monthStart = VBA.DateSerial(VBA.Year(VBA.CDate(lastDay)), VBA.Month(VBA.CDate(lastDay)) - 1, 1)
         monthEnd = VBA.DateSerial(VBA.Year(VBA.CDate(lastDay)), VBA.Month(VBA.CDate(lastDay)), 0)
         separator = " " & m_configuration.GetText("format.periodRangeSeparator") & " "
-        ReDim values(1 To count, 1 To 10)
+        ReDim values(1 To count, 1 To 11)
         For i = 1 To count
             values(i, 1) = names(i, 1)
             values(i, 2) = ids(i, 1)
-            values(i, 3) = VBA.Format$(starts(i, 1), FORMAT_DATE)
+            If Not VBA.IsEmpty(starts(i, 1)) Then
+                values(i, 3) = VBA.Format$(starts(i, 1), FORMAT_DATE)
+            End If
             values(i, 4) = periods(i, 1)
             values(i, 5) = days(i, 1)
-            include = True
+            include = Not VBA.IsEmpty(days(i, 1))
             through = monthEnd
             If Not VBA.IsEmpty(thresholds(i, 1)) Then
                 threshold = VBA.CDate(thresholds(i, 1))
                 values(i, 6) = VBA.Format$(threshold, FORMAT_DATE)
-                include = threshold > monthStart
+                include = include And threshold > monthStart
                 If threshold <= monthEnd Then
                     through = threshold - 1
                 End If
@@ -117,6 +116,7 @@ Public Sub Publish( _
                 values(i, 9) = values(i, 7) & separator & values(i, 8)
             End If
             values(i, 10) = include
+            values(i, 11) = notes(i, 1)
         Next i
         If Not resultTable.Initialize(values, headers) Then
             m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
@@ -126,33 +126,14 @@ Public Sub Publish( _
             m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
         End If
     End If
-    errorHeaders = VBA.Array(m_configuration.GetText("header.errors.FullName"), m_configuration.GetText("header.errors.TaxId"), m_configuration.GetText("header.errors.Description"))
-    Set errorTable = New obj_UiRawTable
-    If failures.Count > 0 Then
-        ReDim errorValues(1 To failures.Count, 1 To 3)
-        For i = 1 To failures.Count
-            item = failures(i)
-            errorValues(i, 1) = item(0)
-            errorValues(i, 2) = item(1)
-            errorValues(i, 3) = item(2)
-        Next i
-        If Not errorTable.Initialize(errorValues, errorHeaders) Then
-            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
-        End If
-    Else
-        If Not errorTable.InitializeEmpty(errorHeaders) Then
-            m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
-        End If
-    End If
     If Not m_pageBase.BindingContext.SetObject("Data", "CalculationRows", resultTable) Then
-        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
-    End If
-    If Not m_pageBase.BindingContext.SetObject("Data", "Errors", errorTable) Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
     If Not m_pageBase.Render() Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
+    ex_PADC.fn_MarkFallbackDates parameterSheet.ListObjects("tbPADCCalculationRows"), 3, 11, _
+        m_configuration.GetText("text.FallbackDateUsed")
 End Sub
 
 ' //

@@ -44,11 +44,13 @@ value	PersonnelAtDisposalDaysCalculation::text.WritingResult	Writing result:
 value	PersonnelAtDisposalDaysCalculation::text.WrongWorkbook	Run this command from a worksheet in the tool workbook.
 value	PersonnelAtDisposalDaysCalculation::text.AlreadyRunning	An operation is already running. Wait for completion or click Cancel.
 value	PersonnelAtDisposalDaysCalculation::text.DuplicateTaxId	: duplicate tax ID
+value	PersonnelAtDisposalDaysCalculation::text.SnapshotFailed	Не вдалося створити знімок файлу «{path}». {error}
 value	PersonnelAtDisposalDaysCalculation::text.IsMissingColumn	' is missing column '
 value	PersonnelAtDisposalDaysCalculation::text.MultipleSources	Multiple RUKH tables are open. Keep only one source workbook open.
 value	PersonnelAtDisposalDaysCalculation::text.ParametersEmpty	The parameter table is empty.
 value	PersonnelAtDisposalDaysCalculation::text.SelectToolSheet	Select the tool worksheet containing the input path and end date.
 value	PersonnelAtDisposalDaysCalculation::text.ArrivalCellError	: the arrival cell contains an error.
+value	PersonnelAtDisposalDaysCalculation::text.FallbackDateUsed	Дату ДЗС у Д2 не знайдено. Використано дату за замовчуванням.
 value	PersonnelAtDisposalDaysCalculation::text.InvalidReference	Вкажіть файл.xlsx|Лист!B2:N10000: явний діапазон із заголовками в першому рядку та даними нижче.
 value	PersonnelAtDisposalDaysCalculation::text.OperationStopped	Operation stopped:
 value	PersonnelAtDisposalDaysCalculation::text.PersonUnverified	Person not found in events or the personnel roster:
@@ -56,7 +58,6 @@ value	PersonnelAtDisposalDaysCalculation::text.RelativePathBase	Save the tool wo
 value	PersonnelAtDisposalDaysCalculation::text.EventRuleConflict	Правила «{first}» і «{second}» задають різні операції для події «{event}».
 value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	PersonnelAtDisposalDaysCalculation::text.ParameterWorksheet	Parameter worksheet:
-value	PersonnelAtDisposalDaysCalculation::text.DisposalDateMissing	Не знайдено дійсну дату наказу про виведення у розпорядження в Д2!Книга.
 value	PersonnelAtDisposalDaysCalculation::text.ExportFolderMissing	Спочатку збережіть книгу інструмента в доступній локальній або мережевій папці.
 value	PersonnelAtDisposalDaysCalculation::text.TargetPrepareFailed	Unable to prepare the result table:
 value	PersonnelAtDisposalDaysCalculation::text.PersonIdentityMissing	У записі ШПО відсутній ІПН або ПІБ.
@@ -95,7 +96,7 @@ value	PersonnelAtDisposalDaysCalculation::export.header.UnitPeriod	Підрод�
 value	PersonnelAtDisposalDaysCalculation::export.labels.End	Кінець періода
 value	PersonnelAtDisposalDaysCalculation::export.labels.Date	Дата обрахунку
 value	PersonnelAtDisposalDaysCalculation::export.labels.Start	Початок періода
-value	PersonnelAtDisposalDaysCalculation::export.widths	16|34|20|12|28|17|20|27|18|18|29|29|16|18
+value	PersonnelAtDisposalDaysCalculation::export.widths	16|34|20|12|28|17|20|27|18|18|29|29|16|18|36
 value	PersonnelAtDisposalDaysCalculation::export.formula.End	=EOMONTH(C3,-1)
 value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[5],R4C3,"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Start	=EOMONTH(C5,-1)+1
@@ -112,10 +113,8 @@ value	PersonnelAtDisposalDaysCalculation::export.computedColor	A6A39A
 value	PersonnelAtDisposalDaysCalculation::export.versionSuffix	_v{version}
 value	PersonnelAtDisposalDaysCalculation::format.date	dd.mm.yyyy
 value	PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator	–
+value	PersonnelAtDisposalDaysCalculation::header.Notes	Примітки
 value	PersonnelAtDisposalDaysCalculation::header.TaxId	ІПН
-value	PersonnelAtDisposalDaysCalculation::header.errors.TaxId	Tax ID
-value	PersonnelAtDisposalDaysCalculation::header.errors.FullName	Full name
-value	PersonnelAtDisposalDaysCalculation::header.errors.Description	Error
 value	PersonnelAtDisposalDaysCalculation::header.Periods	Періоди
 value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
@@ -144,11 +143,16 @@ value	PersonnelAtDisposalDaysCalculation::source.personnel.columns.FullName	Пр
 value	PersonnelAtDisposalDaysCalculation::source.personnel.reference	%USERPROFILE%\Desktop\ШПО_new.xlsx|ОС!A1:AB20000
 value	PersonnelAtDisposalDaysCalculation::source.personnel.rosterCode	СПИС
 value	PersonnelAtDisposalDaysCalculation::source.personnel.disposalCode	РОЗП
+value	PersonnelAtDisposalDaysCalculation::source.enrollment.range	Y3:AQ20000
+value	PersonnelAtDisposalDaysCalculation::source.enrollment.sheet	Особовий склад
+value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.Date	Номер та дата внутрішнього наказу по стройовій щодо зарахування
+value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.FullName	Прізвище, ім’я, по батькові
 value	PersonnelAtDisposalDaysCalculation::status.Ready	Вкажіть кінцеву дату та натисніть «Розрахувати періоди».
 value	PersonnelAtDisposalDaysCalculation::status.Loading	Завантаження даних із ШПО, Д2 та РУХ…
 value	PersonnelAtDisposalDaysCalculation::status.Exported	Книгу результатів збережено.
 value	PersonnelAtDisposalDaysCalculation::status.Cancelled	Розрахунок скасовано.
-value	PersonnelAtDisposalDaysCalculation::status.Completed	Розрахунок завершено. Оброблено: {count}. Рядків з помилками: {errors}.
+value	PersonnelAtDisposalDaysCalculation::status.Completed	Розрахунок завершено. Оброблено: {count}. Рядків із примітками: {errors}.
 value	PersonnelAtDisposalDaysCalculation::status.Cancelling	Скасування розрахунку…
 value	PersonnelAtDisposalDaysCalculation::status.Calculating	Розрахунок днів перебування у розпорядженні…
 value	PersonnelAtDisposalDaysCalculation::progress.Events	Читання РУХ
@@ -156,11 +160,14 @@ value	PersonnelAtDisposalDaysCalculation::progress.Orders	Читання Д2
 value	PersonnelAtDisposalDaysCalculation::progress.Publish	Виведення результатів
 value	PersonnelAtDisposalDaysCalculation::progress.Template	{stage} — {completed}/{total} · {step}/{steps}
 value	PersonnelAtDisposalDaysCalculation::progress.Personnel	Читання ШПО
+value	PersonnelAtDisposalDaysCalculation::progress.Enrollment	Читання наказів про зарахування
 value	PersonnelAtDisposalDaysCalculation::progress.EventIndex	Індексація подій РУХ
 value	PersonnelAtDisposalDaysCalculation::progress.OrderIndex	Пошук дат ДЗС
 value	PersonnelAtDisposalDaysCalculation::progress.Parameters	Перевірка параметрів
 value	PersonnelAtDisposalDaysCalculation::progress.Calculation	Розрахунок днів
 value	PersonnelAtDisposalDaysCalculation::progress.Preparation	Підготовка записів ШПО
+value	PersonnelAtDisposalDaysCalculation::progress.EnrollmentIndex	Пошук дат зарахування
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
+value	PersonnelAtDisposalDaysCalculation::calculation.fallbackStartDate	21.07.2025
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}

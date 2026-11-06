@@ -17,6 +17,7 @@ Private m_taxId As String
 Private m_startDay As Long
 Private m_intervals As Collection
 Private m_validationError As String
+Private m_note As String
 Private m_rank As String
 Private m_status As String
 Private m_openStatus As String
@@ -59,6 +60,11 @@ Public Property Get ValidationError() As String
     ValidationError = m_validationError
 End Property
 
+Public Property Get Note() As String
+    private_EnsureReady
+    Note = m_note
+End Property
+
 Public Property Get Rank() As String
     private_EnsureReady
     Rank = m_rank
@@ -83,6 +89,7 @@ Public Function Initialize( _
     ByVal startDay As Long, _
     ByVal intervals As Collection, _
     ByVal validationError As String, _
+    ByVal note As String, _
     ByVal rank As String, _
     ByVal status As String, _
     ByVal openStatus As String _
@@ -98,6 +105,7 @@ Public Function Initialize( _
     m_startDay = startDay
     Set m_intervals = intervals
     m_validationError = validationError
+    m_note = note
     m_rank = rank
     m_status = status
     m_openStatus = openStatus

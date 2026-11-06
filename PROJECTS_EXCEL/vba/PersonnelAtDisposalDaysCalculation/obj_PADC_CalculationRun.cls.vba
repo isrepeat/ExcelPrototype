@@ -113,7 +113,7 @@ Public Sub Calculate()
     m_runContext.LogStage "PrepareEvents.Completed"
     m_runContext.LogStage "CalculateAndPublish.Started"
     private_SetActionStatus m_configuration.GetText("status.Calculating")
-    private_CalculatePreparedPeople prepared, m_parameters.EndDay
+    private_CalculatePreparedPeople prepared, m_parameters.EndDay, parameterSheet
     m_runContext.LogStage "CalculateAndPublish.Completed"
 Cleanup:
     ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=RunCleanup.Started"
@@ -286,7 +286,8 @@ End Sub
 
 Private Sub private_CalculatePreparedPeople( _
     ByVal prepared As Collection, _
-    ByVal lastDay As Long _
+    ByVal lastDay As Long, _
+    ByVal parameterSheet As Worksheet _
 )
     Dim names() As Variant
     Dim ids() As Variant
@@ -294,7 +295,9 @@ Private Sub private_CalculatePreparedPeople( _
     Dim periods() As Variant
     Dim days() As Variant
     Dim thresholds() As Variant
-    Dim failures As Collection
+    Dim notes() As Variant
+    Dim note As String
+    Dim issueCount As Long
     Dim preparedPerson As obj_PADC_PreparedPerson
     Dim rows As Collection
     Dim periodsText As String
@@ -309,8 +312,8 @@ Private Sub private_CalculatePreparedPeople( _
     ReDim periods(1 To prepared.Count, 1 To 1)
     ReDim days(1 To prepared.Count, 1 To 1)
     ReDim thresholds(1 To prepared.Count, 1 To 1)
-    ReDim exportValues(1 To prepared.Count, 1 To 14)
-    Set failures = New Collection
+    ReDim notes(1 To prepared.Count, 1 To 1)
+    ReDim exportValues(1 To prepared.Count, 1 To 15)
     m_runContext.BeginStep m_configuration.GetText("progress.Calculation"), prepared.Count
     For i = 1 To prepared.Count
         Set preparedPerson = prepared(i)
@@ -322,21 +325,30 @@ Private Sub private_CalculatePreparedPeople( _
         If preparedPerson.StartDay > 0 Then
             exportValues(i, 6) = VBA.CDate(preparedPerson.StartDay)
         End If
+        names(i, 1) = preparedPerson.FullName
+        ids(i, 1) = preparedPerson.TaxId
+        starts(i, 1) = exportValues(i, 6)
+        note = preparedPerson.Note
         If VBA.Len(preparedPerson.ValidationError) > 0 Then
-            failures.Add VBA.Array(preparedPerson.FullName, preparedPerson.TaxId, preparedPerson.ValidationError)
-            m_runContext.LogWarning VBA.CStr(preparedPerson.ValidationError)
+            If VBA.Len(note) > 0 Then
+                note = note & " "
+            End If
+            note = note & preparedPerson.ValidationError
         Else
             Set rows = preparedPerson.Intervals
             count = count + 1
-            days(count, 1) = m_calculationService.Calculate(rows, VBA.CLng(preparedPerson.StartDay), lastDay, _
+            days(i, 1) = m_calculationService.Calculate(rows, VBA.CLng(preparedPerson.StartDay), lastDay, _
                 periodsText, thresholdDate, m_runContext)
-            names(count, 1) = preparedPerson.FullName
-            ids(count, 1) = preparedPerson.TaxId
-            starts(count, 1) = VBA.CDate(preparedPerson.StartDay)
-            periods(count, 1) = periodsText
-            thresholds(count, 1) = thresholdDate
-            exportValues(i, 7) = days(count, 1)
+            periods(i, 1) = periodsText
+            thresholds(i, 1) = thresholdDate
+            exportValues(i, 7) = days(i, 1)
             exportValues(i, 8) = thresholdDate
+        End If
+        notes(i, 1) = note
+        exportValues(i, 15) = note
+        If VBA.Len(note) > 0 Then
+            issueCount = issueCount + 1
+            m_runContext.LogWarning note
         End If
         m_runContext.ReportProgress i
     Next i
@@ -345,16 +357,16 @@ Private Sub private_CalculatePreparedPeople( _
     m_runContext.LogDebug m_configuration.GetText("text.WritingResult") & count & _
         m_configuration.GetText("text.Rows")
     m_runContext.BeginStep m_configuration.GetText("progress.Publish")
-    m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & failures.Count
-    m_resultWriter.Publish names, ids, starts, periods, days, thresholds, count, failures, lastDay
+    m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & issueCount
+    m_resultWriter.Publish names, ids, starts, periods, days, thresholds, notes, prepared.Count, lastDay, parameterSheet
     m_exportValues = exportValues
     m_exportEndDay = lastDay
     m_runContext.CompleteStep
     m_runContext.LogStage "PublishResults.Completed"
     m_runContext.LogDebug m_configuration.GetText("text.CalculationCompletedPeople") & count & _
-        m_configuration.GetText("text.SkippedPeople") & failures.Count
+        m_configuration.GetText("text.SkippedPeople") & issueCount
     private_SetActionStatus VBA.Replace$(VBA.Replace$(m_configuration.GetText("status.Completed"), _
-        "{count}", VBA.CStr(count)), "{errors}", VBA.CStr(failures.Count)), failures.Count > 0
+        "{count}", VBA.CStr(count)), "{errors}", VBA.CStr(issueCount)), issueCount > 0
 End Sub
 
 Private Sub private_EnsureReady()

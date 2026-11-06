@@ -13,6 +13,28 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Sub fn_MarkFallbackDates( _
+    ByVal table As ListObject, _
+    ByVal dateColumn As Long, _
+    ByVal notesColumn As Long, _
+    ByVal marker As String _
+)
+    Dim noteCell As Range
+    Dim dates As Range
+    Dim rowIndex As Long
+
+    If table.DataBodyRange Is Nothing Then
+        Exit Sub
+    End If
+    Set dates = table.ListColumns(dateColumn).DataBodyRange
+    For Each noteCell In table.ListColumns(notesColumn).DataBodyRange.Cells
+        rowIndex = rowIndex + 1
+        If VBA.Left$(VBA.CStr(noteCell.Value2), VBA.Len(marker)) = marker Then
+            dates.Cells(rowIndex, 1).Font.Color = VBA.RGB(255, 217, 102)
+        End If
+    Next noteCell
+End Sub
+
 Public Function fn_CreatePage(ByVal pageId As String) As obj_IPage
     If VBA.StrComp(VBA.Trim$(pageId), "PersonnelAtDisposalDaysCalculation", VBA.vbTextCompare) <> 0 Then
         VBA.Err.Raise VBA.vbObjectError + 2211, "ex_PADC.fn_CreatePage", _

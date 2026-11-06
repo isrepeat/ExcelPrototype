@@ -15,7 +15,6 @@ Private m_isDisposed As Boolean
 Private m_calculationRun As obj_PADC_CalculationRun
 Private m_pageBase As obj_PageBase
 Private m_resultTable As obj_UiRawTable
-Private m_errorTable As obj_UiRawTable
 Private m_calculateCommand As obj_UiCommand
 Private m_cancelCommand As obj_UiCommand
 Private m_exportCommand As obj_UiCommand
@@ -41,9 +40,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim dateFormat As String
     Dim currentDate As Date
     Dim endDate As String
-    Dim headers(0 To 9) As Variant
+    Dim headers(0 To 10) As Variant
     Dim headerIndex As Long
-    Dim errorCaption As String
 
     If m_isDisposed Or m_isInitialized Then
         Exit Function
@@ -90,7 +88,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
 
     For Each textKey In VBA.Array("header.FullName", "header.TaxId", "header.StartDate", _
             "header.Periods", "header.CountedDays", "header.ThresholdDate", _
-            "export.header.From", "export.header.Through", "export.header.Period", "export.header.Include")
+            "export.header.From", "export.header.Through", "export.header.Period", "export.header.Include", "header.Notes")
         If Not private_TryReadConfiguration(VBA.CStr(textKey), configuredText) Then
             GoTo Failed
         End If
@@ -104,17 +102,6 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not bindings.SetObject("Data", "CalculationRows", m_resultTable) Then
         GoTo Failed
     End If
-    Set m_errorTable = New obj_UiRawTable
-    If Not private_TryReadConfiguration("header.errors.Description", errorCaption) Then
-        GoTo Failed
-    End If
-    If Not m_errorTable.InitializeEmpty(VBA.Array(headers(0), headers(1), errorCaption)) Then
-        GoTo Failed
-    End If
-    If Not bindings.SetObject("Data", "Errors", m_errorTable) Then
-        GoTo Failed
-    End If
-
     Set m_calculationRun = New obj_PADC_CalculationRun
     If Not m_calculationRun.Initialize(m_pageBase) Then
         GoTo Failed
@@ -171,14 +158,10 @@ Public Sub Dispose()
     If Not m_resultTable Is Nothing Then
         m_resultTable.Dispose
     End If
-    If Not m_errorTable Is Nothing Then
-        m_errorTable.Dispose
-    End If
     If Not m_calculationRun Is Nothing Then
         m_calculationRun.Dispose
     End If
     Set m_calculationRun = Nothing
-    Set m_errorTable = Nothing
     Set m_calculateCommand = Nothing
     Set m_cancelCommand = Nothing
     Set m_resultTable = Nothing

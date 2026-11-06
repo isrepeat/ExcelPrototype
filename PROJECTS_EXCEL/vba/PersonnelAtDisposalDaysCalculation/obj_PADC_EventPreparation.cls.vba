@@ -75,10 +75,13 @@ End Sub
 Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Dim personnel As obj_DataTable
     Dim orders As obj_DataTable
+    Dim enrollment As obj_DataTable
     Dim events As obj_DataTable
     Dim personnelValues As Variant
     Dim eventValues As Variant
     Dim dates As Object
+    Dim rosterDates As Object
+    Dim disposalDates As Object
     Dim seen As Object
     Dim eventIndex As obj_PADC_PersonIndex
     Dim prepared As Collection
@@ -93,6 +96,8 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Dim rowIndex As Long
     Dim cutoff As Long
     Dim startDay As Long
+    Dim fallbackDay As Long
+    Dim note As String
     Dim departure As Long
     Dim arrival As Long
     Dim latestDeparture As Long
@@ -110,6 +115,7 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
 
     private_EnsureReady
     cutoff = parameters.EndDay - 1
+    fallbackDay = m_validation.ReadDay(m_configuration.GetText("calculation.fallbackStartDate"), False, "calculation.fallbackStartDate")
     disposalCode = m_configuration.GetText("source.personnel.disposalCode")
     rosterCode = m_configuration.GetText("source.personnel.rosterCode")
     m_runContext.BeginStep m_configuration.GetText("progress.Personnel")
@@ -120,11 +126,17 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Set orders = m_dataSource.ReadConfiguredSource("source.orders", vbNullString, _
         VBA.Array("TaxId", "FullName", "Action", "Date"))
     m_runContext.CompleteStep
+    m_runContext.BeginStep m_configuration.GetText("progress.Enrollment")
+    Set enrollment = m_dataSource.ReadConfiguredSource("source.enrollment", _
+        VBA.CreateObject("WScript.Shell").ExpandEnvironmentStrings(m_configuration.GetText("source.orders.path")), _
+        VBA.Array("TaxId", "FullName", "Date"))
+    m_runContext.CompleteStep
     m_runContext.BeginStep m_configuration.GetText("progress.Events")
     Set events = m_dataSource.ReadConfiguredSource("source.events", vbNullString, _
         VBA.Array("TaxId", "FullName", "Event", "Departure", "Arrival"))
     m_runContext.CompleteStep
-    Set dates = private_IndexDates(orders, cutoff)
+    Set disposalDates = private_IndexDates(orders, cutoff, False)
+    Set rosterDates = private_IndexDates(enrollment, cutoff, True)
     Set seen = VBA.CreateObject(DICTIONARY_PROG_ID)
     Set prepared = New Collection
     personnelValues = personnel.Values
@@ -148,6 +160,7 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
             End If
             rank = m_validation.MatchText(personnelValues(rowIndex, 3))
             startDay = 0
+            note = vbNullString
             latestDeparture = 0
             openStatus = vbNullString
             errorText = vbNullString
@@ -158,14 +171,22 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                 m_configuration.Fail context & m_configuration.GetText("text.DuplicateTaxId") & taxId
             Else
                 seen.Add taxId, True
+                If VBA.StrComp(status, rosterCode, vbTextCompare) = 0 Then
+                    Set dates = rosterDates
+                Else
+                    Set dates = disposalDates
+                End If
                 If dates.Exists("I|" & taxId) Then
                     startDay = dates("I|" & taxId)
                 ElseIf dates.Exists("N|" & fullName) Then
                     startDay = dates("N|" & fullName)
                 End If
                 If startDay <= 0 Then
-                    startDay = 0
-                    errorText = m_configuration.GetText("text.DisposalDateMissing")
+                    startDay = fallbackDay
+                    note = m_configuration.GetText("text.FallbackDateUsed")
+                    If startDay > cutoff Then
+                        errorText = m_configuration.GetText("text.StartAfterEnd")
+                    End If
                 End If
 
                 Set matches = eventIndex.Find(taxId, fullName, matchError)
@@ -224,7 +245,7 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                 classifiedIntervals.Add VBA.Array(interval(0), interval(1), interval(2), excluded)
             Next interval
             Set preparedPerson = New obj_PADC_PreparedPerson
-            If Not preparedPerson.Initialize(fullName, taxId, startDay, classifiedIntervals, errorText, rank, status, openStatus) Then
+            If Not preparedPerson.Initialize(fullName, taxId, startDay, classifiedIntervals, errorText, note, rank, status, openStatus) Then
                 m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
             End If
             prepared.Add preparedPerson
@@ -244,7 +265,8 @@ End Function
 ' //
 Private Function private_IndexDates( _
     ByVal orders As obj_DataTable, _
-    ByVal cutoff As Long _
+    ByVal cutoff As Long, _
+    ByVal isEnrollment As Boolean _
 ) As Object
     Dim dates As Object
     Dim nameOwners As Object
@@ -254,19 +276,32 @@ Private Function private_IndexDates( _
     Dim fullName As String
     Dim day As Long
     Dim rowIndex As Long
+    Dim datePattern As Object
+    Dim stageKey As String
 
     Set dates = VBA.CreateObject(DICTIONARY_PROG_ID)
     dates.CompareMode = vbTextCompare
     Set nameOwners = VBA.CreateObject(DICTIONARY_PROG_ID)
     nameOwners.CompareMode = vbTextCompare
     actionName = m_configuration.GetText("source.orders.action")
+    stageKey = "progress.OrderIndex"
+    If isEnrollment Then
+        stageKey = "progress.EnrollmentIndex"
+        Set datePattern = VBA.CreateObject("VBScript.RegExp")
+        datePattern.Global = True
+        datePattern.Pattern = "(^|[^0-9])([0-9]{1,2})[./]([0-9]{1,2})[./]([0-9]{4})(?![0-9])"
+    End If
     values = orders.Values
-    m_runContext.BeginStep m_configuration.GetText("progress.OrderIndex"), orders.RowCount
+    m_runContext.BeginStep m_configuration.GetText(stageKey), orders.RowCount
     For rowIndex = 1 To orders.RowCount
-        If VBA.StrComp(m_validation.MatchText(values(rowIndex, 3)), actionName, vbTextCompare) = 0 Then
+        If isEnrollment Or VBA.StrComp(m_validation.MatchText(values(rowIndex, 3)), actionName, vbTextCompare) = 0 Then
             taxId = m_validation.MatchText(values(rowIndex, 1))
             fullName = m_validation.MatchText(values(rowIndex, 2))
-            day = private_OrderDay(values(rowIndex, 4), cutoff)
+            If isEnrollment Then
+                day = private_EnrollmentDay(values(rowIndex, 3), cutoff, datePattern)
+            Else
+                day = private_OrderDay(values(rowIndex, 4), cutoff)
+            End If
             If day > 0 And VBA.Len(taxId) > 0 Then
                 private_KeepLatest dates, "I|" & taxId, day
             End If
@@ -285,6 +320,29 @@ Private Function private_IndexDates( _
     Next rowIndex
     m_runContext.CompleteStep
     Set private_IndexDates = dates
+End Function
+
+Private Function private_EnrollmentDay( _
+    ByVal value As Variant, _
+    ByVal cutoff As Long, _
+    ByVal datePattern As Object _
+) As Long
+    Dim hit As Object
+    Dim day As Long
+    Dim dateText As String
+
+    If VBA.VarType(value) <> vbString Then
+        private_EnrollmentDay = private_OrderDay(value, cutoff)
+        Exit Function
+    End If
+    For Each hit In datePattern.Execute(VBA.CStr(value))
+        dateText = VBA.Right$("0" & hit.SubMatches(1), 2) & "." _
+            & VBA.Right$("0" & hit.SubMatches(2), 2) & "." & hit.SubMatches(3)
+        day = private_OrderDay(dateText, cutoff)
+        If day > private_EnrollmentDay Then
+            private_EnrollmentDay = day
+        End If
+    Next hit
 End Function
 
 Private Sub private_KeepLatest( _
