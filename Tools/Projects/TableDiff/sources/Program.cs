@@ -100,9 +100,18 @@ namespace ExcelTools.TableDiff {
             using (var reader = XmlReader.Create(report.ConfigurationPath, settings)) {
                 document = XDocument.Load(reader);
             }
-            var section = document.Root.Elements("profile").Where(profile => (string)profile.Attribute("name") == report.SyncProfile)
-                .Elements("externalTools").Elements("tool").Elements("tableDiff").Single();
+            var profile = document.Root.Elements("profile").Single(element => (string)element.Attribute("name") == report.SyncProfile);
+            var section = profile.Elements("externalTools").Elements("tool").Elements("tableDiff").Single();
             var config = ExcelTools.Changes.ConfigurationReader.Read(section, report.ConfigurationPath, report.ReportProfile, false);
+            var outputs = ExcelTools.Changes.ConfigurationReader.ReadOutputs(
+                profile, report.ConfigurationPath, Path.GetFileNameWithoutExtension(config.Old), "workbook", "previewReport", "appliedReport"
+            );
+            if (outputs != null) {
+                config.Output = outputs[report.StagedWorkbook == null ? "previewReport" : "appliedReport"];
+                if (report.StagedWorkbook != null) {
+                    config.New = ((bool?)profile.Attribute("overwriteTarget") ?? false) ? config.Old : outputs["workbook"];
+                }
+            }
             if (!String.Equals(config.Output, report.Output, StringComparison.OrdinalIgnoreCase)
                 && !report.Output.StartsWith(config.Output + ".", StringComparison.OrdinalIgnoreCase)) {
                 throw new InvalidDataException("Prepared report output does not match the configured report path.");

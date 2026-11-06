@@ -39,6 +39,7 @@ if errorlevel 1 (
     /reference:System.IO.Compression.dll ^
     /reference:System.IO.Compression.FileSystem.dll ^
     "%tableDiffDirectory%sources\Program.cs" ^
+    "%tableDiffDirectory%sources\TableDiffConstants.cs" ^
     "%tableDiffDirectory%sources\Comparison\TableComparer.cs" ^
     "%tableDiffDirectory%sources\Reporting\HtmlDiffWriter.cs" ^
     /resource:"%tableDiffDirectory%sources\Reporting\report.css",report.css ^

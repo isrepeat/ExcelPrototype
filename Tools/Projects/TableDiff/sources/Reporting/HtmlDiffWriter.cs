@@ -13,6 +13,14 @@ namespace ExcelTools.TableDiff {
             return WebUtility.HtmlEncode(text ?? "");
         }
 
+        private static string TabFileName(string path) {
+            var name = Path.GetFileNameWithoutExtension(path);
+            var characters = StringInfo.ParseCombiningCharacters(name);
+            return characters.Length > TableDiffConstants.TabFileNameMaxLength
+                ? name.Substring(0, characters[TableDiffConstants.TabFileNameMaxLength - 3]) + "…"
+                : name;
+        }
+
         private static string Asset(string name) {
             using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)) {
                 if (stream == null) {
@@ -55,7 +63,8 @@ namespace ExcelTools.TableDiff {
             }
             summary.Append("</tbody></table>");
             return "<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                + "<title>Сравнение Excel</title><style>" + Asset("report.css") + "</style>"
+                + "<title>" + Escape(TabFileName(oldFile)) + " → " + Escape(TabFileName(newFile))
+                + "</title><style>" + Asset("report.css") + "</style>"
                 + "<header class=\"report-header\"><h1>Сравнение Excel</h1><span class=\"profile\">" + Escape(profile)
                 + "</span><div class=\"stats\" aria-label=\"Итоги сравнения\"><span>~ " + differences.Sum(s => s.Count("change"))
                 + " изменено</span><span>+ " + differences.Sum(s => s.Count("add"))

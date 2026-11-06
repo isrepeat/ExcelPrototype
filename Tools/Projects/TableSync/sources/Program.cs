@@ -81,8 +81,11 @@ namespace ExcelTools.TableSync {
             var source = WorkbookPath(profile, "source", directory);
             var target = WorkbookPath(profile, "target", directory);
             var overwrite = (bool?)profile.Attribute("overwriteTarget") ?? false;
+            var outputs = ExcelTools.Changes.ConfigurationReader.ReadOutputs(
+                profile, configurationPath, Path.GetFileNameWithoutExtension(target), "workbook", "previewReport", "appliedReport"
+            );
             var targetStem = Path.Combine(Path.GetDirectoryName(target), Path.GetFileNameWithoutExtension(target));
-            var output = overwrite ? target : profile.Attribute("output") == null
+            var output = overwrite ? target : outputs != null ? outputs["workbook"] : profile.Attribute("output") == null
                 ? targetStem + " (synced)" + Path.GetExtension(target) : WorkbookPath(profile, "output", directory);
             if (String.Equals(source, target, StringComparison.OrdinalIgnoreCase)
                 || (!overwrite && (String.Equals(source, output, StringComparison.OrdinalIgnoreCase) || File.Exists(output)))) {
@@ -111,10 +114,10 @@ namespace ExcelTools.TableSync {
             var section = tool.Elements("tableDiff").Single();
             var previewReport = ReadReport(profile, section, configurationPath, "previewDiff", target, source,
                 mappings.Select(mapping => Tuple.Create(Required(mapping, "targetSheet"), Required(mapping, "sourceSheet"))));
-            var appliedReport = ReadReport(profile, section, configurationPath, "appliedDiff", target, output,
+            var appliedReport = ReadReport(profile, section, configurationPath, "appliedDiff", target, outputs == null ? output : null,
                 targetSheets.Select(sheet => Tuple.Create(sheet, sheet)));
-            var previewPath = previewReport.Output;
-            var appliedPath = appliedReport.Output;
+            var previewPath = outputs == null ? previewReport.Output : outputs["previewReport"];
+            var appliedPath = outputs == null ? appliedReport.Output : outputs["appliedReport"];
             if (String.Equals(previewPath, appliedPath, StringComparison.OrdinalIgnoreCase)) {
                 throw new InvalidDataException("Preview and applied reports must have distinct output paths.");
             }
@@ -189,7 +192,7 @@ namespace ExcelTools.TableSync {
             IEnumerable<Tuple<string, string>> sheetPairs) {
             var report = ExcelTools.Changes.ConfigurationReader.Read(section, configurationPath, Required(profile, attribute), false);
             if (!String.Equals(report.Old, oldFile, StringComparison.OrdinalIgnoreCase)
-                || !String.Equals(report.New, newFile, StringComparison.OrdinalIgnoreCase)) {
+                || (newFile != null && !String.Equals(report.New, newFile, StringComparison.OrdinalIgnoreCase))) {
                 throw new InvalidDataException("Workbook paths in TableDiff profile '" + report.Profile + "' must match the synchronization paths.");
             }
             var configured = report.Comparisons.Select(pair => Tuple.Create(pair.OldSheet, pair.NewSheet));

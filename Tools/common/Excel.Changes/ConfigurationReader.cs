@@ -116,19 +116,21 @@ namespace ExcelTools.Changes {
                 throw new ArgumentException("No default profile configured. Set default=\"true\", specify --profile or two workbook paths. Available profiles: "
                     + String.Join(", ", profiles.Select(p => p.Profile)));
             }
-            selected.Output = selected.Output.Replace("{date}", DateTime.Now.ToString("yyyy.MM.dd", CultureInfo.InvariantCulture));
             ValidatePaths(selected, checkInputFiles);
             return selected;
         }
 
         private static Configuration ReadProfile(string path, XElement element) {
             var directory = System.IO.Path.GetDirectoryName(path);
+            var outputs = ReadOutputs(element, path, "", "report");
             var config = new Configuration {
                 Path = path,
                 Profile = Required(element, "name"),
-                Old = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(element.Element("old"), "file")),
-                New = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(element.Element("new"), "file")),
-                Output = ExcelTools.Tooling.ToolPaths.Resolve(directory, Required(element, "output"))
+                Old = ExcelTools.Tooling.ToolPaths.Resolve(directory, ExcelTools.Tooling.ToolPaths.ExpandTemplate(Required(element.Element("old"), "file"))),
+                New = ExcelTools.Tooling.ToolPaths.Resolve(directory, ExcelTools.Tooling.ToolPaths.ExpandTemplate(Required(element.Element("new"), "file"))),
+                Output = outputs == null
+                    ? ExcelTools.Tooling.ToolPaths.Resolve(directory, ExcelTools.Tooling.ToolPaths.ExpandTemplate(Required(element, "output")))
+                    : outputs["report"]
             };
             var defaultAttribute = element.Attribute("default");
             if (defaultAttribute != null && !Boolean.TryParse(defaultAttribute.Value, out config.IsDefault)) {
@@ -169,6 +171,41 @@ namespace ExcelTools.Changes {
                 throw new InvalidDataException("Specify at least one comparison in profile: " + config.Profile);
             }
             return config;
+        }
+
+        public static Dictionary<string, string> ReadOutputs(
+            XElement profile, string path, string targetName, params string[] roles) {
+            var outputs = profile.Elements("outputs").SingleOrDefault();
+            if (outputs == null) {
+                return null;
+            }
+            if (profile.Attribute("output") != null || outputs.Elements().Count() != roles.Length
+                || roles.Any(role => outputs.Elements(role).Count() != 1)) {
+                throw new InvalidDataException("Invalid outputs in profile '" + Required(profile, "name")
+                    + "'. Expected one of each: " + String.Join(", ", roles) + "; use outputs or output.");
+            }
+            var directory = ExcelTools.Tooling.ToolPaths.Resolve(
+                Path.GetDirectoryName(path),
+                ExcelTools.Tooling.ToolPaths.ExpandTemplate(Required(outputs, "directory"))
+            );
+            var result = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var role in roles) {
+                var name = ExcelTools.Tooling.ToolPaths.ExpandTemplate(Required(outputs.Element(role), "file"), targetName);
+                if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || name == "." || name == ".."
+                    || name.TrimEnd(' ', '.') != name || String.IsNullOrWhiteSpace(name)) {
+                    throw new InvalidDataException("Expected a file name inside outputs for " + role + ": " + name);
+                }
+                var extension = role == "workbook" ? ".xlsx" : ".html";
+                if (!String.Equals(Path.GetExtension(name), extension, StringComparison.OrdinalIgnoreCase)) {
+                    throw new InvalidDataException("Expected " + extension + " for " + role + ": " + name);
+                }
+                var output = Path.Combine(directory, name);
+                if (Directory.Exists(output)) {
+                    throw new IOException("Output path is a directory: " + output);
+                }
+                result.Add(role, output);
+            }
+            return result;
         }
 
         private static void ValidatePaths(Configuration configuration, bool checkInputFiles) {

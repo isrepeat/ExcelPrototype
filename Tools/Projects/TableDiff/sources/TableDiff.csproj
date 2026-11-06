@@ -16,6 +16,7 @@
     <Reference Include="System.IO.Compression" />
     <Reference Include="System.IO.Compression.FileSystem" />
     <Compile Include="Program.cs" />
+    <Compile Include="TableDiffConstants.cs" />
     <Compile Include="Comparison\TableComparer.cs" />
     <Compile Include="Reporting\HtmlDiffWriter.cs" />
     <EmbeddedResource Include="Reporting\report.css">

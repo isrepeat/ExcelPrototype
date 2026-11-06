@@ -7,6 +7,11 @@
              overwriteTarget="false"
              previewDiff="MovementPreview"
              appliedDiff="MovementApplied">
+        <outputs directory="C:\WORK\Windows\Строевые приказы\Tasks\2026.10.25.SurnameChanges\Results\{DATE}">
+            <workbook file="{targetName} (synced).xlsx" />
+            <previewReport file="{targetName} (sync preview).diff.html" />
+            <appliedReport file="{targetName} (sync applied).diff.html" />
+        </outputs>
         <mapping sourceSheet="ОС"
                  targetSheet="Список"
                  sourceKey="ІПН"
@@ -23,8 +28,10 @@
             <tool executable="../../TableDiff/build/TableDiff.exe">
                 <tableDiff>
                     <profiles>
-                        <profile name="MovementPreview"
-                                 output="C:\Users\isrepeat\Desktop\РУХ_last (sync preview).diff.html">
+                        <profile name="MovementPreview">
+                            <outputs directory="C:\WORK\Windows\Строевые приказы\Tasks\2026.10.25.SurnameChanges\Results\{DATE}">
+                                <report file="MovementPreview.diff.html" />
+                            </outputs>
                             <old file="C:\Users\isrepeat\Desktop\РУХ_last.xlsx" />
                             <new file="C:\Users\isrepeat\Desktop\ШПО_new.xlsx" />
                             <comparisons>
@@ -35,10 +42,12 @@
                                 </comparison>
                             </comparisons>
                         </profile>
-                        <profile name="MovementApplied"
-                                 output="C:\Users\isrepeat\Desktop\РУХ_last (sync applied).diff.html">
+                        <profile name="MovementApplied">
+                            <outputs directory="C:\WORK\Windows\Строевые приказы\Tasks\2026.10.25.SurnameChanges\Results\{DATE}">
+                                <report file="MovementApplied.diff.html" />
+                            </outputs>
                             <old file="C:\Users\isrepeat\Desktop\РУХ_last.xlsx" />
-                            <new file="C:\Users\isrepeat\Desktop\РУХ_last (synced).xlsx" />
+                            <new file="C:\WORK\Windows\Строевые приказы\Tasks\2026.10.25.SurnameChanges\Results\{DATE}\РУХ_last (synced).xlsx" />
                             <comparisons>
                                 <comparison key="ІПН"
                                             threshold="1"
