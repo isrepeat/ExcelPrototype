@@ -57,7 +57,7 @@ Public Sub CreateWorkbook( _
     Dim workbook As Workbook
     Dim sheet As Worksheet
     Dim table As ListObject
-    Dim headers(1 To 1, 1 To 10) As Variant
+    Dim headers(1 To 1, 1 To 14) As Variant
     Dim headerKeys As Variant
     Dim widths As Variant
     Dim palette As Variant
@@ -81,29 +81,31 @@ Public Sub CreateWorkbook( _
 
     ' Prepare a standalone workbook from the last successful calculation.
     count = UBound(values, 1)
-    headerKeys = VBA.Array("header.FullName", "header.TaxId", "header.StartDate", _
-        "header.BusinessTrips", "header.Periods", "header.CountedDays", "header.ThresholdDate", _
-        "export.header.From", "export.header.Through", "export.header.Include")
-    For i = 1 To 10
+    headerKeys = VBA.Array("export.header.Rank", "header.FullName", "header.TaxId", _
+        "export.header.Status", "export.header.OpenStatus", _
+        "export.header.StartDate", "header.CountedDays", "header.ThresholdDate", _
+        "export.header.From", "export.header.Through", "export.header.Period", _
+        "export.header.UnitPeriod", "export.header.Difference", "export.header.Include")
+    For i = 1 To 14
         headers(1, i) = m_configuration.GetText(VBA.CStr(headerKeys(i - 1)))
     Next i
     widths = VBA.Split(m_configuration.GetText("export.widths"), "|")
     palette = VBA.Split(m_configuration.GetText("export.palette"), "|")
-    If UBound(widths) <> 9 Or UBound(palette) <> 5 Then
+    If UBound(widths) <> 13 Or UBound(palette) <> 5 Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.widths / export.palette"
     End If
     Set workbook = Application.Workbooks.Add(xlWBATWorksheet)
     Set sheet = workbook.Worksheets(1)
     sheet.Name = m_configuration.GetText("export.sheet")
-    sheet.Range("B7:K7").Value2 = headers
-    sheet.Range("C8").Resize(count, 1).NumberFormat = "@"
-    sheet.Range("B8").Resize(count, 7).Value = values
-    Set table = sheet.ListObjects.Add(xlSrcRange, sheet.Range("B7").Resize(count + 1, 10), , xlYes)
+    sheet.Range("B7:O7").Value2 = headers
+    sheet.Range("D8").Resize(count, 1).NumberFormat = "@"
+    sheet.Range("B8").Resize(count, 14).Value = values
+    Set table = sheet.ListObjects.Add(xlSrcRange, sheet.Range("B7").Resize(count + 1, 14), , xlYes)
     table.Name = m_configuration.GetText("export.table")
     table.TableStyle = ""
 
-    ' Keep the monthly selection rules identical to the reference workbook.
-    sheet.Range("B2:K2").Merge
+    ' Leave rows without a valid calculation outside the monthly selection.
+    sheet.Range("B2:O2").Merge
     sheet.Range("B2").Value2 = m_configuration.GetText("export.title")
     sheet.Range("B3").Value2 = m_configuration.GetText("export.labels.Date")
     sheet.Range("B4").Value2 = m_configuration.GetText("export.labels.Start")
@@ -111,9 +113,11 @@ Public Sub CreateWorkbook( _
     sheet.Range("C3").Value = VBA.CDate(endDay)
     sheet.Range("C4").Formula = m_configuration.GetText("export.formula.Start")
     sheet.Range("C5").Formula = m_configuration.GetText("export.formula.End")
-    table.ListColumns(8).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.From")
-    table.ListColumns(9).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Through")
-    table.ListColumns(10).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Include")
+    table.ListColumns(9).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.From")
+    table.ListColumns(10).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Through")
+    table.ListColumns(11).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Period")
+    table.ListColumns(13).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Difference")
+    table.ListColumns(14).DataBodyRange.FormulaR1C1 = m_configuration.GetText("export.formula.Include")
 
     ' Apply the warm dark palette, alternating rows and orange accents.
     backgroundRows = VBA.CLng(m_configuration.GetText("export.padding.rows"))
@@ -122,14 +126,14 @@ Public Sub CreateWorkbook( _
     If backgroundRows < 0 Or backgroundColumns < 0 Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.padding"
     End If
-    With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + backgroundRows, 11 + backgroundColumns))
+    With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + backgroundRows, 15 + backgroundColumns))
         .Interior.Color = private_Color(VBA.CStr(palette(0)))
         .Font.Name = m_configuration.GetText("export.font")
         .Font.Size = VBA.CDbl(m_configuration.GetText("export.fontSize"))
         .Font.Color = private_Color(VBA.CStr(palette(4)))
         .VerticalAlignment = xlCenter
     End With
-    For i = 1 To 10
+    For i = 1 To 14
         sheet.Columns(i + 1).ColumnWidth = VBA.CDbl(widths(i - 1))
     Next i
     sheet.Columns(1).ColumnWidth = 3
@@ -151,15 +155,16 @@ Public Sub CreateWorkbook( _
     For i = 1 To count
         table.DataBodyRange.Rows(i).Interior.Color = private_Color(VBA.CStr(palette(1 + ((i - 1) Mod 2))))
     Next i
-    table.ListColumns(1).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
-    table.ListColumns(5).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(4)))
-    For Each headerKeys In VBA.Array(3, 7, 8, 9)
+    table.ListColumns(2).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
+    For Each headerKeys In VBA.Array(6, 8, 9, 10)
         table.ListColumns(VBA.CLng(headerKeys)).DataBodyRange.NumberFormat = m_configuration.GetText("format.date")
     Next headerKeys
-    table.ListColumns(6).DataBodyRange.NumberFormat = "0"
+    table.ListColumns(7).DataBodyRange.NumberFormat = "0"
+    table.ListColumns(12).DataBodyRange.NumberFormat = "@"
     ' Muted labels and values distinguish calculated fields from source inputs.
     sheet.Range("B4:C5").Font.Color = computedColor
-    sheet.Range("I7:K" & count + 7).Font.Color = computedColor
+    sheet.Range("J7:L" & count + 7).Font.Color = computedColor
+    sheet.Range("N7:O" & count + 7).Font.Color = computedColor
     table.DataBodyRange.Rows.AutoFit
     sheet.Calculate
     workbook.Activate

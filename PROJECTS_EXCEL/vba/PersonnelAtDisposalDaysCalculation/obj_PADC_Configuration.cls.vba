@@ -56,12 +56,6 @@ Public Function Initialize() As Boolean
         m_values.Add VBA.CStr(suffix), value
     Next suffix
     key = "PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator"
-    value = m_values("input.dateSystem")
-    If value <> "1900" And value <> "1904" Then
-        ex_WindowsUi.fn_ShowMessage m_values("text.InvalidInputDateSystem"), vbExclamation
-        Me.Dispose
-        Exit Function
-    End If
     If VBA.Len(m_values("format.periodRangeSeparator")) = 0 Then
         GoTo Failed
     End If
@@ -111,9 +105,35 @@ Private Function private_RequiredKeys() As Collection
     Dim keys As Collection
 
     Set keys = New Collection
-    keys.Add "input.dateSystem"
+    keys.Add "source.personnel.columns.TaxId"
+    keys.Add "source.personnel.columns.FullName"
+    keys.Add "source.personnel.columns.Rank"
+    keys.Add "source.personnel.columns.Code"
+    keys.Add "source.personnel.disposalCode"
+    keys.Add "source.personnel.reference"
+    keys.Add "source.personnel.rosterCode"
+    keys.Add "source.orders.path"
+    keys.Add "source.orders.sheet"
+    keys.Add "source.orders.range"
+    keys.Add "source.orders.columns.TaxId"
+    keys.Add "source.orders.columns.FullName"
+    keys.Add "source.orders.columns.Action"
+    keys.Add "source.orders.columns.Date"
+    keys.Add "source.orders.action"
+    keys.Add "source.events.path"
+    keys.Add "source.events.range"
+    keys.Add "text.DisposalDateMissing"
+    keys.Add "text.PersonIdentityMissing"
+    keys.Add "export.header.Rank"
+    keys.Add "export.header.Status"
+    keys.Add "export.header.OpenStatus"
+    keys.Add "export.header.StartDate"
+    keys.Add "export.header.Period"
+    keys.Add "export.header.UnitPeriod"
+    keys.Add "export.header.Difference"
+    keys.Add "export.formula.Period"
+    keys.Add "export.formula.Difference"
     keys.Add "text.ParameterRow"
-    keys.Add "text.InvalidInputDateSystem"
     keys.Add "text.ExportEmpty"
     keys.Add "text.Title"
     keys.Add "text.ExportFailed"
@@ -143,12 +163,7 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "export.formula.Include"
     keys.Add "export.formula.Through"
     keys.Add "source.events.sheet"
-    keys.Add "source.events.table"
     keys.Add "source.events.columns.FullName"
-    keys.Add "source.roster.sheet"
-    keys.Add "source.roster.table"
-    keys.Add "source.roster.columns.FullName"
-    keys.Add "source.roster.columns.TaxId"
     keys.Add "text.PersonUnverified"
     keys.Add "text.AmbiguousName"
     keys.Add "source.events.columns.TaxId"
@@ -159,10 +174,6 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "header.errors.TaxId"
     keys.Add "header.errors.Description"
     keys.Add "text.SkippedPeople"
-    keys.Add "input.columns.FullName"
-    keys.Add "input.columns.TaxId"
-    keys.Add "input.columns.StartDate"
-    keys.Add "input.columns.IncludeBusinessTripDays"
     keys.Add "event.present"
     keys.Add "text.AlreadyRunning"
     keys.Add "text.ParameterLoadingStarted"
@@ -210,8 +221,6 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "text.IsMissingColumn"
     keys.Add "text.CellError"
     keys.Add "text.RequiredValue"
-    keys.Add "text.IncludeBusinessTripDays"
-    keys.Add "text.InvalidTripFlag"
     keys.Add "text.InvalidDate"
     keys.Add "text.InvalidReference"
     keys.Add "event.alwaysExcluded"
@@ -219,12 +228,9 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "header.FullName"
     keys.Add "header.TaxId"
     keys.Add "header.StartDate"
-    keys.Add "header.BusinessTrips"
     keys.Add "header.Periods"
     keys.Add "header.CountedDays"
     keys.Add "header.ThresholdDate"
-    keys.Add "flag.includeTrips"
-    keys.Add "flag.excludeTrips"
     keys.Add "calculation.thresholdDays"
     keys.Add "format.periodRangeSeparator"
     Set private_RequiredKeys = keys

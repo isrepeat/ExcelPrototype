@@ -5,8 +5,6 @@ value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalcula
 value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_PADC.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PADC.fn_CreatePage
-value	PersonnelAtDisposalDaysCalculation::flag.excludeTrips	ні|нет|false|0
-value	PersonnelAtDisposalDaysCalculation::flag.includeTrips	так|да|true|1
 value	PersonnelAtDisposalDaysCalculation::text.Rows	 rows
 value	PersonnelAtDisposalDaysCalculation::text.Event	: Event
 value	PersonnelAtDisposalDaysCalculation::text.Table	', table '
@@ -48,7 +46,6 @@ value	PersonnelAtDisposalDaysCalculation::text.AlreadyRunning	An operation is al
 value	PersonnelAtDisposalDaysCalculation::text.DuplicateTaxId	: duplicate tax ID
 value	PersonnelAtDisposalDaysCalculation::text.WritingResults	Writing results...
 value	PersonnelAtDisposalDaysCalculation::text.CalculatingDays	Calculating days:
-value	PersonnelAtDisposalDaysCalculation::text.InvalidTripFlag	: the business trip flag must be TRUE / FALSE or 1 / 0 (Ukrainian and Russian equivalents are accepted).
 value	PersonnelAtDisposalDaysCalculation::text.IsMissingColumn	' is missing column '
 value	PersonnelAtDisposalDaysCalculation::text.MultipleSources	Multiple RUKH tables are open. Keep only one source workbook open.
 value	PersonnelAtDisposalDaysCalculation::text.ParametersEmpty	The parameter table is empty.
@@ -62,13 +59,12 @@ value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлік�
 value	PersonnelAtDisposalDaysCalculation::text.OperationCancelled	Operation cancelled.
 value	PersonnelAtDisposalDaysCalculation::text.ParameterWorksheet	Parameter worksheet:
 value	PersonnelAtDisposalDaysCalculation::text.CancellingOperation	Cancelling operation...
+value	PersonnelAtDisposalDaysCalculation::text.DisposalDateMissing	Не знайдено дійсну дату наказу про виведення у розпорядження в Д2!Книга.
 value	PersonnelAtDisposalDaysCalculation::text.ExportFolderMissing	Спочатку збережіть книгу інструмента в доступній локальній або мережевій папці.
-value	PersonnelAtDisposalDaysCalculation::text.InputReferenceLabel	Шлях вхідних даних
 value	PersonnelAtDisposalDaysCalculation::text.TargetPrepareFailed	Unable to prepare the result table:
+value	PersonnelAtDisposalDaysCalculation::text.PersonIdentityMissing	У записі ШПО відсутній ІПН або ПІБ.
 value	PersonnelAtDisposalDaysCalculation::text.ArrivalBeforeDeparture	: arrival is earlier than departure.
-value	PersonnelAtDisposalDaysCalculation::text.InvalidInputDateSystem	Параметр input.dateSystem має бути 1900 або 1904.
 value	PersonnelAtDisposalDaysCalculation::text.CheckTableConfiguration	'. Check the table and worksheet names in Configuration.
-value	PersonnelAtDisposalDaysCalculation::text.IncludeBusinessTripDays	: Count business trip days
 value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingStarted	Parameter loading started
 value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingCompleted	Parameter loading completed
 value	PersonnelAtDisposalDaysCalculation::text.CalculationCompletedPeople	Calculation completed. People:
@@ -76,27 +72,31 @@ value	PersonnelAtDisposalDaysCalculation::text.FileNotFoundOrInaccessible	: file
 value	PersonnelAtDisposalDaysCalculation::event.present	В строю
 value	PersonnelAtDisposalDaysCalculation::event.alwaysExcluded	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Стаціонарне лікування|ВЛК за межами|Безвісти зниклий|Арешт|Полон
 value	PersonnelAtDisposalDaysCalculation::event.optionalExcluded	Відрядження
-value	PersonnelAtDisposalDaysCalculation::input.columns.TaxId	ІПН
-value	PersonnelAtDisposalDaysCalculation::input.columns.FullName	ПІБ
-value	PersonnelAtDisposalDaysCalculation::input.columns.StartDate	ДЗС
-value	PersonnelAtDisposalDaysCalculation::input.columns.IncludeBusinessTripDays	Зараховувати дні відрядження
-value	PersonnelAtDisposalDaysCalculation::input.dateSystem	1900
 value	PersonnelAtDisposalDaysCalculation::export.font	Arial
 value	PersonnelAtDisposalDaysCalculation::export.sheet	Результат
 value	PersonnelAtDisposalDaysCalculation::export.table	tbPersonnelAtDisposalDays
 value	PersonnelAtDisposalDaysCalculation::export.title	Дні перебування у розпорядженні
 value	PersonnelAtDisposalDaysCalculation::export.header.From	З
+value	PersonnelAtDisposalDaysCalculation::export.header.Rank	ЗВАННЯ
+value	PersonnelAtDisposalDaysCalculation::export.header.Period	ПЕРІОД
+value	PersonnelAtDisposalDaysCalculation::export.header.Status	СТАТУС
 value	PersonnelAtDisposalDaysCalculation::export.header.Include	ЗАЛУЧИТИ
 value	PersonnelAtDisposalDaysCalculation::export.header.Through	ПО
+value	PersonnelAtDisposalDaysCalculation::export.header.StartDate	ДЗС
+value	PersonnelAtDisposalDaysCalculation::export.header.Difference	Відмінність
+value	PersonnelAtDisposalDaysCalculation::export.header.OpenStatus	Останній відкритий статус
+value	PersonnelAtDisposalDaysCalculation::export.header.UnitPeriod	Підроділ
 value	PersonnelAtDisposalDaysCalculation::export.labels.End	Кінець періода
 value	PersonnelAtDisposalDaysCalculation::export.labels.Date	Дата обрахунку
 value	PersonnelAtDisposalDaysCalculation::export.labels.Start	Початок періода
-value	PersonnelAtDisposalDaysCalculation::export.widths	34|20|23|15|40|20|27|18|18|18
+value	PersonnelAtDisposalDaysCalculation::export.widths	16|34|20|12|28|17|20|27|18|18|29|29|16|18
 value	PersonnelAtDisposalDaysCalculation::export.formula.End	=EOMONTH(C3,-1)
-value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[2],R4C3,"")
+value	PersonnelAtDisposalDaysCalculation::export.formula.From	=IF(RC[5],R4C3,"")
 value	PersonnelAtDisposalDaysCalculation::export.formula.Start	=EOMONTH(C5,-1)+1
-value	PersonnelAtDisposalDaysCalculation::export.formula.Include	=OR(LEN(RC[-3])=0,RC[-3]>R4C3)
-value	PersonnelAtDisposalDaysCalculation::export.formula.Through	=IF(RC[1],IF(LEN(RC[-2])>0,MIN(R5C3,RC[-2]-1),R5C3),"")
+value	PersonnelAtDisposalDaysCalculation::export.formula.Period	=IF(RC[3],TEXT(RC[-2],"dd.mm.yyyy")&" – "&TEXT(RC[-1],"dd.mm.yyyy"),"")
+value	PersonnelAtDisposalDaysCalculation::export.formula.Include	=AND(ISNUMBER(RC[-7]),OR(LEN(RC[-6])=0,RC[-6]>R4C3))
+value	PersonnelAtDisposalDaysCalculation::export.formula.Through	=IF(RC[4],IF(LEN(RC[-2])>0,MIN(R5C3,RC[-2]-1),R5C3),"")
+value	PersonnelAtDisposalDaysCalculation::export.formula.Difference	=RC[-2]<>RC[-1]
 value	PersonnelAtDisposalDaysCalculation::export.padding.rows	30
 value	PersonnelAtDisposalDaysCalculation::export.padding.columns	10
 value	PersonnelAtDisposalDaysCalculation::export.palette	26241D|302D25|38342B|605542|FFFFFF|FFB74D
@@ -114,20 +114,30 @@ value	PersonnelAtDisposalDaysCalculation::header.Periods	Періоди
 value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
 value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
-value	PersonnelAtDisposalDaysCalculation::header.BusinessTrips	Зараховувати дні відрядження
 value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
+value	PersonnelAtDisposalDaysCalculation::source.events.path	%USERPROFILE%\Desktop\РУХ_last.xlsx
+value	PersonnelAtDisposalDaysCalculation::source.events.range	B6:P100000
 value	PersonnelAtDisposalDaysCalculation::source.events.sheet	Відсутні
-value	PersonnelAtDisposalDaysCalculation::source.events.table	ТВ
 value	PersonnelAtDisposalDaysCalculation::source.events.columns.Event	Подія
 value	PersonnelAtDisposalDaysCalculation::source.events.columns.TaxId	ІПН
 value	PersonnelAtDisposalDaysCalculation::source.events.columns.Arrival	Прибуття
 value	PersonnelAtDisposalDaysCalculation::source.events.columns.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::source.events.columns.Departure	Вибуття
-value	PersonnelAtDisposalDaysCalculation::source.roster.sheet	Список
-value	PersonnelAtDisposalDaysCalculation::source.roster.table	Список
-value	PersonnelAtDisposalDaysCalculation::source.roster.columns.TaxId	ІПН
-value	PersonnelAtDisposalDaysCalculation::source.roster.columns.FullName	ПІБ
-value	PersonnelAtDisposalDaysCalculation::default.InputReference	.\Д3.xlsx|Д3!B2:N10000
+value	PersonnelAtDisposalDaysCalculation::source.orders.path	%USERPROFILE%\Desktop\Д2.xlsx
+value	PersonnelAtDisposalDaysCalculation::source.orders.range	G2:L100000
+value	PersonnelAtDisposalDaysCalculation::source.orders.sheet	Книга
+value	PersonnelAtDisposalDaysCalculation::source.orders.action	виведено у розпорядження
+value	PersonnelAtDisposalDaysCalculation::source.orders.columns.Date	дата наказу вищого штабу
+value	PersonnelAtDisposalDaysCalculation::source.orders.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::source.orders.columns.Action	дія
+value	PersonnelAtDisposalDaysCalculation::source.orders.columns.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::source.personnel.columns.Code	Код
+value	PersonnelAtDisposalDaysCalculation::source.personnel.columns.Rank	Військове звання фактично
+value	PersonnelAtDisposalDaysCalculation::source.personnel.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::source.personnel.columns.FullName	Прізвище, ім’я, по батькові
+value	PersonnelAtDisposalDaysCalculation::source.personnel.reference	%USERPROFILE%\Desktop\ШПО_new.xlsx|ОС!A1:AB20000
+value	PersonnelAtDisposalDaysCalculation::source.personnel.rosterCode	СПИС
+value	PersonnelAtDisposalDaysCalculation::source.personnel.disposalCode	РОЗП
 value	PersonnelAtDisposalDaysCalculation::calculation.thresholdDays	60
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Failed	Не вдалося оновити конфігурацію: {error}
 value	PersonnelAtDisposalDaysCalculation::configRefresh.text.Success	Конфігурацію оновлено: {path}

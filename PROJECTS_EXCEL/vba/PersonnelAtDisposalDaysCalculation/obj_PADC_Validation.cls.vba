@@ -70,38 +70,6 @@ Public Function RequiredText( _
     End If
 End Function
 
-Public Function ReadFlag( _
-    ByVal value As Variant, _
-    ByVal context As String _
-) As Boolean
-    Dim flagText As String
-
-    private_EnsureReady
-    ' Return whether business trip days are included in the calculation.
-    If VBA.IsNull(value) Then
-        ReadFlag = False
-        Exit Function
-    End If
-    If VBA.VarType(value) = vbBoolean Then
-        ReadFlag = value
-        Exit Function
-    End If
-    If Not VBA.IsError(value) And Not VBA.IsNull(value) Then
-        If VBA.Len(VBA.Trim$(VBA.Replace(VBA.CStr(value), VBA.ChrW(NBSP_CODE), " "))) = 0 Then
-            ReadFlag = False
-            Exit Function
-        End If
-    End If
-    flagText = VBA.LCase$(Me.RequiredText(value, context & m_configuration.GetText("text.IncludeBusinessTripDays")))
-    If private_IsEventInList(flagText, m_configuration.GetText("flag.includeTrips")) Then
-        ReadFlag = True
-    ElseIf private_IsEventInList(flagText, m_configuration.GetText("flag.excludeTrips")) Then
-        ReadFlag = False
-    Else
-        m_configuration.Fail context & m_configuration.GetText("text.InvalidTripFlag")
-    End If
-End Function
-
 Public Function ReadDay( _
     ByVal value As Variant, _
     ByVal date1904 As Boolean, _

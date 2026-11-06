@@ -15,9 +15,11 @@ Private m_isDisposed As Boolean
 Private m_fullName As String
 Private m_taxId As String
 Private m_startDay As Long
-Private m_tripFlag As Variant
 Private m_intervals As Collection
 Private m_validationError As String
+Private m_rank As String
+Private m_status As String
+Private m_openStatus As String
 
 ' //
 ' // Lifecycle
@@ -47,11 +49,6 @@ Public Property Get StartDay() As Long
     StartDay = m_startDay
 End Property
 
-Public Property Get TripFlag() As Variant
-    private_EnsureReady
-    TripFlag = m_tripFlag
-End Property
-
 Public Property Get Intervals() As Collection
     private_EnsureReady
     Set Intervals = m_intervals
@@ -62,6 +59,21 @@ Public Property Get ValidationError() As String
     ValidationError = m_validationError
 End Property
 
+Public Property Get Rank() As String
+    private_EnsureReady
+    Rank = m_rank
+End Property
+
+Public Property Get Status() As String
+    private_EnsureReady
+    Status = m_status
+End Property
+
+Public Property Get OpenStatus() As String
+    private_EnsureReady
+    OpenStatus = m_openStatus
+End Property
+
 ' //
 ' // API
 ' //
@@ -69,9 +81,11 @@ Public Function Initialize( _
     ByVal fullName As String, _
     ByVal taxId As String, _
     ByVal startDay As Long, _
-    ByVal tripFlag As Variant, _
     ByVal intervals As Collection, _
-    ByVal validationError As String _
+    ByVal validationError As String, _
+    ByVal rank As String, _
+    ByVal status As String, _
+    ByVal openStatus As String _
 ) As Boolean
     If m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -82,9 +96,11 @@ Public Function Initialize( _
     m_fullName = fullName
     m_taxId = taxId
     m_startDay = startDay
-    m_tripFlag = tripFlag
     Set m_intervals = intervals
     m_validationError = validationError
+    m_rank = rank
+    m_status = status
+    m_openStatus = openStatus
     m_isInitialized = True
     Initialize = True
 End Function

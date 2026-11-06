@@ -43,12 +43,6 @@
                    labelPosition="left"
                    labelStyle="parameterLabel"
                    fieldStyle="parameterField">
-      <field name="InputReference"
-             type="text"
-             value="{Binding Path=InputReference}"
-             label="{Binding Path=Text.InputReferenceLabel}"
-             required="true"/>
-
       <field name="EndDate"
              type="text"
              value="{Binding Path=EndDate}"
@@ -156,10 +150,10 @@
               selector="address=7:7"
               styles="{rowHeight:48;}"/>
         <rule target="cell"
-              selector="address=I3"
+              selector="address=I2"
               styles="{cellType:text;}"/>
         <rule target="range"
-              selector="address=H2:I3"
+              selector="address=H2:I2"
               styles="{fontSize:12;}"/>
       </layer>
       <layer name="table">

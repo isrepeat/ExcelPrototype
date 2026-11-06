@@ -62,7 +62,6 @@ Public Sub Publish( _
     ByRef names() As Variant, _
     ByRef ids() As Variant, _
     ByRef starts() As Variant, _
-    ByRef trips() As Variant, _
     ByRef periods() As Variant, _
     ByRef days() As Variant, _
     ByRef thresholds() As Variant, _
@@ -80,19 +79,18 @@ Public Sub Publish( _
 
     private_EnsureReady
     headers = VBA.Array(m_configuration.GetText("header.FullName"), m_configuration.GetText("header.TaxId"), m_configuration.GetText("header.StartDate"), _
-        m_configuration.GetText("header.BusinessTrips"), m_configuration.GetText("header.Periods"), m_configuration.GetText("header.CountedDays"), m_configuration.GetText("header.ThresholdDate"))
+        m_configuration.GetText("header.Periods"), m_configuration.GetText("header.CountedDays"), m_configuration.GetText("header.ThresholdDate"))
     Set resultTable = New obj_UiRawTable
     If count > 0 Then
-        ReDim values(1 To count, 1 To 7)
+        ReDim values(1 To count, 1 To 6)
         For i = 1 To count
             values(i, 1) = names(i, 1)
             values(i, 2) = ids(i, 1)
             values(i, 3) = VBA.Format$(starts(i, 1), FORMAT_DATE)
-            values(i, 4) = trips(i, 1)
-            values(i, 5) = periods(i, 1)
-            values(i, 6) = days(i, 1)
+            values(i, 4) = periods(i, 1)
+            values(i, 5) = days(i, 1)
             If Not VBA.IsEmpty(thresholds(i, 1)) Then
-                values(i, 7) = VBA.Format$(thresholds(i, 1), FORMAT_DATE)
+                values(i, 6) = VBA.Format$(thresholds(i, 1), FORMAT_DATE)
             End If
         Next i
         If Not resultTable.Initialize(values, headers) Then

@@ -22,7 +22,6 @@ Private m_rangeAddress As String
 Private m_endDay As Long
 Private Const INPUT_REFERENCE_SEPARATOR As String = "|"
 Private Const INPUT_SHEET_SEPARATOR As String = "!"
-Private Const PARAM_INPUT_PATH_CELL As String = "I2"
 Private Const FORMAT_DATE As String = "dd.mm.yyyy"
 Private Const FILE_SYSTEM_PROG_ID As String = "Scripting.FileSystemObject"
 
@@ -114,16 +113,17 @@ End Sub
 Private Sub private_ReadCalculationParameters(ByVal ws As Worksheet)
     Dim fileSystem As Object
 
-    m_inputPath = m_validation.RequiredText(private_ReadFormValue("InputReference"), "Form.InputReference")
+    m_inputPath = m_validation.RequiredText(m_configuration.GetText("source.personnel.reference"), "source.personnel.reference")
     m_endDay = m_validation.ReadDay(private_ReadFormValue("EndDate"), ws.Parent.Date1904, "Form.EndDate")
     private_ParseInputReference
+    m_inputPath = VBA.CreateObject("WScript.Shell").ExpandEnvironmentStrings(m_inputPath)
     m_inputPath = private_ResolveInputPath(m_inputPath)
     m_runContext.LogDebug m_configuration.GetText("text.InputFile") & m_inputPath
     m_runContext.LogDebug m_configuration.GetText("text.EndDate") & VBA.Format$(VBA.CDate(m_endDay), FORMAT_DATE)
     m_runContext.CheckCancel 0
     Set fileSystem = VBA.CreateObject(FILE_SYSTEM_PROG_ID)
     If Not fileSystem.FileExists(m_inputPath) Then
-        m_configuration.Fail ws.Name & "!" & PARAM_INPUT_PATH_CELL & m_configuration.GetText("text.FileNotFoundOrInaccessible") & m_inputPath
+        m_configuration.Fail "source.personnel.reference" & m_configuration.GetText("text.FileNotFoundOrInaccessible") & m_inputPath
     End If
 End Sub
 

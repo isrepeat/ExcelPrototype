@@ -73,7 +73,6 @@ End Sub
 
 Public Sub Calculate()
     Dim parameterSheet As Worksheet
-    Dim parameterTable As obj_DataTable
     Dim prepared As Collection
     Dim errorText As String
     Dim errorNumber As Long
@@ -108,19 +107,13 @@ Public Sub Calculate()
     End If
     m_runContext.CheckCancel 0
     m_runContext.LogDebug m_configuration.GetText("text.ParameterLoadingCompleted")
-    m_runContext.LogStage "ReadInputSql.Started"
-    Set parameterTable = m_dataSource.ReadParameters(m_parameters)
-    m_runContext.LogStage "ReadInputSql.Completed"
     m_runContext.LogStage "PrepareEvents.Started"
-    Set prepared = m_eventPreparation.Prepare(parameterTable, m_parameters, m_parameters.EndDay)
+    Set prepared = m_eventPreparation.Prepare(m_parameters)
     m_runContext.LogStage "PrepareEvents.Completed"
     m_runContext.LogStage "CalculateAndPublish.Started"
     private_CalculatePreparedPeople prepared, m_parameters.EndDay
     m_runContext.LogStage "CalculateAndPublish.Completed"
 Cleanup:
-    If Not parameterTable Is Nothing Then
-        parameterTable.Dispose
-    End If
     ex_Core.fn_Diagnostic_WriteLog "PADC_STAGE | Name=RunCleanup.Started"
     ex_Core.fn_Diagnostic_Flush
     private_DisposeServices
@@ -272,7 +265,6 @@ Private Sub private_CalculatePreparedPeople( _
     Dim names() As Variant
     Dim ids() As Variant
     Dim starts() As Variant
-    Dim trips() As Variant
     Dim periods() As Variant
     Dim days() As Variant
     Dim thresholds() As Variant
@@ -288,14 +280,22 @@ Private Sub private_CalculatePreparedPeople( _
     ReDim names(1 To prepared.Count, 1 To 1)
     ReDim ids(1 To prepared.Count, 1 To 1)
     ReDim starts(1 To prepared.Count, 1 To 1)
-    ReDim trips(1 To prepared.Count, 1 To 1)
     ReDim periods(1 To prepared.Count, 1 To 1)
     ReDim days(1 To prepared.Count, 1 To 1)
     ReDim thresholds(1 To prepared.Count, 1 To 1)
+    ReDim exportValues(1 To prepared.Count, 1 To 14)
     Set failures = New Collection
     For i = 1 To prepared.Count
         m_runContext.CheckCancel i
         Set preparedPerson = prepared(i)
+        exportValues(i, 1) = preparedPerson.Rank
+        exportValues(i, 2) = preparedPerson.FullName
+        exportValues(i, 3) = preparedPerson.TaxId
+        exportValues(i, 4) = preparedPerson.Status
+        exportValues(i, 5) = preparedPerson.OpenStatus
+        If preparedPerson.StartDay > 0 Then
+            exportValues(i, 6) = VBA.CDate(preparedPerson.StartDay)
+        End If
         If VBA.Len(preparedPerson.ValidationError) > 0 Then
             failures.Add VBA.Array(preparedPerson.FullName, preparedPerson.TaxId, preparedPerson.ValidationError)
             m_runContext.LogWarning VBA.CStr(preparedPerson.ValidationError)
@@ -307,9 +307,10 @@ Private Sub private_CalculatePreparedPeople( _
             names(count, 1) = preparedPerson.FullName
             ids(count, 1) = preparedPerson.TaxId
             starts(count, 1) = VBA.CDate(preparedPerson.StartDay)
-            trips(count, 1) = preparedPerson.TripFlag
             periods(count, 1) = periodsText
             thresholds(count, 1) = thresholdDate
+            exportValues(i, 7) = days(count, 1)
+            exportValues(i, 8) = thresholdDate
         End If
     Next i
     m_runContext.CheckCancel 0
@@ -317,21 +318,9 @@ Private Sub private_CalculatePreparedPeople( _
         m_configuration.GetText("text.Rows")
     ex_Core.fn_StatusBar_Show m_configuration.GetText("text.WritingResults")
     m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & failures.Count
-    m_resultWriter.Publish names, ids, starts, trips, periods, days, thresholds, count, failures
-    If count > 0 Then
-        ReDim exportValues(1 To count, 1 To 7)
-        For i = 1 To count
-            exportValues(i, 1) = names(i, 1)
-            exportValues(i, 2) = ids(i, 1)
-            exportValues(i, 3) = starts(i, 1)
-            exportValues(i, 4) = trips(i, 1)
-            exportValues(i, 5) = periods(i, 1)
-            exportValues(i, 6) = days(i, 1)
-            exportValues(i, 7) = thresholds(i, 1)
-        Next i
-        m_exportValues = exportValues
-        m_exportEndDay = lastDay
-    End If
+    m_resultWriter.Publish names, ids, starts, periods, days, thresholds, count, failures
+    m_exportValues = exportValues
+    m_exportEndDay = lastDay
     m_runContext.LogStage "PublishResults.Completed"
     m_runContext.LogDebug m_configuration.GetText("text.CalculationCompletedPeople") & count & _
         m_configuration.GetText("text.SkippedPeople") & failures.Count

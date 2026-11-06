@@ -39,11 +39,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim bindings As obj_UiBindingContext
     Dim textKey As Variant
     Dim configuredText As String
-    Dim inputReference As String
     Dim dateFormat As String
     Dim currentDate As Date
     Dim endDate As String
-    Dim headers(0 To 6) As Variant
+    Dim headers(0 To 5) As Variant
     Dim headerIndex As Long
     Dim errorCaption As String
 
@@ -62,7 +61,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If bindings Is Nothing Then
         GoTo Failed
     End If
-    For Each textKey In VBA.Array("Calculate", "Cancel", "RefreshPage", "Export", "InputReferenceLabel", "EndDateLabel")
+    For Each textKey In VBA.Array("Calculate", "Cancel", "RefreshPage", "Export", "EndDateLabel")
         If Not private_TryReadConfiguration("text." & VBA.CStr(textKey), configuredText) Then
             GoTo Failed
         End If
@@ -71,12 +70,6 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         End If
     Next textKey
     If Not private_TryReadConfiguration("text.Title", m_title) Then
-        GoTo Failed
-    End If
-    If Not private_TryReadConfiguration("default.InputReference", inputReference) Then
-        GoTo Failed
-    End If
-    If Not bindings.SetValue("Form", "InputReference", inputReference) Then
         GoTo Failed
     End If
     If Not private_TryReadConfiguration("format.date", dateFormat) Then
@@ -88,7 +81,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         GoTo Failed
     End If
 
-    For Each textKey In VBA.Array("FullName", "TaxId", "StartDate", "BusinessTrips", _
+    For Each textKey In VBA.Array("FullName", "TaxId", "StartDate", _
             "Periods", "CountedDays", "ThresholdDate")
         If Not private_TryReadConfiguration("header." & VBA.CStr(textKey), configuredText) Then
             GoTo Failed
