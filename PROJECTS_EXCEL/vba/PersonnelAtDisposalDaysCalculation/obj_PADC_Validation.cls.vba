@@ -114,15 +114,64 @@ InvalidDate:
     m_configuration.Fail context & m_configuration.GetText("text.InvalidDate")
 End Function
 
-Public Function IsExcluded( _
-    ByVal eventName As String, _
-    ByVal subtractTrips As Boolean _
-) As Boolean
+Public Function IsEligibleOpenStatus(ByVal openStatus As String) As Boolean
     private_EnsureReady
-    IsExcluded = private_IsEventInList(eventName, m_configuration.GetText("event.alwaysExcluded"))
-    If Not IsExcluded And subtractTrips Then
-        IsExcluded = private_IsEventInList(eventName, m_configuration.GetText("event.optionalExcluded"))
+    If VBA.Len(openStatus) = 0 Then
+        openStatus = "{blank}"
     End If
+    IsEligibleOpenStatus = private_IsEventInList(openStatus, m_configuration.GetText("event.eligibleOpenStatuses"))
+End Function
+
+Public Function ResolveEventRules( _
+    ByVal personnelCode As String, _
+    ByVal openStatus As String _
+) As Object
+    Dim decisions As Object
+    Dim owners As Object
+    Dim ruleId As Variant
+    Dim ruleName As String
+    Dim ruleKey As String
+    Dim statuses As String
+    Dim operation As Variant
+    Dim eventName As String
+    Dim excluded As Boolean
+    Dim diagnostic As String
+
+    private_EnsureReady
+    Set decisions = VBA.CreateObject("Scripting.Dictionary")
+    Set owners = VBA.CreateObject("Scripting.Dictionary")
+    decisions.CompareMode = vbTextCompare
+    owners.CompareMode = vbTextCompare
+    If VBA.Len(openStatus) = 0 Then
+        openStatus = "{blank}"
+    End If
+    For Each ruleId In VBA.Split(m_configuration.GetText("event.rules.ids"), "|")
+        ruleName = VBA.Trim$(VBA.CStr(ruleId))
+        ruleKey = "event.rules." & ruleName
+        If private_IsEventInList(personnelCode, m_configuration.GetText(ruleKey & ".codes")) Then
+            statuses = m_configuration.GetText(ruleKey & ".openStatuses")
+            If private_IsEventInList("*", statuses) Or private_IsEventInList(openStatus, statuses) Then
+                For Each operation In VBA.Split(m_configuration.GetText(ruleKey & ".events"), "|")
+                    operation = VBA.Trim$(VBA.CStr(operation))
+                    eventName = VBA.Trim$(VBA.Mid$(operation, 2))
+                    excluded = (VBA.Left$(operation, 1) = "-")
+                    If decisions.Exists(eventName) Then
+                        If decisions(eventName) <> excluded Then
+                            diagnostic = m_configuration.GetText("text.EventRuleConflict")
+                            diagnostic = VBA.Replace$(diagnostic, "{first}", VBA.CStr(owners(eventName)))
+                            diagnostic = VBA.Replace$(diagnostic, "{second}", ruleName)
+                            diagnostic = VBA.Replace$(diagnostic, "{event}", eventName)
+                            m_configuration.Fail diagnostic
+                        End If
+                    Else
+                        decisions.Add eventName, excluded
+                        owners.Add eventName, ruleName
+                    End If
+                Next operation
+            End If
+        End If
+    Next ruleId
+    Set ResolveEventRules = decisions
 End Function
 
 Public Function MatchText(ByVal value As Variant) As String
@@ -140,11 +189,18 @@ Private Function private_IsEventInList( _
     ByVal eventName As String, _
     ByVal eventList As String _
 ) As Boolean
+    Dim entry As Variant
+
     eventName = VBA.Trim$(eventName)
     If VBA.Len(eventName) = 0 Then
         Exit Function
     End If
-    private_IsEventInList = VBA.InStr(1, "|" & eventList & "|", "|" & eventName & "|", vbTextCompare) > 0
+    For Each entry In VBA.Split(eventList, "|")
+        If VBA.StrComp(eventName, VBA.Trim$(VBA.CStr(entry)), vbTextCompare) = 0 Then
+            private_IsEventInList = True
+            Exit Function
+        End If
+    Next entry
 End Function
 
 Private Sub private_EnsureReady()

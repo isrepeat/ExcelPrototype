@@ -85,6 +85,10 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Dim preparedPerson As obj_PADC_PreparedPerson
     Dim matches As Collection
     Dim intervals As Collection
+    Dim classifiedIntervals As Collection
+    Dim interval As Variant
+    Dim eventDecisions As Object
+    Dim excluded As Boolean
     Dim matchRow As Variant
     Dim rowIndex As Long
     Dim cutoff As Long
@@ -200,15 +204,27 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                                 arrival = parameters.EndDay
                             End If
                             If startDay > 0 And departure < arrival Then
-                                intervals.Add VBA.Array(departure, arrival, eventName, m_validation.IsExcluded(eventName, True))
+                                intervals.Add VBA.Array(departure, arrival, eventName)
                             End If
                         End If
                     Next matchRow
                 End If
             End If
 
+            If Not m_validation.IsEligibleOpenStatus(openStatus) Then
+                GoTo NextPersonnelRow
+            End If
+            Set eventDecisions = m_validation.ResolveEventRules(status, openStatus)
+            Set classifiedIntervals = New Collection
+            For Each interval In intervals
+                excluded = False
+                If eventDecisions.Exists(VBA.CStr(interval(2))) Then
+                    excluded = eventDecisions(VBA.CStr(interval(2)))
+                End If
+                classifiedIntervals.Add VBA.Array(interval(0), interval(1), interval(2), excluded)
+            Next interval
             Set preparedPerson = New obj_PADC_PreparedPerson
-            If Not preparedPerson.Initialize(fullName, taxId, startDay, intervals, errorText, rank, status, openStatus) Then
+            If Not preparedPerson.Initialize(fullName, taxId, startDay, classifiedIntervals, errorText, rank, status, openStatus) Then
                 m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
             End If
             prepared.Add preparedPerson

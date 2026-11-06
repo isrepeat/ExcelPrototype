@@ -41,6 +41,10 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     Dim key As String
     Dim value As String
     Dim requiredKeys As Collection
+    Dim ruleId As Variant
+    Dim field As Variant
+    Dim ruleKey As String
+    Dim operation As Variant
 
     If m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -55,6 +59,32 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         End If
         m_values.Add VBA.CStr(suffix), value
     Next suffix
+    For Each ruleId In VBA.Split(m_values("event.rules.ids"), "|")
+        key = "PersonnelAtDisposalDaysCalculation::event.rules.ids"
+        If VBA.Len(VBA.Trim$(VBA.CStr(ruleId))) = 0 Then
+            GoTo Failed
+        End If
+        For Each field In VBA.Array("codes", "openStatuses", "events")
+            ruleKey = "event.rules." & VBA.Trim$(VBA.CStr(ruleId)) & "." & VBA.CStr(field)
+            key = "PersonnelAtDisposalDaysCalculation::" & ruleKey
+            If Not ex_Core.fn_TryGetWorkbookConfigValue(key, value) Then
+                GoTo Failed
+            End If
+            For Each operation In VBA.Split(value, "|")
+                operation = VBA.Trim$(VBA.CStr(operation))
+                If VBA.Len(operation) = 0 Then
+                    GoTo Failed
+                End If
+                If field = "events" Then
+                    If (VBA.Left$(operation, 1) <> "+" And VBA.Left$(operation, 1) <> "-") _
+                            Or VBA.Len(VBA.Trim$(VBA.Mid$(operation, 2))) = 0 Then
+                        GoTo Failed
+                    End If
+                End If
+            Next operation
+            m_values.Add ruleKey, value
+        Next field
+    Next ruleId
     key = "PersonnelAtDisposalDaysCalculation::format.periodRangeSeparator"
     If VBA.Len(m_values("format.periodRangeSeparator")) = 0 Then
         GoTo Failed
@@ -235,8 +265,9 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "text.RequiredValue"
     keys.Add "text.InvalidDate"
     keys.Add "text.InvalidReference"
-    keys.Add "event.alwaysExcluded"
-    keys.Add "event.optionalExcluded"
+    keys.Add "event.rules.ids"
+    keys.Add "text.EventRuleConflict"
+    keys.Add "event.eligibleOpenStatuses"
     keys.Add "header.FullName"
     keys.Add "header.TaxId"
     keys.Add "header.StartDate"

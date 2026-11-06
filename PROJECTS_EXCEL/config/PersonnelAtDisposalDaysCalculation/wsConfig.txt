@@ -53,6 +53,7 @@ value	PersonnelAtDisposalDaysCalculation::text.InvalidReference	Вкажіть �
 value	PersonnelAtDisposalDaysCalculation::text.OperationStopped	Operation stopped:
 value	PersonnelAtDisposalDaysCalculation::text.PersonUnverified	Person not found in events or the personnel roster:
 value	PersonnelAtDisposalDaysCalculation::text.RelativePathBase	Save the tool workbook in a local or network folder before using a relative input path.
+value	PersonnelAtDisposalDaysCalculation::text.EventRuleConflict	Правила «{first}» і «{second}» задають різні операції для події «{event}».
 value	PersonnelAtDisposalDaysCalculation::text.StyleMergeOverlap	Конфлікт розмітки: область контрола перетинає іншу об’єднану область. Контрол, цільова область / наявне об’єднання: {value}. Перевірте row, column, rowSpan і columnSpan.
 value	PersonnelAtDisposalDaysCalculation::text.ParameterWorksheet	Parameter worksheet:
 value	PersonnelAtDisposalDaysCalculation::text.DisposalDateMissing	Не знайдено дійсну дату наказу про виведення у розпорядження в Д2!Книга.
@@ -65,9 +66,18 @@ value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingStarted	Parameter
 value	PersonnelAtDisposalDaysCalculation::text.ParameterLoadingCompleted	Parameter loading completed
 value	PersonnelAtDisposalDaysCalculation::text.CalculationCompletedPeople	Calculation completed. People:
 value	PersonnelAtDisposalDaysCalculation::text.FileNotFoundOrInaccessible	: file not found or inaccessible:
+value	PersonnelAtDisposalDaysCalculation::event.rules.ids	RosterBase|DisposalBase|RosterTrip
+value	PersonnelAtDisposalDaysCalculation::event.rules.RosterBase.codes	СПИС
+value	PersonnelAtDisposalDaysCalculation::event.rules.RosterBase.events	-Щорічна відпустка|-Відпустка за сімейними обставинами|-Відпустка для лікування|-Відпустка у зв'язку з вагітністю та пологами|-Відпустка по догляду за дитиною|-Стаціонарне лікування|-ВЛК за межами|-Безвісти зниклий|-Арешт|-Полон
+value	PersonnelAtDisposalDaysCalculation::event.rules.RosterBase.openStatuses	*
+value	PersonnelAtDisposalDaysCalculation::event.rules.RosterTrip.codes	СПИС
+value	PersonnelAtDisposalDaysCalculation::event.rules.RosterTrip.events	-Відрядження
+value	PersonnelAtDisposalDaysCalculation::event.rules.RosterTrip.openStatuses	Відрядження
+value	PersonnelAtDisposalDaysCalculation::event.rules.DisposalBase.codes	РОЗП
+value	PersonnelAtDisposalDaysCalculation::event.rules.DisposalBase.events	-Щорічна відпустка|-Відпустка за сімейними обставинами|-Відпустка для лікування|-Відпустка у зв'язку з вагітністю та пологами|-Відпустка по догляду за дитиною|-Стаціонарне лікування|-ВЛК за межами|-Безвісти зниклий|-Арешт|-Полон
+value	PersonnelAtDisposalDaysCalculation::event.rules.DisposalBase.openStatuses	*
 value	PersonnelAtDisposalDaysCalculation::event.present	В строю
-value	PersonnelAtDisposalDaysCalculation::event.alwaysExcluded	Щорічна відпустка|Відпустка за сімейними обставинами|Відпустка для лікування|Відпустка у зв'язку з вагітністю та пологами|Відпустка по догляду за дитиною|Стаціонарне лікування|ВЛК за межами|Безвісти зниклий|Арешт|Полон
-value	PersonnelAtDisposalDaysCalculation::event.optionalExcluded	Відрядження
+value	PersonnelAtDisposalDaysCalculation::event.eligibleOpenStatuses	Амбулаторне ВЛК|Відпустка для лікування|Відпустка по догляду за дитиною|Відпустка у зв'язку з вагітністю та пологами|Відрядження|ВЛК за межами|Стаціонарне лікування|Щорічна відпустка|{blank}
 value	PersonnelAtDisposalDaysCalculation::export.font	Arial
 value	PersonnelAtDisposalDaysCalculation::export.sheet	Результат
 value	PersonnelAtDisposalDaysCalculation::export.table	tbPersonnelAtDisposalDays
