@@ -174,6 +174,39 @@ Public Function ResolveEventRules( _
     Set ResolveEventRules = decisions
 End Function
 
+Public Function DisplayOpenStatus( _
+    ByVal openStatus As String, _
+    ByVal departure As Long, _
+    ByVal chronology As Collection _
+) As String
+    Dim item As Variant
+    Dim previousDeparture As Long
+    Dim allowedPredecessors As String
+    Dim contiguous As Boolean
+    Dim isCandidate As Boolean
+
+    private_EnsureReady
+    DisplayOpenStatus = openStatus
+    If VBA.StrComp(openStatus, m_configuration.GetText("event.tripChain.target"), vbTextCompare) <> 0 Then
+        Exit Function
+    End If
+    allowedPredecessors = m_configuration.GetText("event.tripChain.predecessors")
+    For Each item In chronology
+        If item(0) < departure And item(0) >= previousDeparture Then
+            isCandidate = (item(1) = departure) And private_IsEventInList(VBA.CStr(item(2)), allowedPredecessors)
+            If item(0) = previousDeparture Then
+                contiguous = contiguous And isCandidate
+            Else
+                previousDeparture = item(0)
+                contiguous = isCandidate
+            End If
+        End If
+    Next item
+    If contiguous Then
+        DisplayOpenStatus = m_configuration.GetText("event.tripChain.label")
+    End If
+End Function
+
 Public Function MatchText(ByVal value As Variant) As String
     private_EnsureReady
     If VBA.IsError(value) Or VBA.IsNull(value) Then

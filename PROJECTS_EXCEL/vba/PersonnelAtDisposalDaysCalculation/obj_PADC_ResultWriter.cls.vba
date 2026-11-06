@@ -59,20 +59,15 @@ Public Sub Dispose()
 End Sub
 
 Public Sub Publish( _
-    ByRef names() As Variant, _
-    ByRef ids() As Variant, _
-    ByRef starts() As Variant, _
+    ByRef exportValues() As Variant, _
     ByRef periods() As Variant, _
-    ByRef days() As Variant, _
-    ByRef thresholds() As Variant, _
-    ByRef notes() As Variant, _
-    ByVal count As Long, _
     ByVal lastDay As Long, _
     ByVal parameterSheet As Worksheet _
 )
     Dim values() As Variant
     Dim headers As Variant
     Dim i As Long
+    Dim count As Long
     Dim resultTable As obj_UiRawTable
     Dim monthStart As Date
     Dim monthEnd As Date
@@ -82,41 +77,45 @@ Public Sub Publish( _
     Dim separator As String
 
     private_EnsureReady
-    headers = VBA.Array(m_configuration.GetText("header.FullName"), m_configuration.GetText("header.TaxId"), m_configuration.GetText("header.StartDate"), _
+    headers = VBA.Array(m_configuration.GetText("header.FullName"), m_configuration.GetText("header.TaxId"), _
+        m_configuration.GetText("export.header.Status"), m_configuration.GetText("export.header.OpenStatus"), m_configuration.GetText("header.StartDate"), _
         m_configuration.GetText("header.Periods"), m_configuration.GetText("header.CountedDays"), m_configuration.GetText("header.ThresholdDate"), _
         m_configuration.GetText("export.header.From"), m_configuration.GetText("export.header.Through"), m_configuration.GetText("export.header.Period"), _
         m_configuration.GetText("export.header.Include"), m_configuration.GetText("header.Notes"))
+    count = UBound(exportValues, 1)
     Set resultTable = New obj_UiRawTable
     If count > 0 Then
         monthStart = VBA.DateSerial(VBA.Year(VBA.CDate(lastDay)), VBA.Month(VBA.CDate(lastDay)) - 1, 1)
         monthEnd = VBA.DateSerial(VBA.Year(VBA.CDate(lastDay)), VBA.Month(VBA.CDate(lastDay)), 0)
         separator = " " & m_configuration.GetText("format.periodRangeSeparator") & " "
-        ReDim values(1 To count, 1 To 11)
+        ReDim values(1 To count, 1 To 13)
         For i = 1 To count
-            values(i, 1) = names(i, 1)
-            values(i, 2) = ids(i, 1)
-            If Not VBA.IsEmpty(starts(i, 1)) Then
-                values(i, 3) = VBA.Format$(starts(i, 1), FORMAT_DATE)
+            values(i, 1) = exportValues(i, 2)
+            values(i, 2) = exportValues(i, 3)
+            values(i, 3) = exportValues(i, 4)
+            values(i, 4) = exportValues(i, 5)
+            If Not VBA.IsEmpty(exportValues(i, 6)) Then
+                values(i, 5) = VBA.Format$(exportValues(i, 6), FORMAT_DATE)
             End If
-            values(i, 4) = periods(i, 1)
-            values(i, 5) = days(i, 1)
-            include = Not VBA.IsEmpty(days(i, 1))
+            values(i, 6) = periods(i, 1)
+            values(i, 7) = exportValues(i, 7)
+            include = Not VBA.IsEmpty(exportValues(i, 7))
             through = monthEnd
-            If Not VBA.IsEmpty(thresholds(i, 1)) Then
-                threshold = VBA.CDate(thresholds(i, 1))
-                values(i, 6) = VBA.Format$(threshold, FORMAT_DATE)
+            If Not VBA.IsEmpty(exportValues(i, 8)) Then
+                threshold = VBA.CDate(exportValues(i, 8))
+                values(i, 8) = VBA.Format$(threshold, FORMAT_DATE)
                 include = include And threshold > monthStart
                 If threshold <= monthEnd Then
                     through = threshold - 1
                 End If
             End If
             If include Then
-                values(i, 7) = VBA.Format$(monthStart, FORMAT_DATE)
-                values(i, 8) = VBA.Format$(through, FORMAT_DATE)
-                values(i, 9) = values(i, 7) & separator & values(i, 8)
+                values(i, 9) = VBA.Format$(monthStart, FORMAT_DATE)
+                values(i, 10) = VBA.Format$(through, FORMAT_DATE)
+                values(i, 11) = values(i, 9) & separator & values(i, 10)
             End If
-            values(i, 10) = include
-            values(i, 11) = notes(i, 1)
+            values(i, 12) = include
+            values(i, 13) = exportValues(i, 15)
         Next i
         If Not resultTable.Initialize(values, headers) Then
             m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
@@ -132,7 +131,7 @@ Public Sub Publish( _
     If Not m_pageBase.Render() Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")
     End If
-    ex_PADC.fn_MarkFallbackDates parameterSheet.ListObjects("tbPADCCalculationRows"), 3, 11, _
+    ex_PADC.fn_MarkFallbackDates parameterSheet.ListObjects("tbPADCCalculationRows"), 5, 13, _
         m_configuration.GetText("text.FallbackDateUsed")
 End Sub
 

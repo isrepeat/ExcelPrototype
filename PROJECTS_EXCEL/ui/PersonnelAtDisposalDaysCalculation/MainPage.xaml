@@ -155,7 +155,7 @@
               selector="address=A:A"
               styles="{width:9;}"/>
         <rule target="column"
-              selector="address=B:L"
+              selector="address=B:N"
               styles="{width:18;}"/>
         <rule target="cell"
               selector="address=I2"

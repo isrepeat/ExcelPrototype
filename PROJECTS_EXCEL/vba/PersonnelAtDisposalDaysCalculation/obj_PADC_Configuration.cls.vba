@@ -135,6 +135,9 @@ Private Function private_RequiredKeys() As Collection
     Dim keys As Collection
 
     Set keys = New Collection
+    keys.Add "event.tripChain.label"
+    keys.Add "event.tripChain.target"
+    keys.Add "event.tripChain.predecessors"
     keys.Add "text.SnapshotFailed"
     keys.Add "calculation.fallbackStartDate"
     keys.Add "header.Notes"

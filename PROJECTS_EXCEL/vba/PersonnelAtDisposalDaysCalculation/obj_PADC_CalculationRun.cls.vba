@@ -289,13 +289,7 @@ Private Sub private_CalculatePreparedPeople( _
     ByVal lastDay As Long, _
     ByVal parameterSheet As Worksheet _
 )
-    Dim names() As Variant
-    Dim ids() As Variant
-    Dim starts() As Variant
     Dim periods() As Variant
-    Dim days() As Variant
-    Dim thresholds() As Variant
-    Dim notes() As Variant
     Dim note As String
     Dim issueCount As Long
     Dim preparedPerson As obj_PADC_PreparedPerson
@@ -306,13 +300,7 @@ Private Sub private_CalculatePreparedPeople( _
     Dim i As Long
     Dim exportValues() As Variant
 
-    ReDim names(1 To prepared.Count, 1 To 1)
-    ReDim ids(1 To prepared.Count, 1 To 1)
-    ReDim starts(1 To prepared.Count, 1 To 1)
     ReDim periods(1 To prepared.Count, 1 To 1)
-    ReDim days(1 To prepared.Count, 1 To 1)
-    ReDim thresholds(1 To prepared.Count, 1 To 1)
-    ReDim notes(1 To prepared.Count, 1 To 1)
     ReDim exportValues(1 To prepared.Count, 1 To 15)
     m_runContext.BeginStep m_configuration.GetText("progress.Calculation"), prepared.Count
     For i = 1 To prepared.Count
@@ -325,9 +313,6 @@ Private Sub private_CalculatePreparedPeople( _
         If preparedPerson.StartDay > 0 Then
             exportValues(i, 6) = VBA.CDate(preparedPerson.StartDay)
         End If
-        names(i, 1) = preparedPerson.FullName
-        ids(i, 1) = preparedPerson.TaxId
-        starts(i, 1) = exportValues(i, 6)
         note = preparedPerson.Note
         If VBA.Len(preparedPerson.ValidationError) > 0 Then
             If VBA.Len(note) > 0 Then
@@ -337,14 +322,11 @@ Private Sub private_CalculatePreparedPeople( _
         Else
             Set rows = preparedPerson.Intervals
             count = count + 1
-            days(i, 1) = m_calculationService.Calculate(rows, VBA.CLng(preparedPerson.StartDay), lastDay, _
+            exportValues(i, 7) = m_calculationService.Calculate(rows, VBA.CLng(preparedPerson.StartDay), lastDay, _
                 periodsText, thresholdDate, m_runContext)
             periods(i, 1) = periodsText
-            thresholds(i, 1) = thresholdDate
-            exportValues(i, 7) = days(i, 1)
             exportValues(i, 8) = thresholdDate
         End If
-        notes(i, 1) = note
         exportValues(i, 15) = note
         If VBA.Len(note) > 0 Then
             issueCount = issueCount + 1
@@ -358,7 +340,7 @@ Private Sub private_CalculatePreparedPeople( _
         m_configuration.GetText("text.Rows")
     m_runContext.BeginStep m_configuration.GetText("progress.Publish")
     m_runContext.LogStage "PublishResults.Started", "Rows=" & count & " | Failures=" & issueCount
-    m_resultWriter.Publish names, ids, starts, periods, days, thresholds, notes, prepared.Count, lastDay, parameterSheet
+    m_resultWriter.Publish exportValues, periods, lastDay, parameterSheet
     m_exportValues = exportValues
     m_exportEndDay = lastDay
     m_runContext.CompleteStep

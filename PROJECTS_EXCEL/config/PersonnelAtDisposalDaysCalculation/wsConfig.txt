@@ -78,6 +78,9 @@ value	PersonnelAtDisposalDaysCalculation::event.rules.DisposalBase.codes	РОЗ�
 value	PersonnelAtDisposalDaysCalculation::event.rules.DisposalBase.events	-Щорічна відпустка|-Відпустка за сімейними обставинами|-Відпустка для лікування|-Відпустка у зв'язку з вагітністю та пологами|-Відпустка по догляду за дитиною|-Стаціонарне лікування|-ВЛК за межами|-Безвісти зниклий|-Арешт|-Полон
 value	PersonnelAtDisposalDaysCalculation::event.rules.DisposalBase.openStatuses	*
 value	PersonnelAtDisposalDaysCalculation::event.present	В строю
+value	PersonnelAtDisposalDaysCalculation::event.tripChain.label	Відрядження СЗЧ
+value	PersonnelAtDisposalDaysCalculation::event.tripChain.target	Відрядження
+value	PersonnelAtDisposalDaysCalculation::event.tripChain.predecessors	Самовільне залишення частини|Повернення до іншої частини
 value	PersonnelAtDisposalDaysCalculation::event.eligibleOpenStatuses	Амбулаторне ВЛК|Відпустка для лікування|Відпустка по догляду за дитиною|Відпустка у зв'язку з вагітністю та пологами|Відрядження|ВЛК за межами|Стаціонарне лікування|Щорічна відпустка|{blank}
 value	PersonnelAtDisposalDaysCalculation::export.font	Arial
 value	PersonnelAtDisposalDaysCalculation::export.sheet	Результат

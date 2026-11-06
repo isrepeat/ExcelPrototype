@@ -88,6 +88,7 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
     Dim preparedPerson As obj_PADC_PreparedPerson
     Dim matches As Collection
     Dim intervals As Collection
+    Dim chronology As Collection
     Dim classifiedIntervals As Collection
     Dim interval As Variant
     Dim eventDecisions As Object
@@ -165,6 +166,7 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
             openStatus = vbNullString
             errorText = vbNullString
             Set intervals = New Collection
+            Set chronology = New Collection
             If VBA.Len(taxId) = 0 Or VBA.Len(fullName) = 0 Then
                 errorText = m_configuration.GetText("text.PersonIdentityMissing")
             ElseIf seen.Exists(taxId) Then
@@ -212,8 +214,10 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                                     m_configuration.Fail context & m_configuration.GetText("text.ArrivalBeforeDeparture")
                                 End If
                             End If
-                            If arrival > cutoff And m_validation.MatchText(eventValues(matchRow, 1)) = taxId Then
-                                If departure > latestDeparture Or (departure = latestDeparture And VBA.StrComp(eventName, openStatus, vbBinaryCompare) > 0) Then
+                            If m_validation.MatchText(eventValues(matchRow, 1)) = taxId Then
+                                chronology.Add VBA.Array(departure, arrival, eventName)
+                                If arrival > cutoff And (departure > latestDeparture Or _
+                                        (departure = latestDeparture And VBA.StrComp(eventName, openStatus, vbBinaryCompare) > 0)) Then
                                     latestDeparture = departure
                                     openStatus = eventName
                                 End If
@@ -244,6 +248,7 @@ Public Function Prepare(ByVal parameters As obj_PADC_Parameters) As Collection
                 End If
                 classifiedIntervals.Add VBA.Array(interval(0), interval(1), interval(2), excluded)
             Next interval
+            openStatus = m_validation.DisplayOpenStatus(openStatus, latestDeparture, chronology)
             Set preparedPerson = New obj_PADC_PreparedPerson
             If Not preparedPerson.Initialize(fullName, taxId, startDay, classifiedIntervals, errorText, note, rank, status, openStatus) Then
                 m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed")

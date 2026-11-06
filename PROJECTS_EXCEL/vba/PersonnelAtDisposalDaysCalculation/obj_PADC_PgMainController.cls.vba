@@ -40,7 +40,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     Dim dateFormat As String
     Dim currentDate As Date
     Dim endDate As String
-    Dim headers(0 To 10) As Variant
+    Dim headers(0 To 12) As Variant
     Dim headerIndex As Long
 
     If m_isDisposed Or m_isInitialized Then
@@ -86,7 +86,8 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         GoTo Failed
     End If
 
-    For Each textKey In VBA.Array("header.FullName", "header.TaxId", "header.StartDate", _
+    For Each textKey In VBA.Array("header.FullName", "header.TaxId", "export.header.Status", _
+            "export.header.OpenStatus", "header.StartDate", _
             "header.Periods", "header.CountedDays", "header.ThresholdDate", _
             "export.header.From", "export.header.Through", "export.header.Period", "export.header.Include", "header.Notes")
         If Not private_TryReadConfiguration(VBA.CStr(textKey), configuredText) Then
