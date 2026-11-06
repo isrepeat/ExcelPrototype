@@ -96,6 +96,14 @@ namespace ExcelTools.TableDiff {
         private static void WritePreparedReport(string path) {
             var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
             var report = ExcelTools.Changes.PreparedReport.Read(path);
+            if (report.ConfigurationPath == null) {
+                if (!Path.IsPathRooted(report.Output) || !String.Equals(Path.GetExtension(report.Output), ".html", StringComparison.OrdinalIgnoreCase)
+                    || String.IsNullOrWhiteSpace(report.OldFile) || String.IsNullOrWhiteSpace(report.NewFile)) {
+                    throw new InvalidDataException("Invalid standalone prepared report.");
+                }
+                HtmlDiffWriter.Write(report.Output, report.ReportProfile, report.OldFile, report.NewFile, report.Differences, report.Method);
+                return;
+            }
             XDocument document;
             using (var reader = XmlReader.Create(report.ConfigurationPath, settings)) {
                 document = XDocument.Load(reader);

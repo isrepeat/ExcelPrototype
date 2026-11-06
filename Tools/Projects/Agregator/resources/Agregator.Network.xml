@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<aggregator output="../build/Aggregated.xlsx"
+<aggregator output="..\build\Aggregated.xlsx"
             copyMode="xmlStyles">
     <sources>
-        <source dir="../../../..">
+        <source dir="..\..\..\..">
             <workbook file="ШПО.xlsx">
                 <sheet name="ОС" />
             </workbook>

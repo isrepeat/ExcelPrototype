@@ -16,7 +16,7 @@ namespace ExcelTools.OpenXml {
     public static class WorkbookWriter {
         private static readonly XNamespace S = WorkbookReader.S;
 
-        public static void ApplyTextEdits(string stagedWorkbook, IEnumerable<TextCellEdit> edits) {
+        public static void ApplyTextEdits(string stagedWorkbook, IEnumerable<TextCellEdit> edits, string appendTable = null) {
             using (var stream = File.Open(stagedWorkbook, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) {
                 using (var archive = new ZipArchive(stream, ZipArchiveMode.Update)) {
                     const string workbookPath = "xl/workbook.xml";
@@ -30,6 +30,9 @@ namespace ExcelTools.OpenXml {
                         var relation = relationships[(string)sheets[group.Key].Attribute(WorkbookReader.R + "id")];
                         var path = WorkbookReader.ResolvePart(relation);
                         var document = WorkbookReader.ReadPart(archive, path);
+                        if (appendTable != null) {
+                            ExtendTable(archive, path, document.Root, appendTable, group);
+                        }
                         ApplySheetEdits(document.Root, group);
                         WritePart(archive, path, document);
                     }
@@ -40,6 +43,64 @@ namespace ExcelTools.OpenXml {
                     }
                 }
             }
+        }
+
+        private static void ExtendTable(
+            ZipArchive archive, string sheetPart, XElement sheet, string tableName, IEnumerable<TextCellEdit> edits) {
+            var path = WorkbookReader.TablePart(archive, sheetPart, tableName);
+            var table = WorkbookReader.ReadPart(archive, path);
+            var range = ((string)table.Root.Attribute("ref")).Split(':');
+            var last = range[1];
+            var endRow = ExcelTools.Tables.CellAddress.RowNumber(last);
+            var endColumn = ExcelTools.Tables.CellAddress.ColumnNumber(last);
+            var startColumn = ExcelTools.Tables.CellAddress.ColumnNumber(range[0]);
+            var lastEdit = edits.Max(edit => edit.Row);
+            if (lastEdit <= endRow) {
+                return;
+            }
+            if (((int?)table.Root.Attribute("totalsRowCount") ?? 0) != 0 || lastEdit > 1048576
+                || edits.Any(edit => edit.Column < startColumn || edit.Column > endColumn)) {
+                throw new InvalidOperationException("Cannot extend table: " + tableName);
+            }
+            var sheetData = sheet.Element(S + "sheetData");
+            var existing = sheetData.Elements(S + "row").Where(row => (int)row.Attribute("r") > endRow)
+                .ToDictionary(row => (int)row.Attribute("r"));
+            for (var number = endRow + 1; number <= lastEdit; number++) {
+                XElement row;
+                if (existing.TryGetValue(number, out row)) {
+                    if (row.Elements(S + "c").Any(cell => {
+                        var column = ExcelTools.Tables.CellAddress.ColumnNumber((string)cell.Attribute("r"));
+                        return column >= startColumn && column <= endColumn && cell.HasElements;
+                    })) {
+                        throw new InvalidOperationException("Occupied row below table: " + number);
+                    }
+                }
+                else {
+                    row = new XElement(S + "row", new XAttribute("r", number));
+                    var next = sheetData.Elements(S + "row").FirstOrDefault(item => (int)item.Attribute("r") > number);
+                    if (next == null) {
+                        sheetData.Add(row);
+                    }
+                    else {
+                        next.AddBeforeSelf(row);
+                    }
+                }
+            }
+            var expanded = range[0] + ":" + ExcelTools.Tables.CellAddress.ColumnName(endColumn) + lastEdit;
+            table.Root.SetAttributeValue("ref", expanded);
+            var filter = table.Root.Element(S + "autoFilter");
+            if (filter != null) {
+                filter.SetAttributeValue("ref", expanded);
+            }
+            var dimension = sheet.Element(S + "dimension");
+            if (dimension != null) {
+                var bounds = ((string)dimension.Attribute("ref")).Split(':');
+                var lastCell = bounds[bounds.Length - 1];
+                var column = Math.Max(endColumn, ExcelTools.Tables.CellAddress.ColumnNumber(lastCell));
+                var row = Math.Max(lastEdit, ExcelTools.Tables.CellAddress.RowNumber(lastCell));
+                dimension.SetAttributeValue("ref", bounds[0] + ":" + ExcelTools.Tables.CellAddress.ColumnName(column) + row);
+            }
+            WritePart(archive, path, table);
         }
 
         private static void ApplySheetEdits(XElement sheet, IEnumerable<TextCellEdit> edits) {

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<aggregator output="../build/Aggregated.xlsx"
+<aggregator output="..\build\Aggregated.xlsx"
             copyMode="xmlStyles">
     <sources>
-        <source dir="../../../../PROJECTS_EXCEL/workbook/Dependencies">
+        <source dir="..\..\..\..\PROJECTS_EXCEL\workbook\Dependencies">
             <workbook file="Накази.xlsx">
                 <sheet name="Накази" />
             </workbook>

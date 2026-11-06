@@ -7,6 +7,17 @@ if not exist "%tableSyncOutput%\" mkdir "%tableSyncOutput%"
 if errorlevel 1 goto failed
 copy /y "%~dp0..\TableDiff\build\ExcelTools.*.dll" "%tableSyncOutput%\" >nul
 if errorlevel 1 goto failed
+if not exist "%tableSyncOutput%\plugins\" mkdir "%tableSyncOutput%\plugins"
+if errorlevel 1 goto failed
+"%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:library /codepage:65001 ^
+    /out:"%tableSyncOutput%\TableSync.Contracts.dll" ^
+    "%~dp0..\..\common\TableSync.Contracts\SyncPlugin.cs"
+if errorlevel 1 goto failed
+"%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:library /codepage:65001 ^
+    /out:"%tableSyncOutput%\plugins\TableSync.Plugins.Personnel.dll" ^
+    /reference:"%tableSyncOutput%\TableSync.Contracts.dll" ^
+    "%~dp0..\TableSync.Plugins.Personnel\PersonnelPlugin.cs"
+if errorlevel 1 goto failed
 "%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /optimize+ /target:exe /platform:x64 /codepage:65001 ^
     /out:"%tableSyncOutput%\TableSync.exe" ^
     /reference:System.Core.dll ^
@@ -17,6 +28,7 @@ if errorlevel 1 goto failed
     /reference:"%tableSyncOutput%\ExcelTools.Tooling.Console.dll" ^
     /reference:"%tableSyncOutput%\ExcelTools.Excel.Tables.dll" ^
     /reference:"%tableSyncOutput%\ExcelTools.Excel.OpenXml.dll" ^
+    /reference:"%tableSyncOutput%\TableSync.Contracts.dll" ^
     "%~dp0sources\Program.cs"
 if errorlevel 1 goto failed
 echo Build succeeded: "%tableSyncOutput%\TableSync.exe"

@@ -1,5 +1,9 @@
 # Agent Instructions
 
+## Windows filesystem paths
+
+- Always use backslashes (`\`) as separators in absolute and relative Windows filesystem paths in source code, scripts, configuration and documentation. Escape them as required by the host syntax. URLs, archive entry names and other formats that require forward slashes follow their own syntax.
+
 ## C# brace style
 
 - Put the opening brace on the same line as the declaration or control-flow statement, separated by one space (K&R style). Apply this to namespaces, types, methods, constructors, properties, accessors, lambdas and statement blocks.

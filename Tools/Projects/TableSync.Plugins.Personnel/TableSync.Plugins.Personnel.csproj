@@ -1,0 +1,20 @@
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProjectGuid>{6B8056E1-10C0-4F89-91F0-000000000011}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AssemblyName>TableSync.Plugins.Personnel</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <OutputPath>..\TableSync\build\plugins\</OutputPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Compile Include="PersonnelPlugin.cs" />
+    <ProjectReference Include="..\..\common\TableSync.Contracts\TableSync.Contracts.csproj">
+      <Name>TableSync.Contracts</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000010}</Project>
+      <Private>false</Private>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

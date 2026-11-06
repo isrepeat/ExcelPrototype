@@ -31,6 +31,10 @@ namespace ExcelTools.Tables {
     }
 
     public static class CellAddress {
+        public static int RowNumber(string address) {
+            return Int32.Parse(address.TrimStart('$').TrimStart("ABCDEFGHIJKLMNOPQRSTUVWXYZ".ToCharArray()).TrimStart('$'));
+        }
+
         public static string ColumnName(int column) {
             var name = "";
             while (column > 0) {

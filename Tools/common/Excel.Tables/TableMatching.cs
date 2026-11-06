@@ -47,7 +47,8 @@ namespace ExcelTools.Tables {
             int targetKey,
             int sourceKey,
             int? targetFallback,
-            int? sourceFallback) {
+            int? sourceFallback,
+            bool matchAllTargetRows = false) {
             var targetKeys = Index(target, targetKey);
             var sourceKeys = Index(source, sourceKey);
             var targetNames = targetFallback.HasValue ? Index(target, targetFallback.Value) : null;
@@ -55,18 +56,19 @@ namespace ExcelTools.Tables {
             var result = new Dictionary<int, TableMatch>();
             foreach (var row in target) {
                 var key = row.ValueAt(targetKey);
-                if (!IsMatchValue(key) || targetKeys[key].Count != 1) {
+                if (!IsMatchValue(key)) {
                     continue;
                 }
+                var uniqueTarget = targetKeys[key].Count == 1;
                 List<RowSnapshot> candidates;
                 if (sourceKeys.TryGetValue(key, out candidates)) {
-                    if (candidates.Count == 1) {
+                    if (candidates.Count == 1 && (uniqueTarget || matchAllTargetRows)) {
                         result.Add(row.Number, new TableMatch(row, candidates[0], false));
                     }
                     continue;
                 }
 
-                if (targetNames == null || sourceNames == null) {
+                if (!uniqueTarget || targetNames == null || sourceNames == null) {
                     continue;
                 }
                 var name = row.ValueAt(targetFallback.Value);

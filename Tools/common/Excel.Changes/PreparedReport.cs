@@ -2,6 +2,7 @@ using System.IO;
 using System.Xml;
 using System.Xml.Serialization;
 using System.Linq;
+using System.Diagnostics;
 using System.Collections.Generic;
 
 namespace ExcelTools.Changes {
@@ -45,7 +46,30 @@ namespace ExcelTools.Changes {
         public string Output;
         public string Method;
         public string StagedWorkbook;
+        public string OldFile;
+        public string NewFile;
         public List<SheetDiff> Differences;
+
+        public void Run(string executable) {
+            var path = Path.Combine(Path.GetTempPath(), "ExcelChanges-" + System.Guid.NewGuid().ToString("N") + ".xml");
+            try {
+                using (var stream = File.Open(path, FileMode.CreateNew, FileAccess.Write, FileShare.None)) {
+                    Write(stream, this);
+                }
+                using (var process = Process.Start(new ProcessStartInfo(executable, "--prepared-report \"" + path + "\" --no-pause") {
+                    UseShellExecute = false,
+                    WorkingDirectory = Path.GetDirectoryName(executable)
+                })) {
+                    process.WaitForExit();
+                    if (process.ExitCode != 0 || !File.Exists(Output)) {
+                        throw new System.InvalidOperationException("TableDiff failed to create report: " + Output);
+                    }
+                }
+            }
+            finally {
+                File.Delete(path);
+            }
+        }
 
         public static void Write(Stream stream, PreparedReport report) {
             report.Version = 1;

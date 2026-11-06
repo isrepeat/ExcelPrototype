@@ -85,6 +85,28 @@ namespace ExcelTools.OpenXml {
             return Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
         }
 
+        internal static string TablePart(ZipArchive archive, string sheetPart, string tableName) {
+            var separator = sheetPart.LastIndexOf('/');
+            var relationships = ReadPart(archive, sheetPart.Insert(separator + 1, "_rels/") + ".rels");
+            var parts = relationships.Root.Elements()
+                .Where(relation => ((string)relation.Attribute("Type") ?? "").EndsWith("/table", StringComparison.Ordinal))
+                .Select(relation => Uri.UnescapeDataString(new Uri(new Uri("http://workbook/" + sheetPart),
+                    (string)relation.Attribute("Target")).AbsolutePath.TrimStart('/')));
+            return parts.Single(part => (string)ReadPart(archive, part).Root.Attribute("name") == tableName);
+        }
+
+        public static string ReadTableRange(string path, string sheetName, string tableName) {
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+                using (var archive = new ZipArchive(stream, ZipArchiveMode.Read)) {
+                    var sheet = ReadPart(archive, "xl/workbook.xml").Root.Element(S + "sheets").Elements(S + "sheet")
+                        .Single(element => (string)element.Attribute("name") == sheetName);
+                    var relation = ReadPart(archive, "xl/_rels/workbook.xml.rels").Root.Elements()
+                        .Single(element => (string)element.Attribute("Id") == (string)sheet.Attribute(R + "id"));
+                    return (string)ReadPart(archive, TablePart(archive, ResolvePart(relation), tableName)).Root.Attribute("ref");
+                }
+            }
+        }
+
         private static List<string> ReadFormats(ZipArchive zipArchive) {
             if (zipArchive.GetEntry("xl/styles.xml") == null) {
                 return new List<string> { "" };

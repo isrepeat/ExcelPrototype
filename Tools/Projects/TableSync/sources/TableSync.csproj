@@ -15,6 +15,15 @@
     <Compile Include="Program.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\common\TableSync.Contracts\TableSync.Contracts.csproj">
+      <Name>TableSync.Contracts</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000010}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\TableSync.Plugins.Personnel\TableSync.Plugins.Personnel.csproj">
+      <Name>TableSync.Plugins.Personnel</Name>
+      <Project>{6B8056E1-10C0-4F89-91F0-000000000011}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
     <ProjectReference Include="..\..\..\common\Tooling\Tooling.csproj">
       <Name>Tooling</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000001}</Project>
