@@ -19,6 +19,7 @@ Private m_stage As String
 Private m_step As Long
 Private m_stageTotal As Long
 Private m_completed As Long
+Private m_stepCount As Long
 Private Const STEP_COUNT As Long = 12
 Private Const UI_YIELD_SECONDS As Single = 0.1
 Private Const CANCEL_ERROR As Long = vbObjectError + 2101
@@ -38,7 +39,8 @@ End Sub
 ' // API
 ' //
 Public Function Initialize( _
-    ByVal configuration As obj_PADC_Configuration _
+    ByVal configuration As obj_PADC_Configuration, _
+    Optional ByVal stepCount As Long = STEP_COUNT _
 ) As Boolean
     If m_isInitialized Or m_isDisposed Then
         Exit Function
@@ -46,6 +48,10 @@ Public Function Initialize( _
     If configuration Is Nothing Then
         Exit Function
     End If
+    If stepCount < 1 Then
+        Exit Function
+    End If
+    m_stepCount = stepCount
     Set m_configuration = configuration
     m_isInitialized = True
     Initialize = True
@@ -166,7 +172,7 @@ Private Sub private_ShowProgress()
     message = VBA.Replace$(message, "{completed}", VBA.CStr(m_completed))
     message = VBA.Replace$(message, "{total}", VBA.CStr(m_stageTotal))
     message = VBA.Replace$(message, "{step}", VBA.CStr(m_step))
-    message = VBA.Replace$(message, "{steps}", VBA.CStr(STEP_COUNT))
+    message = VBA.Replace$(message, "{steps}", VBA.CStr(m_stepCount))
     ex_Core.fn_StatusBar_Show message
 End Sub
 

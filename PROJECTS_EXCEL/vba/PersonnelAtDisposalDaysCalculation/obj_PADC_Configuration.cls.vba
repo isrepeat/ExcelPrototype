@@ -36,7 +36,10 @@ End Property
 ' //
 ' // API
 ' //
-Public Function Initialize(ByRef diagnostic As String) As Boolean
+Public Function Initialize( _
+    ByRef diagnostic As String, _
+    Optional ByVal tvoMode As Boolean = False _
+) As Boolean
     Dim suffix As Variant
     Dim key As String
     Dim value As String
@@ -45,13 +48,28 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     Dim field As Variant
     Dim ruleKey As String
     Dim operation As Variant
+    Dim tvoKeys As Variant
 
     If m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
     On Error GoTo Failed
     Set m_values = VBA.CreateObject("Scripting.Dictionary")
-    Set requiredKeys = private_RequiredKeys()
+    If tvoMode Then
+        Set requiredKeys = New Collection
+        For Each suffix In VBA.Split("source.events.path|source.events.range|source.events.sheet|" & _
+            "source.events.columns.TaxId|source.events.columns.FullName|source.events.columns.Event|" & _
+            "source.events.columns.Departure|source.events.columns.Arrival|text.Cancelled|text.CellError|" & _
+            "text.RequiredValue|text.InvalidDate|text.TargetPrepareFailed|text.SnapshotFailed|text.ExportEmpty|" & _
+            "text.ExportFolderMissing|progress.Template|progress.Tvo|progress.Events|progress.EventIndex|progress.Calculation|progress.Publish|" & _
+            "format.date|header.FullName|header.TaxId|header.Periods|tvo.text.AbsencePeriod|" & _
+            "export.palette|export.font|export.fontSize|export.computedColor|export.styleId|export.styleName|export.styleSource|" & _
+            "export.sheet|export.labels.Date|export.padding.rows|export.padding.columns|export.versionSuffix", "|")
+            requiredKeys.Add VBA.CStr(suffix)
+        Next suffix
+    Else
+        Set requiredKeys = private_RequiredKeys()
+    End If
     For Each suffix In requiredKeys
         key = "PersonnelAtDisposalDaysCalculation::" & VBA.CStr(suffix)
         If Not ex_Core.fn_TryGetWorkbookConfigValue(key, value) Then
@@ -59,6 +77,28 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         End If
         m_values.Add VBA.CStr(suffix), value
     Next suffix
+    If tvoMode Then
+        tvoKeys = VBA.Split("source.tvo.sheet|source.tvo.range|source.tvo.columns.Rank|source.tvo.columns.FullName|" & _
+            "source.tvo.columns.TaxId|source.tvo.columns.Position|source.tvo.columns.OwnPosition|source.tvo.columns.Duration|" & _
+            "source.tvo.columns.StartOrder|source.tvo.columns.AccessOrder|" & _
+            "source.tvo.columns.StartDate|source.tvo.columns.EndDate|tvo.days|tvo.title|tvo.fileName|tvo.widths|tvo.ignoredEvents|" & _
+            "tvo.header.Rank|tvo.header.Position|tvo.header.OwnPosition|tvo.header.StartDate|tvo.header.EndDate|tvo.header.StreakStart|" & _
+            "tvo.header.Days|tvo.header.ThresholdDate|tvo.text.Ready|tvo.text.Complete|" & _
+            "tvo.text.Active|tvo.text.Absent|tvo.text.Closed|tvo.text.Reached|tvo.text.Forecast|" & _
+            "tvo.text.NotStarted|tvo.text.InvalidInterval|tvo.text.OrderNotFound|tvo.text.OrderAmbiguous|" & _
+            "tvo.header.Duration|tvo.header.AccessOrder|tvo.header.StartOrder|tvo.header.EndOrder|source.tvo.columns.EndOrder|" & _
+            "tvo.header.PlannedEndDate|source.tvo.columns.PlannedEndDate", "|")
+        For Each suffix In tvoKeys
+            key = "PersonnelAtDisposalDaysCalculation::" & VBA.CStr(suffix)
+            If Not ex_Core.fn_TryGetWorkbookConfigValue(key, value) Then
+                GoTo Failed
+            End If
+            m_values.Add VBA.CStr(suffix), value
+        Next suffix
+        m_isInitialized = True
+        Initialize = True
+        Exit Function
+    End If
     For Each ruleId In VBA.Split(m_values("event.rules.ids"), "|")
         key = "PersonnelAtDisposalDaysCalculation::event.rules.ids"
         If VBA.Len(VBA.Trim$(VBA.CStr(ruleId))) = 0 Then
@@ -218,6 +258,9 @@ Private Function private_RequiredKeys() As Collection
     keys.Add "export.widths"
     keys.Add "export.palette"
     keys.Add "export.fontSize"
+    keys.Add "export.styleName"
+    keys.Add "export.styleId"
+    keys.Add "export.styleSource"
     keys.Add "export.header.From"
     keys.Add "export.header.Include"
     keys.Add "export.header.Through"

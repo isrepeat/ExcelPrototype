@@ -129,12 +129,12 @@ Public Sub CreateWorkbook( _
     With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + backgroundRows, 17 + backgroundColumns))
         .Interior.Color = private_Color(VBA.CStr(palette(0)))
         .Font.Name = m_configuration.GetText("export.font")
-        .Font.Size = VBA.CDbl(m_configuration.GetText("export.fontSize"))
+        .Font.Size = ex_Helpers.fn_ParseInvariantNumber(m_configuration.GetText("export.fontSize"), "export.fontSize")
         .Font.Color = private_Color(VBA.CStr(palette(4)))
         .VerticalAlignment = xlCenter
     End With
     For i = 1 To 16
-        sheet.Columns(i + 1).ColumnWidth = VBA.CDbl(widths(i - 1))
+        sheet.Columns(i + 1).ColumnWidth = private_ColumnWidth(VBA.CStr(widths(i - 1)))
     Next i
     sheet.Columns(1).ColumnWidth = 3
     sheet.Range("B2").Font.Color = private_Color(VBA.CStr(palette(5)))
@@ -143,19 +143,15 @@ Public Sub CreateWorkbook( _
     sheet.Rows(2).RowHeight = 30
     sheet.Range("B3:C5").RowHeight = 21
     sheet.Range("C3:C5").NumberFormat = m_configuration.GetText("format.date")
+    private_ApplyTableStyle workbook, table
     With table.HeaderRowRange
-        .Interior.Color = private_Color(VBA.CStr(palette(3)))
-        .Font.Bold = True
         .HorizontalAlignment = xlCenter
         .WrapText = True
         .RowHeight = 60
     End With
     table.DataBodyRange.WrapText = True
     table.DataBodyRange.HorizontalAlignment = xlCenter
-    For i = 1 To count
-        table.DataBodyRange.Rows(i).Interior.Color = private_Color(VBA.CStr(palette(1 + ((i - 1) Mod 2))))
-    Next i
-    table.ListColumns(2).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
+    table.ListColumns(3).DataBodyRange.NumberFormat = "@"
     For Each headerKeys In VBA.Array(6, 9, 10, 11)
         table.ListColumns(VBA.CLng(headerKeys)).DataBodyRange.NumberFormat = m_configuration.GetText("format.date")
     Next headerKeys
@@ -163,14 +159,13 @@ Public Sub CreateWorkbook( _
     table.ListColumns(13).DataBodyRange.NumberFormat = "@"
     ' Muted labels and values distinguish calculated fields from source inputs.
     sheet.Range("B4:C5").Font.Color = computedColor
-    sheet.Range("K7:M" & count + 7).Font.Color = computedColor
-    sheet.Range("O7:P" & count + 7).Font.Color = computedColor
     ex_PADC.fn_MarkDateSources table, 2, 6, 16, m_configuration
     table.DataBodyRange.Rows.AutoFit
     sheet.Calculate
     workbook.Activate
     sheet.Activate
     workbook.Windows(1).DisplayGridlines = False
+    workbook.Windows(1).Zoom = 90
     sheet.Range("B2").Select
     workbook.SaveAs Filename:=outputPath, FileFormat:=xlOpenXMLWorkbook
     Application.ScreenUpdating = previousScreenUpdating
@@ -187,15 +182,170 @@ Failed:
     VBA.Err.Raise errorNumber, "obj_PADC_ResultExport", errorText
 End Sub
 
+Public Sub CreateTvoWorkbook( _
+    ByVal values As Variant, _
+    ByVal headerValues As Variant, _
+    ByVal endDay As Long _
+)
+    Dim workbook As Workbook
+    Dim sheet As Worksheet
+    Dim table As ListObject
+    Dim headers(1 To 1, 1 To 16) As Variant
+    Dim palette As Variant
+    Dim widths As Variant
+    Dim count As Long
+    Dim i As Long
+    Dim previousScreenUpdating As Boolean
+    Dim outputPath As String
+    Dim errorNumber As Long
+    Dim errorText As String
+    Dim columnIndex As Variant
+    Dim dateText As String
+    Dim stage As String
+
+    If Not m_isInitialized Or m_isDisposed Then
+        VBA.Err.Raise vbObjectError + 2100, "obj_PADC_ResultExport", "Service is not initialized."
+    End If
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo Failed
+    Application.ScreenUpdating = False
+    stage = "Prepare"
+    ex_Core.fn_Diagnostic_WriteLog "TVO_EXPORT_STARTED"
+    outputPath = private_NextOutputPath("tvo.fileName")
+    count = UBound(values, 1)
+    palette = VBA.Split(m_configuration.GetText("export.palette"), "|")
+    widths = VBA.Split(m_configuration.GetText("tvo.widths"), "|")
+    If UBound(palette) <> 5 Or UBound(widths) <> 15 Then
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.palette / tvo.widths"
+    End If
+    For i = 1 To 16
+        headers(1, i) = headerValues(i - 1)
+    Next i
+    Set workbook = Application.Workbooks.Add(xlWBATWorksheet)
+    Set sheet = workbook.Worksheets(1)
+    sheet.Name = m_configuration.GetText("export.sheet")
+    With sheet.Range(sheet.Cells(1, 1), sheet.Cells(count + 7 + VBA.CLng(m_configuration.GetText("export.padding.rows")), _
+            17 + VBA.CLng(m_configuration.GetText("export.padding.columns"))))
+        .Interior.Color = private_Color(VBA.CStr(palette(0)))
+        .Font.Name = m_configuration.GetText("export.font")
+        .Font.Size = ex_Helpers.fn_ParseInvariantNumber(m_configuration.GetText("export.fontSize"), "export.fontSize")
+        .Font.Color = private_Color(VBA.CStr(palette(4)))
+        .VerticalAlignment = xlCenter
+    End With
+    sheet.Range("B2:Q2").Merge
+    sheet.Range("B2").Value2 = m_configuration.GetText("tvo.title")
+    sheet.Range("B2").Font.Color = private_Color(VBA.CStr(palette(5)))
+    sheet.Range("B2").Font.Size = 16
+    sheet.Range("B2").Font.Bold = True
+    sheet.Rows(2).RowHeight = 32
+    sheet.Range("B3").Value2 = m_configuration.GetText("export.labels.Date")
+    sheet.Range("C3").Value = VBA.CDate(endDay)
+    sheet.Range("C3").NumberFormat = m_configuration.GetText("format.date")
+    sheet.Range("B7:Q7").Value2 = headers
+    sheet.Range("B8").Resize(count, 16).NumberFormat = "@"
+    sheet.Range("B8").Resize(count, 16).Value2 = values
+    Set table = sheet.ListObjects.Add(xlSrcRange, sheet.Range("B7").Resize(count + 1, 16), , xlYes)
+    table.Name = "tbTvoContinuousDays"
+    stage = "TableStyle"
+    private_ApplyTableStyle workbook, table
+    With table.HeaderRowRange
+        .HorizontalAlignment = xlCenter
+        .WrapText = True
+        .RowHeight = 60
+    End With
+    table.DataBodyRange.WrapText = True
+    table.DataBodyRange.HorizontalAlignment = xlCenter
+    table.DataBodyRange.NumberFormat = "@"
+    table.ListColumns(2).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
+    table.ListColumns(11).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
+    For Each columnIndex In VBA.Array(10, 12, 13, 16)
+        table.ListColumns(VBA.CLng(columnIndex)).Range.Font.Color = private_Color(m_configuration.GetText("export.computedColor"))
+    Next columnIndex
+    table.ListColumns(12).DataBodyRange.NumberFormat = "0"
+    stage = "Dates"
+    For Each columnIndex In VBA.Array(9, 10, 11, 13, 14)
+        table.ListColumns(VBA.CLng(columnIndex)).DataBodyRange.NumberFormat = m_configuration.GetText("format.date")
+        For i = 1 To count
+            dateText = VBA.CStr(values(i, VBA.CLng(columnIndex)))
+            If VBA.Len(dateText) > 0 Then
+                table.DataBodyRange.Cells(i, VBA.CLng(columnIndex)).Value = VBA.DateSerial( _
+                    VBA.CInt(VBA.Right$(dateText, 4)), VBA.CInt(VBA.Mid$(dateText, 4, 2)), VBA.CInt(VBA.Left$(dateText, 2)))
+            End If
+        Next i
+    Next columnIndex
+    table.DataBodyRange.Rows.AutoFit
+    stage = "ColumnWidths"
+    For i = 1 To 16
+        sheet.Columns(i + 1).ColumnWidth = private_ColumnWidth(VBA.CStr(widths(i - 1)))
+    Next i
+    table.DataBodyRange.Rows.AutoFit
+    sheet.Columns(1).ColumnWidth = 3
+    workbook.Windows(1).DisplayGridlines = False
+    stage = "SaveAs"
+    workbook.Windows(1).Zoom = 90
+    workbook.SaveAs Filename:=outputPath, FileFormat:=xlOpenXMLWorkbook
+    ex_Core.fn_Diagnostic_WriteLog "TVO_EXPORT_COMPLETED | Path=" & outputPath
+    ex_Core.fn_Diagnostic_Flush
+    Application.ScreenUpdating = previousScreenUpdating
+    Exit Sub
+Failed:
+    errorNumber = VBA.Err.Number
+    errorText = VBA.Err.Description
+    ex_Core.fn_Diagnostic_WriteError "TVO_EXPORT | Stage=" & stage & " | Row=" & i & " | Column=" & VBA.CStr(columnIndex), _
+        errorNumber, "obj_PADC_ResultExport.CreateTvoWorkbook", errorText
+    ex_Core.fn_Diagnostic_Flush
+    On Error Resume Next
+    If Not workbook Is Nothing Then
+        workbook.Close SaveChanges:=False
+    End If
+    On Error GoTo 0
+    Application.ScreenUpdating = previousScreenUpdating
+    VBA.Err.Raise errorNumber, "obj_PADC_ResultExport", errorText
+End Sub
+
 ' //
 ' // Private
 ' //
+Private Function private_ColumnWidth(ByVal text As String) As Double
+    private_ColumnWidth = ex_Helpers.fn_ParseInvariantNumber(text, "export.widths")
+    If private_ColumnWidth <= 0 Or private_ColumnWidth > 255 Then
+        m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.widths: " & text
+    End If
+End Function
+
+Private Sub private_ApplyTableStyle( _
+    ByVal workbook As Workbook, _
+    ByVal table As ListObject _
+)
+    Dim uiFolder As String
+    Dim xamlPath As String
+    Dim styleName As String
+
+    If Not ex_RuntimePaths.fn_TryGetUiFolder(uiFolder) Then
+        m_configuration.Fail "Required configuration key is unavailable: ThisWorkbook::uiPath"
+    End If
+    xamlPath = VBA.CreateObject("Scripting.FileSystemObject").BuildPath(uiFolder, m_configuration.GetText("export.styleSource"))
+    styleName = ex_UiTableStyles.fn_InstallStyle(workbook, xamlPath, _
+        m_configuration.GetText("export.styleId"), m_configuration.GetText("export.styleName"))
+
+    ' Clear direct appearance so the gallery can control the entire table.
+    table.Range.ClearFormats
+    table.Range.Font.Name = m_configuration.GetText("export.font")
+    table.Range.Font.Size = ex_Helpers.fn_ParseInvariantNumber(m_configuration.GetText("export.fontSize"), "export.fontSize")
+    table.Range.VerticalAlignment = xlCenter
+    table.TableStyle = styleName
+    table.ShowTableStyleRowStripes = True
+    table.ShowTableStyleColumnStripes = False
+    table.ShowTableStyleFirstColumn = False
+    table.ShowTableStyleLastColumn = False
+End Sub
+
 Private Function private_Color(ByVal hexValue As String) As Long
     private_Color = VBA.RGB(VBA.CLng("&H" & VBA.Left$(hexValue, 2)), _
         VBA.CLng("&H" & VBA.Mid$(hexValue, 3, 2)), VBA.CLng("&H" & VBA.Right$(hexValue, 2)))
 End Function
 
-Private Function private_NextOutputPath() As String
+Private Function private_NextOutputPath(Optional ByVal fileNameKey As String = "export.fileName") As String
     Dim fileSystem As Object
     Dim baseName As String
     Dim suffixTemplate As String
@@ -210,7 +360,7 @@ Private Function private_NextOutputPath() As String
     If Not fileSystem.FolderExists(ThisWorkbook.Path) Then
         m_configuration.Fail m_configuration.GetText("text.ExportFolderMissing")
     End If
-    baseName = m_configuration.GetText("export.fileName")
+    baseName = m_configuration.GetText(fileNameKey)
     suffixTemplate = m_configuration.GetText("export.versionSuffix")
     If VBA.Len(baseName) = 0 Or VBA.InStr(1, suffixTemplate, "{version}", vbBinaryCompare) = 0 Then
         m_configuration.Fail m_configuration.GetText("text.TargetPrepareFailed") & "export.fileName / export.versionSuffix"

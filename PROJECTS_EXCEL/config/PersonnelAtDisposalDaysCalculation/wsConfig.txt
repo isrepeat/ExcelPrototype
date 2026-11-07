@@ -1,10 +1,42 @@
 value	ThisWorkbook::id	PersonnelAtDisposalDaysCalculation
+importCfg	Import::workbooks.__cfgDependencies	..\cfgDependencies.xlsx
 value	ThisWorkbook::uiPath	..\..\ui
 value	ThisWorkbook::logMode	Immediate
 value	ThisWorkbook::logPath	%TEMP%\PROJECTS_EXCEL\PersonnelAtDisposalDaysCalculation
 value	ThisWorkbook::vbaPath	..\..\vba
 value	ThisWorkbook::initializer	ex_PADC.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PADC.fn_CreatePage
+value	PersonnelAtDisposalDaysCalculation::tvo.days	30
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Ready	Оберіть «Розрахувати періоди» для розрахунку безперервного ТВО.
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Absent	Відсутній — відлік перервано
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Active	Виконує обов’язки
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Closed	Обов’язки здано
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Reached	30 днів досягнуто
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Complete	Розрахунок ТВО завершено. Записів: {count}.
+value	PersonnelAtDisposalDaysCalculation::tvo.text.Forecast	Прогноз за умови безперервного виконання
+value	PersonnelAtDisposalDaysCalculation::tvo.text.NotStarted	Прийняття обов’язків ще не настало
+value	PersonnelAtDisposalDaysCalculation::tvo.text.AbsencePeriod	{event}: {from} – {through}
+value	PersonnelAtDisposalDaysCalculation::tvo.text.OrderNotFound	Не знайдено дату наказу допуску (рік|номер): {key}. Рік визначено за датою прийняття обов’язків.
+value	PersonnelAtDisposalDaysCalculation::tvo.text.OrderAmbiguous	У довіднику «Накази» знайдено різні дати для одного року та номера наказу допуску: {key}.
+value	PersonnelAtDisposalDaysCalculation::tvo.text.InvalidInterval	Некоректний період або неповні дані: {context}.
+value	PersonnelAtDisposalDaysCalculation::tvo.title	30 днів безперервного ТВО
+value	PersonnelAtDisposalDaysCalculation::tvo.header.Days	Безперервних днів
+value	PersonnelAtDisposalDaysCalculation::tvo.header.Rank	Звання
+value	PersonnelAtDisposalDaysCalculation::tvo.header.EndDate	Здавання
+value	PersonnelAtDisposalDaysCalculation::tvo.header.Duration	Термін
+value	PersonnelAtDisposalDaysCalculation::tvo.header.Position	Посада.Заміщує
+value	PersonnelAtDisposalDaysCalculation::tvo.header.EndOrder	Здавання.Наказ
+value	PersonnelAtDisposalDaysCalculation::tvo.header.StartDate	Прийняття
+value	PersonnelAtDisposalDaysCalculation::tvo.header.StartOrder	Прийняття.Наказ
+value	PersonnelAtDisposalDaysCalculation::tvo.header.AccessDate	Дата наказу допуску
+value	PersonnelAtDisposalDaysCalculation::tvo.header.AccessOrder	Доступ.Наказ
+value	PersonnelAtDisposalDaysCalculation::tvo.header.StreakStart	Дата початку безперервного ТВО
+value	PersonnelAtDisposalDaysCalculation::tvo.header.OwnPosition	Посада.Своя
+value	PersonnelAtDisposalDaysCalculation::tvo.header.ThresholdDate	Дата наступу 30 днів безперервного ТВО
+value	PersonnelAtDisposalDaysCalculation::tvo.header.PlannedEndDate	Здавання.План
+value	PersonnelAtDisposalDaysCalculation::tvo.widths	14|35|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|55
+value	PersonnelAtDisposalDaysCalculation::tvo.fileName	30 днів безперервного ТВО
+value	PersonnelAtDisposalDaysCalculation::tvo.ignoredEvents	Амбулаторне ВЛК
 value	PersonnelAtDisposalDaysCalculation::text.Rows	 rows
 value	PersonnelAtDisposalDaysCalculation::text.Event	: Event
 value	PersonnelAtDisposalDaysCalculation::text.Table	', table '
@@ -15,6 +47,7 @@ value	PersonnelAtDisposalDaysCalculation::text.Export	Сформувати ре�
 value	PersonnelAtDisposalDaysCalculation::text.People	People:
 value	PersonnelAtDisposalDaysCalculation::text.Arrival	: Arrival
 value	PersonnelAtDisposalDaysCalculation::text.EndDate	End date:
+value	PersonnelAtDisposalDaysCalculation::text.TvoMode	ТВО
 value	PersonnelAtDisposalDaysCalculation::text.FullName	: Full name
 value	PersonnelAtDisposalDaysCalculation::text.Calculate	Розрахувати періоди
 value	PersonnelAtDisposalDaysCalculation::text.Cancelled	Cancelled
@@ -30,6 +63,7 @@ value	PersonnelAtDisposalDaysCalculation::text.RukhSource	RUKH source:
 value	PersonnelAtDisposalDaysCalculation::text.ExportEmpty	Спочатку виконайте розрахунок із непорожнім результатом.
 value	PersonnelAtDisposalDaysCalculation::text.InvalidDate	: enter a valid Excel date or dd.mm.yyyy text (not earlier than 01.03.1900).
 value	PersonnelAtDisposalDaysCalculation::text.OnWorksheet	' on worksheet '
+value	PersonnelAtDisposalDaysCalculation::text.DisposalMode	РОЗП + СПИС
 value	PersonnelAtDisposalDaysCalculation::text.EndDateLabel	Кінцева дата
 value	PersonnelAtDisposalDaysCalculation::text.ExportFailed	Не вдалося сформувати результат:
 value	PersonnelAtDisposalDaysCalculation::text.ParameterRow	, запис SQL №
@@ -113,7 +147,10 @@ value	PersonnelAtDisposalDaysCalculation::export.padding.rows	30
 value	PersonnelAtDisposalDaysCalculation::export.padding.columns	10
 value	PersonnelAtDisposalDaysCalculation::export.palette	26241D|302D25|38342B|605542|FFFFFF|FFB74D
 value	PersonnelAtDisposalDaysCalculation::export.fileName	Кількість днів у розпорядженні
+value	PersonnelAtDisposalDaysCalculation::export.styleId	Coffee
 value	PersonnelAtDisposalDaysCalculation::export.fontSize	11
+value	PersonnelAtDisposalDaysCalculation::export.styleName	Кофейный
+value	PersonnelAtDisposalDaysCalculation::export.styleSource	PersonnelAtDisposalDaysCalculation\TableStyles.xaml
 value	PersonnelAtDisposalDaysCalculation::export.computedColor	A6A39A
 value	PersonnelAtDisposalDaysCalculation::export.versionSuffix	_v{version}
 value	PersonnelAtDisposalDaysCalculation::format.date	dd.mm.yyyy
@@ -125,6 +162,20 @@ value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
 value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
 value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
+value	PersonnelAtDisposalDaysCalculation::source.tvo.range	B2:R100000
+value	PersonnelAtDisposalDaysCalculation::source.tvo.sheet	ТВО
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.Rank	Звання
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.TaxId	ІПН
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.EndDate	Здавання
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.Duration	Термін
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.FullName	ПІБ
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.Position	Посада.Заміщує
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.EndOrder	Здавання.Наказ
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.StartDate	Прийняття
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.StartOrder	Прийняття.Наказ
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.AccessOrder	Доступ.Наказ
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.OwnPosition	Посада.Своя
+value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.PlannedEndDate	Здавання.План
 value	PersonnelAtDisposalDaysCalculation::source.events.path	%USERPROFILE%\Desktop\РУХ_last.xlsx
 value	PersonnelAtDisposalDaysCalculation::source.events.range	B6:P100000
 value	PersonnelAtDisposalDaysCalculation::source.events.sheet	Відсутні
@@ -153,6 +204,11 @@ value	PersonnelAtDisposalDaysCalculation::source.enrollment.sheet	Особови
 value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.Date	Номер та дата внутрішнього наказу по стройовій щодо зарахування
 value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.TaxId	ІПН
 value	PersonnelAtDisposalDaysCalculation::source.enrollment.columns.FullName	Прізвище, ім’я, по батькові
+  ref	PersonnelAtDisposalDaysCalculation::source.accessOrders.path	__cfgDependencies.fileOrders
+  ref	PersonnelAtDisposalDaysCalculation::source.accessOrders.range	__cfgDependencies.source.Orders.range
+  ref	PersonnelAtDisposalDaysCalculation::source.accessOrders.sheet	__cfgDependencies.source.Orders.sheet
+  ref	PersonnelAtDisposalDaysCalculation::source.accessOrders.columns.Date	__cfgDependencies.source.Orders.dateHeader
+  ref	PersonnelAtDisposalDaysCalculation::source.accessOrders.columns.Number	__cfgDependencies.source.Orders.numberHeader
 value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.range	C7:F1000
 value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.sheet	Excepts
 value	PersonnelAtDisposalDaysCalculation::source.dateOverrides.columns.Date	ДЗС
@@ -165,6 +221,7 @@ value	PersonnelAtDisposalDaysCalculation::status.Cancelled	Розрахунок 
 value	PersonnelAtDisposalDaysCalculation::status.Completed	Розрахунок завершено. Оброблено: {count}. Рядків із примітками: {errors}.
 value	PersonnelAtDisposalDaysCalculation::status.Cancelling	Скасування розрахунку…
 value	PersonnelAtDisposalDaysCalculation::status.Calculating	Розрахунок днів перебування у розпорядженні…
+value	PersonnelAtDisposalDaysCalculation::progress.Tvo	Читання ТВО
 value	PersonnelAtDisposalDaysCalculation::progress.Events	Читання РУХ
 value	PersonnelAtDisposalDaysCalculation::progress.Orders	Читання Д2
 value	PersonnelAtDisposalDaysCalculation::progress.Publish	Виведення результатів
@@ -175,6 +232,7 @@ value	PersonnelAtDisposalDaysCalculation::progress.EventIndex	Індексаці
 value	PersonnelAtDisposalDaysCalculation::progress.OrderIndex	Пошук дат ДЗС
 value	PersonnelAtDisposalDaysCalculation::progress.Parameters	Перевірка параметрів
 value	PersonnelAtDisposalDaysCalculation::progress.Calculation	Розрахунок днів
+value	PersonnelAtDisposalDaysCalculation::progress.AccessOrders	Читання наказів допуску
 value	PersonnelAtDisposalDaysCalculation::progress.Preparation	Підготовка записів ШПО
 value	PersonnelAtDisposalDaysCalculation::progress.DateOverrides	Читання ручних дат ДЗС
 value	PersonnelAtDisposalDaysCalculation::progress.EnrollmentIndex	Пошук дат зарахування

@@ -12,6 +12,18 @@ End Sub
 ' --------------------------------------
 ' namespace API {
 ' --------------------------------------
+Public Function fn_ParseInvariantNumber( _
+    ByVal text As String, _
+    ByVal context As String _
+) As Double
+    Dim number As Double
+
+    If Not fn_TryParseInvariantNumber(text, number) Then
+        VBA.Err.Raise 5, "ex_Helpers.fn_ParseInvariantNumber", "Invalid invariant number: " & context & " = " & text
+    End If
+    fn_ParseInvariantNumber = number
+End Function
+
 Public Function fn_TryParseInvariantNumber( _
     ByVal text As String, _
     ByRef number As Double _

@@ -13,11 +13,18 @@ Private m_isInitialized As Boolean
 Private m_isDisposed As Boolean
 
 Private m_calculationRun As obj_PADC_CalculationRun
+Private m_tvoRun As obj_PADC_TvoRun
+Private m_disposalRows As Object
+Private m_tvoRows As Object
 Private m_pageBase As obj_PageBase
 Private m_resultTable As obj_UiRawTable
 Private m_calculateCommand As obj_UiCommand
 Private m_cancelCommand As obj_UiCommand
 Private m_exportCommand As obj_UiCommand
+Private m_disposalModeCommand As obj_UiCommand
+Private m_tvoModeCommand As obj_UiCommand
+Private m_tvoMode As Boolean
+Private m_running As Boolean
 Private m_title As String
 
 ' //
@@ -57,7 +64,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If bindings Is Nothing Then
         GoTo Failed
     End If
-    For Each textKey In VBA.Array("Calculate", "Cancel", "Export", "EndDateLabel", "LastStatus")
+    For Each textKey In VBA.Array("Calculate", "Cancel", "Export", "EndDateLabel", "LastStatus", "DisposalMode", "TvoMode")
         If Not private_TryReadConfiguration("text." & VBA.CStr(textKey), configuredText) Then
             GoTo Failed
         End If
@@ -107,6 +114,10 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not m_calculationRun.Initialize(m_pageBase) Then
         GoTo Failed
     End If
+    Set m_tvoRun = New obj_PADC_TvoRun
+    If Not m_tvoRun.Initialize(m_pageBase) Then
+        GoTo Failed
+    End If
 
     Set m_calculateCommand = New obj_UiCommand
     If Not m_calculateCommand.Initialize(Me, "CalculateHandler") Then
@@ -129,10 +140,33 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not bindings.SetObject("Commands", "Export", m_exportCommand) Then
         GoTo Failed
     End If
+    Set m_disposalModeCommand = New obj_UiCommand
+    If Not m_disposalModeCommand.Initialize(Me, "DisposalModeHandler") Then
+        GoTo Failed
+    End If
+    If Not bindings.SetObject("Commands", "DisposalMode", m_disposalModeCommand) Then
+        GoTo Failed
+    End If
+    Set m_tvoModeCommand = New obj_UiCommand
+    If Not m_tvoModeCommand.Initialize(Me, "TvoModeHandler") Then
+        GoTo Failed
+    End If
+    If Not bindings.SetObject("Commands", "TvoMode", m_tvoModeCommand) Then
+        GoTo Failed
+    End If
+    If Not bindings.SetValue("Form", "DisposalModeStyle", "activeModeButton") Then
+        GoTo Failed
+    End If
+    If Not bindings.SetValue("Form", "TvoModeStyle", "secondaryButton") Then
+        GoTo Failed
+    End If
 
+    m_isInitialized = True
+    If Not private_SelectMode(True, False) Then
+        GoTo Failed
+    End If
     ex_Core.fn_Diagnostic_WriteLog "PADC_BINDINGS_READY"
     Initialize = True
-    m_isInitialized = Initialize
     Exit Function
 Failed:
     ex_Core.fn_Diagnostic_WriteLog "PADC_BINDINGS_INITIALIZATION_FAILED"
@@ -146,6 +180,20 @@ Public Sub Dispose()
 
     m_isDisposed = True
     m_isInitialized = False
+    If Not m_tvoRun Is Nothing Then
+        m_tvoRun.Dispose
+    End If
+    Set m_tvoRun = Nothing
+    Set m_disposalRows = Nothing
+    Set m_tvoRows = Nothing
+    If Not m_disposalModeCommand Is Nothing Then
+        m_disposalModeCommand.Dispose
+    End If
+    If Not m_tvoModeCommand Is Nothing Then
+        m_tvoModeCommand.Dispose
+    End If
+    Set m_disposalModeCommand = Nothing
+    Set m_tvoModeCommand = Nothing
     If Not m_exportCommand Is Nothing Then
         m_exportCommand.Dispose
     End If
@@ -173,12 +221,31 @@ Public Function CalculateHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
-    m_calculationRun.Calculate
+    If m_running Then
+        Exit Function
+    End If
+    On Error GoTo Failed
+    m_running = True
+    If m_tvoMode Then
+        m_tvoRun.Calculate
+    Else
+        m_calculationRun.Calculate
+    End If
+    m_running = False
     CalculateHandler = True
+    Exit Function
+Failed:
+    m_running = False
+    ex_Core.fn_StatusBar_Show VBA.Err.Description
 End Function
 
 Public Function ExportHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then
+        Exit Function
+    End If
+    If m_tvoMode Then
+        m_tvoRun.ExportResult
+        ExportHandler = True
         Exit Function
     End If
     m_calculationRun.ExportResult
@@ -189,13 +256,115 @@ Public Function CancelHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then
         Exit Function
     End If
-    m_calculationRun.RequestCancel
+    If m_tvoMode Then
+        m_tvoRun.RequestCancel
+    Else
+        m_calculationRun.RequestCancel
+    End If
     CancelHandler = True
+End Function
+
+Public Function DisposalModeHandler() As Boolean
+    DisposalModeHandler = private_SelectMode(False)
+End Function
+
+Public Function TvoModeHandler() As Boolean
+    TvoModeHandler = private_SelectMode(True)
 End Function
 
 ' //
 ' // Private
 ' //
+Private Function private_SelectMode( _
+    ByVal tvoMode As Boolean, _
+    Optional ByVal updatePage As Boolean = True _
+) As Boolean
+    Dim statusText As String
+    Dim disposalStyle As String
+    Dim tvoStyle As String
+    Dim value As Variant
+    Dim currentRows As Object
+    Dim isObject As Boolean
+    Dim headers(0 To 15) As Variant
+    Dim headerKeys As Variant
+    Dim headerIndex As Long
+    Dim emptyTable As obj_UiRawTable
+
+    If Not m_isInitialized Or m_isDisposed Or m_running Then
+        Exit Function
+    End If
+    disposalStyle = "activeModeButton"
+    tvoStyle = "secondaryButton"
+    If tvoMode Then
+        disposalStyle = "secondaryButton"
+        tvoStyle = "activeModeButton"
+        If Not private_TryReadConfiguration("tvo.text.Ready", statusText) Then
+            Exit Function
+        End If
+    Else
+        If Not private_TryReadConfiguration("status.Ready", statusText) Then
+            Exit Function
+        End If
+    End If
+    If tvoMode <> m_tvoMode Then
+        If Not m_pageBase.BindingContext.TryGetValue("Data", "CalculationRows", value, currentRows, isObject) Then
+            Exit Function
+        End If
+        If Not isObject Then
+            Exit Function
+        End If
+        If tvoMode Then
+            Set m_disposalRows = currentRows
+            If m_tvoRows Is Nothing Then
+                headerKeys = VBA.Array("tvo.header.Rank", "header.FullName", "header.TaxId", "tvo.header.OwnPosition", "tvo.header.Position", _
+                    "tvo.header.Duration", "tvo.header.AccessOrder", "tvo.header.StartOrder", _
+                    "tvo.header.StartDate", "tvo.header.StreakStart", "tvo.header.ThresholdDate", _
+                    "tvo.header.Days", "tvo.header.PlannedEndDate", "tvo.header.EndDate", "tvo.header.EndOrder", "header.Periods")
+                For headerIndex = 0 To 15
+                    If Not private_TryReadConfiguration(VBA.CStr(headerKeys(headerIndex)), statusText) Then
+                        Exit Function
+                    End If
+                    headers(headerIndex) = statusText
+                Next headerIndex
+                Set emptyTable = New obj_UiRawTable
+                If Not emptyTable.InitializeEmpty(headers) Then
+                    Exit Function
+                End If
+                Set m_tvoRows = emptyTable
+                If Not private_TryReadConfiguration("tvo.text.Ready", statusText) Then
+                    Exit Function
+                End If
+            End If
+            If Not m_pageBase.BindingContext.SetObject("Data", "CalculationRows", m_tvoRows) Then
+                Exit Function
+            End If
+        Else
+            Set m_tvoRows = currentRows
+            If Not m_pageBase.BindingContext.SetObject("Data", "CalculationRows", m_disposalRows) Then
+                Exit Function
+            End If
+        End If
+    End If
+    m_tvoMode = tvoMode
+    If Not m_pageBase.BindingContext.SetValue("Form", "DisposalModeStyle", disposalStyle) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "TvoModeStyle", tvoStyle) Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "ActionStatusStyle", "statusNormal") Then
+        Exit Function
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "ActionStatus", statusText) Then
+        Exit Function
+    End If
+    If updatePage Then
+        private_SelectMode = m_pageBase.UpdatePage()
+    Else
+        private_SelectMode = True
+    End If
+End Function
+
 Private Function private_TryReadConfiguration( _
     ByVal suffix As String, _
     ByRef value As String _

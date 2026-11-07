@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tableStyleCatalog xmlns="urn:excelprototype:profiles"
+                   version="1">
+  <tableStyle name="Coffee">
+    <element type="WholeTable"
+             backColor="#302D25"
+             textColor="#FFFFFF"/>
+    <element type="HeaderRow"
+             backColor="#605542"
+             textColor="#FFFFFF"
+             fontBold="true"/>
+    <element type="RowStripe1"
+             backColor="#302D25"
+             stripeSize="1"/>
+    <element type="RowStripe2"
+             backColor="#38342B"
+             stripeSize="1"/>
+  </tableStyle>
+</tableStyleCatalog>
