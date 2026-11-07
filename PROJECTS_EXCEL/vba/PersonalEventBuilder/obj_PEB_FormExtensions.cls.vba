@@ -501,6 +501,9 @@ Public Function Collect( _
         item("RowType") = row("Type")
         item("RowId") = row("RowId")
         item("ParentRowId") = row("ParentRowId")
+        If row.Exists("DetachedRootId") Then
+            item("DetachedRootId") = row("DetachedRootId")
+        End If
         item("ExtensionRole") = row("Role")
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             If Not m_page.BindingContext.TryGetValue("Form", private_Path(row, CStr(field)), scalar, ignored, isObject) Then Exit Function
@@ -527,6 +530,26 @@ EH_COLLECT:
     diagnostic = Err.Description
     Set output = Nothing
 End Function
+
+Public Sub DetachDeletedEvent(ByVal deletedEvent As Object)
+    Dim deletedIds As Object
+    Dim child As Object
+    Dim row As Object
+
+    If Not m_isInitialized Or m_isDisposed Then
+        Err.Raise 5, , "Form extensions are not initialized."
+    End If
+    Set deletedIds = CreateObject("Scripting.Dictionary")
+    For Each child In deletedEvent("FormExtensionRows")
+        deletedIds.Add CStr(child("RowId")), True
+    Next child
+    ' Preserve control identities, field bindings and the complete parent graph.
+    For Each row In m_rows
+        If deletedIds.Exists(CStr(row("RowId"))) Then
+            row("DetachedRootId") = CStr(deletedEvent("RowId"))
+        End If
+    Next row
+End Sub
 
 Public Function TryLoad( _
     ByVal children As Collection, _
@@ -592,6 +615,9 @@ Public Function TryLoad( _
         End If
         row("RowId") = child("RowId")
         row("ParentRowId") = child("ParentRowId")
+        If row.Exists("DetachedRootId") Then
+            row.Remove "DetachedRootId"
+        End If
         If child.Exists("ExtensionRole") Then row("Role") = child("ExtensionRole")
         For Each field In Split(private_Config(row("Type"), "fields"), "|")
             If reuseRows Then
@@ -703,6 +729,9 @@ Public Function TryAcceptSaved( _
         Set child = children(index)
         row("RowId") = child("RowId")
         row("ParentRowId") = child("ParentRowId")
+        If row.Exists("DetachedRootId") Then
+            row.Remove "DetachedRootId"
+        End If
     Next index
     ' Inactive drafts were excluded from this saved event; detach their obsolete stored identifiers.
     For Each row In m_rows

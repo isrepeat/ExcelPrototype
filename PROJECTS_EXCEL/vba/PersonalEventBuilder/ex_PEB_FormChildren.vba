@@ -298,6 +298,7 @@ Private Function private_Rebind( _
     Dim replacement As String
     Dim parentId As String
     Dim index As Long
+    Dim detached As Boolean
 
     Set mapping = CreateObject("Scripting.Dictionary")
     Set allocated = CreateObject("Scripting.Dictionary")
@@ -309,8 +310,15 @@ Private Function private_Rebind( _
         If Len(identifier) > 0 Then
             replacement = identifier
             If Not owned.Exists(identifier) Then
-                If Not ids.Exists(identifier) Then Err.Raise 5, , "Missing source extension: " & identifier
-                If ids(identifier)("RowType") = "Event" Then Err.Raise 5, , "An event cannot be copied as an extension."
+                detached = False
+                If child.Exists("DetachedRootId") Then
+                    detached = Len(CStr(child("DetachedRootId"))) > 0
+                End If
+                If Not ids.Exists(identifier) Then
+                    If Not detached Then Err.Raise 5, , "Missing source extension: " & identifier
+                Else
+                    If ids(identifier)("RowType") = "Event" Then Err.Raise 5, , "An event cannot be copied as an extension."
+                End If
                 Do
                     index = index + 1
                     replacement = root("RowId") & "/C" & CStr(index)
@@ -329,8 +337,14 @@ Private Function private_Rebind( _
         ElseIf mapping.Exists(parentId) Then
             parents.Add CStr(parents.Count + 1), mapping(parentId)
         Else
-            If Not ids.Exists(parentId) Then Err.Raise 5, , "Missing source extension parent: " & parentId
-            If ids(parentId)("RowType") <> "Event" Then Err.Raise 5, , "Source extension parent is outside the copied form."
+            detached = False
+            If child.Exists("DetachedRootId") Then
+                detached = parentId = CStr(child("DetachedRootId"))
+            End If
+            If Not detached Then
+                If Not ids.Exists(parentId) Then Err.Raise 5, , "Missing source extension parent: " & parentId
+                If ids(parentId)("RowType") <> "Event" Then Err.Raise 5, , "Source extension parent is outside the copied form."
+            End If
             parents.Add CStr(parents.Count + 1), root("RowId")
         End If
     Next child

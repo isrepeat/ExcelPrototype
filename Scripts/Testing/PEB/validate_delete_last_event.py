@@ -12,6 +12,23 @@ def main():
     folder = ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder"
     controller = (folder / "obj_PEB_PgMainController.cls.vba").read_text(encoding="utf-8-sig")
     page = (folder / "obj_PEB_PgMain.cls.vba").read_text(encoding="utf-8-sig")
+    extensions = (folder / "obj_PEB_FormExtensions.cls.vba").read_text(encoding="utf-8-sig")
+    children_source = (folder / "ex_PEB_FormChildren.vba").read_text(encoding="utf-8-sig")
+    for handler, delete_call, detached_row in (
+        ("DeleteEventHandler", "fn_DeleteEvent(row, stamp, diagnostic)", "row"),
+        ("DeleteLastEventHandler", "fn_DeleteLast(current, stamp, diagnostic)", "current"),
+    ):
+        body = procedure(controller, handler)
+        assert body.index(delete_call) < body.index(f"m_extensions.DetachDeletedEvent {detached_row}")
+    detach = procedure(extensions, "DetachDeletedEvent")
+    assert 'deletedEvent("FormExtensionRows")' in detach
+    assert 'deletedIds.Exists(CStr(row("RowId")))' in detach
+    assert 'BindingContext.SetValue' not in detach and 'Me.Reset' not in detach
+    assert 'item("DetachedRootId") = row("DetachedRootId")' in procedure(extensions, "Collect")
+    assert 'row.Remove "DetachedRootId"' in procedure(extensions, "TryAcceptSaved")
+    rebind = procedure(children_source, "private_Rebind")
+    assert 'If Not detached Then Err.Raise 5, , "Missing source extension: "' in rebind
+    assert 'mapping(parentId)' in rebind and 'parentId = CStr(child("DetachedRootId"))' in rebind
     for source in (controller, page):
         check_declarations(source)
         check_blocks(source)

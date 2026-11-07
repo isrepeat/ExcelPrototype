@@ -987,6 +987,7 @@ Public Function DeleteEventHandler() As Boolean
         Exit Function
     End If
     If Not ex_PEB_History.fn_DeleteEvent(row, stamp, diagnostic) Then GoTo FailedDelete
+    m_extensions.DetachDeletedEvent row
     status = ex_PEB_Export.fn_Config("text.EventDeleted")
     If Len(diagnostic) > 0 Then status = status & " " & diagnostic
     If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
@@ -1035,6 +1036,7 @@ Public Function DeleteLastEventHandler() As Boolean
         Err.Raise 5, , ex_PEB_Export.fn_Config("text.LastEventChanged")
     End If
     If Not ex_PEB_History.fn_DeleteLast(current, stamp, diagnostic) Then GoTo FailedDelete
+    m_extensions.DetachDeletedEvent current
     status = ex_PEB_Export.fn_Config("text.LastEventDeleted")
     If Len(diagnostic) > 0 Then status = status & " " & diagnostic
     If Not private_EndHistoryEdit() Then status = status & " " & ex_PEB_Export.fn_Config("text.HistoryListStale")
@@ -2973,7 +2975,7 @@ Private Function private_LoadMode( _
     Next index
     ex_Core.fn_Diagnostic_WritePerf "Mode.Load.Fields | Mode=" & modeId, stageStartedAt
     stageStartedAt = VBA.Timer
-    If Not private_PlaceFields(columns, diagnostic) Then Exit Function
+    If Not private_PlaceFields(columns, modeId, diagnostic) Then Exit Function
     ex_Core.fn_Diagnostic_WritePerf "Mode.Load.PlaceFields | Mode=" & modeId, stageStartedAt
     stageStartedAt = VBA.Timer
     For Each field In VBA.Array("EventType", _
@@ -3493,6 +3495,7 @@ End Function
 
 Private Function private_PlaceFields( _
     ByVal columns As Collection, _
+    ByVal modeId As String, _
     ByRef diagnostic As String _
 ) As Boolean
     Dim fixedColumns As Object
@@ -3563,8 +3566,8 @@ Private Function private_PlaceFields( _
             column("lockedStyle") = disabledStyle
         End If
         If column("formField") = "Destination" Then
-            If ex_PEB_EventRoutes.fn_HasRoute(m_modeId, "Movement") Then
-                If VBA.Len(ex_PEB_EventRoutes.fn_Value(m_modeId, "movement.destinationValue")) > 0 Then
+            If ex_PEB_EventRoutes.fn_HasRoute(modeId, "Movement") Then
+                If VBA.Len(ex_PEB_EventRoutes.fn_Value(modeId, "movement.destinationValue")) > 0 Then
                     column("lockedStyle") = disabledStyle
                 End If
             End If

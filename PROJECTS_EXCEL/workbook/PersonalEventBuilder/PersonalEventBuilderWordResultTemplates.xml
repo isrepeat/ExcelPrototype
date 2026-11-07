@@ -174,7 +174,7 @@
     <sharedTemplate id="block.EnrollToFoodSupport">
       <text>
         <![CDATA[#^
-#_        {#if [RequiresFoodSupportEnroll]}Зарахувати на продовольче забезпечення#^
+#_        {#if [RequiresFoodSupportEnroll]}{#newline}Зарахувати на продовольче забезпечення#^
 #_        {#space}з {[EnrollToFoodSupportDateShort]|dateformat:"\dd \month \yyyy року"}.{#endif}#^
         ]]>
       </text>

@@ -863,6 +863,7 @@ value	PersonalEventBuilder::export.Word.context.booleanInputs	RequiresFoodSuppor
 value	PersonalEventBuilder::export.Word.context.MetaTvoTables.fields	PersonRank|PersonId|PositionCode|DutyPositionGenitive
 value	PersonalEventBuilder::export.Word.context.MetaTvoTables.required	PersonRank|PersonId|PositionCode
 value	PersonalEventBuilder::export.Word.context.enrollDirection	Arrival
+value	PersonalEventBuilder::export.Word.context.enrollModes	MoveFromHospitalToMedicalCompanyVacationForCuring
 value	PersonalEventBuilder::export.Word.context.removeDirection	Departure
 value	PersonalEventBuilder::export.Word.context.collectionInputs	MetaDocumentTables|MetaTvoTables|MetaTables
 value	PersonalEventBuilder::export.Word.context.MetaDocumentTables.fields	DocumentNote|DocNo|DocDateShort
@@ -1683,7 +1684,7 @@ value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.lookup.key	Hospital
 value	PersonalEventBuilder::reporter.tvo.prefix	тимчасово виконуючого обов'язки
   ref	PersonalEventBuilder::reporter.tvo.source.path	__cfgDependencies.fileMovementHistory
-value	PersonalEventBuilder::reporter.tvo.source.range	B2:P10000
+value	PersonalEventBuilder::reporter.tvo.source.range	B2:R10000
 value	PersonalEventBuilder::reporter.tvo.source.sheet	ТВО
 value	PersonalEventBuilder::reporter.tvo.ambiguous	Для рапортуючого {name} знайдено декілька чинних призначень ТВО. Уточніть дані джерела.
 value	PersonalEventBuilder::reporter.tvo.endHeader	Здавання

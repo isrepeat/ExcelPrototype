@@ -666,6 +666,10 @@ Public Function TryPrepareHistory( _
                 Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(key))
         End Select
     Next key
+    If private_RequiresFoodSupportEnroll(values) Then
+        values("RequiresFoodSupportEnroll") = True
+        values("RequiresFoodSupportRemove") = False
+    End If
     values("RequiresFoodSupportChange") = values("RequiresFoodSupportEnroll") Or values("RequiresFoodSupportRemove")
     values("EnrollToFoodSupportDateShort") = VBA.vbNullString
     values("RemoveFromFoodSupportDateShort") = VBA.vbNullString
@@ -1000,7 +1004,8 @@ Private Sub private_CompleteWordContext( _
         If Not values.Exists(key) Then values.Add VBA.CStr(key), VBA.vbNullString
     Next key
     values("RequiresFoodSupportRemove") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.removeDirection"))
-    values("RequiresFoodSupportEnroll") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.enrollDirection"))
+    values("RequiresFoodSupportEnroll") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.enrollDirection")) Or _
+        private_RequiresFoodSupportEnroll(values)
     If Not inputs Is Nothing Then
         If VBA.TypeName(inputs) <> "Dictionary" Then Err.Raise 5, , "Word context inputs must be a dictionary."
         For Each key In inputs.Keys
@@ -1057,6 +1062,11 @@ Private Sub private_CompleteWordContext( _
         output = ex_PEB_Export.fn_Config(prefix & ".output")
         If Not values.Exists(output) Then private_Enrich values, prefix
     Next index
+    ' Apply the current mode policy after saved context inputs have been copied.
+    If private_RequiresFoodSupportEnroll(values) Then
+        values("RequiresFoodSupportEnroll") = True
+        values("RequiresFoodSupportRemove") = False
+    End If
     values("RequiresFoodSupportChange") = values("RequiresFoodSupportEnroll") Or values("RequiresFoodSupportRemove")
     values("EnrollToFoodSupportDateShort") = VBA.Format$(values("FoodSupportDate"), "dd.mm.yyyy")
     values("RemoveFromFoodSupportDateShort") = VBA.Format$(values("FoodSupportDate"), "dd.mm.yyyy")
@@ -1177,6 +1187,22 @@ Private Sub private_PrepareFoodSupport(ByVal values As Object)
     If eventDate > effectiveDate Then effectiveDate = eventDate
     values("FoodSupportDate") = effectiveDate
 End Sub
+
+Private Function private_RequiresFoodSupportEnroll(ByVal values As Object) As Boolean
+    Dim modeId As Variant
+    Dim selectedMode As String
+
+    selectedMode = ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, "ModeId"))
+    For Each modeId In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.enrollModes"), "|")
+        If VBA.Len(VBA.Trim$(VBA.CStr(modeId))) = 0 Then
+            Err.Raise 5, , "Empty mode ID in export.Word.context.enrollModes."
+        End If
+        If VBA.CStr(modeId) = selectedMode Then
+            private_RequiresFoodSupportEnroll = True
+            Exit Function
+        End If
+    Next modeId
+End Function
 
 Private Sub private_PrepareTicket(ByVal values As Object)
     Dim ticket As String
