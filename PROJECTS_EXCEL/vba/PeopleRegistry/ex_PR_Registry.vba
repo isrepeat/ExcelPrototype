@@ -293,6 +293,7 @@ Private Sub private_WriteHistory( _
     Dim mutationStarted As Boolean
     Dim appendOnly As Boolean
     Dim reapplyFilter As Boolean
+    Dim historyFilter As AutoFilter
     Dim stageStartedAt As Double
 
     stageStartedAt = Timer
@@ -302,7 +303,10 @@ Private Sub private_WriteHistory( _
         original = table.DataBodyRange.Value2
     End If
     On Error GoTo Failed
-    reapplyFilter = table.AutoFilter.FilterMode
+    Set historyFilter = table.AutoFilter
+    If Not historyFilter Is Nothing Then
+        reapplyFilter = historyFilter.FilterMode
+    End If
     If history.Count > oldCount Then
         Set growth = table.HeaderRowRange.Offset(oldCount + 1).Resize(history.Count - oldCount, 5)
         For Each cell In growth.Cells
