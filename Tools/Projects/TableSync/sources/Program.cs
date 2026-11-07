@@ -170,9 +170,20 @@ namespace ExcelTools.TableSync {
         private static string PlanPlugin(
             XElement config, string directory, Dictionary<string, string> books, List<Tuple<string, Table>> tables,
             Dictionary<string, List<ExcelTools.OpenXml.TextCellEdit>> edits, List<string> conflicts) {
-            var type = Assembly.LoadFrom(Resolve(config, directory, "assembly")).GetType(Required(config, "type"), true);
-            if (!typeof(ExcelTools.TableSync.Contracts.ISyncPlugin).IsAssignableFrom(type)) {
-                throw new InvalidDataException("Plugin must implement ISyncPlugin: " + type.FullName);
+            var assemblyPath = Resolve(config, directory, "assembly");
+            var candidates = Assembly.LoadFrom(assemblyPath).GetExportedTypes()
+                .Where(candidate => candidate.IsClass
+                    && !candidate.IsAbstract
+                    && !candidate.ContainsGenericParameters
+                    && typeof(ExcelTools.TableSync.Contracts.ISyncPlugin).IsAssignableFrom(candidate))
+                .ToArray();
+            if (candidates.Length != 1) {
+                throw new InvalidDataException("Expected exactly one public concrete ISyncPlugin implementation in "
+                    + assemblyPath + ". Found: " + candidates.Length + ".");
+            }
+            var type = candidates[0];
+            if (type.GetConstructor(Type.EmptyTypes) == null) {
+                throw new InvalidDataException("Plugin requires a public parameterless constructor: " + type.FullName);
             }
             var plugin = (ExcelTools.TableSync.Contracts.ISyncPlugin)Activator.CreateInstance(type);
             var snapshots = new Dictionary<ExcelTools.TableSync.Contracts.SyncTable, Table>();

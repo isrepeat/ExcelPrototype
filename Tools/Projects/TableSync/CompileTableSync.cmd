@@ -16,7 +16,7 @@ if errorlevel 1 goto failed
 "%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:library /codepage:65001 ^
     /out:"%tableSyncOutput%\plugins\TableSync.Plugins.Personnel.dll" ^
     /reference:"%tableSyncOutput%\TableSync.Contracts.dll" ^
-    "%~dp0..\TableSync.Plugins.Personnel\PersonnelPlugin.cs"
+    "%~dp0plugins\Personnel\PersonnelPlugin.cs"
 if errorlevel 1 goto failed
 "%SystemRoot%\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /optimize+ /target:exe /platform:x64 /codepage:65001 ^
     /out:"%tableSyncOutput%\TableSync.exe" ^

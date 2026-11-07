@@ -19,7 +19,7 @@
       <Name>TableSync.Contracts</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000010}</Project>
     </ProjectReference>
-    <ProjectReference Include="..\..\TableSync.Plugins.Personnel\TableSync.Plugins.Personnel.csproj">
+    <ProjectReference Include="..\plugins\Personnel\TableSync.Plugins.Personnel.csproj">
       <Name>TableSync.Plugins.Personnel</Name>
       <Project>{6B8056E1-10C0-4F89-91F0-000000000011}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

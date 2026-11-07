@@ -16,46 +16,91 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
             var history = context.ReadTable("registry", "Історія ID", "tbIDHistory", "Попередній ІД");
             var sourceKey = source.Column("ІПН");
             var sourceName = source.Column("Прізвище, ім’я, по батькові");
-            var byId = source.Rows.Where(row => TaxId.IsMatch(row.ValueAt(sourceKey)))
-                .ToLookup(row => row.ValueAt(sourceKey), StringComparer.Ordinal);
-            var byName = source.Rows.ToLookup(row => Name(row.ValueAt(sourceName)), StringComparer.Ordinal);
-            var groups = new[] { list, absences }.SelectMany(table => {
-                var key = table.Column("ІПН");
-                var name = table.Column("ПІБ");
-                return table.Rows.Select(row => new { Table = table, Row = row, Key = key, Name = name });
-            }).Where(item => TaxId.IsMatch(item.Row.ValueAt(item.Key)))
-                .ToLookup(item => item.Row.ValueAt(item.Key), StringComparer.Ordinal);
-            var names = groups.ToDictionary(group => group.Key, group => group.Select(item => Name(item.Row.ValueAt(item.Name)))
-                .Where(name => name.Length > 0).Distinct(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
-            var keysByName = names.SelectMany(pair => pair.Value.Select(name => Tuple.Create(name, pair.Key)))
-                .ToLookup(pair => pair.Item1, StringComparer.Ordinal);
+            var byId = source.Rows
+                .Where(row => TaxId.IsMatch(row.ValueAt(sourceKey)))
+                .ToLookup(
+                    row => row.ValueAt(sourceKey),
+                    StringComparer.Ordinal
+                );
+            var byName = source.Rows.ToLookup(
+                row => Name(row.ValueAt(sourceName)),
+                StringComparer.Ordinal
+            );
+
+            var groups = new[] { list, absences }
+                .SelectMany(table => {
+                    var key = table.Column("ІПН");
+                    var name = table.Column("ПІБ");
+                    return table.Rows.Select(row => new {
+                        Table = table,
+                        Row = row,
+                        Key = key,
+                        Name = name
+                    });
+                })
+                .Where(item => TaxId.IsMatch(item.Row.ValueAt(item.Key)))
+                .ToLookup(
+                    item => item.Row.ValueAt(item.Key),
+                    StringComparer.Ordinal
+                );
+            var names = groups.ToDictionary(
+                group => group.Key,
+                group => group
+                    .Select(item => Name(item.Row.ValueAt(item.Name)))
+                    .Where(name => name.Length > 0)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray(),
+                StringComparer.Ordinal
+            );
+            var keysByName = names
+                .SelectMany(pair => pair.Value.Select(name => Tuple.Create(name, pair.Key)))
+                .ToLookup(
+                    pair => pair.Item1,
+                    StringComparer.Ordinal
+                );
             var registry = new Registry(history);
-            var plan = new Contracts.SyncPlan { SourceBook = source.Book };
+            var plan = new Contracts.SyncPlan {
+                SourceBook = source.Book
+            };
+
             foreach (var group in groups) {
                 var key = group.Key;
                 var person = Unique(byId[key]);
                 var replacement = !byId.Contains(key);
                 if (replacement) {
                     var candidates = names[key];
-                    if (candidates.Length == 1 && keysByName[candidates[0]].Count() == 1) {
+                    if (candidates.Length == 1
+                        && keysByName[candidates[0]].Count() == 1) {
                         person = Unique(byName[candidates[0]]);
                     }
                 }
                 if (person == null) {
-                    if (byId.Contains(key) || names[key].Any(name => byName.Contains(name))) {
-                        plan.Groups.Add(new Contracts.SyncGroup { Description = key, Conflict = "Неоднозначное сопоставление с ШПО." });
+                    if (byId.Contains(key)
+                        || names[key].Any(name => byName.Contains(name))) {
+                        plan.Groups.Add(new Contracts.SyncGroup {
+                            Description = key,
+                            Conflict = "Неоднозначное сопоставление с ШПО."
+                        });
                     }
                     continue;
                 }
                 var newKey = person.ValueAt(sourceKey);
                 var newName = Name(person.ValueAt(sourceName));
-                if (newName.Length == 0 || !TaxId.IsMatch(newKey) || byId[newKey].Count() != 1
+                if (newName.Length == 0
+                    || !TaxId.IsMatch(newKey)
+                    || byId[newKey].Count() != 1
                     || (replacement && groups.Contains(newKey))) {
-                    plan.Groups.Add(new Contracts.SyncGroup { Description = key, Conflict = "Пустое ФИО, недопустимый или занятый ІПН." });
+                    plan.Groups.Add(new Contracts.SyncGroup {
+                        Description = key,
+                        Conflict = "Пустое ФИО, недопустимый или занятый ІПН."
+                    });
                     continue;
                 }
-                var change = new Contracts.SyncGroup { Description = replacement ? key + " → " + newKey : key };
-                if (replacement && !registry.Record(change, key, newKey, newName)) {
+                var change = new Contracts.SyncGroup {
+                    Description = replacement ? key + " → " + newKey : key
+                };
+                if (replacement
+                    && !registry.Record(change, key, newKey, newName)) {
                     change.Conflict = "Переход конфликтует с историей PeopleRegistry.";
                     plan.Groups.Add(change);
                     continue;
@@ -65,7 +110,9 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
                         Add(change, item.Table, item.Row.Number, item.Key, newKey);
                     }
                     var before = item.Row.ValueAt(item.Name);
-                    if (item.Table == list && !before.StartsWith("=", StringComparison.Ordinal) && Name(before) != newName) {
+                    if (item.Table == list
+                        && !before.StartsWith("=", StringComparison.Ordinal)
+                        && Name(before) != newName) {
                         Add(change, list, item.Row.Number, item.Name, person.ValueAt(sourceName));
                     }
                 }
@@ -116,12 +163,18 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
             public bool Record(Contracts.SyncGroup group, string oldKey, string newKey, string fullName) {
                 var old = Unique(previous[oldKey]);
                 var existing = Unique(previous[newKey]);
-                if (old != null && existing != null && old.ValueAt(current) == newKey
-                    && existing.ValueAt(current) == newKey && Name(existing.ValueAt(name)) == fullName) {
+                if (old != null
+                    && existing != null
+                    && old.ValueAt(current) == newKey
+                    && existing.ValueAt(current) == newKey
+                    && Name(existing.ValueAt(name)) == fullName) {
                     return true;
                 }
-                if (old == null || old.ValueAt(current) != oldKey || Name(old.ValueAt(name)) != fullName
-                    || previous.Contains(newKey) || aliases.Contains(newKey)
+                if (old == null
+                    || old.ValueAt(current) != oldKey
+                    || Name(old.ValueAt(name)) != fullName
+                    || previous.Contains(newKey)
+                    || aliases.Contains(newKey)
                     || aliases[oldKey].Any(row => String.IsNullOrWhiteSpace(row.ValueAt(oldColumn))
                         || previous[row.ValueAt(oldColumn)].Count() != 1)) {
                     return false;

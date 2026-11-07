@@ -3,8 +3,7 @@
     <profile name="Personnel"
              default="true"
              tableDiff="..\..\TableDiff\build\TableDiff.exe">
-        <plugin type="ExcelTools.TableSync.Plugins.Personnel.PersonnelPlugin"
-                assembly="..\build\plugins\TableSync.Plugins.Personnel.dll" />
+        <plugin assembly="..\build\plugins\TableSync.Plugins.Personnel.dll" />
         <books>
             <book name="shpo"
                   file="C:\Users\isrepeat\Desktop\ШПО_new.xlsx" />
