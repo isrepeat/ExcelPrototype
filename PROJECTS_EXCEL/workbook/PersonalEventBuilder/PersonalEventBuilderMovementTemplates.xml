@@ -430,6 +430,34 @@
       </text>
     </column>
   </template>
+  <template name="MoveFromHospitalToMedicalCompanyVacationForCuring">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.VlkBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
   <template name="MoveFromVacationForCuringToVacationForCuring">
     <column configKey="returnTvo.table.headers.Duration"
             target="TVO">

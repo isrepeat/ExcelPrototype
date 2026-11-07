@@ -381,6 +381,7 @@ Public Function ResetFormHandler(Optional ByVal preserveContext As Boolean = Fal
     If Not preserveContext And Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
     End If
+    If Not private_ApplyFixedDestination(updates, m_modeId, diagnostic) Then GoTo Failed
     Set result = New obj_LookupResult
     If Not result.Initialize(records, m_modeFields, False, diagnostic, "Candidate.NameTag") Then GoTo Failed
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
@@ -3116,7 +3117,29 @@ Private Function private_UpdateReadOnly( _
         updates("Form.DocumentReadOnly") = True
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(modeId)
     End If
+    If Not private_ApplyFixedDestination(updates, modeId, diagnostic) Then Exit Function
     private_UpdateReadOnly = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
+End Function
+
+Private Function private_ApplyFixedDestination( _
+    ByVal updates As Object, _
+    ByVal modeId As String, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim destination As String
+    Dim defaultStyle As String
+
+    private_ApplyFixedDestination = True
+    If Not ex_PEB_EventRoutes.fn_HasRoute(modeId, "Movement") Then Exit Function
+    destination = ex_PEB_EventRoutes.fn_Value(modeId, "movement.destinationValue")
+    If VBA.Len(destination) = 0 Then Exit Function
+    private_ApplyFixedDestination = False
+    If Not private_ReadModeConfig("forms.columns.disabledStyle", defaultStyle, diagnostic) Then Exit Function
+    ' Restore mode constants after clearing or applying candidate values.
+    updates("Form.Destination") = destination
+    updates("Form.DestinationStyle") = defaultStyle
+    updates("Form.DestinationReadOnly") = True
+    private_ApplyFixedDestination = True
 End Function
 
 Private Function private_SwitchMode(ByVal modeId As String) As Boolean
@@ -3259,6 +3282,7 @@ Private Function private_ClearKeyFields(ByVal group As String) As Boolean
             updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
         End If
     End If
+    If Not private_ApplyFixedDestination(updates, m_modeId, diagnostic) Then GoTo Failed
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
     If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then GoTo Cleanup
@@ -3316,6 +3340,7 @@ Private Function private_ClearPersonnelGroup( _
             Next fieldName
         End If
     Next formKind
+    If Not private_ApplyFixedDestination(updates, m_modeId, diagnostic) Then Exit Function
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Data", "SelectedPersonnel", VBA.vbNullString) Then Exit Function
     Set emptyResult = New obj_LookupResult
@@ -3363,6 +3388,7 @@ Private Function private_ApplyModeRecord( _
     Dim lookupFields As String
     Dim defaultStyle As String
     Dim dynamicStyles As String
+    Dim fixedDestination As String
 
     Set updates = VBA.CreateObject("Scripting.Dictionary")
     Set fields = m_modeFields
@@ -3378,8 +3404,17 @@ Private Function private_ApplyModeRecord( _
     If m_documentActive Then
         Set fields = m_documentFields
     End If
+    If ex_PEB_EventRoutes.fn_HasRoute(m_modeId, "Movement") Then
+        fixedDestination = ex_PEB_EventRoutes.fn_Value(m_modeId, "movement.destinationValue")
+    End If
     For Each column In fields
         If column("apply") Then
+            ' Keep the configured destination independent of the selected candidate.
+            If column("formField") = "Destination" And VBA.Len(fixedDestination) > 0 Then
+                updates("Form.Destination") = fixedDestination
+                updates("Form.DestinationStyle") = defaultStyle
+                GoTo NextAppliedField
+            End If
             value = VBA.vbNullString
             If Not record.TryGetValue(column("name"), value) Then
                 diagnostic = "Candidate field not found: " & column("name")
@@ -3404,6 +3439,7 @@ NextAppliedField:
     If Len(ex_PEB_Export.fn_FixedDocument(m_modeId)) > 0 Then
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
     End If
+    If Not private_ApplyFixedDestination(updates, m_modeId, diagnostic) Then Exit Function
     private_ApplyModeRecord = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
 End Function
 
@@ -3525,6 +3561,13 @@ Private Function private_PlaceFields( _
         End If
         If column("formField") = "Document" And column("name") = "Event.Document" Then
             column("lockedStyle") = disabledStyle
+        End If
+        If column("formField") = "Destination" Then
+            If ex_PEB_EventRoutes.fn_HasRoute(m_modeId, "Movement") Then
+                If VBA.Len(ex_PEB_EventRoutes.fn_Value(m_modeId, "movement.destinationValue")) > 0 Then
+                    column("lockedStyle") = disabledStyle
+                End If
+            End If
         End If
         displayFields.Add column
         activeFields.Add CStr(column("formField")), True

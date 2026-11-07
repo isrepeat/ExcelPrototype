@@ -12,8 +12,20 @@ def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(folder / filename)
         registry = load_registry(settings)
-        assert len(registry["events"]) == 45
-        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 41
+        assert len(registry["events"]) == 46
+        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 42
+        medical_leave_id = "MoveFromHospitalToMedicalCompanyVacationForCuring"
+        medical_leave = registry["events"][medical_leave_id]
+        assert medical_leave.get("form") == "HospitalLeave"
+        assert medical_leave.get("direction") == "StatusChange"
+        assert medical_leave_id in settings["ui.extendedModes"].split("|")
+        assert medical_leave.find("p:word", NS).get("template") == medical_leave_id
+        assert settings["export.Word.textAnchors." + medical_leave_id] == "MoveFromHospitalToVacationForCuring"
+        movement_leave = registry["movement"]["events"][medical_leave_id]
+        assert movement_leave["operation"] == movement_leave["profile"] == "Transition"
+        assert movement_leave["sourceStatus"] == "HospitalTreatment"
+        assert movement_leave["targetStatus"] == "MedicalLeave"
+        assert movement_leave["destinationValue"] == settings["export.Movement.destinations.MedicalCompany"]
         assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is not None
         movement_only = {name for name, event in registry["events"].items() if event.find("p:word", NS) is None}
         assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "MoveFromAwolToBusinessTrip", "ToBusinessTrip"}
@@ -95,7 +107,7 @@ def main():
         rejected += 1
     else:
         raise AssertionError("Retired omittedTemplates section accepted")
-    print(f"PASS: TEST/PROD, 41 Word routes and 4 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
+    print(f"PASS: TEST/PROD, 42 Word routes and 4 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":

@@ -744,6 +744,23 @@
       ]]>
     </text>
   </template>
+  <template name="MoveFromHospitalToMedicalCompanyVacationForCuring"
+            hash="0x28">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      який {#include block.StatusChangeResidenceVerb}на лікуванні у {[HospitalDative]|lowerFirstLetter|nbspAfterNumberSign}, вважати таким, що вибув у відпустку для лікування#^
+#_      {#include block.VacationDestinationPeriod}#^
+#_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include block.OptionalForeignVacationPermission}#^
+#_      {#newline}{#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.VlkBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 
   <template name="MoveFromVacationForCuringToVacationForCuring"
             hash="0x11">

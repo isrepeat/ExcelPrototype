@@ -634,6 +634,16 @@ Private Sub private_BuildEvents()
         "", _
         "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
     private_AddEvent _
+        "MoveFromHospitalToMedicalCompanyVacationForCuring", _
+        "Transition", _
+        "Transition", _
+        "HospitalTreatment", _
+        "MedicalLeave", _
+        "Destination", _
+        ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
+        "", _
+        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+    private_AddEvent _
         "ToMedicalCompanyVacationForCuring", _
         "Departure", _
         "Departure", _
