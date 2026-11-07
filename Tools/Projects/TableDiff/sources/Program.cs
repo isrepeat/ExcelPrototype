@@ -101,7 +101,8 @@ namespace ExcelTools.TableDiff {
                     || String.IsNullOrWhiteSpace(report.OldFile) || String.IsNullOrWhiteSpace(report.NewFile)) {
                     throw new InvalidDataException("Invalid standalone prepared report.");
                 }
-                HtmlDiffWriter.Write(report.Output, report.ReportProfile, report.OldFile, report.NewFile, report.Differences, report.Method);
+                HtmlDiffWriter.Write(report.Output, report.ReportProfile, report.OldFile, report.NewFile, report.Differences, report.Method,
+                    report.Workbooks, report.SourceFile, report.Preview, report.Conflicts);
                 return;
             }
             XDocument document;

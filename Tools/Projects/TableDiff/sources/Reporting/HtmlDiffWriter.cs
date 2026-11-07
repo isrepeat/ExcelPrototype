@@ -32,11 +32,12 @@ namespace ExcelTools.TableDiff {
             }
         }
 
-        public static void Write(string output, string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method) {
+        public static void Write(string output, string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method,
+            List<ExcelTools.Changes.ReportWorkbook> workbooks = null, string sourceFile = null, bool preview = false, List<string> conflicts = null) {
             Directory.CreateDirectory(Path.GetDirectoryName(output));
             var temporary = ExcelTools.Tooling.OutputPublisher.CreateTemporaryPath(output, ".html");
             try {
-                File.WriteAllText(temporary, Generate(profile, oldFile, newFile, differences, method), new UTF8Encoding(false));
+                File.WriteAllText(temporary, Generate(profile, oldFile, newFile, differences, method, workbooks, sourceFile, preview, conflicts), new UTF8Encoding(false));
                 ExcelTools.Tooling.OutputPublisher.Publish(temporary, output);
             }
             finally {
@@ -46,7 +47,8 @@ namespace ExcelTools.TableDiff {
             }
         }
 
-        private static string Generate(string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method) {
+        private static string Generate(string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method,
+            List<ExcelTools.Changes.ReportWorkbook> workbooks, string sourceFile, bool preview, List<string> conflicts) {
             var sections = new StringBuilder();
             var payloads = new StringBuilder();
             var summary = new StringBuilder("<table class=\"summary-table\"><thead><tr><th>Старый лист</th><th>Новый лист</th><th>Ключ</th><th>Порог</th><th>Изменено</th><th>Добавлено</th><th>Удалено</th><th>Было строк</th><th>Стало строк</th></tr></thead><tbody>");
@@ -59,7 +61,10 @@ namespace ExcelTools.TableDiff {
                     summary.Append("<td>").Append(count).Append("</td>");
                 }
                 summary.Append("</tr>");
-                AppendSheet(sections, payloads, sheetDiff, "s" + index);
+                var workbook = workbooks == null ? null : workbooks.SingleOrDefault(item => item.Name == sheetDiff.Book);
+                AppendSheet(sections, payloads, sheetDiff, "s" + index,
+                    workbook == null ? oldFile : workbook.Before,
+                    workbook == null ? newFile : workbook.After);
             }
             summary.Append("</tbody></table>");
             return "<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
@@ -70,6 +75,7 @@ namespace ExcelTools.TableDiff {
                 + " изменено</span><span>+ " + differences.Sum(s => s.Count("add"))
                 + " добавлено</span><span>− " + differences.Sum(s => s.Count("delete")) + " удалено</span></div></header>"
                 + "<p class=\"source-files\">" + Escape(Path.GetFileName(oldFile)) + " → " + Escape(Path.GetFileName(newFile)) + "</p>"
+                + ConflictDetails(conflicts)
                 + "<details class=\"report-summary\"><summary>Сводка и способ сравнения</summary><div class=\"summary-scroll\">" + summary + "</div>"
                 + "<p>Сравниваются сохранённые значения и тексты формул только в указанных парах листов. Скрытые и отфильтрованные строки включены; оформление и кэшированные результаты формул не сравниваются.</p>"
                 + (method != null ? "<p>" + Escape(method) + "</p>" :
@@ -89,17 +95,34 @@ namespace ExcelTools.TableDiff {
                 + "<main>" + sections + "</main>" + payloads + "<noscript>Для просмотра отчёта включите JavaScript.</noscript><script>" + Asset("report.js") + "</script></html>";
         }
 
+        private static string ConflictDetails(List<string> conflicts) {
+            if (conflicts == null || conflicts.Count == 0) {
+                return "";
+            }
+            var html = new StringBuilder("<details class=\"conflict-summary\" open><summary>Конфликты для ручной проверки (");
+            html.Append(conflicts.Count).Append(")</summary>");
+            foreach (var conflict in conflicts) {
+                html.Append("<pre style=\"white-space:pre-wrap;overflow-wrap:anywhere\">")
+                    .Append(Escape(conflict)).Append("</pre>");
+            }
+            return html.Append("</details>").ToString();
+        }
+
+
         private static string Percent(double value) {
             return (value * 100).ToString("0.##", CultureInfo.InvariantCulture) + "%";
         }
 
-        private static void AppendSheet(StringBuilder output, StringBuilder payloads, ExcelTools.Changes.SheetDiff sheetDiff, string id) {
+        private static void AppendSheet(StringBuilder output, StringBuilder payloads, ExcelTools.Changes.SheetDiff sheetDiff, string id,
+            string oldFile, string newFile) {
             var header = sheetDiff.NewHeader ?? sheetDiff.OldHeader;
             var offset = sheetDiff.NewHeader == null ? sheetDiff.OldColumnOffset : sheetDiff.NewColumnOffset;
             var columns = Enumerable.Range(0, sheetDiff.Width)
                 .Where(c => header == null || header.ValueAt(c).Length > 0
                     || (sheetDiff.OldHeader != null && sheetDiff.OldHeader.ValueAt(c).Length > 0)).ToList();
             output.Append("<section id=\"").Append(id).Append("\" data-sheet-name=\"").Append(Escape(sheetDiff.Name))
+                .Append("\" data-source-files=\"").Append(Escape(Path.GetFileName(oldFile) + " → " + Path.GetFileName(newFile)))
+                .Append("\" data-page-title=\"").Append(Escape(TabFileName(oldFile) + " → " + TabFileName(newFile)))
                 .Append("\"><div class=\"sheet-heading\"><h2>").Append(Escape(sheetDiff.Name)).Append("</h2><span>Ключ: ")
                 .Append(Escape(sheetDiff.Key)).Append(" · ").Append(Percent(sheetDiff.Threshold))
                 .Append(" · ~").Append(sheetDiff.Count("change")).Append(" / +").Append(sheetDiff.Count("add"))

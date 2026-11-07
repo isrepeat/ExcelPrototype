@@ -4,7 +4,6 @@ using System.Xml;
 using System.Xml.Linq;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Globalization;
 using System.Reflection;
 using System.Diagnostics;
 using System.Collections.Generic;
@@ -106,16 +105,23 @@ namespace ExcelTools.TableSync {
                 else {
                     sourceBook = PlanPlugin(plugin, directory, books, tables, edits, conflicts);
                 }
-                if (edits.Values.All(items => items.Count == 0)) {
+                if (edits.Values.All(items => items.Count == 0) && conflicts.Count == 0) {
                     System.Console.WriteLine("No changes available for approval.");
                     return;
                 }
                 var preview = outputs["previewReport"];
                 var reportProfile = Required(profile, "name");
-                var primary = edits.First(pair => pair.Value.Count > 0).Key;
+                var primary = edits.Where(pair => pair.Value.Count > 0).Select(pair => pair.Key).FirstOrDefault() ?? sourceBook;
                 WriteReport(executable, preview, reportProfile, books[primary], books[sourceBook],
-                    tables.Select(item => Diff(item.Item1, item.Item2, edits[item.Item1], null)), conflicts);
+                    tables.Select(item => Diff(item.Item1, item.Item2, edits[item.Item1], null)), conflicts,
+                    edits.Keys.Select(book => new ExcelTools.Changes.ReportWorkbook {
+                        Name = book, Before = books[book], After = SyncedName(books[book])
+                    }).ToList(), books[sourceBook], true);
                 OpenReport(preview);
+                if (edits.Values.All(items => items.Count == 0)) {
+                    System.Console.WriteLine("Only conflicts were found. See the report for manual review.");
+                    return;
+                }
                 System.Console.Write("Apply all {0} cell edits? Type \"y\" or \"yes\" to confirm: ", edits.Values.Sum(items => items.Count));
                 var answer = System.Console.ReadLine();
                 if (!String.Equals(answer, "y", StringComparison.OrdinalIgnoreCase)
@@ -124,9 +130,14 @@ namespace ExcelTools.TableSync {
                     return;
                 }
 
-                var result = Path.Combine(Path.GetDirectoryName(outputs["appliedReport"]), "TableSync "
-                    + DateTime.Now.ToString("HHmmssfff", CultureInfo.InvariantCulture));
-                var stage = result + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                var result = Path.GetDirectoryName(outputs["appliedReport"]);
+                var destinations = edits.Keys.ToDictionary(book => book, book => Path.Combine(result, SyncedName(books[book])));
+                var outputPaths = destinations.Values.Concat(new[] { outputs["previewReport"], outputs["appliedReport"] }).ToArray();
+                if (outputPaths.Distinct(StringComparer.OrdinalIgnoreCase).Count() != outputPaths.Length
+                    || outputPaths.Any(path => books.Values.Contains(path, StringComparer.OrdinalIgnoreCase))) {
+                    throw new InvalidDataException("Result files must have distinct paths and must not overwrite input books.");
+                }
+                var stage = Path.Combine(result, ".TableSync-" + Guid.NewGuid().ToString("N") + ".tmp");
                 Directory.CreateDirectory(stage);
                 try {
                     var copies = edits.Keys.ToDictionary(book => book, book => Path.Combine(stage, SyncedName(books[book])));
@@ -147,9 +158,14 @@ namespace ExcelTools.TableSync {
                         ExcelTools.OpenXml.WorkbookReader.Read(copies[item.Item1], new[] { item.Item2.Sheet.Name })
                             .FindSheet(item.Item2.Sheet.Name))).ToList();
                     var reportName = Path.GetFileName(outputs["appliedReport"]);
-                    WriteReport(executable, Path.Combine(stage, reportName), reportProfile, books[primary], copies[primary], actual);
-                    Directory.Move(stage, result);
-                    OpenReport(Path.Combine(result, reportName));
+                    WriteReport(executable, Path.Combine(stage, reportName), reportProfile, books[primary], copies[primary], actual, null,
+                        copies.Select(copy => new ExcelTools.Changes.ReportWorkbook {
+                            Name = copy.Key, Before = books[copy.Key], After = copy.Value
+                        }).ToList(), books[sourceBook]);
+                    var publish = copies.ToDictionary(copy => copy.Value, copy => destinations[copy.Key]);
+                    publish.Add(Path.Combine(stage, reportName), outputs["appliedReport"]);
+                    ExcelTools.Tooling.OutputPublisher.PublishBatch(publish);
+                    OpenReport(outputs["appliedReport"]);
                 }
                 finally {
                     if (Directory.Exists(stage)) {
@@ -415,6 +431,7 @@ namespace ExcelTools.TableSync {
             var byNumber = table.Rows.ToDictionary(row => row.Number);
             var saved = actual == null ? null : actual.Rows.ToDictionary(row => row.Number);
             var changes = new ExcelTools.Changes.SheetDiff {
+                Book = book,
                 Name = book + " · " + table.Sheet.Name, OldSheet = table.Sheet.Name, NewSheet = table.Sheet.Name,
                 OldHeader = table.Header, NewHeader = table.Header, Width = table.Header.Values.Length,
                 OldCount = table.Rows.Count, NewCount = table.Rows.Count
@@ -438,11 +455,13 @@ namespace ExcelTools.TableSync {
 
         private static void WriteReport(
             string executable, string path, string profile, string before, string after,
-            IEnumerable<ExcelTools.Changes.SheetDiff> differences, IEnumerable<string> conflicts = null) {
+            IEnumerable<ExcelTools.Changes.SheetDiff> differences, IEnumerable<string> conflicts = null,
+            List<ExcelTools.Changes.ReportWorkbook> workbooks = null, string sourceFile = null, bool preview = false) {
             new ExcelTools.Changes.PreparedReport {
                 Output = path, ReportProfile = profile, OldFile = before, NewFile = after,
-                Method = "Отчёт включает изменения по всем книгам профиля."
-                    + (conflicts == null ? "" : " " + String.Join(" · ", conflicts)), Differences = differences.ToList()
+                Workbooks = workbooks, SourceFile = sourceFile, Preview = preview,
+                Conflicts = conflicts == null ? null : conflicts.ToList(),
+                Method = "Отчёт включает изменения по всем книгам профиля.", Differences = differences.ToList()
             }.Run(executable);
         }
 

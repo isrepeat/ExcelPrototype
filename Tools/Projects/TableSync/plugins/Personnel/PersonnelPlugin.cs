@@ -7,7 +7,7 @@ using System.Collections.Generic;
 namespace ExcelTools.TableSync.Plugins.Personnel {
     public sealed class PersonnelPlugin : Contracts.ISyncPlugin {
         private static readonly Regex TaxId = new Regex(@"\A[0-9]{10}\z", RegexOptions.CultureInvariant);
-        private static readonly Regex NameSuffix = new Regex(@"\s*\([0-9]{10}\)\s*\z", RegexOptions.CultureInvariant);
+        private static readonly Regex NameSuffix = new Regex(@"\s*\((?<id>[0-9]{10})\)\s*\z", RegexOptions.CultureInvariant);
 
         public Contracts.SyncPlan BuildPlan(Contracts.SyncContext context) {
             var source = context.ReadTable("shpo", "ОС", null, "ІПН");
@@ -22,42 +22,16 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
                     row => row.ValueAt(sourceKey),
                     StringComparer.Ordinal
                 );
-            var byName = source.Rows.ToLookup(
-                row => Name(row.ValueAt(sourceName)),
-                StringComparer.Ordinal
-            );
 
-            var groups = new[] { list, absences }
-                .SelectMany(table => {
-                    var key = table.Column("ІПН");
-                    var name = table.Column("ПІБ");
-                    return table.Rows.Select(row => new {
-                        Table = table,
-                        Row = row,
-                        Key = key,
-                        Name = name
-                    });
-                })
-                .Where(item => TaxId.IsMatch(item.Row.ValueAt(item.Key)))
-                .ToLookup(
-                    item => item.Row.ValueAt(item.Key),
-                    StringComparer.Ordinal
-                );
-            var names = groups.ToDictionary(
-                group => group.Key,
-                group => group
-                    .Select(item => Name(item.Row.ValueAt(item.Name)))
-                    .Where(name => name.Length > 0)
-                    .Distinct(StringComparer.Ordinal)
-                    .ToArray(),
-                StringComparer.Ordinal
-            );
-            var keysByName = names
-                .SelectMany(pair => pair.Value.Select(name => Tuple.Create(name, pair.Key)))
-                .ToLookup(
-                    pair => pair.Item1,
-                    StringComparer.Ordinal
-                );
+            var entries = new[] { list, absences }
+                .SelectMany(table => table.Rows.Select(row => new PersonRow(table, row, table.Column("ІПН"), table.Column("ПІБ"))))
+                .Where(item => TaxId.IsMatch(item.Id))
+                .ToArray();
+            var groups = entries.ToLookup(item => item.Id, StringComparer.Ordinal);
+            var sourceEntries = source.Rows.Select(row => new PersonRow(source, row, sourceKey, sourceName)).ToArray();
+            var sourceById = sourceEntries.ToLookup(item => item.Id, StringComparer.Ordinal);
+            var sourceByName = sourceEntries.ToLookup(item => item.Name, StringComparer.Ordinal);
+            var movementByName = entries.ToLookup(item => item.Name, StringComparer.Ordinal);
             var registry = new Registry(history);
             var plan = new Contracts.SyncPlan {
                 SourceBook = source.Book
@@ -65,55 +39,91 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
 
             foreach (var group in groups) {
                 var key = group.Key;
+                var names = group.Select(item => item.Name)
+                    .Where(name => name.Length > 0)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                var relatedSource = sourceById[key].Concat(names.SelectMany(name => sourceByName[name])).Distinct().ToArray();
+                var relatedMovement = group.Concat(names.SelectMany(name => movementByName[name])).Distinct().ToArray();
+                var issue = group.FirstOrDefault(item => item.Qualifier.Length > 0 && item.Qualifier != item.Id);
+                if (issue != null) {
+                    Conflict(plan, key, "ІПН в скобках ФИО расходится с колонкой ІПН.", relatedMovement, relatedSource);
+                    continue;
+                }
+
                 var person = Unique(byId[key]);
                 var replacement = !byId.Contains(key);
                 if (replacement) {
-                    var candidates = names[key];
-                    if (candidates.Length == 1
-                        && keysByName[candidates[0]].Count() == 1) {
-                        person = Unique(byName[candidates[0]]);
+                    if (names.Length != 1) {
+                        Conflict(plan, key, "Один ІПН связан с разными ФИО в РУХ.", relatedMovement, relatedSource);
+                        continue;
                     }
+                    var candidates = sourceByName[names[0]].ToArray();
+                    var wrongQualifier = candidates.Any(item => item.Qualifier.Length > 0 && item.Qualifier != item.Id);
+                    if (wrongQualifier) {
+                        Conflict(plan, key, "В ШПО ІПН в скобках ФИО расходится с колонкой ІПН.", relatedMovement, candidates);
+                        continue;
+                    }
+                    var explicitlyDifferent = group.Any(item => item.Qualifier.Length > 0)
+                        && candidates.Length > 0
+                        && candidates.All(item => item.Qualifier.Length > 0 && item.Qualifier != key);
+                    if (explicitlyDifferent) {
+                        Conflict(plan, key, "Разные люди с одинаковым ФИО: в РУХ и ШПО указаны разные ІПН в скобках.", relatedMovement, candidates);
+                        continue;
+                    }
+                    if (group.Any(item => item.Qualifier.Length > 0)) {
+                        if (candidates.Length > 0) {
+                            Conflict(plan, key, "РУХ явно уточняет личность через ІПН в скобках. Смена номера по одному ФИО требует ручной проверки.", relatedMovement, candidates);
+                        }
+                        continue;
+                    }
+                    if (candidates.Length != 1) {
+                        if (candidates.Length > 0) {
+                            Conflict(plan, key, "Несколько строк ШПО имеют одинаковое ФИО.", relatedMovement, candidates);
+                        }
+                        continue;
+                    }
+                    if (relatedMovement.Any(item => item.Id != key)) {
+                        Conflict(plan, key, "Одинаковое ФИО связано с разными ІПН в РУХ. Без уточняющих скобок нельзя определить, ошибочен ли ІПН в РУХ или ШПО.", relatedMovement, candidates);
+                        continue;
+                    }
+                    person = candidates[0].Row;
                 }
                 if (person == null) {
-                    if (byId.Contains(key)
-                        || names[key].Any(name => byName.Contains(name))) {
-                        plan.Groups.Add(new Contracts.SyncGroup {
-                            Description = key,
-                            Conflict = "Неоднозначное сопоставление с ШПО."
-                        });
-                    }
+                    Conflict(plan, key, "В ШПО несколько строк с одним ІПН.", relatedMovement, relatedSource);
                     continue;
                 }
                 var newKey = person.ValueAt(sourceKey);
-                var newName = Name(person.ValueAt(sourceName));
+                var sourcePerson = new PersonRow(source, person, sourceKey, sourceName);
+                if (sourcePerson.Qualifier.Length > 0 && sourcePerson.Qualifier != newKey) {
+                    Conflict(plan, key, "В ШПО ІПН в скобках ФИО расходится с колонкой ІПН.", relatedMovement, relatedSource);
+                    continue;
+                }
+                var newName = sourcePerson.Name;
                 if (newName.Length == 0
                     || !TaxId.IsMatch(newKey)
                     || byId[newKey].Count() != 1
                     || (replacement && groups.Contains(newKey))) {
-                    plan.Groups.Add(new Contracts.SyncGroup {
-                        Description = key,
-                        Conflict = "Пустое ФИО, недопустимый или занятый ІПН."
-                    });
+                    Conflict(plan, key, "Пустое ФИО, недопустимый, повторяющийся или уже занятый ІПН.", relatedMovement, relatedSource);
                     continue;
                 }
                 var change = new Contracts.SyncGroup {
                     Description = replacement ? key + " → " + newKey : key
                 };
-                if (replacement
-                    && !registry.Record(change, key, newKey, newName)) {
-                    change.Conflict = "Переход конфликтует с историей PeopleRegistry.";
-                    plan.Groups.Add(change);
+                if (replacement && !registry.Record(change, key, newKey, newName)) {
+                    Conflict(plan, change.Description, "Переход конфликтует с историей PeopleRegistry.", relatedMovement, relatedSource);
                     continue;
                 }
                 foreach (var item in group) {
                     if (replacement) {
                         Add(change, item.Table, item.Row.Number, item.Key, newKey);
                     }
-                    var before = item.Row.ValueAt(item.Name);
+                    var before = item.Row.ValueAt(item.NameColumn);
                     if (item.Table == list
                         && !before.StartsWith("=", StringComparison.Ordinal)
-                        && Name(before) != newName) {
-                        Add(change, list, item.Row.Number, item.Name, person.ValueAt(sourceName));
+                        && item.Name != newName) {
+                        var suffix = item.Qualifier.Length > 0 && sourcePerson.Qualifier.Length == 0 ? " (" + item.Qualifier + ")" : "";
+                        Add(change, list, item.Row.Number, item.NameColumn, person.ValueAt(sourceName) + suffix);
                     }
                 }
                 if (change.Edits.Count > 0) {
@@ -121,6 +131,43 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
                 }
             }
             return plan;
+        }
+
+        private sealed class PersonRow {
+            public readonly Contracts.SyncTable Table;
+            public readonly Contracts.SyncRow Row;
+            public readonly int Key;
+            public readonly int NameColumn;
+            public readonly string Id;
+            public readonly string Name;
+            public readonly string Qualifier;
+
+            public PersonRow(Contracts.SyncTable table, Contracts.SyncRow row, int key, int name) {
+                Table = table;
+                Row = row;
+                Key = key;
+                NameColumn = name;
+                Id = row.ValueAt(key);
+                var value = row.ValueAt(name);
+                Name = PersonnelPlugin.Name(value);
+                var match = value.StartsWith("=", StringComparison.Ordinal) ? Match.Empty : NameSuffix.Match(value);
+                Qualifier = match.Success ? match.Groups["id"].Value : "";
+            }
+
+            public string Describe() {
+                return Table.Book + " · " + Table.Sheet + "!" + Row.Number
+                    + " | ІПН " + Id + " | " + Row.ValueAt(NameColumn);
+            }
+        }
+
+        private static void Conflict(
+            Contracts.SyncPlan plan, string key, string reason,
+            IEnumerable<PersonRow> movement, IEnumerable<PersonRow> source) {
+            var details = movement.Select(item => item.Describe()).Concat(source.Select(item => item.Describe()));
+            plan.Groups.Add(new Contracts.SyncGroup {
+                Description = key,
+                Conflict = reason + Environment.NewLine + String.Join(Environment.NewLine, details)
+            });
         }
 
         private static Contracts.SyncRow Unique(IEnumerable<Contracts.SyncRow> rows) {

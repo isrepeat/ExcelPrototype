@@ -518,6 +518,8 @@ async function filterCurrent() {
 }
 
 function selectPage(section, updateHistory = true) {
+    document.querySelector('.source-files').textContent = section.dataset.sourceFiles;
+    document.title = section.dataset.pageTitle;
     cancelActiveResize?.();
     filterVersion++;
     boundaryObserver.disconnect();

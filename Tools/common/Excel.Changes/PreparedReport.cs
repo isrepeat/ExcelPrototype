@@ -15,6 +15,7 @@ namespace ExcelTools.Changes {
     }
 
     public sealed class SheetDiff {
+        public string Book;
         public string Name;
         public string OldSheet;
         public string NewSheet;
@@ -36,6 +37,12 @@ namespace ExcelTools.Changes {
         }
     }
 
+    public sealed class ReportWorkbook {
+        public string Name;
+        public string Before;
+        public string After;
+    }
+
     [XmlRoot("preparedReport")]
     public sealed class PreparedReport {
         [XmlAttribute("version")]
@@ -48,6 +55,10 @@ namespace ExcelTools.Changes {
         public string StagedWorkbook;
         public string OldFile;
         public string NewFile;
+        public string SourceFile;
+        public bool Preview;
+        public List<string> Conflicts;
+        public List<ReportWorkbook> Workbooks;
         public List<SheetDiff> Differences;
 
         public void Run(string executable) {
