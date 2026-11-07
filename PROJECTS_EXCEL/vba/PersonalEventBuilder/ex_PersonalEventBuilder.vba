@@ -324,6 +324,14 @@ Private Sub private_FocusField(ByVal index As Long)
     If Not context.TryGetElementArea(target, area) Then
         Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.FocusTargetUnavailable"), "{field}", target)
     End If
+    If index = 2 Then
+        If Not Application.Intersect(Application.ActiveCell, area) Is Nothing Then
+            target = ex_PEB_Export.fn_Config("hotkeys.focus." & VBA.CStr(index) & ".nextTarget")
+            If Not context.TryGetElementArea(target, area) Then
+                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.FocusTargetUnavailable"), "{field}", target)
+            End If
+        End If
+    End If
     If area.EntireRow.Hidden Or area.EntireColumn.Hidden Then GoTo Cleanup
     area.Cells(1, 1).Select
 Cleanup:

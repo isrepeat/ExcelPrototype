@@ -1610,6 +1610,7 @@ value	PersonalEventBuilder::hotkeys.focus.1.key	^{97}
 value	PersonalEventBuilder::hotkeys.focus.1.target	PersonName_input
 value	PersonalEventBuilder::hotkeys.focus.2.key	^{98}
 value	PersonalEventBuilder::hotkeys.focus.2.target	ReportName_input
+value	PersonalEventBuilder::hotkeys.focus.2.nextTarget	IncomingNumber_input
 value	PersonalEventBuilder::hotkeys.focus.3.key	^{99}
 value	PersonalEventBuilder::hotkeys.focus.3.target	Document_input
 value	PersonalEventBuilder::hotkeys.preview	^3
