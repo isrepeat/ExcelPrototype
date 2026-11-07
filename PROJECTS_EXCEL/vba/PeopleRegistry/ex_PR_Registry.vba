@@ -292,6 +292,7 @@ Private Sub private_WriteHistory( _
     Dim cell As Range
     Dim mutationStarted As Boolean
     Dim appendOnly As Boolean
+    Dim reapplyFilter As Boolean
     Dim stageStartedAt As Double
 
     stageStartedAt = Timer
@@ -301,6 +302,7 @@ Private Sub private_WriteHistory( _
         original = table.DataBodyRange.Value2
     End If
     On Error GoTo Failed
+    reapplyFilter = table.AutoFilter.FilterMode
     If history.Count > oldCount Then
         Set growth = table.HeaderRowRange.Offset(oldCount + 1).Resize(history.Count - oldCount, 5)
         For Each cell In growth.Cells
@@ -340,6 +342,10 @@ Private Sub private_WriteHistory( _
     Else
         table.HeaderRowRange.Offset(1).Resize(history.Count, 5).Value2 = values
     End If
+    ' Refresh visibility without clearing or reconstructing the user's filter criteria.
+    If reapplyFilter Then
+        table.AutoFilter.ApplyFilter
+    End If
     ex_Core.fn_Diagnostic_WritePerf "PR.Registry.WriteHistory", stageStartedAt
     Exit Sub
 Failed:
@@ -355,6 +361,9 @@ Failed:
         table.Resize table.HeaderRowRange.Resize(oldCount + 1, 5)
         If oldCount > 0 And Not appendOnly Then
             table.HeaderRowRange.Offset(1).Resize(oldCount, 5).Value2 = original
+        End If
+        If reapplyFilter Then
+            table.AutoFilter.ApplyFilter
         End If
         If Err.Number <> 0 Then
             rollbackDiagnostic = Err.Description
