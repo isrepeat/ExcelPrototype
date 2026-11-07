@@ -33,11 +33,12 @@ namespace ExcelTools.TableDiff {
         }
 
         public static void Write(string output, string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method,
-            List<ExcelTools.Changes.ReportWorkbook> workbooks = null, string sourceFile = null, bool preview = false, List<string> conflicts = null) {
+            List<ExcelTools.Changes.ReportWorkbook> workbooks = null, string sourceFile = null, bool preview = false, List<string> conflicts = null,
+            List<ExcelTools.Changes.SyncPreviewSection> previewSections = null) {
             Directory.CreateDirectory(Path.GetDirectoryName(output));
             var temporary = ExcelTools.Tooling.OutputPublisher.CreateTemporaryPath(output, ".html");
             try {
-                File.WriteAllText(temporary, Generate(profile, oldFile, newFile, differences, method, workbooks, sourceFile, preview, conflicts), new UTF8Encoding(false));
+                File.WriteAllText(temporary, Generate(profile, oldFile, newFile, differences, method, workbooks, sourceFile, preview, conflicts, previewSections), new UTF8Encoding(false));
                 ExcelTools.Tooling.OutputPublisher.Publish(temporary, output);
             }
             finally {
@@ -48,7 +49,32 @@ namespace ExcelTools.TableDiff {
         }
 
         private static string Generate(string profile, string oldFile, string newFile, List<ExcelTools.Changes.SheetDiff> differences, string method,
-            List<ExcelTools.Changes.ReportWorkbook> workbooks, string sourceFile, bool preview, List<string> conflicts) {
+            List<ExcelTools.Changes.ReportWorkbook> workbooks, string sourceFile, bool preview, List<string> conflicts,
+            List<ExcelTools.Changes.SyncPreviewSection> previewSections) {
+            differences = differences.ToList();
+            if (preview && previewSections != null) {
+                foreach (var section in previewSections) {
+                    if (!differences.Any(diff => diff.Book == section.Book && diff.OldSheet == section.Sheet)) {
+                        differences.Add(new ExcelTools.Changes.SheetDiff {
+                            Book = section.Book, Name = section.Book + " · " + section.Sheet,
+                            OldSheet = section.Sheet, NewSheet = section.Sheet
+                        });
+                    }
+                }
+            }
+            differences = differences
+                .GroupBy(difference => difference.Book, StringComparer.Ordinal)
+                .SelectMany(group => {
+                    var workbook = workbooks == null ? null : workbooks.SingleOrDefault(item => item.Name == group.Key);
+                    if (workbook == null || workbook.Sheets == null) {
+                        return group.AsEnumerable();
+                    }
+                    return group.OrderBy(difference => {
+                        var index = workbook.Sheets.IndexOf(difference.OldSheet);
+                        return index < 0 ? Int32.MaxValue : index;
+                    });
+                })
+                .ToList();
             var sections = new StringBuilder();
             var payloads = new StringBuilder();
             var summary = new StringBuilder("<table class=\"summary-table\"><thead><tr><th>Старый лист</th><th>Новый лист</th><th>Ключ</th><th>Порог</th><th>Изменено</th><th>Добавлено</th><th>Удалено</th><th>Было строк</th><th>Стало строк</th></tr></thead><tbody>");
@@ -62,9 +88,18 @@ namespace ExcelTools.TableDiff {
                 }
                 summary.Append("</tr>");
                 var workbook = workbooks == null ? null : workbooks.SingleOrDefault(item => item.Name == sheetDiff.Book);
+                var previewSection = !preview || previewSections == null ? null
+                    : previewSections.SingleOrDefault(item => item.Book == sheetDiff.Book && item.Sheet == sheetDiff.OldSheet);
+                var before = workbook == null ? oldFile : workbook.Before;
+                var after = workbook == null ? newFile : workbook.After;
+                if (previewSection != null) {
+                    before = previewSection.File;
+                    after = previewSection.File;
+                }
                 AppendSheet(sections, payloads, sheetDiff, "s" + index,
-                    workbook == null ? oldFile : workbook.Before,
-                    workbook == null ? newFile : workbook.After);
+                    before,
+                    after,
+                    previewSection);
             }
             summary.Append("</tbody></table>");
             return "<!doctype html><html lang=\"ru\"><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
@@ -75,7 +110,8 @@ namespace ExcelTools.TableDiff {
                 + " изменено</span><span>+ " + differences.Sum(s => s.Count("add"))
                 + " добавлено</span><span>− " + differences.Sum(s => s.Count("delete")) + " удалено</span></div></header>"
                 + "<p class=\"source-files\">" + Escape(Path.GetFileName(oldFile)) + " → " + Escape(Path.GetFileName(newFile)) + "</p>"
-                + ConflictDetails(conflicts)
+                + "<p class=\"source-context\"></p>"
+                + (previewSections == null ? ConflictDetails(conflicts) : "")
                 + "<details class=\"report-summary\"><summary>Сводка и способ сравнения</summary><div class=\"summary-scroll\">" + summary + "</div>"
                 + "<p>Сравниваются сохранённые значения и тексты формул только в указанных парах листов. Скрытые и отфильтрованные строки включены; оформление и кэшированные результаты формул не сравниваются.</p>"
                 + (method != null ? "<p>" + Escape(method) + "</p>" :
@@ -99,7 +135,7 @@ namespace ExcelTools.TableDiff {
             if (conflicts == null || conflicts.Count == 0) {
                 return "";
             }
-            var html = new StringBuilder("<details class=\"conflict-summary\" open><summary>Конфликты для ручной проверки (");
+            var html = new StringBuilder("<details class=\"conflict-summary\"><summary>Конфликты для ручной проверки (");
             html.Append(conflicts.Count).Append(")</summary>");
             foreach (var conflict in conflicts) {
                 html.Append("<pre style=\"white-space:pre-wrap;overflow-wrap:anywhere\">")
@@ -114,16 +150,42 @@ namespace ExcelTools.TableDiff {
         }
 
         private static void AppendSheet(StringBuilder output, StringBuilder payloads, ExcelTools.Changes.SheetDiff sheetDiff, string id,
-            string oldFile, string newFile) {
+            string oldFile, string newFile, ExcelTools.Changes.SyncPreviewSection previewSection) {
             var header = sheetDiff.NewHeader ?? sheetDiff.OldHeader;
             var offset = sheetDiff.NewHeader == null ? sheetDiff.OldColumnOffset : sheetDiff.NewColumnOffset;
             var columns = Enumerable.Range(0, sheetDiff.Width)
                 .Where(c => header == null || header.ValueAt(c).Length > 0
                     || (sheetDiff.OldHeader != null && sheetDiff.OldHeader.ValueAt(c).Length > 0)).ToList();
+            var comparison = Path.GetFileName(oldFile) + " → " + Path.GetFileName(newFile);
+            var title = TabFileName(oldFile) + " → " + TabFileName(newFile);
+            var context = "";
+            if (previewSection != null) {
+                comparison = previewSection.Derived ? Path.GetFileName(previewSection.File)
+                    : Path.GetFileName(previewSection.SourceFile) + " → " + Path.GetFileName(previewSection.File);
+                title = previewSection.Derived ? TabFileName(previewSection.File)
+                    : TabFileName(previewSection.SourceFile) + " → " + TabFileName(previewSection.File);
+                context = previewSection.Derived
+                    ? "Предлагаемые изменения истории по заменам ІПН. Источник — " + Path.GetFileName(previewSection.SourceFile)
+                    : "Предлагаемые обновления. В ячейке показано текущее значение и значение после синхронизации.";
+            }
             output.Append("<section id=\"").Append(id).Append("\" data-sheet-name=\"").Append(Escape(sheetDiff.Name))
-                .Append("\" data-source-files=\"").Append(Escape(Path.GetFileName(oldFile) + " → " + Path.GetFileName(newFile)))
-                .Append("\" data-page-title=\"").Append(Escape(TabFileName(oldFile) + " → " + TabFileName(newFile)))
-                .Append("\"><div class=\"sheet-heading\"><h2>").Append(Escape(sheetDiff.Name)).Append("</h2><span>Ключ: ")
+                .Append("\" data-source-files=\"").Append(Escape(comparison))
+                .Append("\" data-page-title=\"").Append(Escape(title))
+                .Append("\" data-source-context=\"").Append(Escape(context)).Append("\">");
+            if (previewSection != null) {
+                output.Append(ConflictDetails(previewSection.Conflicts));
+                if (previewSection.Items.Count > 0) {
+                    output.Append("<details class=\"report-summary\"><summary>Строки источника и основания изменений</summary>");
+                    foreach (var item in previewSection.Items) {
+                        output.Append("<pre style=\"white-space:pre-wrap;overflow-wrap:anywhere\">")
+                            .Append(Escape(item.Group + " · " + item.Field + Environment.NewLine + item.Reason
+                                + Environment.NewLine + "Назначение — " + String.Join(", ", item.Targets)
+                                + Environment.NewLine + "Источник — " + String.Join(", ", item.Sources))).Append("</pre>");
+                    }
+                    output.Append("</details>");
+                }
+            }
+            output.Append("<div class=\"sheet-heading\"><h2>").Append(Escape(sheetDiff.Name)).Append("</h2><span>Ключ: ")
                 .Append(Escape(sheetDiff.Key)).Append(" · ").Append(Percent(sheetDiff.Threshold))
                 .Append(" · ~").Append(sheetDiff.Count("change")).Append(" / +").Append(sheetDiff.Count("add"))
                 .Append(" / −").Append(sheetDiff.Count("delete")).Append("</span></div>")

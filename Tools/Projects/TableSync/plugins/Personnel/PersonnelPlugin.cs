@@ -108,10 +108,14 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
                     continue;
                 }
                 var change = new Contracts.SyncGroup {
-                    Description = replacement ? key + " → " + newKey : key
+                    Description = newName + " · " + (replacement ? key + " → " + newKey : key)
                 };
                 if (replacement && !registry.Record(change, key, newKey, newName)) {
-                    Conflict(plan, change.Description, "Переход конфликтует с историей PeopleRegistry.", relatedMovement, relatedSource);
+                    var conflict = Conflict(plan, change.Description, "Переход конфликтует с историей PeopleRegistry.", relatedMovement, relatedSource);
+                    conflict.ConflictTables.Clear();
+                    conflict.ConflictTables.Add(history);
+                    conflict.DerivedConflict = true;
+                    conflict.Conflict += Environment.NewLine + registry.Describe(key, newKey);
                     continue;
                 }
                 foreach (var item in group) {
@@ -119,14 +123,24 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
                         Add(change, item.Table, item.Row.Number, item.Key, newKey);
                     }
                     var before = item.Row.ValueAt(item.NameColumn);
-                    if (item.Table == list
-                        && !before.StartsWith("=", StringComparison.Ordinal)
+                    if (!before.StartsWith("=", StringComparison.Ordinal)
                         && item.Name != newName) {
                         var suffix = item.Qualifier.Length > 0 && sourcePerson.Qualifier.Length == 0 ? " (" + item.Qualifier + ")" : "";
-                        Add(change, list, item.Row.Number, item.NameColumn, person.ValueAt(sourceName) + suffix);
+                        Add(change, item.Table, item.Row.Number, item.NameColumn, person.ValueAt(sourceName) + suffix);
                     }
                 }
                 if (change.Edits.Count > 0) {
+                    foreach (var edit in change.Edits) {
+                        edit.SourceTable = source;
+                        edit.SourceRow = person;
+                        if (edit.Table == history) {
+                            edit.SourceColumn = -1;
+                        }
+                        else {
+                            edit.SourceColumn = edit.Column == edit.Table.Column("ІПН") ? sourceKey : sourceName;
+                        }
+                        edit.Reason = replacement ? "Замена ІПН " + key + " → " + newKey : "ФИО отличается от ШПО";
+                    }
                     plan.Groups.Add(change);
                 }
             }
@@ -160,14 +174,17 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
             }
         }
 
-        private static void Conflict(
+        private static Contracts.SyncGroup Conflict(
             Contracts.SyncPlan plan, string key, string reason,
             IEnumerable<PersonRow> movement, IEnumerable<PersonRow> source) {
             var details = movement.Select(item => item.Describe()).Concat(source.Select(item => item.Describe()));
-            plan.Groups.Add(new Contracts.SyncGroup {
+            var conflict = new Contracts.SyncGroup {
                 Description = key,
                 Conflict = reason + Environment.NewLine + String.Join(Environment.NewLine, details)
-            });
+            };
+            conflict.ConflictTables.AddRange(movement.Select(item => item.Table).Distinct());
+            plan.Groups.Add(conflict);
+            return conflict;
         }
 
         private static Contracts.SyncRow Unique(IEnumerable<Contracts.SyncRow> rows) {
@@ -236,6 +253,15 @@ namespace ExcelTools.TableSync.Plugins.Personnel {
                 Add(group, table, next, origin, old.ValueAt(origin));
                 Add(group, table, next, date, timestamp);
                 return true;
+            }
+
+            public string Describe(string oldKey, string newKey) {
+                var rows = previous[oldKey].Concat(previous[newKey]).Concat(aliases[oldKey]).Concat(aliases[newKey]).Distinct();
+                var details = rows.Select(row => table.Book + " · " + table.Sheet + "!" + row.Number
+                    + " | " + row.ValueAt(oldColumn) + " → " + row.ValueAt(current) + " | " + row.ValueAt(name)).ToArray();
+                return details.Length == 0
+                    ? "В истории нет записи для перехода " + oldKey + " → " + newKey
+                    : String.Join(Environment.NewLine, details);
             }
         }
     }

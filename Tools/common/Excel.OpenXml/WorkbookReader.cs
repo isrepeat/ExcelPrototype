@@ -32,6 +32,15 @@ namespace ExcelTools.OpenXml {
             return String.Concat(element.Descendants(S + "t").Where(t => !t.Ancestors(S + "rPh").Any()).Select(t => t.Value));
         }
 
+        public static List<string> ReadSheetNames(string path) {
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            using (var archive = new ZipArchive(stream, ZipArchiveMode.Read)) {
+                return ReadPart(archive, "xl/workbook.xml").Root.Element(S + "sheets").Elements(S + "sheet")
+                    .Select(sheet => (string)sheet.Attribute("name"))
+                    .ToList();
+            }
+        }
+
         public static ExcelTools.Tables.WorkbookSnapshot Read(string path) {
             return Read(path, null);
         }

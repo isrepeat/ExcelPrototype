@@ -102,7 +102,7 @@ namespace ExcelTools.TableDiff {
                     throw new InvalidDataException("Invalid standalone prepared report.");
                 }
                 HtmlDiffWriter.Write(report.Output, report.ReportProfile, report.OldFile, report.NewFile, report.Differences, report.Method,
-                    report.Workbooks, report.SourceFile, report.Preview, report.Conflicts);
+                    report.Workbooks, report.SourceFile, report.Preview, report.Conflicts, report.PreviewSections);
                 return;
             }
             XDocument document;

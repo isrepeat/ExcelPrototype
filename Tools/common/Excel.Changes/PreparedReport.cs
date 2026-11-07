@@ -38,9 +38,32 @@ namespace ExcelTools.Changes {
     }
 
     public sealed class ReportWorkbook {
+        public List<string> Sheets;
         public string Name;
         public string Before;
         public string After;
+    }
+
+    public sealed class SyncPreviewItem {
+        public string SourceValue;
+        public string Group;
+        public string Field;
+        public string Before;
+        public string After;
+        public string Reason;
+        public bool Added;
+        public List<string> Targets = new List<string>();
+        public List<string> Sources = new List<string>();
+    }
+
+    public sealed class SyncPreviewSection {
+        public string Book;
+        public string Sheet;
+        public string File;
+        public string SourceFile;
+        public bool Derived;
+        public List<SyncPreviewItem> Items = new List<SyncPreviewItem>();
+        public List<string> Conflicts = new List<string>();
     }
 
     [XmlRoot("preparedReport")]
@@ -58,6 +81,7 @@ namespace ExcelTools.Changes {
         public string SourceFile;
         public bool Preview;
         public List<string> Conflicts;
+        public List<SyncPreviewSection> PreviewSections;
         public List<ReportWorkbook> Workbooks;
         public List<SheetDiff> Differences;
 

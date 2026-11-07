@@ -57,6 +57,10 @@ namespace ExcelTools.TableSync.Contracts {
     }
 
     public sealed class SyncEdit {
+        public SyncTable SourceTable { get; set; }
+        public SyncRow SourceRow { get; set; }
+        public int SourceColumn { get; set; }
+        public string Reason { get; set; }
         public SyncTable Table { get; private set; }
         public int Row { get; private set; }
         public int Column { get; private set; }
@@ -73,10 +77,13 @@ namespace ExcelTools.TableSync.Contracts {
     public sealed class SyncGroup {
         public string Description { get; set; }
         public string Conflict { get; set; }
+        public bool DerivedConflict { get; set; }
+        public List<SyncTable> ConflictTables { get; private set; }
         public List<SyncEdit> Edits { get; private set; }
 
         public SyncGroup() {
             Edits = new List<SyncEdit>();
+            ConflictTables = new List<SyncTable>();
         }
     }
 

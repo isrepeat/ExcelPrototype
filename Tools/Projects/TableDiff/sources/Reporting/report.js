@@ -520,6 +520,9 @@ async function filterCurrent() {
 function selectPage(section, updateHistory = true) {
     document.querySelector('.source-files').textContent = section.dataset.sourceFiles;
     document.title = section.dataset.pageTitle;
+    const sourceContext = document.querySelector('.source-context');
+    sourceContext.textContent = section.dataset.sourceContext;
+    sourceContext.hidden = !section.dataset.sourceContext;
     cancelActiveResize?.();
     filterVersion++;
     boundaryObserver.disconnect();

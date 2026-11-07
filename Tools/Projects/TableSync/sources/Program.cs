@@ -87,6 +87,7 @@ namespace ExcelTools.TableSync {
                 var tables = new List<Tuple<string, Table>>();
                 var edits = new Dictionary<string, List<ExcelTools.OpenXml.TextCellEdit>>(StringComparer.Ordinal);
                 var conflicts = new List<string>();
+                var previewSections = new List<ExcelTools.Changes.SyncPreviewSection>();
                 if (plugin == null) {
                     var sourceTable = ReadTable(books[sourceBook], Required(source, "sheet"), (string)source.Attribute("table"),
                         Required(source, "key"));
@@ -100,10 +101,10 @@ namespace ExcelTools.TableSync {
                             edits.Add(update.Book, new List<ExcelTools.OpenXml.TextCellEdit>());
                         }
                     }
-                    Plan(profile, sourceTable, updates, edits);
+                    Plan(profile, sourceTable, updates, edits, previewSections, books, sourceBook);
                 }
                 else {
-                    sourceBook = PlanPlugin(plugin, directory, books, tables, edits, conflicts);
+                    sourceBook = PlanPlugin(plugin, directory, books, tables, edits, conflicts, previewSections);
                 }
                 if (edits.Values.All(items => items.Count == 0) && conflicts.Count == 0) {
                     System.Console.WriteLine("No changes available for approval.");
@@ -114,9 +115,9 @@ namespace ExcelTools.TableSync {
                 var primary = edits.Where(pair => pair.Value.Count > 0).Select(pair => pair.Key).FirstOrDefault() ?? sourceBook;
                 WriteReport(executable, preview, reportProfile, books[primary], books[sourceBook],
                     tables.Select(item => Diff(item.Item1, item.Item2, edits[item.Item1], null)), conflicts,
-                    edits.Keys.Select(book => new ExcelTools.Changes.ReportWorkbook {
+                    books.Keys.Where(book => book != sourceBook).Select(book => new ExcelTools.Changes.ReportWorkbook {
                         Name = book, Before = books[book], After = SyncedName(books[book])
-                    }).ToList(), books[sourceBook], true);
+                    }).ToList(), books[sourceBook], true, previewSections);
                 OpenReport(preview);
                 if (edits.Values.All(items => items.Count == 0)) {
                     System.Console.WriteLine("Only conflicts were found. See the report for manual review.");
@@ -185,7 +186,8 @@ namespace ExcelTools.TableSync {
 
         private static string PlanPlugin(
             XElement config, string directory, Dictionary<string, string> books, List<Tuple<string, Table>> tables,
-            Dictionary<string, List<ExcelTools.OpenXml.TextCellEdit>> edits, List<string> conflicts) {
+            Dictionary<string, List<ExcelTools.OpenXml.TextCellEdit>> edits, List<string> conflicts,
+            List<ExcelTools.Changes.SyncPreviewSection> previewSections) {
             var assemblyPath = Resolve(config, directory, "assembly");
             var candidates = Assembly.LoadFrom(assemblyPath).GetExportedTypes()
                 .Where(candidate => candidate.IsClass
@@ -221,6 +223,14 @@ namespace ExcelTools.TableSync {
                     var message = group.Description + ": " + group.Conflict;
                     conflicts.Add(message);
                     System.Console.WriteLine("Manual review: " + message);
+                    foreach (var target in group.ConflictTables) {
+                        if (!snapshots.ContainsKey(target) || target.Book == plan.SourceBook) {
+                            throw new InvalidDataException("Conflict must reference a destination snapshot.");
+                        }
+                        var section = PreviewSection(previewSections, target.Book, target.Sheet, books[target.Book], books[plan.SourceBook]);
+                        section.Derived = group.DerivedConflict;
+                        section.Conflicts.Add(message);
+                    }
                     continue;
                 }
                 foreach (var edit in group.Edits) {
@@ -251,6 +261,25 @@ namespace ExcelTools.TableSync {
                     bookEdits.Add(new ExcelTools.OpenXml.TextCellEdit {
                         Sheet = snapshot.Sheet, Row = edit.Row, Column = edit.Column + 1, Value = edit.Value
                     });
+                    var section = PreviewSection(previewSections, snapshot.Book, snapshot.Sheet, books[snapshot.Book], books[plan.SourceBook]);
+                    var before = table.Rows.FirstOrDefault(row => row.Number == edit.Row);
+                    var sourceLocation = "";
+                    if (edit.SourceTable != null) {
+                        if (!snapshots.ContainsKey(edit.SourceTable) || edit.SourceRow == null
+                            || !edit.SourceTable.Rows.Contains(edit.SourceRow)
+                            || edit.SourceColumn < -1 || edit.SourceColumn >= edit.SourceTable.Headers.Count) {
+                            throw new InvalidDataException("Invalid source reference in plugin plan.");
+                        }
+                        sourceLocation = edit.SourceTable.Sheet + "!" + edit.SourceRow.Number;
+                        if (edit.SourceColumn >= 0) {
+                            sourceLocation += " · " + edit.SourceTable.Headers[edit.SourceColumn];
+                        }
+                    }
+                    section.Derived = edit.SourceColumn < 0;
+                    AddPreviewItem(section, group.Description, snapshot.Headers[edit.Column],
+                        before == null ? "" : before.ValueAt(edit.Column), edit.Value, edit.Reason,
+                        snapshot.Sheet + "!" + edit.Row, sourceLocation, before == null,
+                        edit.SourceColumn < 0 || edit.SourceRow == null ? null : edit.SourceRow.ValueAt(edit.SourceColumn));
                 }
             }
             foreach (var target in targets.Values) {
@@ -292,7 +321,8 @@ namespace ExcelTools.TableSync {
 
         private static void Plan(
             XElement profile, Table source, List<Update> updates,
-            Dictionary<string, List<ExcelTools.OpenXml.TextCellEdit>> edits) {
+            Dictionary<string, List<ExcelTools.OpenXml.TextCellEdit>> edits,
+            List<ExcelTools.Changes.SyncPreviewSection> previewSections, Dictionary<string, string> books, string sourceBook) {
             var fallback = profile.Elements("match").Elements("fallback").SingleOrDefault();
             var sourceKeys = source.Rows.Where(row => Valid(row.ValueAt(source.Key))).ToLookup(row => row.ValueAt(source.Key), StringComparer.Ordinal);
             var groups = updates.SelectMany(update => update.Table.Rows.Select(row => new { Update = update, Row = row }))
@@ -379,7 +409,49 @@ namespace ExcelTools.TableSync {
                 }
                 foreach (var item in pending) {
                     edits[item.Item1].Add(item.Item2);
+                    var update = updates.Single(target => target.Book == item.Item1 && target.Table.Sheet.Name == item.Item2.Sheet);
+                    var field = update.Fields.Single(column => column.Target == item.Item2.Column - 1);
+                    var before = update.Table.Rows.Single(row => row.Number == item.Item2.Row);
+                    var section = PreviewSection(previewSections, item.Item1, item.Item2.Sheet, books[item.Item1], books[sourceBook]);
+                    AddPreviewItem(section, group.Key, update.Table.Header.ValueAt(field.Target),
+                        before.ValueAt(field.Target), item.Item2.Value,
+                        keyChanged ? "Сопоставлено по резервному полю" : "Совпадение ключа",
+                        item.Item2.Sheet + "!" + item.Item2.Row,
+                        source.Sheet.Name + "!" + person.Number + " · " + source.Header.ValueAt(field.Source), false,
+                        person.ValueAt(field.Source));
                 }
+            }
+        }
+
+        private static ExcelTools.Changes.SyncPreviewSection PreviewSection(
+            List<ExcelTools.Changes.SyncPreviewSection> sections, string book, string sheet, string file, string sourceFile) {
+            var section = sections.SingleOrDefault(item => item.Book == book && item.Sheet == sheet);
+            if (section == null) {
+                section = new ExcelTools.Changes.SyncPreviewSection {
+                    Book = book, Sheet = sheet, File = file, SourceFile = sourceFile
+                };
+                sections.Add(section);
+            }
+            return section;
+        }
+
+        private static void AddPreviewItem(
+            ExcelTools.Changes.SyncPreviewSection section, string group, string field, string before, string after,
+            string reason, string target, string source, bool added, string sourceValue) {
+            var item = section.Items.FirstOrDefault(candidate => candidate.Group == group && candidate.Field == field
+                && candidate.Before == before && candidate.After == after && candidate.Reason == reason
+                && candidate.Added == added && candidate.SourceValue == sourceValue);
+            if (item == null) {
+                item = new ExcelTools.Changes.SyncPreviewItem {
+                    Group = group, Field = field, Before = before, After = after, Reason = reason, Added = added, SourceValue = sourceValue
+                };
+                section.Items.Add(item);
+            }
+            if (!item.Targets.Contains(target)) {
+                item.Targets.Add(target);
+            }
+            if (!String.IsNullOrEmpty(source) && !item.Sources.Contains(source)) {
+                item.Sources.Add(source);
             }
         }
 
@@ -456,11 +528,18 @@ namespace ExcelTools.TableSync {
         private static void WriteReport(
             string executable, string path, string profile, string before, string after,
             IEnumerable<ExcelTools.Changes.SheetDiff> differences, IEnumerable<string> conflicts = null,
-            List<ExcelTools.Changes.ReportWorkbook> workbooks = null, string sourceFile = null, bool preview = false) {
+            List<ExcelTools.Changes.ReportWorkbook> workbooks = null, string sourceFile = null, bool preview = false,
+            List<ExcelTools.Changes.SyncPreviewSection> previewSections = null) {
+            if (workbooks != null) {
+                foreach (var workbook in workbooks) {
+                    workbook.Sheets = ExcelTools.OpenXml.WorkbookReader.ReadSheetNames(workbook.Before);
+                }
+            }
             new ExcelTools.Changes.PreparedReport {
                 Output = path, ReportProfile = profile, OldFile = before, NewFile = after,
                 Workbooks = workbooks, SourceFile = sourceFile, Preview = preview,
                 Conflicts = conflicts == null ? null : conflicts.ToList(),
+                PreviewSections = previewSections,
                 Method = "Отчёт включает изменения по всем книгам профиля.", Differences = differences.ToList()
             }.Run(executable);
         }
