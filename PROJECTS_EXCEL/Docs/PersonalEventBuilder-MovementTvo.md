@@ -8,6 +8,8 @@ Read this section before interpreting, editing, migrating or exporting the Movem
 
 ### Column contract
 
+The source range in PROD and TEST is `B2:X10000`, covering the 19 business columns and four PEB link columns. `Доступ.Дата` and `Доступ.Підстава` are maintained manually and are excluded from export writes and hashes. Column mappings use header names, so inserting these columns does not change the acceptance or handover mappings.
+
 Actual headers are configured in PROD and TEST under `returnTvo.table.headers`. Do not rely on worksheet column letters or the currently selected cell.
 
 | Worksheet column | Internal field | Meaning and write rule |
