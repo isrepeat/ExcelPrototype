@@ -2636,11 +2636,7 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     End If
     If action = "PreviewWord" Then
-        success = m_pageBase.BindingContext.SetValue( _
-            "Form", _
-            "WordPreviewText", _
-            VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbLf) _
-        )
+        success = private_PublishSavedPreview(values, diagnostic)
         If Not success Then
             diagnostic = "Cannot publish the Word preview binding."
         End If
@@ -2703,6 +2699,7 @@ Private Function private_PublishSavedPreview( _
     Dim failure As String
     Dim startedAt As Double
     Dim failureNumber As Long
+    Dim previewStyle As String
 
     On Error GoTo EH
     startedAt = VBA.Timer
@@ -2712,9 +2709,15 @@ Private Function private_PublishSavedPreview( _
         Exit Function
     End If
     ' Reuse the point rendered for this save; never export a document here.
-    If values("WordPolicy") <> "Omit" Then
-        text = VBA.Replace$(VBA.CStr(ex_PEB_Export.fn_Required(values, "WordText")), VBA.vbCrLf, VBA.vbLf)
+    previewStyle = "wordPreview"
+    If values("WordPolicy") = "Omit" Then
+        previewStyle = "wordPreviewRejected"
     End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewStyle", previewStyle) Then
+        diagnostic = ex_PEB_Export.fn_Config("text.HistoryPreviewFailed")
+        Exit Function
+    End If
+    text = VBA.Replace$(VBA.CStr(ex_PEB_Export.fn_Required(values, "WordText")), VBA.vbCrLf, VBA.vbLf)
     private_PublishSavedPreview = m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", text)
     If Not private_PublishSavedPreview Then diagnostic = ex_PEB_Export.fn_Config("text.HistoryPreviewFailed")
     ex_Core.fn_Diagnostic_WritePerf "History.Preview.Publish | Success=" & VBA.CStr(private_PublishSavedPreview), startedAt

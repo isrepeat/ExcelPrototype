@@ -467,8 +467,10 @@ Public Function TryPrepare( _
         End If
         values("TemplateName") = templateName
         If ex_PEB_Export.fn_ApplyWordRejection(m_pebWordTemplates.Definition(templateName), values) Then
-            TryPrepare = True
-            GoTo CleanupPrepare
+            If prepareOutput Then
+                TryPrepare = True
+                GoTo CleanupPrepare
+            End If
         End If
         Set groupTemplate = m_pebWordTemplates.GroupTemplate(templateName)
         values("WordGrouped") = Not groupTemplate Is Nothing
@@ -488,7 +490,9 @@ Public Function TryPrepare( _
             Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
         End If
         values("WordText") = rendered
-        values("WordOutcome") = "Success"
+        If values("WordPolicy") <> "Omit" Then
+            values("WordOutcome") = "Success"
+        End If
         If prepareOutput Then
             If ex_PEB_Export.fn_Config("export.Word.documentMode") = "template" Then
                 private_PrepareOrderDocument values

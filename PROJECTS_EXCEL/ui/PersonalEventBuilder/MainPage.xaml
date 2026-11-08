@@ -396,7 +396,7 @@
                     column="12"
                     rowSpan="6"
                     columnSpan="7"
-                    style="wordPreview"
+                    style="{Binding Path=Form.WordPreviewStyle}"
                     text="{Binding Path=Form.WordPreviewText}"/>
 
     <stackPanel name="EventWorkspace"
@@ -797,6 +797,16 @@
                   paddingRight="10"
                   backColor="#262626"
                   textColor="#FFFFFF"
+                  fontName="Calibri"
+                  fontSize="11"
+                  horizontal="left"
+                  vertical="top"
+                  overflow="wrap"/>
+    <controlStyle name="wordPreviewRejected"
+                  paddingLeft="10"
+                  paddingRight="10"
+                  backColor="#262626"
+                  textColor="#808080"
                   fontName="Calibri"
                   fontSize="11"
                   horizontal="left"

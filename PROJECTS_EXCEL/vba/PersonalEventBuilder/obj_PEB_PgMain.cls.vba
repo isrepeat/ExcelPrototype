@@ -192,6 +192,7 @@ Private Function private_TryRegisterBindings() As Boolean
     If Not uiBindingContext.SetValue("Settings", "CandidateSelectionMode", configuredText) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "AbsenceType", vbNullString) Then Exit Function
     If Not uiBindingContext.SetValue("Form", "WordPreviewText", vbNullString) Then Exit Function
+    If Not uiBindingContext.SetValue("Form", "WordPreviewStyle", "wordPreview") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "HistoryVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "ConflictsVisibility", "Collapsed") Then Exit Function
     If Not uiBindingContext.SetValue("Form", "MedicalVisibility", "Collapsed") Then Exit Function
