@@ -321,11 +321,13 @@ Public Function TryPrepare( _
     If VBA.Len(ex_PEB_Export.fn_Text(values("EventDate"))) = 0 Then
         values("EventDate") = values("AcceptedOrderDate")
     End If
-    If exporter = "Word" And values("WordPolicy") = "Omit" And Not history Then
+    If exporter = "Word" And values("WordPolicy") = "Omit" Then
         values("WordOutcome") = "Omitted"
         values("WordText") = VBA.vbNullString
-        TryPrepare = True
-        GoTo CleanupPrepare
+        If prepareOutput And Not history Then
+            TryPrepare = True
+            GoTo CleanupPrepare
+        End If
     End If
     requiredKey = "export." & exporter & "." & mode & ".required"
     If history Then requiredKey = "history.required"
@@ -410,11 +412,9 @@ Public Function TryPrepare( _
     End If
     If exporter = "Word" Then
         ' XML задаёт текст пунктов, конфигурация задаёт источники и соответствия полей.
-        If values("WordPolicy") <> "Omit" Then
-            For index = 1 To ex_PEB_Export.fn_Count("export.Word." & mode & ".lookups.count")
-                private_Enrich values, "export.Word." & mode & ".lookups." & VBA.CStr(index)
-            Next index
-        End If
+        For index = 1 To ex_PEB_Export.fn_Count("export.Word." & mode & ".lookups.count")
+            private_Enrich values, "export.Word." & mode & ".lookups." & VBA.CStr(index)
+        Next index
         ex_Core.fn_Diagnostic_WritePerf "Preview.Lookups", stageStartedAt
         stageStartedAt = VBA.Timer
         detailStartedAt = VBA.Timer
@@ -432,10 +432,6 @@ Public Function TryPrepare( _
             End If
         End If
         ex_Core.fn_Diagnostic_WritePerf "Preview.ReturnTvo", detailStartedAt
-        If history And values("WordPolicy") = "Omit" Then
-            TryPrepare = True
-            GoTo CleanupPrepare
-        End If
         detailStartedAt = VBA.Timer
         If m_pebWordTemplates Is Nothing Then
             Set m_pebWordTemplates = New obj_PEB_WordTemplates
@@ -467,7 +463,7 @@ Public Function TryPrepare( _
         End If
         values("TemplateName") = templateName
         If ex_PEB_Export.fn_ApplyWordRejection(m_pebWordTemplates.Definition(templateName), values) Then
-            If prepareOutput Then
+            If prepareOutput And Not history Then
                 TryPrepare = True
                 GoTo CleanupPrepare
             End If
@@ -493,7 +489,7 @@ Public Function TryPrepare( _
         If values("WordPolicy") <> "Omit" Then
             values("WordOutcome") = "Success"
         End If
-        If prepareOutput Then
+        If prepareOutput And values("WordPolicy") <> "Omit" Then
             If ex_PEB_Export.fn_Config("export.Word.documentMode") = "template" Then
                 private_PrepareOrderDocument values
                 TryPrepare = True
