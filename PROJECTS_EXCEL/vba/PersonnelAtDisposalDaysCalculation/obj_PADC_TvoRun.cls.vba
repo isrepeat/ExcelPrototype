@@ -86,6 +86,7 @@ Public Sub Calculate()
     Dim isObject As Boolean
     Dim errorText As String
     Dim previousStatusBar As Variant
+    Dim lastAssignmentRow As Long
 
     private_EnsureReady
     If m_running Then
@@ -141,13 +142,22 @@ Public Sub Calculate()
     Set absences = private_IndexAbsences(events)
     m_runContext.CompleteStep
     assignments = data.Values
-    Set rows = New Collection
-    m_runContext.BeginStep m_configuration.GetText("progress.Calculation"), data.RowCount
-    For rowIndex = 1 To data.RowCount
-        If VBA.Len(private_Text(assignments(rowIndex, 5))) > 0 Then
-            result = private_CalculateRow(assignments, rowIndex, absences, cutoff)
-            rows.Add result
+    For rowIndex = data.RowCount To 1 Step -1
+        For columnIndex = 1 To 12
+            If VBA.Len(private_Text(assignments(rowIndex, columnIndex))) > 0 Then
+                lastAssignmentRow = rowIndex
+                Exit For
+            End If
+        Next columnIndex
+        If lastAssignmentRow > 0 Then
+            Exit For
         End If
+    Next rowIndex
+    Set rows = New Collection
+    m_runContext.BeginStep m_configuration.GetText("progress.Calculation"), lastAssignmentRow
+    For rowIndex = 1 To lastAssignmentRow
+        result = private_CalculateRow(assignments, rowIndex, absences, cutoff)
+        rows.Add result
         m_runContext.ReportProgress rowIndex
     Next rowIndex
     m_runContext.CompleteStep
@@ -155,10 +165,10 @@ Public Sub Calculate()
     m_headers = VBA.Array(m_configuration.GetText("tvo.header.Rank"), m_configuration.GetText("header.FullName"), _
         m_configuration.GetText("header.TaxId"), m_configuration.GetText("tvo.header.OwnPosition"), m_configuration.GetText("tvo.header.Position"), _
         m_configuration.GetText("tvo.header.Duration"), m_configuration.GetText("tvo.header.AccessOrder"), m_configuration.GetText("tvo.header.StartOrder"), _
-        m_configuration.GetText("tvo.header.StartDate"), m_configuration.GetText("tvo.header.StreakStart"), _
-        m_configuration.GetText("tvo.header.ThresholdDate"), m_configuration.GetText("tvo.header.Days"), _
+        m_configuration.GetText("tvo.header.StartDate"), m_configuration.GetText("tvo.header.ThresholdDate"), _
         m_configuration.GetText("tvo.header.PlannedEndDate"), m_configuration.GetText("tvo.header.EndDate"), _
-        m_configuration.GetText("tvo.header.EndOrder"), m_configuration.GetText("header.Periods"))
+        m_configuration.GetText("tvo.header.EndOrder"), m_configuration.GetText("tvo.header.StreakStart"), _
+        m_configuration.GetText("tvo.header.Days"), m_configuration.GetText("header.Periods"))
     Set m_resultTable = New obj_UiRawTable
     If rows.Count = 0 Then
         If Not m_resultTable.InitializeEmpty(m_headers) Then
@@ -345,7 +355,29 @@ Private Function private_CalculateRow( _
     Dim periodEnd As Long
     Dim periodText As String
     Dim periods As String
+    Dim sourceColumns As Variant
+    Dim outputColumns As Variant
+    Dim fieldIndex As Long
+    Dim dateColumns As Variant
 
+    sourceColumns = VBA.Array(1, 2, 3, 8, 4, 10, 9, 5, 11)
+    outputColumns = VBA.Array(0, 1, 2, 3, 4, 5, 6, 7, 12)
+    For fieldIndex = 0 To UBound(sourceColumns)
+        result(outputColumns(fieldIndex)) = private_Text(assignments(rowIndex, sourceColumns(fieldIndex)))
+    Next fieldIndex
+    sourceColumns = VBA.Array(6, 12, 7)
+    dateColumns = VBA.Array(8, 10, 11)
+    For fieldIndex = 0 To UBound(sourceColumns)
+        If VBA.Len(private_Text(assignments(rowIndex, sourceColumns(fieldIndex)))) > 0 Then
+            result(dateColumns(fieldIndex)) = VBA.Format$(VBA.CDate(m_validation.ReadDay( _
+                assignments(rowIndex, sourceColumns(fieldIndex)), False, "source.tvo #" & rowIndex)), m_configuration.GetText("format.date"))
+        End If
+    Next fieldIndex
+    If VBA.StrComp(private_Text(assignments(rowIndex, 10)), m_configuration.GetText("tvo.ignoredDuration"), vbTextCompare) = 0 Or _
+            VBA.Len(private_Text(assignments(rowIndex, 5))) = 0 Then
+        private_CalculateRow = result
+        Exit Function
+    End If
     taxId = m_validation.RequiredText(assignments(rowIndex, 3), "source.tvo #" & rowIndex)
     fullName = m_validation.RequiredText(assignments(rowIndex, 2), "source.tvo #" & rowIndex)
     position = m_validation.RequiredText(assignments(rowIndex, 4), "source.tvo #" & rowIndex)
@@ -408,14 +440,14 @@ Private Function private_CalculateRow( _
             If interval(1) > cursor Then
                 If interval(0) > cursor And threshold = 0 Then
                     If interval(0) - cursor >= 30 Then
-                        threshold = cursor + 29
+                        threshold = cursor + 30
                     End If
                 End If
                 cursor = interval(1)
             ElseIf interval(0) = interval(1) And interval(0) >= cursor Then
                 ' A same-day departure still resets the counter on the return day.
                 If threshold = 0 And interval(0) - cursor >= 30 Then
-                    threshold = cursor + 29
+                    threshold = cursor + 30
                 End If
                 cursor = interval(1)
             End If
@@ -423,14 +455,14 @@ Private Function private_CalculateRow( _
     End If
     If cursor < limit Then
         streakDays = limit - cursor
-        result(9) = VBA.Format$(VBA.CDate(cursor), m_configuration.GetText("format.date"))
+        result(13) = VBA.Format$(VBA.CDate(cursor), m_configuration.GetText("format.date"))
         If threshold = 0 And streakDays >= 30 Then
-            threshold = cursor + 29
+            threshold = cursor + 30
         End If
     End If
     If threshold = 0 Then
-        If cursor < limit And endDay > cursor + 29 And cursor + 29 <= 2958465 Then
-            threshold = cursor + 29
+        If cursor < limit And endDay >= cursor + 30 And cursor + 30 <= 2958465 Then
+            threshold = cursor + 30
         End If
     End If
     result(0) = private_Text(assignments(rowIndex, 1))
@@ -443,20 +475,20 @@ Private Function private_CalculateRow( _
     result(7) = private_Text(assignments(rowIndex, 5))
     result(8) = VBA.Format$(VBA.CDate(startDay), m_configuration.GetText("format.date"))
     If endDay < 2958466 Then
-        result(13) = VBA.Format$(VBA.CDate(endDay), m_configuration.GetText("format.date"))
+        result(11) = VBA.Format$(VBA.CDate(endDay), m_configuration.GetText("format.date"))
     End If
-    result(11) = streakDays
+    result(14) = streakDays
     If threshold > 0 Then
-        result(10) = VBA.Format$(VBA.CDate(threshold), m_configuration.GetText("format.date"))
+        result(9) = VBA.Format$(VBA.CDate(threshold), m_configuration.GetText("format.date"))
     End If
     If VBA.Len(private_Text(assignments(rowIndex, 12))) > 0 Then
         plannedEnd = m_validation.ReadDay(assignments(rowIndex, 12), False, "source.tvo.columns.PlannedEndDate #" & rowIndex)
         If plannedEnd > 2958465 - absenceDays Then
             private_Invalid "source.tvo.columns.PlannedEndDate #" & rowIndex
         End If
-        result(12) = VBA.Format$(VBA.CDate(plannedEnd + absenceDays), m_configuration.GetText("format.date"))
+        result(10) = VBA.Format$(VBA.CDate(plannedEnd + absenceDays), m_configuration.GetText("format.date"))
     End If
-    result(14) = private_Text(assignments(rowIndex, 11))
+    result(12) = private_Text(assignments(rowIndex, 11))
     result(15) = periods
     private_CalculateRow = result
 End Function

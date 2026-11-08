@@ -318,8 +318,8 @@ Private Function private_SelectMode( _
             If m_tvoRows Is Nothing Then
                 headerKeys = VBA.Array("tvo.header.Rank", "header.FullName", "header.TaxId", "tvo.header.OwnPosition", "tvo.header.Position", _
                     "tvo.header.Duration", "tvo.header.AccessOrder", "tvo.header.StartOrder", _
-                    "tvo.header.StartDate", "tvo.header.StreakStart", "tvo.header.ThresholdDate", _
-                    "tvo.header.Days", "tvo.header.PlannedEndDate", "tvo.header.EndDate", "tvo.header.EndOrder", "header.Periods")
+                    "tvo.header.StartDate", "tvo.header.ThresholdDate", "tvo.header.PlannedEndDate", _
+                    "tvo.header.EndDate", "tvo.header.EndOrder", "tvo.header.StreakStart", "tvo.header.Days", "header.Periods")
                 For headerIndex = 0 To 15
                     If Not private_TryReadConfiguration(VBA.CStr(headerKeys(headerIndex)), statusText) Then
                         Exit Function

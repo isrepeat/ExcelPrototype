@@ -257,13 +257,13 @@ Public Sub CreateTvoWorkbook( _
     table.DataBodyRange.HorizontalAlignment = xlCenter
     table.DataBodyRange.NumberFormat = "@"
     table.ListColumns(2).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
-    table.ListColumns(11).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
-    For Each columnIndex In VBA.Array(10, 12, 13, 16)
+    table.ListColumns(10).DataBodyRange.Font.Color = private_Color(VBA.CStr(palette(5)))
+    For Each columnIndex In VBA.Array(11, 14, 15, 16)
         table.ListColumns(VBA.CLng(columnIndex)).Range.Font.Color = private_Color(m_configuration.GetText("export.computedColor"))
     Next columnIndex
-    table.ListColumns(12).DataBodyRange.NumberFormat = "0"
+    table.ListColumns(15).DataBodyRange.NumberFormat = "0"
     stage = "Dates"
-    For Each columnIndex In VBA.Array(9, 10, 11, 13, 14)
+    For Each columnIndex In VBA.Array(9, 10, 11, 12, 14)
         table.ListColumns(VBA.CLng(columnIndex)).DataBodyRange.NumberFormat = m_configuration.GetText("format.date")
         For i = 1 To count
             dateText = VBA.CStr(values(i, VBA.CLng(columnIndex)))
