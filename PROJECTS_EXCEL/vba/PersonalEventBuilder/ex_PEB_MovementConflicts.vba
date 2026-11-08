@@ -102,7 +102,8 @@ Public Function fn_Resolve( _
     ByVal fields As Object, _
     ByVal cells As Object, _
     ByVal basisHeader As String, _
-    ByVal hashHeader As String _
+    ByVal hashHeader As String, _
+    Optional ByVal trustedBaseline As Boolean = False _
 ) As Boolean
     Dim field As Variant
     Dim state As Variant
@@ -114,8 +115,6 @@ Public Function fn_Resolve( _
     Dim manual As Boolean
     Dim resolved As Boolean
     Dim validHash As Boolean
-    Dim previousFields As Object
-    Dim completeState As Boolean
 #If TVO_DEPRECATED Then
     Dim legacyFields As Object
     Dim fieldKey As String
@@ -129,7 +128,7 @@ Public Function fn_Resolve( _
         fn_Resolve = True
         Exit Function
     End If
-    validHash = ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), fields, cells)
+    validHash = trustedBaseline Or ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), fields, cells)
 #If TVO_DEPRECATED Then
     ' Older exports did not own TVO columns; migrate only empty, untracked cells.
     If Not validHash And side = "Opening" Then
@@ -144,22 +143,6 @@ Public Function fn_Resolve( _
         validHash = ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), legacyFields, cells)
     End If
 #End If
-    Set previousFields = VBA.CreateObject("Scripting.Dictionary")
-    completeState = True
-    For Each field In fields.Keys
-        key = private_Key(action("RowId"), side, field)
-        If m_states.Exists(key) Then
-            state = m_states(key)
-            previousFields.Add field, private_Decode(VBA.CStr(state(2)))
-        Else
-            completeState = False
-        End If
-    Next field
-    If completeState Then
-        If Not ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), previousFields) Then
-            ex_PEB_MovementLinks.fn_Fail "AppliedMovementChanged", action("RowId") & "/" & hashHeader
-        End If
-    End If
     fn_Resolve = True
     For Each field In fields.Keys
         key = private_Key(action("RowId"), side, field)
@@ -174,25 +157,22 @@ Public Function fn_Resolve( _
             state = m_states(key)
             state(1) = ex_PEB_MovementLinks.fn_CellValueToken(private_Decode(VBA.CStr(state(1))))
             state(2) = ex_PEB_MovementLinks.fn_CellValueToken(private_Decode(VBA.CStr(state(2))))
-            manual = (actual <> state(2))
+            manual = (actual <> state(2) And actual <> generated)
             If Not manual And state(1) = generated Then
                 If state(1) <> state(2) Then
-                    If field <> basisHeader Then
-                        ex_PEB_MovementLinks.fn_Fail "AppliedEventChanged", action("RowId") & "/" & field
-                    End If
                     fields(field) = cells(field)
                 End If
             End If
         ElseIf Not validHash Then
-            ' A legacy hash cannot identify the changed field. Only the basis can be explicitly accepted.
-            manual = (actual <> generated Or field = basisHeader)
+            ' Without a field baseline, ask only about differing values.
+            manual = (actual <> generated)
         End If
         If manual Then
-            If field <> basisHeader Then
-                ex_PEB_MovementLinks.fn_Fail "AppliedMovementChanged", action("RowId") & "/" & field
-            End If
             Set item = VBA.CreateObject("Scripting.Dictionary")
             item.Add "EventRowId", action("RowId")
+            item.Add "PersonName", action("PersonName")
+            item.Add "EventId", action("EventId")
+            item.Add "EventName", action("EventName")
             item.Add "Revision", action("Revision")
             item.Add "HistoryStamp", action("HistoryStamp")
             item.Add "Target", m_target
@@ -224,7 +204,6 @@ Public Function fn_Resolve( _
         End If
 NextResolvedField:
     Next field
-    fn_Resolve = True
 End Function
 
 Public Function fn_DiffReverted( _
@@ -312,6 +291,7 @@ Public Sub fn_Record( _
     Dim pending As New Collection
     Dim decisions As New Collection
     Dim startedAt As Double
+    Dim group As Object
 
     startedAt = VBA.Timer
     Set table = fn_Table(book, "history.fieldState")
@@ -356,6 +336,34 @@ Public Sub fn_Record( _
                     Next field
                 End If
             Next side
+        End If
+        If action.Exists("TvoFieldGroups") Then
+            For Each group In action("TvoFieldGroups")
+                Set fields = group("Accepted")
+                Set original = group("Generated")
+                For Each field In fields.Keys
+                    data(1, 1) = action("RowId")
+                    data(1, 2) = "Movement"
+                    data(1, 3) = target
+                    data(1, 4) = group("Side")
+                    data(1, 5) = field
+                    data(1, 6) = action("Revision")
+                    data(1, 7) = ex_PEB_MovementLinks.fn_ValueToken(original(field))
+                    data(1, 8) = ex_PEB_MovementLinks.fn_ValueToken(fields(field))
+                    key = private_Key(action("RowId"), group("Side"), field)
+                    unchanged = False
+                    If Not m_states Is Nothing Then
+                        If m_states.Exists(key) Then
+                            previous = m_states(key)
+                            unchanged = (VBA.CStr(previous(0)) = VBA.CStr(data(1, 6)) And _
+                                previous(1) = data(1, 7) And previous(2) = data(1, 8))
+                        End If
+                    End If
+                    If Not unchanged Then
+                        pending.Add data
+                    End If
+                Next field
+            Next group
         End If
     Next action
     private_WriteRows table, pending

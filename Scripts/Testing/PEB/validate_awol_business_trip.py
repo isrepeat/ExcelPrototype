@@ -22,22 +22,28 @@ def main():
             check_module_sections(selected)
     placeholder = procedure(sources['Planner'], 'private_PlanReturnPlaceholder')
     assert 'identifier = action("RowId") & "/Return"' in placeholder
-    assert placeholder.index('Exit Sub') < placeholder.index('Set writes = private_CopyFields')
+    assert placeholder.index('fn_Resolve action, "Return"') < placeholder.index('Exit Sub')
+    assert 'fn_Pending(CStr(action("RowId")))' in placeholder
+    assert 'group.Add "Side", "Return"' in placeholder
+    assert 'action.Add "PlaceholderBefore", before' in placeholder
     assert 'cells(personHeader) <> action("PersonId") Or cells(eventHeader) <> statusName' in placeholder
     assert 'writes(ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument")) = VBA.vbNullString' in placeholder
     assert 'For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")' in placeholder
     assert 'writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")' in placeholder
     assert 'rows.Add row' in placeholder and 'action.Add "PlaceholderWrites", writes' in placeholder
     apply = procedure(sources['Planner'], 'private_Apply')
-    assert 'closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport")) = eventDate' in apply
+    assert 'closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = eventDate' in apply
     assert apply.index('private_PlanReturnPlaceholder rows') < apply.index('private_Existing(rows')
     assert 'values("EventId") = "MoveFromAwolToBusinessTrip"' in apply
     assert 'action.Exists("PlaceholderWrites") And action("Status") = "AlreadyApplied"' in apply
     writer = procedure(sources['Writer'], 'fn_Apply')
     assert writer.index('action.Exists("PlaceholderWrites")') < writer.index('private_Extension(target, addedRows)')
     assert 'private_Capture target, action("PlaceholderIndex")' in writer
+    assert 'True, action("PlaceholderBefore")(key)' in writer
+    assert 'If action("PlaceholderIndex") > target.ListRows.Count Then' in writer
     stamp = procedure(sources['Links'], 'fn_PlanStamp')
     assert '"PlaceholderWrites"' in stamp and '"PlaceholderIndex"' in stamp
+    assert '"PlaceholderBefore"' in stamp
     for filename in ('wsConfig.txt', 'wsConfig.test.txt'):
         settings = parse_config(ROOT / 'PROJECTS_EXCEL/config/PersonalEventBuilder' / filename)
         plans = load_native_plans(settings)

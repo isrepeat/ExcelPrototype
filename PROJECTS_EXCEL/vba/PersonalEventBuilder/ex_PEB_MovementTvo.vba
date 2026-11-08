@@ -182,14 +182,13 @@ Public Sub fn_Prepare( _
     Dim basis As String
     Dim originalCount As Long
     Dim actors As Object
-    Dim existing As Object
     Dim lowerDate As Double
-    Dim existingStartDate As Double
     Dim requested As Collection
     Dim replacedPerson As String
     Dim linked As Collection
     Dim linkedRow As Object
     Dim replayOpening As Boolean
+    Dim hasClosedSegments As Boolean
 
     Set table = private_Target(target.Parent.Parent)
     If table.Parent.ProtectContents Or Not table.ShowHeaders Then
@@ -233,6 +232,19 @@ Public Sub fn_Prepare( _
             " | Operation=" & operation & " | Date=" & Format$(eventDate, "yyyy-mm-dd")
         Set linked = private_LinkedRows(model, CStr(action("RowId")), "Opening")
         If operation = "append" And linked.Count > 0 Then
+            hasClosedSegments = False
+            For Each linkedRow In linked
+                If Len(ex_PEB_Export.fn_Text(linkedRow("EndDate"))) > 0 Or _
+                        Len(ex_PEB_Export.fn_Text(linkedRow("EndOrder"))) > 0 Or _
+                        Len(ex_PEB_Export.fn_Text(linkedRow("ClosingId"))) > 0 Then
+                    hasClosedSegments = True
+                End If
+            Next linkedRow
+            If action("EventStatus") <> "Cancelled" Then
+                If Not private_ResolveStructure(linked, requested, action, hasClosedSegments) Then
+                    GoTo NextAction
+                End If
+            End If
             ' Rebuild only owned, unchanged and unclosed segments in the in-memory transaction.
             For Each linkedRow In linked
                 private_CheckStamp linkedRow, "Opening", CStr(action("RowId"))
@@ -259,9 +271,6 @@ Public Sub fn_Prepare( _
                 Set chain = linked
                 For Each linkedRow In chain
                     private_CheckStamp linkedRow, "Closing", CStr(action("RowId"))
-                    If ex_PEB_MovementSource.fn_OrderDate(linkedRow("EndDate")) <> CDbl(eventDate) Then
-                        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
-                    End If
                 Next linkedRow
             End If
         End If
@@ -305,7 +314,8 @@ Public Sub fn_Prepare( _
                         CStr(row("ClosingId")) <> CStr(action("RowId")) Then
                     ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
                 End If
-                If ex_PEB_MovementSource.fn_OrderDate(row("EndDate")) > CDbl(eventDate) Then
+                If ex_PEB_MovementSource.fn_OrderDate(row("EndDate")) > CDbl(eventDate) And _
+                        ex_PEB_Export.fn_Text(row("ClosingId")) <> CStr(action("RowId")) Then
                     ex_PEB_MovementLinks.fn_Fail "TvoHasLaterHandover", action("RowId")
                 End If
                 row("EndDate") = eventDate
@@ -340,16 +350,7 @@ Public Sub fn_Prepare( _
                     ex_PEB_MovementLinks.fn_Fail "InvalidTvoChain", action("RowId")
                 End If
                 actors.Add CStr(item("PersonId")), True
-                For Each existing In model
-                    If StrComp(ex_PEB_Export.fn_Text(existing("PositionCode")), CStr(item("PositionCode")), vbTextCompare) = 0 Then
-                        If fn_IsStarted(existing("StartOrder"), existing("StartDate"), existingStartDate, CStr(item("PositionCode"))) Then
-                            If ex_PEB_MovementSource.fn_OrderDate(existing("EndDate")) = 0 Or _
-                                    ex_PEB_MovementSource.fn_OrderDate(existing("EndDate")) > CDbl(eventDate) Then
-                                ex_PEB_MovementLinks.fn_Fail "OverlappingTvoAssignment", CStr(item("PositionCode"))
-                            End If
-                        End If
-                    End If
-                Next existing
+                ' Validate overlaps only after resolving all field choices.
                 Set row = private_NewRow(model, originals)
                 row("PersonId") = item("PersonId")
                 row("PersonName") = item("PersonName")
@@ -380,6 +381,30 @@ NextDuty:
         End If
 NextAction:
     Next action
+    For index = 1 To model.Count
+        Set row = model(index)
+        Set original = originals(index)
+        If row.Exists("Action") Then
+            Set action = row("Action")
+            If ex_PEB_Export.fn_Text(row("OpeningId")) = CStr(action("RowId")) Then
+                private_ResolveFields row, original, action, "Opening"
+            End If
+            If ex_PEB_Export.fn_Text(row("ClosingId")) = CStr(action("RowId")) Then
+                private_ResolveFields row, original, action, "Closing"
+            End If
+        End If
+    Next index
+    For Each action In plan("Actions")
+        If ex_PEB_MovementConflicts.fn_Pending(CStr(action("RowId"))) Then
+            plan("IsReady") = False
+            plan("ConflictCount") = CLng(plan("ConflictCount")) + 1
+            action("Status") = "Conflict"
+            action("Diagnostic") = ex_PEB_Export.fn_Config("text.ConflictPending")
+        End If
+    Next action
+    If plan("IsReady") Then
+        private_ValidateResolved model
+    End If
     For index = 1 To model.Count
         Set row = model(index)
         Set original = originals(index)
@@ -707,12 +732,181 @@ Private Sub private_CheckStamp( _
     If linked <> stamped Then
         ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", identifier
     End If
-    If stamped Then
-        If CStr(row(side & "Hash")) <> private_Stamp(row, side, CStr(row(side & "Hash"))) Then
-            ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", identifier
-        End If
-    End If
+    ' Field conflicts are resolved after the desired model has been constructed.
 End Sub
+
+Private Sub private_ResolveFields( _
+    ByVal row As Object, _
+    ByVal original As Object, _
+    ByVal action As Object, _
+    ByVal side As String _
+)
+    Dim fields As Object
+    Dim generated As Object
+    Dim cells As Object
+    Dim group As Object
+    Dim groups As Collection
+    Dim names As String
+    Dim field As Variant
+    Dim header As String
+    Dim groupSide As String
+    Dim hash As String
+    Dim trusted As Boolean
+
+    Set fields = CreateObject("Scripting.Dictionary")
+    Set generated = CreateObject("Scripting.Dictionary")
+    Set cells = CreateObject("Scripting.Dictionary")
+    If side = "Opening" Then
+        names = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|StartOrder|StartBasis|PlannedEndDate|AccessOrder|Duration|Information"
+    Else
+        names = "PersonId|PositionCode|EndDate|EndOrder|EndBasis"
+    End If
+    For Each field In Split(names, "|")
+        header = private_Header(CStr(field))
+        fields.Add header, row(field)
+        generated.Add header, row(field)
+        cells.Add header, original(field)
+    Next field
+    hash = ex_PEB_Export.fn_Text(original(side & "Hash"))
+    cells.Add "LinkHash", hash
+    trusted = Len(hash) > 0
+    If trusted Then trusted = (private_Stamp(original, side, hash) = hash)
+    header = ex_PEB_Export.fn_Text(original("PositionCode"))
+    If Len(header) = 0 Then
+        header = ex_PEB_Export.fn_Text(row("PositionCode"))
+    End If
+    groupSide = "TVO." & side & "." & header
+    If Len(ex_PEB_Export.fn_Text(original("PersonId"))) > 0 Then
+        ex_PEB_MovementConflicts.fn_Resolve action, groupSide, fields, cells, vbNullString, "LinkHash", trusted
+    End If
+    For Each field In Split(names, "|")
+        row(field) = fields(private_Header(CStr(field)))
+    Next field
+    row(side & "Hash") = private_Stamp(row, side)
+    If Not action.Exists("TvoFieldGroups") Then
+        Set groups = New Collection
+        action.Add "TvoFieldGroups", groups
+    End If
+    Set group = CreateObject("Scripting.Dictionary")
+    group.Add "Side", groupSide
+    group.Add "Generated", generated
+    group.Add "Accepted", fields
+    action("TvoFieldGroups").Add group
+End Sub
+
+Private Sub private_ValidateResolved(ByVal model As Collection)
+    Dim row As Object
+    Dim other As Object
+    Dim startDate As Double
+    Dim otherStart As Double
+    Dim endDate As Double
+    Dim otherEnd As Double
+
+    For Each row In model
+        If Not row("Blank") And row.Exists("Action") Then
+            If Len(ex_PEB_Export.fn_Text(row("PersonId"))) = 0 Or _
+                    Len(ex_PEB_Export.fn_Text(row("PositionCode"))) = 0 Or _
+                    Len(ex_PEB_Export.fn_Text(row("OwnPositionCode"))) = 0 Or _
+                    CStr(row("PositionCode")) = CStr(row("OwnPositionCode")) Then
+                ex_PEB_MovementLinks.fn_Fail "InvalidTvoChain", CStr(row("PersonId"))
+            End If
+            If fn_IsStarted(row("StartOrder"), row("StartDate"), startDate, CStr(row("PositionCode"))) Then
+                endDate = ex_PEB_MovementSource.fn_OrderDate(row("EndDate"))
+                If Len(ex_PEB_Export.fn_Text(row("EndOrder"))) > 0 And endDate = 0 Then
+                    ex_PEB_MovementLinks.fn_Fail "InvalidPeriod", CStr(row("PersonId"))
+                End If
+                If endDate > 0 And endDate < startDate Then
+                    ex_PEB_MovementLinks.fn_Fail "InvalidPeriod", CStr(row("PersonId"))
+                End If
+                For Each other In model
+                    If CLng(other("Index")) > CLng(row("Index")) And Not other("Blank") Then
+                        If CStr(row("PositionCode")) = CStr(other("PositionCode")) Then
+                            If fn_IsStarted(other("StartOrder"), other("StartDate"), otherStart, CStr(other("PositionCode"))) Then
+                                otherEnd = ex_PEB_MovementSource.fn_OrderDate(other("EndDate"))
+                                If (endDate = 0 Or otherStart < endDate) And (otherEnd = 0 Or startDate < otherEnd) Then
+                                    ex_PEB_MovementLinks.fn_Fail "OverlappingTvoAssignment", CStr(row("PositionCode"))
+                                End If
+                            End If
+                        End If
+                    End If
+                Next other
+            End If
+        End If
+    Next row
+End Sub
+
+Private Function private_ResolveStructure( _
+    ByVal actual As Collection, _
+    ByVal requested As Collection, _
+    ByVal action As Object, _
+    Optional ByVal closed As Boolean = False _
+) As Boolean
+    Dim fields As Object
+    Dim cells As Object
+    Dim generated As Object
+    Dim group As Object
+    Dim groups As Collection
+    Dim label As String
+    Dim current As String
+    Dim desired As String
+
+    current = private_StructureText(actual)
+    desired = private_StructureText(requested)
+    If closed Then
+        current = ex_PEB_Export.fn_Config("text.TvoClosedChain") & vbLf & current
+    End If
+    If current = desired Then
+        private_ResolveStructure = True
+        Exit Function
+    End If
+    label = ex_PEB_Export.fn_Config("text.TvoStructureConflict")
+    Set fields = CreateObject("Scripting.Dictionary")
+    Set cells = CreateObject("Scripting.Dictionary")
+    Set generated = CreateObject("Scripting.Dictionary")
+    fields.Add label, desired
+    generated.Add label, desired
+    cells.Add label, current
+    cells.Add "LinkHash", vbNullString
+    If Not ex_PEB_MovementConflicts.fn_Resolve(action, "TVO.Structure", fields, cells, vbNullString, "LinkHash") Then
+        Exit Function
+    End If
+    If closed And fields(label) = desired Then
+        Err.Raise 5, , ex_PEB_Export.fn_Config("text.TvoClosedChain")
+    End If
+    If Not action.Exists("TvoFieldGroups") Then
+        Set groups = New Collection
+        action.Add "TvoFieldGroups", groups
+    End If
+    Set group = CreateObject("Scripting.Dictionary")
+    group.Add "Side", "TVO.Structure"
+    group.Add "Generated", generated
+    group.Add "Accepted", fields
+    action("TvoFieldGroups").Add group
+    private_ResolveStructure = (fields(label) = desired)
+End Function
+
+Private Function private_StructureText(ByVal rows As Collection) As String
+    Dim parts() As String
+    Dim index As Long
+    Dim other As Long
+    Dim temporary As String
+
+    If rows.Count = 0 Then Exit Function
+    ReDim parts(0 To rows.Count - 1)
+    For index = 1 To rows.Count
+        parts(index - 1) = CStr(rows(index)("PersonId")) & " [" & CStr(rows(index)("PositionCode")) & "]"
+    Next index
+    For index = 0 To UBound(parts) - 1
+        For other = index + 1 To UBound(parts)
+            If StrComp(parts(index), parts(other), vbBinaryCompare) > 0 Then
+                temporary = parts(index)
+                parts(index) = parts(other)
+                parts(other) = temporary
+            End If
+        Next other
+    Next index
+    private_StructureText = Join(parts, vbLf)
+End Function
 
 Private Function private_HistoryDuties(ByVal source As Collection) As Collection
     Dim result As New Collection

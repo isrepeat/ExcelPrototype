@@ -151,7 +151,12 @@ Private Function obj_IUiEventHandler_HandleEvent( _
     Set item = private_SelectionItem(rowIndex)
     If item Is Nothing Then Exit Function
     If VBA.Len(m_columnPath) > 0 Then
-        If target.CountLarge <> 1 Then Exit Function
+        If target.CountLarge <> 1 Then
+            If IsNull(target.MergeCells) Then Exit Function
+            If Not target.MergeCells Then Exit Function
+            If target.Address <> target.Cells(1, 1).MergeArea.Address Then Exit Function
+            Set target = target.Cells(1, 1)
+        End If
         columnIndex = target.Column - m_bodyRange.Column + 1
         If Not m_renderContext.BindingContext.TrySetPathValue(m_columnSource, m_columnPath, columnIndex) Then Exit Function
         If Not m_selectCommand Is Nothing Then

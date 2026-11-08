@@ -257,7 +257,7 @@ Public Function TryEnrich( _
         For Each record In output
             If Not record.TryGetValue("Personnel.TaxId", personId) Then Err.Raise 5, , "Annual continuation candidate is missing Personnel.TaxId."
             If Not record.TryGetValue("Personnel.FullName", personName) Then Err.Raise 5, , "Annual continuation candidate is missing Personnel.FullName."
-            Set fields = ex_PEB_AnnualContinuation.fn_Fields(CStr(personId), CStr(personName), orderDate)
+            Set fields = ex_PEB_AnnualContinuation.fn_Fields(CStr(personId), CStr(personName), orderDate, modeId)
             Set supplement = New obj_LookupRecord
             If Not supplement.Initialize(record.Key, fields) Then Err.Raise 5, , "Cannot initialize annual continuation fields."
             If Not record.TryMerge(supplement, True) Then Err.Raise 5, , "Cannot apply annual continuation fields."

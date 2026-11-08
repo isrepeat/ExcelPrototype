@@ -1765,6 +1765,10 @@ Public Function SelectConflictHandler(ByVal selected As Object) As Boolean
     Dim column As Variant
     Dim count As Long
     Dim message As String
+    Dim specification As Variant
+    Dim parts As Variant
+    Dim firstColumn As Long
+    Dim choice As String
 
     On Error GoTo EH_CONFLICT
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -1772,10 +1776,19 @@ Public Function SelectConflictHandler(ByVal selected As Object) As Boolean
     If Not TypeOf selected Is obj_LookupRecord Then Exit Function
     Set record = selected
     If Not private_TryReadFormValue("ConflictColumn", column) Then Exit Function
-    If column <> 2 And column <> 3 Then Exit Function
+    firstColumn = 1
+    For Each specification In Split(ex_PEB_Export.fn_Config("conflicts.columns"), "|")
+        parts = Split(CStr(specification), "=")
+        If CLng(column) >= firstColumn And CLng(column) < firstColumn + CLng(parts(1)) Then
+            choice = CStr(parts(0))
+            Exit For
+        End If
+        firstColumn = firstColumn + CLng(parts(1))
+    Next specification
+    If choice <> "MovementValue" And choice <> "GeneratedValue" Then Exit Function
     Set item = m_conflicts(VBA.CLng(record.Key))
     item("Choice") = "Movement"
-    If column = 3 Then
+    If choice = "GeneratedValue" Then
         item("Choice") = "EventsHistory"
     End If
     For Each item In m_conflicts
@@ -1787,6 +1800,9 @@ Public Function SelectConflictHandler(ByVal selected As Object) As Boolean
     message = VBA.Replace$(message, "{resolved}", VBA.CStr(count))
     message = VBA.Replace$(message, "{total}", VBA.CStr(m_conflicts.Count))
     SelectConflictHandler = private_SetActionStatus(message, False)
+    If SelectConflictHandler Then
+        SelectConflictHandler = private_PaintConflictChoices(CLng(record.Key))
+    End If
     Exit Function
 EH_CONFLICT:
     private_SetActionStatus VBA.Err.Description, True
@@ -2465,42 +2481,131 @@ Private Function private_PublishConflicts(Optional ByVal flush As Boolean = True
     Dim index As Long
     Dim diagnostic As String
     Dim visibility As String
+    Dim specification As Variant
+    Dim parts As Variant
+    Dim previousScreenUpdating As Boolean
+    Dim errorNumber As Long
+    Dim errorSource As String
+    Dim errorDescription As String
 
+    previousScreenUpdating = Application.ScreenUpdating
+    On Error GoTo EH
+    If flush Then Application.ScreenUpdating = False
     visibility = "Collapsed"
     If Not m_conflicts Is Nothing Then
         For Each item In m_conflicts
             index = index + 1
             Set fields = VBA.CreateObject("Scripting.Dictionary")
-            fields("Field") = item("EventRowId") & " / " & item("Side") & " / " & item("Field")
-            fields("MovementValue") = item("MovementValue")
-            fields("GeneratedValue") = item("GeneratedValue")
-            If item("Choice") = "Movement" Then
-                fields("MovementValue") = ex_PEB_Export.fn_Config("text.ConflictSelectedPrefix") & fields("MovementValue")
-            ElseIf item("Choice") = "EventsHistory" Then
-                fields("GeneratedValue") = ex_PEB_Export.fn_Config("text.ConflictSelectedPrefix") & fields("GeneratedValue")
-            End If
+            fields("PersonName") = item("PersonName")
+            fields("EventId") = item("EventId") & vbLf & item("EventName")
+            fields("EventRowId") = item("EventRowId")
+            fields("Side") = item("Side")
+            fields("Field") = item("Field")
+            fields("MovementValue") = private_ConflictValue(item("MovementValue"), CStr(item("Field")))
+            fields("GeneratedValue") = private_ConflictValue(item("GeneratedValue"), CStr(item("Field")))
             Set record = New obj_LookupRecord
-            If Not record.Initialize(VBA.CStr(index), fields) Then Exit Function
+            If Not record.Initialize(VBA.CStr(index), fields) Then GoTo Cleanup
             records.Add record
         Next item
         If m_conflicts.Count > 0 Then
             visibility = "Visible"
         End If
     End If
-    For Each key In VBA.Array("Field", "MovementValue", "GeneratedValue")
+    For Each specification In Split(ex_PEB_Export.fn_Config("conflicts.columns"), "|")
+        parts = Split(CStr(specification), "=")
+        key = CStr(parts(0))
         Set column = VBA.CreateObject("Scripting.Dictionary")
         column("name") = key
         column("caption") = ex_PEB_Export.fn_Config("text.ConflictColumn." & key)
+        column("columnSpan") = CLng(parts(1))
         columns.Add column
-    Next key
+    Next specification
     Set result = New obj_LookupResult
-    If Not result.Initialize(records, columns, False, diagnostic) Then Exit Function
-    If Not m_pageBase.BindingContext.SetObject("Data", "MovementConflicts", result) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Form", "ConflictsVisibility", visibility) Then Exit Function
+    If Not result.Initialize(records, columns, False, diagnostic) Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetObject("Data", "MovementConflicts", result) Then GoTo Cleanup
+    If Not m_pageBase.BindingContext.SetValue("Form", "ConflictsVisibility", visibility) Then GoTo Cleanup
     private_PublishConflicts = True
     If flush Then
         private_PublishConflicts = m_pageBase.FlushUpdates()
+        If private_PublishConflicts Then
+            private_PublishConflicts = private_PaintConflictChoices()
+        End If
     End If
+Cleanup:
+    If flush Then Application.ScreenUpdating = previousScreenUpdating
+    Exit Function
+EH:
+    errorNumber = VBA.Err.Number
+    errorSource = VBA.Err.Source
+    errorDescription = VBA.Err.Description
+    If flush Then Application.ScreenUpdating = previousScreenUpdating
+    VBA.Err.Raise errorNumber, errorSource, errorDescription
+End Function
+
+Private Function private_PaintConflictChoices(Optional ByVal selectedIndex As Long = 0) As Boolean
+    Dim context As obj_UiRenderContext
+    Dim area As Range
+    Dim cells As Range
+    Dim document As Object
+    Dim node As Object
+    Dim item As Object
+    Dim specification As Variant
+    Dim parts As Variant
+    Dim rowIndex As Long
+    Dim firstColumn As Long
+    Dim choice As String
+
+    private_PaintConflictChoices = True
+    If m_conflicts Is Nothing Then Exit Function
+    If m_conflicts.Count = 0 Then Exit Function
+    private_PaintConflictChoices = False
+    If Not ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then Exit Function
+    If Not context.TryGetElementArea("MovementConflicts", area) Then Exit Function
+    Set document = CreateObject("MSXML2.DOMDocument.6.0")
+    For rowIndex = 1 To m_conflicts.Count
+        If selectedIndex = 0 Or selectedIndex = rowIndex Then
+            Set item = m_conflicts(rowIndex)
+            firstColumn = 1
+            For Each specification In Split(ex_PEB_Export.fn_Config("conflicts.columns"), "|")
+                parts = Split(CStr(specification), "=")
+                choice = vbNullString
+                If parts(0) = "MovementValue" Then choice = "Movement"
+                If parts(0) = "GeneratedValue" Then choice = "EventsHistory"
+                If Len(choice) > 0 Then
+                    Set cells = area.Cells(rowIndex + 1, firstColumn).Resize(1, CLng(parts(1)))
+                    Set node = document.createElement("control")
+                    node.setAttribute "name", "ConflictChoice" & CStr(rowIndex) & choice
+                    node.setAttribute "style", "candidateTable"
+                    If item("Choice") = choice Then
+                        node.setAttribute "style", "conflictChosen"
+                    End If
+                    context.Styles.ApplyOverlay cells, node, m_pageBase.BindingContext
+                End If
+                firstColumn = firstColumn + CLng(parts(1))
+            Next specification
+        End If
+    Next rowIndex
+    private_PaintConflictChoices = True
+End Function
+
+Private Function private_ConflictValue( _
+    ByVal value As Variant, _
+    ByVal field As String _
+) As String
+    Dim key As Variant
+    Dim dateKey As Double
+
+    private_ConflictValue = ex_PEB_Export.fn_Text(value)
+    If Len(private_ConflictValue) = 0 Then Exit Function
+    For Each key In Split(ex_PEB_Export.fn_Config("conflicts.dateFields"), "|")
+        If field = ex_PEB_Export.fn_Config(CStr(key)) Then
+            dateKey = ex_PEB_MovementSource.fn_OrderDate(value)
+            If dateKey > 0 Then
+                private_ConflictValue = Format$(CDate(dateKey), ex_PEB_Export.fn_Config("export.Movement.dateFormat"))
+            End If
+            Exit Function
+        End If
+    Next key
 End Function
 
 Private Function private_PublishHistory( _

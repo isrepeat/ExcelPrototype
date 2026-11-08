@@ -521,7 +521,7 @@
                         selectionMode="Confirm"
                         selectedColumn="{Binding Path=Form.ConflictColumn}"
                         onSelect="{Binding Path=Commands.SelectConflict}"
-                        selectedStyle="candidateSelected"
+                        selectedStyle="conflictChosen"
                         showHeaders="true"/>
         <stackPanel name="ReportSearchPanel"
                     orientation="vertical">
@@ -1049,6 +1049,8 @@
                   vertical="center"/>
     <controlStyle name="candidateTextWarning"
                   backColor="#C00000"/>
+    <controlStyle name="conflictChosen"
+                  backColor="#245B32"/>
     <controlStyle name="candidateSelected"
                   paddingLeft="10"
                   paddingRight="10"

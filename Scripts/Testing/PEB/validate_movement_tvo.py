@@ -50,9 +50,9 @@ def main():
     assert 'Or m_states.Exists(fieldKey) Or _' in resolve
     assert 'VBA.Len(ex_PEB_Export.fn_Text(cells(field))) > 0 Then' in resolve
     assert 'fn_MatchesFieldsHash(CStr(cells(hashHeader)), legacyFields, cells)' in resolve
-    assert 'fn_MatchesFieldsHash(CStr(cells(hashHeader)), previousFields)' in resolve
-    assert 'manual = (actual <> state(2))' in resolve
-    assert 'If field <> basisHeader Then' in resolve
+    assert 'actual <> state(2) And actual <> generated' in resolve
+    assert 'manual = (actual <> state(2) And actual <> generated)' in resolve
+    assert 'If field <> basisHeader Then' not in resolve
     for filename in ('wsConfig.txt', 'wsConfig.test.txt'):
         settings = parse_config(ROOT / 'PROJECTS_EXCEL/config/PersonalEventBuilder' / filename)
         for enabled in (True, False):

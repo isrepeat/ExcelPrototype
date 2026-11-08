@@ -73,13 +73,29 @@ def main():
         assert 'fn_IsDateOnOrAfter("{[DateFromShort]}", "{[OrderDateShort]}")' in verb
         columns = registry["movement"]["tvo_columns"][EVENT]
         assert columns[settings["returnTvo.table.headers.Duration"]] == "Інше"
+        medical = "MoveFromHospitalToMedicalLeaveContinuation"
+        medical_event = registry["events"][medical]
+        assert medical_event.get("form") == event.get("form")
+        assert medical in settings["lookup.AnnualContinuation.modes"].split("|")
+        assert medical in settings["ui.extendedModes"].split("|")
+        medical_plan = registry["movement"]["events"][medical]
+        assert medical_plan["sourceStatus"] == "HospitalTreatment"
+        assert medical_plan["targetStatus"] == "MedicalLeave"
+        assert medical_plan["operation"] == "Transition"
+        medical_template = word.find(f"p:template[@name='{medical}']", NS)
+        assert "продовжив відпустку для лікування" in "".join(medical_template.itertext())
+        assert settings[f"extensions.mode.{medical}.default.1.role"] == "MedicalCard"
     source = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_AnnualContinuation.vba").read_text(encoding="utf-8-sig")
     assert "snapshot.TryQuery(source, query, table, diagnostic)" in source
     assert "service.TryExecute" not in source and "Workbooks.Open" not in source
     assert 'lookup.ReturnTickets.arrivalHeader' in source
     assert 'columns("ArrivalDate"))) = latest' in source
-    assert 'DateDiff("d", CDate(latest), CDate(planned))' in source
+    assert 'DateDiff("d", CDate(remainingFrom), CDate(planned))' in source
+    assert 'remainingFrom = cutoff' in source
+    assert 'remainingFrom = latest' in source
     assert 'snapshot.Prepared.Add cacheKey, fields' in source
+    assert 'fn_Value(modeId, "movement.targetStatus")' in source
+    assert '"AnnualContinuation|" & modeId' in source
     print("PASS: PROD/TEST continuation route, candidate duration/destination mapping, snapshot-only linked remainder including travel, discharge document, shared tense rule and TVO columns. Office/VBA not executed.")
 
 

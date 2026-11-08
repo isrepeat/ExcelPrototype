@@ -86,7 +86,9 @@ Public Function fn_Apply( _
     For Each action In plan("Actions")
         If action("Status") = "Planned" Then
             If action.Exists("PlaceholderWrites") Then
-                addedRows = addedRows + 1
+                If action("PlaceholderIndex") > target.ListRows.Count Then
+                    addedRows = addedRows + 1
+                End If
             End If
             If action("Operation") <> "close" Then
                 If Not action("IsUpdate") Or action("TargetIndex") > target.ListRows.Count Then
@@ -104,7 +106,12 @@ Public Function fn_Apply( _
         If action("Status") = "Planned" And action.Exists("PlaceholderWrites") Then
             Set fields = action("PlaceholderWrites")
             For Each key In fields.Keys
-                private_Capture target, action("PlaceholderIndex"), VBA.CStr(key), fields(key), entries, actual, action
+                If action.Exists("PlaceholderBefore") Then
+                    private_Capture target, action("PlaceholderIndex"), VBA.CStr(key), fields(key), _
+                        entries, actual, action, True, action("PlaceholderBefore")(key)
+                Else
+                    private_Capture target, action("PlaceholderIndex"), VBA.CStr(key), fields(key), entries, actual, action
+                End If
             Next key
         End If
         If action("Status") = "Planned" And action("IsUpdate") Then

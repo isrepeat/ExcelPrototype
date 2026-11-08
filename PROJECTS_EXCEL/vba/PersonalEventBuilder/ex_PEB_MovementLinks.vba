@@ -158,42 +158,6 @@ Public Function fn_MatchesFieldsHash( _
     fn_MatchesFieldsHash = private_MatchesLegacyHash(expected, values, values.Keys, 0)
 End Function
 
-Private Function private_MatchesLegacyHash( _
-    ByVal expected As String, _
-    ByVal values As Object, _
-    ByVal names As Variant, _
-    ByVal index As Long _
-) As Boolean
-    Dim value As Variant
-    Dim alternate As Variant
-    Dim number As Double
-    Dim key As String
-
-    If index = values.Count Then
-        private_MatchesLegacyHash = (expected = fn_FieldsHash(values, legacy:=True))
-        Exit Function
-    End If
-    key = VBA.CStr(names(index))
-    value = values(key)
-    If private_MatchesLegacyHash(expected, values, names, index + 1) Then
-        private_MatchesLegacyHash = True
-        Exit Function
-    End If
-    Select Case VBA.VarType(value)
-        Case VBA.vbString
-            If Not ex_Helpers.fn_TryParseInvariantNumber(VBA.CStr(value), number) Then Exit Function
-            If VBA.CStr(value) <> VBA.Trim$(VBA.Str$(number)) Then Exit Function
-            alternate = number
-        Case VBA.vbDate, VBA.vbByte, VBA.vbInteger, VBA.vbLong, VBA.vbSingle, VBA.vbDouble, VBA.vbCurrency, VBA.vbDecimal
-            alternate = VBA.Trim$(VBA.Str$(VBA.CDbl(value)))
-        Case Else
-            Exit Function
-    End Select
-    values(key) = alternate
-    private_MatchesLegacyHash = private_MatchesLegacyHash(expected, values, names, index + 1)
-    values(key) = value
-End Function
-
 Public Function fn_ValueToken(ByVal value As Variant) As String
     If VBA.IsError(value) Or VBA.IsNull(value) Or VBA.IsObject(value) Or VBA.IsArray(value) Then
         fn_Fail "InvalidStampValue", ""
@@ -318,7 +282,7 @@ Public Function fn_PlanStamp(ByVal plan As Object) As String
                 stamp = stamp & fn_Token(key) & fn_Token(action(key))
             End If
         Next key
-        For Each mapping In VBA.Array("Writes", "ClosingWrites", "PlaceholderWrites", "Joins", "GeneratedWrites", "GeneratedClosingWrites")
+        For Each mapping In VBA.Array("Writes", "ClosingWrites", "PlaceholderWrites", "PlaceholderBefore", "Joins", "GeneratedWrites", "GeneratedClosingWrites")
             If action.Exists(mapping) Then
                 Set writes = action(mapping)
                 For Each key In writes.Keys
@@ -350,6 +314,42 @@ End Sub
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
+Private Function private_MatchesLegacyHash( _
+    ByVal expected As String, _
+    ByVal values As Object, _
+    ByVal names As Variant, _
+    ByVal index As Long _
+) As Boolean
+    Dim value As Variant
+    Dim alternate As Variant
+    Dim number As Double
+    Dim key As String
+
+    If index = values.Count Then
+        private_MatchesLegacyHash = (expected = fn_FieldsHash(values, legacy:=True))
+        Exit Function
+    End If
+    key = VBA.CStr(names(index))
+    value = values(key)
+    If private_MatchesLegacyHash(expected, values, names, index + 1) Then
+        private_MatchesLegacyHash = True
+        Exit Function
+    End If
+    Select Case VBA.VarType(value)
+        Case VBA.vbString
+            If Not ex_Helpers.fn_TryParseInvariantNumber(VBA.CStr(value), number) Then Exit Function
+            If VBA.CStr(value) <> VBA.Trim$(VBA.Str$(number)) Then Exit Function
+            alternate = number
+        Case VBA.vbDate, VBA.vbByte, VBA.vbInteger, VBA.vbLong, VBA.vbSingle, VBA.vbDouble, VBA.vbCurrency, VBA.vbDecimal
+            alternate = VBA.Trim$(VBA.Str$(VBA.CDbl(value)))
+        Case Else
+            Exit Function
+    End Select
+    values(key) = alternate
+    private_MatchesLegacyHash = private_MatchesLegacyHash(expected, values, names, index + 1)
+    values(key) = value
+End Function
+
 Private Sub private_ReadFormats( _
     ByVal area As Range, _
     ByRef formats() As Variant, _

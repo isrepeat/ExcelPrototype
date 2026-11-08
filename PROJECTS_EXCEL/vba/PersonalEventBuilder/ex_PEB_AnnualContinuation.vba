@@ -11,7 +11,8 @@ End Function
 Public Function fn_Fields( _
     ByVal personId As String, _
     ByVal personName As String, _
-    ByVal orderDate As Variant _
+    ByVal orderDate As Variant, _
+    ByVal modeId As String _
 ) As Object
     Dim snapshot As obj_TableSnapshotSet
     Dim source As obj_TableSource
@@ -37,13 +38,14 @@ Public Function fn_Fields( _
     Dim rx As Object
     Dim matches As Object
     Dim basis As String
+    Dim remainingFrom As Double
 
     On Error GoTo EH
     Set snapshot = ex_TableSnapshots.fn_Current()
     If snapshot Is Nothing Then Err.Raise 5, , "Annual continuation requires a loaded Movement snapshot."
     cutoff = ex_PEB_MovementSource.fn_OrderDate(orderDate)
     If cutoff <= 0 Then Err.Raise 5, , "Annual continuation requires an accepted order date."
-    cacheKey = "AnnualContinuation|" & personId & "|" & ex_TableQuery.fn_NormalizeText(personName) & "|" & CStr(cutoff)
+    cacheKey = "AnnualContinuation|" & modeId & "|" & personId & "|" & ex_TableQuery.fn_NormalizeText(personName) & "|" & CStr(cutoff)
     If snapshot.Prepared.Exists(cacheKey) Then
         Set fn_Fields = snapshot.Prepared(cacheKey)
         Exit Function
@@ -84,7 +86,7 @@ Public Function fn_Fields( _
         columns(field) = ex_TableQuery.fn_HeaderIndex(table.Headers, headers(field))
     Next field
     hospitalStatus = ex_PEB_Export.fn_Config("export.Movement.status.HospitalTreatment")
-    annualStatus = ex_PEB_Export.fn_Config("export.Movement.status.AnnualVacation")
+    annualStatus = ex_PEB_Export.fn_Config("export.Movement.status." & ex_PEB_EventRoutes.fn_Value(modeId, "movement.targetStatus"))
 
     ' Only the latest period as of the order may supply a hospital interruption.
     For row = 1 To table.RowCount
@@ -129,9 +131,13 @@ Public Function fn_Fields( _
         fields("Absence.TicketNumber") = table.ValueAt(vacationRow, columns("TicketNumber"))
         fields("Continuation.TicketOrder") = table.ValueAt(vacationRow, columns("TicketOrder"))
         planned = ex_PEB_MovementSource.fn_OrderDate(table.ValueAt(vacationRow, columns("PlannedArrivalDate")))
-        ' Planned arrival already includes travel; the interruption day remains unused.
-        If planned > latest And latest > annualStart Then
-            fields("Absence.DurationDays") = CStr(DateDiff("d", CDate(latest), CDate(planned)))
+        remainingFrom = latest
+        If ex_PEB_EventRoutes.fn_Value(modeId, "movement.targetStatus") = "MedicalLeave" Then
+            ' Treatment leave keeps its original arrival boundary through hospitalization.
+            remainingFrom = cutoff
+        End If
+        If planned > remainingFrom And latest > annualStart Then
+            fields("Absence.DurationDays") = CStr(DateDiff("d", CDate(remainingFrom), CDate(planned)))
             fields("Absence.Destination") = table.ValueAt(vacationRow, columns("Destination"))
         End If
     End If

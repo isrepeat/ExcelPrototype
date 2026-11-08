@@ -152,6 +152,7 @@ Public Function fn_Build( _
         action.Add "PersonId", stored("PersonId")
         action.Add "PersonName", stored("PersonName")
         action.Add "EventName", stored("EventLabel")
+        action.Add "EventId", stored("EventId")
         action.Add "EventDate", ex_PEB_History.fn_Date(stored("EventDate"))
         action.Add "RowOrder", VBA.CLng(stored("RowOrder"))
         action.Add "HistoryStamp", ex_PEB_MovementLinks.fn_EventStamp(stored)
@@ -207,7 +208,9 @@ Public Function fn_Build( _
     plan.Add "ConflictCount", conflicts
     plan.Add "IsReady", (conflicts = 0)
     plan.Add "TargetStamp", targetStamp
-    ex_PEB_MovementTvo.fn_Prepare plan, target
+    If plan("IsReady") Then
+        ex_PEB_MovementTvo.fn_Prepare plan, target
+    End If
     plan.Add "PlanStamp", ex_PEB_MovementLinks.fn_PlanStamp(plan)
     ex_Core.fn_Diagnostic_WritePerf "Movement.Preview.Events", startedAt
     startedAt = VBA.Timer
@@ -617,22 +620,19 @@ Private Sub private_PlanReturnPlaceholder( _
     Dim eventHeader As String
     Dim personHeader As String
     Dim statusName As String
+    Dim generated As Object
+    Dim group As Object
+    Dim groups As Collection
+    Dim legacyFields As Object
+    Dim trusted As Boolean
+    Dim changed As Boolean
+    Dim before As Object
 
     ' The closed placeholder has its own stable link; its dates can later be edited manually.
     identifier = action("RowId") & "/Return"
     eventHeader = ex_PEB_Export.fn_Config("export.Movement.headers.EventName")
     personHeader = ex_PEB_Export.fn_Config("export.Movement.headers.PersonId")
     statusName = ex_PEB_Export.fn_Config("export.Movement.status.ReturnToOtherUnit")
-    For Each row In rows
-        Set cells = row("Cells")
-        If cells(links("OpeningId")) = identifier Then
-            If cells(personHeader) <> action("PersonId") Or cells(eventHeader) <> statusName Then
-                private_Fail "AppliedMovementChanged", identifier
-            End If
-            Exit Sub
-        End If
-    Next row
-
     ' Create one closed zero-length period before the new business-trip period.
     Set writes = private_CopyFields(action("Writes"))
     Set closingWrites = action("ClosingWrites")
@@ -644,6 +644,57 @@ Private Sub private_PlanReturnPlaceholder( _
     For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")
         writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")
     Next key
+    Set generated = private_CopyFields(writes)
+    For Each row In rows
+        Set cells = row("Cells")
+        If cells(links("OpeningId")) = identifier Then
+            Set before = private_CopyFields(cells)
+            If cells(personHeader) <> action("PersonId") Or cells(eventHeader) <> statusName Then
+                private_Fail "AppliedMovementChanged", identifier
+            End If
+            Set legacyFields = private_CopyFields(writes)
+            legacyFields.Add links("OpeningId"), identifier
+            trusted = ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(links("OpeningHash"))), legacyFields, cells)
+            ex_PEB_MovementConflicts.fn_Resolve action, "Return", writes, cells, _
+                ex_PEB_Export.fn_Config("export.Movement.headers.DepartureBasis"), links("OpeningHash"), trusted
+            If Not action.Exists("TvoFieldGroups") Then
+                Set groups = New Collection
+                action.Add "TvoFieldGroups", groups
+            End If
+            Set group = VBA.CreateObject("Scripting.Dictionary")
+            group.Add "Side", "Return"
+            group.Add "Generated", generated
+            group.Add "Accepted", private_CopyFields(writes)
+            action("TvoFieldGroups").Add group
+            If ex_PEB_MovementConflicts.fn_Pending(CStr(action("RowId"))) Then Exit Sub
+            writes.Add links("OpeningId"), identifier
+            writes.Add links("OpeningHash"), ex_PEB_MovementLinks.fn_FieldsHash(writes)
+            For Each key In writes.Keys
+                If row("Formulas").Exists(key) Then
+                    private_Fail "FormulaOverwrite", CStr(key)
+                End If
+                If ex_PEB_MovementLinks.fn_ValueToken(cells(key)) <> ex_PEB_MovementLinks.fn_ValueToken(writes(key)) Then
+                    changed = True
+                    cells(key) = writes(key)
+                End If
+            Next key
+            If changed Then
+                action.Add "PlaceholderIndex", row("TargetRow")
+                action.Add "PlaceholderWrites", writes
+                action.Add "PlaceholderBefore", before
+            End If
+            Exit Sub
+        End If
+    Next row
+    Set group = VBA.CreateObject("Scripting.Dictionary")
+    group.Add "Side", "Return"
+    group.Add "Generated", generated
+    group.Add "Accepted", private_CopyFields(writes)
+    If Not action.Exists("TvoFieldGroups") Then
+        Set groups = New Collection
+        action.Add "TvoFieldGroups", groups
+    End If
+    action("TvoFieldGroups").Add group
     Set cells = VBA.CreateObject("Scripting.Dictionary")
     cells.CompareMode = VBA.vbTextCompare
     For Each key In headers.Keys
@@ -948,28 +999,12 @@ Private Sub private_PlanBasisSide( _
     Dim entry As Object
 
     Set cells = row("Cells")
-    If Not ex_PEB_MovementConflicts.fn_Resolve(action, side, fields, cells, basisHeader, hashHeader) Then
-        If Not ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), fields, cells) Then
-            private_Fail "AppliedMovementChanged", identifier
-        End If
-    End If
+    ex_PEB_MovementConflicts.fn_Resolve action, side, fields, cells, basisHeader, hashHeader
     For Each key In fields.Keys
         If row("Formulas").Exists(key) Then
             private_Fail "AppliedMovementFormulaChanged", identifier
         End If
         If ex_PEB_MovementLinks.fn_CellValueToken(cells(key)) <> ex_PEB_MovementLinks.fn_CellValueToken(fields(key)) Then
-            If VBA.StrComp(VBA.CStr(key), basisHeader, VBA.vbTextCompare) <> 0 Then
-                If Not ex_PEB_MovementConflicts.fn_Overwrite() And _
-                        Not ex_PEB_MovementConflicts.fn_DiffReverted(identifier, side, VBA.CStr(key), cells(key)) Then
-#If TVO_DEPRECATED Then
-                    If Not ex_PEB_MovementRegistry.fn_IsTvoHeader(VBA.CStr(key)) Then
-                        private_Fail "AppliedEventChanged", identifier & "/" & VBA.CStr(key)
-                    End If
-#Else
-                    private_Fail "AppliedEventChanged", identifier & "/" & VBA.CStr(key)
-#End If
-                End If
-            End If
             Set entry = private_UpdateCell(row("TargetRow"), VBA.CStr(key), cells(key), fields(key))
             updates.Add entry
         End If
