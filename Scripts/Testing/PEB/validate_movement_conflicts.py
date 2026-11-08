@@ -80,6 +80,11 @@ def main():
     assert publish.index('Application.ScreenUpdating = False') < publish.index('m_pageBase.FlushUpdates()')
     assert publish.index('private_PaintConflictChoices()') < publish.index('Cleanup:')
     assert publish.count('Application.ScreenUpdating = previousScreenUpdating') == 2
+    assert publish.index('ClearOverlaysByPrefix "ConflictChoice"') < publish.index('SetObject("Data", "MovementConflicts"')
+    assert 'ClearOverlaysByPrefix "MovementConflicts"' in publish
+    styles = (ROOT / 'PROJECTS_EXCEL/vba/common/[2] classes/obj_UiStyleCatalog.cls.vba').read_text(encoding='utf-8-sig')
+    clear = procedure(styles, 'ClearOverlaysByPrefix')
+    assert clear.index('m_overlays.Remove key') < clear.index('Me.RestoreControlArea area')
     paint = procedure(controller, "private_PaintConflictChoices")
     assert 'selectedIndex = 0 Or selectedIndex = rowIndex' in paint
     assert 'Styles.ApplyOverlay cells' in paint

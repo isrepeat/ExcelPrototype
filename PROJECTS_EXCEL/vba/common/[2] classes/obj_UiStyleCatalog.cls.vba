@@ -397,6 +397,27 @@ Public Function GetShapeMargins(ByVal shapeName As String) As Variant
     If m_shapeMargins.Exists(shapeName) Then GetShapeMargins = m_shapeMargins(shapeName)
 End Function
 
+Public Sub ClearOverlaysByPrefix( _
+    ByVal prefix As String, _
+    ByVal controlNode As Object, _
+    ByVal bindings As obj_UiBindingContext _
+)
+    Dim key As Variant
+    Dim area As Range
+
+    If m_overlays Is Nothing Then Exit Sub
+    If Len(prefix) = 0 Then Exit Sub
+    For Each key In m_overlays.Keys
+        If StrComp(Left$(CStr(key), Len(prefix)), prefix, vbTextCompare) = 0 Then
+            If m_overlays.Exists(key) Then
+                Set area = m_overlays(key)("area")
+                m_overlays.Remove key
+                Me.RestoreControlArea area, controlNode, bindings
+            End If
+        End If
+    Next key
+End Sub
+
 Public Sub ApplyOverlay( _
     ByVal area As Range, _
     ByVal node As Object, _

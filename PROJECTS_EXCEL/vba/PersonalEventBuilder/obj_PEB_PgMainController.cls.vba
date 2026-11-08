@@ -2487,10 +2487,21 @@ Private Function private_PublishConflicts(Optional ByVal flush As Boolean = True
     Dim errorNumber As Long
     Dim errorSource As String
     Dim errorDescription As String
+    Dim context As obj_UiRenderContext
+    Dim document As Object
+    Dim node As Object
 
     previousScreenUpdating = Application.ScreenUpdating
     On Error GoTo EH
     If flush Then Application.ScreenUpdating = False
+    If ex_UiRuntime.fn_TryGetContext(Application.ActiveSheet, context) Then
+        Set document = CreateObject("MSXML2.DOMDocument.6.0")
+        Set node = document.createElement("control")
+        node.setAttribute "name", "MovementConflicts"
+        node.setAttribute "style", "candidateTable"
+        context.Styles.ClearOverlaysByPrefix "ConflictChoice", node, m_pageBase.BindingContext
+        context.Styles.ClearOverlaysByPrefix "MovementConflicts", node, m_pageBase.BindingContext
+    End If
     visibility = "Collapsed"
     If Not m_conflicts Is Nothing Then
         For Each item In m_conflicts
