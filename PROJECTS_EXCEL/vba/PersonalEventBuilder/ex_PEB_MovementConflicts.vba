@@ -129,7 +129,7 @@ Public Function fn_Resolve( _
         fn_Resolve = True
         Exit Function
     End If
-    validHash = (cells(hashHeader) = ex_PEB_MovementLinks.fn_FieldsHash(fields, cells))
+    validHash = ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), fields, cells)
 #If TVO_DEPRECATED Then
     ' Older exports did not own TVO columns; migrate only empty, untracked cells.
     If Not validHash And side = "Opening" Then
@@ -141,7 +141,7 @@ Public Function fn_Resolve( _
                 legacyFields.Add field, fields(field)
             End If
         Next field
-        validHash = (cells(hashHeader) = ex_PEB_MovementLinks.fn_FieldsHash(legacyFields, cells))
+        validHash = ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), legacyFields, cells)
     End If
 #End If
     Set previousFields = VBA.CreateObject("Scripting.Dictionary")
@@ -156,15 +156,15 @@ Public Function fn_Resolve( _
         End If
     Next field
     If completeState Then
-        If cells(hashHeader) <> ex_PEB_MovementLinks.fn_FieldsHash(previousFields) Then
+        If Not ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), previousFields) Then
             ex_PEB_MovementLinks.fn_Fail "AppliedMovementChanged", action("RowId") & "/" & hashHeader
         End If
     End If
     fn_Resolve = True
     For Each field In fields.Keys
         key = private_Key(action("RowId"), side, field)
-        actual = ex_PEB_MovementLinks.fn_ValueToken(cells(field))
-        generated = ex_PEB_MovementLinks.fn_ValueToken(fields(field))
+        actual = ex_PEB_MovementLinks.fn_CellValueToken(cells(field))
+        generated = ex_PEB_MovementLinks.fn_CellValueToken(fields(field))
         ' Explicit diff reversals authorize the next normal export to restore generated values.
         If fn_DiffReverted(action("RowId"), side, VBA.CStr(field), cells(field)) Then
             GoTo NextResolvedField
@@ -172,6 +172,8 @@ Public Function fn_Resolve( _
         manual = False
         If m_states.Exists(key) Then
             state = m_states(key)
+            state(1) = ex_PEB_MovementLinks.fn_CellValueToken(private_Decode(VBA.CStr(state(1))))
+            state(2) = ex_PEB_MovementLinks.fn_CellValueToken(private_Decode(VBA.CStr(state(2))))
             manual = (actual <> state(2))
             If Not manual And state(1) = generated Then
                 If state(1) <> state(2) Then

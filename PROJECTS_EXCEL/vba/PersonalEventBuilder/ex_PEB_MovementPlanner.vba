@@ -905,7 +905,7 @@ Private Sub private_Cancel( _
         private_Fail "CancellationOperationNotSupported", action("RowId")
     End If
     Set cells = selected("Cells")
-    If cells(links("ClosingHash")) <> ex_PEB_MovementLinks.fn_FieldsHash(fields, cells) Then
+    If Not ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(links("ClosingHash"))), fields, cells) Then
         private_Fail "AppliedMovementChanged", action("RowId")
     End If
     If Not private_Matches(cells, joins) Then
@@ -949,7 +949,7 @@ Private Sub private_PlanBasisSide( _
 
     Set cells = row("Cells")
     If Not ex_PEB_MovementConflicts.fn_Resolve(action, side, fields, cells, basisHeader, hashHeader) Then
-        If cells(hashHeader) <> ex_PEB_MovementLinks.fn_FieldsHash(fields, cells) Then
+        If Not ex_PEB_MovementLinks.fn_MatchesFieldsHash(CStr(cells(hashHeader)), fields, cells) Then
             private_Fail "AppliedMovementChanged", identifier
         End If
     End If
@@ -957,7 +957,7 @@ Private Sub private_PlanBasisSide( _
         If row("Formulas").Exists(key) Then
             private_Fail "AppliedMovementFormulaChanged", identifier
         End If
-        If ex_PEB_MovementLinks.fn_ValueToken(cells(key)) <> ex_PEB_MovementLinks.fn_ValueToken(fields(key)) Then
+        If ex_PEB_MovementLinks.fn_CellValueToken(cells(key)) <> ex_PEB_MovementLinks.fn_CellValueToken(fields(key)) Then
             If VBA.StrComp(VBA.CStr(key), basisHeader, VBA.vbTextCompare) <> 0 Then
                 If Not ex_PEB_MovementConflicts.fn_Overwrite() And _
                         Not ex_PEB_MovementConflicts.fn_DiffReverted(identifier, side, VBA.CStr(key), cells(key)) Then

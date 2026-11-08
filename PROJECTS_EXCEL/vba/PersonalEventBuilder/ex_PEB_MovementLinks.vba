@@ -80,7 +80,8 @@ End Function
 
 Public Function fn_FieldsHash( _
     ByVal fields As Object, _
-    Optional ByVal cells As Object = Nothing _
+    Optional ByVal cells As Object = Nothing, _
+    Optional ByVal legacy As Boolean = False _
 ) As String
     Dim names As Variant
     Dim key As Variant
@@ -106,9 +107,91 @@ Public Function fn_FieldsHash( _
         Else
             value = ex_PEB_Export.fn_Required(cells, VBA.CStr(key))
         End If
-        stamp = stamp & fn_Token(VBA.CStr(key)) & fn_Token(fn_ValueToken(value))
+        If legacy Then
+            stamp = stamp & fn_Token(VBA.CStr(key)) & fn_Token(fn_ValueToken(value))
+        Else
+            stamp = stamp & fn_Token(VBA.CStr(key)) & fn_Token(fn_CellValueToken(value))
+        End If
     Next key
     fn_FieldsHash = fn_Hash(stamp)
+    If Not legacy Then fn_FieldsHash = "H2-" & VBA.Mid$(fn_FieldsHash, 4)
+End Function
+
+Public Function fn_CellValueToken(ByVal value As Variant) As String
+    Dim number As Double
+    Dim text As String
+
+    If VBA.VarType(value) = VBA.vbString Then
+        text = VBA.CStr(value)
+        If ex_Helpers.fn_TryParseInvariantNumber(text, number) Then
+            ' Preserve leading zeros, whitespace and explicit textual notation.
+            If text = VBA.Trim$(VBA.Str$(number)) Then
+                fn_CellValueToken = fn_ValueToken(number)
+                Exit Function
+            End If
+        End If
+    End If
+    fn_CellValueToken = fn_ValueToken(value)
+End Function
+
+Public Function fn_MatchesFieldsHash( _
+    ByVal expected As String, _
+    ByVal fields As Object, _
+    Optional ByVal cells As Object = Nothing _
+) As Boolean
+    Dim values As Object
+    Dim key As Variant
+
+    If VBA.Left$(expected, 3) = "H2-" Then
+        fn_MatchesFieldsHash = (expected = fn_FieldsHash(fields, cells))
+        Exit Function
+    End If
+    If VBA.Left$(expected, 3) <> "H1-" Then Exit Function
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In fields.Keys
+        If cells Is Nothing Then
+            values.Add VBA.CStr(key), fields(key)
+        Else
+            values.Add VBA.CStr(key), ex_PEB_Export.fn_Required(cells, VBA.CStr(key))
+        End If
+    Next key
+    fn_MatchesFieldsHash = private_MatchesLegacyHash(expected, values, values.Keys, 0)
+End Function
+
+Private Function private_MatchesLegacyHash( _
+    ByVal expected As String, _
+    ByVal values As Object, _
+    ByVal names As Variant, _
+    ByVal index As Long _
+) As Boolean
+    Dim value As Variant
+    Dim alternate As Variant
+    Dim number As Double
+    Dim key As String
+
+    If index = values.Count Then
+        private_MatchesLegacyHash = (expected = fn_FieldsHash(values, legacy:=True))
+        Exit Function
+    End If
+    key = VBA.CStr(names(index))
+    value = values(key)
+    If private_MatchesLegacyHash(expected, values, names, index + 1) Then
+        private_MatchesLegacyHash = True
+        Exit Function
+    End If
+    Select Case VBA.VarType(value)
+        Case VBA.vbString
+            If Not ex_Helpers.fn_TryParseInvariantNumber(VBA.CStr(value), number) Then Exit Function
+            If VBA.CStr(value) <> VBA.Trim$(VBA.Str$(number)) Then Exit Function
+            alternate = number
+        Case VBA.vbDate, VBA.vbByte, VBA.vbInteger, VBA.vbLong, VBA.vbSingle, VBA.vbDouble, VBA.vbCurrency, VBA.vbDecimal
+            alternate = VBA.Trim$(VBA.Str$(VBA.CDbl(value)))
+        Case Else
+            Exit Function
+    End Select
+    values(key) = alternate
+    private_MatchesLegacyHash = private_MatchesLegacyHash(expected, values, names, index + 1)
+    values(key) = value
 End Function
 
 Public Function fn_ValueToken(ByVal value As Variant) As String

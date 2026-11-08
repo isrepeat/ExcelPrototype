@@ -669,7 +669,8 @@ End Function
 
 Private Function private_Stamp( _
     ByVal row As Object, _
-    ByVal side As String _
+    ByVal side As String, _
+    Optional ByVal expected As String = vbNullString _
 ) As String
     Dim fields As Object
     Dim names As String
@@ -684,6 +685,12 @@ Private Function private_Stamp( _
     For Each field In Split(names, "|")
         fields.Add CStr(field), row(field)
     Next field
+    If Len(expected) > 0 Then
+        If ex_PEB_MovementLinks.fn_MatchesFieldsHash(expected, fields) Then
+            private_Stamp = expected
+            Exit Function
+        End If
+    End If
     private_Stamp = ex_PEB_MovementLinks.fn_FieldsHash(fields)
 End Function
 
@@ -701,7 +708,7 @@ Private Sub private_CheckStamp( _
         ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", identifier
     End If
     If stamped Then
-        If CStr(row(side & "Hash")) <> private_Stamp(row, side) Then
+        If CStr(row(side & "Hash")) <> private_Stamp(row, side, CStr(row(side & "Hash"))) Then
             ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", identifier
         End If
     End If

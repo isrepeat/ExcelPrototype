@@ -49,8 +49,8 @@ def main():
     assert 'If Not validHash And side = "Opening" Then' in resolve
     assert 'Or m_states.Exists(fieldKey) Or _' in resolve
     assert 'VBA.Len(ex_PEB_Export.fn_Text(cells(field))) > 0 Then' in resolve
-    assert 'fn_FieldsHash(legacyFields, cells)' in resolve
-    assert 'fn_FieldsHash(previousFields)' in resolve
+    assert 'fn_MatchesFieldsHash(CStr(cells(hashHeader)), legacyFields, cells)' in resolve
+    assert 'fn_MatchesFieldsHash(CStr(cells(hashHeader)), previousFields)' in resolve
     assert 'manual = (actual <> state(2))' in resolve
     assert 'If field <> basisHeader Then' in resolve
     for filename in ('wsConfig.txt', 'wsConfig.test.txt'):

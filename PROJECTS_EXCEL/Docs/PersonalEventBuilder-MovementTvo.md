@@ -58,6 +58,8 @@ Preserve row and column formatting and workbook formulas; write only mapped valu
 
 ## Export implementation
 
+Field hashes now use the shared H2 cell-value normalization for both absence and TVO tables. Canonically written numeric text and numeric Excel values are equivalent; native dates use their Excel serial value. Leading zeros, whitespace, explicit numeric notation and localized date strings remain significant. Empty cells and empty text remain equivalent. Strict value tokens used for transaction snapshots are unchanged. H1 verification tests only equivalent numeric/text representations against the original hash; it never accepts a hash solely because current data can be rehashed. Verified legacy links migrate when the normal export next writes their hashes.
+
 PEB writes `PEB.OpeningId` / `PEB.OpeningHash` and `PEB.ClosingId` / `PEB.ClosingHash` to the TVO table. Each ID is the EventsHistory root RowId; multiple chain segments may share it. Opening hashes cover actor, positions, acceptance, planned return and explanatory fields. Closing hashes cover actor, replaced position and handover fields. Metadata itself is excluded. Incomplete metadata or a changed hash stops rewriting with the TVO review diagnostic.
 
 An owned unclosed departure chain is rebuilt in memory from the latest history children, allowing additions, replacement and removal through the ordinary transactional write and rollback. Updating an owned closing basis is supported at the same handover date. Changing a handover date or revising an already closed departure requires review. Unlinked legacy departures retain conservative matching rules and are not bulk-adopted. EventsHistory requires no additional columns.
