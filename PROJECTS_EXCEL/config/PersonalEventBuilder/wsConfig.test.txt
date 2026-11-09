@@ -1941,7 +1941,7 @@ value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.lookup.key	Hospital
 value	PersonalEventBuilder::reporter.tvo.prefix	тимчасово виконуючого обов'язки
   ref	PersonalEventBuilder::reporter.tvo.source.path	__cfgDependencies.fileMovementHistory
-value	PersonalEventBuilder::reporter.tvo.source.range	B2:X10000
+value	PersonalEventBuilder::reporter.tvo.source.range	B7:X10000
 value	PersonalEventBuilder::reporter.tvo.source.sheet	ТВО
 value	PersonalEventBuilder::reporter.tvo.ambiguous	Для рапортуючого {name} знайдено декілька чинних призначень ТВО. Уточніть дані джерела.
 value	PersonalEventBuilder::reporter.tvo.endHeader	Здавання

@@ -19,7 +19,7 @@ def main():
         assert f'"{key}"' in same
     assert 'field <> basisHeader' not in resolve
     assert 'actual <> state(2) And actual <> generated' in resolve
-    assert 'manual = (actual <> generated)' in resolve
+    assert 'manual = (actual <> generated And VBA.Len(ex_PEB_Export.fn_Text(cells(field))) > 0)' in resolve
     assert resolve.rstrip().endswith('Next field\nEnd Function')
     assert 'AppliedMovementChanged' not in resolve and 'AppliedEventChanged' not in resolve
     assert 'state(1) = generated' in resolve

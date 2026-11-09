@@ -102,6 +102,11 @@ def main():
     assert prepare_tvo.index('private_CheckStamp linkedRow, "Opening"') < prepare_tvo.index('linkedRow(field) = vbNullString')
     assert 'row("OpeningHash") = private_Stamp(row, "Opening")' in prepare_tvo
     assert 'row("ClosingHash") = private_Stamp(row, "Closing")' in prepare_tvo
+    first_closing = prepare_tvo.split('If action("IsUpdate") And chain.Count > 0 Then', 1)[1]
+    first_closing = first_closing.split('If operation = "append" And chain.Count > 0 Then', 1)[0]
+    assert 'If operation <> "close" Then' in first_closing
+    assert 'ElseIf linked.Count = 0 Then' in first_closing
+    assert 'private_StructureText(chain) <> private_StructureText(requested)' in first_closing
     stamp = procedure(table, 'private_Stamp')
     assert 'fn_FieldsHash(fields)' in stamp
     assert 'EndDate|EndOrder|EndBasis' in stamp

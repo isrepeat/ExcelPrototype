@@ -177,11 +177,13 @@ Public Function fn_Save( _
                         If reuseTvo Then values("TvoReturnSnapshot") = previous("TvoReturnSnapshot")
                         If reuseTvo Then
                             Set restoredTvo = ex_PEB_ReturnTvo.fn_Decode(values)
-                            ' A validated empty snapshot is also a frozen return result.
+                            ' Retry empty snapshots when saving: registry duties may have been added later.
+                            reuseTvo = (restoredTvo.Count > 0)
                         End If
                     End If
                 End If
                 If Not reuseTvo Then
+                    values("TvoReturnSnapshot") = VBA.vbNullString
                     If exportService Is Nothing Then
                         Set tvoService = New obj_PEB_ExportService
                         If Not tvoService.Initialize() Then Err.Raise 5, , "Cannot initialize return TVO snapshot service."

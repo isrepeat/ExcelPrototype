@@ -52,6 +52,9 @@ def main():
     assert 'If Not reuseTvo Then' in save
     assert save.index('TryCaptureReturnTvo') < save.index('ex_PEB_HistoryRecovery.fn_Prepare')
     assert 'previous("TvoReturnSnapshot")' in save
+    assert 'reuseTvo = (restoredTvo.Count > 0)' in save
+    recapture = save.split('If Not reuseTvo Then', 1)[1]
+    assert recapture.index('values("TvoReturnSnapshot") = VBA.vbNullString') < recapture.index('TryCaptureReturnTvo')
     assert 'Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)' in save
     assert save.index('Set values("MetaTvoTables") = ex_PEB_ReturnTvo.fn_Decode(values)') < save.index('TryRefreshPreparedWordText')
     assert save.index('TryRefreshPreparedWordText') < save.index('ex_PEB_HistoryRecovery.fn_Prepare')

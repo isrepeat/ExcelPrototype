@@ -8,7 +8,7 @@ Read this section before interpreting, editing, migrating or exporting the Movem
 
 ### Column contract
 
-The source range in PROD and TEST is `B2:X10000`, covering the 19 business columns and four PEB link columns. `Доступ.Дата` and `Доступ.Підстава` are maintained manually and are excluded from export writes and hashes. Column mappings use header names, so inserting these columns does not change the acceptance or handover mappings.
+The source range in PROD and TEST is `B7:X10000`, starting at the table header below the validation panel and covering the 19 business columns and four PEB link columns. `Доступ.Дата` and `Доступ.Підстава` are maintained manually and are excluded from export writes and hashes. Column mappings use header names, so inserting these columns does not change the acceptance or handover mappings.
 
 Actual headers are configured in PROD and TEST under `returnTvo.table.headers`. Do not rely on worksheet column letters or the currently selected cell.
 
@@ -102,6 +102,12 @@ Arrivals fill actual handover date, order and basis in the applicable TVO rows. 
 The planner models the whole order before any writes. It validates destination headers, formulas, free expansion ranges and assignment overlaps. Already-applied events do not create duplicate TVO segments. Full table value/formula stamps detect changes between planning and writing; number formats do not participate in conflict or content verification. Actual TVO cell changes appear in the same pre-write diff as absence changes. Buttons above the diff select the absence or TVO worksheet using the actual configured worksheet names.
 
 Arrival preview reads the prepared Movement and TVO snapshots, including the personnel index for absence rows. Requesting legacy TVO columns does not force a fresh read in preview. Saving an event retains the default fresh-source check before freezing its return snapshot; preview data alone is not treated as persistence validation.
+
+Saving an existing arrival retries a previously empty return snapshot against the current source. Duties added after the original save can therefore create a history revision instead of being discarded as an unchanged event. Nonempty saved snapshots and explicit TVO children retain their existing precedence. Reading saved history alone never refreshes a snapshot.
+
+An already exported arrival can acquire its first TVO closing links when the current registry chain matches the saved return snapshot by actor IDs and replaced positions. Existing foreign closing links, invalid dates and overlapping assignments still block export. This does not require reconstructing the historical departure or inventing its opening links.
+
+For both absence and TVO field resolution, an empty field without a saved field baseline can be populated automatically. A nonempty differing value without a trusted baseline still requires a choice. A manually cleared previously exported value remains a conflict because its saved field baseline distinguishes deletion from first-time population.
 
 The planned TVO handover date is the return day, one day after the inclusive vacation end (`DateToShort`). For example, departure on 23 October 2026 for 15 days gives the last vacation day of 6 November and planned handover on 7 November. Empty vacation end dates leave the planned handover empty.
 

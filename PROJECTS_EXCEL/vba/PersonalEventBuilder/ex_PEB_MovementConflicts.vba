@@ -164,8 +164,8 @@ Public Function fn_Resolve( _
                 End If
             End If
         ElseIf Not validHash Then
-            ' Without a field baseline, ask only about differing values.
-            manual = (actual <> generated)
+            ' An untracked empty field has no manual value to preserve; tracked deletions still conflict above.
+            manual = (actual <> generated And VBA.Len(ex_PEB_Export.fn_Text(cells(field))) > 0)
         End If
         If manual Then
             Set item = VBA.CreateObject("Scripting.Dictionary")

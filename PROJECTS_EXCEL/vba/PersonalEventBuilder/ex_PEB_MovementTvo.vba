@@ -295,8 +295,13 @@ Public Sub fn_Prepare( _
         End If
         ' A repeated export must not close a replacement segment opened by the same transition.
         If action("IsUpdate") And chain.Count > 0 Then
-            If operation <> "close" Or linked.Count = 0 Then
+            If operation <> "close" Then
                 ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+            ElseIf linked.Count = 0 Then
+                ' An arrival exported without duties may acquire its first verified closing chain.
+                If private_StructureText(chain) <> private_StructureText(requested) Then
+                    ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                End If
             End If
         End If
         If operation = "append" And chain.Count > 0 Then
