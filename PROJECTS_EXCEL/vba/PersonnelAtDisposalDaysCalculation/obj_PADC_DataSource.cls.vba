@@ -114,6 +114,7 @@ Public Function ReadConfiguredSource( _
     m_runContext.CheckCancel 0
     Set ReadConfiguredSource = data
 Cleanup:
+    On Error GoTo 0
     If Not service Is Nothing Then
         service.Dispose
     End If

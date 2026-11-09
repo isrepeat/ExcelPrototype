@@ -81,7 +81,8 @@ Public Function Initialize( _
         tvoKeys = VBA.Split("source.tvo.sheet|source.tvo.range|source.tvo.columns.Rank|source.tvo.columns.FullName|" & _
             "source.tvo.columns.TaxId|source.tvo.columns.Position|source.tvo.columns.OwnPosition|source.tvo.columns.Duration|" & _
             "source.tvo.columns.StartOrder|source.tvo.columns.AccessOrder|" & _
-            "source.tvo.columns.StartDate|source.tvo.columns.EndDate|tvo.days|tvo.title|tvo.fileName|tvo.widths|tvo.ignoredEvents|tvo.ignoredDuration|" & _
+            "source.tvo.columns.StartDate|source.tvo.columns.EndDate|tvo.days|tvo.title|tvo.fileName|tvo.widths|" & _
+            "tvo.ignoredEvents|tvo.ignoredDuration|tvo.durationMonths|" & _
             "tvo.header.Rank|tvo.header.Position|tvo.header.OwnPosition|tvo.header.StartDate|tvo.header.EndDate|tvo.header.StreakStart|" & _
             "tvo.header.Days|tvo.header.ThresholdDate|tvo.text.Ready|tvo.text.Complete|" & _
             "tvo.text.Active|tvo.text.Absent|tvo.text.Closed|tvo.text.Reached|tvo.text.Forecast|" & _

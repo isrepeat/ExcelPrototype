@@ -365,8 +365,8 @@ Private Function private_CalculateRow( _
     For fieldIndex = 0 To UBound(sourceColumns)
         result(outputColumns(fieldIndex)) = private_Text(assignments(rowIndex, sourceColumns(fieldIndex)))
     Next fieldIndex
-    sourceColumns = VBA.Array(6, 12, 7)
-    dateColumns = VBA.Array(8, 10, 11)
+    sourceColumns = VBA.Array(6, 7)
+    dateColumns = VBA.Array(8, 11)
     For fieldIndex = 0 To UBound(sourceColumns)
         If VBA.Len(private_Text(assignments(rowIndex, sourceColumns(fieldIndex)))) > 0 Then
             result(dateColumns(fieldIndex)) = VBA.Format$(VBA.CDate(m_validation.ReadDay( _
@@ -375,6 +375,10 @@ Private Function private_CalculateRow( _
     Next fieldIndex
     If VBA.StrComp(private_Text(assignments(rowIndex, 10)), m_configuration.GetText("tvo.ignoredDuration"), vbTextCompare) = 0 Or _
             VBA.Len(private_Text(assignments(rowIndex, 5))) = 0 Then
+        If VBA.Len(private_Text(assignments(rowIndex, 12))) > 0 Then
+            result(10) = VBA.Format$(VBA.CDate(m_validation.ReadDay(assignments(rowIndex, 12), _
+                False, "source.tvo.columns.PlannedEndDate #" & rowIndex)), m_configuration.GetText("format.date"))
+        End If
         private_CalculateRow = result
         Exit Function
     End If
@@ -460,11 +464,6 @@ Private Function private_CalculateRow( _
             threshold = cursor + 30
         End If
     End If
-    If threshold = 0 Then
-        If cursor < limit And endDay >= cursor + 30 And cursor + 30 <= 2958465 Then
-            threshold = cursor + 30
-        End If
-    End If
     result(0) = private_Text(assignments(rowIndex, 1))
     result(1) = fullName
     result(2) = taxId
@@ -478,19 +477,43 @@ Private Function private_CalculateRow( _
         result(11) = VBA.Format$(VBA.CDate(endDay), m_configuration.GetText("format.date"))
     End If
     result(14) = streakDays
-    If threshold > 0 Then
+    If threshold > 0 And threshold <= cutoff Then
         result(9) = VBA.Format$(VBA.CDate(threshold), m_configuration.GetText("format.date"))
     End If
-    If VBA.Len(private_Text(assignments(rowIndex, 12))) > 0 Then
-        plannedEnd = m_validation.ReadDay(assignments(rowIndex, 12), False, "source.tvo.columns.PlannedEndDate #" & rowIndex)
-        If plannedEnd > 2958465 - absenceDays Then
-            private_Invalid "source.tvo.columns.PlannedEndDate #" & rowIndex
-        End If
-        result(10) = VBA.Format$(VBA.CDate(plannedEnd + absenceDays), m_configuration.GetText("format.date"))
+    plannedEnd = private_PlannedEnd(startDay, private_Text(assignments(rowIndex, 10)))
+    If plannedEnd > 2958465 - absenceDays Then
+        private_Invalid "source.tvo.columns.PlannedEndDate #" & rowIndex
     End If
+    result(10) = VBA.Format$(VBA.CDate(plannedEnd + absenceDays), m_configuration.GetText("format.date"))
     result(12) = private_Text(assignments(rowIndex, 11))
     result(15) = periods
     private_CalculateRow = result
+End Function
+
+Private Function private_PlannedEnd( _
+    ByVal startDay As Long, _
+    ByVal duration As String _
+) As Long
+    Dim entry As Variant
+    Dim fields As Variant
+    Dim months As Double
+
+    duration = VBA.Replace$(VBA.Replace$(VBA.UCase$(duration), " ", vbNullString), VBA.ChrW(1052), "M")
+    For Each entry In VBA.Split(m_configuration.GetText("tvo.durationMonths"), "|")
+        fields = VBA.Split(VBA.CStr(entry), "=")
+        If UBound(fields) <> 1 Then
+            private_Invalid "tvo.durationMonths"
+        End If
+        If fields(0) = duration Then
+            months = ex_Helpers.fn_ParseInvariantNumber(VBA.CStr(fields(1)), "tvo.durationMonths")
+            If months < 1 Or months > 12 Or months <> VBA.Fix(months) Then
+                private_Invalid "tvo.durationMonths"
+            End If
+            private_PlannedEnd = VBA.CLng(VBA.DateAdd("m", VBA.CLng(months), VBA.CDate(startDay)))
+            Exit Function
+        End If
+    Next entry
+    private_Invalid "source.tvo.columns.Duration: " & duration
 End Function
 
 Private Function private_Text(ByVal value As Variant) As String

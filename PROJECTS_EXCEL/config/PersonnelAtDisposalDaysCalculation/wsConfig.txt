@@ -37,6 +37,7 @@ value	PersonnelAtDisposalDaysCalculation::tvo.header.PlannedEndDate	Здаван
 value	PersonnelAtDisposalDaysCalculation::tvo.widths	14|35|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|16.86|55
 value	PersonnelAtDisposalDaysCalculation::tvo.fileName	30 днів безперервного ТВО
 value	PersonnelAtDisposalDaysCalculation::tvo.ignoredEvents	Амбулаторне ВЛК
+value	PersonnelAtDisposalDaysCalculation::tvo.durationMonths	2M=2|4M=4|6M=6
 value	PersonnelAtDisposalDaysCalculation::tvo.ignoredDuration	Інше
 value	PersonnelAtDisposalDaysCalculation::text.Rows	 rows
 value	PersonnelAtDisposalDaysCalculation::text.Event	: Event
@@ -163,7 +164,7 @@ value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
 value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
 value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
-value	PersonnelAtDisposalDaysCalculation::source.tvo.range	B2:T100000
+value	PersonnelAtDisposalDaysCalculation::source.tvo.range	B7:T100000
 value	PersonnelAtDisposalDaysCalculation::source.tvo.sheet	ТВО
 value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.Rank	Звання
 value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.TaxId	ІПН
