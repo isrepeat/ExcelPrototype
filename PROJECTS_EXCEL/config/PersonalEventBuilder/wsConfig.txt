@@ -326,6 +326,12 @@ value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тес
 value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків ТВ або записані поля не відповідають операції.
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
 value	PersonalEventBuilder::text.BusinessTripWordOmitted	Експорт у WORD для подій «У відрядження» вимкнено правилами шаблону.
+value	PersonalEventBuilder::text.AwolBusinessTripWordOmitted	Для події «СЗЧ → Відрядження» доступний текст прев'ю; автоматичний експорт у WORD вимкнено.
+value	PersonalEventBuilder::export.Word.MoveFromAwolToBusinessTrip.lookups.count	0
+value	PersonalEventBuilder::export.Word.MoveFromAwolToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
+value	PersonalEventBuilder::export.Word.MoveFromAwolToBusinessTrip.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
+value	PersonalEventBuilder::export.Word.context.templates.MoveFromAwolToBusinessTrip.requiredKeys	RankGenitive|FIOAccusative|PositionGenitive|IncomingNo|IncomingDateShort|DateFromShort|Destination
+value	PersonalEventBuilder::export.Word.textAnchors.MoveFromAwolToBusinessTrip	MoveFromAwolToBusinessTrip
 value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
 value	PersonalEventBuilder::text.DependenciesTvoMissing	Особу ТВО не знайдено у ШПО:
 value	PersonalEventBuilder::text.DependenciesTvoPosition	ШПО: порожній або повторний код посади «{code}» у ланцюжку ТВО, рядок даних {row}.

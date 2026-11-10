@@ -81,6 +81,7 @@
            form="Leave"
            visible="true">
       <movement template="MoveFromAwolToBusinessTrip"/>
+      <word template="MoveFromAwolToBusinessTrip"/>
     </event>
     <event label="У відрядження"
            caption="У відрядження"

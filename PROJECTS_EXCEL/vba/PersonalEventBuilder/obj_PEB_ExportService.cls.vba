@@ -328,6 +328,11 @@ Public Function TryPrepare( _
             TryPrepare = True
             GoTo CleanupPrepare
         End If
+        If Not ex_PEB_EventRoutes.fn_HasRoute(CStr(values("EventId")), "Word") Then
+            ' Movement-only events still need enrichment for history, but have no Word configuration or preview.
+            exporter = "Movement"
+            mode = ex_PEB_EventRoutes.fn_Apply(values, exporter)
+        End If
     End If
     requiredKey = "export." & exporter & "." & mode & ".required"
     If history Then requiredKey = "history.required"

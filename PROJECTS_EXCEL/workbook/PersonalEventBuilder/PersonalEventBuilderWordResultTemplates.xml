@@ -1187,4 +1187,22 @@
       ]]>
     </text>
   </template>
+  <template name="MoveFromAwolToBusinessTrip"
+            hash="0x29">
+    <reject field="PersonId"
+            matches="^"
+            messageKey="text.AwolBusinessTripWordOmitted"/>
+    <text>
+      <![CDATA[#^
+#_      СЗЧ → відрядження.{#newline}{#newline}#^
+#_      {#include block.PersonLineLower}.#^
+#_      {#newline}Місце відрядження: {[Destination]|nbspAfterSettlementAbbr}.#^
+#_      {#newline}Дата зміни статусу: {[DateFromShort]}.#^
+#_      {#newline}{#newline}#^
+#_      {#include block.IncomingBasis}#^
+#_      {#include block.BusinessTripBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
 </wordResultTemplates>
