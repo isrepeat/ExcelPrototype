@@ -3,11 +3,13 @@ Option Explicit
 Private Const DIAGNOSTIC_MODE_IMMEDIATE As String = "Immediate"
 Private Const DIAGNOSTIC_MODE_BUFFERED As String = "Buffered"
 Private m_reinitializeAt As Date
+Private m_preserveDependencies As Boolean
 
 ' --------------------------------------
 ' namespace Lifecycle {
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
+    m_preserveDependencies = False
     If m_reinitializeAt = 0 Then Exit Sub
     Application.OnTime m_reinitializeAt, private_ReinitializeCallback(), Schedule:=False
     m_reinitializeAt = 0
@@ -80,14 +82,19 @@ EH:
     VBA.Err.Raise errorNumber, "ex_AppCommands.fn_UpdateConfig", errorDescription
 End Sub
 
-Public Function fn_RequestReinitialize() As Boolean
+Public Function fn_RequestReinitialize(Optional ByVal preserveDependencies As Boolean = False) As Boolean
     If m_reinitializeAt <> 0 Then
         fn_RequestReinitialize = True
         Exit Function
     End If
+    m_preserveDependencies = preserveDependencies
     m_reinitializeAt = VBA.Now + VBA.TimeSerial(0, 0, 1)
     Application.OnTime m_reinitializeAt, private_ReinitializeCallback()
     fn_RequestReinitialize = True
+End Function
+
+Public Function fn_PreserveDependencies() As Boolean
+    fn_PreserveDependencies = m_preserveDependencies
 End Function
 
 Public Sub fn_ReinitializePage()
@@ -99,7 +106,10 @@ Public Sub fn_ReinitializePage()
     Dim errorDescription As String
 
     m_reinitializeAt = 0
-    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then
+        m_preserveDependencies = False
+        Exit Sub
+    End If
     previousEvents = Application.EnableEvents
     previousUpdating = Application.ScreenUpdating
     On Error GoTo EH_REINITIALIZE
@@ -107,13 +117,14 @@ Public Sub fn_ReinitializePage()
     Application.ScreenUpdating = False
     initializerName = ex_WorkbookCallbacks.fn_Resolve("ThisWorkbook::initializer")
     ex_Core.fn_Diagnostic_WriteLog "CONFIG_REINITIALIZE_STARTED"
-    ex_TableDataRuntime.fn_ResetCaches
+    If Not m_preserveDependencies Then ex_TableDataRuntime.fn_ResetCaches
     ex_RuntimePaths.fn_Module_Dispose
     If Not VBA.CBool(Application.Run(initializerName)) Then
         VBA.Err.Raise 5, , "Page reinitialization failed: " & initializerName
     End If
     ex_Core.fn_Diagnostic_WriteLog "CONFIG_REINITIALIZE_COMPLETED"
 CleanupReinitialize:
+    m_preserveDependencies = False
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousUpdating
     ex_RuntimeLifecycle.fn_Leave runtimeContext

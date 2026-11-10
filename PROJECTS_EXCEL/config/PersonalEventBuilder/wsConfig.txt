@@ -188,7 +188,10 @@ value	PersonalEventBuilder::text.OrderSourceError	Не вдалося підго
 value	PersonalEventBuilder::text.PersonnelMinimum	Введіть щонайменше {minChars} символи та натисніть Enter.
 value	PersonalEventBuilder::text.PersonnelSection	ДАНІ ВІЙСЬКОВОСЛУЖБОВЦЯ
 value	PersonalEventBuilder::text.RefreshPersonnel	Завантажити / оновити дані
-value	PersonalEventBuilder::text.ReinitializePage	Перезавантажити сторінку
+value	PersonalEventBuilder::text.RefreshConfig	Оновити конфіг і шаблони
+value	PersonalEventBuilder::text.RefreshConfigReady	Конфіг і шаблони оновлено без перезавантаження сторінки та бази.
+value	PersonalEventBuilder::text.RefreshConfigPending	Конфіг і шаблони оновлено. Застосування налаштувань сторінки; форму буде очищено.
+value	PersonalEventBuilder::text.ConfigSourceChanged	Змінено джерело даних: потрібне оновлення бази.
 value	PersonalEventBuilder::text.StatusChangeType	Зміна статусу
 value	PersonalEventBuilder::text.StyleDeclaration	Некоректне оголошення стилю: {value}
 value	PersonalEventBuilder::text.StyleSelectorKey	Непідтримуваний ключ селектора стилів: {value}
@@ -344,7 +347,6 @@ value	PersonalEventBuilder::text.ModePersonPositionLabel	Посада
 value	PersonalEventBuilder::text.MovementRequiredMissing	Подія «{event}»: не заповнено обов'язкове поле експорту РУХ — {field}. Заповніть його перед збереженням або експортом.
 value	PersonalEventBuilder::text.OrderSignatoryAmbiguous	Для прийнятої пари номера та дати наказу знайдено різних підписантів. Виправте довідник «Накази».
 value	PersonalEventBuilder::text.PersonnelManualSelected	Кандидата обрано. Автопідстановку вимкнено; дані можна редагувати вручну.
-value	PersonalEventBuilder::text.ReinitializePagePending	Перезавантаження конфігурації та XML. Дані форми буде очищено.
 value	PersonalEventBuilder::text.ReturnTvoPeriodMismatch	Неможливо відновити ТВО: останній період РУХ не відповідає прибуттю, закритий іншим наказом або починається після дати події.
 value	PersonalEventBuilder::text.SourceLegendUnavailable	Файл недоступний
 value	PersonalEventBuilder::text.TestPhase.AfterSnapshot	Знімок записів після експорту отримано.
@@ -1078,7 +1080,7 @@ value	PersonalEventBuilder::export.Word.MoveFromHospitalToExternalVlk.previewReq
 value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.lookups.count	0
 value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.FromMedicalCompanyForTreatment.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.field	ModeForm
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.when.pattern	\S
   ref	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.path	__cfgDependencies.fileInstitutions
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.input	HospitalShortName
@@ -1089,7 +1091,7 @@ value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.1.valueHeader	Знахідний
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.lookups.count	1
 value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
-value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|HospitalShortName
+value	PersonalEventBuilder::export.Word.MoveFromVacationForCuringToVlk.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.lookups.count	0
 value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode
 value	PersonalEventBuilder::export.Word.MoveFromVlkToVacationForCuring.previewRequired	PersonId|PersonName|EventDate|PersonRank|PositionCode|IncomingNumber|IncomingDate|Destination
@@ -1697,7 +1699,7 @@ value	PersonalEventBuilder::hospital.fields.count	2
 value	PersonalEventBuilder::hospital.lookup.key	Hospital
 value	PersonalEventBuilder::reporter.tvo.prefix	тимчасово виконуючого обов'язки
   ref	PersonalEventBuilder::reporter.tvo.source.path	__cfgDependencies.fileMovementHistory
-value	PersonalEventBuilder::reporter.tvo.source.range	B7:X10000
+value	PersonalEventBuilder::reporter.tvo.source.range	B5:X10000
 value	PersonalEventBuilder::reporter.tvo.source.sheet	ТВО
 value	PersonalEventBuilder::reporter.tvo.ambiguous	Для рапортуючого {name} знайдено декілька чинних призначень ТВО. Уточніть дані джерела.
 value	PersonalEventBuilder::reporter.tvo.endHeader	Здавання
@@ -2072,3 +2074,50 @@ value	PersonalEventBuilder::text.DeleteLastEventConfirm	Видалити ост�
 value	PersonalEventBuilder::text.LastEventDeleted	Останню подію наказу, дочірні рядки та всі ревізії видалено. РУХ і Word не змінено. Збережіть книгу історії вручну (Ctrl+S).
 value	PersonalEventBuilder::text.LastEventChanged	Остання подія наказу змінилася. Перевірте історію та повторіть дію.
 value	PersonalEventBuilder::text.HistoryTicketMigrationRequired	Структура історії містить старі колонки TicketNumber/TicketDate. Закрийте книгу та виконайте міграцію migrate_history_ticket_columns.py перед збереженням подій.
+value	PersonalEventBuilder::export.Movement.FromBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromOutpatientExaminationOrVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromHospitalToMedicalCompanyVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToMedicalCompanyVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToOutpatientExaminationOrVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.ToMedicalCompanyForTreatment.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromAwolToBusinessTrip.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromAnnualVacationToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromFamilyVacationToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromVacationForCuringToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromHospitalToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromHospitalToAnnualVacationContinuation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|DurationDays|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromHospitalToMedicalLeaveContinuation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|DurationDays|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromVacationForCuringToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromAnnualVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromVacationForCuringToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromAnnualVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromFamilyVacationToVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromMedicalCompanyForTreatmentToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromMedicalCompanyForTreatmentToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromMedicalCompanyVacationForCuringToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromAnnualVacationToFamilyVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromFamilyVacationToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromHospitalToExternalVlk.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromFamilyVacationToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromExternalVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromExternalVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromExternalVlkToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromOutpatientVlkToAnnualVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromOutpatientVlkToHospital.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.MoveFromOutpatientVlkToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate

@@ -502,7 +502,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromBusinessTrip.required")
     private_AddEvent _
         "FromHospital", _
         "Arrival", _
@@ -512,7 +512,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromHospital.required")
     private_AddEvent _
         "FromVacationForCuring", _
         "Arrival", _
@@ -522,7 +522,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromVacationForCuring.required")
     private_AddEvent _
         "FromAnnualMainVacation", _
         "Arrival", _
@@ -532,7 +532,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromAnnualMainVacation.required")
     private_AddEvent _
         "FromVacationForFamily", _
         "Arrival", _
@@ -542,7 +542,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromVacationForFamily.required")
     private_AddEvent _
         "FromOutpatientExaminationOrVlk", _
         "Arrival", _
@@ -552,7 +552,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromOutpatientExaminationOrVlk.required")
     private_AddEvent _
         "FromExternalVlk", _
         "Arrival", _
@@ -562,7 +562,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromExternalVlk.required")
     private_AddEvent _
         "FromMedicalCompanyForTreatment", _
         "Arrival", _
@@ -572,7 +572,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.FromMedicalCompanyForTreatment.required")
     private_AddEvent _
         "ToHospital", _
         "Departure", _
@@ -582,7 +582,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToHospital.required")
     private_AddEvent _
         "ToBusinessTrip", _
         "Departure", _
@@ -592,7 +592,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToBusinessTrip.required")
     private_AddEvent _
         "ToAnnualMainVacation", _
         "Departure", _
@@ -602,7 +602,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToAnnualMainVacation.required")
     private_AddEvent _
         "ToVacationForFamily", _
         "Departure", _
@@ -612,7 +612,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToVacationForFamily.required")
     private_AddEvent _
         "ToMaternityLeave", _
         "Departure", _
@@ -622,7 +622,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToMaternityLeave.required")
     private_AddEvent _
         "ToVacationForCuring", _
         "Departure", _
@@ -632,7 +632,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToVacationForCuring.required")
     private_AddEvent _
         "MoveFromHospitalToMedicalCompanyVacationForCuring", _
         "Transition", _
@@ -642,7 +642,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromHospitalToMedicalCompanyVacationForCuring.required")
     private_AddEvent _
         "ToMedicalCompanyVacationForCuring", _
         "Departure", _
@@ -652,7 +652,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToMedicalCompanyVacationForCuring.required")
     private_AddEvent _
         "ToOutpatientExaminationOrVlk", _
         "Departure", _
@@ -662,7 +662,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToOutpatientExaminationOrVlk.required")
     private_AddEvent _
         "ToMedicalCompanyForTreatment", _
         "Departure", _
@@ -672,7 +672,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.ToMedicalCompanyForTreatment.required")
     private_AddEvent _
         "MoveFromAwolToBusinessTrip", _
         "Transition", _
@@ -682,7 +682,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromAwolToBusinessTrip.required")
     private_AddEvent _
         "MoveFromAnnualVacationToVacationForCuring", _
         "Transition", _
@@ -692,7 +692,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromAnnualVacationToVacationForCuring.required")
     private_AddEvent _
         "MoveFromFamilyVacationToVacationForCuring", _
         "Transition", _
@@ -702,7 +702,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromFamilyVacationToVacationForCuring.required")
     private_AddEvent _
         "MoveFromVacationForCuringToAnnualVacation", _
         "Transition", _
@@ -712,7 +712,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromVacationForCuringToAnnualVacation.required")
     private_AddEvent _
         "MoveFromHospitalToVacationForCuring", _
         "Transition", _
@@ -722,7 +722,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromHospitalToVacationForCuring.required")
     private_AddEvent _
         "MoveFromHospitalToAnnualVacationContinuation", _
         "Transition", _
@@ -732,7 +732,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|DurationDays|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromHospitalToAnnualVacationContinuation.required")
     private_AddEvent _
         "MoveFromHospitalToMedicalLeaveContinuation", _
         "Transition", _
@@ -742,7 +742,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|DurationDays|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromHospitalToMedicalLeaveContinuation.required")
     private_AddEvent _
         "MoveFromVacationForCuringToVacationForCuring", _
         "Transition", _
@@ -752,7 +752,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromVacationForCuringToVacationForCuring.required")
     private_AddEvent _
         "MoveFromVacationForCuringToHospital", _
         "Transition", _
@@ -762,7 +762,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromVacationForCuringToHospital.required")
     private_AddEvent _
         "MoveFromAnnualVacationToHospital", _
         "Transition", _
@@ -772,7 +772,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromAnnualVacationToHospital.required")
     private_AddEvent _
         "MoveFromVacationForCuringToVlk", _
         "Transition", _
@@ -782,7 +782,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromVacationForCuringToVlk.required")
     private_AddEvent _
         "MoveFromAnnualVacationToVlk", _
         "Transition", _
@@ -792,7 +792,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromAnnualVacationToVlk.required")
     private_AddEvent _
         "MoveFromFamilyVacationToVlk", _
         "Transition", _
@@ -802,7 +802,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromFamilyVacationToVlk.required")
     private_AddEvent _
         "MoveFromVlkToVacationForCuring", _
         "Transition", _
@@ -812,7 +812,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromVlkToVacationForCuring.required")
     private_AddEvent _
         "MoveFromVlkToHospital", _
         "Transition", _
@@ -822,7 +822,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromVlkToHospital.required")
     private_AddEvent _
         "MoveFromMedicalCompanyForTreatmentToHospital", _
         "Transition", _
@@ -832,7 +832,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromMedicalCompanyForTreatmentToHospital.required")
     private_AddEvent _
         "MoveFromMedicalCompanyForTreatmentToVacationForCuring", _
         "Transition", _
@@ -842,7 +842,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromMedicalCompanyForTreatmentToVacationForCuring.required")
     private_AddEvent _
         "MoveFromMedicalCompanyVacationForCuringToHospital", _
         "Transition", _
@@ -852,7 +852,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromMedicalCompanyVacationForCuringToHospital.required")
     private_AddEvent _
         "MoveFromMedicalCompanyVacationForCuringToVacationForCuring", _
         "Transition", _
@@ -862,7 +862,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         ex_PEB_Export.fn_Config("export.Movement.destinations.MedicalCompany"), _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromMedicalCompanyVacationForCuringToVacationForCuring.required")
     private_AddEvent _
         "MoveFromAnnualVacationToFamilyVacation", _
         "Transition", _
@@ -872,7 +872,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromAnnualVacationToFamilyVacation.required")
     private_AddEvent _
         "MoveFromFamilyVacationToAnnualVacation", _
         "Transition", _
@@ -882,7 +882,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromFamilyVacationToAnnualVacation.required")
     private_AddEvent _
         "MoveFromHospitalToExternalVlk", _
         "Transition", _
@@ -892,7 +892,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromHospitalToExternalVlk.required")
     private_AddEvent _
         "MoveFromFamilyVacationToHospital", _
         "Transition", _
@@ -902,7 +902,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromFamilyVacationToHospital.required")
     private_AddEvent _
         "MoveFromExternalVlkToVacationForCuring", _
         "Transition", _
@@ -912,7 +912,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromExternalVlkToVacationForCuring.required")
     private_AddEvent _
         "MoveFromExternalVlkToHospital", _
         "Transition", _
@@ -922,7 +922,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromExternalVlkToHospital.required")
     private_AddEvent _
         "MoveFromExternalVlkToAnnualVacation", _
         "Transition", _
@@ -932,7 +932,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromExternalVlkToAnnualVacation.required")
     private_AddEvent _
         "MoveFromOutpatientVlkToAnnualVacation", _
         "Transition", _
@@ -942,7 +942,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|Destination|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromOutpatientVlkToAnnualVacation.required")
     private_AddEvent _
         "MoveFromOutpatientVlkToHospital", _
         "Transition", _
@@ -952,7 +952,7 @@ Private Sub private_BuildEvents()
         "HospitalShortName", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|HospitalShortName|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromOutpatientVlkToHospital.required")
     private_AddEvent _
         "MoveFromOutpatientVlkToVacationForCuring", _
         "Transition", _
@@ -962,7 +962,7 @@ Private Sub private_BuildEvents()
         "Destination", _
         "", _
         "", _
-        "PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate"
+        ex_PEB_Export.fn_Config("export.Movement.MoveFromOutpatientVlkToVacationForCuring.required")
 End Sub
 
 Private Sub private_AddProfile( _

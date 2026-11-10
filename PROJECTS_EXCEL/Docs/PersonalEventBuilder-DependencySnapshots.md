@@ -1,6 +1,16 @@
 # Dependency snapshots
 
-PersonalEventBuilder uses a session snapshot of saved dependency files. Only the load / refresh button loads or replaces the complete snapshot. Page initialization and module updates do not read dependency tables; order options remain empty until loading succeeds. Requests before loading show the configured instruction to press the button, without falling back to disk reads. External edits and exports do not alter an active generation. Refresh explicitly to adopt newer dependency data.
+PersonalEventBuilder uses a session snapshot of saved dependency files. The load / refresh button loads or replaces the complete snapshot; configuration refresh also reloads it when changed source coordinates cannot reuse the loaded tables. Page initialization and module updates do not read dependency tables; order options remain empty until loading succeeds. Requests before loading show the configured instruction to press the button, without falling back to disk reads. External edits and exports do not alter an active generation. Refresh explicitly to adopt newer dependency data.
+
+## Configuration refresh
+
+The single `RefreshConfig` button updates configuration and export XML templates through the existing configuration updater without importing or compiling VBA. When only `export.*` settings change, or only XML contents change, it resets export services and native route caches; the page, form and history edit context remain intact. It always rebuilds prepared data and reloads WORD and Movement XML templates from the loaded raw tables, advancing the generation to invalidate consumer caches. This includes configured column headers, requirements and export aliases. Unchanged configuration does not skip XML refresh.
+
+Other setting changes recreate the page after the command returns, preserving the loaded snapshot through `fn_Register(..., preserveActive:=True)`. This reapplies cached lookup profiles, mode settings, captions and UI bindings. The form is cleared, as indicated by the pending status. There is no separate full page reload button.
+
+Repreparation checks each configured source against the snapshot by path, worksheet and range. If those coordinates changed, it loads a new complete generation; ordinary setting and XML changes do not reread dependency workbook tables. Prepared dictionaries are swapped before rebuilding and restored on preparation failure. `Config.Refresh.Live`, `Config.Refresh.Prepared` and the existing dependency stages report timing; no Excel runtime timing is claimed by static validation. Export XML here means the WORD result and Movement text templates; changes to the Word document template are read by document export separately.
+
+Movement required fields for every event are configured as `export.Movement.<EventId>.required` in PROD and TEST. The VBA registry retains operation algorithms and internal field identifiers, while worksheet column names remain under `export.Movement.headers.*` and `returnTvo.table.headers.*`. No hardcoded required-field fallback is used when a configuration key is missing. Static coverage is provided by `Scripts\Testing\PEB\validate_config_refresh.py`.
 
 EventsHistory is excluded. Event save, edit, conflict detection and revision operations continue reading its live Excel table, including unsaved changes. Export destinations also remain live write targets.
 

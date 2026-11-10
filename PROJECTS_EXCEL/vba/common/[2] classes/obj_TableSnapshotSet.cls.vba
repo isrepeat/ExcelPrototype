@@ -74,6 +74,12 @@ Public Function Contains(ByVal source As obj_TableSource) As Boolean
     Contains = m_tables.Exists(ex_TableSnapshots.fn_SourceKey(source))
 End Function
 
+Public Sub ReplacePrepared(ByVal prepared As Object)
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Snapshot is unavailable."
+    If prepared Is Nothing Then Err.Raise 5, , "Prepared snapshot dictionary is required."
+    Set m_prepared = prepared
+End Sub
+
 Public Function OwnsWorkbook(ByVal source As obj_TableSource) As Boolean
     Dim key As Variant
     Dim path As String

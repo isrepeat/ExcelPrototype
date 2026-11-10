@@ -246,7 +246,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "PersonnelSection", "ActionsSection", "RefreshPersonnel", _
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
-            "DummyMode", "ExtendedModes", "EnvironmentSwitch", "ReinitializePage", _
+            "DummyMode", "ExtendedModes", "EnvironmentSwitch", "RefreshConfig", _
             "ArrivalType", "DepartureType", "StatusModes", _
             "LoadTest", "NextTest", _
             "PreviewWord", "SaveHistory", "ShowHistory", "HistoryEditMode", "CloseTable", "ExportWord", "ExportMovement", _
@@ -342,7 +342,7 @@ Private Function private_TryRegisterCommands() As Boolean
     If Not uiBindingContext.SetObject("Commands", "SelectConflict", lookupCommand) Then Exit Function
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "DocumentChanged", "EnvironmentSwitch", _
-            "LoadTest", "NextTest", "ResetForm", "ClearPrimary", "ReinitializePage", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
+            "LoadTest", "NextTest", "ResetForm", "ClearPrimary", "RefreshConfig", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", "DeleteLastEvent", _
             "ValidateMedical", "CloseMedical", "CloseEjos", "EmptyOrders", "ShowMovementDiff", "CloseMovementDiff", _
             "OpenReportSearch", "RunReportSearch", "CloseReportSearch", "IncomingDateChanged", _

@@ -87,7 +87,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
     If Not dependencyLoader.Initialize() Then
         Exit Function
     End If
-    ex_TableSnapshots.fn_Register dependencyLoader, ex_PEB_Export.fn_Config("text.DependenciesRequired")
+    ex_TableSnapshots.fn_Register dependencyLoader, ex_PEB_Export.fn_Config("text.DependenciesRequired"), ex_AppCommands.fn_PreserveDependencies()
     Set m_extensions = New obj_PEB_FormExtensions
     If Not m_extensions.Initialize(pageBase) Then Exit Function
     If m_pageBase Is Nothing Then
@@ -874,34 +874,71 @@ Public Function FromHospitalHandler() As Boolean
     FromHospitalHandler = private_SwitchMode("FromHospital")
 End Function
 
-Public Function ReinitializePageHandler() As Boolean
+Public Function RefreshConfigHandler() As Boolean
     Dim diagnostic As String
-    Dim status As String
+    Dim snapshot As obj_TableSnapshotSet
+    Dim loader As obj_PEB_DependencyLoader
+    Dim startedAt As Double
+    Dim previousConfig As Object
+    Dim exportOnly As Boolean
+    Dim previousUpdating As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If ex_PEB_Testing.fn_IsRunning() Then
-        ReinitializePageHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
+        RefreshConfigHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
         Exit Function
     End If
     If m_environmentSwitchPending Then
-        ReinitializePageHandler = True
+        RefreshConfigHandler = True
         Exit Function
     End If
-    On Error GoTo EH_REINITIALIZE
-    status = ex_PEB_Export.fn_Config("text.ReinitializePagePending")
-    If Not ex_ConfigRefresh.fn_TryUpdate(diagnostic) Then GoTo FailedReinitialize
-    ' Recreate the page after the current command has returned.
-    If Not ex_AppCommands.fn_RequestReinitialize() Then
-        Err.Raise 5, , "Cannot schedule PEB page reinitialization."
+    On Error GoTo EH_REFRESH_CONFIG
+    previousUpdating = Application.ScreenUpdating
+    Application.ScreenUpdating = False
+    startedAt = VBA.Timer
+    Set previousConfig = m_modeConfig
+    If Not ex_ConfigRefresh.fn_TryUpdate(diagnostic) Then GoTo FailedRefreshConfig
+    If Not private_CaptureModeConfig(diagnostic, False) Then GoTo FailedRefreshConfig
+    exportOnly = private_ExportConfigOnly(previousConfig, m_modeConfig)
+    ex_PEB_Export.fn_Module_Dispose
+    ex_PEB_EventRoutes.fn_Module_Dispose
+    ex_PEB_MovementRegistry.fn_Module_Dispose
+    ex_PEB_MovementTemplates.fn_Module_Dispose
+    Set snapshot = ex_TableSnapshots.fn_Active()
+    If Not snapshot Is Nothing Then
+        Set loader = New obj_PEB_DependencyLoader
+        If Not loader.Initialize() Then Err.Raise 5, , "Cannot initialize configuration preparation."
+        If Not loader.TryBuild(snapshot, diagnostic, True) Then
+            If diagnostic <> ex_PEB_Export.fn_Config("text.ConfigSourceChanged") Then GoTo FailedRefreshConfig
+            ' Changed source coordinates require a new generation; ordinary setting changes reuse raw tables.
+            If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then GoTo FailedRefreshConfig
+        End If
+        ex_TableSnapshots.fn_Register loader, ex_PEB_Export.fn_Config("text.DependenciesRequired"), True
+        Set loader = Nothing
     End If
+    If Not m_exportService Is Nothing Then m_exportService.Dispose
+    Set m_exportService = Nothing
+    If exportOnly Then
+        ex_Core.fn_Diagnostic_WritePerf "Config.Refresh.Live", startedAt
+        Application.ScreenUpdating = previousUpdating
+        RefreshConfigHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.RefreshConfigReady"), False)
+        Exit Function
+    End If
+    If Not ex_AppCommands.fn_RequestReinitialize(True) Then Err.Raise 5, , "Cannot schedule configuration refresh."
     m_environmentSwitchPending = True
-    ReinitializePageHandler = private_SetActionStatus(status, False)
+    ex_Core.fn_Diagnostic_WritePerf "Config.Refresh.Prepared", startedAt
+    Application.ScreenUpdating = previousUpdating
+    RefreshConfigHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.RefreshConfigPending"), False)
     Exit Function
-EH_REINITIALIZE:
+EH_REFRESH_CONFIG:
     diagnostic = VBA.Err.Description
-FailedReinitialize:
-    ReinitializePageHandler = private_SetActionStatus(diagnostic, True)
+FailedRefreshConfig:
+    If Not loader Is Nothing Then loader.Dispose
+    If Not previousConfig Is Nothing Then Set m_modeConfig = previousConfig
+    Application.ScreenUpdating = previousUpdating
+    RefreshConfigHandler = private_SetActionStatus(diagnostic, True)
 End Function
+
 
 Public Function EnvironmentSwitchHandler() As Boolean
     Dim environment As String
@@ -2845,7 +2882,10 @@ EH:
     ex_Core.fn_Diagnostic_WriteError "History.Preview.Publish", failureNumber, "private_PublishSavedPreview", failure
 End Function
 
-Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolean
+Private Function private_CaptureModeConfig( _
+    ByRef diagnostic As String, _
+    Optional ByVal initializeBindings As Boolean = True _
+) As Boolean
     Dim sheet As Worksheet
     Dim table As ListObject
     Dim configTable As ListObject
@@ -2879,10 +2919,14 @@ Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolea
         key = VBA.Trim$(VBA.CStr(values(rowIndex, keyColumn)))
         If VBA.Left$(key, VBA.Len(prefix)) = prefix Then
             key = VBA.Mid$(key, VBA.Len(prefix) + 1)
-            If m_modeConfig.Exists(key) Then Err.Raise 5, , "Duplicate configuration key: " & prefix & key
-            m_modeConfig.Add key, VBA.Trim$(VBA.CStr(values(rowIndex, keyColumn + 1)))
         End If
+        If m_modeConfig.Exists(key) Then Err.Raise 5, , "Duplicate configuration key: " & key
+        m_modeConfig.Add key, VBA.Trim$(VBA.CStr(values(rowIndex, keyColumn + 1)))
     Next rowIndex
+    If Not initializeBindings Then
+        private_CaptureModeConfig = True
+        Exit Function
+    End If
     ' Batch updates require existing scalar targets before loading the initial mode.
     If Not private_ReadModeConfig("forms.readOnly.fields", fields, diagnostic) Then Exit Function
     For Each field In Split(fields, "|")
@@ -2896,6 +2940,27 @@ Private Function private_CaptureModeConfig(ByRef diagnostic As String) As Boolea
 EH:
     diagnostic = "Mode configuration: " & VBA.Err.Description
 End Function
+
+Private Function private_ExportConfigOnly( _
+    ByVal previous As Object, _
+    ByVal current As Object _
+) As Boolean
+    Dim key As Variant
+
+    For Each key In previous.Keys
+        If Left$(CStr(key), 7) <> "export." Then
+            If Not current.Exists(key) Then Exit Function
+            If CStr(previous(key)) <> CStr(current(key)) Then Exit Function
+        End If
+    Next key
+    For Each key In current.Keys
+        If Left$(CStr(key), 7) <> "export." Then
+            If Not previous.Exists(key) Then Exit Function
+        End If
+    Next key
+    private_ExportConfigOnly = True
+End Function
+
 
 Private Function private_ReadModeConfig( _
     ByVal key As String, _

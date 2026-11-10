@@ -41,7 +41,8 @@ End Sub
 
 Public Function TryBuild( _
     ByVal snapshot As obj_TableSnapshotSet, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal reuseLoaded As Boolean = False _
 ) As Boolean
     Dim prefix As Variant
     Dim mapping As Variant
@@ -64,10 +65,18 @@ Public Function TryBuild( _
     Dim profileDefinitions As Variant
     Dim progressStep As Long
     Dim progressTotal As Long
+    Dim previousPrepared As Object
+    Dim nextPrepared As Object
+    Dim stage As String
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Dependency loader is unavailable."
+    End If
+    If reuseLoaded Then
+        Set previousPrepared = snapshot.Prepared
+        Set nextPrepared = VBA.CreateObject("Scripting.Dictionary")
+        snapshot.ReplacePrepared nextPrepared
     End If
     busyEntered = ex_UiBusy.fn_Begin(ex_PEB_Export.fn_Config("text.DependenciesLoading"))
     ex_PEB_Export.fn_BeginConfigSnapshot
@@ -81,6 +90,7 @@ Public Function TryBuild( _
     Set signatures = VBA.CreateObject("Scripting.Dictionary")
     signatures.CompareMode = VBA.vbTextCompare
     For Each prefix In sourceDefinitions
+        stage = "Table:" & CStr(prefix)
         startedAt = VBA.Timer
         Set source = New obj_TableSource
         If Not source.Initialize() Then
@@ -90,22 +100,29 @@ Public Function TryBuild( _
         source.SheetName = ex_PEB_Export.fn_Config(prefix & ".sheet")
         source.RangeAddress = ex_PEB_Export.fn_Config(prefix & ".range")
         private_Progress progressStep, progressTotal, "Table", source.SheetName
-        If Not signatures.Exists(source.WorkbookPath) Then
+        If Not reuseLoaded And Not signatures.Exists(source.WorkbookPath) Then
             signatures.Add source.WorkbookPath, private_FileStamp(source.WorkbookPath)
         End If
-        If Not snapshot.TryLoad(source, diagnostic) Then
-            GoTo Cleanup
+        If reuseLoaded Then
+            If Not snapshot.Contains(source) Then
+                diagnostic = ex_PEB_Export.fn_Config("text.ConfigSourceChanged")
+                GoTo Cleanup
+            End If
+        Else
+            If Not snapshot.TryLoad(source, diagnostic) Then GoTo Cleanup
         End If
         sources.Add prefix, source
         ex_Core.fn_Diagnostic_WritePerf "Dependencies.Table | Source=" & prefix, startedAt
     Next prefix
     For Each mapping In indexDefinitions
+        stage = "Index:" & CStr(mapping)
         pair = VBA.Split(mapping, "=")
         Set source = sources(pair(0))
         private_Progress progressStep, progressTotal, "Index", ex_PEB_Export.fn_Config(pair(1))
         snapshot.WarmIndex source, ex_PEB_Export.fn_Config(pair(1))
     Next mapping
     For Each prefix In profileDefinitions
+        stage = "Profile:" & CStr(prefix)
         Set profile = New obj_LookupProfile
         Set lookup = New obj_LookupService
         If Not profile.Initialize("PersonalEventBuilder::" & prefix, diagnostic) Then
@@ -124,6 +141,7 @@ Public Function TryBuild( _
         Set profile = Nothing
     Next prefix
     private_Progress progressStep, progressTotal, "Orders"
+    stage = "Orders"
     Set orders = New obj_OrderResolver
     If Not orders.Initialize("PersonalEventBuilder::orders", "PersonalEventBuilder::text", diagnostic) Then
         GoTo Cleanup
@@ -132,10 +150,12 @@ Public Function TryBuild( _
         GoTo Cleanup
     End If
     private_Progress progressStep, progressTotal, "Tvo"
+    stage = "Tvo"
     If Not private_PrepareTvo(snapshot, sources("lookup.Personnel.source"), diagnostic) Then
         GoTo Cleanup
     End If
     private_Progress progressStep, progressTotal, "Absence"
+    stage = "Absence"
     Set candidates = New obj_PEB_CandidateEnricher
     If Not candidates.Initialize(diagnostic) Then
         GoTo Cleanup
@@ -144,6 +164,7 @@ Public Function TryBuild( _
         GoTo Cleanup
     End If
     private_Progress progressStep, progressTotal, "Tickets"
+    stage = "Tickets"
     Set tickets = New obj_PEB_ReturnTickets
     If Not tickets.Initialize() Then
         Err.Raise 5, , "Cannot initialize ticket preparation."
@@ -160,13 +181,16 @@ Public Function TryBuild( _
         End If
     Next prefix
     private_Progress progressStep, progressTotal, "Word"
+    stage = "WordTemplates"
     If Not templates.Initialize(diagnostic) Then
         GoTo Cleanup
     End If
     snapshot.Prepared.Add "WordTemplates", templates
     private_Progress progressStep, progressTotal, "Movement"
+    stage = "MovementTemplates"
     Set snapshot.Prepared("MovementTemplates") = ex_PEB_MovementTemplates.fn_BuildSnapshot()
     private_Progress progressStep, progressTotal, "Verify"
+    stage = "Verify"
     For Each path In signatures.Keys
         If signatures(path) <> private_FileStamp(VBA.CStr(path)) Then
             Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.DependenciesSourceChanged"), "{path}", VBA.CStr(path))
@@ -174,6 +198,13 @@ Public Function TryBuild( _
     Next path
     TryBuild = True
 Cleanup:
+    If Not TryBuild Then
+        ex_Core.fn_Diagnostic_WriteLog "DEPENDENCIES_BUILD_FAILED | Stage=" & stage & _
+            " | ReuseLoaded=" & CStr(reuseLoaded) & " | Diagnostic=" & diagnostic
+    End If
+    If reuseLoaded And Not TryBuild And Not previousPrepared Is Nothing Then
+        snapshot.ReplacePrepared previousPrepared
+    End If
     If Not lookup Is Nothing Then
         lookup.Dispose
     End If
