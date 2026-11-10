@@ -53,14 +53,27 @@ def main():
     live = procedure(controller, "private_ExportConfigOnly")
     assert 'previous.Keys' in live and 'current.Keys' in live
     assert '"export."' in live
+    assert '"text."' in live
+    assert 'private_TemplatesOnly(previousConfig, m_modeConfig)' in refresh
+    template_branch = refresh.split('If templatesOnly Then', 1)[1].split('Else', 1)[0]
+    assert 'loader.TryRefreshTemplates(snapshot, diagnostic)' in template_branch
+    assert 'TryBuild' not in template_branch and 'fn_Refresh' not in template_branch
+    assert 'private_RefreshTexts(previousConfig, diagnostic)' in refresh
     assert 'ex_AppCommands.fn_PreserveDependencies()' in controller
     loader = procedure(read(paths[2]), "TryBuild")
+    templates = procedure(read(paths[2]), "TryRefreshTemplates")
+    assert templates.index('templates.Initialize(diagnostic)') < templates.index('snapshot.ReplacePrepared prepared')
+    assert templates.index('fn_BuildSnapshot()') < templates.index('snapshot.ReplacePrepared prepared')
+    assert 'prepared.Add key, snapshot.Prepared(key)' in templates
+    assert all(token not in templates for token in ('TryLoad', 'WarmIndex', 'PrepareSnapshot', 'fn_Refresh'))
     assert 'If reuseLoaded Then' in loader
     assert loader.index('snapshot.Contains(source)') < loader.index('snapshot.TryLoad(source, diagnostic)')
     assert 'snapshot.ReplacePrepared previousPrepared' in loader
     callback = procedure(read(paths[3]), "fn_ReinitializePage")
     assert 'If Not m_preserveDependencies Then ex_TableDataRuntime.fn_ResetCaches' in callback
     assert 'm_preserveDependencies = False' in callback
+    assert 'Set preserved = ex_TableSnapshots.fn_Active()' in callback
+    assert 'ex_TableSnapshots.fn_RestoreActive preserved' in callback
     page = read(paths[1])
     assert '"RefreshConfig"' in page
     markup = ET.fromstring(read("ui/PersonalEventBuilder/MainPage.xaml"))

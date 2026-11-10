@@ -66,6 +66,11 @@ def main():
     for name in ('ToBusinessTrip', 'FromBusinessTrip'):
         node = next(node for node in word.findall('{*}template') if node.get('name') == name)
         assert '{#include block.BusinessTripBasisDocuments}' in ''.join(node.itertext())
+        rejects = node.findall('{*}reject')
+        if name == 'FromBusinessTrip':
+            assert not rejects
+        else:
+            assert any(rule.get('messageKey') == 'text.BusinessTripWordOmitted' for rule in rejects)
     print("PASS: Word ticket expansion, Movement abbreviation and duplicate-suppression contracts. VBA was not executed.")
 
 

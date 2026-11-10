@@ -104,6 +104,7 @@ Public Sub fn_ReinitializePage()
     Dim previousUpdating As Boolean
     Dim errorNumber As Long
     Dim errorDescription As String
+    Dim preserved As obj_TableSnapshotSet
 
     m_reinitializeAt = 0
     If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then
@@ -117,13 +118,19 @@ Public Sub fn_ReinitializePage()
     Application.ScreenUpdating = False
     initializerName = ex_WorkbookCallbacks.fn_Resolve("ThisWorkbook::initializer")
     ex_Core.fn_Diagnostic_WriteLog "CONFIG_REINITIALIZE_STARTED"
+    If m_preserveDependencies Then Set preserved = ex_TableSnapshots.fn_Active()
     If Not m_preserveDependencies Then ex_TableDataRuntime.fn_ResetCaches
     ex_RuntimePaths.fn_Module_Dispose
     If Not VBA.CBool(Application.Run(initializerName)) Then
         VBA.Err.Raise 5, , "Page reinitialization failed: " & initializerName
     End If
+    If Not preserved Is Nothing Then
+        ex_TableSnapshots.fn_RestoreActive preserved
+        Set preserved = Nothing
+    End If
     ex_Core.fn_Diagnostic_WriteLog "CONFIG_REINITIALIZE_COMPLETED"
 CleanupReinitialize:
+    If Not preserved Is Nothing Then ex_TableSnapshots.fn_RestoreActive preserved
     m_preserveDependencies = False
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousUpdating

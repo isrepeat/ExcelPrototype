@@ -325,7 +325,7 @@ value	PersonalEventBuilder::text.StyleRuleStyleMissing	Іменований ст
 value	PersonalEventBuilder::text.TestPhase.OpenAbsence	Відкриття тестової книги ЄЖОС.
 value	PersonalEventBuilder::text.TestsMutationMismatch	Зміни рядків ТВ або записані поля не відповідають операції.
 value	PersonalEventBuilder::text.AutoFillPersonnelLabel	Автопідстановка даних
-value	PersonalEventBuilder::text.BusinessTripWordOmitted	Експорт у WORD для подій «З відрядження» та «У відрядження» вимкнено правилами шаблону.
+value	PersonalEventBuilder::text.BusinessTripWordOmitted	Експорт у WORD для подій «У відрядження» вимкнено правилами шаблону.
 value	PersonalEventBuilder::text.ConflictSelectedPrefix	✓:
 value	PersonalEventBuilder::text.DependenciesTvoMissing	Особу ТВО не знайдено у ШПО:
 value	PersonalEventBuilder::text.DependenciesTvoPosition	ШПО: порожній або повторний код посади «{code}» у ланцюжку ТВО, рядок даних {row}.

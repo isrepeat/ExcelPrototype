@@ -881,6 +881,7 @@ Public Function RefreshConfigHandler() As Boolean
     Dim startedAt As Double
     Dim previousConfig As Object
     Dim exportOnly As Boolean
+    Dim templatesOnly As Boolean
     Dim previousUpdating As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -900,6 +901,7 @@ Public Function RefreshConfigHandler() As Boolean
     If Not ex_ConfigRefresh.fn_TryUpdate(diagnostic) Then GoTo FailedRefreshConfig
     If Not private_CaptureModeConfig(diagnostic, False) Then GoTo FailedRefreshConfig
     exportOnly = private_ExportConfigOnly(previousConfig, m_modeConfig)
+    templatesOnly = exportOnly And private_TemplatesOnly(previousConfig, m_modeConfig)
     ex_PEB_Export.fn_Module_Dispose
     ex_PEB_EventRoutes.fn_Module_Dispose
     ex_PEB_MovementRegistry.fn_Module_Dispose
@@ -908,10 +910,14 @@ Public Function RefreshConfigHandler() As Boolean
     If Not snapshot Is Nothing Then
         Set loader = New obj_PEB_DependencyLoader
         If Not loader.Initialize() Then Err.Raise 5, , "Cannot initialize configuration preparation."
-        If Not loader.TryBuild(snapshot, diagnostic, True) Then
-            If diagnostic <> ex_PEB_Export.fn_Config("text.ConfigSourceChanged") Then GoTo FailedRefreshConfig
-            ' Changed source coordinates require a new generation; ordinary setting changes reuse raw tables.
-            If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then GoTo FailedRefreshConfig
+        If templatesOnly Then
+            If Not loader.TryRefreshTemplates(snapshot, diagnostic) Then GoTo FailedRefreshConfig
+        Else
+            If Not loader.TryBuild(snapshot, diagnostic, True) Then
+                If diagnostic <> ex_PEB_Export.fn_Config("text.ConfigSourceChanged") Then GoTo FailedRefreshConfig
+                ' Changed source coordinates require a new generation; ordinary setting changes reuse raw tables.
+                If Not ex_TableSnapshots.fn_Refresh(diagnostic) Then GoTo FailedRefreshConfig
+            End If
         End If
         ex_TableSnapshots.fn_Register loader, ex_PEB_Export.fn_Config("text.DependenciesRequired"), True
         Set loader = Nothing
@@ -919,6 +925,7 @@ Public Function RefreshConfigHandler() As Boolean
     If Not m_exportService Is Nothing Then m_exportService.Dispose
     Set m_exportService = Nothing
     If exportOnly Then
+        If Not private_RefreshTexts(previousConfig, diagnostic) Then GoTo FailedRefreshConfig
         ex_Core.fn_Diagnostic_WritePerf "Config.Refresh.Live", startedAt
         Application.ScreenUpdating = previousUpdating
         RefreshConfigHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.RefreshConfigReady"), False)
@@ -2948,17 +2955,68 @@ Private Function private_ExportConfigOnly( _
     Dim key As Variant
 
     For Each key In previous.Keys
-        If Left$(CStr(key), 7) <> "export." Then
+        If Left$(CStr(key), 7) <> "export." And Left$(CStr(key), 5) <> "text." Then
             If Not current.Exists(key) Then Exit Function
             If CStr(previous(key)) <> CStr(current(key)) Then Exit Function
         End If
     Next key
     For Each key In current.Keys
-        If Left$(CStr(key), 7) <> "export." Then
+        If Left$(CStr(key), 7) <> "export." And Left$(CStr(key), 5) <> "text." Then
             If Not previous.Exists(key) Then Exit Function
         End If
     Next key
     private_ExportConfigOnly = True
+End Function
+
+Private Function private_TemplatesOnly( _
+    ByVal previous As Object, _
+    ByVal current As Object _
+) As Boolean
+    Dim key As Variant
+    Dim changed As Boolean
+
+    For Each key In previous.Keys
+        If Not current.Exists(key) Then Exit Function
+    Next key
+    For Each key In current.Keys
+        changed = Not previous.Exists(key)
+        If Not changed Then changed = (CStr(previous(key)) <> CStr(current(key)))
+        If changed Then
+            If Left$(CStr(key), 5) <> "text." And Right$(CStr(key), 9) <> ".required" And _
+                    Right$(CStr(key), 16) <> ".previewRequired" And _
+                    CStr(key) <> "export.Word.templates.path" And CStr(key) <> "export.Movement.templates.path" Then Exit Function
+        End If
+    Next key
+    private_TemplatesOnly = True
+End Function
+
+Private Function private_RefreshTexts( _
+    ByVal previous As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim key As Variant
+    Dim name As String
+    Dim scalar As Variant
+    Dim objectValue As Object
+    Dim isObject As Boolean
+
+    For Each key In m_modeConfig.Keys
+        If Left$(CStr(key), 5) = "text." Then
+            If previous.Exists(key) Then
+                If CStr(previous(key)) = CStr(m_modeConfig(key)) Then GoTo NextText
+            End If
+            name = Mid$(CStr(key), 6)
+            If m_messages.Exists(name) Then m_messages(name) = m_modeConfig(key)
+            If m_pageBase.BindingContext.TryGetValue("Text", name, scalar, objectValue, isObject) Then
+                If Not m_pageBase.BindingContext.SetValue("Text", name, m_modeConfig(key)) Then
+                    diagnostic = "Cannot refresh text binding: " & name
+                    Exit Function
+                End If
+            End If
+        End If
+NextText:
+    Next key
+    private_RefreshTexts = True
 End Function
 
 
@@ -3275,6 +3333,10 @@ Private Function private_UpdateReadOnly( _
     Dim field As Variant
     Dim autoFill As Variant
     Dim updates As Object
+    Dim previousDestination As String
+    Dim nextDestination As String
+    Dim currentDestination As Variant
+    Dim defaultStyle As String
 
     If Not private_ReadModeConfig("forms.readOnly.fields", fields, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("forms.readOnly.modes." & modeId, dependents, diagnostic) Then Exit Function
@@ -3302,6 +3364,23 @@ Private Function private_UpdateReadOnly( _
     If Len(ex_PEB_Export.fn_FixedDocument(modeId)) > 0 Then
         updates("Form.DocumentReadOnly") = True
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(modeId)
+    End If
+    If Len(m_modeId) > 0 And m_modeId <> modeId Then
+        If ex_PEB_EventRoutes.fn_HasRoute(m_modeId, "Movement") Then
+            previousDestination = ex_PEB_EventRoutes.fn_Value(m_modeId, "movement.destinationValue")
+        End If
+        If ex_PEB_EventRoutes.fn_HasRoute(modeId, "Movement") Then
+            nextDestination = ex_PEB_EventRoutes.fn_Value(modeId, "movement.destinationValue")
+        End If
+        If Len(previousDestination) > 0 And Len(nextDestination) = 0 Then
+            ' Release the former constant's disabled style; retain the new mode's read-only policy.
+            If Not private_ReadModeConfig("forms.sourceStyles.default", defaultStyle, diagnostic) Then Exit Function
+            updates("Form.DestinationStyle") = defaultStyle
+            If Not private_TryReadFormValue("Destination", currentDestination) Then Exit Function
+            If ex_PEB_Export.fn_Text(currentDestination) = previousDestination Then
+                updates("Form.Destination") = vbNullString
+            End If
+        End If
     End If
     If Not private_ApplyFixedDestination(updates, modeId, diagnostic) Then Exit Function
     private_UpdateReadOnly = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)

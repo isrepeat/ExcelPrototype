@@ -408,9 +408,6 @@
 
 <template name="FromBusinessTrip"
             hash="0x01">
-    <reject field="PersonId"
-            matches="^"
-            messageKey="text.BusinessTripWordOmitted"/>
     <text><![CDATA[#^
 #_      З {[EffectiveReturnDateShort]|dateformat:"\dd \month \yyyy року"}:#^
 #_      {#newline}{#newline}#^

@@ -229,6 +229,38 @@ EH:
     Resume Cleanup
 End Function
 
+Public Function TryRefreshTemplates( _
+    ByVal snapshot As obj_TableSnapshotSet, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim templates As obj_PEB_WordTemplates
+    Dim movement As Object
+    Dim prepared As Object
+    Dim key As Variant
+    Dim startedAt As Double
+
+    On Error GoTo EH_TEMPLATES
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Dependency loader is unavailable."
+    startedAt = VBA.Timer
+    Set templates = New obj_PEB_WordTemplates
+    If Not templates.Initialize(diagnostic) Then Exit Function
+    Set movement = ex_PEB_MovementTemplates.fn_BuildSnapshot()
+    Set prepared = VBA.CreateObject("Scripting.Dictionary")
+    For Each key In snapshot.Prepared.Keys
+        If CStr(key) <> "WordTemplates" And CStr(key) <> "MovementTemplates" Then
+            prepared.Add key, snapshot.Prepared(key)
+        End If
+    Next key
+    prepared.Add "WordTemplates", templates
+    prepared.Add "MovementTemplates", movement
+    snapshot.ReplacePrepared prepared
+    TryRefreshTemplates = True
+    ex_Core.fn_Diagnostic_WritePerf "Config.Refresh.Templates", startedAt
+    Exit Function
+EH_TEMPLATES:
+    diagnostic = VBA.Err.Description
+End Function
+
 ' //
 ' // Interface
 ' //

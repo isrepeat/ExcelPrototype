@@ -42,6 +42,12 @@ Public Function fn_Generation() As Long
     fn_Generation = m_generation
 End Function
 
+Public Sub fn_RestoreActive(ByVal snapshot As obj_TableSnapshotSet)
+    If snapshot Is Nothing Then Err.Raise 5, , "A preserved dependency snapshot is required."
+    Set m_active = snapshot
+    m_generation = m_generation + 1
+End Sub
+
 Public Sub fn_Invalidate()
     Set m_active = Nothing
     m_generation = m_generation + 1
