@@ -164,7 +164,7 @@ Public Function TryGenerateHistory( _
         End If
         body = ex_PEB_WordGroups.fn_NormalizeSection(body)
         ' Different event types can share one anchor; accumulate before replacing its content.
-        anchorId = ex_PEB_Export.fn_WordAnchor(VBA.CStr(eventId))
+        anchorId = ex_PEB_EventRoutes.fn_WordSectionAnchor(VBA.CStr(eventId))
         If Not rendered.Exists(anchorId) Then
             rendered.Add anchorId, body
             sectionEvents.Add anchorId, eventId
@@ -205,9 +205,9 @@ Public Function TryGenerateHistory( _
             context.Add "EventId", sectionEvents(anchorId)
             context.Add "WordText", rendered(anchorId)
             private_HistoryStage "Section.Insert", stage, startedAt
-            If Not anchors.TryInsert(document, context, diagnostic) Then GoTo CleanupHistory
+            If Not anchors.TryInsert(document, context, diagnostic, VBA.CStr(anchorId)) Then GoTo CleanupHistory
             private_HistoryStage "Section.Verify", stage, startedAt
-            If Not anchors.TryVerify(document, context, diagnostic) Then GoTo CleanupHistory
+            If Not anchors.TryVerify(document, context, diagnostic, VBA.CStr(anchorId)) Then GoTo CleanupHistory
             ex_Core.fn_Diagnostic_WritePerf "Word.Export.Section." & VBA.CStr(anchorId), sectionStartedAt
         End If
     Next anchorId

@@ -3052,8 +3052,7 @@ Private Function private_TemplatesOnly( _
         If Not changed Then changed = (CStr(previous(key)) <> CStr(current(key)))
         If changed Then
             If Left$(CStr(key), 5) <> "text." And Right$(CStr(key), 9) <> ".required" And _
-                    Right$(CStr(key), 16) <> ".previewRequired" And _
-                    CStr(key) <> "export.Word.templates.path" And CStr(key) <> "export.Movement.templates.path" Then Exit Function
+                    Right$(CStr(key), 16) <> ".previewRequired" Then Exit Function
         End If
     Next key
     private_TemplatesOnly = True
@@ -3229,7 +3228,7 @@ Private Function private_SetModeButtonSelection(ByVal selectedModeId As String) 
     Dim mode As Variant
     Dim style As String
 
-    modes = ex_PEB_EventRoutes.fn_VisibleIds()
+    modes = ex_PEB_EventRoutes.fn_Ids()
     For Each mode In modes
         style = "secondaryButton"
         If VBA.CStr(mode) = selectedModeId Then
@@ -3312,7 +3311,7 @@ Private Function private_LoadMode( _
     secondaryCandidates = m_reporterActive Or m_hospitalActive Or m_documentActive
     currentForm = vbNullString
     If Len(m_modeId) > 0 Then currentForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
-    modes = ex_PEB_EventRoutes.fn_VisibleIds()
+    modes = ex_PEB_EventRoutes.fn_Ids()
     If Not private_SelectModeControls(modeId, selectionSource) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function

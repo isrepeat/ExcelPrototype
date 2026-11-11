@@ -80,7 +80,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
         Exit Function
     End If
     On Error GoTo EH
-    path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Word.templates.path"))
+    path = ex_PEB_EventRoutes.fn_ImportPath("word")
     Set fileSystem = VBA.CreateObject("Scripting.FileSystemObject")
     If Not fileSystem.FileExists(path) Then
         Err.Raise 5, , "Word DSL XML not found: " & path
@@ -106,6 +106,7 @@ Public Function Initialize(ByRef diagnostic As String) As Boolean
     If node.getAttribute("version") <> "2" Then
         Err.Raise 5, , "Unsupported Word DSL XML version."
     End If
+    ex_PEB_EventRoutes.fn_ExpandWordTransitions document
     knownKeys = "|" & ex_PEB_Export.fn_Config("export.Word.context.xmlKeys") & "|"
     Set m_resources = ex_PEB_DslResources.fn_Load(node, knownKeys & "ModeId|")
     If node.selectNodes("p:resources").Length = 1 Then

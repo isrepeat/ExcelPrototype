@@ -84,9 +84,7 @@ Source edits do not deploy VBA or refresh workbook configuration. Deploy the new
 
 Пути, схемы, общие поставщики данных, окружения и сообщения импортируются из `config/PersonalEventBuilder/wsConfig.txt` в wsConfig/tbConfig. Имена колонок Movement обязательны в `export.Movement.headers.<HeaderId>`; назначение медицинской роты — в `export.Movement.destinations.MedicalCompany`. Планы читают их через `fn_Config`, без зашитых запасных значений. Обновляйте выбранный TEST/PROD-конфиг вместе с VBA. XML-колонки обязаны ссылаться на эти ключи через `configKey`; буквальные заголовки отклоняются. Выходной текст хранится в XML экспортёров, операции задаёт нативный код. Пути считаются от каталога книги.
 
-- `export.Word.templates.path` — путь XML, сейчас `./PersonalEventBuilderWordResultTemplates.xml`.
-- `events.path` — общий реестр событий и выбранных шаблонов.
-- `export.Movement.templates.path` — XML Movement, сейчас `./PersonalEventBuilderMovementTemplates.xml`.
+- `events.path` — путь к общему реестру событий. В его разделе `<imports>` элементы `<import alias="…" path="…"/>` задают пути к XML шаблонов относительно каталога реестра. Маршруты ссылаются на шаблоны и общие блоки через `word:ID` и `movement:ID`. Префикс берётся из `alias`, а ID соответствует имени шаблона или блока в подключённом файле.
 - `export.Word.<ModeId>.previewRequired` — обязательные поля превью. Для простого показа пункта принимать приказ не нужно.
 - `export.Word.<ModeId>.required` — обязательные данные экспорта DOCX.
 - `export.fields`, `export.dateFields` — снимаемые поля и проверяемые даты. Строковый формат — `DD.MM.YYYY`; невозможные даты и пропущенный год запрещены.

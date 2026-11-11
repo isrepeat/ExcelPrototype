@@ -125,7 +125,7 @@ Private Sub private_EnsureLoaded()
         Exit Sub
     End If
     On Error GoTo EH
-    Set m_document = private_LoadXml(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("export.Movement.templates.path")))
+    Set m_document = private_LoadXml(ex_PEB_EventRoutes.fn_ImportPath("movement"))
     Set root = m_document.selectSingleNode("/p:resultTemplates")
     If root Is Nothing Then
         Err.Raise 5, , "Expected resultTemplates in urn:excelprototype:profiles."

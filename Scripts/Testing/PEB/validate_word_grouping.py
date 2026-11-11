@@ -7,6 +7,7 @@ import re
 from event_routes import ROOT, WORKBOOK, NS, parse_config, load_registry, validate_word_template
 from word_grouping_fixtures import load_grouping_cases
 from validate_word_grammar import validate_cases
+from xml_imports import import_path
 
 
 def validate_plan(template, fields):
@@ -49,7 +50,7 @@ def main():
         settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         registry = load_registry(settings)
         assert registry["events"]["ToBusinessTrip"].find("p:word", NS).get("template") == "ToBusinessTrip"
-        root = ET.parse(WORKBOOK / settings["export.Word.templates.path"]).getroot()
+        root = ET.parse(import_path(WORKBOOK / settings["events.path"], "word")).getroot()
         template = root.find("p:template[@name='ToBusinessTrip']", NS)
         fields = set(settings["export.Word.grouping.stateFields"].split("|"))
         validate_plan(template, fields)

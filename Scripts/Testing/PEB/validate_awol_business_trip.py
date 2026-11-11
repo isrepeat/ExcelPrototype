@@ -53,11 +53,12 @@ def main():
         assert plans['statuses'][plan['sourceStatus']] == 'Самовільне залишення частини'
         assert plans['statuses'][plan['targetStatus']] == 'Відрядження'
         assert plans['statuses']['ReturnToOtherUnit'] == 'Повернення до іншої частини'
-    event = load_registry(settings)['events']['MoveFromAwolToBusinessTrip']
+    registry = load_registry(settings)
+    event = registry['events']['MoveFromAwolToBusinessTrip']
     assert event.get('caption') == event.get('label') == 'СЗЧ → Відрядження'
+    assert event.get('wordSectionAnchor') == 'StatusChanges'
     assert event.find('{*}word').get('template') == 'MoveFromAwolToBusinessTrip'
-    word = ET.parse(ROOT / 'PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml')
-    template = next(node for node in word.findall('{*}template') if node.get('name') == 'MoveFromAwolToBusinessTrip')
+    template = registry['word_templates']['MoveFromAwolToBusinessTrip']
     rejection = template.find('{*}reject')
     assert rejection.get('field') == 'PersonId' and rejection.get('matches') == '^'
     assert rejection.get('messageKey') == 'text.AwolBusinessTripWordOmitted'
@@ -69,7 +70,8 @@ def main():
     paragraphs = [''.join(node.itertext()) for node in document.findall('w:body/w:p', ns)]
     for kind in ('block', 'export'):
         for suffix in ('Begin', 'End'):
-            assert paragraphs.count('{\\' + kind + ':MoveFromAwolToBusinessTrip_' + suffix + '}') == 1
+            assert paragraphs.count('{\\' + kind + ':StatusChanges_' + suffix + '}') == 1
+            assert '{\\' + kind + ':MoveFromAwolToBusinessTrip_' + suffix + '}' not in paragraphs
     service = (folder / 'obj_PEB_ExportService.cls.vba').read_text(encoding='utf-8-sig')
     prepare = procedure(service, 'TryPrepare')
     no_word = prepare.index('If Not ex_PEB_EventRoutes.fn_HasRoute(CStr(values("EventId")), "Word") Then')

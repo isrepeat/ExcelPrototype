@@ -174,8 +174,8 @@ Public Function TryBuild( _
     End If
     snapshot.Prepared.Add "ReturnTickets", tickets
     Set templates = New obj_PEB_WordTemplates
-    For Each prefix In VBA.Array("export.Word.templates.path", "export.Movement.templates.path")
-        path = ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config(VBA.CStr(prefix)))
+    For Each path In VBA.Array(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("events.path")), _
+            ex_PEB_EventRoutes.fn_ImportPath("word"), ex_PEB_EventRoutes.fn_ImportPath("movement"))
         If Not signatures.Exists(path) Then
             signatures.Add path, private_FileStamp(VBA.CStr(path))
         End If

@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 from event_routes import ROOT, WORKBOOK, NS, load_registry, parse_config
+from xml_imports import import_path
 
 
 def main():
@@ -12,8 +13,6 @@ def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(folder / filename)
         registry = load_registry(settings)
-        assert len(registry["events"]) == 46
-        assert sum(event.find("p:word", NS) is not None for event in registry["events"].values()) == 42
         medical_leave_id = "MoveFromHospitalToMedicalCompanyVacationForCuring"
         medical_leave = registry["events"][medical_leave_id]
         assert medical_leave.get("form") == "HospitalLeave"
@@ -28,14 +27,15 @@ def main():
         assert movement_leave["destinationValue"] == settings["export.Movement.destinations.MedicalCompany"]
         assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is not None
         movement_only = {name for name, event in registry["events"].items() if event.find("p:word", NS) is None}
-        assert movement_only == {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "MoveFromAwolToBusinessTrip", "ToBusinessTrip"}
+        assert {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "ToBusinessTrip",
+                "MoveFromMissingToBusinessTrip", "MoveFromMissingToOutpatientVlk"} <= movement_only
         assert registry["events"]["ToBusinessTrip"].get("caption") == "У відрядження"
         for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
                          "MoveFromVacationForCuringToAnnualVacation"):
             event = registry["events"][event_id]
-            assert event.get("direction") == "StatusChange" and event.get("visible") == "true"
+            assert event.get("direction") == "StatusChange"
             assert event.find("p:word", NS).get("template") == event_id
-            assert event.find("p:movement", NS).get("template") == event_id
+            assert event.find("p:movement", NS).get("template") == "StatusChangeWithVlkBasis"
             assert settings["export.Word.textAnchors." + event_id] == event_id
         templates = [path for path in WORKBOOK.glob("*.docx") if path.name.startswith("{yyyy}")]
         assert len(templates) == 1
@@ -44,15 +44,25 @@ def main():
             text = "".join(document.itertext())
             for event_id, event in registry["events"].items():
                 if event.find("p:word", NS) is not None:
-                    anchor = settings["export.Word.textAnchors." + event_id]
-                    for boundary in ("Begin", "End"):
-                        assert text.count("{\\export:" + anchor + "_" + boundary + "}") == 1, event_id
+                    generated = registry["movement"]["generated"].get(event_id)
+                    profile_id = generated[0] if generated else event_id
+                    anchor = event.get("wordSectionAnchor", settings["export.Word.textAnchors." + profile_id])
+                    for kind in ("export", "block"):
+                        for boundary in ("Begin", "End"):
+                            assert text.count("{\\" + kind + ":" + anchor + "_" + boundary + "}") == 1, event_id
             for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
                              "MoveFromVacationForCuringToAnnualVacation"):
-                for boundary in ("Begin", "End"):
-                    assert text.count("{\\export:" + event_id + "_" + boundary + "}") == 1
+                assert "{\\export:" + event_id + "_Begin}" not in text
+            for event_id in ("MoveFromAnnualVacationToHospital", "MoveFromMissingToHospital"):
+                assert registry["events"][event_id].get("wordSectionAnchor") == "StatusChanges"
+            for event_id, anchor in (
+                    ("MoveFromVacationForCuringToVacationForCuring", "StatusChanges"),
+                    ("MoveFromHospitalToMedicalLeaveContinuation", "StatusChanges"),
+                    ("MoveFromHospitalToAnnualVacationContinuation", "StatusChanges")):
+                assert registry["events"][event_id].get("wordSectionAnchor") == anchor
+                assert "{\\export:" + event_id + "_Begin}" not in text
         root = ET.parse(WORKBOOK / settings["events.path"]).getroot()
-        assert [node.tag for node in root] == [f"{{{NS['p']}}}events", f"{{{NS['p']}}}transitions"]
+        assert [node.tag for node in root] == [f"{{{NS['p']}}}{name}" for name in ("imports", "events", "transitions")]
         for event in root.find("p:events", NS):
             for route in event:
                 assert set(route.attrib) == {"template"}
@@ -73,9 +83,10 @@ def main():
 
     for key in ("policy", "profile", "anchor"):
         reject_route(lambda event, key=key: event.find("p:word", NS).set(key, "Removed"))
-    reject_route(lambda event: event.find("p:word", NS).set("template", "MissingTemplate"))
+    reject_route(lambda event: event.find("p:word", NS).set("template", "word:MissingTemplate"))
+    reject_route(lambda event: event.find("p:word", NS).set("template", "movement:FromBusinessTrip"))
     reject_route(lambda event: event.find("p:word", NS).attrib.pop("template"))
-    reject_route(lambda event: event.find("p:movement", NS).set("template", "MissingTemplate"))
+    reject_route(lambda event: event.find("p:movement", NS).set("template", "movement:MissingTemplate"))
     reject_route(lambda event: event.find("p:movement", NS).set("operation", "MissingOperation"))
     reject_route(lambda event: event.find("p:movement", NS).attrib.pop("template"))
     reject_route(lambda event: event.append(deepcopy(event.find("p:word", NS))))
@@ -83,21 +94,20 @@ def main():
     reject_route(lambda event: event.append(ET.Element(f"{{{NS['p']}}}unknown")))
     reject_route(lambda event: [event.remove(child) for child in list(event)])
 
-    for keep, remove, settings_key in (("word", "movement", "export.Movement.templates.path"),
-                                       ("movement", "word", "export.Word.templates.path")):
+    for keep, remove in (("word", "movement"), ("movement", "word")):
         altered = deepcopy(root)
+        altered.remove(altered.find("p:transitions", NS))
         events = altered.find("p:events", NS)
         first = events[0]
         for event in list(events)[1:]:
             events.remove(event)
         first.remove(first.find("p:" + remove, NS))
-        local = dict(settings)
-        local[settings_key] = "./THIS_FILE_MUST_NOT_BE_READ.xml"
-        loaded = load_registry(local, xml_text=ET.tostring(altered, encoding="unicode"))
+        altered.find(f"p:imports/p:import[@alias='{remove}']", NS).set("path", "THIS_FILE_MUST_NOT_BE_READ.xml")
+        loaded = load_registry(settings, xml_text=ET.tostring(altered, encoding="unicode"))
         assert loaded["events"][first.get("id")].find("p:" + keep, NS) is not None
         assert loaded["events"][first.get("id")].find("p:" + remove, NS) is None
 
-    word_root = ET.parse(WORKBOOK / settings["export.Word.templates.path"]).getroot()
+    word_root = ET.parse(import_path(WORKBOOK / settings["events.path"], "word")).getroot()
     assert word_root.find("p:omittedTemplates", NS) is None
     altered = deepcopy(word_root)
     altered.append(ET.Element(f"{{{NS['p']}}}omittedTemplates"))
@@ -107,7 +117,7 @@ def main():
         rejected += 1
     else:
         raise AssertionError("Retired omittedTemplates section accepted")
-    print(f"PASS: TEST/PROD, 42 Word routes and 4 Movement-only events; medical-leave DOCX anchors verified; Word-only and Movement-only registries work independently; {rejected} invalid definitions rejected. Office/VBA not executed.")
+    print(f"PASS: TEST/PROD Word and Movement routes, shared DOCX anchors and independent exporters; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":

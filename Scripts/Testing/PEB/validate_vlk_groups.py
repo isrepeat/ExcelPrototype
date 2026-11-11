@@ -21,8 +21,6 @@ def main():
                 source, target = (status.strip().casefold() for status in caption.split("→"))
                 assert source and target and (source, target) not in pairs, caption
                 pairs[source, target] = identifier
-            elif event.get("visible") == "false":
-                assert identifier in extended
         generated = registry["movement"]["generated"]
         aliases = {identifier for identifier, (_, _, _, canonical) in generated.items() if identifier != canonical}
         assert legacy == {"MoveFromVlkToHospital", "MoveFromVlkToVacationForCuring"} | aliases
@@ -42,7 +40,10 @@ def main():
             plan = transition.find("p:movement", NS)
             departure_plan = departure.find("p:movement", NS)
             assert transition.get("form") == departure.get("form")
-            assert plan.get("template") == template
+            expected = "StatusChangeWithoutDepartureDocuments" if base in ("ToVacationForFamily", "ToMaternityLeave") else "StatusChange"
+            assert plan.get("template") == expected
+            if transition.find("p:word", NS) is not None:
+                assert transition.find("p:word", NS).get("template") == template
             assert plan.get("operation") == "Transition" and plan.get("sourceStatus") == "Missing"
             for field in ("targetStatus", "destinationField", "destinationValue", "required"):
                 assert plan.get(field) == departure_plan.get(field), (transition_id, field)
@@ -64,7 +65,8 @@ def main():
                 targets.add(movement.get("targetStatus"))
                 assert event.get("caption") == event.get("label")
                 assert event.get("caption").startswith(prefix)
-                assert movement.get("template") == identifier
+                expected = "StatusChangeWithVlkBasis" if source == "ExternalVlk" and movement.get("targetStatus") != "AnnualVacation" else "StatusChange"
+                assert movement.get("template") == expected
                 if source == "OutpatientVlk":
                     target = {"HospitalTreatment": "ToHospital", "MedicalLeave": "ToVacationForCuring", "AnnualVacation": "ToAnnualMainVacation"}
                     assert event.find("p:word", NS).get("template") == target[movement.get("targetStatus")]

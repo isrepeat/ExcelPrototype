@@ -7,6 +7,10 @@ from xml.etree import ElementTree as ET
 
 def transition_rules(root):
     ns = {"p": "urn:excelprototype:profiles"}
+    transitions = root.find("p:transitions", ns)
+    if transitions is None:
+        return
+    default_section_anchor = transitions.get("wordSectionAnchor")
     statuses = {}
     for node in root.findall("p:transitions/p:statuses/p:status", ns):
         status_id = node.attrib["id"]
@@ -18,7 +22,7 @@ def transition_rules(root):
         return statuses[status["captionRef"]]["caption"] if "captionRef" in status else status["caption"]
 
     seen = set()
-    for route in root.findall("p:transitions/p:routes/p:transition", ns):
+    for route in transition_nodes(transitions, ns):
         source_id = route.attrib["source"]
         if source_id not in statuses:
             raise ValueError(f"Unknown transition source: {source_id}")
@@ -36,7 +40,26 @@ def transition_rules(root):
                 raise ValueError(f"Duplicate transition: {identifier}")
             seen.add(identifier)
             target_caption = route.get("targetCaption", caption(target))
-            yield identifier, source_id, source, target_id, target, f"{source_caption} → {target_caption}", route
+            section_anchor = route.get("wordSectionAnchor") or default_section_anchor
+            yield identifier, source_id, source, target_id, target, f"{source_caption} → {target_caption}", route, section_anchor
+
+
+def transition_nodes(transitions, ns):
+    sources = set()
+    for parent in transitions.findall("p:routes/p:transition", ns):
+        source = parent.attrib["source"]
+        if source in sources:
+            raise ValueError(f"Duplicate transition source: {source}")
+        sources.add(source)
+        if not len(parent):
+            yield parent
+            continue
+        if set(parent.attrib) != {"source"}:
+            raise ValueError(f"Grouped transition may only declare its source: {source}")
+        for child in parent:
+            if child.tag != f"{{{ns['p']}}}route" or len(child) or "source" in child.attrib:
+                raise ValueError(f"Invalid child route for transition source: {source}")
+            yield ET.Element(child.tag, dict(child.attrib, source=source))
 
 
 def load_native_plans(settings, source=None, event_root=None):
@@ -118,25 +141,28 @@ def load_native_plans(settings, source=None, event_root=None):
         events[identifier] = plan
     require(events and profiles, "Empty native declarations")
     generated = {}
+    section_anchors = {}
     if event_root is None:
         event_root = ET.parse(path.parents[2] / "workbook/PersonalEventBuilder" / settings["events.path"]).getroot()
-    for identifier, source_id, source, target_id, target, caption, route in transition_rules(event_root):
+    for identifier, source_id, source, target_id, target, caption, route, section_anchor in transition_rules(event_root):
         if route.get("form"):
             continue
-        source_status = source["movementStatus"]
+        source_status = source.get("movementStatus", source_id)
         require(source_status in statuses, f"Unknown transition source: {source_status}")
         legacy_departure_ids = route.get("legacyDepartureIds", "false")
         require(legacy_departure_ids in ("true", "false"), f"Invalid legacyDepartureIds: {source_id}")
-        require(all(source.get(key) for key in ("wordPhrase", "wordPhrasePast", "wordPhraseFemale", "wordPhraseFemalePast")),
-                f"Missing transition phrase: {source_id}")
+        require(bool(source.get("wordFrom")), f"Missing transition Word block: {source_id}")
         base = target["departure"]
         require(base in events and events[base]["operation"] == "Departure", f"Unknown transition departure: {base}")
         require(identifier not in events, f"Duplicate event: {identifier}")
         events[identifier] = dict(events[base], operation="Transition", profile="Transition", sourceStatus=source_status)
         generated[identifier] = (base, caption, f"TransitionTo{target_id}", identifier)
+        section_anchors[identifier] = section_anchor
         legacy_id = f"MoveFrom{source_id}{base}"
         if legacy_departure_ids == "true" and legacy_id != identifier:
             require(legacy_id not in events, f"Duplicate legacy event: {legacy_id}")
             events[legacy_id] = events[identifier]
             generated[legacy_id] = generated[identifier]
-    return {"events": events, "values": values, "statuses": statuses, "profiles": profiles, "generated": generated}
+            section_anchors[legacy_id] = section_anchor
+    return {"events": events, "values": values, "statuses": statuses, "profiles": profiles,
+            "generated": generated, "section_anchors": section_anchors}

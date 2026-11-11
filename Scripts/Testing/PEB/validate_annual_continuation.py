@@ -4,6 +4,7 @@ from xml.etree import ElementTree as ET
 import re
 
 from event_routes import ROOT, WORKBOOK, NS, parse_config, load_registry
+from xml_imports import import_path
 
 EVENT = "MoveFromHospitalToAnnualVacationContinuation"
 
@@ -62,8 +63,8 @@ def main():
         assert settings[f"export.Word.textAnchors.{EVENT}"] == EVENT
         assert settings[f"extensions.mode.{EVENT}.default.count"] == "1"
         assert settings[f"extensions.mode.{EVENT}.default.1.role"] == "MedicalCard"
-        word = ET.parse(WORKBOOK / settings["export.Word.templates.path"]).getroot()
-        template = word.find(f"p:template[@name='{EVENT}']", NS)
+        word = ET.parse(import_path(WORKBOOK / settings["events.path"], "word")).getroot()
+        template = registry["word_templates"][EVENT]
         body = "".join(template.itertext())
         assert "{#include status.FromHospital}{#include status.Join}{#include status.ToAnnualContinuation}" in body
         annual_text = word.find("p:sharedTemplates/p:sharedTemplate[@id='status.ToAnnualContinuation']/p:text", NS).text
@@ -74,7 +75,9 @@ def main():
         assert template.find("p:reject", NS) is None
         verb = word.find("p:sharedTemplates/p:sharedTemplate[@id='block.StatusChangeTense']/p:text", NS).text
         assert 'fn_IsDateOnOrAfter("{[DateFromShort]}", "{[OrderDateShort]}")' in verb
-        columns = registry["movement"]["tvo_columns"][EVENT]
+        movement_template = event.find("p:movement", NS).get("template")
+        assert movement_template == "StatusChangeLeaveContinuation"
+        columns = registry["movement"]["tvo_columns"][movement_template]
         assert columns[settings["returnTvo.table.headers.Duration"]] == "Інше"
         medical = "MoveFromHospitalToMedicalLeaveContinuation"
         medical_event = registry["events"][medical]
@@ -85,7 +88,7 @@ def main():
         assert medical_plan["sourceStatus"] == "HospitalTreatment"
         assert medical_plan["targetStatus"] == "MedicalLeave"
         assert medical_plan["operation"] == "Transition"
-        medical_template = word.find(f"p:template[@name='{medical}']", NS)
+        medical_template = registry["word_templates"][medical]
         assert "{#include status.FromHospital}{#include status.Join}{#include status.ToMedicalContinuation}" in "".join(medical_template.itertext())
         medical_text = word.find("p:sharedTemplates/p:sharedTemplate[@id='status.ToMedicalContinuation']/p:text", NS).text
         assert "продовжив відпустку для лікування" in medical_text

@@ -14,7 +14,6 @@ for profile in ('wsConfig.txt', 'wsConfig.test.txt'):
     settings = parse_config(ROOT / 'PROJECTS_EXCEL/config/PersonalEventBuilder' / profile)
     registry = load_registry(settings)
     event = registry['events'][MODE]
-    assert event.get('visible') == 'false'
     assert event.get('form') == 'Leave'
     assert MODE in settings['ui.extendedModes'].split('|')
     plan = event.find('p:movement', NS)

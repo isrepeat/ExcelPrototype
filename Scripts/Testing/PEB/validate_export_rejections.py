@@ -6,13 +6,14 @@ import re
 
 from event_routes import ROOT, WORKBOOK, NS, load_registry, parse_config
 from template_rejections import validate_rejections
+from xml_imports import import_path
 
 
 def main():
     for filename in ("wsConfig.txt", "wsConfig.test.txt"):
         settings = parse_config(ROOT / "PROJECTS_EXCEL/config/PersonalEventBuilder" / filename)
         registry = load_registry(settings)
-        word = ET.parse(WORKBOOK / settings["export.Word.templates.path"]).getroot()
+        word = ET.parse(import_path(WORKBOOK / settings["events.path"], "word")).getroot()
         rules = word.findall("p:template/p:reject", NS)
         assert len(rules) == 1
         annual = word.find("p:template[@name='ToAnnualMainVacation']", NS)

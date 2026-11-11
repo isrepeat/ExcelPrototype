@@ -80,6 +80,7 @@ Public Sub fn_Change( _
     Dim diagnostic As String
     Dim orderKey As String
     Dim sharedPlan As String
+    Dim anchorCreated As Boolean
     Dim key As Variant
     Dim errorNumber As Long
     Dim errorText As String
@@ -126,6 +127,16 @@ Public Sub fn_Change( _
     Set anchors = New obj_PEB_WordAnchors
     If Not anchors.Initialize(document, diagnostic) Then
         Err.Raise 5, , diagnostic
+    End If
+    If operation <> "DELETE" Then
+        If Not anchors.TryEnsureEventAnchor(document, VBA.CStr(values("EventId")), anchorCreated, diagnostic) Then
+            Err.Raise 5, , diagnostic
+        End If
+        If anchorCreated Then
+            anchors.Dispose
+            Set anchors = New obj_PEB_WordAnchors
+            If Not anchors.Initialize(document, diagnostic) Then Err.Raise 5, , diagnostic
+        End If
     End If
     For Each section In store.Sections
         Set template = templates.Definition(section.getAttribute("template"))

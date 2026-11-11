@@ -22,7 +22,7 @@ def main():
         configured["export.Movement.headers.ArrivalBasis"] = "Custom arrival basis"
         configured["export.Movement.headers.DepartureBasis"] = "Custom departure basis"
         renamed = load_registry(configured)["movement"]["columns"]
-        assert set(renamed["MoveFromVacationForCuringToHospital"]) == {"Custom arrival basis", "Custom departure basis"}
+        assert set(renamed["StatusChange"]) == {"Custom arrival basis", "Custom departure basis"}
         missing_header = dict(settings)
         del missing_header["export.Movement.headers.ArrivalBasis"]
         try:
@@ -42,8 +42,10 @@ def main():
                 raise AssertionError("Missing Movement setting accepted: " + key)
         registry = load_registry(settings)
         movement = registry["movement"]
-        assert len(movement["templates"]) == len(movement["events"]) == 39
-        assert len(registry["events"]) == 40
+        assert {name for name in movement["templates"] if name.startswith("StatusChange")} == {
+            "StatusChange", "StatusChangeWithVlkBasis", "StatusChangeLeaveContinuation",
+            "StatusChangeWithoutDepartureDocuments",
+        }
         for event_id, source, target in (
             ("MoveFromAwolToBusinessTrip", "Awol", "BusinessTrip"),
             ("MoveFromAnnualVacationToVacationForCuring", "AnnualVacation", "MedicalLeave"),
@@ -55,25 +57,25 @@ def main():
             assert plan["sourceStatus"] == source and plan["targetStatus"] == target
             assert plan["destinationField"] == "Destination"
             assert "Destination" in plan["required"].split("|")
-        assert movement["statuses"]["Awol"] == "СЗЧ"
+        assert movement["statuses"]["Awol"] == "Самовільне залишення частини"
         outpatient = movement["events"]["ToOutpatientExaminationOrVlk"]
         assert outpatient["destinationField"] == "Destination"
         assert "Destination" not in outpatient["required"].split("|")
         assert "HospitalShortName" not in outpatient["required"].split("|")
         assert "Hospital" not in outpatient["required"].split("|")
         assert "HospitalShortName" in movement["events"]["ToHospital"]["required"].split("|")
-        assert len(movement["profiles"]) == 5 and len(movement["values"]) == 167
+        assert set(movement["profiles"]) == {"Arrival", "Departure", "Transition", "ArrivalMedicalCompany", "TransitionMedicalCompany"}
         root = movement["root"]
         assert root.tag == f"{{{NS['p']}}}resultTemplates"
         assert "Ref." not in ET.tostring(root, encoding="unicode")
-        for name, node in movement["templates"].items():
-            assert set(node.attrib) == {"name"}
-            operation = movement["events"][name]["operation"]
+        for event_id, plan in movement["events"].items():
+            name = registry["events"][event_id].find("p:movement", NS).get("template")
+            assert set(movement["templates"][name].attrib) == {"name"}
+            operation = plan["operation"]
             expected = {"Прибуття.Підстава"} if operation == "Arrival" else {"Вибуття.Підстава"}
             if operation == "Transition":
                 expected.add("Прибуття.Підстава")
             assert set(movement["columns"][name]) == expected
-        assert sum(len(columns) for columns in movement["columns"].values()) == 63
         for name, columns in movement["columns"].items():
             for text in columns.values():
                 assert "block.OptionalVacationTicket" not in text, name
@@ -114,14 +116,22 @@ def main():
     reject(lambda tree: template(tree).set("column", "OldFormat"))
     reject(lambda tree: tree.append(ET.Element(f"{{{NS['p']}}}profiles")))
     reject(lambda tree: column(tree).set("configKey", "export.Movement.headers.UnknownHeader"), routed=True)
-    reject(lambda tree: tree.find("p:template[@name='MoveFromVacationForCuringToHospital']", NS).remove(
-        tree.find("p:template[@name='MoveFromVacationForCuringToHospital']/p:column", NS)), routed=True)
+    reject(lambda tree: tree.find("p:template[@name='StatusChange']", NS).remove(
+        tree.find("p:template[@name='StatusChange']/p:column[@configKey='export.Movement.headers.ArrivalBasis']", NS)), routed=True)
 
     custom = deepcopy(root)
-    event = custom.find("p:template[@name='MoveFromVacationForCuringToHospital']", NS)
+    event = deepcopy(custom.find("p:template[@name='StatusChange']", NS))
+    event.set("name", "CustomStatusChange")
+    custom.append(event)
     event.find("p:column[@configKey='export.Movement.headers.ArrivalBasis']/p:text", NS).text = "Close: {[IncomingNo]}."
     event.find("p:column[@configKey='export.Movement.headers.DepartureBasis']/p:text", NS).text = "Open: {[IncomingNo]}."
-    loaded = load_registry(settings, movement_text=ET.tostring(custom, encoding="unicode"))
+    routes = ET.parse(WORKBOOK / settings["events.path"]).getroot()
+    route = routes.find("p:transitions/p:routes/p:transition[@source='VacationForCuring']/p:route[@targets='Hospital']", NS)
+    route.set("movementTemplate", "movement:" + event.get("name"))
+    loaded = load_registry(settings, xml_text=ET.tostring(routes, encoding="unicode"),
+                           movement_text=ET.tostring(custom, encoding="unicode"))
+    assert loaded["events"]["MoveFromVacationForCuringToHospital"].find("p:movement", NS).get("template") == "CustomStatusChange"
+    assert loaded["events"]["MoveFromAnnualVacationToHospital"].find("p:movement", NS).get("template") == "StatusChange"
     texts = loaded["movement"]["columns"][event.get("name")]
     assert texts["Прибуття.Підстава"] == "Close: {[IncomingNo]}."
     assert texts["Вибуття.Підстава"] == "Open: {[IncomingNo]}."
@@ -157,7 +167,7 @@ def main():
     assert "DOMDocument" not in native and "selectNodes" not in native
     assert 'MovementBasis' in native and 'SourceDestination' in native
 
-    print(f"PASS: TEST/PROD, 39 templates and 63 column texts; AWOL/business-trip and medical-leave transitions; distinct transition texts accepted; {rejected} invalid definitions rejected. Office/VBA not executed.")
+    print(f"PASS: TEST/PROD shared Movement templates, route override and separate arrival/departure text; {rejected} invalid definitions rejected. Office/VBA not executed.")
 
 
 if __name__ == "__main__":

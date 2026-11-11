@@ -23,7 +23,19 @@ function Read-Config([string]$Key) {
 $xmlSettings = [Xml.XmlReaderSettings]::new()
 $xmlSettings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
 $xmlSettings.XmlResolver = $null
-$xmlPath = Join-Path (Join-Path $ProjectRoot 'workbook\PersonalEventBuilder') (Read-Config 'export.Word.templates.path')
+$routesPath = Join-Path (Join-Path $ProjectRoot 'workbook\PersonalEventBuilder') (Read-Config 'events.path')
+$routesReader = [Xml.XmlReader]::Create($routesPath, $xmlSettings)
+try {
+    $routes = [Xml.XmlDocument]::new()
+    $routes.XmlResolver = $null
+    $routes.Load($routesReader)
+}
+finally { $routesReader.Dispose() }
+$routesNamespaces = [Xml.XmlNamespaceManager]::new($routes.NameTable)
+$routesNamespaces.AddNamespace('p', 'urn:excelprototype:profiles')
+$wordImports = $routes.DocumentElement.SelectNodes("p:imports/p:import[@alias='word']", $routesNamespaces)
+if ($wordImports.Count -ne 1) { throw 'Expected one word import in the event registry.' }
+$xmlPath = Join-Path (Split-Path -Parent $routesPath) ($wordImports[0].GetAttribute('path'))
 $xmlReader = [Xml.XmlReader]::Create($xmlPath, $xmlSettings)
 try {
     $document = [Xml.XmlDocument]::new()
@@ -53,6 +65,12 @@ foreach ($node in $root.SelectNodes('p:template', $namespaceManager)) {
 function Expand-Includes([string]$Text, [string[]]$Stack = @()) {
     foreach ($match in [regex]::Matches($Text, '\{#include\s+([^}]+)\}')) {
         $name = $match.Groups[1].Value.Trim()
+        if ($name -match '^\[([A-Za-z][A-Za-z0-9_]*)\](?:\s*\|.+)?$') {
+            if ($Matches[1] -cnotin (Read-Config 'export.Word.context.xmlKeys').Split('|')) {
+                throw "Undeclared dynamic XML include: $name"
+            }
+            continue
+        }
         if (-not $shared.ContainsKey($name)) { throw "Unknown XML include: $name" }
         if ($name -cin $Stack) { throw "Cyclic XML include: $($Stack -join ' -> ') -> $name" }
         if ($Stack.Count -ge [int](Read-Config 'export.dsl.maxDepth')) { throw 'XML include-depth limit exceeded.' }

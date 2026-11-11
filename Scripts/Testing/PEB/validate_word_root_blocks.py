@@ -100,11 +100,11 @@ def main():
     assert cleanup("\n".join(texts)).count("Вважати такими") == 0
     for kind, name, first, last in sections:
         if kind == "block":
-            expected = 0 if name.startswith("MoveFrom") else 1
+            expected = 0 if name == "StatusChanges" else 1
             assert sum(start.end() <= first.start() and last.end() <= end.start() for _, _, start, end in roots) == expected, name
     final_child = texts.index("{\\block:ToMedicalCompanyVacationForCuring_End}")
     assert texts[final_child + 1] == "{\\root:OrderSection6_End}"
-    assert texts[final_child + 2] == "{\\block:MoveFromHospitalToVacationForCuring_Begin}"
+    assert texts[final_child + 2] == "{\\block:StatusChanges_Begin}"
     source = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/obj_PEB_WordAnchors.cls.vba").read_text(encoding="utf-8-sig")
     check_declarations(source)
     check_blocks(source)

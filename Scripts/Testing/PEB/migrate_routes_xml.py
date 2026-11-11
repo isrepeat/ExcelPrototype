@@ -35,7 +35,6 @@ if __name__ == "__main__":
         "Амбулаторне ВЛК": "OutpatientVlk",
         "ВЛК за межами": "ExternalVlk",
     }
-    visible = {"FromHospital", "FromAnnualMainVacation", "FromVacationForCuring", "FromVacationForFamily", "ToHospital", "ToAnnualMainVacation", "ToVacationForCuring", "ToVacationForFamily"}
     xml = ['<?xml version="1.0" encoding="utf-8"?>', '<eventRoutes xmlns="urn:excelprototype:profiles"', '             version="1"', '             bindingField="ModeId">', '  <movementStatuses>']
     for name, identifier in names.items():
         xml += element("status", {"id": identifier, "name": name}, 4)
@@ -59,7 +58,7 @@ if __name__ == "__main__":
         if source[prefix + ".movement.sourceDestination"] != "None":
             movement["sourceDestination"] = source[prefix + ".movement.sourceDestination"]
         movement["required"] = source[f"export.Movement.{event}.required"]
-        xml += element("event", {"id": event, "caption": source[f"modes.{event}.caption"], "label": source[f"export.events.{event}"], "direction": source[f"modes.{event}.direction"], "form": source[f"modes.{event}.form"], "visible": str(event in visible).lower()}, 4, False)
+        xml += element("event", {"id": event, "caption": source[f"modes.{event}.caption"], "label": source[f"export.events.{event}"], "direction": source[f"modes.{event}.direction"], "form": source[f"modes.{event}.form"]}, 4, False)
         xml += element("movement", movement, 6)
         xml += element("word", {"policy": source[prefix + ".word.policy"], "profile": source[prefix + ".word.profile"], "template": source[prefix + ".word.template"], "anchor": "EventBody"}, 6)
         xml += ["    </event>"]

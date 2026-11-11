@@ -177,9 +177,9 @@ def main():
         reasons = movement['root'].find("p:resources/p:dictionary[@name='TvoDepartureReasons']", NS)
         reason_keys = {entry.get('key') for entry in reasons.findall('p:entry', NS)}
         assert reasons.find("p:entry[@key='AnnualVacation']/p:variant", NS).get('value') == 'у щорічну відпустку'
-        native = load_native_plans(settings)
         for name, event in movement['events'].items():
-            texts = movement['tvo_columns'][name]
+            template = registry["events"][name].find("p:movement", NS).get("template")
+            texts = movement['tvo_columns'][template]
             if event['operation'] != 'Arrival':
                 assert event['targetStatus'] in reason_keys
                 assert set(texts) == {'Термін', 'Додаткова інформація'}

@@ -20,6 +20,14 @@
         <variant value="довідка військово-лікарської комісії"/>
       </entry>
     </dictionary>
+    <dictionary name="TransitionFemaleBlocks"
+                ignoreCase="false"
+                normalize="trim"
+                onMissing="error">
+      <entry key="status.FromMissing">
+        <variant value="status.FromMissingFemale"/>
+      </entry>
+    </dictionary>
     <itemOrder name="BasisDocuments"
                field="DocumentNote"
                ignoreCase="true"
@@ -450,18 +458,18 @@
         ]]>
       </text>
     </sharedTemplate>
-    <sharedTemplate id="status.FromPrevious">
+    <sharedTemplate id="status.FromMissing">
       <text>
         <![CDATA[#^
-#_        {#include block.StatusChangeTense}який {#if #not [DateFromShort] #or __StatusChangeUsesPresent}{[TransitionSourcePhrase]}{#else}{[TransitionSourcePhrasePast]}{#endif}#^
+#_        {#include block.StatusChangeTense}який {#if #not [DateFromShort] #or __StatusChangeUsesPresent}вважається безвісти зниклим{#else}вважався безвісти зниклим{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
 
-    <sharedTemplate id="status.FromPreviousFemale">
+    <sharedTemplate id="status.FromMissingFemale">
       <text>
         <![CDATA[#^
-#_        {#include block.StatusChangeTense}яка {#if #not [DateFromShort] #or __StatusChangeUsesPresent}{[TransitionSourcePhraseFemale]}{#else}{[TransitionSourcePhraseFemalePast]}{#endif}#^
+#_        {#include block.StatusChangeTense}яка {#if #not [DateFromShort] #or __StatusChangeUsesPresent}вважається безвісти зниклою{#else}вважалася безвісти зниклою{#endif}#^
         ]]>
       </text>
     </sharedTemplate>
@@ -951,12 +959,12 @@
       ]]></text>
   </template>
 
-  <template name="MoveFromHospitalToVacationForCuring"
-            hash="0x10">
-    <text>
+  <transitionLayouts>
+    <layout id="MedicalLeave">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromHospital}{#include status.Join}{#include status.ToMedicalLeave}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalForeignVacationPermission}#^
@@ -966,32 +974,13 @@
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-  <template name="MoveFromHospitalToMedicalCompanyVacationForCuring"
-            hash="0x28">
-    <text>
+      </text>
+    </layout>
+    <layout id="MedicalLeaveWithPreviousTicket">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromHospital}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromVacationForCuringToVacationForCuring"
-            hash="0x11">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalLeave}{#include status.Join}{#include status.ToMedicalLeave}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalForeignVacationPermission}#^
@@ -1002,15 +991,13 @@
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromVacationForCuringToHospital"
-            hash="0x12">
-    <text>
+      </text>
+    </layout>
+    <layout id="HospitalWithPreviousTicket">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalLeave}{#include status.Join}{#include status.ToHospital}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -1020,33 +1007,13 @@
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromAnnualVacationToHospital"
-            hash="0x13">
-    <text>
+      </text>
+    </layout>
+    <layout id="ExternalVlkWithPreviousTicket">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromAnnualLeave}{#include status.Join}{#include status.ToHospital}#^
-#_      {#include block.StatusChangeDateFrom}#^
-#_      {#include block.OptionalFoodCertificate}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromVacationForCuringToVlk"
-            hash="0x14">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalLeave}{#include status.Join}{#include status.ToVlk}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -1056,69 +1023,13 @@
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromAnnualVacationToVlk"
-            hash="0x15">
-    <text>
+      </text>
+    </layout>
+    <layout id="HospitalWithVlkBasis">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromAnnualLeave}{#include status.Join}{#include status.ToVlk}#^
-#_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}{#endif}#^
-#_      {#include block.StatusChangeDateFrom}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromFamilyVacationToVlk"
-            hash="0x16">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromFamilyLeave}{#include status.Join}{#include status.ToVlk}#^
-#_      {#if [HospitalAccusative]}{#space}у {[HospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}{#endif}#^
-#_      {#include block.StatusChangeDateFrom}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromVlkToVacationForCuring"
-            hash="0x17">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromVlk}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromVlkToHospital"
-            hash="0x18">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromVlk}{#include status.Join}{#include status.ToHospital}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -1127,15 +1038,13 @@
 #_      {#include block.VlkBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromMedicalCompanyForTreatmentToHospital"
-            hash="0x19">
-    <text>
+      </text>
+    </layout>
+    <layout id="HospitalFromMedicalCompany">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalCompany}{#include status.Join}{#include status.ToHospital}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
@@ -1144,33 +1053,13 @@
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromMedicalCompanyForTreatmentToVacationForCuring"
-            hash="0x1A">
-    <text>
+      </text>
+    </layout>
+    <layout id="HospitalFromMedicalCompanyWithPreviousTicket">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalCompanyAlt}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromMedicalCompanyVacationForCuringToHospital"
-            hash="0x1B">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalCompanyVacation}{#include status.Join}{#include status.ToHospital}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalFoodCertificate}#^
@@ -1180,34 +1069,13 @@
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromMedicalCompanyVacationForCuringToVacationForCuring"
-            hash="0x1C">
-    <text>
+      </text>
+    </layout>
+    <layout id="LeaveWithPreviousTicket">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalCompanyVacationAlt}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromAnnualVacationToFamilyVacation"
-            hash="0x1D">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromAnnualLeave}{#include status.Join}{#include status.ToFamilyLeave}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalForeignVacationPermission}#^
@@ -1218,34 +1086,13 @@
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromFamilyVacationToAnnualVacation"
-            hash="0x1E">
-    <text>
+      </text>
+    </layout>
+    <layout id="ExternalVlk">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromFamilyLeave}{#include status.Join}{#include status.ToAnnualLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromHospitalToExternalVlk"
-            hash="0x1F">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromHospitalOptional}{#include status.Join}{#include status.ToVlk}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#if [ToHospitalAccusative]}{#space}у {[ToHospitalAccusative]|lowerFirstLetter|nbspAfterNumberSign}{#endif}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -1254,122 +1101,13 @@
 #_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromFamilyVacationToHospital"
-            hash="0x20">
-    <text>
+      </text>
+    </layout>
+    <layout id="Leave">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromFamilyLeave}{#include status.Join}{#include status.ToHospital}#^
-#_      {#include block.StatusChangeDateFrom}#^
-#_      {#include block.OptionalFoodCertificate}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromExternalVlkToVacationForCuring"
-            hash="0x21">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromExternalVlk}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromExternalVlkToHospital"
-            hash="0x22">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromExternalVlk}{#include status.Join}{#include status.ToHospital}#^
-#_      {#include block.StatusChangeDateFrom}#^
-#_      {#include block.OptionalFoodCertificate}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-  <template name="MoveFromAnnualVacationToVacationForCuring"
-            hash="0x23">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromAnnualLeave}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-
-  <template name="MoveFromFamilyVacationToVacationForCuring"
-            hash="0x24">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromFamilyLeave}{#include status.Join}{#include status.ToMedicalLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.VlkBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-  <template name="MoveFromVacationForCuringToAnnualVacation"
-            hash="0x25">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromMedicalLeave}{#include status.Join}{#include status.ToAnnualLeave}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-  <template name="MoveFromExternalVlkToAnnualVacation"
-            hash="0x26">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromExternalVlk}{#include status.Join}{#include status.ToAnnualLeave}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#include block.OptionalForeignVacationPermission}#^
@@ -1379,30 +1117,13 @@
 #_      {#include block.OptionalVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-  <template name="MoveFromHospitalToAnnualVacationContinuation">
-    <text>
+      </text>
+    </layout>
+    <layout id="MedicalLeaveContinuation">
+      <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromHospital}{#include status.Join}{#include status.ToAnnualContinuation}#^
-#_      {#include block.VacationDestinationPeriod}#^
-#_      {#include block.StatusChangeFoodSupport}#^
-#_      {#include block.OptionalForeignVacationPermission}#^
-#_      {#newline}{#newline}#^
-#_      {#include block.IncomingBasis}#^
-#_      {#include block.OptionalBasisDocuments}#^
-#_      {#include block.OptionalVacationTicket}#^
-#_      {#include block.OptionalPreviousVacationTicket}#^
-#_      .{#newline}{#newline}#^
-      ]]>
-    </text>
-  </template>
-  <template name="MoveFromHospitalToMedicalLeaveContinuation">
-    <text>
-      <![CDATA[#^
-#_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromHospital}{#include status.Join}{#include status.ToMedicalContinuation}#^
+#_      {#include @source@}{#include status.Join}{#include @target@}#^
 #_      {#include block.VacationDestinationPeriod}#^
 #_      {#include block.StatusChangeFoodSupport}#^
 #_      {#newline}{#newline}#^
@@ -1412,14 +1133,13 @@
 #_      {#include block.OptionalPreviousVacationTicket}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
-  <template name="MoveFromAwolToBusinessTrip"
-            hash="0x29">
-    <reject field="PersonId"
-            matches="^"
-            messageKey="text.AwolBusinessTripWordOmitted"/>
-    <text>
+      </text>
+    </layout>
+    <layout id="AwolBusinessTripPreview">
+      <reject field="PersonId"
+              matches="^"
+              messageKey="text.AwolBusinessTripWordOmitted"/>
+      <text>
       <![CDATA[#^
 #_      СЗЧ → відрядження.{#newline}{#newline}#^
 #_      {#include block.PersonLineLower}.#^
@@ -1430,13 +1150,14 @@
 #_      {#include block.BusinessTripBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
-    </text>
-  </template>
+      </text>
+    </layout>
+  </transitionLayouts>
   <template name="TransitionToHospital">
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToHospital}#^
+#_      {#include [TransitionSourceWordBlock]}{#include status.Join}{#include status.ToHospital}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^
@@ -1454,7 +1175,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToAnnualLeave}#^
+#_      {#include [TransitionSourceWordBlock]}{#include status.Join}{#include status.ToAnnualLeave}#^
 #_      {#include status.TransitionLeaveDetails}#^
 #_      {#include status.TransitionBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -1468,7 +1189,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToFamilyLeave}#^
+#_      {#include [TransitionSourceWordBlock]}{#include status.Join}{#include status.ToFamilyLeave}#^
 #_      {#include status.TransitionLeaveDetails}#^
 #_      {#include status.TransitionBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -1482,7 +1203,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPreviousFemale}{#include status.JoinFemale}{#include status.ToMaternityLeave}#^
+#_      {#include [TransitionSourceWordBlock]|lookup:"TransitionFemaleBlocks"}{#include status.JoinFemale}{#include status.ToMaternityLeave}#^
 #_      {#include status.TransitionLeaveDetails}#^
 #_      {#include status.TransitionBasis}#^
 #_      {#include block.OptionalBasisDocuments}#^
@@ -1496,7 +1217,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToMedicalLeave}#^
+#_      {#include [TransitionSourceWordBlock]}{#include status.Join}{#include status.ToMedicalLeave}#^
 #_      {#include status.TransitionLeaveDetails}#^
 #_      {#include status.TransitionBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -1510,7 +1231,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToMedicalCompanyLeave}#^
+#_      {#include [TransitionSourceWordBlock]}{#include status.Join}{#include status.ToMedicalCompanyLeave}#^
 #_      {#include status.TransitionLeaveDetails}#^
 #_      {#include status.TransitionBasis}#^
 #_      {#include block.VlkBasisDocuments}#^
@@ -1524,7 +1245,7 @@
     <text>
       <![CDATA[#^
 #_      {#include block.StatusChangePersonLine}#^
-#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToMedicalCompanyTreatment}#^
+#_      {#include [TransitionSourceWordBlock]}{#include status.Join}{#include status.ToMedicalCompanyTreatment}#^
 #_      {#include block.StatusChangeDateFrom}#^
 #_      {#include block.OptionalFoodCertificate}#^
 #_      {#include block.StatusChangeFoodSupport}#^

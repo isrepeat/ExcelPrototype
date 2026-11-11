@@ -5,18 +5,20 @@ from xml.etree import ElementTree as ET
 import re
 from dsl_resources import load_resources
 from template_rejections import validate_rejections
+from xml_imports import import_path
 
 NS = {"p": "urn:excelprototype:profiles"}
 
 
-def load_movement(settings, workbook, xml_text=None):
+def load_movement(settings, workbook, xml_text=None, event_root=None):
     def require(condition, message):
         if not condition:
             raise ValueError("Result text templates: " + message)
     def attributes(node, allowed, required):
         require(set(node.attrib) <= set(allowed), "Unknown text-template attribute")
         require(all(node.get(key, "").strip() for key in required), "Missing text-template attribute")
-    text = xml_text if xml_text is not None else (Path(workbook) / settings["export.Movement.templates.path"]).read_text(encoding="utf-8-sig")
+    routes_path = Path(workbook) / settings["events.path"]
+    text = xml_text if xml_text is not None else import_path(routes_path, "movement", event_root).read_text(encoding="utf-8-sig")
     require("<!DOCTYPE" not in text.upper() and "<!ENTITY" not in text.upper(), "DTD/entities prohibited")
     root = ET.fromstring(text)
     require(root.tag == f"{{{NS['p']}}}resultTemplates" and root.get("version") == "1", "Invalid root/version")

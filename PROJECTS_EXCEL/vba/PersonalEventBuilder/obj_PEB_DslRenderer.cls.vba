@@ -224,6 +224,9 @@ Private Function private_Render( _
             cursor = afterBlock
         ElseIf VBA.Left$(token, 9) = "#include " Then
             name = VBA.Trim$(VBA.Mid$(token, 10))
+            If VBA.Left$(name, 1) = "[" Then
+                name = private_Value(name, values)
+            End If
             If Not m_sharedTemplates.Exists(name) Then
                 Err.Raise 5, , "Shared XML template not found: " & name
             End If

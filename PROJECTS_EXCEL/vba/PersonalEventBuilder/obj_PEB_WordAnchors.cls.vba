@@ -104,10 +104,44 @@ Public Sub Dispose()
     Set m_insertDocument = Nothing
 End Sub
 
+Public Function TryEnsureEventAnchor( _
+    ByVal document As Object, _
+    ByVal eventId As String, _
+    ByRef created As Boolean, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim identifier As String
+    Dim sectionAnchor As String
+    Dim positions As Variant
+    Dim marker As Object
+    Dim insertion As Object
+
+    On Error GoTo EH
+    created = False
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
+    identifier = ex_PEB_Export.fn_WordAnchor(eventId)
+    If Not m_anchors.Exists(identifier) Then
+        sectionAnchor = ex_PEB_EventRoutes.fn_WordSectionAnchor(eventId)
+        If Not m_anchors.Exists(sectionAnchor) Then Err.Raise 5, , "Word template anchor not found: " & sectionAnchor
+        positions = m_anchors(sectionAnchor)
+        If m_blocks.Exists(sectionAnchor) Then positions = m_blocks(sectionAnchor)
+        Set marker = private_FindMarker(document, VBA.CStr(positions(1)))
+        Set insertion = document.Range(marker.Paragraphs(1).Range.End, marker.Paragraphs(1).Range.End)
+        insertion.InsertAfter "{\export:" & identifier & "_Begin}" & VBA.vbCr & _
+            "{\export:" & identifier & "_End}" & VBA.vbCr
+        created = True
+    End If
+    TryEnsureEventAnchor = True
+    Exit Function
+EH:
+    diagnostic = "Word event anchor: " & VBA.Err.Description
+End Function
+
 Public Function TryInsert( _
     ByVal document As Object, _
     ByVal values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal sectionAnchor As String = "" _
 ) As Boolean
     Dim identifier As String
     Dim positions As Variant
@@ -133,7 +167,8 @@ Public Function TryInsert( _
     On Error GoTo EH
     stage = "ResolveAnchor"
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
-    identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
+    identifier = sectionAnchor
+    If VBA.Len(identifier) = 0 Then identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
     If Not m_anchors.Exists(identifier) Then Err.Raise 5, , "Word template anchor not found: " & identifier
     Set m_insertDocument = Nothing
     m_expectedText = VBA.vbNullString
@@ -210,7 +245,8 @@ End Function
 Public Function TryVerify( _
     ByVal document As Object, _
     ByVal values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal sectionAnchor As String = "" _
 ) As Boolean
     Dim identifier As String
     Dim positions As Variant
@@ -219,7 +255,8 @@ Public Function TryVerify( _
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
-    identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
+    identifier = sectionAnchor
+    If VBA.Len(identifier) = 0 Then identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
     If Not m_anchors.Exists(identifier) Then Err.Raise 5, , "Word template anchor not found: " & identifier
     positions = m_anchors(identifier)
     rendered = VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbCr)

@@ -5,10 +5,12 @@ from xml.etree import ElementTree as ET
 import re
 
 from movement_templates import load_movement
+from copy import deepcopy
 from movement_plans import load_native_plans, transition_rules
 from config_dependencies import load_config
 from dsl_resources import load_resources
 from template_rejections import validate_rejections
+from xml_imports import import_path, reference_id
 
 ROOT = Path(__file__).resolve().parents[3]
 WORKBOOK = ROOT / "PROJECTS_EXCEL/workbook/PersonalEventBuilder"
@@ -115,12 +117,21 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
     require(root.get("version") == "1", "Unsupported version")
     fields = set(settings["export.fields"].split("|"))
     require(root.get("bindingField") in fields, "Unknown binding field")
-    sections = ("events", "transitions") if root.find("p:transitions", NS) is not None else ("events",)
+    sections = ("imports", "events", "transitions") if root.find("p:transitions", NS) is not None else ("imports", "events")
     for tag in sections:
         require(len(root.findall(f"p:{tag}", NS)) == 1, f"Expected one {tag}")
     require({child.tag for child in root} == {f"{{{NS['p']}}}{tag}" for tag in sections}, "Unknown root element")
     events = index(root.findall("p:events/p:event", NS), "id")
-    for identifier, _, _, _, _, caption, route in transition_rules(root):
+    for event in events.values():
+        for alias in ("word", "movement"):
+            exporter = event.find("p:" + alias, NS)
+            if exporter is not None:
+                exporter.set("template", reference_id(exporter.get("template", ""), alias))
+    transitions = root.find("p:transitions", NS)
+    transition_templates = {}
+    for identifier, _, _, _, _, caption, route, section_anchor in transition_rules(root):
+        movement_template = reference_id(route.get("movementTemplate") or transitions.attrib["movementTemplate"], "movement")
+        transition_templates[identifier] = movement_template
         if not route.get("form"):
             continue
         require(identifier not in events, f"Duplicate transition event: {identifier}")
@@ -129,15 +140,18 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
             label = f'{route.get("labelSourceCaption")} → {caption.split(" → ", 1)[1]}'
         event = ET.Element(f"{{{NS['p']}}}event", id=identifier, caption=caption,
                            label=label, direction=route.get("direction", "StatusChange"),
-                           form=route.get("form"), visible=route.get("visible", "false"))
+                           form=route.get("form"))
         if route.get("legacy"):
             event.set("legacy", route.get("legacy"))
-        ET.SubElement(event, f"{{{NS['p']}}}movement", template=identifier)
-        ET.SubElement(event, f"{{{NS['p']}}}word", template=route.get("wordTemplate", identifier))
+        if section_anchor:
+            event.set("wordSectionAnchor", section_anchor)
+        ET.SubElement(event, f"{{{NS['p']}}}movement", template=movement_template)
+        word_template = reference_id(route.attrib["wordTemplate"], "word") if "wordTemplate" in route.attrib else identifier
+        ET.SubElement(event, f"{{{NS['p']}}}word", template=word_template)
         events[identifier] = event
     require(events, "Empty event registry")
     has_movement = any(event.find("p:movement", NS) is not None for event in events.values())
-    movement_registry = load_movement(settings, WORKBOOK, movement_text) if has_movement else {
+    movement_registry = load_movement(settings, WORKBOOK, movement_text, event_root=root) if has_movement else {
         "statuses": {}, "values": {}, "templates": {},
     }
     if has_movement:
@@ -145,10 +159,13 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
         for identifier, (base, caption, template, canonical) in movement_registry["generated"].items():
             require(identifier not in events and base in events, f"Invalid generated event: {identifier}")
             event = ET.Element(f"{{{NS['p']}}}event", id=identifier, caption=caption, label=caption,
-                               direction="StatusChange", form=events[base].get("form"), visible="false")
+                               direction="StatusChange", form=events[base].get("form"))
             if identifier != canonical:
                 event.set("legacy", "true")
-            ET.SubElement(event, f"{{{NS['p']}}}movement", template=template)
+            section_anchor = movement_registry["section_anchors"][identifier]
+            if section_anchor:
+                event.set("wordSectionAnchor", section_anchor)
+            ET.SubElement(event, f"{{{NS['p']}}}movement", template=transition_templates[canonical])
             if events[base].find("p:word", NS) is not None:
                 ET.SubElement(event, f"{{{NS['p']}}}word", template=template)
             events[identifier] = event
@@ -159,24 +176,55 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
     require(len({node.get('name') for node in statuses.values()}) == len(statuses), "Duplicate Movement status name")
     templates = {}
     if any(event.find("p:word", NS) is not None for event in events.values()):
-        text = word_text if word_text is not None else (WORKBOOK / settings["export.Word.templates.path"]).read_text(encoding="utf-8-sig")
+        text = word_text if word_text is not None else import_path(path, "word", root).read_text(encoding="utf-8-sig")
         require("<!DOCTYPE" not in text.upper() and "<!ENTITY" not in text.upper(), "Word DTD/entities are prohibited")
         word_root = ET.fromstring(text)
         require(word_root.tag == f"{{{NS['p']}}}wordResultTemplates" and word_root.get("version") == "2", "Invalid Word root/version")
-        require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("resources", "documentFilepath", "sharedTemplates", "template")} for child in word_root),
+        require(all(child.tag in {f"{{{NS['p']}}}{name}" for name in ("resources", "documentFilepath", "sharedTemplates", "template", "transitionLayouts")} for child in word_root),
                 "Unknown Word template section")
-        load_resources(word_root, set(settings["export.Word.context.xmlKeys"].split("|")) | {"ModeId"})
+        resources = load_resources(word_root, set(settings["export.Word.context.xmlKeys"].split("|")) | {"ModeId"})
         templates = index(word_root.findall("p:template", NS), "name")
+        shared = {
+            node.attrib["id"] for node in word_root.findall("p:sharedTemplates/p:sharedTemplate", NS)
+        }
+        for identifier, _, source, target_id, target, _, route, _ in transition_rules(root):
+            if route.get("form") or events[target["departure"]].find("p:word", NS) is None:
+                continue
+            template = templates[f"TransitionTo{target_id}"]
+            word_block = reference_id(source["wordFrom"], "word")
+            require(word_block in shared, f"Unknown source Word block: {identifier}/{word_block}")
+            text = "".join(template.itertext())
+            if 'lookup:"TransitionFemaleBlocks"' in text:
+                entry = resources["TransitionFemaleBlocks"]["entries"].get(word_block)
+                require(entry is not None and entry["default"] in shared,
+                        f"Missing female source Word block: {identifier}/{word_block}")
+        layouts = index(word_root.findall("p:transitionLayouts/p:layout", NS), "id")
+        if layouts:
+            for identifier, _, source, _, target, _, route, _ in transition_rules(root):
+                layout_id = route.get("wordLayout")
+                if not layout_id:
+                    continue
+                layout_id = reference_id(layout_id, "word")
+                require(layout_id in layouts and identifier not in templates, f"Invalid Word transition layout: {identifier}")
+                template = ET.Element(f"{{{NS['p']}}}template", name=identifier)
+                template.extend(deepcopy(child) for child in layouts[layout_id])
+                text_node = template.find("p:text", NS)
+                require(text_node is not None, f"Missing Word transition text: {layout_id}")
+                for token, key, status in (("@source@", "wordFrom", source), ("@target@", "wordTo", target)):
+                    if token in text_node.text:
+                        block = route.get(key) or status.get(key)
+                        require(bool(block), f"Missing Word transition block: {identifier}/{key}")
+                        text_node.text = text_node.text.replace(token, reference_id(block, "word"))
+                templates[identifier] = template
         for template in templates.values():
             validate_word_template(template)
             validate_rejections(template, settings,
                                 set(settings["export.Word.context.xmlKeys"].split("|")) | {"VacationAdditionalDays"})
     for identifier, event in events.items():
-        attributes(event, "id|caption|label|direction|form|visible|legacy", "id|caption|label|direction|form|visible")
+        attributes(event, "id|caption|label|direction|form|legacy|wordSectionAnchor", "id|caption|label|direction|form")
         require(event.get("legacy") in (None, "true"), "Invalid legacy event marker")
         require(event.get("direction") in ("Arrival", "Departure", "StatusChange"), f"Invalid direction: {identifier}")
         require(f"forms.{event.get('form')}.fields.count" in settings, f"Invalid form: {identifier}")
-        require(event.get("visible") in ("true", "false"), f"Invalid visibility: {identifier}")
         tags = [child.tag for child in event]
         allowed = {f"{{{NS['p']}}}movement", f"{{{NS['p']}}}word"}
         require(tags and len(tags) == len(set(tags)) and set(tags) <= allowed,
@@ -213,7 +261,8 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
             for suffix in ("required", "previewRequired"):
                 require(bool(settings.get(profile + "." + suffix)), f"Unknown Word preparation settings: {identifier}")
             require(settings.get(profile + ".lookups.count", "").isdigit(), f"Invalid Word preparation settings: {identifier}")
-    return {"events": events, "statuses": statuses, "bindingField": root.get("bindingField"), "movement": movement_registry}
+    return {"events": events, "statuses": statuses, "bindingField": root.get("bindingField"),
+            "movement": movement_registry, "word_templates": templates}
 
 
 def derived_settings(settings):
