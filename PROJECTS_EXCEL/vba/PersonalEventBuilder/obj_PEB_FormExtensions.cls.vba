@@ -796,10 +796,12 @@ End Function
 Private Function private_Required(ByVal row As Object) As Boolean
     Dim prefix As String
     Dim index As Long
+    Dim profileId As String
 
     If row("Mode") <> m_mode Or Len(row("Role")) = 0 Then Exit Function
-    If InStr(1, "|" & private_ReadConfig("extensions.modes") & "|", "|" & m_mode & "|", vbBinaryCompare) = 0 Then Exit Function
-    prefix = "extensions.mode." & m_mode & ".default"
+    profileId = ex_PEB_MovementRegistry.fn_ProfileId(m_mode)
+    If InStr(1, "|" & private_ReadConfig("extensions.modes") & "|", "|" & profileId & "|", vbBinaryCompare) = 0 Then Exit Function
+    prefix = "extensions.mode." & profileId & ".default"
     For index = 1 To ex_PEB_Export.fn_Count(prefix & ".count")
         If private_ReadConfig(prefix & "." & index & ".type") = row("Type") And _
                 private_ReadConfig(prefix & "." & index & ".role") = row("Role") Then
@@ -820,13 +822,15 @@ Private Sub private_ApplyDefaults()
     Dim row As Object
     Dim selected As Object
     Dim modes As String
+    Dim profileId As String
 
     If m_defaultModes.Exists(m_mode) Then Exit Sub
     modes = private_ReadConfig("extensions.modes")
-    If InStr(1, "|" & modes & "|", "|" & m_mode & "|", vbBinaryCompare) = 0 Then Exit Sub
+    profileId = ex_PEB_MovementRegistry.fn_ProfileId(m_mode)
+    If InStr(1, "|" & modes & "|", "|" & profileId & "|", vbBinaryCompare) = 0 Then Exit Sub
     Set definitions = CreateObject("Scripting.Dictionary")
-    For index = 1 To ex_PEB_Export.fn_Count("extensions.mode." & m_mode & ".default.count")
-        prefix = "extensions.mode." & m_mode & ".default." & index
+    For index = 1 To ex_PEB_Export.fn_Count("extensions.mode." & profileId & ".default.count")
+        prefix = "extensions.mode." & profileId & ".default." & index
         kind = private_ReadConfig(prefix & ".type")
         role = private_ReadConfig(prefix & ".role")
         removable = private_DefaultRemovable(prefix)

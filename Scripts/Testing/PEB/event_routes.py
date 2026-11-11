@@ -5,7 +5,7 @@ from xml.etree import ElementTree as ET
 import re
 
 from movement_templates import load_movement
-from movement_plans import load_native_plans
+from movement_plans import load_native_plans, transition_rules
 from config_dependencies import load_config
 from dsl_resources import load_resources
 from template_rejections import validate_rejections
@@ -115,17 +115,43 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
     require(root.get("version") == "1", "Unsupported version")
     fields = set(settings["export.fields"].split("|"))
     require(root.get("bindingField") in fields, "Unknown binding field")
-    for tag in ("events",):
+    sections = ("events", "transitions") if root.find("p:transitions", NS) is not None else ("events",)
+    for tag in sections:
         require(len(root.findall(f"p:{tag}", NS)) == 1, f"Expected one {tag}")
-    require({child.tag for child in root} == {f"{{{NS['p']}}}{tag}" for tag in ("events",)}, "Unknown root element")
+    require({child.tag for child in root} == {f"{{{NS['p']}}}{tag}" for tag in sections}, "Unknown root element")
     events = index(root.findall("p:events/p:event", NS), "id")
+    for identifier, _, _, _, _, caption, route in transition_rules(root):
+        if not route.get("form"):
+            continue
+        require(identifier not in events, f"Duplicate transition event: {identifier}")
+        label = caption
+        if route.get("labelSourceCaption"):
+            label = f'{route.get("labelSourceCaption")} → {caption.split(" → ", 1)[1]}'
+        event = ET.Element(f"{{{NS['p']}}}event", id=identifier, caption=caption,
+                           label=label, direction=route.get("direction", "StatusChange"),
+                           form=route.get("form"), visible=route.get("visible", "false"))
+        if route.get("legacy"):
+            event.set("legacy", route.get("legacy"))
+        ET.SubElement(event, f"{{{NS['p']}}}movement", template=identifier)
+        ET.SubElement(event, f"{{{NS['p']}}}word", template=route.get("wordTemplate", identifier))
+        events[identifier] = event
     require(events, "Empty event registry")
     has_movement = any(event.find("p:movement", NS) is not None for event in events.values())
     movement_registry = load_movement(settings, WORKBOOK, movement_text) if has_movement else {
         "statuses": {}, "values": {}, "templates": {},
     }
     if has_movement:
-        movement_registry.update(load_native_plans(settings))
+        movement_registry.update(load_native_plans(settings, event_root=root))
+        for identifier, (base, caption, template, canonical) in movement_registry["generated"].items():
+            require(identifier not in events and base in events, f"Invalid generated event: {identifier}")
+            event = ET.Element(f"{{{NS['p']}}}event", id=identifier, caption=caption, label=caption,
+                               direction="StatusChange", form=events[base].get("form"), visible="false")
+            if identifier != canonical:
+                event.set("legacy", "true")
+            ET.SubElement(event, f"{{{NS['p']}}}movement", template=template)
+            if events[base].find("p:word", NS) is not None:
+                ET.SubElement(event, f"{{{NS['p']}}}word", template=template)
+            events[identifier] = event
     statuses = {identifier: ET.Element(f"{{{NS['p']}}}status", id=identifier, name=name)
                 for identifier, name in movement_registry["statuses"].items()}
     for node in statuses.values():

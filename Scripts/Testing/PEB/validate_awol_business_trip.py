@@ -3,7 +3,7 @@
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
-from event_routes import ROOT, WORKBOOK, parse_config
+from event_routes import ROOT, WORKBOOK, load_registry, parse_config
 from movement_plans import load_native_plans
 from validate_movement_planner import procedure, check_declarations
 from validate_movement_batch import check_blocks, check_module_sections
@@ -53,8 +53,7 @@ def main():
         assert plans['statuses'][plan['sourceStatus']] == 'Самовільне залишення частини'
         assert plans['statuses'][plan['targetStatus']] == 'Відрядження'
         assert plans['statuses']['ReturnToOtherUnit'] == 'Повернення до іншої частини'
-    routes = ET.parse(ROOT / 'PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderEventRoutes.xml')
-    event = next(node for node in routes.iter() if node.get('id') == 'MoveFromAwolToBusinessTrip')
+    event = load_registry(settings)['events']['MoveFromAwolToBusinessTrip']
     assert event.get('caption') == event.get('label') == 'СЗЧ → Відрядження'
     assert event.find('{*}word').get('template') == 'MoveFromAwolToBusinessTrip'
     word = ET.parse(ROOT / 'PROJECTS_EXCEL/workbook/PersonalEventBuilder/PersonalEventBuilderWordResultTemplates.xml')

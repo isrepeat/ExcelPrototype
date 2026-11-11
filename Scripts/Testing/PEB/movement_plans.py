@@ -2,9 +2,44 @@
 
 from pathlib import Path
 import re
+from xml.etree import ElementTree as ET
 
 
-def load_native_plans(settings, source=None):
+def transition_rules(root):
+    ns = {"p": "urn:excelprototype:profiles"}
+    statuses = {}
+    for node in root.findall("p:transitions/p:statuses/p:status", ns):
+        status_id = node.attrib["id"]
+        if status_id in statuses:
+            raise ValueError(f"Duplicate transition status: {status_id}")
+        statuses[status_id] = node.attrib
+
+    def caption(status):
+        return statuses[status["captionRef"]]["caption"] if "captionRef" in status else status["caption"]
+
+    seen = set()
+    for route in root.findall("p:transitions/p:routes/p:transition", ns):
+        source_id = route.attrib["source"]
+        if source_id not in statuses:
+            raise ValueError(f"Unknown transition source: {source_id}")
+        source = statuses[source_id]
+        source_caption = source.get("sourceCaption")
+        if source_caption is None:
+            text = caption(source)
+            source_caption = text[:1].upper() + text[1:]
+        for target_id in route.attrib["targets"].split("|"):
+            if target_id not in statuses:
+                raise ValueError(f"Unknown transition target: {target_id}")
+            target = statuses[target_id]
+            identifier = f"MoveFrom{source_id}To{target_id}"
+            if identifier in seen:
+                raise ValueError(f"Duplicate transition: {identifier}")
+            seen.add(identifier)
+            target_caption = route.get("targetCaption", caption(target))
+            yield identifier, source_id, source, target_id, target, f"{source_caption} → {target_caption}", route
+
+
+def load_native_plans(settings, source=None, event_root=None):
     path = Path(__file__).resolve().parents[3] / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_MovementRegistry.vba"
     source = path.read_text(encoding="utf-8-sig") if source is None else source
     tvo_enabled = bool(re.search(r'(?mi)^#Const TVO_DEPRECATED = True$', source))
@@ -82,4 +117,26 @@ def load_native_plans(settings, source=None):
         require(all(not plan[key] or plan[key] in statuses for key in ("sourceStatus", "targetStatus")), "Unknown status: " + identifier)
         events[identifier] = plan
     require(events and profiles, "Empty native declarations")
-    return {"events": events, "values": values, "statuses": statuses, "profiles": profiles}
+    generated = {}
+    if event_root is None:
+        event_root = ET.parse(path.parents[2] / "workbook/PersonalEventBuilder" / settings["events.path"]).getroot()
+    for identifier, source_id, source, target_id, target, caption, route in transition_rules(event_root):
+        if route.get("form"):
+            continue
+        source_status = source["movementStatus"]
+        require(source_status in statuses, f"Unknown transition source: {source_status}")
+        legacy_departure_ids = route.get("legacyDepartureIds", "false")
+        require(legacy_departure_ids in ("true", "false"), f"Invalid legacyDepartureIds: {source_id}")
+        require(all(source.get(key) for key in ("wordPhrase", "wordPhrasePast", "wordPhraseFemale", "wordPhraseFemalePast")),
+                f"Missing transition phrase: {source_id}")
+        base = target["departure"]
+        require(base in events and events[base]["operation"] == "Departure", f"Unknown transition departure: {base}")
+        require(identifier not in events, f"Duplicate event: {identifier}")
+        events[identifier] = dict(events[base], operation="Transition", profile="Transition", sourceStatus=source_status)
+        generated[identifier] = (base, caption, f"TransitionTo{target_id}", identifier)
+        legacy_id = f"MoveFrom{source_id}{base}"
+        if legacy_departure_ids == "true" and legacy_id != identifier:
+            require(legacy_id not in events, f"Duplicate legacy event: {legacy_id}")
+            events[legacy_id] = events[identifier]
+            generated[legacy_id] = generated[identifier]
+    return {"events": events, "values": values, "statuses": statuses, "profiles": profiles, "generated": generated}

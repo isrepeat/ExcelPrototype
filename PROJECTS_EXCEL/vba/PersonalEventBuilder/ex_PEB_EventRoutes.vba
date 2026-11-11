@@ -27,6 +27,16 @@ Public Function fn_Ids() As Variant
     fn_Ids = m_events.Keys
 End Function
 
+Public Function fn_TransitionRules() As Object
+    Dim document As Object
+    Dim root As Object
+
+    Set document = private_LoadXml(ex_PEB_Export.fn_Path(ex_PEB_Export.fn_Config("events.path")))
+    Set root = document.selectSingleNode("/p:eventRoutes")
+    If root Is Nothing Then Err.Raise 5, , "Expected eventRoutes in urn:excelprototype:profiles."
+    Set fn_TransitionRules = private_ReadTransitionRules(root)
+End Function
+
 Public Function fn_VisibleIds() As Variant
     Dim eventId As Variant
     Dim result As Collection
@@ -129,6 +139,12 @@ Public Function fn_Apply( _
         values("SourceDestination") = VBA.vbNullString
     End If
     values("WordPolicy") = fn_Value(eventId, "word.policy")
+    If m_events(eventId).Exists("transition.sourcePhrase") Then
+        values("TransitionSourcePhrase") = fn_Value(eventId, "transition.sourcePhrase")
+        values("TransitionSourcePhrasePast") = fn_Value(eventId, "transition.sourcePhrasePast")
+        values("TransitionSourcePhraseFemale") = fn_Value(eventId, "transition.sourcePhraseFemale")
+        values("TransitionSourcePhraseFemalePast") = fn_Value(eventId, "transition.sourcePhraseFemalePast")
+    End If
     values("RoutedWordTemplate") = VBA.vbNullString
     If fn_HasRoute(eventId, "Word") Then
         values("RoutedWordTemplate") = fn_Value(eventId, "word.template")
@@ -190,7 +206,12 @@ Private Sub private_EnsureLoaded()
     End If
     m_bindingField = private_Attribute(root, "bindingField")
     private_ValidateFields m_bindingField
-    private_RequireChildren root, "events"
+    If root.selectNodes("p:transitions").Length = 0 Then
+        private_RequireChildren root, "events"
+    Else
+        private_RequireChildren root, "events|transitions"
+    End If
+    private_ExpandDedicatedTransitions document, root
     Set m_statuses = private_Dictionary()
     If document.selectNodes("/p:eventRoutes/p:events/p:event/p:movement").Length > 0 Then
         Set m_statuses = ex_PEB_MovementRegistry.fn_Statuses()
@@ -257,6 +278,7 @@ Private Sub private_EnsureLoaded()
         End If
         private_Add m_events, identifier, route
     Next node
+    private_AddGeneratedTransitions knownTemplates
     If m_events.Count = 0 Then
         Err.Raise 5, , "Event routes XML contains no events."
     End If
@@ -265,6 +287,202 @@ EH:
     message = VBA.Err.Description
     fn_Module_Dispose
     Err.Raise 5, , "Event routes XML: " & message
+End Sub
+
+Private Function private_ReadTransitionRules(ByVal root As Object) As Object
+    Dim rules As Object
+    Dim statuses As Object
+    Dim transitions As Object
+    Dim node As Object
+    Dim source As Object
+    Dim target As Object
+    Dim definition As Object
+    Dim sourceId As String
+    Dim targetId As Variant
+    Dim eventId As String
+    Dim formKind As String
+    Dim legacyId As String
+    Dim legacyDepartureIds As String
+    Dim baseEvent As String
+    Dim sourceCaption As String
+    Dim labelSourceCaption As String
+
+    Set rules = private_Dictionary()
+    Set private_ReadTransitionRules = rules
+    Set transitions = root.selectSingleNode("p:transitions")
+    If transitions Is Nothing Then Exit Function
+    private_CheckAttributes transitions, VBA.vbNullString
+    private_RequireChildren transitions, "statuses|routes"
+    Set statuses = private_Dictionary()
+    For Each node In transitions.selectNodes("p:statuses/p:status")
+        private_CheckAttributes node, "id|caption|sourceCaption|captionRef|movementStatus|departure|wordPhrase|wordPhrasePast|wordPhraseFemale|wordPhraseFemalePast"
+        private_Add statuses, private_Attribute(node, "id"), node
+    Next node
+    For Each node In transitions.selectNodes("p:routes/p:transition")
+        private_CheckAttributes node, "source|targets|form|direction|visible|legacy|legacyDepartureIds|wordTemplate|labelSourceCaption|targetCaption"
+        sourceId = private_Attribute(node, "source")
+        If Not statuses.Exists(sourceId) Then Err.Raise 5, , "Unknown transition source: " & sourceId
+        Set source = statuses(sourceId)
+        sourceCaption = private_OptionalAttribute(source, "sourceCaption")
+        If VBA.Len(sourceCaption) = 0 Then
+            sourceCaption = private_StatusCaption(statuses, source)
+            sourceCaption = VBA.UCase$(VBA.Left$(sourceCaption, 1)) & VBA.Mid$(sourceCaption, 2)
+        End If
+        formKind = private_OptionalAttribute(node, "form")
+        labelSourceCaption = private_OptionalAttribute(node, "labelSourceCaption")
+        If VBA.Len(labelSourceCaption) = 0 Then labelSourceCaption = sourceCaption
+        legacyDepartureIds = private_OptionalAttribute(node, "legacyDepartureIds")
+        If legacyDepartureIds <> VBA.vbNullString And legacyDepartureIds <> "true" And legacyDepartureIds <> "false" Then
+            Err.Raise 5, , "Invalid legacyDepartureIds: " & sourceId
+        End If
+        For Each targetId In VBA.Split(private_Attribute(node, "targets"), "|")
+            If Not statuses.Exists(targetId) Then Err.Raise 5, , "Unknown transition target: " & targetId
+            Set target = statuses(targetId)
+            eventId = "MoveFrom" & sourceId & "To" & targetId
+            Set definition = private_Dictionary()
+            definition.Add "id", eventId
+            definition.Add "caption", private_TransitionCaption(node, statuses, target, sourceCaption)
+            definition.Add "label", private_TransitionCaption(node, statuses, target, labelSourceCaption)
+            definition.Add "form", formKind
+            If VBA.Len(formKind) = 0 Then
+                baseEvent = private_Attribute(target, "departure")
+                legacyId = VBA.vbNullString
+                If legacyDepartureIds = "true" And eventId <> "MoveFrom" & sourceId & baseEvent Then
+                    legacyId = "MoveFrom" & sourceId & baseEvent
+                End If
+                definition.Add "legacyId", legacyId
+                definition.Add "baseEvent", baseEvent
+                definition.Add "sourceStatus", private_Attribute(source, "movementStatus")
+                definition.Add "template", "TransitionTo" & targetId
+                definition.Add "sourcePhrase", private_Attribute(source, "wordPhrase")
+                definition.Add "sourcePhrasePast", private_Attribute(source, "wordPhrasePast")
+                definition.Add "sourcePhraseFemale", private_Attribute(source, "wordPhraseFemale")
+                definition.Add "sourcePhraseFemalePast", private_Attribute(source, "wordPhraseFemalePast")
+            Else
+                definition.Add "routeNode", node
+            End If
+            private_Add rules, eventId, definition
+        Next targetId
+    Next node
+End Function
+
+Private Function private_StatusCaption( _
+    ByVal statuses As Object, _
+    ByVal status As Object _
+) As String
+    Dim reference As String
+
+    reference = private_OptionalAttribute(status, "captionRef")
+    If VBA.Len(reference) > 0 Then
+        If Not statuses.Exists(reference) Then Err.Raise 5, , "Unknown transition caption reference: " & reference
+        Set status = statuses(reference)
+    End If
+    private_StatusCaption = private_Attribute(status, "caption")
+End Function
+
+Private Function private_TransitionCaption( _
+    ByVal node As Object, _
+    ByVal statuses As Object, _
+    ByVal target As Object, _
+    ByVal sourceCaption As String _
+) As String
+    Dim caption As String
+
+    caption = private_OptionalAttribute(node, "targetCaption")
+    If VBA.Len(caption) = 0 Then caption = private_StatusCaption(statuses, target)
+    private_TransitionCaption = sourceCaption & " " & VBA.ChrW$(&H2192) & " " & caption
+End Function
+
+Private Sub private_ExpandDedicatedTransitions( _
+    ByVal document As Object, _
+    ByVal root As Object _
+)
+    Dim rules As Object
+    Dim eventId As Variant
+    Dim definition As Object
+    Dim node As Object
+    Dim eventNode As Object
+    Dim exporter As Object
+    Dim value As String
+
+    Set rules = private_ReadTransitionRules(root)
+    For Each eventId In rules.Keys
+        Set definition = rules(eventId)
+        If definition.Exists("routeNode") Then
+            Set node = definition("routeNode")
+            Set eventNode = document.createNode(1, "event", "urn:excelprototype:profiles")
+            eventNode.setAttribute "id", eventId
+            eventNode.setAttribute "caption", definition("caption")
+            eventNode.setAttribute "label", definition("label")
+            value = private_OptionalAttribute(node, "direction")
+            If VBA.Len(value) = 0 Then value = "StatusChange"
+            eventNode.setAttribute "direction", value
+            eventNode.setAttribute "form", definition("form")
+            value = private_OptionalAttribute(node, "visible")
+            If VBA.Len(value) = 0 Then value = "false"
+            eventNode.setAttribute "visible", value
+            value = private_OptionalAttribute(node, "legacy")
+            If VBA.Len(value) > 0 Then eventNode.setAttribute "legacy", value
+            Set exporter = document.createNode(1, "movement", "urn:excelprototype:profiles")
+            exporter.setAttribute "template", eventId
+            eventNode.appendChild exporter
+            Set exporter = document.createNode(1, "word", "urn:excelprototype:profiles")
+            value = private_OptionalAttribute(node, "wordTemplate")
+            If VBA.Len(value) = 0 Then value = VBA.CStr(eventId)
+            exporter.setAttribute "template", value
+            eventNode.appendChild exporter
+            root.selectSingleNode("p:events").appendChild eventNode
+        End If
+    Next eventId
+End Sub
+
+Private Sub private_AddGeneratedTransitions(ByVal knownTemplates As Object)
+    Dim definitions As Object
+    Dim eventId As Variant
+    Dim definition As Object
+    Dim baseRoute As Object
+    Dim movementPlan As Object
+    Dim textTemplate As Object
+    Dim route As Object
+    Dim key As Variant
+    Dim templateName As String
+    Dim profile As String
+    Dim count As Long
+
+    Set definitions = ex_PEB_MovementRegistry.fn_GeneratedTransitions()
+    For Each eventId In definitions.Keys
+        Set definition = definitions(eventId)
+        Set baseRoute = m_events(definition("baseEvent"))
+        Set movementPlan = ex_PEB_MovementRegistry.fn_Event(VBA.CStr(eventId))
+        Set route = private_Dictionary()
+        route.Add "caption", definition("caption")
+        route.Add "label", definition("label")
+        route.Add "direction", "StatusChange"
+        route.Add "form", baseRoute("form")
+        route.Add "visible", "false"
+        route.Add "legacy", VBA.vbNullString
+        If VBA.CStr(eventId) <> definition("id") Then route("legacy") = "true"
+        route.Add "transition.sourcePhrase", definition("sourcePhrase")
+        route.Add "transition.sourcePhrasePast", definition("sourcePhrasePast")
+        route.Add "transition.sourcePhraseFemale", definition("sourcePhraseFemale")
+        route.Add "transition.sourcePhraseFemalePast", definition("sourcePhraseFemalePast")
+        templateName = definition("template")
+        route.Add "movement.template", templateName
+        Set textTemplate = ex_PEB_MovementTemplates.fn_Template(templateName)
+        For Each key In VBA.Array("operation", "profile", "destinationField", "required", "sourceStatus", "targetStatus", "destinationValue", "sourceDestination")
+            route.Add "movement." & key, movementPlan(key)
+        Next key
+        route.Add "word.policy", baseRoute("word.policy")
+        If baseRoute.Exists("word.template") Then
+            If Not knownTemplates.Exists(templateName) Then Err.Raise 5, , "Unknown Word transition template: " & templateName
+            route.Add "word.template", templateName
+            profile = "export.Word." & templateName
+            private_ValidateFields ex_PEB_Export.fn_Config(profile & ".required")
+            private_ValidateFields ex_PEB_Export.fn_Config(profile & ".previewRequired")
+            count = ex_PEB_Export.fn_Count(profile & ".lookups.count")
+        End If
+        private_Add m_events, VBA.CStr(eventId), route
+    Next eventId
 End Sub
 
 Private Sub private_ValidateRoutes(ByVal node As Object)

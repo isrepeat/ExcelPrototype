@@ -164,7 +164,7 @@ Public Function TryGenerateHistory( _
         End If
         body = ex_PEB_WordGroups.fn_NormalizeSection(body)
         ' Different event types can share one anchor; accumulate before replacing its content.
-        anchorId = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(eventId))
+        anchorId = ex_PEB_Export.fn_WordAnchor(VBA.CStr(eventId))
         If Not rendered.Exists(anchorId) Then
             rendered.Add anchorId, body
             sectionEvents.Add anchorId, eventId
@@ -433,7 +433,7 @@ Private Function private_Export( _
         private_ReplaceDocumentFields document, values
     End If
     If Not existing And m_documentMode = "blank" Then
-        identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+        identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
         document.Content.Text = "{\export:" & identifier & "_Begin}" & VBA.vbCr & "{\export:" & identifier & "_End}" & VBA.vbCr
     End If
     ex_PEB_WordDocument.fn_Change document, values, operation, eventUid, resultCode

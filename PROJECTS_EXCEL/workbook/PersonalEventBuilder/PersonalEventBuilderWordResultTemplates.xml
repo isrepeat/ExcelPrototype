@@ -224,10 +224,18 @@
       </text>
     </sharedTemplate>
 
-    <sharedTemplate id="block.StatusChangeResidenceVerb">
+    <sharedTemplate id="block.StatusChangeTense">
       <text>
         <![CDATA[#^
 #_        #let __StatusChangeUsesPresent = $ex_Helpers.fn_IsDateOnOrAfter("{[DateFromShort]}", "{[OrderDateShort]}");#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="block.StatusChangeResidenceVerb">
+      <text>
+        <![CDATA[#^
+#_        {#include block.StatusChangeTense}#^
 #_        {#if #not [DateFromShort] #or __StatusChangeUsesPresent}перебуває{#else}перебував{#endif}{#space}#^
         ]]>
       </text>
@@ -442,6 +450,73 @@
         ]]>
       </text>
     </sharedTemplate>
+    <sharedTemplate id="status.FromPrevious">
+      <text>
+        <![CDATA[#^
+#_        {#include block.StatusChangeTense}який {#if #not [DateFromShort] #or __StatusChangeUsesPresent}{[TransitionSourcePhrase]}{#else}{[TransitionSourcePhrasePast]}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.FromPreviousFemale">
+      <text>
+        <![CDATA[#^
+#_        {#include block.StatusChangeTense}яка {#if #not [DateFromShort] #or __StatusChangeUsesPresent}{[TransitionSourcePhraseFemale]}{#else}{[TransitionSourcePhraseFemalePast]}{#endif}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.JoinFemale">
+      <text>
+        <![CDATA[#^
+#_        ,{#space}вважати такою, що{#space}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.ToMaternityLeave">
+      <text>
+        <![CDATA[#^
+#_        вибула у відпустку у зв’язку з вагітністю та пологами#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.ToMedicalCompanyLeave">
+      <text>
+        <![CDATA[#^
+#_        вибув у відпустку для лікування в медичній роті#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.ToMedicalCompanyTreatment">
+      <text>
+        <![CDATA[#^
+#_        вибув на лікування до медичної роти#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.TransitionLeaveDetails">
+      <text>
+        <![CDATA[#^
+#_        {#include block.VacationDestinationPeriod}#^
+#_        {#include block.StatusChangeFoodSupport}#^
+#_        {#include block.OptionalForeignVacationPermission}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
+    <sharedTemplate id="status.TransitionBasis">
+      <text>
+        <![CDATA[#^
+#_        {#newline}{#newline}#^
+#_        {#include block.IncomingBasis}#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
   </sharedTemplates>
 
 <template name="ToBusinessTrip"
@@ -1353,6 +1428,108 @@
 #_      {#newline}{#newline}#^
 #_      {#include block.IncomingBasis}#^
 #_      {#include block.BusinessTripBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+  <template name="TransitionToHospital">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToHospital}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#include block.OptionalFoodCertificate}#^
+#_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="TransitionToAnnualVacation">
+    <reject field="Destination"
+            matches="\(\s*[A-Za-zÀ-ÖØ-öø-ÿĀ-ž][A-Za-zÀ-ÖØ-öø-ÿĀ-ž0-9\s,.'’/-]*\)"
+            messageKey="text.ExportRejected"/>
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToAnnualLeave}#^
+#_      {#include status.TransitionLeaveDetails}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="TransitionToFamilyVacation">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToFamilyLeave}#^
+#_      {#include status.TransitionLeaveDetails}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="TransitionToMaternityLeave">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPreviousFemale}{#include status.JoinFemale}{#include status.ToMaternityLeave}#^
+#_      {#include status.TransitionLeaveDetails}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="TransitionToMedicalLeave">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToMedicalLeave}#^
+#_      {#include status.TransitionLeaveDetails}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.VlkBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="TransitionToMedicalCompanyLeave">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToMedicalCompanyLeave}#^
+#_      {#include status.TransitionLeaveDetails}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.VlkBasisDocuments}#^
+#_      {#include block.OptionalVacationTicket}#^
+#_      .{#newline}{#newline}#^
+      ]]>
+    </text>
+  </template>
+
+  <template name="TransitionToMedicalCompanyTreatment">
+    <text>
+      <![CDATA[#^
+#_      {#include block.StatusChangePersonLine}#^
+#_      {#include status.FromPrevious}{#include status.Join}{#include status.ToMedicalCompanyTreatment}#^
+#_      {#include block.StatusChangeDateFrom}#^
+#_      {#include block.OptionalFoodCertificate}#^
+#_      {#include block.StatusChangeFoodSupport}#^
+#_      {#include status.TransitionBasis}#^
+#_      {#include block.OptionalBasisDocuments}#^
 #_      .{#newline}{#newline}#^
       ]]>
     </text>

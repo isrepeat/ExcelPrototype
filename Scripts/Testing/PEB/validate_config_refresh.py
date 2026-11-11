@@ -17,7 +17,9 @@ def main():
         settings = parse_config(folder / "config/PersonalEventBuilder" / name)
         plans = load_native_plans(settings)
         for identifier, plan in plans["events"].items():
-            key = f"export.Movement.{identifier}.required"
+            definition = plans["generated"].get(identifier)
+            profile_id = definition[0] if definition else identifier
+            key = f"export.Movement.{profile_id}.required"
             assert plan["required"] == settings[key]
             changed = deepcopy(settings)
             changed[key] = "PersonId|PersonName"

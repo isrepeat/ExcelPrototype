@@ -52,7 +52,7 @@ def main():
                 for boundary in ("Begin", "End"):
                     assert text.count("{\\export:" + event_id + "_" + boundary + "}") == 1
         root = ET.parse(WORKBOOK / settings["events.path"]).getroot()
-        assert [node.tag for node in root] == [f"{{{NS['p']}}}events"]
+        assert [node.tag for node in root] == [f"{{{NS['p']}}}events", f"{{{NS['p']}}}transitions"]
         for event in root.find("p:events", NS):
             for route in event:
                 assert set(route.attrib) == {"template"}

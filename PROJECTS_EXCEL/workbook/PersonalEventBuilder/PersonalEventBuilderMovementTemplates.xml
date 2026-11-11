@@ -1218,4 +1218,254 @@
       <text>{#include block.IncomingBasis}{#include block.OptionalDepartureBasisDocuments}.</text>
     </column>
   </template>
+  <template name="TransitionToBusinessTrip">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToHospital">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToAnnualVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToFamilyVacation">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToMaternityLeave">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToMedicalLeave">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToMedicalCompanyLeave">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToOutpatientVlk">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
+  <template name="TransitionToMedicalCompanyTreatment">
+    <column configKey="returnTvo.table.headers.Duration"
+            target="TVO">
+      <text>Інше</text>
+    </column>
+    <column configKey="returnTvo.table.headers.Information"
+            target="TVO">
+      <text>{#include block.TvoInformation}</text>
+    </column>
+    <column configKey="export.Movement.headers.ArrivalBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+    <column configKey="export.Movement.headers.DepartureBasis">
+      <text>
+        <![CDATA[#^
+#_        {#include block.IncomingBasis}#^
+#_        {#include block.OptionalDepartureBasisDocuments}#^
+#_        .#^
+        ]]>
+      </text>
+    </column>
+  </template>
 </resultTemplates>

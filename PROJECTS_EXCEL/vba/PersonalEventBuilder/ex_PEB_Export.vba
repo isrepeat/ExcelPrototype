@@ -92,11 +92,16 @@ Public Function fn_IsTicketDocumentForm(ByVal formKind As String) As Boolean
 End Function
 
 Public Function fn_FixedDocument(ByVal modeId As String) As String
+    modeId = ex_PEB_MovementRegistry.fn_ProfileId(modeId)
     If InStr(1, "|" & ex_PEB_Export.fn_Config("document.fixed.modes") & "|", "|" & modeId & "|", vbBinaryCompare) > 0 Then
         fn_FixedDocument = ex_PEB_Export.fn_Config("document.fixed." & modeId)
     ElseIf ex_PEB_Export.fn_IsTicketDocumentForm(ex_PEB_EventRoutes.fn_Value(modeId, "form")) Then
         fn_FixedDocument = ex_PEB_Export.fn_Config("lookup.ReturnTickets.document")
     End If
+End Function
+
+Public Function fn_WordAnchor(ByVal eventId As String) As String
+    fn_WordAnchor = fn_Config("export.Word.textAnchors." & ex_PEB_MovementRegistry.fn_ProfileId(eventId))
 End Function
 
 Public Function fn_IsTicketDocumentMode(ByVal modeId As String) As Boolean

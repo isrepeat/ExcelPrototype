@@ -15,7 +15,9 @@ def main():
         event = registry["events"][EVENT]
         known_readonly = set(settings["forms.readOnly.fields"].split("|"))
         for event_id in registry["events"]:
-            readonly = settings[f"forms.readOnly.modes.{event_id}"]
+            generated = registry["movement"]["generated"].get(event_id)
+            profile_id = generated[0] if generated else event_id
+            readonly = settings[f"forms.readOnly.modes.{profile_id}"]
             assert set(readonly.split("|")) - {"-"} <= known_readonly, event_id
         assert "DurationDays" not in settings[f"forms.readOnly.modes.{EVENT}"].split("|")
         assert EVENT in settings["lookup.AnnualContinuation.modes"].split("|")
@@ -70,7 +72,7 @@ def main():
         assert "{#include block.VacationDestinationPeriod}" in body
         assert "{#include block.OptionalForeignVacationPermission}" in body
         assert template.find("p:reject", NS) is None
-        verb = word.find("p:sharedTemplates/p:sharedTemplate[@id='block.StatusChangeResidenceVerb']/p:text", NS).text
+        verb = word.find("p:sharedTemplates/p:sharedTemplate[@id='block.StatusChangeTense']/p:text", NS).text
         assert 'fn_IsDateOnOrAfter("{[DateFromShort]}", "{[OrderDateShort]}")' in verb
         columns = registry["movement"]["tvo_columns"][EVENT]
         assert columns[settings["returnTvo.table.headers.Duration"]] == "Інше"

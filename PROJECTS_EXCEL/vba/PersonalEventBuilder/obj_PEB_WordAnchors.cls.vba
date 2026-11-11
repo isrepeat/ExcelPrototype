@@ -133,7 +133,7 @@ Public Function TryInsert( _
     On Error GoTo EH
     stage = "ResolveAnchor"
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
-    identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+    identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
     If Not m_anchors.Exists(identifier) Then Err.Raise 5, , "Word template anchor not found: " & identifier
     Set m_insertDocument = Nothing
     m_expectedText = VBA.vbNullString
@@ -219,7 +219,7 @@ Public Function TryVerify( _
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
-    identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+    identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
     If Not m_anchors.Exists(identifier) Then Err.Raise 5, , "Word template anchor not found: " & identifier
     positions = m_anchors(identifier)
     rendered = VBA.Replace$(VBA.CStr(values("WordText")), VBA.vbCrLf, VBA.vbCr)
@@ -249,7 +249,7 @@ Public Function TryGetInsertedRange( _
     On Error GoTo EH
     Set insertedRange = Nothing
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Word anchor index is not initialized."
-    identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+    identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
     positions = m_anchors(identifier)
     Set beginRange = private_FindMarker(document, VBA.CStr(positions(0)))
     Set endRange = private_FindMarker(document, VBA.CStr(positions(1)))
@@ -271,7 +271,7 @@ Public Sub HideMarkers( _
     If Not m_isInitialized Or m_isDisposed Then
         Err.Raise 5, , "Word anchor index is not initialized."
     End If
-    identifier = ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId")))
+    identifier = ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId")))
     If Not m_anchors.Exists(identifier) Then
         Err.Raise 5, , "Word group anchor is missing."
     End If

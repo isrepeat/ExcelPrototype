@@ -108,7 +108,7 @@ Public Sub fn_Change( _
     If operation <> "DELETE" Then
         Set template = templates.Definition(VBA.CStr(values("TemplateName")))
         Set targetSection = store.BindSection( _
-            ex_PEB_Export.fn_Config("export.Word.textAnchors." & VBA.CStr(values("EventId"))), _
+            ex_PEB_Export.fn_WordAnchor(VBA.CStr(values("EventId"))), _
             VBA.CStr(values("TemplateName")), _
             VBA.CStr(values("EventId")), _
             template.XML, _
@@ -135,7 +135,7 @@ Public Sub fn_Change( _
         End If
         Set context = VBA.CreateObject("Scripting.Dictionary")
         context.Add "EventId", section.getAttribute("eventId")
-        If ex_PEB_Export.fn_Config("export.Word.textAnchors." & section.getAttribute("eventId")) <> section.getAttribute("anchor") Then
+        If ex_PEB_Export.fn_WordAnchor(section.getAttribute("eventId")) <> section.getAttribute("anchor") Then
             Err.Raise 5, , "Stored Word anchor mapping changed."
         End If
         If Not anchors.TryGetInsertedRange(document, context, target, diagnostic) Then

@@ -3514,7 +3514,7 @@ Private Function private_UpdateReadOnly( _
     Dim defaultStyle As String
 
     If Not private_ReadModeConfig("forms.readOnly.fields", fields, diagnostic) Then Exit Function
-    If Not private_ReadModeConfig("forms.readOnly.modes." & modeId, dependents, diagnostic) Then Exit Function
+    If Not private_ReadModeConfig("forms.readOnly.modes." & ex_PEB_MovementRegistry.fn_ProfileId(modeId), dependents, diagnostic) Then Exit Function
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     Set updates = CreateObject("Scripting.Dictionary")
     For Each field In Split(dependents, "|")

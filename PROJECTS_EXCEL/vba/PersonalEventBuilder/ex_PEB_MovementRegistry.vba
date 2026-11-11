@@ -6,6 +6,7 @@ Option Explicit
 Private m_values As Object
 Private m_events As Object
 Private m_statuses As Object
+Private m_generatedTransitions As Object
 Private m_formFields As String
 Private m_destinationRegex As Object
 
@@ -16,6 +17,7 @@ Public Sub fn_Module_Dispose()
     Set m_values = Nothing
     Set m_events = Nothing
     Set m_statuses = Nothing
+    Set m_generatedTransitions = Nothing
     Set m_destinationRegex = Nothing
     m_formFields = VBA.vbNullString
 End Sub
@@ -77,6 +79,19 @@ End Function
 Public Function fn_Statuses() As Object
     private_EnsureLoaded
     Set fn_Statuses = m_statuses
+End Function
+
+Public Function fn_GeneratedTransitions() As Object
+    private_EnsureLoaded
+    Set fn_GeneratedTransitions = m_generatedTransitions
+End Function
+
+Public Function fn_ProfileId(ByVal eventId As String) As String
+    private_EnsureLoaded
+    fn_ProfileId = eventId
+    If m_generatedTransitions.Exists(eventId) Then
+        fn_ProfileId = m_generatedTransitions(eventId)("baseEvent")
+    End If
 End Function
 
 Public Function fn_WriteValue( _
@@ -236,7 +251,7 @@ Private Sub private_EnsureLoaded()
     Set m_statuses = VBA.CreateObject("Scripting.Dictionary")
     Set knownNames = VBA.CreateObject("Scripting.Dictionary")
     m_formFields = "|" & ex_PEB_Export.fn_Config("export.fields") & "|"
-    For Each identifier In VBA.Array("HospitalTreatment", "AnnualVacation", "MedicalLeave", "FamilyVacation", "MaternityLeave", "BusinessTrip", "OutpatientVlk", "ExternalVlk", "Awol", "ReturnToOtherUnit")
+    For Each identifier In VBA.Array("HospitalTreatment", "AnnualVacation", "MedicalLeave", "FamilyVacation", "MaternityLeave", "BusinessTrip", "OutpatientVlk", "ExternalVlk", "Awol", "Missing", "ReturnToOtherUnit")
         statusName = ex_PEB_Export.fn_Config("export.Movement.status." & identifier)
         If knownNames.Exists(statusName) Then
             Err.Raise 5, , "Duplicate Movement status name: " & statusName
@@ -246,6 +261,7 @@ Private Sub private_EnsureLoaded()
     Next identifier
     private_BuildProfiles
     private_BuildEvents
+    private_BuildGeneratedTransitions
     Exit Sub
 EH:
     message = VBA.Err.Description
@@ -963,6 +979,51 @@ Private Sub private_BuildEvents()
         "", _
         "", _
         ex_PEB_Export.fn_Config("export.Movement.MoveFromOutpatientVlkToVacationForCuring.required")
+End Sub
+
+Private Sub private_BuildGeneratedTransitions()
+    Dim rules As Object
+    Dim eventId As Variant
+    Dim definition As Object
+
+    Set rules = ex_PEB_EventRoutes.fn_TransitionRules()
+    Set m_generatedTransitions = VBA.CreateObject("Scripting.Dictionary")
+    For Each eventId In rules.Keys
+        Set definition = rules(eventId)
+        If definition.Exists("baseEvent") Then
+            private_AddGeneratedTransition VBA.CStr(eventId), definition
+        End If
+    Next eventId
+End Sub
+
+Private Sub private_AddGeneratedTransition( _
+    ByVal eventId As String, _
+    ByVal definition As Object _
+)
+    Dim baseEvent As String
+    Dim legacyId As String
+    Dim basePlan As Object
+
+    baseEvent = definition("baseEvent")
+    If Not m_events.Exists(baseEvent) Then Err.Raise 5, , "Unknown transition departure: " & baseEvent
+    Set basePlan = m_events(baseEvent)
+    If basePlan("operation") <> "Departure" Then Err.Raise 5, , "Expected a departure event: " & baseEvent
+    private_AddEvent _
+        eventId, _
+        "Transition", _
+        "Transition", _
+        definition("sourceStatus"), _
+        basePlan("targetStatus"), _
+        basePlan("destinationField"), _
+        basePlan("destinationValue"), _
+        VBA.vbNullString, _
+        basePlan("required")
+    m_generatedTransitions.Add eventId, definition
+    legacyId = definition("legacyId")
+    If VBA.Len(legacyId) > 0 Then
+        m_events.Add legacyId, m_events(eventId)
+        m_generatedTransitions.Add legacyId, definition
+    End If
 End Sub
 
 Private Sub private_AddProfile( _
