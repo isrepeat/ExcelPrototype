@@ -211,12 +211,16 @@ Private Sub private_EnsureLoaded()
     End If
     Set m_events = private_Dictionary()
     For Each node In root.selectNodes("p:events/p:event")
-        private_CheckAttributes node, "id|caption|label|direction|form|visible"
+        private_CheckAttributes node, "id|caption|label|direction|form|visible|legacy"
         identifier = private_Attribute(node, "id")
         Set route = private_Dictionary()
         For Each key In VBA.Array("caption", "label", "direction", "form", "visible")
             route.Add key, private_Attribute(node, VBA.CStr(key))
         Next key
+        route.Add "legacy", private_OptionalAttribute(node, "legacy")
+        If route("legacy") <> VBA.vbNullString And route("legacy") <> "true" Then
+            Err.Raise 5, , "Invalid legacy event marker: " & identifier
+        End If
         If route("direction") <> "Arrival" And route("direction") <> "Departure" And route("direction") <> "StatusChange" Then
             Err.Raise 5, , "Invalid event direction: " & identifier
         End If

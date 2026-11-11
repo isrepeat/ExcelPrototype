@@ -281,9 +281,41 @@
                            caption="{Binding Path=Text.MoveFromAwolToBusinessTrip}"
                            command="{Binding Path=Commands.ToBusinessTripAwol}"/>
         </grid>
+        <stackPanel name="StatusSelectors"
+                    row="6"
+                    column="1"
+                    columnSpan="4"
+                    orientation="horizontal">
+          <controls:select name="PreviousStatus"
+                           itemsSource="{Binding Path=Data.PreviousStatusOptions}"
+                           columnSpan="2"
+                           style="{Binding Path=Settings.PreviousStatusStyle}"
+                           value="{Binding Path=Form.PreviousStatus}"
+                           placeholder="{Binding Path=Text.PreviousStatus}"
+                           styleBackingCell="false"
+                           panelStyle="formSelectPanel"
+                           itemStyle="formSelectItem"
+                           itemHeight="30"
+                           highlightValue="{Binding Path=Form.PreviousStatus}"
+                           highlightStyle="activeModeButton"
+                           onChange="{Binding Path=Commands.PreviousStatusChanged}"/>
+          <controls:select name="NextStatus"
+                           itemsSource="{Binding Path=Data.NextStatusOptions}"
+                           columnSpan="2"
+                           style="{Binding Path=Settings.NextStatusStyle}"
+                           value="{Binding Path=Form.NextStatus}"
+                           placeholder="{Binding Path=Text.NextStatus}"
+                           styleBackingCell="false"
+                           panelStyle="formSelectPanel"
+                           itemStyle="formSelectItem"
+                           itemHeight="30"
+                           highlightValue="{Binding Path=Form.NextStatus}"
+                           highlightStyle="activeModeButton"
+                           onChange="{Binding Path=Commands.NextStatusChanged}"/>
+        </stackPanel>
         <controls:select name="ExtendedModes"
                          itemsSource="{Binding Path=Data.ExtendedModes}"
-                         row="6"
+                         row="7"
                          column="1"
                          columnSpan="4"
                          style="{Binding Path=Settings.ExtendedModeStyle}"
@@ -295,9 +327,6 @@
                          itemHeight="30"
                          highlightValue="{Binding Path=Form.ExtendedMode}"
                          highlightStyle="activeModeButton"
-                         separatorBefore="{Binding Path=Data.ExtendedModeSeparators}"
-                         separatorStyle="formSelectSeparator"
-                         separatorHeight="2"
                          onChange="{Binding Path=Commands.ExtendedModeChanged}"/>
       </grid>
     </stackPanel>
@@ -1211,6 +1240,12 @@
         <rule target="control"
               selector="name=ToBusinessTripAwol"
               style="statusModeTile"/>
+        <rule target="control"
+              selector="name=PreviousStatus"
+              styles="{marginLeft:5;marginRight:5;marginTop:0;marginBottom:0;}"/>
+        <rule target="control"
+              selector="name=NextStatus"
+              styles="{marginLeft:5;marginRight:5;marginTop:0;marginBottom:0;}"/>
         <rule target="control"
               selector="name=ExtendedModes"
               styles="{marginLeft:5;marginRight:5;marginTop:0;marginBottom:0;}"/>

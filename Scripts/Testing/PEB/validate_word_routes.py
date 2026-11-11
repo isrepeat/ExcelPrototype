@@ -18,7 +18,7 @@ def main():
         medical_leave = registry["events"][medical_leave_id]
         assert medical_leave.get("form") == "HospitalLeave"
         assert medical_leave.get("direction") == "StatusChange"
-        assert medical_leave_id in settings["ui.extendedModes"].split("|")
+        assert medical_leave.get("legacy") is None and "→" in medical_leave.get("caption")
         assert medical_leave.find("p:word", NS).get("template") == medical_leave_id
         assert settings["export.Word.textAnchors." + medical_leave_id] == "MoveFromHospitalToVacationForCuring"
         movement_leave = registry["movement"]["events"][medical_leave_id]

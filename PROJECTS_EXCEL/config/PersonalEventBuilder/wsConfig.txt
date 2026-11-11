@@ -17,7 +17,7 @@ value	ThisWorkbook::initializer	ex_PersonalEventBuilder.fn_Initialize
 value	ThisWorkbook::pageFactory	ex_PersonalEventBuilder.fn_CreatePage
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgMain
-value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|FromMedicalCompanyForTreatment|ToMaternityLeave|ToMedicalCompanyForTreatment|ToMedicalCompanyVacationForCuring||MoveFromHospitalToExternalVlk|MoveFromHospitalToMedicalCompanyVacationForCuring||MoveFromMedicalCompanyForTreatmentToHospital|MoveFromMedicalCompanyForTreatmentToVacationForCuring|MoveFromMedicalCompanyVacationForCuringToHospital|MoveFromMedicalCompanyVacationForCuringToVacationForCuring||MoveFromAnnualVacationToHospital|MoveFromAnnualVacationToFamilyVacation|MoveFromAnnualVacationToVlk|MoveFromAnnualVacationToVacationForCuring||MoveFromFamilyVacationToHospital|MoveFromFamilyVacationToAnnualVacation|MoveFromFamilyVacationToVlk|MoveFromFamilyVacationToVacationForCuring||MoveFromVacationForCuringToVlk|MoveFromVacationForCuringToAnnualVacation||MoveFromExternalVlkToHospital|MoveFromExternalVlkToVacationForCuring|MoveFromExternalVlkToAnnualVacation||MoveFromOutpatientVlkToHospital|MoveFromOutpatientVlkToVacationForCuring|MoveFromOutpatientVlkToAnnualVacation|MoveFromHospitalToAnnualVacationContinuation|MoveFromHospitalToMedicalLeaveContinuation
+value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|FromMedicalCompanyForTreatment|ToMaternityLeave|ToMedicalCompanyForTreatment|ToMedicalCompanyVacationForCuring
 value	PersonalEventBuilder::text.LoadTest	Завантажити сценарій
 value	PersonalEventBuilder::text.NextTest	Наступний крок
 value	PersonalEventBuilder::text.TestOnly	Завантаження сценаріїв доступне лише в TEST.
@@ -33,6 +33,7 @@ value	PersonalEventBuilder::text.TestsStop	Зупинити
 value	PersonalEventBuilder::text.CloseTable	×
 value	PersonalEventBuilder::text.ExportWord	Сформувати WORD
 value	PersonalEventBuilder::text.LastStatus	Статус останньої дії
+value	PersonalEventBuilder::text.NextStatus	Новий статус
 value	PersonalEventBuilder::text.OrderEmpty	Наказів не знайдено. Перевірте номер, дату та рік.
 value	PersonalEventBuilder::text.OrderReady	Введіть номер, дату або пару наказу: 193, 10.10, 10.10.2025, 193 / 10.10.2025. Порожній рік означає поточний для номера та неповної дати.
 value	PersonalEventBuilder::text.RankHeader	Звання
@@ -99,6 +100,7 @@ value	PersonalEventBuilder::text.PersonnelCount	Кандидатів: {count}. �
 value	PersonalEventBuilder::text.PersonnelEmpty	Кандидатів не знайдено.
 value	PersonalEventBuilder::text.PersonnelError	Помилка пошуку. Перевірте джерело даних.
 value	PersonalEventBuilder::text.PositionHeader	Посада
+value	PersonalEventBuilder::text.PreviousStatus	Попередній статус
 value	PersonalEventBuilder::text.ScrollFormLeft	◀
 value	PersonalEventBuilder::text.StyleRowHeight	Некоректне значення rowHeight.
 value	PersonalEventBuilder::text.StyleStageName	Назву стадії стилів не задано або продубльовано: {value}
@@ -238,6 +240,7 @@ value	PersonalEventBuilder::text.HistorySyncUnknown	Немає запису в �
 value	PersonalEventBuilder::text.HistoryWordSuccess	WORD сформовано з EventsHistory: {path}.
 value	PersonalEventBuilder::text.ModeEventDateLabel	Дата події
 value	PersonalEventBuilder::text.ModeEventTypeLabel	Тип
+value	PersonalEventBuilder::text.NextStatusRequired	Оберіть новий статус для цієї зміни.
 value	PersonalEventBuilder::text.ReturnTicketsError	Не вдалося підставити квиток зі знімка РУХ: {details}
 value	PersonalEventBuilder::text.SourceLegendSample	Текст
 value	PersonalEventBuilder::text.StyleBoundSelector	Для стилю layoutBound потрібен name.

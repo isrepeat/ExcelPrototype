@@ -50,7 +50,7 @@ def main():
         assert mappings["DurationDays"] == "Absence.DurationDays"
         assert mappings["Destination"] == "Absence.Destination"
         assert event.get("direction") == "StatusChange" and event.get("form") == "HospitalLeave"
-        assert event.get("visible") == "true" and EVENT in settings["ui.extendedModes"].split("|")
+        assert event.get("legacy") is None and "→" in event.get("caption")
         plan = registry["movement"]["events"][EVENT]
         assert plan["operation"] == "Transition"
         assert plan["sourceStatus"] == "HospitalTreatment" and plan["targetStatus"] == "AnnualVacation"
@@ -63,9 +63,10 @@ def main():
         word = ET.parse(WORKBOOK / settings["export.Word.templates.path"]).getroot()
         template = word.find(f"p:template[@name='{EVENT}']", NS)
         body = "".join(template.itertext())
-        assert "виписаний із лікувального закладу" in body
-        assert "продовження невикористаної частини щорічної основної відпустки" in body
-        assert "{#include block.StatusChangeResidenceVerb}" in body
+        assert "{#include status.FromHospital}{#include status.Join}{#include status.ToAnnualContinuation}" in body
+        annual_text = word.find("p:sharedTemplates/p:sharedTemplate[@id='status.ToAnnualContinuation']/p:text", NS).text
+        assert "виписаний із лікувального закладу" in annual_text
+        assert "продовження невикористаної частини щорічної основної відпустки" in annual_text
         assert "{#include block.VacationDestinationPeriod}" in body
         assert "{#include block.OptionalForeignVacationPermission}" in body
         assert template.find("p:reject", NS) is None
@@ -77,13 +78,15 @@ def main():
         medical_event = registry["events"][medical]
         assert medical_event.get("form") == event.get("form")
         assert medical in settings["lookup.AnnualContinuation.modes"].split("|")
-        assert medical in settings["ui.extendedModes"].split("|")
+        assert medical_event.get("legacy") is None and "→" in medical_event.get("caption")
         medical_plan = registry["movement"]["events"][medical]
         assert medical_plan["sourceStatus"] == "HospitalTreatment"
         assert medical_plan["targetStatus"] == "MedicalLeave"
         assert medical_plan["operation"] == "Transition"
         medical_template = word.find(f"p:template[@name='{medical}']", NS)
-        assert "продовжив відпустку для лікування" in "".join(medical_template.itertext())
+        assert "{#include status.FromHospital}{#include status.Join}{#include status.ToMedicalContinuation}" in "".join(medical_template.itertext())
+        medical_text = word.find("p:sharedTemplates/p:sharedTemplate[@id='status.ToMedicalContinuation']/p:text", NS).text
+        assert "продовжив відпустку для лікування" in medical_text
         assert settings[f"extensions.mode.{medical}.default.1.role"] == "MedicalCard"
     source = (ROOT / "PROJECTS_EXCEL/vba/PersonalEventBuilder/ex_PEB_AnnualContinuation.vba").read_text(encoding="utf-8-sig")
     assert "snapshot.TryQuery(source, query, table, diagnostic)" in source

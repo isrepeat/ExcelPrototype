@@ -146,7 +146,8 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
             validate_rejections(template, settings,
                                 set(settings["export.Word.context.xmlKeys"].split("|")) | {"VacationAdditionalDays"})
     for identifier, event in events.items():
-        attributes(event, "id|caption|label|direction|form|visible", "id|caption|label|direction|form|visible")
+        attributes(event, "id|caption|label|direction|form|visible|legacy", "id|caption|label|direction|form|visible")
+        require(event.get("legacy") in (None, "true"), "Invalid legacy event marker")
         require(event.get("direction") in ("Arrival", "Departure", "StatusChange"), f"Invalid direction: {identifier}")
         require(f"forms.{event.get('form')}.fields.count" in settings, f"Invalid form: {identifier}")
         require(event.get("visible") in ("true", "false"), f"Invalid visibility: {identifier}")

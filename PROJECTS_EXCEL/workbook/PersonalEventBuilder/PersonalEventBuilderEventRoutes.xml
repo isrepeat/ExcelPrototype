@@ -190,7 +190,7 @@
       <word template="MoveFromHospitalToVacationForCuring"/>
     </event>
     <event label="Лікування в лікарні → відпустка для лікування в медичній роті"
-           caption="Лікування в лікарні → відпустка для лікування в медичній роті"
+           caption="Лікування → відпустка для лікування в медичній роті"
            id="MoveFromHospitalToMedicalCompanyVacationForCuring"
            direction="StatusChange"
            form="HospitalLeave"
@@ -255,6 +255,7 @@
     <event label="ВЛК за межами → відпустка для лікування"
            caption="ВЛК за межами → відпустка для лікування"
            id="MoveFromVlkToVacationForCuring"
+           legacy="true"
            direction="StatusChange"
            form="Leave"
            visible="false">
@@ -264,6 +265,7 @@
     <event label="ВЛК за межами → лікування в лікарні"
            caption="ВЛК за межами → лікування в лікарні"
            id="MoveFromVlkToHospital"
+           legacy="true"
            direction="StatusChange"
            form="Treatment"
            visible="false">

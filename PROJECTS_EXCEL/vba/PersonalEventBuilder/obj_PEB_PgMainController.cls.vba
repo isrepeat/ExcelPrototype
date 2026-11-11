@@ -31,6 +31,8 @@ Private m_modeId As String
 Private m_modeDirection As String
 Private m_eventType As String
 Private m_modeConfig As Object
+Private m_statusTransitions As Object
+Private m_transitionCaptions As Object
 Private m_reporterFields As Collection
 Private m_reporterActive As Boolean
 Private m_hospitalActive As Boolean
@@ -189,6 +191,8 @@ Public Sub Dispose()
     Set m_modeFields = Nothing
     Set m_displayFields = Nothing
     Set m_modeConfig = Nothing
+    Set m_statusTransitions = Nothing
+    Set m_transitionCaptions = Nothing
     Set m_reporterFields = Nothing
     If Not m_hospitalService Is Nothing Then m_hospitalService.Dispose
     If Not m_hospitalProfile Is Nothing Then m_hospitalProfile.Dispose
@@ -842,7 +846,7 @@ Public Function ExtendedModeChangedHandler() As Boolean
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If Not private_TryReadFormValue("ExtendedMode", selected) Then Exit Function
     If VBA.Len(VBA.CStr(selected)) = 0 Then
-        ExtendedModeChangedHandler = True
+        ExtendedModeChangedHandler = private_SetExtendedModeSelection(VBA.vbNullString)
         Exit Function
     End If
     If Not private_ReadModeConfig("ui.extendedModes", modeIds, diagnostic) Then
@@ -851,7 +855,7 @@ Public Function ExtendedModeChangedHandler() As Boolean
     For Each eventId In VBA.Split(modeIds, "|")
         If VBA.Len(VBA.CStr(eventId)) > 0 Then
             If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption") = VBA.CStr(selected) Then
-                ExtendedModeChangedHandler = private_SwitchMode(VBA.CStr(eventId))
+                ExtendedModeChangedHandler = private_SwitchMode(VBA.CStr(eventId), "Extended")
                 Exit Function
             End If
         End If
@@ -860,6 +864,36 @@ Public Function ExtendedModeChangedHandler() As Boolean
 EH_EXTENDED:
     diagnostic = VBA.Err.Description
     ExtendedModeChangedHandler = private_SetActionStatus(diagnostic, True)
+End Function
+
+Public Function PreviousStatusChangedHandler() As Boolean
+    Dim previousStatus As Variant
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("PreviousStatus", previousStatus) Then Exit Function
+    If VBA.Len(VBA.CStr(previousStatus)) > 0 Then
+        If Not private_SetExtendedModeSelection(VBA.vbNullString) Then Exit Function
+        If Not private_SetModeButtonSelection(VBA.vbNullString) Then Exit Function
+    End If
+    PreviousStatusChangedHandler = private_PublishNextStatuses(VBA.CStr(previousStatus), VBA.vbNullString)
+End Function
+
+Public Function NextStatusChangedHandler() As Boolean
+    Dim previousStatus As Variant
+    Dim nextStatus As Variant
+    Dim targets As Object
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("PreviousStatus", previousStatus) Then Exit Function
+    If Not private_TryReadFormValue("NextStatus", nextStatus) Then Exit Function
+    If VBA.Len(VBA.CStr(nextStatus)) = 0 Then
+        NextStatusChangedHandler = m_pageBase.BindingContext.SetValue("Settings", "NextStatusStyle", "secondaryButton")
+        Exit Function
+    End If
+    If Not m_statusTransitions.Exists(previousStatus) Then Exit Function
+    Set targets = m_statusTransitions(previousStatus)
+    If Not targets.Exists(nextStatus) Then Exit Function
+    NextStatusChangedHandler = private_SwitchMode(VBA.CStr(targets(nextStatus)), "Status")
 End Function
 
 Public Function HospitalToLeaveHandler() As Boolean
@@ -2731,6 +2765,9 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim contextField As Variant
     Dim previewWarning As Boolean
     Dim previewDiagnostic As String
+    Dim previousStatus As Variant
+    Dim nextStatus As Variant
+    Dim activeTransition As Variant
 
     If ex_PEB_Testing.fn_IsRunning() Then
         private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
@@ -2740,6 +2777,19 @@ Private Function private_Export(ByVal action As String) As Boolean
         Exit Function
     End If
     On Error GoTo EH
+    If Not private_TryReadFormValue("PreviousStatus", previousStatus) Then Exit Function
+    If Not private_TryReadFormValue("NextStatus", nextStatus) Then Exit Function
+    If VBA.Len(VBA.CStr(previousStatus)) > 0 Then
+        activeTransition = VBA.Array(VBA.vbNullString, VBA.vbNullString)
+        If m_transitionCaptions.Exists(m_modeId) Then
+            activeTransition = m_transitionCaptions(m_modeId)
+        End If
+        If VBA.StrComp(previousStatus, activeTransition(0), VBA.vbTextCompare) <> 0 Or _
+                VBA.StrComp(nextStatus, activeTransition(1), VBA.vbTextCompare) <> 0 Then
+            private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.NextStatusRequired"), True)
+            Exit Function
+        End If
+    End If
     failureTemplate = ex_PEB_Export.fn_Config("text.ExportFailed")
     status = ex_PEB_Export.fn_Config("text.Export" & action & "Success")
     exporter = action
@@ -3056,20 +3106,27 @@ Private Function private_PublishExtendedModes(ByRef diagnostic As String) As Boo
     Dim eventId As Variant
     Dim caption As String
     Dim modeIds As String
-    Dim separators As String
+    Dim previousStatuses As Collection
+    Dim previousStatus As Variant
+    Dim eventIds As Variant
 
     On Error GoTo EH_EXTENDED
     Set items = New Collection
     Set captions = VBA.CreateObject("Scripting.Dictionary")
     captions.CompareMode = VBA.vbTextCompare
+    Set m_statusTransitions = VBA.CreateObject("Scripting.Dictionary")
+    m_statusTransitions.CompareMode = VBA.vbTextCompare
+    Set m_transitionCaptions = VBA.CreateObject("Scripting.Dictionary")
+    eventIds = ex_PEB_EventRoutes.fn_Ids()
+    For Each eventId In eventIds
+        If ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "legacy") <> "true" Then
+            caption = ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption")
+            private_RegisterStatusTransition VBA.CStr(eventId), caption
+        End If
+    Next eventId
     If Not private_ReadModeConfig("ui.extendedModes", modeIds, diagnostic) Then Exit Function
     For Each eventId In VBA.Split(modeIds, "|")
-        If VBA.Len(VBA.CStr(eventId)) = 0 Then
-            If VBA.Len(separators) > 0 Then
-                separators = separators & "|"
-            End If
-            separators = separators & VBA.CStr(items.Count + 1)
-        Else
+        If VBA.Len(VBA.CStr(eventId)) > 0 Then
             caption = ex_PEB_EventRoutes.fn_Value(VBA.CStr(eventId), "caption")
             If captions.Exists(caption) Then
                 Err.Raise 5, , "Duplicate extended event caption: " & caption
@@ -3078,7 +3135,11 @@ Private Function private_PublishExtendedModes(ByRef diagnostic As String) As Boo
             items.Add caption
         End If
     Next eventId
-    If Not m_pageBase.BindingContext.SetValue("Data", "ExtendedModeSeparators", separators) Then Exit Function
+    Set previousStatuses = New Collection
+    For Each previousStatus In m_statusTransitions.Keys
+        previousStatuses.Add previousStatus
+    Next previousStatus
+    If Not m_pageBase.BindingContext.SetObject("Data", "PreviousStatusOptions", previousStatuses) Then Exit Function
     If Not m_pageBase.BindingContext.SetObject("Data", "ExtendedModes", items) Then Exit Function
     private_PublishExtendedModes = True
     Exit Function
@@ -3086,10 +3147,117 @@ EH_EXTENDED:
     diagnostic = VBA.Err.Description
 End Function
 
+Private Sub private_RegisterStatusTransition( _
+    ByVal eventId As String, _
+    ByVal caption As String _
+)
+    Dim parts As Variant
+    Dim previousStatus As String
+    Dim nextStatus As String
+    Dim targets As Object
+
+    parts = VBA.Split(caption, VBA.ChrW(&H2192))
+    If UBound(parts) = 0 Then Exit Sub
+    previousStatus = VBA.Trim$(parts(0))
+    nextStatus = VBA.Trim$(parts(1))
+    If UBound(parts) <> 1 Or VBA.Len(previousStatus) = 0 Or VBA.Len(nextStatus) = 0 Then
+        Err.Raise 5, , "Invalid transition caption: " & eventId
+    End If
+    If Not m_statusTransitions.Exists(previousStatus) Then
+        Set targets = VBA.CreateObject("Scripting.Dictionary")
+        targets.CompareMode = VBA.vbTextCompare
+        m_statusTransitions.Add previousStatus, targets
+    End If
+    Set targets = m_statusTransitions(previousStatus)
+    If targets.Exists(nextStatus) Then
+        Err.Raise 5, , "Duplicate status transition: " & caption
+    End If
+    targets.Add nextStatus, eventId
+    m_transitionCaptions.Add eventId, VBA.Array(previousStatus, nextStatus)
+End Sub
+
+Private Function private_PublishNextStatuses( _
+    ByVal previousStatus As String, _
+    ByVal selectedStatus As String _
+) As Boolean
+    Dim items As Collection
+    Dim targets As Object
+    Dim nextStatus As Variant
+
+    Set items = New Collection
+    If m_statusTransitions.Exists(previousStatus) Then
+        Set targets = m_statusTransitions(previousStatus)
+        For Each nextStatus In targets.Keys
+            items.Add nextStatus
+        Next nextStatus
+    End If
+    If Not m_pageBase.BindingContext.SetObject("Data", "NextStatusOptions", items) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "PreviousStatusStyle", _
+            VBA.IIf(VBA.Len(previousStatus) > 0, "activeModeButton", "secondaryButton")) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Settings", "NextStatusStyle", _
+            VBA.IIf(VBA.Len(selectedStatus) > 0, "activeModeButton", "secondaryButton")) Then Exit Function
+    private_PublishNextStatuses = m_pageBase.BindingContext.SetValue("Form", "NextStatus", selectedStatus)
+End Function
+
+Private Function private_SetExtendedModeSelection(ByVal caption As String) As Boolean
+    If Not m_pageBase.BindingContext.SetValue("Form", "ExtendedMode", caption) Then Exit Function
+    private_SetExtendedModeSelection = m_pageBase.BindingContext.SetValue("Settings", "ExtendedModeStyle", _
+            VBA.IIf(VBA.Len(caption) > 0, "activeModeButton", "secondaryButton"))
+End Function
+
+Private Function private_SetModeButtonSelection(ByVal selectedModeId As String) As Boolean
+    Dim modes As Variant
+    Dim mode As Variant
+    Dim style As String
+
+    modes = ex_PEB_EventRoutes.fn_VisibleIds()
+    For Each mode In modes
+        style = "secondaryButton"
+        If VBA.CStr(mode) = selectedModeId Then
+            style = "activeModeButton"
+        End If
+        If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", style) Then Exit Function
+    Next mode
+    private_SetModeButtonSelection = True
+End Function
+
+Private Function private_SelectModeControls( _
+    ByVal modeId As String, _
+    ByVal selectionSource As String _
+) As Boolean
+    Dim captions As Variant
+    Dim extendedCaption As String
+    Dim buttonModeId As String
+
+    captions = VBA.Array(VBA.vbNullString, VBA.vbNullString)
+    If VBA.Len(selectionSource) = 0 Then
+        If m_transitionCaptions.Exists(modeId) Then
+            selectionSource = "Status"
+        ElseIf VBA.InStr(1, "|" & ex_PEB_Export.fn_Config("ui.extendedModes") & "|", "|" & modeId & "|", VBA.vbBinaryCompare) > 0 Then
+            selectionSource = "Extended"
+        Else
+            selectionSource = "Button"
+        End If
+    End If
+    Select Case selectionSource
+        Case "Status"
+            captions = m_transitionCaptions(modeId)
+        Case "Extended"
+            extendedCaption = ex_PEB_EventRoutes.fn_Value(modeId, "caption")
+        Case "Button"
+            buttonModeId = modeId
+    End Select
+    If Not private_SetModeButtonSelection(buttonModeId) Then Exit Function
+    If Not private_SetExtendedModeSelection(extendedCaption) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "PreviousStatus", captions(0)) Then Exit Function
+    private_SelectModeControls = private_PublishNextStatuses(VBA.CStr(captions(0)), VBA.CStr(captions(1)))
+End Function
+
 Private Function private_LoadMode( _
     ByVal modeId As String, _
     ByRef diagnostic As String, _
-    Optional ByVal deferHistoryWork As Boolean = False _
+    Optional ByVal deferHistoryWork As Boolean = False, _
+    Optional ByVal selectionSource As String = "" _
 ) As Boolean
     Dim direction As String
     Dim formKind As String
@@ -3126,14 +3294,7 @@ Private Function private_LoadMode( _
     currentForm = vbNullString
     If Len(m_modeId) > 0 Then currentForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
     modes = ex_PEB_EventRoutes.fn_VisibleIds()
-    caption = VBA.vbNullString
-    text = "secondaryButton"
-    If InStr(1, "|" & ex_PEB_Export.fn_Config("ui.extendedModes") & "|", "|" & modeId & "|", vbBinaryCompare) > 0 Then
-        caption = ex_PEB_EventRoutes.fn_Value(modeId, "caption")
-        text = "activeModeButton"
-    End If
-    If Not m_pageBase.BindingContext.SetValue("Form", "ExtendedMode", caption) Then Exit Function
-    If Not m_pageBase.BindingContext.SetValue("Settings", "ExtendedModeStyle", text) Then Exit Function
+    If Not private_SelectModeControls(modeId, selectionSource) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".direction", direction, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".form", formKind, diagnostic) Then Exit Function
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then Exit Function
@@ -3152,8 +3313,6 @@ Private Function private_LoadMode( _
                 " | Mode=" & modeId & " | Form=" & formKind & " | Direction=" & direction & _
                 " | HistoryDeferred=" & VBA.CStr(deferHistoryWork) & " | Branch=Fast"
             ' These modes share the same projection and derived event fields.
-            If Not m_pageBase.BindingContext.SetValue("Settings", m_modeId & "Style", "secondaryButton") Then Exit Function
-            If Not m_pageBase.BindingContext.SetValue("Settings", modeId & "Style", "activeModeButton") Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
             If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
             m_modeId = modeId
@@ -3250,11 +3409,8 @@ Private Function private_LoadMode( _
     For Each mode In modes
         If Not private_ReadModeConfig("modes." & VBA.CStr(mode) & ".caption", text, diagnostic) Then Exit Function
         If Not m_pageBase.BindingContext.SetValue("Text", VBA.CStr(mode), text) Then Exit Function
-        text = "secondaryButton"
-        If VBA.CStr(mode) = modeId Then text = "activeModeButton"
-        If Not m_pageBase.BindingContext.SetValue("Settings", VBA.CStr(mode) & "Style", text) Then Exit Function
     Next mode
-    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.ButtonStyles | Mode=" & modeId, stageStartedAt
+    ex_Core.fn_Diagnostic_WritePerf "Mode.Load.ButtonCaptions | Mode=" & modeId, stageStartedAt
     stageStartedAt = VBA.Timer
     If Not m_pageBase.BindingContext.SetValue("Form", "ModeId", modeId) Then Exit Function
     ' Secondary candidates must never be projected or reapplied as primary personnel.
@@ -3407,7 +3563,10 @@ Private Function private_ApplyFixedDestination( _
     private_ApplyFixedDestination = True
 End Function
 
-Private Function private_SwitchMode(ByVal modeId As String) As Boolean
+Private Function private_SwitchMode( _
+    ByVal modeId As String, _
+    Optional ByVal selectionSource As String = "Button" _
+) As Boolean
     Dim diagnostic As String
     Dim caption As String
     Dim status As String
@@ -3427,7 +3586,7 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If modeId = m_modeId Then
-        private_SwitchMode = True
+        private_SwitchMode = private_SelectModeControls(modeId, selectionSource)
         Exit Function
     End If
     previousForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
@@ -3455,7 +3614,7 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     updates("Destination") = selectedValue
     ex_PEB_Export.fn_ClearHiddenDestination updates, modeId
     If Not m_pageBase.BindingContext.SetValue("Form", "Destination", updates("Destination")) Then Exit Function
-    If Not private_LoadMode(modeId, diagnostic) Then GoTo Failed
+    If Not private_LoadMode(modeId, diagnostic, False, selectionSource) Then GoTo Failed
     If Not m_lookupResult Is Nothing Then
         If m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selectedObject, isObject) Then
             If isObject Then
@@ -3490,9 +3649,14 @@ Private Function private_SwitchMode(ByVal modeId As String) As Boolean
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
-    startedAt = VBA.Timer
     If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
     If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
+    ' Let the UI dispatch finish before rendering can replace the active select binding.
+    If selectionSource <> "Button" Then
+        private_SwitchMode = True
+        Exit Function
+    End If
+    startedAt = VBA.Timer
     private_SwitchMode = m_pageBase.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "Mode.Flush", startedAt
     Exit Function

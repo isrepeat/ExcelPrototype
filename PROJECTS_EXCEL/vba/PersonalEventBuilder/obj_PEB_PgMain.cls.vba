@@ -247,7 +247,7 @@ Private Function private_TryRegisterBindings() As Boolean
             "AutoFillPersonnelLabel", "CheckboxChecked", "CheckboxUnchecked", _
             "SourceLegendSample", "SourceLegendSeparator", "SourceLegendOrderDate", "ResetForm", _
             "DummyMode", "ExtendedModes", "EnvironmentSwitch", "RefreshConfig", _
-            "ArrivalType", "DepartureType", "StatusModes", _
+            "ArrivalType", "DepartureType", "StatusModes", "PreviousStatus", "NextStatus", _
             "LoadTest", "NextTest", _
             "PreviewWord", "SaveHistory", "ShowHistory", "HistoryEditMode", "CloseTable", "ExportWord", "ExportMovement", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", "DeleteLastEvent")
@@ -343,6 +343,7 @@ Private Function private_TryRegisterCommands() As Boolean
     For Each orderCommand In VBA.Array("SearchOrders", "OrderQueryChanged", "AutoFillPersonnelChanged", "PersonNameChanged", _
             "PreviewWord", "SaveHistory", "ShowHistory", "ExportWord", "ExportMovement", "ReportNameChanged", "HospitalChanged", "DocumentChanged", "EnvironmentSwitch", _
             "LoadTest", "NextTest", "ResetForm", "ClearPrimary", "RefreshConfig", "ExtendedModeChanged", "CloseCandidates", "CloseHistory", _
+            "PreviousStatusChanged", "NextStatusChanged", _
             "EventVersions", "CancelEvent", "RestoreEvent", "ScrollFormLeft", "ScrollFormRight", "DeleteEvent", "DeleteLastEvent", _
             "ValidateMedical", "CloseMedical", "CloseEjos", "EmptyOrders", "ShowMovementDiff", "CloseMovementDiff", _
             "OpenReportSearch", "RunReportSearch", "CloseReportSearch", "IncomingDateChanged", _
