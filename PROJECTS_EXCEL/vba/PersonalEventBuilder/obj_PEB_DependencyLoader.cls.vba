@@ -179,7 +179,7 @@ Public Function TryBuild( _
         If Not signatures.Exists(path) Then
             signatures.Add path, private_FileStamp(VBA.CStr(path))
         End If
-    Next prefix
+    Next path
     private_Progress progressStep, progressTotal, "Word"
     stage = "WordTemplates"
     If Not templates.Initialize(diagnostic) Then
