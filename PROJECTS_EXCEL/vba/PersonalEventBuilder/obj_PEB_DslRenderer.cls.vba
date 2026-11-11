@@ -385,11 +385,13 @@ Private Function private_Value( _
                 If VBA.Len(argument) = 0 Then
                     Err.Raise 5, , "dateformat requires a format."
                 End If
-                parsedDate = private_Date(value)
-                If VBA.InStr(argument, "\") > 0 Then
-                    value = private_DateFormat(parsedDate, argument)
-                Else
-                    value = VBA.Format$(parsedDate, argument)
+                If Not private_IsPreviewPlaceholder(value, values) Then
+                    parsedDate = private_Date(value)
+                    If VBA.InStr(argument, "\") > 0 Then
+                        value = private_DateFormat(parsedDate, argument)
+                    Else
+                        value = VBA.Format$(parsedDate, argument)
+                    End If
                 End If
             Case "dateoffset"
                 argument = private_Unquote(argument)
@@ -400,7 +402,9 @@ Private Function private_Value( _
                 If offset <> VBA.Fix(offset) Then
                     Err.Raise 5, , "dateoffset requires whole days."
                 End If
-                value = VBA.DateAdd("d", offset, private_Date(value))
+                If Not private_IsPreviewPlaceholder(value, values) Then
+                    value = VBA.DateAdd("d", offset, private_Date(value))
+                End If
             Case "nbspAfterSettlementAbbr"
                 Set rx = VBA.CreateObject("VBScript.RegExp")
                 rx.Global = True
@@ -608,7 +612,8 @@ Private Sub private_Let( _
             values(name) = rx.Test(leftValue)
         Case "$ex_Helpers.fn_IsDateOnOrAfter"
             rightValue = private_Render(private_Unquote(VBA.CStr(arguments(2))), values, depth + 1)
-            If VBA.Len(leftValue) = 0 Or VBA.Len(rightValue) = 0 Then
+            If VBA.Len(leftValue) = 0 Or VBA.Len(rightValue) = 0 Or _
+                    private_IsPreviewPlaceholder(leftValue, values) Or private_IsPreviewPlaceholder(rightValue, values) Then
                 values(name) = False
             Else
                 values(name) = (private_Date(leftValue) >= private_Date(rightValue))
@@ -617,6 +622,14 @@ Private Sub private_Let( _
             Err.Raise 5, , "Unsupported #let function: " & functionName
     End Select
 End Sub
+
+Private Function private_IsPreviewPlaceholder( _
+    ByVal value As Variant, _
+    ByVal values As Object _
+) As Boolean
+    If Not values.Exists("PreviewPlaceholders") Then Exit Function
+    private_IsPreviewPlaceholder = (VBA.Left$(ex_PEB_Export.fn_Text(value), 1) = VBA.ChrW$(&H27E8))
+End Function
 
 Private Function private_Date(ByVal value As Variant) As Date
     Dim parts As Variant

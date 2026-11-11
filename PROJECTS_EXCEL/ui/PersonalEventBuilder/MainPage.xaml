@@ -620,6 +620,13 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.RefreshPersonnel}"
                      command="{Binding Path=Commands.RefreshPersonnel}"/>
+    <controls:button name="PreviewWord"
+                     row="3"
+                     column="20"
+                     columnSpan="3"
+                     style="secondaryButton"
+                     caption="{Binding Path=Text.PreviewWord}"
+                     command="{Binding Path=Commands.PreviewWord}"/>
     <controls:label name="LastStatusLabel"
                     row="8"
                     column="20"

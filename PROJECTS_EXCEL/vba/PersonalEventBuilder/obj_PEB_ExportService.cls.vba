@@ -216,6 +216,73 @@ EH_RETURN_TVO:
     ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Capture | Success=False", startedAt
 End Function
 
+Public Function TryPreparePlaceholderPreview( _
+    ByVal modeId As String, _
+    ByVal eventDate As Variant, _
+    ByRef values As Object, _
+    ByRef diagnostic As String _
+) As Boolean
+    Dim entry As Variant
+    Dim parts As Variant
+    Dim field As Variant
+    Dim templateName As String
+    Dim rendered As String
+    Dim wordTemplates As obj_PEB_WordTemplates
+    Dim today As Date
+    Dim previewDate As String
+    Dim previewEventDate As String
+
+    On Error GoTo EH
+    If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Export service is not initialized."
+    Set values = VBA.CreateObject("Scripting.Dictionary")
+    values.CompareMode = VBA.vbTextCompare
+    values("ModeId") = modeId
+    templateName = ex_PEB_EventRoutes.fn_Apply(values, "Word")
+    If values("WordPolicy") = "Omit" Then
+        values("WordText") = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
+        TryPreparePlaceholderPreview = True
+        Exit Function
+    End If
+    For Each entry In VBA.Split(ex_PEB_Export.fn_Config("export.Word.preview.placeholders"), ";")
+        parts = VBA.Split(VBA.CStr(entry), "=", 2)
+        If UBound(parts) <> 1 Then Err.Raise 5, , "Invalid export.Word.preview.placeholders entry: " & entry
+        For Each field In VBA.Split(parts(0), "|")
+            values(field) = parts(1)
+        Next field
+    Next entry
+    today = VBA.Date
+    previewDate = VBA.Format$(VBA.DateSerial(VBA.Year(today), VBA.Month(today), 1), "dd.mm.yyyy")
+    previewEventDate = previewDate
+    If VBA.Len(ex_PEB_Export.fn_Text(eventDate)) > 0 Then
+        previewEventDate = VBA.Format$(private_Date(eventDate, "EventDate"), "dd.mm.yyyy")
+    End If
+    values("AcceptedOrderNumber") = ex_PEB_Export.fn_Config("export.Word.preview.orderNumber")
+    values("ManualOrderNo") = values("AcceptedOrderNumber")
+    values("AcceptedOrderDate") = previewDate
+    values("OrderDateShort") = previewDate
+    values("DateFromShort") = previewEventDate
+    values("EffectiveReturnDateShort") = previewEventDate
+    values("PreviewPlaceholders") = True
+    For Each field In VBA.Array("RequiresFoodSupportEnroll", "RequiresFoodSupportRemove", _
+            "VacationDatesSameMonth", "VacationDatesSameYear")
+        values(field) = False
+    Next field
+    For Each field In VBA.Array("HistoryReports", "MetaTables", "MetaTvoTables", "MetaDocumentTables")
+        Set values(field) = New Collection
+    Next field
+    Set wordTemplates = New obj_PEB_WordTemplates
+    If Not wordTemplates.Initialize(diagnostic) Then Exit Function
+    If Not wordTemplates.TryRender(templateName, values, rendered, diagnostic) Then Exit Function
+    If VBA.Len(rendered) = 0 Or VBA.Len(rendered) > 32767 Then
+        Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
+    End If
+    values("WordText") = rendered
+    TryPreparePlaceholderPreview = True
+    Exit Function
+EH:
+    diagnostic = VBA.Err.Description
+End Function
+
 Public Function TryRefreshPreparedWordText( _
     ByVal values As Object, _
     ByRef diagnostic As String _

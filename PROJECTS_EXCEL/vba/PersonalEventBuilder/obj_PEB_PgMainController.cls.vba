@@ -2768,6 +2768,8 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim previousStatus As Variant
     Dim nextStatus As Variant
     Dim activeTransition As Variant
+    Dim snapshot As obj_TableSnapshotSet
+    Dim eventDate As Variant
 
     If ex_PEB_Testing.fn_IsRunning() Then
         private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
@@ -2809,6 +2811,23 @@ Private Function private_Export(ByVal action As String) As Boolean
         End If
     End If
     Set pebExportService = m_exportService
+    If action = "PreviewWord" Then
+        Set snapshot = ex_TableSnapshots.fn_Active()
+        If snapshot Is Nothing Or VBA.Len(m_acceptedOrderNumber) = 0 Or IsEmpty(m_acceptedOrderDate) Then
+            If Not private_TryReadFormValue("EventDate", eventDate) Then Exit Function
+            If Not pebExportService.TryPreparePlaceholderPreview(m_modeId, eventDate, values, diagnostic) Then GoTo Failed
+            If Not private_PublishSavedPreview(values, diagnostic) Then GoTo Failed
+            If values("WordPolicy") = "Omit" Then
+                status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
+            Else
+                status = ex_PEB_Export.fn_Config("text.ExportPreviewWordPlaceholders")
+                status = VBA.Replace$(status, "{number}", VBA.CStr(values("AcceptedOrderNumber")))
+                status = VBA.Replace$(status, "{date}", VBA.CStr(values("OrderDateShort")))
+            End If
+            private_Export = private_SetActionStatus(status, False)
+            GoTo Cleanup
+        End If
+    End If
     If Not m_extensions.Collect(extensionRows, diagnostic) Then GoTo Failed
     If Not m_editHistoryRow Is Nothing Then
         If m_modeId <> VBA.CStr(m_editHistoryRow("EventId")) Then

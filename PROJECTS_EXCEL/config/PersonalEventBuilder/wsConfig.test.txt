@@ -623,6 +623,7 @@ value	PersonalEventBuilder::text.TestsUnexpectedMutation	Відхилена оп
 value	PersonalEventBuilder::text.WordStorePersonRequired	Для події потрібен ІПН або ПІБ разом із кодом посади.
 value	PersonalEventBuilder::text.EnvironmentSwitchPending	Перемикання середовища: {environment}. Дані форми буде очищено.
 value	PersonalEventBuilder::text.ExportPreviewWordSuccess	Текст поточної події показано в області прев’ю.
+value	PersonalEventBuilder::text.ExportPreviewWordPlaceholders	Прев’ю з умовними значеннями. Наказ № {number} від {date}.
 value	PersonalEventBuilder::text.OrderAppliedRefreshError	Наказ прийнято, але оновлення кандидатів не вдалося. Перевірте джерела даних.
 value	PersonalEventBuilder::text.ReturnTvoInvalidSnapshot	Пошкоджений або завеликий знімок ТВО прибуття. Перевірте подію та збережені дані ТВО.
 value	PersonalEventBuilder::text.SimpleDepartureWhileOpen	Нове вибуття неможливе: попереднє «{actual}» ще не закрито прибуттям.
@@ -1051,6 +1052,8 @@ value	PersonalEventBuilder::export.Word.store.personFields	PersonId|PersonName|I
 value	PersonalEventBuilder::export.Word.store.identityFields	PersonKey; EventId; DateFromShort
 value	PersonalEventBuilder::export.Word.store.positionFields	PositionCode|PositionGenitive
 value	PersonalEventBuilder::export.Word.output	../../tests/PersonalEventBuilder/Event_{AcceptedOrderNumber}_{AcceptedOrderDate|dateformat:"yyyymmdd"}_{PersonId}_{ModeId}.docx
+value	PersonalEventBuilder::export.Word.preview.orderNumber	111
+value	PersonalEventBuilder::export.Word.preview.placeholders	RankGenitive|RankDative=⟨звання⟩;FIO|FIOAccusative|FIODative|FIOInitialsGenitive=⟨ПІБ⟩;PositionGenitive|DutyPositionGenitive=⟨посада⟩;PersonId|IPN=⟨ІПН⟩;Destination=⟨місце призначення⟩;HospitalAccusative|HospitalDative|HospitalGenitive|HospitalShort|ToHospitalAccusative=⟨назва лікарні⟩;IncomingNo=⟨вхідний номер⟩;IncomingDateShort=⟨дата рапорту⟩;DateToShort=⟨дата закінчення⟩;ReporterGenitive|ReportPerson=⟨автор рапорту⟩;DocumentNote=⟨назва документа⟩;DocNo=⟨номер документа⟩;DocDateShort=⟨дата документа⟩;VacationDurationPhrase=⟨тривалість⟩;VacationTicketNo=⟨номер квитка⟩;VacationTicketDateShort=⟨дата квитка⟩;EnrollToFoodSupportDateShort|RemoveFromFoodSupportDateShort=⟨дата зміни забезпечення⟩;AdditionalDurationPhrases|PrevVacationTicketDateShort|PrevVacationTicketNo|VlkDateShort|VlkNo=
 value	PersonalEventBuilder::export.Word.context.lookups.1.when.field	HospitalShortName
 value	PersonalEventBuilder::export.Word.context.lookups.1.when.pattern	\S
   ref	PersonalEventBuilder::export.Word.context.lookups.1.path	__cfgDependencies.fileInstitutions
