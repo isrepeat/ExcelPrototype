@@ -209,12 +209,19 @@ Public Sub fn_CheckRejections( _
     End If
 End Sub
 
+Public Function fn_ForceWordExport(ByVal value As Variant) As Boolean
+    fn_ForceWordExport = (VBA.StrComp(fn_Text(value), "True", VBA.vbTextCompare) = 0)
+End Function
+
 Public Function fn_ApplyWordRejection( _
     ByVal template As Object, _
     ByVal values As Object _
 ) As Boolean
     Dim reason As String
 
+    If values.Exists("ForceExport") Then
+        If fn_ForceWordExport(values("ForceExport")) Then Exit Function
+    End If
     reason = fn_RejectionReason(template, values)
     If Len(reason) = 0 Then
         Exit Function
@@ -281,7 +288,7 @@ Public Function fn_WordTemplates() As obj_PEB_WordTemplates
     Dim templates As obj_PEB_WordTemplates
     Dim diagnostic As String
 
-    Set snapshot = ex_TableSnapshots.fn_Current()
+    Set snapshot = ex_TableSnapshots.fn_Active()
     If Not snapshot Is Nothing Then
         Set fn_WordTemplates = snapshot.Prepared("WordTemplates")
         Exit Function

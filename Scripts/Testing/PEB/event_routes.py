@@ -184,11 +184,16 @@ def load_registry(settings, xml_text=None, movement_text=None, word_text=None):
                 "Unknown Word template section")
         resources = load_resources(word_root, set(settings["export.Word.context.xmlKeys"].split("|")) | {"ModeId"})
         templates = index(word_root.findall("p:template", NS), "name")
+        for identifier in movement_registry.get("generated", {}):
+            event = events[identifier]
+            word = event.find("p:word", NS)
+            if word is not None and word.get("template") not in templates:
+                event.remove(word)
         shared = {
             node.attrib["id"] for node in word_root.findall("p:sharedTemplates/p:sharedTemplate", NS)
         }
         for identifier, _, source, target_id, target, _, route, _ in transition_rules(root):
-            if route.get("form") or events[target["departure"]].find("p:word", NS) is None:
+            if route.get("form") or events[identifier].find("p:word", NS) is None:
                 continue
             template = templates[f"TransitionTo{target_id}"]
             word_block = reference_id(source["wordFrom"], "word")

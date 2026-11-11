@@ -11,6 +11,7 @@
            label="{Binding Path=Text.ModeDestinationLabel}"
            numberFormat="@"
            fieldStyle="{Binding Path=Form.DestinationStyle}"
+           onChange="{Binding Path=Commands.WordRejectionFieldChanged}"
            readOnly="{Binding Path=Form.DestinationReadOnly}"
            partStylesEnabled="true"/>
     <field name="PersonRank"
@@ -399,6 +400,17 @@
                      style="secondaryButton"
                      caption="{Binding Path=Text.ReportSearchOpen}"
                      command="{Binding Path=Commands.OpenReportSearch}"/>
+    <controls:checkbox name="ForceWordExport"
+                       row="6"
+                       column="11"
+                       rowSpan="2"
+                       style="resetFormButton"
+                       visibility="{Binding Path=Form.ForceExportVisibility}"
+                       value="{Binding Path=Form.ForceExport}"
+                       caption="До WORD"
+                       checkedGlyph="{Binding Path=Text.CheckboxChecked}"
+                       uncheckedGlyph="{Binding Path=Text.CheckboxUnchecked}"
+                       onChange="{Binding Path=Commands.ForceExportChanged}"/>
     <controls:button name="ScrollFormLeft"
                      row="3"
                      column="17"

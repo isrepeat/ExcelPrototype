@@ -78,6 +78,7 @@
            direction="Departure"
            form="Leave">
       <movement template="movement:ToBusinessTrip"/>
+      <word template="word:ToBusinessTrip"/>
     </event>
     <event label="На лікування"
            caption="На лікування"

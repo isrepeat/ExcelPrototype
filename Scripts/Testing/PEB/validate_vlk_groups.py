@@ -47,7 +47,8 @@ def main():
             assert plan.get("operation") == "Transition" and plan.get("sourceStatus") == "Missing"
             for field in ("targetStatus", "destinationField", "destinationValue", "required"):
                 assert plan.get(field) == departure_plan.get(field), (transition_id, field)
-            assert (transition.find("p:word", NS) is None) == (departure.find("p:word", NS) is None)
+            word_supported = departure.find("p:word", NS) is not None and base != "ToBusinessTrip"
+            assert (transition.find("p:word", NS) is not None) == word_supported
         groups = (
             ("ExternalVlk", "ВЛК за межами → ", (
                 "MoveFromExternalVlkToHospital", "MoveFromExternalVlkToVacationForCuring", "MoveFromExternalVlkToAnnualVacation")),

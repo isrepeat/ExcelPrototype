@@ -624,9 +624,9 @@ Private Sub private_AddGeneratedTransitions(ByVal knownTemplates As Object)
         For Each key In VBA.Array("operation", "profile", "destinationField", "required", "sourceStatus", "targetStatus", "destinationValue", "sourceDestination")
             route.Add "movement." & key, movementPlan(key)
         Next key
-        route.Add "word.policy", baseRoute("word.policy")
-        If baseRoute.Exists("word.template") Then
-            If Not knownTemplates.Exists(templateName) Then Err.Raise 5, , "Unknown Word transition template: " & templateName
+        route.Add "word.policy", "Omit"
+        If baseRoute.Exists("word.template") And knownTemplates.Exists(templateName) Then
+            route("word.policy") = baseRoute("word.policy")
             route.Add "word.template", templateName
             profile = "export.Word." & templateName
             private_ValidateFields ex_PEB_Export.fn_Config(profile & ".required")

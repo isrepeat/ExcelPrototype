@@ -220,7 +220,9 @@ Public Function TryPreparePlaceholderPreview( _
     ByVal modeId As String, _
     ByVal eventDate As Variant, _
     ByRef values As Object, _
-    ByRef diagnostic As String _
+    ByRef diagnostic As String, _
+    Optional ByVal rejectionReason As String = "", _
+    Optional ByVal forceExport As Boolean = False _
 ) As Boolean
     Dim entry As Variant
     Dim parts As Variant
@@ -277,6 +279,10 @@ Public Function TryPreparePlaceholderPreview( _
         Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
     End If
     values("WordText") = rendered
+    If VBA.Len(rejectionReason) > 0 And Not forceExport Then
+        values("WordPolicy") = "Omit"
+        values("WordRejectionReason") = rejectionReason
+    End If
     TryPreparePlaceholderPreview = True
     Exit Function
 EH:
@@ -381,6 +387,12 @@ Public Function TryPrepare( _
         End If
         values.Add VBA.CStr(key), scalar
     Next key
+    values("ForceExport") = VBA.vbNullString
+    If uiBindingContext.TryGetValue("Form", "ForceExport", scalar, objectValue, isObject) Then
+        If Not isObject Then
+            If ex_PEB_Export.fn_ForceWordExport(scalar) Then values("ForceExport") = "True"
+        End If
+    End If
     ex_PEB_Export.fn_NormalizeNames values
     ex_PEB_Export.fn_TicketDocumentValues values
     ex_PEB_Export.fn_ClearHiddenDestination values, CStr(values("ModeId"))
@@ -544,6 +556,10 @@ Public Function TryPrepare( _
         values("WordGrouped") = Not groupTemplate Is Nothing
         For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & templateName & ".requiredKeys"), "|")
             If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then
+                If history And values("WordPolicy") = "Omit" Then
+                    TryPrepare = True
+                    GoTo CleanupPrepare
+                End If
                 Err.Raise 5, , "Required Word context value is empty: " & key
             End If
         Next key
@@ -787,9 +803,6 @@ Public Function TryPrepareHistory( _
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.requiredKeys"), "|")
         If Not values.Exists(key) Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
     Next key
-    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & template & ".requiredKeys"), "|")
-        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
-    Next key
     If m_pebWordTemplates Is Nothing Then
         If wordTemplates Is Nothing Then
             Set m_pebWordTemplates = ex_PEB_Export.fn_WordTemplates()
@@ -803,6 +816,9 @@ Public Function TryPrepareHistory( _
         TryPrepareHistory = True
         Exit Function
     End If
+    For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.templates." & template & ".requiredKeys"), "|")
+        If VBA.Len(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))) = 0 Then Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError030"), "{value}", VBA.CStr(key))
+    Next key
     If m_pebDslRenderer Is Nothing Then
         Set m_pebDslRenderer = New obj_PEB_DslRenderer
         If Not m_pebDslRenderer.Initialize(m_pebWordTemplates.SharedTemplates, m_pebWordTemplates.Resources) Then Err.Raise 5, , ex_PEB_Export.fn_Config("text.HistoryError031")

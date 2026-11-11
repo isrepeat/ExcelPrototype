@@ -26,8 +26,13 @@ def main():
         assert movement_leave["targetStatus"] == "MedicalLeave"
         assert movement_leave["destinationValue"] == settings["export.Movement.destinations.MedicalCompany"]
         assert registry["events"]["ToBusinessTrip"].find("p:movement", NS) is not None
+        assert registry["events"]["ToBusinessTrip"].find("p:word", NS).get("template") == "ToBusinessTrip"
+        assert "ForceExport=ForceExport" in settings["history.fields"].split("|")
+        for template_id in ("ToBusinessTrip", "MoveFromAwolToBusinessTrip"):
+            rejection = registry["word_templates"][template_id].find("p:reject", NS)
+            assert rejection.get("field") == "PersonId" and rejection.get("matches") == "^"
         movement_only = {name for name, event in registry["events"].items() if event.find("p:word", NS) is None}
-        assert {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk", "ToBusinessTrip",
+        assert {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk",
                 "MoveFromMissingToBusinessTrip", "MoveFromMissingToOutpatientVlk"} <= movement_only
         assert registry["events"]["ToBusinessTrip"].get("caption") == "У відрядження"
         for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",

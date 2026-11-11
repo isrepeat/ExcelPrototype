@@ -152,6 +152,7 @@ Public Function Initialize(ByVal pageBase As obj_PageBase) As Boolean
         ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, "Configuration"
         Exit Function
     End If
+    If Not private_UpdateForceExport(defaultMode) Then Exit Function
     If Not private_PublishHistory(emptyHistory, VBA.vbNullString, diagnostic) Then
         private_SetActionStatus diagnostic, True
         Exit Function
@@ -315,6 +316,8 @@ Public Function PersonNameChangedHandler() As Boolean
     If Not private_TryReadFormValue("AutoFillPersonnel", autoFill) Then Exit Function
     If VBA.VarType(autoFill) <> VBA.vbBoolean Then Exit Function
     ' Manual entry must not trigger lookup, dependency clearing or candidate updates.
+    If Not m_pageBase.BindingContext.SetValue("Form", "ForceExport", False) Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
     If Not VBA.CBool(autoFill) Then
         PersonNameChangedHandler = True
         Exit Function
@@ -376,6 +379,7 @@ Public Function ResetFormHandler(Optional ByVal preserveContext As Boolean = Fal
     Next fieldName
     updates("Form.TicketNumber") = VBA.vbNullString
     updates("Form.TicketDate") = VBA.vbNullString
+    updates("Form.ForceExport") = False
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Form.ActionStatus") = VBA.vbNullString
     updates("Form.MedicalVisibility") = "Collapsed"
@@ -389,6 +393,7 @@ Public Function ResetFormHandler(Optional ByVal preserveContext As Boolean = Fal
     Set result = New obj_LookupResult
     If Not result.Initialize(records, m_modeFields, False, diagnostic, "Candidate.NameTag") Then GoTo Failed
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    If Not private_UpdateForceExport(m_modeId) Then GoTo Cleanup
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
     If Not m_pageBase.BindingContext.SetObject("Data", "WordContext", wordContext) Then
         Err.Raise 5, , "Cannot clear Word context."
@@ -874,6 +879,9 @@ Public Function PreviousStatusChangedHandler() As Boolean
     If VBA.Len(VBA.CStr(previousStatus)) > 0 Then
         If Not private_SetExtendedModeSelection(VBA.vbNullString) Then Exit Function
         If Not private_SetModeButtonSelection(VBA.vbNullString) Then Exit Function
+        If Not private_UpdateForceExport(VBA.vbNullString) Then Exit Function
+    Else
+        If Not private_UpdateForceExport(m_modeId) Then Exit Function
     End If
     PreviousStatusChangedHandler = private_PublishNextStatuses(VBA.CStr(previousStatus), VBA.vbNullString)
 End Function
@@ -887,6 +895,7 @@ Public Function NextStatusChangedHandler() As Boolean
     If Not private_TryReadFormValue("PreviousStatus", previousStatus) Then Exit Function
     If Not private_TryReadFormValue("NextStatus", nextStatus) Then Exit Function
     If VBA.Len(VBA.CStr(nextStatus)) = 0 Then
+        If Not private_UpdateForceExport(VBA.vbNullString) Then Exit Function
         NextStatusChangedHandler = m_pageBase.BindingContext.SetValue("Settings", "NextStatusStyle", "secondaryButton")
         Exit Function
     End If
@@ -1027,6 +1036,67 @@ End Function
 
 Public Function PreviewWordHandler() As Boolean
     PreviewWordHandler = private_Export("PreviewWord")
+End Function
+
+Public Function ForceExportChangedHandler() As Boolean
+    Dim preview As Variant
+    Dim forceExport As Variant
+    Dim style As String
+    Dim statusKey As String
+
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not private_TryReadFormValue("WordPreviewText", preview) Then Exit Function
+    If Len(CStr(preview)) = 0 Then
+        ForceExportChangedHandler = private_Export("PreviewWord")
+        Exit Function
+    End If
+    If Not private_TryReadFormValue("ForceExport", forceExport) Then Exit Function
+    style = "wordPreviewRejected"
+    statusKey = "text.ExportWordOmitted"
+    If ex_PEB_Export.fn_ForceWordExport(forceExport) Then
+        style = "wordPreview"
+        statusKey = "text.ExportPreviewWordSuccess"
+    End If
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewStyle", style) Then Exit Function
+    ForceExportChangedHandler = private_SetActionStatus(ex_PEB_Export.fn_Config(statusKey), False)
+End Function
+
+Public Function WordRejectionFieldChangedHandler() As Boolean
+    If Not m_isInitialized Or m_isDisposed Then Exit Function
+    If Not m_pageBase.BindingContext.SetValue("Form", "WordPreviewText", VBA.vbNullString) Then Exit Function
+    WordRejectionFieldChangedHandler = private_UpdateForceExport(m_modeId)
+End Function
+
+Private Function private_WordRejection(ByVal modeId As String) As String
+    Dim templates As obj_PEB_WordTemplates
+    Dim definition As Object
+    Dim rule As Object
+    Dim inputs As Object
+    Dim field As String
+    Dim value As Variant
+
+    If Len(modeId) = 0 Then Exit Function
+    If Not ex_PEB_EventRoutes.fn_HasRoute(modeId, "Word") Then Exit Function
+    Set templates = ex_PEB_Export.fn_WordTemplates()
+    Set definition = templates.Definition(ex_PEB_EventRoutes.fn_Value(modeId, "word.template"))
+    Set inputs = VBA.CreateObject("Scripting.Dictionary")
+    For Each rule In definition.selectNodes("p:reject")
+        field = rule.getAttribute("field")
+        value = VBA.vbNullString
+        If private_TryReadFormValue(field, value) Then inputs(field) = value
+    Next rule
+    If inputs.Count > 0 Then private_WordRejection = ex_PEB_Export.fn_RejectionReason(definition, inputs)
+End Function
+
+Private Function private_UpdateForceExport(ByVal modeId As String) As Boolean
+    Dim visibility As String
+
+    visibility = "Visible"
+    If Len(private_WordRejection(modeId)) = 0 Then
+        visibility = "Collapsed"
+        If Not m_pageBase.BindingContext.SetValue("Form", "ForceExport", False) Then Exit Function
+    End If
+    private_UpdateForceExport = m_pageBase.BindingContext.SetValue("Form", "ForceExportVisibility", visibility)
 End Function
 
 Public Function SaveHistoryHandler() As Boolean
@@ -1475,12 +1545,14 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
         updates("Form.Document") = fixedDocument
     End If
     updates("Form.AutoFillPersonnel") = False
+    updates("Form.ForceExport") = ex_PEB_Export.fn_ForceWordExport(row("ForceExport"))
     updates("Form.WordPreviewText") = VBA.vbNullString
     updates("Text.SaveHistory") = ex_PEB_Export.fn_Config("text.UpdateHistory")
     updates("Text.HistoryEditMode") = VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryEditing"), "{id}", record.Key)
     ex_Core.fn_Diagnostic_WritePerf "History.Select.PrepareValues", stageStartedAt
     stageStartedAt = VBA.Timer
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    If Not private_UpdateForceExport(mode) Then GoTo Failed
     ex_Core.fn_Diagnostic_WritePerf "History.Select.ApplyValues", stageStartedAt
     stageStartedAt = VBA.Timer
     Set wordContext = VBA.CreateObject("Scripting.Dictionary")
@@ -2770,6 +2842,7 @@ Private Function private_Export(ByVal action As String) As Boolean
     Dim activeTransition As Variant
     Dim snapshot As obj_TableSnapshotSet
     Dim eventDate As Variant
+    Dim forceExport As Variant
 
     If ex_PEB_Testing.fn_IsRunning() Then
         private_Export = private_SetActionStatus(ex_PEB_Export.fn_Config("text.TestsBusy"), True)
@@ -2815,7 +2888,9 @@ Private Function private_Export(ByVal action As String) As Boolean
         Set snapshot = ex_TableSnapshots.fn_Active()
         If snapshot Is Nothing Or VBA.Len(m_acceptedOrderNumber) = 0 Or IsEmpty(m_acceptedOrderDate) Then
             If Not private_TryReadFormValue("EventDate", eventDate) Then Exit Function
-            If Not pebExportService.TryPreparePlaceholderPreview(m_modeId, eventDate, values, diagnostic) Then GoTo Failed
+            If Not private_TryReadFormValue("ForceExport", forceExport) Then Exit Function
+            If Not pebExportService.TryPreparePlaceholderPreview(m_modeId, eventDate, values, diagnostic, _
+                    private_WordRejection(m_modeId), ex_PEB_Export.fn_ForceWordExport(forceExport)) Then GoTo Failed
             If Not private_PublishSavedPreview(values, diagnostic) Then GoTo Failed
             If values("WordPolicy") = "Omit" Then
                 status = ex_PEB_Export.fn_Config("text.ExportWordOmitted")
@@ -3604,7 +3679,8 @@ Private Function private_SwitchMode( _
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If modeId = m_modeId Then
-        private_SwitchMode = private_SelectModeControls(modeId, selectionSource)
+        If Not private_SelectModeControls(modeId, selectionSource) Then Exit Function
+        private_SwitchMode = private_UpdateForceExport(modeId)
         Exit Function
     End If
     previousForm = ex_PEB_EventRoutes.fn_Value(m_modeId, "form")
@@ -3633,6 +3709,7 @@ Private Function private_SwitchMode( _
     ex_PEB_Export.fn_ClearHiddenDestination updates, modeId
     If Not m_pageBase.BindingContext.SetValue("Form", "Destination", updates("Destination")) Then Exit Function
     If Not private_LoadMode(modeId, diagnostic, False, selectionSource) Then GoTo Failed
+    If Not m_pageBase.BindingContext.SetValue("Form", "ForceExport", False) Then Exit Function
     If Not m_lookupResult Is Nothing Then
         If m_pageBase.BindingContext.TryGetValue("Data", "SelectedPersonnel", selectedValue, selectedObject, isObject) Then
             If isObject Then
@@ -3663,6 +3740,7 @@ Private Function private_SwitchMode( _
     End If
     updates("Form.EventDateStyle") = status
     If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then GoTo Failed
+    If Not private_UpdateForceExport(modeId) Then GoTo Failed
     ex_Core.fn_Diagnostic_WritePerf "Mode.Prepare", startedAt
     If Not private_ReadModeConfig("modes." & modeId & ".caption", caption, diagnostic) Then GoTo Failed
     If Not private_ReadModeConfig("text.ModeSelected", status, diagnostic) Then GoTo Failed
@@ -3887,7 +3965,9 @@ NextAppliedField:
         updates("Form.Document") = ex_PEB_Export.fn_FixedDocument(m_modeId)
     End If
     If Not private_ApplyFixedDestination(updates, m_modeId, diagnostic) Then Exit Function
-    private_ApplyModeRecord = m_pageBase.BindingContext.TryApplyValues(updates, diagnostic)
+    updates("Form.WordPreviewText") = VBA.vbNullString
+    If Not m_pageBase.BindingContext.TryApplyValues(updates, diagnostic) Then Exit Function
+    private_ApplyModeRecord = private_UpdateForceExport(m_modeId)
 End Function
 
 Private Function private_TryEnrichResult( _
