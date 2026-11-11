@@ -84,7 +84,7 @@ Public Function fn_Run(ByRef diagnostic As String) As Boolean
     Set target = sheet.ListObjects.Add(1, sheet.Range("A1:A2"), , 1)
     Set sheet = book.Worksheets.Add
     sheet.Name = ex_PEB_Export.fn_Config("reporter.tvo.source.sheet")
-    fields = Split("PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|EndDate|StartOrder|EndOrder|StartBasis|EndBasis|PlannedEndDate|AccessOrder|Duration|Information", "|")
+    fields = Split("PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|EndDate|StartOrder|EndOrder|StartBasis|EndBasis|PlannedEndDate|AccessOrder|AccessDate|AccessBasis|Duration|Information", "|")
     ReDim data(1 To 2, 1 To UBound(fields) + 1)
     Set columns = CreateObject("Scripting.Dictionary")
     For index = 0 To UBound(fields)

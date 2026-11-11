@@ -365,7 +365,9 @@ Public Sub fn_Prepare( _
                 row("StartDate") = eventDate
                 row("StartOrder") = CStr(values("AcceptedOrderNumber"))
                 row("AccessOrder") = CStr(values("AcceptedOrderNumber"))
+                row("AccessDate") = row("StartDate")
                 row("StartBasis") = basis
+                row("AccessBasis") = row("StartBasis")
                 If values.Exists("DateToShort") Then
                     If Len(ex_PEB_Export.fn_Text(values("DateToShort"))) > 0 Then
                         ' Vacation ends inclusively; handover is planned for the return day.
@@ -676,7 +678,7 @@ Private Function private_Fields(Optional ByVal includeDetails As Boolean = True)
 
     fields = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|EndDate|StartOrder|EndOrder|StartBasis|EndBasis|PlannedEndDate|AccessOrder"
     If includeDetails Then
-        fields = fields & "|Duration|Information|OpeningId|OpeningHash|ClosingId|ClosingHash"
+        fields = fields & "|AccessDate|AccessBasis|Duration|Information|OpeningId|OpeningHash|ClosingId|ClosingHash"
     End If
     private_Fields = Split(fields, "|")
 End Function
@@ -708,7 +710,7 @@ Private Function private_Stamp( _
 
     Set fields = CreateObject("Scripting.Dictionary")
     If side = "Opening" Then
-        names = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|StartOrder|StartBasis|PlannedEndDate|AccessOrder|Duration|Information"
+        names = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|StartOrder|StartBasis|PlannedEndDate|AccessOrder|Duration|Information|AccessDate|AccessBasis"
     Else
         names = "PersonId|PositionCode|EndDate|EndOrder|EndBasis"
     End If
@@ -719,6 +721,24 @@ Private Function private_Stamp( _
         If ex_PEB_MovementLinks.fn_MatchesFieldsHash(expected, fields) Then
             private_Stamp = expected
             Exit Function
+        End If
+        If side = "Opening" Then
+            If Len(ex_PEB_Export.fn_Text(row("AccessBasis"))) = 0 Then
+                fields.Remove "AccessBasis"
+                If ex_PEB_MovementLinks.fn_MatchesFieldsHash(expected, fields) Then
+                    private_Stamp = expected
+                    Exit Function
+                End If
+                If Len(ex_PEB_Export.fn_Text(row("AccessDate"))) = 0 Then
+                    fields.Remove "AccessDate"
+                    If ex_PEB_MovementLinks.fn_MatchesFieldsHash(expected, fields) Then
+                        private_Stamp = expected
+                        Exit Function
+                    End If
+                    fields.Add "AccessDate", row("AccessDate")
+                End If
+                fields.Add "AccessBasis", row("AccessBasis")
+            End If
         End If
     End If
     private_Stamp = ex_PEB_MovementLinks.fn_FieldsHash(fields)
@@ -762,7 +782,7 @@ Private Sub private_ResolveFields( _
     Set generated = CreateObject("Scripting.Dictionary")
     Set cells = CreateObject("Scripting.Dictionary")
     If side = "Opening" Then
-        names = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|StartOrder|StartBasis|PlannedEndDate|AccessOrder|Duration|Information"
+        names = "PersonRank|PersonName|PersonId|OwnPositionCode|PositionCode|StartDate|StartOrder|StartBasis|PlannedEndDate|AccessOrder|Duration|Information|AccessDate|AccessBasis"
     Else
         names = "PersonId|PositionCode|EndDate|EndOrder|EndBasis"
     End If
@@ -1172,6 +1192,10 @@ Private Sub private_ReviseDeparture( _
     desired("OwnPositionCode") = ownPosition
     desired("PersonRank") = private_Staff(CStr(item("PersonId")), "lookup.Personnel.columns.3.header")
     desired("StartBasis") = private_Basis(action, "Writes", "DepartureBasis")
+    If ex_PEB_Export.fn_Text(row("AccessOrder")) = CStr(values("AcceptedOrderNumber")) Then
+        If Len(ex_PEB_Export.fn_Text(row("AccessDate"))) = 0 Then desired("AccessDate") = row("StartDate")
+        If Len(ex_PEB_Export.fn_Text(row("AccessBasis"))) = 0 Then desired("AccessBasis") = desired("StartBasis")
+    End If
     desired("PlannedEndDate") = Empty
     If values.Exists("DateToShort") Then
         If Len(ex_PEB_Export.fn_Text(values("DateToShort"))) > 0 Then

@@ -440,6 +440,8 @@ Public Function TryPrepare( _
 
     private_PrepareTicket values
     private_PrepareFoodSupport values
+    values("RequiresFoodSupportEnroll") = private_DefaultFoodSupport(values, "RequiresFoodSupportEnroll")
+    values("RequiresFoodSupportRemove") = private_DefaultFoodSupport(values, "RequiresFoodSupportRemove")
 
     ' Both exporters consume the shared data providers; each owns its output templates.
     stageStartedAt = VBA.Timer
@@ -491,6 +493,7 @@ Public Function TryPrepare( _
         End If
     End If
     If exporter = "Movement" Then
+        private_AddConstants values
         If Not Me.TryPrepareExtensions(values, extensionRows, diagnostic) Then GoTo Failed
         private_PrepareMovementTexts values, additionalInputs
     End If
@@ -650,6 +653,7 @@ Public Function TryPrepareHistoryMovement( _
     values("ModeId") = ex_PEB_Export.fn_Required(stored, "EventId")
     values("PersonAccusative") = ex_PEB_Export.fn_Required(stored, "FIOAccusative")
     values("ModeForm") = ex_PEB_EventRoutes.fn_Value(CStr(values("ModeId")), "form")
+    values("ModeDirection") = ex_PEB_EventRoutes.fn_Value(CStr(values("ModeId")), "direction")
     ex_PEB_Export.fn_TicketDocumentValues values, True
     For index = 1 To ex_PEB_Export.fn_Count("export.shared.aliases.count")
         name = ex_PEB_Export.fn_Config("export.shared.aliases." & index & ".name")
@@ -667,16 +671,7 @@ Public Function TryPrepareHistoryMovement( _
             values(key) = VBA.Format$(ex_PEB_History.fn_Date(values(key)), "dd.mm.yyyy")
         End If
     Next key
-    For Each key In VBA.Array("RequiresFoodSupportEnroll", "RequiresFoodSupportRemove")
-        Select Case VBA.LCase$(VBA.Trim$(VBA.CStr(ex_PEB_Export.fn_Required(values, VBA.CStr(key)))))
-            Case "true"
-                values(key) = True
-            Case "false"
-                values(key) = False
-            Case Else
-                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(key))
-        End Select
-    Next key
+    private_RestoreFoodSupportFlags values
     Set documents = New Collection
     For Each document In stored("MetaDocumentTables")
         Set copy = VBA.CreateObject("Scripting.Dictionary")
@@ -695,6 +690,7 @@ Public Function TryPrepareHistoryMovement( _
     ex_PEB_Export.fn_TicketDocumentValues values, True
     ex_PEB_Export.fn_CheckMovementRequired values
     private_PrepareTicket values
+    private_AddConstants values, True
     private_PrepareMovementTexts values, Nothing, True
     TryPrepareHistoryMovement = True
     Exit Function
@@ -744,16 +740,7 @@ Public Function TryPrepareHistory( _
     values.Remove "FIOAccusative"
     private_AddAliases values
     values("ManualOrderNo") = values("AcceptedOrderNumber")
-    For Each key In VBA.Array("RequiresFoodSupportEnroll", "RequiresFoodSupportRemove")
-        Select Case VBA.LCase$(VBA.Trim$(VBA.CStr(values(key))))
-            Case "true"
-                values(key) = True
-            Case "false"
-                values(key) = False
-            Case Else
-                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(key))
-        End Select
-    Next key
+    private_RestoreFoodSupportFlags values
     If private_RequiresFoodSupportEnroll(values) Then
         values("RequiresFoodSupportEnroll") = True
         values("RequiresFoodSupportRemove") = False
@@ -1091,9 +1078,6 @@ Private Sub private_CompleteWordContext( _
     For Each key In VBA.Split(ex_PEB_Export.fn_Config("export.Word.context.optionalText"), "|")
         If Not values.Exists(key) Then values.Add VBA.CStr(key), VBA.vbNullString
     Next key
-    values("RequiresFoodSupportRemove") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.removeDirection"))
-    values("RequiresFoodSupportEnroll") = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.enrollDirection")) Or _
-        private_RequiresFoodSupportEnroll(values)
     If Not inputs Is Nothing Then
         If VBA.TypeName(inputs) <> "Dictionary" Then Err.Raise 5, , "Word context inputs must be a dictionary."
         For Each key In inputs.Keys
@@ -1292,6 +1276,32 @@ Private Function private_RequiresFoodSupportEnroll(ByVal values As Object) As Bo
     Next modeId
 End Function
 
+Private Function private_DefaultFoodSupport(ByVal values As Object, ByVal field As String) As Boolean
+    If field = "RequiresFoodSupportEnroll" Then
+        private_DefaultFoodSupport = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.enrollDirection")) Or _
+            private_RequiresFoodSupportEnroll(values)
+    Else
+        private_DefaultFoodSupport = (values("ModeDirection") = ex_PEB_Export.fn_Config("export.Word.context.removeDirection"))
+    End If
+End Function
+
+Private Sub private_RestoreFoodSupportFlags(ByVal values As Object)
+    Dim field As Variant
+
+    For Each field In VBA.Array("RequiresFoodSupportEnroll", "RequiresFoodSupportRemove")
+        Select Case VBA.LCase$(ex_PEB_Export.fn_Text(ex_PEB_Export.fn_Required(values, VBA.CStr(field))))
+            Case "true"
+                values(field) = True
+            Case "false"
+                values(field) = False
+            Case vbNullString
+                values(field) = private_DefaultFoodSupport(values, VBA.CStr(field))
+            Case Else
+                Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(field))
+        End Select
+    Next field
+End Sub
+
 Private Sub private_PrepareTicket(ByVal values As Object)
     Dim ticket As String
     Dim pattern As Object
@@ -1333,7 +1343,6 @@ Private Sub private_PrepareMovementTexts( _
     Dim results As Object
     Dim column As Variant
 
-    private_AddConstants values, storedSnapshot
     private_AddAliases values
     If Not storedSnapshot Then
         private_CompleteEventInputs values, inputs

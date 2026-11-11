@@ -66,6 +66,9 @@ def main():
                 for field in ('TvoName', 'TvoPersonId', 'TvoPositionCode'):
                     assert field not in mapping
         assert settings['returnTvo.table.name'] == 'ТВО'
+        assert settings['returnTvo.table.headers.AccessDate'] == 'Доступ.Дата'
+        assert settings['returnTvo.table.headers.AccessBasis'] == 'Доступ.Підстава'
+        assert 'returnTvo.table.headers.AccessDate' in settings['conflicts.dateFields'].split('|')
         assert settings['returnTvo.table.headers.PositionCode'] == settings['reporter.tvo.codeHeader']
         assert settings['returnTvo.table.headers.StartDate'] == settings['reporter.tvo.startHeader']
         assert settings['returnTvo.table.headers.EndDate'] == settings['reporter.tvo.endHeader']
@@ -75,7 +78,15 @@ def main():
     check_module_sections(table)
     predicate = procedure(table, 'fn_IsStarted')
     assert predicate.index('fn_Text(startOrder)') < predicate.index('fn_ParseDate(startDate')
-    assert 'private_AdmissionOnly(model, item, eventDate)' in procedure(table, 'fn_Prepare')
+    prepare_tvo = procedure(table, 'fn_Prepare')
+    assert 'private_AdmissionOnly(model, item, eventDate)' in prepare_tvo
+    assert 'row("StartDate") = eventDate' in prepare_tvo
+    assert 'row("AccessDate") = row("StartDate")' in prepare_tvo
+    assert 'row("AccessBasis") = row("StartBasis")' in prepare_tvo
+    assert 'desired("AccessBasis") = desired("StartBasis")' in procedure(table, 'private_ReviseDeparture')
+    assert 'fields.Remove "AccessBasis"' in procedure(table, 'private_Stamp')
+    assert 'desired("AccessDate") = row("StartDate")' in procedure(table, 'private_ReviseDeparture')
+    assert 'fields.Remove "AccessDate"' in procedure(table, 'private_Stamp')
     normalize = procedure(table, 'private_HistoryDuties')
     assert 'If item.Exists("DutyPositionCode") Then' in normalize
     assert 'fn_Required(item, "DutyPositionCode")' in normalize

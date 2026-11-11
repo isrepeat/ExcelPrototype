@@ -1775,7 +1775,7 @@ value	PersonalEventBuilder::reporter.fields.4.sourceAlias	CurrentOrder
 value	PersonalEventBuilder::reporter.fields.count	4
 value	PersonalEventBuilder::reporter.lookup.key	ReportName
 value	PersonalEventBuilder::conflicts.columns	PersonName=2|EventId=3|EventRowId=2|Side=1|Field=2|MovementValue=4|GeneratedValue=4
-value	PersonalEventBuilder::conflicts.dateFields	export.Movement.headers.DepartureDate|export.Movement.headers.ArrivalDate|export.Movement.headers.DepartureFoodSupport|export.Movement.headers.ArrivalFoodSupport|returnTvo.table.headers.StartDate|returnTvo.table.headers.EndDate|returnTvo.table.headers.PlannedEndDate
+value	PersonalEventBuilder::conflicts.dateFields	export.Movement.headers.DepartureDate|export.Movement.headers.ArrivalDate|export.Movement.headers.DepartureFoodSupport|export.Movement.headers.ArrivalFoodSupport|returnTvo.table.headers.StartDate|returnTvo.table.headers.EndDate|returnTvo.table.headers.PlannedEndDate|returnTvo.table.headers.AccessDate
 value	PersonalEventBuilder::personnel.autoFill.default	true
   ref	PersonalEventBuilder::returnTvo.rank.path	__cfgDependencies.filePersonnelShpo
 value	PersonalEventBuilder::returnTvo.rank.when.field	PersonId
@@ -1800,6 +1800,8 @@ value	PersonalEventBuilder::returnTvo.table.headers.PersonRank	Звання
 value	PersonalEventBuilder::returnTvo.table.headers.StartBasis	Прийняття.Підстава
 value	PersonalEventBuilder::returnTvo.table.headers.StartOrder	Прийняття.Наказ
 value	PersonalEventBuilder::returnTvo.table.headers.AccessOrder	Доступ.Наказ
+value	PersonalEventBuilder::returnTvo.table.headers.AccessDate	Доступ.Дата
+value	PersonalEventBuilder::returnTvo.table.headers.AccessBasis	Доступ.Підстава
 value	PersonalEventBuilder::returnTvo.table.headers.ClosingHash	PEB.ClosingHash
 value	PersonalEventBuilder::returnTvo.table.headers.Information	Додаткова інформація
 value	PersonalEventBuilder::returnTvo.table.headers.OpeningHash	PEB.OpeningHash

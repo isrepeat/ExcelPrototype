@@ -1565,6 +1565,8 @@ Public Function SelectHistoryHandler(ByVal selected As Object) As Boolean
                 wordContext(field) = True
             Case "false"
                 wordContext(field) = False
+            Case VBA.vbNullString
+                ' Older rows may omit the flag. Preparation uses the mode default.
             Case Else
                 Err.Raise 5, , VBA.Replace$(ex_PEB_Export.fn_Config("text.HistoryError027"), "{value}", VBA.CStr(field))
         End Select
