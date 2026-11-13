@@ -5,6 +5,7 @@ Option Explicit
 ' --------------------------------------
 Public Sub fn_Module_Dispose()
     ex_TableSnapshots.fn_Module_Dispose
+    ex_PEB_Export.fn_Module_Dispose
     ex_PEB_Testing.fn_Module_Dispose
     ex_PEB_EventRoutes.fn_Module_Dispose
     ex_UiPageManager.fn_Module_Dispose
@@ -276,6 +277,7 @@ Public Function fn_Initialize() As Boolean
         " | Profile=" & profileId
     ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_STAGE | Name=RenderInitialPage"
     ex_Core.fn_Diagnostic_Flush
+    ex_PEB_Export.fn_Module_Dispose
     ex_PEB_EventRoutes.fn_Module_Dispose
     If Not ex_UiPageManager.fn_ShowPage("PersonalEventBuilder", profileId) Then
         ex_Core.fn_Diagnostic_WriteLog "INITIALIZE_ABORTED | Stage=RenderInitialPage" & _

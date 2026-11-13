@@ -926,7 +926,7 @@ Private Function private_RenderSelectShapes( _
         headerShape.TextFrame2.VerticalAnchor = msoAnchorMiddle
         headerShape.TextFrame2.TextRange.ParagraphFormat.Alignment = msoAlignCenter
     End If
-    headerShape.OnAction = "ex_UiBridge.fn_OnShapeClick"
+    headerShape.OnAction = "ex_UiBridge.fn_OnShapeClickWithoutBusy"
 
     Set itemShapeNames = New Collection
     Set shapeNames = New Collection

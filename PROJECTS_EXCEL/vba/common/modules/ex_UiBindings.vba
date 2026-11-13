@@ -62,6 +62,7 @@ Public Function fn_HandleCellChange(ByVal target As Range) As Boolean
     Dim diagnostic As String
     Dim previousScreenUpdating As Boolean
     Dim busyEntered As Boolean
+    Dim layoutFlushed As Boolean
     Dim diagnosticBatchEntered As Boolean
     Dim errorNumber As Long
     Dim errorSource As String
@@ -81,15 +82,18 @@ Public Function fn_HandleCellChange(ByVal target As Range) As Boolean
     ' A field change can also replace the entire page context.
     Set context = Nothing
     If ex_UiRuntime.fn_TryGetContext(target.Parent, context) Then
+        ex_UiBusy.fn_Refresh
         If Not context.FlushLayout(diagnostic) Then
             VBA.Err.Raise VBA.vbObjectError + 2230, , diagnostic
         End If
+        layoutFlushed = fn_HandleCellChange
     End If
 CleanExit:
     Application.EnableEvents = previousEvents
     Application.ScreenUpdating = previousScreenUpdating
-    If busyEntered Then ex_UiBusy.fn_End
+    ex_UiBusy.fn_Refresh
     If diagnosticBatchEntered Then ex_Core.fn_Diagnostic_EndBatch
+    If busyEntered Then ex_UiBusy.fn_End layoutFlushed
     Exit Function
 EH:
     errorNumber = VBA.Err.Number

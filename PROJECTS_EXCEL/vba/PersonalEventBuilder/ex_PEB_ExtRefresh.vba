@@ -27,6 +27,10 @@ Public Function fn_Request(ByVal owner As obj_PEB_FormExtensions) As Boolean
     If owner Is Nothing Then Exit Function
     Set m_owner = owner
     If Not m_scheduled Then
+        If ex_UiBridge.fn_TryAfterShapeDispatch(private_Callback("fn_RenderAfterShape")) Then
+            fn_Request = True
+            Exit Function
+        End If
         m_at = Now
         Application.OnTime m_at, private_Callback()
         m_scheduled = True
@@ -44,33 +48,11 @@ Public Sub fn_Cancel(ByVal owner As obj_PEB_FormExtensions)
 End Sub
 
 Public Sub fn_Render()
-    Dim owner As obj_PEB_FormExtensions
-    Dim runtimeContext As Object
-    Dim diagnostic As String
-    Dim entered As Boolean
+    private_Render False
+End Sub
 
-    On Error GoTo EH
-    Set owner = m_owner
-    Set m_owner = Nothing
-    m_scheduled = False
-    If owner Is Nothing Then Exit Sub
-    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then Exit Sub
-    entered = True
-    ex_Core.fn_Diagnostic_WriteLog "EXTENSION_REFRESH_STARTED"
-    ex_Core.fn_Diagnostic_Flush True
-    If Not owner.TryRefresh(diagnostic) Then
-        Err.Raise 5, , diagnostic
-    End If
-    ex_Core.fn_Diagnostic_WriteLog "EXTENSION_REFRESH_COMPLETED"
-Cleanup:
-    If entered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
-    ex_Core.fn_Diagnostic_Flush True
-    Exit Sub
-EH:
-    diagnostic = Err.Description
-    ex_Core.fn_Diagnostic_WriteError "Extensions.Refresh", Err.Number, Err.Source, diagnostic
-    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, ex_PEB_Export.fn_Config("extensions.errorTitle")
-    Resume Cleanup
+Public Sub fn_RenderAfterShape()
+    private_Render True
 End Sub
 ' --------------------------------------
 ' } // namespace API
@@ -79,8 +61,42 @@ End Sub
 ' --------------------------------------
 ' namespace Private {
 ' --------------------------------------
-Private Function private_Callback() As String
-    private_Callback = "'" & Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_PEB_ExtRefresh.fn_Render"
+Private Sub private_Render(ByVal deferFlush As Boolean)
+    Dim owner As obj_PEB_FormExtensions
+    Dim runtimeContext As Object
+    Dim diagnostic As String
+    Dim entered As Boolean
+    Dim busyEntered As Boolean
+    Dim refreshed As Boolean
+
+    On Error GoTo EH
+    Set owner = m_owner
+    Set m_owner = Nothing
+    m_scheduled = False
+    If owner Is Nothing Then GoTo Cleanup
+    If Not ex_RuntimeLifecycle.fn_TryEnter(runtimeContext) Then GoTo Cleanup
+    entered = True
+    If Not deferFlush Then busyEntered = ex_UiBusy.fn_Begin()
+    ex_Core.fn_Diagnostic_WriteLog "EXTENSION_REFRESH_STARTED"
+    ex_Core.fn_Diagnostic_Flush True
+    If Not owner.TryRefresh(diagnostic, deferFlush) Then
+        Err.Raise 5, , diagnostic
+    End If
+    refreshed = Application.ActiveWorkbook Is ThisWorkbook
+    ex_Core.fn_Diagnostic_WriteLog "EXTENSION_REFRESH_COMPLETED"
+Cleanup:
+    ex_Core.fn_Diagnostic_Flush True
+    If busyEntered Then ex_UiBusy.fn_End refreshed
+    If entered Then ex_RuntimeLifecycle.fn_Leave runtimeContext
+    Exit Sub
+EH:
+    diagnostic = Err.Description
+    ex_Core.fn_Diagnostic_WriteError "Extensions.Refresh", Err.Number, Err.Source, diagnostic
+    ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, ex_PEB_Export.fn_Config("extensions.errorTitle")
+    Resume Cleanup
+End Sub
+Private Function private_Callback(Optional ByVal procedureName As String = "fn_Render") As String
+    private_Callback = "'" & Replace$(ThisWorkbook.Name, "'", "''") & "'!ex_PEB_ExtRefresh." & procedureName
 End Function
 ' --------------------------------------
 ' } // namespace Private

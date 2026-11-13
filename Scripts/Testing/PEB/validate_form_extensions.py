@@ -75,14 +75,18 @@ def main():
     assert dispose_button.index("buttonShape.Delete") < dispose_button.index("Set m_buttonShape = Nothing")
     switch_mode = procedure(controller, "private_SwitchMode")
     assert "m_pageBase.UpdatePage()" not in switch_mode
-    assert "private_SwitchMode = m_pageBase.FlushUpdates()" in switch_mode
+    assert "m_pageBase.FlushUpdates()" not in switch_mode
     assert 'RefreshContent("ExtensionMenus", diagnostic, True)' in switch_mode
     assert 'RefreshContent("ExtensionRows", diagnostic, True)' in switch_mode
     load_mode = procedure(controller, "private_LoadMode")
     assert 'If CStr(currentForm) <> formKind Then' in load_mode
     capture_mode = procedure(controller, "private_CaptureModeConfig")
     assert 'SetValue("Form", CStr(field) & "ReadOnly", False)' in capture_mode
-    assert switch_mode.index('updates("Form.EventDate") = VBA.vbNullString') < switch_mode.index('m_pageBase.FlushUpdates()')
+    assert switch_mode.index('updates("Form.EventDate") = VBA.vbNullString') < switch_mode.index('RefreshContent("ExtensionRows", diagnostic, True)')
+    bridge = (ROOT / "PROJECTS_EXCEL/vba/common/modules/ex_UiBridge.vba").read_text(encoding="utf-8-sig")
+    click = procedure(bridge, "private_DispatchShapeClick")
+    assert click.index("context.Router.DispatchShape") < click.index("context.FlushLayout(diagnostic)")
+    assert click.index("context.FlushLayout(diagnostic)") < click.index("ex_UiBusy.fn_End layoutFlushed")
     render_context = (ROOT / "PROJECTS_EXCEL/vba/common/[2] classes/obj_UiRenderContext.cls.vba").read_text(encoding="utf-8-sig")
     flush = procedure(render_context, "FlushUpdates")
     assert "contentPanel.RebuildContent(diagnostic)" in flush

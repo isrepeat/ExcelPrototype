@@ -3,6 +3,8 @@ Option Explicit
 
 Private m_configSnapshot As Object
 Private m_configSnapshotDepth As Long
+Private m_unloadedWordTemplates As obj_PEB_WordTemplates
+Private m_unloadedWordTemplatesGeneration As Long
 
 ' --------------------------------------
 ' namespace Lifecycle {
@@ -10,6 +12,7 @@ Private m_configSnapshotDepth As Long
 Public Sub fn_Module_Dispose()
     Set m_configSnapshot = Nothing
     m_configSnapshotDepth = 0
+    Set m_unloadedWordTemplates = Nothing
 End Sub
 ' --------------------------------------
 ' } // namespace Lifecycle
@@ -287,17 +290,26 @@ Public Function fn_WordTemplates() As obj_PEB_WordTemplates
     Dim snapshot As obj_TableSnapshotSet
     Dim templates As obj_PEB_WordTemplates
     Dim diagnostic As String
+    Dim generation As Long
 
     Set snapshot = ex_TableSnapshots.fn_Active()
     If Not snapshot Is Nothing Then
         Set fn_WordTemplates = snapshot.Prepared("WordTemplates")
         Exit Function
     End If
-    Set templates = New obj_PEB_WordTemplates
-    If Not templates.Initialize(diagnostic) Then
-        Err.Raise 5, , diagnostic
+    generation = ex_TableSnapshots.fn_Generation()
+    If m_unloadedWordTemplatesGeneration <> generation Then
+        Set m_unloadedWordTemplates = Nothing
     End If
-    Set fn_WordTemplates = templates
+    If m_unloadedWordTemplates Is Nothing Then
+        Set templates = New obj_PEB_WordTemplates
+        If Not templates.Initialize(diagnostic) Then
+            Err.Raise 5, , diagnostic
+        End If
+        Set m_unloadedWordTemplates = templates
+        m_unloadedWordTemplatesGeneration = generation
+    End If
+    Set fn_WordTemplates = m_unloadedWordTemplates
 End Function
 
 Public Function fn_TvoChain(ByVal positionCode As String) As Collection

@@ -459,7 +459,10 @@ Failed:
     ex_WindowsUi.fn_ShowMessage diagnostic, vbExclamation, private_ReadConfig("extensions.errorTitle")
 End Function
 
-Public Function TryRefresh(ByRef diagnostic As String) As Boolean
+Public Function TryRefresh( _
+    ByRef diagnostic As String, _
+    Optional ByVal deferFlush As Boolean = False _
+) As Boolean
     Dim startedAt As Double
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
@@ -473,6 +476,10 @@ Public Function TryRefresh(ByRef diagnostic As String) As Boolean
     startedAt = Timer
     If Not m_page.RefreshContent("ExtensionMenus", diagnostic, True) Then Exit Function
     If Not m_page.RefreshContent("ExtensionRows", diagnostic, True) Then Exit Function
+    If deferFlush Then
+        TryRefresh = True
+        Exit Function
+    End If
     TryRefresh = m_page.FlushUpdates()
     ex_Core.fn_Diagnostic_WritePerf "Extensions.RefreshContent", startedAt
 End Function

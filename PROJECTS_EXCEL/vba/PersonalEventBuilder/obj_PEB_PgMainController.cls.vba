@@ -32,6 +32,7 @@ Private m_modeDirection As String
 Private m_eventType As String
 Private m_modeConfig As Object
 Private m_statusTransitions As Object
+Private m_nextStatusOptions As Collection
 Private m_transitionCaptions As Object
 Private m_reporterFields As Collection
 Private m_reporterActive As Boolean
@@ -193,6 +194,7 @@ Public Sub Dispose()
     Set m_displayFields = Nothing
     Set m_modeConfig = Nothing
     Set m_statusTransitions = Nothing
+    Set m_nextStatusOptions = Nothing
     Set m_transitionCaptions = Nothing
     Set m_reporterFields = Nothing
     If Not m_hospitalService Is Nothing Then m_hospitalService.Dispose
@@ -3278,15 +3280,36 @@ Private Function private_PublishNextStatuses( _
     Dim items As Collection
     Dim targets As Object
     Dim nextStatus As Variant
+    Dim count As Long
+    Dim index As Long
+    Dim unchanged As Boolean
 
-    Set items = New Collection
     If m_statusTransitions.Exists(previousStatus) Then
         Set targets = m_statusTransitions(previousStatus)
-        For Each nextStatus In targets.Keys
-            items.Add nextStatus
-        Next nextStatus
+        count = targets.Count
     End If
-    If Not m_pageBase.BindingContext.SetObject("Data", "NextStatusOptions", items) Then Exit Function
+    If Not m_nextStatusOptions Is Nothing Then
+        unchanged = (m_nextStatusOptions.Count = count)
+        If unchanged And count > 0 Then
+            For Each nextStatus In targets.Keys
+                index = index + 1
+                If VBA.StrComp(m_nextStatusOptions(index), nextStatus, VBA.vbBinaryCompare) <> 0 Then
+                    unchanged = False
+                    Exit For
+                End If
+            Next nextStatus
+        End If
+    End If
+    If Not unchanged Then
+        Set items = New Collection
+        If count > 0 Then
+            For Each nextStatus In targets.Keys
+                items.Add nextStatus
+            Next nextStatus
+        End If
+        If Not m_pageBase.BindingContext.SetObject("Data", "NextStatusOptions", items) Then Exit Function
+        Set m_nextStatusOptions = items
+    End If
     If Not m_pageBase.BindingContext.SetValue("Settings", "PreviousStatusStyle", _
             VBA.IIf(VBA.Len(previousStatus) > 0, "activeModeButton", "secondaryButton")) Then Exit Function
     If Not m_pageBase.BindingContext.SetValue("Settings", "NextStatusStyle", _
@@ -3749,14 +3772,8 @@ Private Function private_SwitchMode( _
     If Not private_SetActionStatus(VBA.Replace$(status, "{mode}", caption), False) Then Exit Function
     If Not m_pageBase.RefreshContent("ExtensionMenus", diagnostic, True) Then GoTo Failed
     If Not m_pageBase.RefreshContent("ExtensionRows", diagnostic, True) Then GoTo Failed
-    ' Let the UI dispatch finish before rendering can replace the active select binding.
-    If selectionSource <> "Button" Then
-        private_SwitchMode = True
-        Exit Function
-    End If
-    startedAt = VBA.Timer
-    private_SwitchMode = m_pageBase.FlushUpdates()
-    ex_Core.fn_Diagnostic_WritePerf "Mode.Flush", startedAt
+    ' Let the dispatcher flush the pending layout after the active control returns.
+    private_SwitchMode = True
     Exit Function
 Failed:
     private_SetActionStatus diagnostic, True

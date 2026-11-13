@@ -437,8 +437,9 @@ Private Function private_Apply( _
         private_PreserveArrivalFoodSupport rows, values("RowId"), closingWrites, links
     End If
     If values("EventId") = "MoveFromAwolToBusinessTrip" Then
-        ' Enroll on return without overwriting the original AWOL removal date.
-        closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = eventDate
+        ' Use the same food-support boundary for the return and the new departure.
+        closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = _
+            writes(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport"))
     End If
     action.Add "Operation", operation
     action.Add "Writes", writes
@@ -641,7 +642,7 @@ Private Sub private_PlanReturnPlaceholder( _
         writes(key) = closingWrites(key)
     Next key
     writes(ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument")) = VBA.vbNullString
-    For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")
+    For Each key In VBA.Array("DepartureDate", "ArrivalDate")
         writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")
     Next key
     Set generated = private_CopyFields(writes)

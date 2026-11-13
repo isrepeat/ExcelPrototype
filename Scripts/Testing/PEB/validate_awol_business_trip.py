@@ -29,11 +29,15 @@ def main():
     assert 'action.Add "PlaceholderBefore", before' in placeholder
     assert 'cells(personHeader) <> action("PersonId") Or cells(eventHeader) <> statusName' in placeholder
     assert 'writes(ex_PEB_Export.fn_Config("export.Movement.headers.TicketDocument")) = VBA.vbNullString' in placeholder
-    assert 'For Each key In VBA.Array("DepartureDate", "DepartureFoodSupport", "ArrivalDate", "ArrivalFoodSupport")' in placeholder
+    assert 'Set writes = private_CopyFields(action("Writes"))' in placeholder
+    assert 'writes(key) = closingWrites(key)' in placeholder
+    assert 'For Each key In VBA.Array("DepartureDate", "ArrivalDate")' in placeholder
+    assert '"DepartureFoodSupport"' not in placeholder and '"ArrivalFoodSupport"' not in placeholder
     assert 'writes(ex_PEB_Export.fn_Config("export.Movement.headers." & key)) = action("EventDate")' in placeholder
     assert 'rows.Add row' in placeholder and 'action.Add "PlaceholderWrites", writes' in placeholder
     apply = procedure(sources['Planner'], 'private_Apply')
-    assert 'closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = eventDate' in apply
+    assert ('closingWrites(ex_PEB_Export.fn_Config("export.Movement.headers.ArrivalFoodSupport")) = _\n'
+            '            writes(ex_PEB_Export.fn_Config("export.Movement.headers.DepartureFoodSupport"))') in apply
     assert apply.index('private_PlanReturnPlaceholder rows') < apply.index('private_Existing(rows')
     assert 'values("EventId") = "MoveFromAwolToBusinessTrip"' in apply
     assert 'action.Exists("PlaceholderWrites") And action("Status") = "AlreadyApplied"' in apply

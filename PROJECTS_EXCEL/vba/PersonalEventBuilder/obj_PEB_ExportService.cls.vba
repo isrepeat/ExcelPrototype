@@ -229,10 +229,10 @@ Public Function TryPreparePlaceholderPreview( _
     Dim field As Variant
     Dim templateName As String
     Dim rendered As String
-    Dim wordTemplates As obj_PEB_WordTemplates
     Dim today As Date
     Dim previewDate As String
     Dim previewEventDate As String
+    Dim wordTemplates As obj_PEB_WordTemplates
 
     On Error GoTo EH
     If Not m_isInitialized Or m_isDisposed Then Err.Raise 5, , "Export service is not initialized."
@@ -272,8 +272,7 @@ Public Function TryPreparePlaceholderPreview( _
     For Each field In VBA.Array("HistoryReports", "MetaTables", "MetaTvoTables", "MetaDocumentTables")
         Set values(field) = New Collection
     Next field
-    Set wordTemplates = New obj_PEB_WordTemplates
-    If Not wordTemplates.Initialize(diagnostic) Then Exit Function
+    Set wordTemplates = ex_PEB_Export.fn_WordTemplates()
     If Not wordTemplates.TryRender(templateName, values, rendered, diagnostic) Then Exit Function
     If VBA.Len(rendered) = 0 Or VBA.Len(rendered) > 32767 Then
         Err.Raise 5, , "Word preview must contain between 1 and 32767 characters."
@@ -303,11 +302,7 @@ Public Function TryRefreshPreparedWordText( _
     If values("WordPolicy") = "Omit" Then Exit Function
     If VBA.Len(values("WordText")) = 0 Then Exit Function
     TryRefreshPreparedWordText = False
-    If m_pebWordTemplates Is Nothing Then
-        Set m_pebWordTemplates = New obj_PEB_WordTemplates
-        m_ownsWordTemplates = True
-        If Not m_pebWordTemplates.Initialize(diagnostic) Then Exit Function
-    End If
+    If Not private_TryEnsureWordTemplates(diagnostic) Then Exit Function
     templateName = VBA.CStr(ex_PEB_Export.fn_Required(values, "TemplateName"))
     If Not m_pebWordTemplates.TryRender(templateName, values, rendered, diagnostic) Then Exit Function
     If VBA.Len(rendered) = 0 Or VBA.Len(rendered) > 32767 Then
@@ -521,13 +516,7 @@ Public Function TryPrepare( _
         ex_Core.fn_Diagnostic_WritePerf "Preview.ReturnTvo", detailStartedAt
         detailStartedAt = VBA.Timer
         If m_pebWordTemplates Is Nothing Then
-            Set m_pebWordTemplates = New obj_PEB_WordTemplates
-            m_ownsWordTemplates = True
-            If Not m_pebWordTemplates.Initialize(diagnostic) Then
-                GoTo Failed
-            End If
-            Set m_pebDslRenderer = Nothing
-            m_snapshotGeneration = ex_TableSnapshots.fn_Generation()
+            If Not private_TryEnsureWordTemplates(diagnostic) Then GoTo Failed
             ex_Core.fn_Diagnostic_WritePerf "Preview.TemplateCacheLoad", detailStartedAt
         Else
             ex_Core.fn_Diagnostic_WritePerf "Preview.TemplateCacheHit", detailStartedAt
@@ -864,6 +853,18 @@ End Function
 ' //
 ' // Private
 ' //
+Private Function private_TryEnsureWordTemplates(ByRef diagnostic As String) As Boolean
+    Dim wordTemplates As obj_PEB_WordTemplates
+
+    If m_pebWordTemplates Is Nothing Then
+        Set wordTemplates = New obj_PEB_WordTemplates
+        If Not wordTemplates.Initialize(diagnostic) Then Exit Function
+        Set m_pebWordTemplates = wordTemplates
+        m_ownsWordTemplates = True
+    End If
+    private_TryEnsureWordTemplates = True
+End Function
+
 Private Sub private_SyncSnapshot()
     Dim snapshot As obj_TableSnapshotSet
 

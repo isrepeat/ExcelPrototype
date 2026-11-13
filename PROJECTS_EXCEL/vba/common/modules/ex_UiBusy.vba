@@ -1,6 +1,12 @@
 Option Explicit
 
 #If VBA7 Then
+Private Declare PtrSafe Function private_RedrawWindow Lib "user32" Alias "RedrawWindow" ( _
+    ByVal windowHandle As LongPtr, _
+    ByVal updateRect As LongPtr, _
+    ByVal updateRegion As LongPtr, _
+    ByVal flags As Long _
+) As Long
 Private Declare PtrSafe Function private_GetCursor Lib "user32" Alias "GetCursor" () As LongPtr
 Private Declare PtrSafe Function private_LoadCursor Lib "user32" Alias "LoadCursorW" ( _
     ByVal instance As LongPtr, _
@@ -9,6 +15,12 @@ Private Declare PtrSafe Function private_LoadCursor Lib "user32" Alias "LoadCurs
 Private Declare PtrSafe Function private_SetCursor Lib "user32" Alias "SetCursor" (ByVal cursor As LongPtr) As LongPtr
 Private m_previousNativeCursor As LongPtr
 #Else
+Private Declare Function private_RedrawWindow Lib "user32" Alias "RedrawWindow" ( _
+    ByVal windowHandle As Long, _
+    ByVal updateRect As Long, _
+    ByVal updateRegion As Long, _
+    ByVal flags As Long _
+) As Long
 Private Declare Function private_GetCursor Lib "user32" Alias "GetCursor" () As Long
 Private Declare Function private_LoadCursor Lib "user32" Alias "LoadCursorW" ( _
     ByVal instance As Long, _
@@ -61,9 +73,18 @@ Public Function fn_Begin(Optional ByVal statusText As String = VBA.vbNullString)
     On Error GoTo 0
 End Function
 
-Public Sub fn_End()
+Public Sub fn_End(Optional ByVal redraw As Boolean = False)
+    Const RDW_INVALIDATE As Long = &H1
+    Const RDW_ALLCHILDREN As Long = &H80
+    Const RDW_UPDATENOW As Long = &H100
+
     If m_depth <= 0 Then Exit Sub
 
+    If redraw And m_depth = 1 And Application.ScreenUpdating Then
+        fn_Refresh
+        ' Complete the Excel window paint while the wait cursor is still active.
+        private_RedrawWindow Application.Hwnd, 0, 0, RDW_INVALIDATE Or RDW_ALLCHILDREN Or RDW_UPDATENOW
+    End If
     m_depth = m_depth - 1
     If m_depth <> 0 Then
         fn_Refresh
