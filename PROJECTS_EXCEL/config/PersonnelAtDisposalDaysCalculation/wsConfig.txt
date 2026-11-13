@@ -164,7 +164,7 @@ value	PersonnelAtDisposalDaysCalculation::header.FullName	ПІБ
 value	PersonnelAtDisposalDaysCalculation::header.StartDate	Дата виведення у розпорядження
 value	PersonnelAtDisposalDaysCalculation::header.CountedDays	Кількість днів у розпорядженні
 value	PersonnelAtDisposalDaysCalculation::header.ThresholdDate	Дата з якої перебуває у розпорядженні понад 2 місяці
-value	PersonnelAtDisposalDaysCalculation::source.tvo.range	B7:T100000
+value	PersonnelAtDisposalDaysCalculation::source.tvo.range	B5:T100000
 value	PersonnelAtDisposalDaysCalculation::source.tvo.sheet	ТВО
 value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.Rank	Звання
 value	PersonnelAtDisposalDaysCalculation::source.tvo.columns.TaxId	ІПН
