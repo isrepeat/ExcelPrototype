@@ -8,7 +8,7 @@ Read this section before interpreting, editing, migrating or exporting the Movem
 
 ### Column contract
 
-The source range in PROD and TEST is `B5:X10000`, starting at the table header below the validation panel and covering the 19 business columns and four PEB link columns. If the panel height changes, update the starting row to the actual header row. The exporter copies `Прийняття` to `Доступ.Дата` and `Прийняття.Підстава` to `Доступ.Підстава`. Column mappings use header names, so inserting these columns does not change the acceptance or handover mappings.
+The source range in PROD and TEST is `B6:X10000`, starting at the table header below the validation panel and covering the 19 business columns and four PEB link columns. If the panel height changes, update the starting row to the actual header row. The exporter copies `Прийняття` to `Доступ.Дата` and `Прийняття.Підстава` to `Доступ.Підстава`. Column mappings use header names, so inserting these columns does not change the acceptance or handover mappings.
 
 Actual headers are configured in PROD and TEST under `returnTvo.table.headers`. Do not rely on worksheet column letters or the currently selected cell.
 
