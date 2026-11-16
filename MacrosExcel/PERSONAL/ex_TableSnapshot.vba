@@ -18,8 +18,12 @@ Public Sub fn_ExportVisibleTable()
     Dim targetCell As Range
     Dim targetRow As Long
     Dim targetColumn As Long
+    Dim firstSourceColumn As Long
+    Dim columnCount As Long
     Dim bodyRows As Long
     Dim totalRows As Long
+    Dim startedAt As Double
+    Dim stageStartedAt As Double
     Dim previousEvents As Boolean
     Dim previousScreenUpdating As Boolean
     Dim previousAlerts As Boolean
@@ -27,6 +31,8 @@ Public Sub fn_ExportVisibleTable()
     Dim errorMessage As String
 
     On Error GoTo EH
+    startedAt = VBA.Timer
+    stageStartedAt = startedAt
     If Not TypeOf Application.ActiveSheet Is Worksheet Then _
         Err.Raise 5, "PERSONAL.Table.WorksheetRequired"
     Set sourceTable = Application.ActiveCell.ListObject
@@ -35,6 +41,7 @@ Public Sub fn_ExportVisibleTable()
     Set sourceBook = sourceTable.Parent.Parent
     If Len(sourceBook.Path) = 0 Then _
         Err.Raise 5, "PERSONAL.Table.SaveSourceWorkbookFirst"
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_SNAPSHOT_STARTED | Table=" & sourceTable.Name
 
     ' Capture the visible rows and columns in worksheet order.
     Set visibleColumns = New Collection
@@ -57,6 +64,9 @@ Public Sub fn_ExportVisibleTable()
     If bodyRows + totalRows + 4 > sourceTable.Parent.Rows.Count Or _
             visibleColumns.Count + 1 > sourceTable.Parent.Columns.Count Then _
         Err.Raise 6, "PERSONAL.Table.SnapshotDoesNotFit"
+    private_LogStage "Visibility | SourceRows=" & sourceTable.ListRows.Count & _
+        " | Rows=" & bodyRows & " | Columns=" & visibleColumns.Count & _
+        " | RowBlocks=" & visibleBlocks.Count, stageStartedAt
 
     ' Create the destination and transfer the workbook-local table style if needed.
     previousEvents = Application.EnableEvents
@@ -71,6 +81,7 @@ Public Sub fn_ExportVisibleTable()
     resultSheet.Name = sourceTable.Parent.Name
     resultBook.Date1904 = sourceBook.Date1904
     private_ImportTableStyle sourceTable, resultBook
+    private_LogStage "CreateWorkbookAndImportStyle", stageStartedAt
     resultBook.Styles("Normal").Interior.Color = RGB(40, 37, 30)
     resultBook.Styles("Normal").Font.Color = RGB(255, 255, 255)
     resultBook.Windows(1).DisplayGridlines = False
@@ -97,26 +108,36 @@ Public Sub fn_ExportVisibleTable()
         If resultTable.ListRows.Count > 0 Then resultTable.ListRows(1).Delete
     End If
     resultTable.ShowTotals = (totalRows = 1)
+    private_LogStage "CreateTable", stageStartedAt
 
-    ' Copy cell formats and cached values in contiguous blocks.
-    targetColumn = 0
-    For Each sourceColumn In visibleColumns
-        targetColumn = targetColumn + 1
+    ' Copy each rectangle of contiguous visible rows and columns in one operation.
+    targetColumn = 1
+    Do While targetColumn <= visibleColumns.Count
+        Set sourceColumn = visibleColumns(targetColumn)
+        firstSourceColumn = sourceColumn.Index
+        columnCount = 1
+        Do While targetColumn + columnCount <= visibleColumns.Count
+            Set sourceColumn = visibleColumns(targetColumn + columnCount)
+            If sourceColumn.Index <> firstSourceColumn + columnCount Then Exit Do
+            columnCount = columnCount + 1
+        Loop
         If sourceTable.ShowHeaders Then
-            Set sourceCell = sourceTable.HeaderRowRange.Cells(1, sourceColumn.Index)
+            Set sourceCell = sourceTable.HeaderRowRange.Cells(1, firstSourceColumn).Resize(1, columnCount)
             private_CopySnapshotCells sourceCell, targetStart.Cells(1, targetColumn), False
         End If
         targetRow = 2
         For Each sourceBlock In visibleBlocks
-            private_CopySnapshotCells sourceBlock.Columns(sourceColumn.Index), _
+            private_CopySnapshotCells sourceBlock.Columns(firstSourceColumn).Resize(, columnCount), _
                 targetStart.Cells(targetRow, targetColumn), True
             targetRow = targetRow + sourceBlock.Rows.Count
         Next sourceBlock
         If totalRows = 1 Then
-            Set sourceCell = sourceTable.TotalsRowRange.Cells(1, sourceColumn.Index)
+            Set sourceCell = sourceTable.TotalsRowRange.Cells(1, firstSourceColumn).Resize(1, columnCount)
             private_CopySnapshotCells sourceCell, resultTable.TotalsRowRange.Cells(1, targetColumn), True
         End If
-    Next sourceColumn
+        targetColumn = targetColumn + columnCount
+    Loop
+    private_LogStage "CopyCells", stageStartedAt
     targetRow = 2
     For Each sourceBlock In visibleBlocks
         For Each sourceCell In sourceBlock.Columns(1).Cells
@@ -132,9 +153,11 @@ Public Sub fn_ExportVisibleTable()
     If totalRows = 1 Then resultTable.TotalsRowRange.RowHeight = sourceTable.TotalsRowRange.RowHeight
     resultSheet.Activate
     targetStart.Select
+    private_LogStage "RowLayout", stageStartedAt
     Application.DisplayAlerts = True
     resultBook.SaveAs Filename:=private_NextSnapshotPath(sourceBook.Path, sourceTable.Name), _
         FileFormat:=xlOpenXMLWorkbook
+    private_LogStage "SaveAs | File=" & resultBook.Name, stageStartedAt
 
 CleanExit:
     If stateChanged Then
@@ -146,6 +169,8 @@ CleanExit:
     If Len(errorMessage) > 0 Then
         ex_Core.fn_Diagnostic_WriteLog "TABLE_SNAPSHOT_ERROR | " & errorMessage
         ex_WindowsUi.fn_ShowMessage errorMessage, VBA.vbExclamation
+    Else
+        private_LogStage "Total", startedAt
     End If
     Exit Sub
 EH:
@@ -158,6 +183,18 @@ End Sub
 ' --------------------------------------
 ' } // namespace API
 ' --------------------------------------
+
+Private Sub private_LogStage(ByVal stage As String, ByRef stageStartedAt As Double)
+    Dim finishedAt As Double
+    Dim elapsedSeconds As Double
+
+    finishedAt = VBA.Timer
+    elapsedSeconds = finishedAt - stageStartedAt
+    If elapsedSeconds < 0 Then elapsedSeconds = elapsedSeconds + 86400#
+    ex_Core.fn_Diagnostic_WriteLog "TABLE_SNAPSHOT_PERF | Stage=" & stage & _
+        " | ElapsedMs=" & VBA.Format$(elapsedSeconds * 1000#, "0.0")
+    stageStartedAt = VBA.Timer
+End Sub
 
 Private Function private_NextSnapshotPath( _
     ByVal folderPath As String, _
