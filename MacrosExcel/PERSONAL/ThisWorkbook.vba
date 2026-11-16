@@ -39,6 +39,7 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
     private_TryUnbindKey "^+%r"
     private_TryUnbindKey "^%d"
     private_TryUnbindKey "^%u"
+    private_TryUnbindKey "^%t"
     private_TryUnbindKey "^%{DOWN}"
     private_TryUnbindKey "^%{UP}"
     private_TryUnbindKey "%{HOME}"
@@ -114,6 +115,11 @@ Public Sub BindKeys()
         failedCount = failedCount + 1
     End If
     If private_TryBindKey("^%u", "ex_Core.fn_UpdateActiveWorkbookConfig") Then
+        boundCount = boundCount + 1
+    Else
+        failedCount = failedCount + 1
+    End If
+    If private_TryBindKey("^%t", "ex_TableSnapshot.fn_ExportVisibleTable") Then
         boundCount = boundCount + 1
     Else
         failedCount = failedCount + 1
