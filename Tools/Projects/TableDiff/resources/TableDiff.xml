@@ -28,6 +28,11 @@
                     <old sheet="ТВО" />
                     <new sheet="ТВО" />
                 </comparison>
+                <comparison key="УІД"
+                            threshold="0.65">
+                    <old sheet="ТЛ" />
+                    <new sheet="ТЛ" />
+                </comparison>
             </comparisons>
         </profile>
         <profile name="Shpo"

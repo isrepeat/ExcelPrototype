@@ -280,6 +280,16 @@ Public Sub fn_Prepare( _
             End If
             GoTo NextAction
         End If
+        ' A change in the absent person's status alone does not end acting duties.
+        If operation = "transition" And chain.Count > 0 Then
+            If requested.Count = 0 Or StrComp( _
+                private_StructureText(chain), _
+                private_StructureText(requested), _
+                vbTextCompare _
+            ) = 0 Then
+                GoTo NextAction
+            End If
+        End If
         ' Absence hashes do not include duty children; inspect existing departures separately.
         If operation = "append" And action.Exists("TargetIndex") And chain.Count > 0 Then
             If action("Status") = "AlreadyApplied" Or action("IsUpdate") Then
