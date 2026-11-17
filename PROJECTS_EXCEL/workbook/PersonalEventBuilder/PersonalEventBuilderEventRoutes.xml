@@ -168,7 +168,8 @@
               wordTo="word:status.ToVlk"/>
       <status id="BusinessTrip"
               caption="відрядження"
-              departure="ToBusinessTrip"/>
+              departure="ToBusinessTrip"
+              wordFrom="word:status.FromBusinessTrip"/>
       <status id="MedicalLeave"
               caption="відпустка для лікування"
               departure="ToVacationForCuring"/>
@@ -219,6 +220,9 @@
                   form="Leave"
                   targetCaption="Відрядження"
                   wordLayout="word:AwolBusinessTripPreview"/>
+      <transition source="BusinessTrip">
+        <route targets="Hospital|MedicalCompanyTreatment"/>
+      </transition>
       <transition source="Hospital">
         <route targets="AnnualVacationContinuation"
                form="HospitalLeave"

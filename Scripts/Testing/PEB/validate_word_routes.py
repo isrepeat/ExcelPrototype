@@ -35,6 +35,16 @@ def main():
         assert {"FromOutpatientExaminationOrVlk", "ToOutpatientExaminationOrVlk",
                 "MoveFromMissingToBusinessTrip", "MoveFromMissingToOutpatientVlk"} <= movement_only
         assert registry["events"]["ToBusinessTrip"].get("caption") == "У відрядження"
+        for target, departure in (("Hospital", "ToHospital"),
+                                  ("MedicalCompanyTreatment", "ToMedicalCompanyForTreatment")):
+            event_id = "MoveFromBusinessTripTo" + target
+            event = registry["events"][event_id]
+            plan = registry["movement"]["events"][event_id]
+            assert event.get("direction") == "StatusChange"
+            assert event.get("form") == registry["events"][departure].get("form")
+            assert event.find("p:word", NS).get("template") == "TransitionTo" + target
+            assert plan["operation"] == "Transition" and plan["sourceStatus"] == "BusinessTrip"
+            assert plan["targetStatus"] == registry["movement"]["events"][departure]["targetStatus"]
         for event_id in ("MoveFromAnnualVacationToVacationForCuring", "MoveFromFamilyVacationToVacationForCuring",
                          "MoveFromVacationForCuringToAnnualVacation"):
             event = registry["events"][event_id]

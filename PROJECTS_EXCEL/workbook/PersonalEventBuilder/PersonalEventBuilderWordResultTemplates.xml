@@ -249,6 +249,14 @@
       </text>
     </sharedTemplate>
 
+    <sharedTemplate id="status.FromBusinessTrip">
+      <text>
+        <![CDATA[#^
+#_        який {#include block.StatusChangeResidenceVerb}у відрядженні#^
+        ]]>
+      </text>
+    </sharedTemplate>
+
     <sharedTemplate id="status.FromHospital">
       <text>
         <![CDATA[#^

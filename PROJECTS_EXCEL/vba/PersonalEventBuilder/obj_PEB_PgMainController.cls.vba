@@ -928,6 +928,8 @@ Public Function RefreshConfigHandler() As Boolean
     Dim exportOnly As Boolean
     Dim templatesOnly As Boolean
     Dim previousUpdating As Boolean
+    Dim previousStatus As Variant
+    Dim nextStatus As Variant
 
     If Not m_isInitialized Or m_isDisposed Then Exit Function
     If ex_PEB_Testing.fn_IsRunning() Then
@@ -971,6 +973,10 @@ Public Function RefreshConfigHandler() As Boolean
     Set m_exportService = Nothing
     If exportOnly Then
         If Not private_RefreshTexts(previousConfig, diagnostic) Then GoTo FailedRefreshConfig
+        If Not private_PublishExtendedModes(diagnostic) Then GoTo FailedRefreshConfig
+        If Not private_TryReadFormValue("PreviousStatus", previousStatus) Then GoTo FailedRefreshConfig
+        If Not private_TryReadFormValue("NextStatus", nextStatus) Then GoTo FailedRefreshConfig
+        If Not private_PublishNextStatuses(VBA.CStr(previousStatus), VBA.CStr(nextStatus)) Then GoTo FailedRefreshConfig
         ex_Core.fn_Diagnostic_WritePerf "Config.Refresh.Live", startedAt
         Application.ScreenUpdating = previousUpdating
         RefreshConfigHandler = private_SetActionStatus(ex_PEB_Export.fn_Config("text.RefreshConfigReady"), False)

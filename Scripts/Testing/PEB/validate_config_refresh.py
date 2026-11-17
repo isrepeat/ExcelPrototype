@@ -61,6 +61,8 @@ def main():
     assert 'loader.TryRefreshTemplates(snapshot, diagnostic)' in template_branch
     assert 'TryBuild' not in template_branch and 'fn_Refresh' not in template_branch
     assert 'private_RefreshTexts(previousConfig, diagnostic)' in refresh
+    live_refresh = refresh.split('If exportOnly Then', 1)[1].split('Exit Function', 1)[0]
+    assert live_refresh.index('private_PublishExtendedModes(diagnostic)') < live_refresh.index('private_PublishNextStatuses(')
     assert 'ex_AppCommands.fn_PreserveDependencies()' in controller
     loader = procedure(read(paths[2]), "TryBuild")
     templates = procedure(read(paths[2]), "TryRefreshTemplates")
