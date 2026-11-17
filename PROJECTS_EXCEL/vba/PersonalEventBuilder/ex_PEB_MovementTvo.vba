@@ -189,6 +189,7 @@ Public Sub fn_Prepare( _
     Dim linkedRow As Object
     Dim replayOpening As Boolean
     Dim hasClosedSegments As Boolean
+    Dim attachLegacyClosing As Boolean
 
     Set table = private_Target(target.Parent.Parent)
     If table.Parent.ProtectContents Or Not table.ShowHeaders Then
@@ -219,6 +220,7 @@ Public Sub fn_Prepare( _
         Set requested = private_HistoryDuties(values("MetaTvoTables"))
         operation = action("Operation")
         eventDate = ex_PEB_History.fn_Date(values("EventDate"))
+        attachLegacyClosing = False
         lowerDate = 0
         If action.Exists("ClosingIndex") Then
             If action("ClosingIndex") > 0 And action("ClosingIndex") <= target.ListRows.Count Then
@@ -310,7 +312,10 @@ Public Sub fn_Prepare( _
             ElseIf linked.Count = 0 Then
                 ' An arrival exported without duties may acquire its first verified closing chain.
                 If private_StructureText(chain) <> private_StructureText(requested) Then
-                    ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                    attachLegacyClosing = private_MatchesLegacyClosing(chain, requested, eventDate, CStr(values("AcceptedOrderNumber")))
+                    If Not attachLegacyClosing Then
+                        ex_PEB_MovementLinks.fn_Fail "TvoRevisionRequiresReview", action("RowId")
+                    End If
                 End If
             End If
         End If
@@ -333,9 +338,11 @@ Public Sub fn_Prepare( _
                         ex_PEB_Export.fn_Text(row("ClosingId")) <> CStr(action("RowId")) Then
                     ex_PEB_MovementLinks.fn_Fail "TvoHasLaterHandover", action("RowId")
                 End If
-                row("EndDate") = eventDate
-                row("EndOrder") = CStr(values("AcceptedOrderNumber"))
-                row("EndBasis") = basis
+                If Not attachLegacyClosing Then
+                    row("EndDate") = eventDate
+                    row("EndOrder") = CStr(values("AcceptedOrderNumber"))
+                    row("EndBasis") = basis
+                End If
                 row("ClosingId") = action("RowId")
                 row("ClosingHash") = private_Stamp(row, "Closing")
                 Set row("Action") = action
@@ -941,6 +948,45 @@ Private Function private_StructureText(ByVal rows As Collection) As String
         Next other
     Next index
     private_StructureText = Join(parts, vbLf)
+End Function
+
+Private Function private_MatchesLegacyClosing( _
+    ByVal chain As Collection, _
+    ByVal requested As Collection, _
+    ByVal eventDate As Date, _
+    ByVal orderNumber As String _
+) As Boolean
+    Dim byPerson As Object
+    Dim row As Object
+    Dim item As Object
+    Dim personId As String
+    Dim positionCode As String
+
+    If chain.Count <> requested.Count Then Exit Function
+    Set byPerson = CreateObject("Scripting.Dictionary")
+    byPerson.CompareMode = vbTextCompare
+    For Each row In chain
+        If ex_PEB_MovementSource.fn_OrderDate(row("EndDate")) <> CDbl(eventDate) Then Exit Function
+        If ex_PEB_Export.fn_Text(row("EndOrder")) <> orderNumber Then Exit Function
+        If Len(ex_PEB_Export.fn_Text(row("ClosingId"))) > 0 Then Exit Function
+        If Len(ex_PEB_Export.fn_Text(row("ClosingHash"))) > 0 Then Exit Function
+        personId = ex_PEB_Export.fn_Text(row("PersonId"))
+        If Len(personId) = 0 Or byPerson.Exists(personId) Then Exit Function
+        byPerson.Add personId, row
+    Next row
+    For Each item In requested
+        personId = ex_PEB_Export.fn_Text(item("PersonId"))
+        If Not byPerson.Exists(personId) Then Exit Function
+        Set row = byPerson(personId)
+        positionCode = ex_PEB_Export.fn_Text(item("PositionCode"))
+        If StrComp(positionCode, ex_PEB_Export.fn_Text(row("PositionCode")), vbTextCompare) <> 0 Then
+            ' Legacy return snapshots can carry the acting person's own position.
+            If item.Exists("DutyPositionCode") Or Len(positionCode) = 0 Then Exit Function
+            If StrComp(positionCode, ex_PEB_Export.fn_Text(row("OwnPositionCode")), vbTextCompare) <> 0 Then Exit Function
+        End If
+        byPerson.Remove personId
+    Next item
+    private_MatchesLegacyClosing = True
 End Function
 
 Private Function private_HistoryDuties(ByVal source As Collection) As Collection

@@ -118,6 +118,16 @@ def main():
     assert 'If operation <> "close" Then' in first_closing
     assert 'ElseIf linked.Count = 0 Then' in first_closing
     assert 'private_StructureText(chain) <> private_StructureText(requested)' in first_closing
+    assert 'attachLegacyClosing = private_MatchesLegacyClosing(chain, requested, eventDate' in first_closing
+    assert 'If Not attachLegacyClosing Then' in first_closing
+    legacy_closing = procedure(table, 'private_MatchesLegacyClosing')
+    assert 'chain.Count <> requested.Count' in legacy_closing
+    for field in ('EndDate', 'EndOrder', 'ClosingId', 'ClosingHash', 'PersonId', 'OwnPositionCode'):
+        assert f'row("{field}")' in legacy_closing
+    assert 'item.Exists("DutyPositionCode")' in legacy_closing
+    assert 'byPerson.Remove personId' in legacy_closing
+    closing_write = prepare_tvo.split('If Not attachLegacyClosing Then', 2)[2]
+    assert closing_write.index('row("EndBasis") = basis') < closing_write.index('End If') < closing_write.index('row("ClosingId") = action("RowId")')
     stamp = procedure(table, 'private_Stamp')
     assert 'fn_FieldsHash(fields)' in stamp
     assert 'EndDate|EndOrder|EndBasis' in stamp
