@@ -2056,6 +2056,15 @@ value	PersonalEventBuilder::returnTvo.headers.TvoName	ТВО.ПІБ
 value	PersonalEventBuilder::returnTvo.headers.TvoPersonId	ТВО.ІПН
 value	PersonalEventBuilder::returnTvo.headers.TvoPositionCode	ТВО.Посада
 value	PersonalEventBuilder::returnTvo.snapshot.fields	PersonId|PersonName|PersonRank|PositionCode|RankGenitive|FIOAccusative|PositionGenitive|RankDative|FIODative
+  ref	PersonalEventBuilder::returnTvo.ownPosition.path	PersonalEventBuilder::lookup.Personnel.source.path
+value	PersonalEventBuilder::returnTvo.ownPosition.when.field	PersonId
+value	PersonalEventBuilder::returnTvo.ownPosition.when.pattern	\S
+value	PersonalEventBuilder::returnTvo.ownPosition.input	PersonId
+  ref	PersonalEventBuilder::returnTvo.ownPosition.range	PersonalEventBuilder::lookup.Personnel.source.range
+  ref	PersonalEventBuilder::returnTvo.ownPosition.sheet	PersonalEventBuilder::lookup.Personnel.source.sheet
+value	PersonalEventBuilder::returnTvo.ownPosition.output	PositionCode
+  ref	PersonalEventBuilder::returnTvo.ownPosition.keyHeader	PersonalEventBuilder::lookup.Personnel.columns.2.header
+  ref	PersonalEventBuilder::returnTvo.ownPosition.valueHeader	PersonalEventBuilder::lookup.Personnel.columns.6.header
 value	PersonalEventBuilder::candidates.selectionMode	Confirm
 value	PersonalEventBuilder::candidates.textWarningLimit	255
   ref	PersonalEventBuilder::candidates.textWarningColumn	PersonalEventBuilder::text.PersonPositionLabel

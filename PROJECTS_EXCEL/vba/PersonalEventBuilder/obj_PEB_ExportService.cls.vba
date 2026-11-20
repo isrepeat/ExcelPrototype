@@ -204,6 +204,7 @@ Public Function TryCaptureReturnTvo( _
             private_Enrich row, "export.Word.meta.lookups." & VBA.CStr(index)
         Next index
     Next row
+    private_RestoreOwnPositions rows
     ex_Core.fn_Diagnostic_WritePerf "ReturnTvo.Enrich", stageStartedAt
     stageStartedAt = VBA.Timer
     values("TvoReturnSnapshot") = ex_PEB_ReturnTvo.fn_Encode(values, rows)
@@ -727,6 +728,9 @@ Public Function TryPrepareHistory( _
     ex_PEB_Export.fn_TicketDocumentValues values, True
     values("PersonAccusative") = values("FIOAccusative")
     values.Remove "FIOAccusative"
+    If ex_PEB_EventRoutes.fn_Value(CStr(values("EventId")), "direction") = "Arrival" Then
+        private_RestoreOwnPositions values("MetaTvoTables")
+    End If
     private_AddAliases values
     values("ManualOrderNo") = values("AcceptedOrderNumber")
     private_RestoreFoodSupportFlags values
@@ -1471,6 +1475,20 @@ Private Function private_Date( _
 ) As Date
     private_Date = ex_PEB_Export.fn_ParseDate(value, key)
 End Function
+
+Private Sub private_RestoreOwnPositions(ByVal rows As Collection)
+    Dim item As Object
+    Dim row As Object
+
+    For Each item In rows
+        ' Preserve the replaced position used by the Movement planner and saved snapshots.
+        Set row = VBA.CreateObject("Scripting.Dictionary")
+        row("PersonId") = item("PersonId")
+        private_Enrich row, "returnTvo.ownPosition"
+        private_Enrich row, "export.Word.meta.lookups.3"
+        item("PositionGenitive") = row("PositionGenitive")
+    Next item
+End Sub
 
 Private Sub private_Enrich( _
     ByVal values As Object, _
