@@ -550,6 +550,16 @@ Private Sub private_BuildEvents()
         "", _
         ex_PEB_Export.fn_Config("export.Movement.FromAnnualMainVacation.required")
     private_AddEvent _
+        "FromMaternityLeave", _
+        "Arrival", _
+        "Arrival", _
+        "MaternityLeave", _
+        "", _
+        "Destination", _
+        "", _
+        "", _
+        ex_PEB_Export.fn_Config("export.Movement.FromMaternityLeave.required")
+    private_AddEvent _
         "FromVacationForFamily", _
         "Arrival", _
         "Arrival", _

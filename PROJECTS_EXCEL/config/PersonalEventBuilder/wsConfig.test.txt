@@ -21,7 +21,7 @@ file	__cfgDependencies.fileMovementExport	../../tests/PersonalEventBuilder/Depen
 file	__cfgDependencies.fileMovementHistory	../../tests/PersonalEventBuilder/Dependencies/test_РУХ.xlsx
 value	PersonalEventBuilder::ui.folder	PersonalEventBuilder
 value	PersonalEventBuilder::ui.pageClass	obj_PEB_PgTests
-value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|FromMedicalCompanyForTreatment|ToMaternityLeave|ToMedicalCompanyForTreatment|ToMedicalCompanyVacationForCuring
+value	PersonalEventBuilder::ui.extendedModes	FromExternalVlk|FromMaternityLeave|FromMedicalCompanyForTreatment|ToMaternityLeave|ToMedicalCompanyForTreatment|ToMedicalCompanyVacationForCuring
 value	PersonalEventBuilder::test.ui.mainSheet	MainPage
 value	PersonalEventBuilder::test.ui.maxScenarios	200
 value	PersonalEventBuilder::test.ui.resultFields	RunId|ScenarioId|StepId|Expected|Actual|ExpectedCode|ActualCode|ExpectedOpen|ActualOpen|Result|Details|Milliseconds|WordCreateMs|WordInsertMs|WordVerifyMs|WordAppendMs|WordDocumentPath
@@ -737,6 +737,7 @@ value	PersonalEventBuilder::forms.readOnly.modes.ToBusinessTrip	Destination|Pers
 value	PersonalEventBuilder::forms.readOnly.modes.FromExternalVlk	HospitalShortName|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.FromBusinessTrip	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.ToMaternityLeave	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
+value	PersonalEventBuilder::forms.readOnly.modes.FromMaternityLeave	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForCuring	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode
 value	PersonalEventBuilder::forms.readOnly.modes.ToVacationForFamily	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
 value	PersonalEventBuilder::forms.readOnly.modes.ToAnnualMainVacation	Destination|PersonRank|PersonId|PositionCode|PersonPosition|ReportRank|ReportPositionCode|DocumentNumber|DocumentDate
@@ -1206,6 +1207,7 @@ value	PersonalEventBuilder::export.Word.textAnchors.ToBusinessTrip	ToBusinessTri
 value	PersonalEventBuilder::export.Word.textAnchors.FromExternalVlk	FromExternalVlk
 value	PersonalEventBuilder::export.Word.textAnchors.FromBusinessTrip	FromBusinessTrip
 value	PersonalEventBuilder::export.Word.textAnchors.ToMaternityLeave	ToMaternityLeave
+value	PersonalEventBuilder::export.Word.textAnchors.FromMaternityLeave	FromVacationForFamily
 value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForCuring	ToVacationForCuring
 value	PersonalEventBuilder::export.Word.textAnchors.ToVacationForFamily	ToVacationForFamily
 value	PersonalEventBuilder::export.Word.textAnchors.ToAnnualMainVacation	ToAnnualMainVacation
@@ -1872,8 +1874,8 @@ value	PersonalEventBuilder::lookup.Personnel.minChars	2
 value	PersonalEventBuilder::lookup.Personnel.maxResults	50
 value	PersonalEventBuilder::lookup.Personnel.loadingText	Завантаження кандидатів...
 value	PersonalEventBuilder::lookup.Personnel.ipnSuffixPattern	\s*\(\s*[0-9]{10}\s*\)\s*$
-value	PersonalEventBuilder::lookup.IncomingDate.orderDateModes	ToHospital|FromHospital|FromExternalVlk|FromAnnualMainVacation|FromVacationForCuring|FromVacationForFamily|FromMedicalCompanyForTreatment|FromBusinessTrip|FromOutpatientExaminationOrVlk
-value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromBusinessTrip
+value	PersonalEventBuilder::lookup.IncomingDate.orderDateModes	ToHospital|FromHospital|FromExternalVlk|FromAnnualMainVacation|FromVacationForCuring|FromVacationForFamily|FromMaternityLeave|FromMedicalCompanyForTreatment|FromBusinessTrip|FromOutpatientExaminationOrVlk
+value	PersonalEventBuilder::lookup.ReturnTickets.modes	FromVacationForCuring|FromAnnualMainVacation|FromVacationForFamily|FromMaternityLeave|FromBusinessTrip
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.path	__cfgDependencies.fileMovementHistory
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.sheet	__cfgDependencies.source.MovementHistory.sheet
   ref	PersonalEventBuilder::lookup.ReturnTickets.source.range	PersonalEventBuilder::validation.Movement.source.range
@@ -2390,6 +2392,7 @@ value	PersonalEventBuilder::export.Movement.ToBusinessTrip.required	PersonId|Per
 value	PersonalEventBuilder::export.Movement.ToAnnualMainVacation.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToVacationForFamily.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
+value	PersonalEventBuilder::export.Movement.FromMaternityLeave.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.MoveFromHospitalToMedicalCompanyVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate
 value	PersonalEventBuilder::export.Movement.ToMedicalCompanyVacationForCuring.required	PersonId|PersonName|EventDate|AcceptedOrderNumber|AcceptedOrderDate|PersonRank|PositionCode|IncomingNumber|IncomingDate

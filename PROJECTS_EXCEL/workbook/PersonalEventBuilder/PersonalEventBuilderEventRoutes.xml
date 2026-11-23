@@ -41,6 +41,15 @@
       <movement template="movement:FromAnnualMainVacation"/>
       <word template="word:FromAnnualMainVacation"/>
     </event>
+    <event label="З відпустки у зв’язку з вагітністю та пологами"
+           caption="З відпустки у зв’язку з вагітністю та пологами"
+           id="FromMaternityLeave"
+           direction="Arrival"
+           form="LeaveArrival"
+           wordSectionAnchor="FromVacationForFamily">
+      <movement template="movement:FromVacationForFamily"/>
+      <word template="word:FromVacationForFamily"/>
+    </event>
     <event label="З відпустки за сімейними обставинами"
            caption="З відпустки за сімейними обставинами"
            id="FromVacationForFamily"
