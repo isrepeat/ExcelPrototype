@@ -546,9 +546,15 @@ Public Sub fn_Apply(ByVal plan As Object)
         Set cell = entry("Cell")
         expected = entry("After")
         currentFormat = cell.NumberFormat
-        If VarType(expected) = vbString Then
-            cell.NumberFormat = "@"
+        If entry("Header") = private_Header("AccessOrder") Or _
+                entry("Header") = private_Header("StartOrder") Or _
+                entry("Header") = private_Header("EndOrder") Then
+            expected = ex_PEB_Export.fn_Text(expected)
         End If
+        If VarType(expected) = vbString Then
+            currentFormat = "@"
+        End If
+        cell.NumberFormat = currentFormat
         If VarType(expected) = vbDate Then
             expected = CDbl(expected)
         End If
